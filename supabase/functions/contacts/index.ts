@@ -17,15 +17,22 @@ serve(async (req) => {
 
     const url = new URL(req.url)
     const pathSegments = url.pathname.split('/').filter(segment => segment && segment !== 'functions' && segment !== 'v1' && segment !== 'contacts')
-    const contactId = pathSegments[0]
+    let contactId = pathSegments[0]
+    
+    // Also check for id in query params (for compatibility)
+    const queryId = url.searchParams.get('id')
     
     if (req.method === 'GET') {
-      if (!contactId) {
+      // Check if this is a single contact request
+      if (queryId && !contactId) {
+        // GET /contacts?id=xxx - Single contact (query param style)
+        return await handleSingleContact(supabaseClient, queryId, url)
+      } else if (contactId) {
+        // GET /contacts/:id - Single contact (path style)
+        return await handleSingleContact(supabaseClient, contactId, url)
+      } else {
         // GET /contacts - List contacts
         return await handleContactsList(supabaseClient, url)
-      } else {
-        // GET /contacts/:id - Single contact
-        return await handleSingleContact(supabaseClient, contactId)
       }
     } else if (req.method === 'POST') {
       // POST /contacts - Create contact
@@ -77,31 +84,7 @@ async function handleContactsList(supabaseClient: any, url: URL) {
 
     let query = supabaseClient
       .from('contacts')
-      .select(`
-        id,
-        first_name,
-        last_name,
-        full_name,
-        email,
-        phone,
-        title,
-        company_id,
-        owner_id,
-        linkedin_url,
-        notes,
-        created_at,
-        updated_at
-        ${includeCompany ? `,
-        companies:companies(
-          id,
-          name,
-          domain,
-          size,
-          industry,
-          website
-        )
-        ` : ''}
-      `)
+      .select('*', { count: 'exact' })
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false })
 
@@ -122,8 +105,36 @@ async function handleContactsList(supabaseClient: any, url: URL) {
       throw error
     }
 
+    // If includeCompany is true, fetch companies for all contacts
+    let enrichedContacts = contacts
+    if (includeCompany && contacts && contacts.length > 0) {
+      // Get unique company IDs
+      const companyIds = [...new Set(contacts
+        .filter(c => c.company_id)
+        .map(c => c.company_id))]
+      
+      if (companyIds.length > 0) {
+        // Fetch all companies at once
+        const { data: companies, error: companiesError } = await supabaseClient
+          .from('companies')
+          .select('*')
+          .in('id', companyIds)
+        
+        if (!companiesError && companies) {
+          // Create a map for quick lookup
+          const companiesMap = new Map(companies.map(c => [c.id, c]))
+          
+          // Enrich contacts with company data
+          enrichedContacts = contacts.map(contact => ({
+            ...contact,
+            company: contact.company_id ? companiesMap.get(contact.company_id) : undefined
+          }))
+        }
+      }
+    }
+
     return new Response(JSON.stringify({
-      data: contacts,
+      data: enrichedContacts,
       count: count || 0,
       error: null
     }), {
@@ -143,21 +154,14 @@ async function handleContactsList(supabaseClient: any, url: URL) {
 }
 
 // Get single contact
-async function handleSingleContact(supabaseClient: any, contactId: string) {
+async function handleSingleContact(supabaseClient: any, contactId: string, url?: URL) {
   try {
+    const includeCompany = url?.searchParams.get('includeCompany') === 'true'
+    
+    // First get the contact
     const { data: contact, error } = await supabaseClient
       .from('contacts')
-      .select(`
-        *,
-        companies:companies(
-          id,
-          name,
-          domain,
-          size,
-          industry,
-          website
-        )
-      `)
+      .select('*')
       .eq('id', contactId)
       .single()
 
@@ -170,6 +174,20 @@ async function handleSingleContact(supabaseClient: any, contactId: string) {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
+    }
+
+    // If includeCompany is true and contact has company_id, fetch the company
+    if (includeCompany && contact.company_id) {
+      const { data: company, error: companyError } = await supabaseClient
+        .from('companies')
+        .select('*')
+        .eq('id', contact.company_id)
+        .single()
+      
+      if (!companyError && company) {
+        // Add company data (using 'company' key as per updated frontend)
+        contact.company = company
+      }
     }
 
     return new Response(JSON.stringify({

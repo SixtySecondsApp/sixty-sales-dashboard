@@ -18,8 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useRoadmap, RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 import { useUser } from '@/lib/hooks/useUser';
-import { SuggestionForm } from '@/components/roadmap/SuggestionForm';
-import { RoadmapKanban } from '@/components/roadmap/RoadmapKanban';
+import { RoadmapKanban, RoadmapKanbanHandle } from '@/components/roadmap/RoadmapKanban';
 
 interface StatCardProps {
   title: string;
@@ -172,7 +171,15 @@ export default function Roadmap() {
           </div>
           
           <div className="flex items-center gap-3">
-            <SuggestionForm />
+            <Button
+              onClick={() => {
+                roadmapKanbanRef.current?.openSuggestionForm();
+              }}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+            >
+              <Plus className="w-4 h-4" />
+              Submit Feature Request
+            </Button>
           </div>
         </div>
 

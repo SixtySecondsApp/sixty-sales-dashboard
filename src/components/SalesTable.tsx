@@ -45,6 +45,7 @@ import { EditActivityForm } from './EditActivityForm';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { ActivityUploadModal } from './admin/ActivityUploadModal'; // Import the new modal
 import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
+import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
 // ActivityFilters component created inline to avoid import issues
 
 // Define type for date range presets
@@ -216,9 +217,15 @@ export function SalesTable() {
 
   // Calculate stats for the CURRENT period including meeting -> proposal rate
   const currentStats = useMemo(() => {
+    // Calculate total revenue including LTV
     const totalRevenue = filteredActivities
       .filter(a => a.type === 'sale')
-      .reduce((sum, a) => sum + (a.amount || 0), 0);
+      .reduce((sum, a) => {
+        const ltvValue = a.deals ? calculateLTVValue(a.deals, a.amount) : 0;
+        // Use LTV if available and greater than amount, otherwise use amount
+        const value = ltvValue > (a.amount || 0) ? ltvValue : (a.amount || 0);
+        return sum + value;
+      }, 0);
     const activeDeals = filteredActivities
       .filter(a => a.type === 'sale' && a.status === 'completed').length; // Only count completed sales as won deals
     const salesActivities = filteredActivities.filter(a => a.type === 'sale').length;
@@ -244,7 +251,11 @@ export function SalesTable() {
   const previousStats = useMemo(() => {
     const totalRevenue = previousPeriodActivities
       .filter(a => a.type === 'sale')
-      .reduce((sum, a) => sum + (a.amount || 0), 0);
+      .reduce((sum, a) => {
+        const ltvValue = a.deals ? calculateLTVValue(a.deals, a.amount) : 0;
+        const value = ltvValue > (a.amount || 0) ? ltvValue : (a.amount || 0);
+        return sum + value;
+      }, 0);
     const activeDeals = previousPeriodActivities
       .filter(a => a.type === 'sale' && a.status === 'completed').length; // Only count completed sales as won deals
     const salesActivities = previousPeriodActivities.filter(a => a.type === 'sale').length;
@@ -423,9 +434,15 @@ export function SalesTable() {
                 </div>
                 <div className="text-[10px] text-gray-400">{format(new Date(activity.date), 'MMM d')}</div>
               </div>
-              {activity.amount && (
+              {(activity.amount || activity.deals) && (
                 <div className="ml-auto text-sm font-medium text-emerald-500">
-                  £{activity.amount.toLocaleString()}
+                  {formatActivityAmount(
+                    activity.amount, 
+                    activity.deals 
+                      ? calculateLTVValue(activity.deals, activity.amount) 
+                      : (activity.type === 'proposal' && activity.amount ? activity.amount : null),
+                    activity.type
+                  )}
                 </div>
               )}
             </div>
@@ -467,10 +484,18 @@ export function SalesTable() {
           if (!activity) return null;
           const amount = info.getValue() as number | undefined;
           const status = activity.status;
+          
+          // Calculate LTV if activity has a linked deal
+          // For proposals without deal data, use the amount as LTV
+          const ltvValue = activity.deals 
+            ? calculateLTVValue(activity.deals, amount) 
+            : (activity.type === 'proposal' && amount ? amount : null);
+          const displayAmount = formatActivityAmount(amount, ltvValue, activity.type);
+          
           return (
             <div className="font-medium">
               <div className="text-sm sm:text-base text-white">
-                {amount ? `£${Number(amount).toLocaleString()}` : '-'}
+                {displayAmount}
               </div>
               <div className={`text-[10px] sm:text-xs capitalize ${
                 status === 'no_show' 
@@ -483,6 +508,11 @@ export function SalesTable() {
               }`}>
                 {status === 'no_show' ? 'No Show' : status || 'Unknown'}
               </div>
+              {activity.deals && (
+                <div className="text-[10px] text-blue-400 truncate" title={activity.deals.name}>
+                  🔗 {activity.deals.name}
+                </div>
+              )}
             </div>
           );
         },

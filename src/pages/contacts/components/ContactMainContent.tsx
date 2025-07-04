@@ -270,8 +270,8 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
                 <p>Hope you're doing well! I wanted to follow up on our recent discussions about {
                   tasks.length > 0 ? 'the opportunities we discussed' : 'potential collaboration'
                 }.</p>
-                {contact.companies && (
-                  <p>I believe our solutions could be a great fit for {contact.companies.name}'s needs.</p>
+                {contact.company && (
+                  <p>I believe our solutions could be a great fit for {contact.company.name}'s needs.</p>
                 )}
                 <p>Would you have time for a brief call this week to discuss next steps?</p>
                 <p><strong>Best regards,<br />Your Sales Team</strong></p>
@@ -303,7 +303,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
           contactId={contact.id}
           contactName={`${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.email}
           contactEmail={contact.email}
-          company={contact.companies?.name || ''}
+          company={contact.company?.name || ''}
           onTaskCreated={handleTaskCreated}
         />
       </div>
@@ -340,7 +340,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
         contactId={contact.id}
         contactName={`${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.email}
         contactEmail={contact.email}
-        company={contact.companies?.name || ''}
+        company={contact.company?.name || ''}
         onTaskCreated={handleTaskCreated}
       />
     </div>

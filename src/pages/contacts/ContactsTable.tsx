@@ -41,7 +41,7 @@ interface Contact {
   last_name?: string | null;
   email: string;
   phone?: string | null;
-  company?: string; // This is a text field, not a foreign key
+  company_name?: string; // This is a text field, not a foreign key
   created_at: string;
   updated_at: string;
   // Optional fields that may not exist in database
@@ -53,7 +53,7 @@ interface Contact {
   notes?: string;
   is_primary?: boolean;
   // Company relationship (only available when Edge Functions work)
-  companies?: {
+  company?: {
     id: string;
     name: string;
     domain?: string;
@@ -123,7 +123,7 @@ export default function ContactsTable() {
           const processedContacts = serviceContactsData?.map((contact: any) => ({
             ...contact,
             is_primary: contact.is_primary || false,
-            companies: contact.company ? { name: contact.company } : null // Use company text field
+            company: contact.company_name ? { name: contact.company_name } : null // Use company text field
           })) || [];
           
           setContacts(processedContacts);
@@ -202,7 +202,7 @@ export default function ContactsTable() {
           const processedContacts = serviceContactsData?.map((contact: any) => ({
             ...contact,
             is_primary: contact.is_primary || false,
-            companies: null
+            company: null
           })) || [];
           
           setContacts(processedContacts);
@@ -215,7 +215,7 @@ export default function ContactsTable() {
         const processedContacts = contactsData?.map((contact: any) => ({
           ...contact,
           is_primary: contact.is_primary || false,
-          companies: contact.company ? { name: contact.company } : null // Use company text field
+          company: contact.company_name ? { name: contact.company_name } : null // Use company text field
         })) || [];
 
         setContacts(processedContacts);
@@ -245,7 +245,7 @@ export default function ContactsTable() {
   // Filter and sort contacts
   const filteredAndSortedContacts = useMemo(() => {
     let filtered = contacts.filter(contact => {
-      const companyName = contact.company || contact.companies?.name;
+      const companyName = contact.company_name || contact.company?.name;
       const matchesCompany = companyFilter === 'all' || (companyName === companyFilter);
       const matchesPrimary = primaryFilter === 'all' || 
         (primaryFilter === 'primary' ? contact.is_primary : !contact.is_primary);
@@ -259,8 +259,8 @@ export default function ContactsTable() {
 
       switch (sortField) {
         case 'company_name':
-          aValue = a.companies?.name || '';
-          bValue = b.companies?.name || '';
+          aValue = a.company?.name || '';
+          bValue = b.company?.name || '';
           break;
         default:
           aValue = a[sortField];
@@ -285,8 +285,8 @@ export default function ContactsTable() {
 
   // Get unique values for filters
   const uniqueCompanies = [...new Set(contacts
-    .filter(c => c.company || c.companies?.name) // Check both company text field and companies relationship
-    .map(c => c.company || c.companies?.name)
+    .filter(c => c.company_name || c.company?.name) // Check both company text field and company relationship
+    .map(c => c.company_name || c.company?.name)
     .filter(Boolean)
   )];
 
@@ -343,7 +343,7 @@ export default function ContactsTable() {
         `"${contact.email || ''}"`,
         `"${contact.phone || ''}"`,
         `"${contact.title || ''}"`,
-        `"${contact.company || contact.companies?.name || ''}"`,
+        `"${contact.company_name || contact.company?.name || ''}"`,
         contact.is_primary ? 'Yes' : 'No',
         new Date(contact.created_at).toLocaleDateString()
       ].join(','))
@@ -569,13 +569,13 @@ export default function ContactsTable() {
                   )}
                 </TableCell>
                 <TableCell>
-                  {contact.companies && (
+                  {contact.company && (
                     <div className="flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-300">{contact.companies.name}</span>
-                      {contact.companies.website && (
+                      <span className="text-gray-300">{contact.company.name}</span>
+                      {contact.company.website && (
                         <a
-                          href={contact.companies.website}
+                          href={contact.company.website}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-400 hover:text-blue-300"

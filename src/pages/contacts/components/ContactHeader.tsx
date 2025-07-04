@@ -56,8 +56,8 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
                   <span className="text-gray-600">•</span>
                 </>
               )}
-              {contact.companies && (
-                <span className="text-lg">{contact.companies.name}</span>
+              {contact.company && (
+                <span className="text-lg">{contact.company.name}</span>
               )}
             </div>
             <div className="flex gap-2">

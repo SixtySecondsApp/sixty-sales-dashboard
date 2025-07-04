@@ -1,5 +1,6 @@
 import type { Contact } from '@/lib/database/models';
 import { API_BASE_URL } from '@/lib/config';
+import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 
 export class ApiContactService {
   
@@ -23,7 +24,10 @@ export class ApiContactService {
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.ownerId) params.append('ownerId', options.ownerId);
 
-      const response = await fetch(`${API_BASE_URL}/contacts?${params}`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?${params}`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -51,7 +55,10 @@ export class ApiContactService {
       params.append('id', id);
       params.append('includeCompany', includeRelationships.toString());
       
-      const response = await fetch(`${API_BASE_URL}/contacts?${params}`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?${params}`, {
+        headers
+      });
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -98,9 +105,11 @@ export class ApiContactService {
    */
   static async createContact(contactData: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'full_name'>) {
     try {
+      const headers = await getSupabaseHeaders();
       const response = await fetch(`${API_BASE_URL}/contacts`, {
         method: 'POST',
         headers: {
+          ...headers,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(contactData),
@@ -128,9 +137,11 @@ export class ApiContactService {
    */
   static async updateContact(id: string, updates: Partial<Contact>) {
     try {
+      const headers = await getSupabaseHeaders();
       const response = await fetch(`${API_BASE_URL}/contacts?id=${id}`, {
         method: 'PATCH',
         headers: {
+          ...headers,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
@@ -158,8 +169,10 @@ export class ApiContactService {
    */
   static async deleteContact(id: string) {
     try {
+      const headers = await getSupabaseHeaders();
       const response = await fetch(`${API_BASE_URL}/contacts?id=${id}`, {
         method: 'DELETE',
+        headers
       });
 
       if (!response.ok) {
@@ -209,7 +222,10 @@ export class ApiContactService {
    */
   static async getContactStats(contactId: string) {
     try {
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&stats=true`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&stats=true`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -298,7 +314,10 @@ export class ApiContactService {
    */
   static async getContactDeals(contactId: string) {
     try {
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&deals=true`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&deals=true`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -322,7 +341,10 @@ export class ApiContactService {
    */
   static async getContactActivities(contactId: string, limit = 10) {
     try {
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&activities=true&limit=${limit}`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&activities=true&limit=${limit}`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -346,7 +368,10 @@ export class ApiContactService {
    */
   static async getContactOwner(contactId: string) {
     try {
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&owner=true`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&owner=true`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -370,7 +395,10 @@ export class ApiContactService {
    */
   static async getContactTasks(contactId: string) {
     try {
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&tasks=true`);
+      const headers = await getSupabaseHeaders();
+      const response = await fetch(`${API_BASE_URL}/contacts?id=${contactId}&tasks=true`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

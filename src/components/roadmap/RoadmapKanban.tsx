@@ -23,6 +23,7 @@ import { RoadmapColumn } from './RoadmapColumn';
 import { SuggestionCard } from './SuggestionCard';
 import { SuggestionForm } from './SuggestionForm';
 import { RoadmapTable } from './RoadmapTable';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -31,29 +32,6 @@ import { ConfettiService } from '@/lib/services/confettiService';
 
 
 
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-}
-
-function Modal({ isOpen, onClose, children }: ModalProps) {
-  if (!isOpen) return null;
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function RoadmapSkeleton() {
   return (
@@ -96,7 +74,7 @@ function RoadmapSkeleton() {
 
 // --- DRAG AND DROP IMPROVEMENTS ---
 
-function RoadmapContent() {
+const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   const {
     suggestions,
     statuses,
@@ -132,6 +110,11 @@ function RoadmapContent() {
 
   // State for the edit modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Expose method to parent component
+  React.useImperativeHandle(ref, () => ({
+    openSuggestionForm: () => handleAddSuggestionClick(null)
+  }), []);
 
   // Update local state when the context data changes
   useEffect(() => {
@@ -496,35 +479,40 @@ function RoadmapContent() {
         />
       )}
 
-      <Modal
-        isOpen={showSuggestionForm || isEditModalOpen}
-        onClose={() => {
-          setShowSuggestionForm(false);
-          setIsEditModalOpen(false);
-        }}
-      >
-        <SuggestionForm
-          key={selectedSuggestion?.id || initialStatusId || 'new-suggestion'}
-          suggestion={selectedSuggestion}
-          onSave={handleSaveSuggestion}
-          onCancel={() => {
-            setShowSuggestionForm(false);
-            setIsEditModalOpen(false);
-            setSelectedSuggestion(null);
-            setInitialStatusId(null);
-          }}
-          onDelete={selectedSuggestion ? handleDeleteSuggestion : undefined}
-          initialStatusId={initialStatusId}
-        />
-      </Modal>
+      {/* Centered modal for suggestion form */}
+      {(showSuggestionForm || isEditModalOpen) && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto">
+            <SuggestionForm
+              key={selectedSuggestion?.id || initialStatusId || 'new-suggestion'}
+              suggestion={selectedSuggestion}
+              onSave={handleSaveSuggestion}
+              onCancel={() => {
+                setShowSuggestionForm(false);
+                setIsEditModalOpen(false);
+                setSelectedSuggestion(null);
+                setInitialStatusId(null);
+              }}
+              onDelete={selectedSuggestion ? handleDeleteSuggestion : undefined}
+              initialStatusId={initialStatusId}
+            />
+          </div>
+        </div>
+      )}
     </>
   );
+});
+RoadmapContent.displayName = 'RoadmapContent';
+
+export interface RoadmapKanbanHandle {
+  openSuggestionForm: () => void;
 }
 
-export function RoadmapKanban() {
+export const RoadmapKanban = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   return (
     <RoadmapProvider>
-      <RoadmapContent />
+      <RoadmapContent ref={ref} />
     </RoadmapProvider>
   );
-}
+});
+RoadmapKanban.displayName = 'RoadmapKanban';

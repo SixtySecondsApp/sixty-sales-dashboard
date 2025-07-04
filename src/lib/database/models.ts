@@ -48,11 +48,8 @@ export interface Contact {
   created_at: string;
   updated_at: string;
   
-  // Legacy field for backward compatibility
-  company?: string;
-  
   // Joined relations
-  companies?: Company;
+  company?: Company;
   deals?: Deal[];
   deal_contacts?: DealContact[];
   contact_preferences?: ContactPreference;
