@@ -392,6 +392,14 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   const handleDeleteSuggestion = async (suggestionId: string) => {
     try {
       await deleteSuggestion(suggestionId);
+      
+      // Close the modal and clear the selected suggestion if this was the deleted one
+      if (selectedSuggestion && selectedSuggestion.id === suggestionId) {
+        setIsEditModalOpen(false);
+        setSelectedSuggestion(null);
+        setInitialStatusId(null);
+      }
+      
       toast.success('Suggestion deleted');
     } catch (error) {
       toast.error('Failed to delete suggestion');
