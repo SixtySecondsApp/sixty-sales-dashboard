@@ -33,6 +33,8 @@ export const supabase: TypedSupabaseClient = (() => {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
+        // Enhanced debug mode for better error tracking
+        debug: false,
         storage: {
           getItem: (key: string) => {
             try {
