@@ -19,7 +19,7 @@ const generateDummyData = async () => {
   const salesRep = profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown';
   const activityTypes = ['sale', 'outbound', 'meeting', 'proposal'];
   const priorities = ['high', 'medium', 'low'];
-  const meetingTypes = ['Discovery Call', 'Product Demo', 'Follow-up'];
+  const meetingTypes = ['Discovery Call', 'Demo', 'Follow-up', 'Proposal'];
   const contactMethods = ['Phone', 'Email', 'LinkedIn'];
 
   // Generate activities for December 2024

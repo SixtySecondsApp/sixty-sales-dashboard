@@ -58,6 +58,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const stats = activitySummary || defaultStats;
 
   const getInitials = (name: string) => {
+    if (!name) return 'NA';
     const parts = name.split(' ');
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
@@ -171,15 +172,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Additional Info */}
           <div className="grid grid-cols-1 gap-3">
-            {contact.companies && (
+            {contact.company && (
               <div>
                 <p className="text-gray-400 text-xs uppercase tracking-wider mb-1">Company</p>
                 <div className="flex items-center gap-2">
                   <Building2 className="w-4 h-4 text-gray-400" />
-                  <span className="text-white">{contact.companies.name}</span>
-                  {contact.companies.website && (
+                  <span className="text-white">{contact.company.name}</span>
+                  {contact.company.website && (
                     <a
-                      href={contact.companies.website}
+                      href={contact.company.website}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-400 hover:text-blue-300"

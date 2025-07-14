@@ -44,14 +44,13 @@ const PipelineStageSection: React.FC<PipelineStageSectionProps> = ({
       ];
   
   const nextActionOptions = [
-    { value: '', label: 'Select next action' },
-    { value: 'demo', label: 'Schedule Demo' },
-    { value: 'proposal', label: 'Send Proposal' },
-    { value: 'follow-up', label: 'Follow-up Call' },
-    { value: 'quote', label: 'Send Quote' },
-    { value: 'contract', label: 'Send Contract' },
-    { value: 'meeting', label: 'Schedule Meeting' },
-    { value: 'none', label: 'No Action Needed' }
+    { value: 'demo', label: 'Schedule Demo', icon: '🎯', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+    { value: 'proposal', label: 'Send Proposal', icon: '📋', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+    { value: 'follow-up', label: 'Follow-up Call', icon: '📞', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+    { value: 'quote', label: 'Send Quote', icon: '💰', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+    { value: 'contract', label: 'Send Contract', icon: '📄', color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30' },
+    { value: 'meeting', label: 'Schedule Meeting', icon: '🤝', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+    { value: 'none', label: 'No Action', icon: '✅', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' }
   ];
   
   const handleStageChange = (stageId: string) => {
@@ -137,41 +136,56 @@ const PipelineStageSection: React.FC<PipelineStageSectionProps> = ({
         />
         
         <div className="mt-3">
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-              <Timer className="w-4 h-4" />
-            </div>
-            <select
-              id="nextAction"
-              value={state.nextAction}
-              onChange={(e) => updateField('nextAction', e.target.value)}
-              className="w-full appearance-none bg-gray-900/80 border border-gray-700 rounded-lg py-2.5 pl-10 pr-9
-                text-white focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 transition-colors"
-              aria-label="Select next action"
-            >
-              {nextActionOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none text-gray-500">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                width="16" 
-                height="16" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                aria-hidden="true"
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            {nextActionOptions.slice(0, 4).map((action) => (
+              <button
+                key={action.value}
+                type="button"
+                onClick={() => updateField('nextAction', action.value)}
+                className={`p-3 rounded-xl border transition-all ${
+                  state.nextAction === action.value
+                    ? `${action.color} ring-2 ring-opacity-50`
+                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                }`}
               >
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{action.icon}</span>
+                  <span className="text-xs font-medium">{action.label}</span>
+                </div>
+              </button>
+            ))}
           </div>
+          
+          <div className="grid grid-cols-3 gap-2">
+            {nextActionOptions.slice(4).map((action) => (
+              <button
+                key={action.value}
+                type="button"
+                onClick={() => updateField('nextAction', action.value)}
+                className={`p-3 rounded-xl border transition-all ${
+                  state.nextAction === action.value
+                    ? `${action.color} ring-2 ring-opacity-50`
+                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{action.icon}</span>
+                  <span className="text-xs font-medium">{action.label}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+          
+          {/* Clear Selection Button */}
+          {state.nextAction && (
+            <button
+              type="button"
+              onClick={() => updateField('nextAction', '')}
+              className="mt-2 w-full p-2 text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Clear Selection
+            </button>
+          )}
         </div>
       </div>
       

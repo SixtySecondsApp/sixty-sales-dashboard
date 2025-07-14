@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { useDeals } from '@/lib/hooks/useDeals';
 import { useDealStages } from '@/lib/hooks/useDealStages';
 import { useUser } from '@/lib/hooks/useUser';
+import { exportPipelineToCSV, getPipelineExportSummary, CSVExportOptions } from '@/lib/utils/csvExport';
+import { format } from 'date-fns';
 
 interface FilterOptions {
   minValue: number | null;
@@ -58,6 +60,8 @@ interface PipelineContextType {
   stageMetrics: StageMetric[];
   selectedOwnerId: string | undefined;
   setSelectedOwnerId: (ownerId: string | undefined) => void;
+  exportPipeline: (options?: CSVExportOptions) => Promise<void>;
+  getExportSummary: () => any;
 }
 
 export const PipelineContext = createContext<PipelineContextType | undefined>(undefined);
@@ -384,6 +388,41 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     return metrics;
   }, [dealsByStage, stages]);
   
+  // Export functionality
+  const exportPipeline = useCallback(async (options: CSVExportOptions = {}) => {
+    try {
+      // Get all filtered deals from dealsByStage
+      const filteredDeals = Object.values(dealsByStage).flat();
+      
+      if (filteredDeals.length === 0) {
+        throw new Error('No deals to export with current filters');
+      }
+      
+      // Generate filename with current filters applied
+      const timestamp = format(new Date(), 'yyyy-MM-dd-HHmm');
+      const ownerSuffix = selectedOwnerId ? '-filtered' : '-all-owners';
+      const defaultFilename = `pipeline-export-${timestamp}${ownerSuffix}.csv`;
+      
+      const exportOptions = {
+        filename: defaultFilename,
+        ...options
+      };
+      
+      await exportPipelineToCSV(filteredDeals, stages, exportOptions);
+      
+      // Optional: Show success message
+      console.log(`Successfully exported ${filteredDeals.length} deals to CSV`);
+    } catch (error) {
+      console.error('Failed to export pipeline:', error);
+      throw error;
+    }
+  }, [dealsByStage, stages, selectedOwnerId]);
+  
+  const getExportSummary = useCallback(() => {
+    const filteredDeals = Object.values(dealsByStage).flat();
+    return getPipelineExportSummary(filteredDeals, stages);
+  }, [dealsByStage, stages]);
+  
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
     deals,
@@ -406,7 +445,9 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     activePipelineValue,
     stageMetrics,
     selectedOwnerId,
-    setSelectedOwnerId
+    setSelectedOwnerId,
+    exportPipeline,
+    getExportSummary
   }), [
     deals, 
     stages, 
@@ -428,7 +469,9 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     activePipelineValue,
     stageMetrics,
     selectedOwnerId,
-    setSelectedOwnerId
+    setSelectedOwnerId,
+    exportPipeline,
+    getExportSummary
   ]);
   
   return (

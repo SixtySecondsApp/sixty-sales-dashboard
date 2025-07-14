@@ -24,6 +24,16 @@ export interface Activity {
   quantity?: number;
   contactIdentifier?: string;
   contactIdentifierType?: IdentifierType;
+  deal_id?: string;
+  deals?: {
+    id: string;
+    name: string;
+    value: number;
+    one_off_revenue?: number;
+    monthly_mrr?: number;
+    annual_value?: number;
+    stage_id: string;
+  };
 }
 
 async function fetchActivities() {
@@ -32,7 +42,18 @@ async function fetchActivities() {
 
   const { data, error } = await (supabase as any)
     .from('activities')
-    .select('*')
+    .select(`
+      *,
+      deals (
+        id,
+        name,
+        value,
+        one_off_revenue,
+        monthly_mrr,
+        annual_value,
+        stage_id
+      )
+    `)
     .eq('user_id', user.id)
     .order('date', { ascending: false });
 

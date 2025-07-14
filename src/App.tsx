@@ -14,6 +14,7 @@ import SalesFunnel from '@/pages/SalesFunnel';
 import Profile from '@/pages/Profile';
 import Users from '@/pages/admin/Users';
 import PipelineSettings from '@/pages/admin/PipelineSettings';
+import AuditLogs from '@/pages/admin/AuditLogs';
 import Login from '@/pages/auth/login';
 import Signup from '@/pages/auth/signup';
 import ForgotPassword from '@/pages/auth/forgot-password';
@@ -25,6 +26,7 @@ import ContactsTable from '@/pages/contacts/ContactsTable';
 import ContactRecord from '@/pages/contacts/ContactRecord';
 import DealRecord from '@/pages/deals/DealRecord';
 import TasksPage from '@/pages/TasksPage';
+import Roadmap from '@/pages/Roadmap';
 import TestFallback from '@/pages/TestFallback';
 
 const queryClient = new QueryClient({
@@ -78,8 +80,10 @@ function App() {
             <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
             <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
             <Route path="/activity-processing" element={<AppLayout><ActivityProcessingPage /></AppLayout>} />
+            <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
             <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
             <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
+            <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
             <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
           </Routes>
         </ProtectedRoute>

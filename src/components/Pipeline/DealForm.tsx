@@ -314,23 +314,36 @@ export function DealForm({
           <label className="block text-sm font-medium text-gray-400 mb-1">
             Pipeline Stage
           </label>
-          <select
-            name="stage_id"
-            value={formData.stage_id}
-            onChange={handleChange}
-            required
-            className="w-full p-2.5 bg-gray-900/80 border border-gray-700
-              rounded-lg text-white outline-none focus:border-violet-500/50
-              transition-colors appearance-none"
-            style={{ backgroundImage: "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236B7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E\")", backgroundPosition: "right 0.5rem center", backgroundRepeat: "no-repeat", backgroundSize: "1.5em 1.5em", paddingRight: "2.5rem" }}
-          >
-            <option value="">Select stage</option>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
             {stages && stages.map(stage => (
-              <option key={stage.id} value={stage.id}>
-                {stage.name}
-              </option>
+              <button
+                key={stage.id}
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, stage_id: stage.id }))}
+                className={`p-3 rounded-xl border transition-all ${
+                  formData.stage_id === stage.id
+                    ? 'bg-violet-500/20 border-violet-500/50 text-violet-300 ring-2 ring-violet-500/30'
+                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: stage.color || '#6366f1' }}
+                  />
+                  <span className="text-sm font-medium">{stage.name}</span>
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {stage.default_probability}% probability
+                </div>
+              </button>
             ))}
-          </select>
+          </div>
+          
+          {!formData.stage_id && (
+            <p className="text-red-400 text-sm mt-1">Please select a pipeline stage</p>
+          )}
         </div>
         
         {/* Close Date and Probability side by side */}

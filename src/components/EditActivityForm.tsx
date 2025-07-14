@@ -151,17 +151,31 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
         {/* Status Select */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-400">Status</label>
-          <select
-            name="status"
-            value={formData.status || 'completed'}
-            onChange={handleFormChange}
-            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent appearance-none"
-          >
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">No Show</option>
-          </select>
+          
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'completed', label: 'Completed', icon: '✅', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+              { value: 'pending', label: 'Scheduled', icon: '📅', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+              { value: 'cancelled', label: 'Cancelled', icon: '❌', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
+              { value: 'no_show', label: 'No Show', icon: '🚫', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' }
+            ].map((status) => (
+              <button
+                key={status.value}
+                type="button"
+                onClick={() => setFormData(prevData => ({ ...prevData, status: status.value as 'completed' | 'pending' | 'cancelled' | 'no_show' }))}
+                className={`p-3 rounded-xl border transition-all ${
+                  formData.status === status.value
+                    ? `${status.color} ring-2 ring-opacity-50`
+                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{status.icon}</span>
+                  <span className="text-sm font-medium">{status.label}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
         {/* Contact Identifier Inputs (Conditional) */}
         {formData.type !== 'outbound' && (

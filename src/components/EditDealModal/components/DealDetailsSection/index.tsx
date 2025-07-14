@@ -31,10 +31,10 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
   const { searchContacts } = useContacts();
   
   const priorityOptions = [
-    { value: 'low', label: 'Low Priority' },
-    { value: 'medium', label: 'Medium Priority' },
-    { value: 'high', label: 'High Priority' },
-    { value: 'critical', label: 'Critical Priority' }
+    { value: 'low', label: 'Low', icon: '🟢', color: 'bg-green-500/20 text-green-400 border-green-500/30', ringColor: 'ring-green-500/30' },
+    { value: 'medium', label: 'Medium', icon: '🟡', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', ringColor: 'ring-yellow-500/30' },
+    { value: 'high', label: 'High', icon: '🟠', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30', ringColor: 'ring-orange-500/30' },
+    { value: 'critical', label: 'Critical', icon: '🔴', color: 'bg-red-500/20 text-red-400 border-red-500/30', ringColor: 'ring-red-500/30' }
   ];
 
   // Lead source data and state
@@ -714,28 +714,31 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
               <h4 className="text-sm font-medium text-gray-300">Deal Priority</h4>
             </div>
             
-            <FormField
-              id="priority" 
-              label=""
-              error={errors?.priority?.message as string}
-            >
-              <SelectWithIcon
-                id="priority" 
-                icon={<Star className="w-4 h-4" />}
-                value={watch('priority') || ''}
-                {...register("priority")}
-              >
-                <option value="">Select Priority</option>
-                {priorityOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </SelectWithIcon>
-              {errors?.priority && (
-                <ErrorMessage id="priority-error">{errors.priority.message as string}</ErrorMessage>
-              )}
-            </FormField>
+            <input type="hidden" {...register("priority")} />
+            
+            <div className="grid grid-cols-2 gap-2">
+              {priorityOptions.map((priority) => (
+                <button
+                  key={priority.value}
+                  type="button"
+                  onClick={() => setValue('priority', priority.value, { shouldValidate: true })}
+                  className={`p-3 rounded-xl border transition-all ${
+                    watch('priority') === priority.value
+                      ? `${priority.color} ${priority.ringColor} ring-2`
+                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{priority.icon}</span>
+                    <span className="text-xs font-medium">{priority.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            {errors?.priority && (
+              <ErrorMessage id="priority-error">{errors.priority.message as string}</ErrorMessage>
+            )}
           </div>
         </div>
       </div>

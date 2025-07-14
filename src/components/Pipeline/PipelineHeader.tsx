@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2 } from 'lucide-react';
+import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download } from 'lucide-react';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { OwnerFilter } from '@/components/OwnerFilter';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,7 +31,9 @@ export function PipelineHeader({
     pipelineValue,
     weightedPipelineValue,
     activePipelineValue,
-    stages
+    stages,
+    exportPipeline,
+    getExportSummary
   } = usePipeline();
   
   const [showFilters, setShowFilters] = useState(false);
@@ -211,6 +213,26 @@ export function PipelineHeader({
     }
   };
 
+  const handleExportClick = async () => {
+    try {
+      await exportPipeline();
+      
+      // Optional: Show export summary
+      const summary = getExportSummary();
+      console.log('Export Summary:', {
+        totalDeals: summary.totalDeals,
+        totalValue: summary.totalValue,
+        weightedValue: summary.totalWeightedValue,
+        stages: Object.keys(summary.stageBreakdown)
+      });
+      
+      // You could show a toast notification here if you have a toast system
+    } catch (error) {
+      console.error('Export failed:', error);
+      // You could show an error toast here
+    }
+  };
+
   const tabs = [
     { id: 'basic', label: 'Basic', icon: Target },
     { id: 'advanced', label: 'Advanced', icon: Sliders },
@@ -230,6 +252,18 @@ export function PipelineHeader({
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Deal</span>
+          </button>
+
+          <button
+            onClick={handleExportClick}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg
+              bg-blue-500/10 text-blue-400 border border-blue-500/20
+              hover:bg-blue-500/20 transition-colors"
+            title="Export current pipeline view to CSV"
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
           </button>
           
           <button

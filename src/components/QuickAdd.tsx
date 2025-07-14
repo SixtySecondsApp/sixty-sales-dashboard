@@ -199,9 +199,15 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             : {})
         });
       } else if (selectedAction === 'sale') {
+        // Calculate total amount from oneOffRevenue and monthlyMrr
+        const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+        const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+        // Use LTV calculation: one-off + (monthly * 3)
+        const totalAmount = oneOff + (monthly * 3);
+        
         const saleData = {
           client_name: formData.client_name,
-          amount: parseFloat(formData.amount),
+          amount: totalAmount,
           details: formData.details || `${formData.saleType} Sale`,
           saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
           date: selectedDate.toISOString(),
@@ -210,11 +216,20 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         };
         await addSale(saleData);
       } else if (selectedAction) {
+        // Calculate total amount for proposals from oneOffRevenue and monthlyMrr
+        let proposalAmount;
+        if (selectedAction === 'proposal') {
+          const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+          const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+          // Use LTV calculation: one-off + (monthly * 3)
+          proposalAmount = oneOff + (monthly * 3);
+        }
+
         await addActivity({
           type: selectedAction as 'meeting' | 'proposal',
           client_name: formData.client_name || 'Unknown',
           details: formData.details,
-          amount: selectedAction === 'proposal' ? parseFloat(formData.amount) : undefined,
+          amount: selectedAction === 'proposal' ? proposalAmount : undefined,
           date: selectedDate.toISOString(),
           contactIdentifier: formData.contactIdentifier,
           contactIdentifierType: formData.contactIdentifierType,
@@ -739,12 +754,11 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         onChange={(e) => setFormData({...formData, details: e.target.value})}
                       >
                         <option value="">Select meeting type</option>
-                        <option value="Discovery Call">Discovery Call</option>
-                        <option value="Discovery Meeting">Discovery Meeting</option>
-                        <option value="Product Demo">Product Demo</option>
-                        <option value="Client Call">Client Call</option>
-                        <option value="Follow-up">Follow-up</option>
+                        <option value="Discovery">Discovery</option>
                         <option value="Demo">Demo</option>
+                        <option value="Follow-up">Follow-up</option>
+                        <option value="Proposal">Proposal</option>
+                        <option value="Client Call">Client Call</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>

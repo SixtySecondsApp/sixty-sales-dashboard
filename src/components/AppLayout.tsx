@@ -23,7 +23,9 @@ import {
   CheckSquare,
   MailWarning,
   MailCheck,
-  Building2
+  Building2,
+  Shield,
+  Map
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -77,6 +79,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: FileText, label: 'Activity Log', href: '/activity' },
     { icon: MailWarning, label: 'Activity Processing', href: '/activity-processing' },
     { icon: LineChart, label: 'Sales Funnel', href: '/funnel' },
+    { icon: Map, label: 'Roadmap', href: '/roadmap' },
     ...(userData?.is_admin ? [
       { 
         icon: UserCog, 
@@ -84,7 +87,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         href: '/admin/users',
         subItems: [
           { icon: UsersIcon, label: 'Users', href: '/admin/users' },
-          { icon: PanelLeft, label: 'Pipeline Settings', href: '/admin/pipeline-settings' }
+          { icon: PanelLeft, label: 'Pipeline Settings', href: '/admin/pipeline-settings' },
+          { icon: Shield, label: 'Audit Logs', href: '/admin/audit-logs' }
         ]
       }
     ] : []),

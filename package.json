@@ -11,7 +11,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate:merge-discovery": "node scripts/merge-discovery-types.js",
+    "migrate:rollback-discovery": "node scripts/rollback-discovery-merge.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -69,7 +71,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
     "concurrently": "^9.1.2",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "happy-dom": "^17.4.4",
     "jsdom": "^23.2.0",
     "postcss": "^8.4.33",

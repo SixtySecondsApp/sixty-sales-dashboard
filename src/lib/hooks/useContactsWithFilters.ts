@@ -16,7 +16,7 @@ export interface ContactWithFilters {
   created_at: string;
   updated_at: string;
   // Company relationship
-  companies?: {
+  company?: {
     id: string;
     name: string;
     domain: string;
