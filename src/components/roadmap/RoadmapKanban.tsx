@@ -341,6 +341,9 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       toIndex = localSuggestionsByStatus[toStatus].length;
     }
 
+    // Store the original state for rollback
+    const originalState = structuredClone(localSuggestionsByStatus);
+
     // Update localSuggestionsByStatus for final state
     setLocalSuggestionsByStatus(prev => {
       // Remove from old status
@@ -371,13 +374,31 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       if (toStatus === 'completed') {
         ConfettiService.celebrate();
       }
-      setTimeout(() => {
-        setRefreshKey(prev => prev + 1);
-      }, 100);
+      
+      // Force a complete refresh from the database to ensure consistency
+      setTimeout(async () => {
+        try {
+          await refreshSuggestions();
+          setRefreshKey(prev => prev + 1);
+        } catch (refreshError) {
+          console.error('Error refreshing suggestions after move:', refreshError);
+          toast.error('Warning: Data may be out of sync. Please refresh the page.');
+        }
+      }, 500);
     } catch (err) {
-      // Rollback UI on error
+      console.error('Error moving suggestion:', err);
+      // Rollback UI on error to original state
       toast.error('Failed to move suggestion. Please try again.');
-      setLocalSuggestionsByStatus(contextSuggestionsByStatus);
+      setLocalSuggestionsByStatus(originalState);
+      
+      // Also force refresh to ensure we're in sync with database
+      setTimeout(async () => {
+        try {
+          await refreshSuggestions();
+        } catch (refreshError) {
+          console.error('Error refreshing after rollback:', refreshError);
+        }
+      }, 100);
     }
 
     // Cleanup

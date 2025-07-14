@@ -251,7 +251,7 @@ export function useTasks(filters?: TaskFilters) {
         updates.completed_at = new Date().toISOString();
         updates.status = 'completed';
       } else if (updates.completed === false) {
-        updates.completed_at = undefined;
+        updates.completed_at = null;
         if (updates.status === 'completed') {
           updates.status = 'pending';
         }
@@ -308,7 +308,7 @@ export function useTasks(filters?: TaskFilters) {
     return updateTask(taskId, { 
       completed: false, 
       status: 'pending',
-      completed_at: undefined 
+      completed_at: null
     });
   }, [updateTask]);
 

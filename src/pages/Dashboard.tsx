@@ -447,7 +447,13 @@ export default function Dashboard() {
           if (!activity?.date) return false;
           const activityDate = new Date(activity.date);
           if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= selectedMonthRange.start && activityDate <= selectedMonthRange.end;
+          
+          // Ensure proper timezone handling by comparing dates at day level
+          const activityDateStr = activityDate.toISOString().split('T')[0];
+          const startDateStr = selectedMonthRange.start.toISOString().split('T')[0];
+          const endDateStr = selectedMonthRange.end.toISOString().split('T')[0];
+          
+          return activityDateStr >= startDateStr && activityDateStr <= endDateStr;
         } catch (error) {
           console.error('Error filtering activity:', error);
           return false;
@@ -477,7 +483,13 @@ export default function Dashboard() {
           if (!activity?.date) return false;
           const activityDate = new Date(activity.date);
           if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= prevMonthStart && activityDate <= prevMonthCutoff;
+          
+          // Use date string comparison for better timezone handling
+          const activityDateStr = activityDate.toISOString().split('T')[0];
+          const startDateStr = prevMonthStart.toISOString().split('T')[0];
+          const cutoffDateStr = prevMonthCutoff.toISOString().split('T')[0];
+          
+          return activityDateStr >= startDateStr && activityDateStr <= cutoffDateStr;
         } catch (error) {
           console.error('Error filtering previous month activity:', error);
           return false;
@@ -492,19 +504,32 @@ export default function Dashboard() {
   // Calculate metrics for selected month
   const metrics = useMemo(() => {
     try {
+      const safeActivities = selectedMonthActivities || [];
       return {
-        revenue: selectedMonthActivities
+        revenue: safeActivities
           .filter((a: any) => a.type === 'sale')
-          .reduce((sum: number, a: any) => sum + (a.amount || 0), 0),
-        outbound: selectedMonthActivities
+          .reduce((sum: number, a: any) => {
+            const amount = parseFloat(a.amount) || 0;
+            return sum + amount;
+          }, 0),
+        outbound: safeActivities
           .filter((a: any) => a.type === 'outbound')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        meetings: selectedMonthActivities
+          .reduce((sum: number, a: any) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
+        meetings: safeActivities
           .filter((a: any) => a.type === 'meeting')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        proposals: selectedMonthActivities
+          .reduce((sum: number, a: any) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
+        proposals: safeActivities
           .filter((a: any) => a.type === 'proposal')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0)
+          .reduce((sum: number, a: any) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0)
       };
     } catch (error) {
       console.error('Error calculating metrics:', error);
@@ -513,20 +538,40 @@ export default function Dashboard() {
   }, [selectedMonthActivities]);
 
   // Calculate metrics for previous month TO SAME DATE (for fair comparison)
-  const previousMetricsToDate = useMemo(() => ({
-    revenue: previousMonthToDateActivities
-      .filter(a => a.type === 'sale')
-      .reduce((sum, a) => sum + (a.amount || 0), 0),
-    outbound: previousMonthToDateActivities
-      .filter(a => a.type === 'outbound')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    meetings: previousMonthToDateActivities
-      .filter(a => a.type === 'meeting')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    proposals: previousMonthToDateActivities
-      .filter(a => a.type === 'proposal')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0)
-  }), [previousMonthToDateActivities]);
+  const previousMetricsToDate = useMemo(() => {
+    try {
+      const safeActivities = previousMonthToDateActivities || [];
+      return {
+        revenue: safeActivities
+          .filter(a => a.type === 'sale')
+          .reduce((sum, a) => {
+            const amount = parseFloat(a.amount) || 0;
+            return sum + amount;
+          }, 0),
+        outbound: safeActivities
+          .filter(a => a.type === 'outbound')
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
+        meetings: safeActivities
+          .filter(a => a.type === 'meeting')
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
+        proposals: safeActivities
+          .filter(a => a.type === 'proposal')
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0)
+      };
+    } catch (error) {
+      console.error('Error calculating previous metrics:', error);
+      return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
+    }
+  }, [previousMonthToDateActivities]);
 
   // Calculate previous month's complete total metrics (for the entire previous month)
   const previousMonthTotals = useMemo(() => {
@@ -541,7 +586,12 @@ export default function Dashboard() {
           if (!activity?.date) return false;
           const activityDate = new Date(activity.date);
           if (isNaN(activityDate.getTime())) return false;
-          return !isBefore(activityDate, prevMonthStart) && !isAfter(activityDate, prevMonthEnd);
+          
+          const activityDateStr = activityDate.toISOString().split('T')[0];
+          const startDateStr = prevMonthStart.toISOString().split('T')[0];
+          const endDateStr = prevMonthEnd.toISOString().split('T')[0];
+          
+          return activityDateStr >= startDateStr && activityDateStr <= endDateStr;
         } catch (error) {
           console.error('Error filtering previous month total activity:', error);
           return false;
@@ -552,16 +602,28 @@ export default function Dashboard() {
       return {
         revenue: fullPreviousMonthActivities
           .filter(a => a.type === 'sale')
-          .reduce((sum, a) => sum + (a.amount || 0), 0),
+          .reduce((sum, a) => {
+            const amount = parseFloat(a.amount) || 0;
+            return sum + amount;
+          }, 0),
         outbound: fullPreviousMonthActivities
           .filter(a => a.type === 'outbound')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
         meetings: fullPreviousMonthActivities
           .filter(a => a.type === 'meeting')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0),
         proposals: fullPreviousMonthActivities
           .filter(a => a.type === 'proposal')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0)
+          .reduce((sum, a) => {
+            const quantity = parseInt(a.quantity) || 1;
+            return sum + quantity;
+          }, 0)
       };
     } catch (error) {
       console.error('Error calculating previous month totals:', error);
@@ -571,8 +633,14 @@ export default function Dashboard() {
 
   // Calculate trends (comparing current month-to-date with previous month SAME DATE)
   const calculateTrend = (current: number, previous: number) => {
-    if (previous === 0) return 0;
-    return Math.round(((current - previous) / previous) * 100);
+    try {
+      if (previous === 0) return current > 0 ? 100 : 0;
+      const trend = Math.round(((current - previous) / previous) * 100);
+      return isNaN(trend) ? 0 : trend;
+    } catch (error) {
+      console.error('Error calculating trend:', error);
+      return 0;
+    }
   };
 
   const trends = useMemo(() => ({

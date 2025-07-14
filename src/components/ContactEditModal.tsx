@@ -207,7 +207,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
                 {...methods.register('email', { 
                   required: 'Email is required',
                   pattern: {
-                    value: /^\S+@\S+$/i,
+                    value: /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/,
                     message: 'Invalid email address'
                   }
                 })}
