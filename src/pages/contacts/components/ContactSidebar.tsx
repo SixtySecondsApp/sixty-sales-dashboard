@@ -58,6 +58,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const stats = activitySummary || defaultStats;
 
   const getInitials = (name: string) => {
+    if (!name) return 'NA';
     const parts = name.split(' ');
     if (parts.length >= 2) {
       return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
