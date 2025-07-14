@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Edit, MessageCircle, Phone, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import ContactEditModal from '@/components/ContactEditModal';
 import type { Contact } from '@/lib/database/models';
 
 interface ContactHeaderProps {
@@ -10,6 +11,7 @@ interface ContactHeaderProps {
 
 export function ContactHeader({ contact }: ContactHeaderProps) {
   const navigate = useNavigate();
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const getInitials = (contact: Contact) => {
     const firstName = contact.first_name || '';
@@ -73,7 +75,10 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
           </div>
         </div>
         <div className="btn-group">
-          <button className="btn-primary">
+          <button 
+            className="btn-primary"
+            onClick={() => setShowEditModal(true)}
+          >
             <Edit className="w-4 h-4" />
             <span>Edit Contact</span>
           </button>
@@ -87,6 +92,13 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
           </button>
         </div>
       </div>
+      
+      {/* Edit Contact Modal */}
+      <ContactEditModal
+        open={showEditModal}
+        setOpen={setShowEditModal}
+        contact={contact}
+      />
     </div>
   );
 } 
