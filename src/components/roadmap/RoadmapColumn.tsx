@@ -97,6 +97,7 @@ export function RoadmapColumn({
           ${isOver ? 'bg-gray-800/30 ring-1 ring-inset' : ''}
           scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent
           transition-all duration-150
+          ${suggestions.length === 0 ? 'min-h-[120px]' : ''}
         `}
         style={{
           position: 'relative',
@@ -111,6 +112,7 @@ export function RoadmapColumn({
           </div>
         )}
 
+        {/* Always render SortableContext even when empty to maintain drop target */}
         <SortableContext items={suggestionIds} strategy={verticalListSortingStrategy}>
           {suggestions.map((suggestion, index) => (
             <SuggestionCard

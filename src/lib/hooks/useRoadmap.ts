@@ -381,9 +381,26 @@ export function useRoadmap() {
           schema: 'public',
           table: 'roadmap_suggestions',
         },
-        () => {
-          // Refetch suggestions when there are changes
-          fetchSuggestions();
+        (payload) => {
+          // Only refetch if the change was made by another user
+          // This prevents refresh when the current user makes changes
+          if (payload.new && payload.new.updated_at) {
+            // Check if this update just happened (within last 2 seconds)
+            const updateTime = new Date(payload.new.updated_at).getTime();
+            const now = new Date().getTime();
+            const timeDiff = now - updateTime;
+            
+            // If update was very recent, it's likely from current user's drag operation
+            if (timeDiff > 2000) {
+              // Refetch suggestions when there are changes from other users
+              fetchSuggestions();
+            }
+          } else {
+            // For inserts and deletes, always refetch
+            if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
+              fetchSuggestions();
+            }
+          }
         }
       )
       .subscribe();
