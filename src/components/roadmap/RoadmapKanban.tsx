@@ -82,34 +82,16 @@ function RoadmapSkeleton() {
 
 // Custom collision detection that works better with empty columns
 const customCollisionDetection: CollisionDetection = (args) => {
-  const { droppableContainers, active, pointerCoordinates } = args;
-  
-  // First, check if we're over a column directly
-  if (pointerCoordinates) {
-    for (const [id, container] of droppableContainers) {
-      const { rect, data } = container;
-      if (data?.current?.type === 'column' && rect) {
-        const { left, top, width, height } = rect;
-        const { x, y } = pointerCoordinates;
-        
-        // Check if pointer is within column bounds
-        if (x >= left && x <= left + width && y >= top && y <= top + height) {
-          return [{ id }];
-        }
-      }
-    }
-  }
-  
-  // Try pointer within for more precise detection
-  const pointerCollisions = pointerWithin(args);
-  if (pointerCollisions.length > 0) {
-    return pointerCollisions;
-  }
-  
-  // Fallback to rect intersection for better empty area detection
+  // First try rect intersection which works well with empty areas
   const rectCollisions = rectIntersection(args);
   if (rectCollisions.length > 0) {
     return rectCollisions;
+  }
+  
+  // Then try pointer within for more precise detection
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
   }
   
   // Finally try closest center as last resort
