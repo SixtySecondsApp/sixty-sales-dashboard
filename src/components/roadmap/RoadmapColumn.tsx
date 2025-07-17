@@ -22,8 +22,12 @@ export function RoadmapColumn({
   onAddSuggestionClick
 }: RoadmapColumnProps) {
   // Set up droppable behavior
-  const { setNodeRef, isOver } = useDroppable({
-    id: status.id
+  const { setNodeRef, isOver, active } = useDroppable({
+    id: status.id,
+    data: {
+      type: 'column',
+      statusId: status.id
+    }
   });
 
   // Get suggestion IDs for sortable context
@@ -92,36 +96,42 @@ export function RoadmapColumn({
       {/* Droppable Suggestion Container */}
       <div
         ref={setNodeRef}
+        data-droppable-id={status.id}
+        data-column-status={status.id}
         className={`
           flex-1 overflow-y-auto p-4 space-y-3
           ${isOver ? 'bg-gray-800/30 ring-1 ring-inset' : ''}
           scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent
           transition-all duration-150
-          ${suggestions.length === 0 ? 'min-h-[120px]' : ''}
         `}
         style={{
           position: 'relative',
           zIndex: 1,
+          minHeight: suggestions.length === 0 ? '200px' : 'auto',
           ...(isOver ? { '--ring-color': `${status.color}40` } as any : {})
         }}
       >
-        {/* Empty state when no suggestions */}
-        {suggestions.length === 0 && !isOver && (
-          <div className="text-gray-500 text-center text-sm h-20 flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg">
-            Drop suggestions here
-          </div>
-        )}
-
-        {/* Always render SortableContext even when empty to maintain drop target */}
-        <SortableContext items={suggestionIds} strategy={verticalListSortingStrategy}>
-          {suggestions.map((suggestion, index) => (
-            <SuggestionCard
-              key={suggestion.id}
-              suggestion={suggestion}
-              index={index}
-              onClick={onSuggestionClick}
-            />
-          ))}
+        {/* Always render SortableContext to maintain drop target */}
+        <SortableContext items={suggestionIds || []} strategy={verticalListSortingStrategy}>
+          {suggestions.length === 0 ? (
+            // Empty state that's still droppable
+            <div 
+              className="text-gray-500 text-center text-sm flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg"
+              style={{ height: '120px' }}
+            >
+              {isOver ? 'Drop here' : 'Drop suggestions here'}
+            </div>
+          ) : (
+            // Render suggestions
+            suggestions.map((suggestion, index) => (
+              <SuggestionCard
+                key={suggestion.id}
+                suggestion={suggestion}
+                index={index}
+                onClick={onSuggestionClick}
+              />
+            ))
+          )}
         </SortableContext>
 
         {/* Add Suggestion Button */}

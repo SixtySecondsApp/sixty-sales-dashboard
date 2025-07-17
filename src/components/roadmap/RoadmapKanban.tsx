@@ -242,7 +242,11 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
   // Find the statusId for a given suggestionId or statusId
   const findStatusForId = (id: string): string | undefined => {
+    // Check if it's a status ID directly
+    if (statuses.some(s => s.id === id)) return id;
+    // Check if it's in the local suggestions mapping
     if (id in localSuggestionsByStatus) return id;
+    // Otherwise find which status contains this suggestion
     return Object.keys(localSuggestionsByStatus).find(statusId =>
       localSuggestionsByStatus[statusId].some(suggestion => suggestion.id === id)
     );
@@ -284,11 +288,10 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     const fromStatus = findStatusForId(activeId);
     let toStatus = findStatusForId(overId);
 
-    // If overId is a statusId (column), use it directly
-    if (!toStatus && statuses.find(s => s.id === overId)) {
-      toStatus = overId;
+    if (!fromStatus || !toStatus) {
+      console.log('Drag over - no valid status found', { activeId, overId, fromStatus, toStatus });
+      return;
     }
-    if (!fromStatus || !toStatus) return;
 
     // If dropped on the same status and same position, do nothing
     if (fromStatus === toStatus && overId === activeId) return;
