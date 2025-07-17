@@ -28,7 +28,8 @@ export default async function handler(request, response) {
             FROM contacts 
             WHERE company_id IS NOT NULL
             GROUP BY company_id
-          ) contact_counts ON c.id = contact_counts.company_id
+          ) contact_counts ON c.id = contact_counts.company_idnpm run dev
+           
           LEFT JOIN (
             SELECT company_id, COUNT(*) as deal_count, COALESCE(SUM(value), 0) as deal_value
             FROM deals 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Map,
@@ -19,6 +19,8 @@ import { Button } from '@/components/ui/button';
 import { useRoadmap, RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 import { useUser } from '@/lib/hooks/useUser';
 import { RoadmapKanban, RoadmapKanbanHandle } from '@/components/roadmap/RoadmapKanban';
+import { SearchInput } from '@/components/SearchInput';
+import { useSearch } from '@/hooks/useSearch';
 
 interface StatCardProps {
   title: string;
@@ -86,37 +88,39 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) 
 export default function Roadmap() {
   const { suggestions, loading, error } = useRoadmap();
   const { userData } = useUser();
-  const [searchQuery, setSearchQuery] = useState('');
+  const { debouncedQuery, setQuery } = useSearch('', { debounceDelay: 300, minSearchLength: 0 });
   const [typeFilter, setTypeFilter] = useState<RoadmapSuggestion['type'] | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<RoadmapSuggestion['status'] | 'all'>('all');
 
   const isAdmin = userData?.is_admin || false;
 
-  // Filter suggestions based on search and filters
-  const filteredSuggestions = suggestions.filter(suggestion => {
-    const matchesSearch = !searchQuery || 
-      suggestion.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      suggestion.description.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesType = typeFilter === 'all' || suggestion.type === typeFilter;
-    const matchesStatus = statusFilter === 'all' || suggestion.status === statusFilter;
+  // Optimized filtering with useMemo to prevent unnecessary re-renders
+  const filteredSuggestions = useMemo(() => {
+    return suggestions.filter((suggestion: RoadmapSuggestion) => {
+      const matchesSearch = !debouncedQuery || 
+        suggestion.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        suggestion.description.toLowerCase().includes(debouncedQuery.toLowerCase());
+      
+      const matchesType = typeFilter === 'all' || suggestion.type === typeFilter;
+      const matchesStatus = statusFilter === 'all' || suggestion.status === statusFilter;
 
-    return matchesSearch && matchesType && matchesStatus;
-  });
+      return matchesSearch && matchesType && matchesStatus;
+    });
+  }, [suggestions, debouncedQuery, typeFilter, statusFilter]);
 
   // Calculate statistics
   const stats = {
     total: suggestions.length,
-    completed: suggestions.filter(s => s.status === 'completed').length,
-    inProgress: suggestions.filter(s => s.status === 'in_progress').length,
-    pending: suggestions.filter(s => s.status === 'submitted').length,
+    completed: suggestions.filter((s: RoadmapSuggestion) => s.status === 'completed').length,
+    inProgress: suggestions.filter((s: RoadmapSuggestion) => s.status === 'in_progress').length,
+    pending: suggestions.filter((s: RoadmapSuggestion) => s.status === 'submitted').length,
   };
 
   const typeStats = {
-    features: suggestions.filter(s => s.type === 'feature').length,
-    bugs: suggestions.filter(s => s.type === 'bug').length,
-    improvements: suggestions.filter(s => s.type === 'improvement').length,
-    other: suggestions.filter(s => s.type === 'other').length,
+    features: suggestions.filter((s: RoadmapSuggestion) => s.type === 'feature').length,
+    bugs: suggestions.filter((s: RoadmapSuggestion) => s.type === 'bug').length,
+    improvements: suggestions.filter((s: RoadmapSuggestion) => s.type === 'improvement').length,
+    other: suggestions.filter((s: RoadmapSuggestion) => s.type === 'other').length,
   };
 
   if (loading) {
@@ -257,14 +261,11 @@ export default function Roadmap() {
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
+          <div className="flex-1 max-w-md">
+            <SearchInput
+              onSearch={setQuery}
               placeholder="Search suggestions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full"
             />
           </div>
           
