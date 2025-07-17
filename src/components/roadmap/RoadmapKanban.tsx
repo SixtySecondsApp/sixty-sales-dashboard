@@ -4,6 +4,10 @@ import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCorners,
+  rectIntersection,
+  closestCenter,
+  pointerWithin,
+  getFirstCollision,
   PointerSensor,
   useSensor,
   useSensors,
@@ -12,6 +16,7 @@ import {
   MeasuringStrategy,
   DragOverEvent,
   DragStartEvent,
+  CollisionDetection,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -74,6 +79,42 @@ function RoadmapSkeleton() {
 }
 
 // --- DRAG AND DROP IMPROVEMENTS ---
+
+// Custom collision detection that works better with empty columns
+const customCollisionDetection: CollisionDetection = (args) => {
+  const { droppableContainers, active, pointerCoordinates } = args;
+  
+  // First, check if we're over a column directly
+  if (pointerCoordinates) {
+    for (const [id, container] of droppableContainers) {
+      const { rect, data } = container;
+      if (data?.current?.type === 'column' && rect) {
+        const { left, top, width, height } = rect;
+        const { x, y } = pointerCoordinates;
+        
+        // Check if pointer is within column bounds
+        if (x >= left && x <= left + width && y >= top && y <= top + height) {
+          return [{ id }];
+        }
+      }
+    }
+  }
+  
+  // Try pointer within for more precise detection
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
+  }
+  
+  // Fallback to rect intersection for better empty area detection
+  const rectCollisions = rectIntersection(args);
+  if (rectCollisions.length > 0) {
+    return rectCollisions;
+  }
+  
+  // Finally try closest center as last resort
+  return closestCenter(args);
+};
 
 const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   const {
@@ -243,13 +284,25 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   // Find the statusId for a given suggestionId or statusId
   const findStatusForId = (id: string): string | undefined => {
     // Check if it's a status ID directly
-    if (statuses.some(s => s.id === id)) return id;
+    if (statuses.some(s => s.id === id)) {
+      console.log(`Found status ID directly: ${id}`);
+      return id;
+    }
     // Check if it's in the local suggestions mapping
-    if (id in localSuggestionsByStatus) return id;
+    if (id in localSuggestionsByStatus) {
+      console.log(`Found in localSuggestionsByStatus: ${id}`);
+      return id;
+    }
     // Otherwise find which status contains this suggestion
-    return Object.keys(localSuggestionsByStatus).find(statusId =>
+    const foundStatus = Object.keys(localSuggestionsByStatus).find(statusId =>
       localSuggestionsByStatus[statusId].some(suggestion => suggestion.id === id)
     );
+    if (foundStatus) {
+      console.log(`Found suggestion ${id} in status ${foundStatus}`);
+    } else {
+      console.log(`Could not find status for ID: ${id}`);
+    }
+    return foundStatus;
   };
 
   // --- DND HANDLERS ---
@@ -288,8 +341,20 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     const fromStatus = findStatusForId(activeId);
     let toStatus = findStatusForId(overId);
 
+    // Check if overId is a status ID directly (empty column drop)
+    if (!toStatus && statuses.some(s => s.id === overId)) {
+      toStatus = overId;
+    }
+
     if (!fromStatus || !toStatus) {
-      console.log('Drag over - no valid status found', { activeId, overId, fromStatus, toStatus });
+      console.log('Drag over - status detection:', { 
+        activeId, 
+        overId, 
+        fromStatus, 
+        toStatus,
+        isOverIdAStatus: statuses.some(s => s.id === overId),
+        availableStatuses: statuses.map(s => s.id)
+      });
       return;
     }
 
@@ -298,8 +363,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
     // Find the index in the target status
     let toIndex = localSuggestionsByStatus[toStatus].findIndex(s => s.id === overId);
-    if (toIndex === -1 || overId === toStatus) {
-      // If dropped on the column itself or empty space, add to end
+    if (toIndex === -1) {
+      // If dropped on the column itself, empty space, or overId is the status ID, add to end
       toIndex = localSuggestionsByStatus[toStatus].length;
     }
 
@@ -348,13 +413,23 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     const activeId = String(active.id);
 
     // Determine the final status
-    let toStatus = over ? findStatusForId(String(over.id)) : null;
-    if (!toStatus && over && statuses.find(s => s.id === String(over.id))) {
-      toStatus = String(over.id);
+    let toStatus = null;
+    if (over) {
+      const overId = String(over.id);
+      // First check if it's a status ID (empty column)
+      if (statuses.find(s => s.id === overId)) {
+        toStatus = overId;
+      } else {
+        // Otherwise find which status contains this item
+        toStatus = findStatusForId(overId);
+      }
     }
+    
+    // Use last valid status as fallback
     if (!toStatus) {
       toStatus = lastValidOverStatusRef.current;
     }
+    
     const fromStatus = draggedFromStatus;
 
     // If no move, cleanup and return
@@ -472,7 +547,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
           <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={customCollisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}

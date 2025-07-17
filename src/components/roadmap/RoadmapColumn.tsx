@@ -31,7 +31,10 @@ export function RoadmapColumn({
   });
 
   // Get suggestion IDs for sortable context
-  const suggestionIds = suggestions.map(suggestion => String(suggestion.id));
+  // Always ensure we have at least an empty array for SortableContext
+  const suggestionIds = suggestions.length > 0 
+    ? suggestions.map(suggestion => String(suggestion.id))
+    : [];
 
   // Calculate total votes in this status
   const totalVotes = useMemo(() => {
@@ -100,26 +103,55 @@ export function RoadmapColumn({
         data-column-status={status.id}
         className={`
           flex-1 overflow-y-auto p-4 space-y-3
-          ${isOver ? 'bg-gray-800/30 ring-1 ring-inset' : ''}
+          ${isOver ? 'bg-gray-800/30 ring-2 ring-inset' : ''}
           scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent
           transition-all duration-150
         `}
         style={{
           position: 'relative',
           zIndex: 1,
-          minHeight: suggestions.length === 0 ? '200px' : 'auto',
-          ...(isOver ? { '--ring-color': `${status.color}40` } as any : {})
+          minHeight: '250px',
+          ...(isOver ? { 
+            '--ring-color': status.color,
+            borderColor: status.color,
+            backgroundColor: `${status.color}10`
+          } as any : {})
         }}
       >
         {/* Always render SortableContext to maintain drop target */}
-        <SortableContext items={suggestionIds || []} strategy={verticalListSortingStrategy}>
+        <SortableContext 
+          items={suggestions.length === 0 ? [`${status.id}-placeholder`] : suggestionIds} 
+          strategy={verticalListSortingStrategy}
+        >
           {suggestions.length === 0 ? (
             // Empty state that's still droppable
             <div 
-              className="text-gray-500 text-center text-sm flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg"
-              style={{ height: '120px' }}
+              className={`
+                text-gray-500 text-center text-sm flex flex-col items-center justify-center 
+                border-2 border-dashed rounded-lg transition-all duration-200
+                ${isOver 
+                  ? 'border-opacity-100 bg-gray-800/50 text-white' 
+                  : 'border-gray-800/50 hover:border-gray-700/70'
+                }
+              `}
+              style={{ 
+                minHeight: '200px',
+                borderColor: isOver ? status.color : undefined
+              }}
             >
-              {isOver ? 'Drop here' : 'Drop suggestions here'}
+              <div className="p-8">
+                {isOver ? (
+                  <>
+                    <div className="text-lg font-medium mb-2">Drop here</div>
+                    <div className="text-sm opacity-70">Release to add to {status.name}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-base mb-2">No suggestions yet</div>
+                    <div className="text-sm opacity-70">Drag suggestions here or click below to add</div>
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             // Render suggestions
