@@ -106,25 +106,34 @@ export function useRoadmap() {
       const userVoteIds = new Set((userVotes || []).map(v => v.suggestion_id));
 
       // Transform the data to include user's vote status and profile information
-      const transformedSuggestions = suggestions.map(suggestion => {
-        const submitterProfile = profiles.find(p => p.id === suggestion.submitted_by);
-        const assigneeProfile = profiles.find(p => p.id === suggestion.assigned_to);
-        
-        return {
-          ...suggestion,
-          hasUserVoted: userVoteIds.has(suggestion.id),
-          submitted_by_profile: submitterProfile ? {
-            id: submitterProfile.id,
-            full_name: `${submitterProfile.first_name || ''} ${submitterProfile.last_name || ''}`.trim() || 'Unknown User',
-            email: submitterProfile.email
-          } : null,
-          assigned_to_profile: assigneeProfile ? {
-            id: assigneeProfile.id,
-            full_name: `${assigneeProfile.first_name || ''} ${assigneeProfile.last_name || ''}`.trim() || 'Unknown User',
-            email: assigneeProfile.email
-          } : null
-        };
-      });
+      const transformedSuggestions = suggestions
+        .filter(suggestion => {
+          // Filter out suggestions with invalid IDs
+          if (!suggestion.id || typeof suggestion.id !== 'string' || suggestion.id.trim() === '') {
+            console.warn('Filtering out suggestion with invalid ID:', suggestion);
+            return false;
+          }
+          return true;
+        })
+        .map(suggestion => {
+          const submitterProfile = profiles.find(p => p.id === suggestion.submitted_by);
+          const assigneeProfile = profiles.find(p => p.id === suggestion.assigned_to);
+          
+          return {
+            ...suggestion,
+            hasUserVoted: userVoteIds.has(suggestion.id),
+            submitted_by_profile: submitterProfile ? {
+              id: submitterProfile.id,
+              full_name: `${submitterProfile.first_name || ''} ${submitterProfile.last_name || ''}`.trim() || 'Unknown User',
+              email: submitterProfile.email
+            } : null,
+            assigned_to_profile: assigneeProfile ? {
+              id: assigneeProfile.id,
+              full_name: `${assigneeProfile.first_name || ''} ${assigneeProfile.last_name || ''}`.trim() || 'Unknown User',
+              email: assigneeProfile.email
+            } : null
+          };
+        });
 
       setSuggestions(transformedSuggestions);
     } catch (err) {

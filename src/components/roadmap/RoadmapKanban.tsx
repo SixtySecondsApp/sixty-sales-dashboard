@@ -196,10 +196,18 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     let savedOrCreatedSuggestion = null;
 
     try {
-      if (selectedSuggestion && selectedSuggestion.id) {
+      console.log('handleSaveSuggestion called with:', {
+        selectedSuggestion,
+        formData,
+        hasId: selectedSuggestion?.id,
+        idValue: selectedSuggestion?.id
+      });
+
+      if (selectedSuggestion) {
         // Validate UUID before attempting update
-        if (!selectedSuggestion.id || selectedSuggestion.id.trim() === '') {
-          throw new Error('Invalid suggestion ID');
+        if (!selectedSuggestion.id || typeof selectedSuggestion.id !== 'string' || selectedSuggestion.id.trim() === '') {
+          console.error('Invalid suggestion ID:', selectedSuggestion);
+          throw new Error('Invalid suggestion ID - cannot update');
         }
         await updateSuggestion(selectedSuggestion.id, formData);
         success = true;

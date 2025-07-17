@@ -87,8 +87,14 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
           <tbody>
             {suggestions.map((suggestion) => (
               <tr
-                key={suggestion.id}
-                onClick={() => onSuggestionClick(suggestion)}
+                key={suggestion.id || `suggestion-${suggestions.indexOf(suggestion)}`}
+                onClick={() => {
+                  if (suggestion.id && suggestion.id.trim() !== '') {
+                    onSuggestionClick(suggestion);
+                  } else {
+                    console.error('Cannot edit suggestion with invalid ID:', suggestion);
+                  }
+                }}
                 className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors"
               >
                 <td className="p-4">
