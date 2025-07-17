@@ -197,21 +197,31 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
     try {
       console.log('handleSaveSuggestion called with:', {
-        selectedSuggestion,
+        selectedSuggestionId: selectedSuggestion?.id,
+        selectedSuggestionTitle: selectedSuggestion?.title,
         formData,
-        hasId: selectedSuggestion?.id,
-        idValue: selectedSuggestion?.id
+        hasId: !!selectedSuggestion?.id,
+        idType: typeof selectedSuggestion?.id,
+        idLength: selectedSuggestion?.id?.length,
+        idValue: JSON.stringify(selectedSuggestion?.id)
       });
 
-      if (selectedSuggestion) {
-        // Validate UUID before attempting update
-        if (!selectedSuggestion.id || typeof selectedSuggestion.id !== 'string' || selectedSuggestion.id.trim() === '') {
-          console.error('Invalid suggestion ID:', selectedSuggestion);
-          throw new Error('Invalid suggestion ID - cannot update');
-        }
-        await updateSuggestion(selectedSuggestion.id, formData);
+      // Check if we have a valid suggestion with proper ID
+      const hasValidId = selectedSuggestion && 
+                        selectedSuggestion.id && 
+                        typeof selectedSuggestion.id === 'string' && 
+                        selectedSuggestion.id.trim() !== '' &&
+                        selectedSuggestion.id.length >= 10; // UUIDs should be at least 36 chars
+
+      if (selectedSuggestion && hasValidId) {
+        // This is an update operation
+        const suggestionId = selectedSuggestion.id.trim();
+        console.log('Updating suggestion with ID:', suggestionId);
+        await updateSuggestion(suggestionId, formData);
         success = true;
-      } else {
+      } else if (!selectedSuggestion || !hasValidId) {
+        // This is a create operation (either no suggestion or invalid ID)
+        console.log('Creating new suggestion');
         savedOrCreatedSuggestion = await createSuggestion(formData);
         success = !!savedOrCreatedSuggestion;
       }

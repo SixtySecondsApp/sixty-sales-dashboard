@@ -14,6 +14,9 @@ interface SuggestionFormProps {
 export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initialStatusId }: SuggestionFormProps) {
   const { userData } = useUser();
   const isAdmin = userData?.is_admin || false;
+  
+  // Validate suggestion prop - if it has no ID or empty ID, treat as new suggestion
+  const validSuggestion = suggestion && suggestion.id && suggestion.id.trim() !== '' ? suggestion : null;
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -28,22 +31,22 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (suggestion) {
+    if (validSuggestion) {
       setFormData({
-        title: suggestion.title || '',
-        description: suggestion.description || '',
-        type: suggestion.type || 'feature',
-        priority: suggestion.priority || 'medium',
-        status: suggestion.status || 'submitted',
-        estimated_effort: suggestion.estimated_effort,
-        target_version: suggestion.target_version || '',
-        admin_notes: suggestion.admin_notes || '',
-        assigned_to: suggestion.assigned_to || '',
+        title: validSuggestion.title || '',
+        description: validSuggestion.description || '',
+        type: validSuggestion.type || 'feature',
+        priority: validSuggestion.priority || 'medium',
+        status: validSuggestion.status || 'submitted',
+        estimated_effort: validSuggestion.estimated_effort,
+        target_version: validSuggestion.target_version || '',
+        admin_notes: validSuggestion.admin_notes || '',
+        assigned_to: validSuggestion.assigned_to || '',
       });
     } else if (initialStatusId) {
       setFormData(prev => ({ ...prev, status: initialStatusId as any }));
     }
-  }, [suggestion, initialStatusId]);
+  }, [validSuggestion, initialStatusId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +69,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
       // Only include status for new suggestions or if admin
       if (isAdmin) {
         Object.assign(dataToSave, formData);
-      } else if (!suggestion && initialStatusId) {
+      } else if (!validSuggestion && initialStatusId) {
         dataToSave.status = initialStatusId;
       }
       
@@ -79,12 +82,12 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
   };
 
   const handleDelete = async () => {
-    if (!suggestion || !onDelete) return;
+    if (!validSuggestion || !onDelete) return;
     
     if (window.confirm('Are you sure you want to delete this suggestion?')) {
       try {
         setIsSubmitting(true);
-        await onDelete(suggestion.id);
+        await onDelete(validSuggestion.id);
       } catch (error) {
         console.error('Error deleting suggestion:', error);
       } finally {
@@ -127,7 +130,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-white">
-          {suggestion ? 'Edit Suggestion' : 'Submit a Feature Request or Bug Report'}
+          {validSuggestion ? 'Edit Suggestion' : 'Submit a Feature Request or Bug Report'}
         </h2>
         <button
           onClick={onCancel}
@@ -229,7 +232,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
           </div>
 
           {/* Admin-only fields */}
-          {isAdmin && suggestion && (
+          {isAdmin && validSuggestion && (
             <div className="space-y-4 border-t border-gray-800 pt-4">
               <h3 className="text-sm font-medium text-gray-300">Admin Controls</h3>
               
@@ -293,7 +296,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
           {/* Actions */}
           <div className="flex items-center justify-between pt-4">
             <div>
-              {suggestion && onDelete && isAdmin && (
+              {validSuggestion && onDelete && isAdmin && (
                 <button
                   type="button"
                   onClick={handleDelete}
@@ -319,7 +322,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
                 disabled={isSubmitting || !formData.title.trim() || !formData.description.trim()}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Saving...' : (suggestion ? 'Update Suggestion' : 'Submit Suggestion')}
+                {isSubmitting ? 'Saving...' : (validSuggestion ? 'Update Suggestion' : 'Submit Suggestion')}
               </button>
             </div>
           </div>
