@@ -37,6 +37,7 @@ export function useRoadmap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const { userData } = useUser();
 
   // Get session directly from Supabase
@@ -58,14 +59,17 @@ export function useRoadmap() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchSuggestions = async () => {
+  const fetchSuggestions = async (skipLoadingState = false) => {
     if (!session?.user?.id) {
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      // Only show loading skeleton on initial load
+      if (!skipLoadingState && isInitialLoad) {
+        setLoading(true);
+      }
       setError(null);
 
       // Get all roadmap suggestions
@@ -141,6 +145,7 @@ export function useRoadmap() {
       setError(err instanceof Error ? err.message : 'Failed to fetch suggestions');
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -198,7 +203,7 @@ export function useRoadmap() {
     return newSuggestion;
   };
 
-  const updateSuggestion = async (id: string, updates: Partial<RoadmapSuggestion>) => {
+  const updateSuggestion = async (id: string, updates: Partial<RoadmapSuggestion>, skipRefetch = false) => {
     if (!session?.user?.id) {
       throw new Error('No authentication token');
     }
@@ -259,8 +264,10 @@ export function useRoadmap() {
       throw new Error(error.message);
     }
 
-    // Refresh the suggestions to get updated profile info
-    await fetchSuggestions();
+    // Only refresh if not skipping (e.g., during drag operations)
+    if (!skipRefetch) {
+      await fetchSuggestions();
+    }
     return suggestion;
   };
 
@@ -372,42 +379,27 @@ export function useRoadmap() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    const channel = supabase
-      .channel('roadmap_suggestions_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'roadmap_suggestions',
-        },
-        (payload) => {
-          // Only refetch if the change was made by another user
-          // This prevents refresh when the current user makes changes
-          if (payload.new && payload.new.updated_at) {
-            // Check if this update just happened (within last 2 seconds)
-            const updateTime = new Date(payload.new.updated_at).getTime();
-            const now = new Date().getTime();
-            const timeDiff = now - updateTime;
-            
-            // If update was very recent, it's likely from current user's drag operation
-            if (timeDiff > 2000) {
-              // Refetch suggestions when there are changes from other users
-              fetchSuggestions();
-            }
-          } else {
-            // For inserts and deletes, always refetch
-            if (payload.eventType === 'INSERT' || payload.eventType === 'DELETE') {
-              fetchSuggestions();
-            }
-          }
-        }
-      )
-      .subscribe();
+    // Temporarily disable real-time subscription to prevent refresh issues
+    // TODO: Implement a better solution that tracks user actions
+    
+    // const channel = supabase
+    //   .channel('roadmap_suggestions_changes')
+    //   .on(
+    //     'postgres_changes',
+    //     {
+    //       event: '*',
+    //       schema: 'public',
+    //       table: 'roadmap_suggestions',
+    //     },
+    //     (payload) => {
+    //       fetchSuggestions(true);
+    //     }
+    //   )
+    //   .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // return () => {
+    //   supabase.removeChannel(channel);
+    // };
   }, [session?.user?.id]);
 
   return {

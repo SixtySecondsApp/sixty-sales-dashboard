@@ -18,7 +18,7 @@ interface RoadmapContextType {
   error: string | null;
   suggestionsByStatus: Record<string, RoadmapSuggestion[]>;
   createSuggestion: (data: any) => Promise<RoadmapSuggestion>;
-  updateSuggestion: (id: string, data: any) => Promise<any>;
+  updateSuggestion: (id: string, data: any, skipRefetch?: boolean) => Promise<any>;
   deleteSuggestion: (id: string) => Promise<void>;
   moveSuggestionToStatus: (suggestionId: string, statusId: string) => Promise<void>;
   voteForSuggestion: (suggestionId: string) => Promise<void>;
@@ -62,7 +62,8 @@ export function RoadmapProvider({ children }: { children: React.ReactNode }) {
 
   // Move suggestion to a different status
   const moveSuggestionToStatus = async (suggestionId: string, statusId: string) => {
-    await updateSuggestion(suggestionId, { status: statusId });
+    // Skip refetch during drag operations to prevent UI refresh
+    await updateSuggestion(suggestionId, { status: statusId }, true);
   };
 
   const value: RoadmapContextType = {
