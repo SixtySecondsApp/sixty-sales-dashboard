@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   closestCorners,
@@ -97,7 +98,6 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   const [initialStatusId, setInitialStatusId] = useState<string | null>(null);
   const [activeSuggestion, setActiveSuggestion] = useState<any>(null);
   const [sortBy, setSortBy] = useState<'votes' | 'date' | 'priority' | 'none'>('none');
-  const [refreshKey, setRefreshKey] = useState(0);
 
   // DnD state
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -173,7 +173,19 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   };
 
   const handleSuggestionClick = (suggestion: any) => {
+    if (!suggestion || !suggestion.id) {
+      console.error('Invalid suggestion clicked:', suggestion);
+      toast.error('Unable to open suggestion - invalid data');
+      return;
+    }
+    
     const foundSuggestion = suggestions.find(s => s.id === suggestion.id);
+    if (!foundSuggestion) {
+      console.error('Suggestion not found in list:', suggestion.id);
+      toast.error('Unable to find suggestion');
+      return;
+    }
+    
     setSelectedSuggestion(foundSuggestion);
     setIsEditModalOpen(true);
     setInitialStatusId(null);
@@ -184,7 +196,11 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     let savedOrCreatedSuggestion = null;
 
     try {
-      if (selectedSuggestion) {
+      if (selectedSuggestion && selectedSuggestion.id) {
+        // Validate UUID before attempting update
+        if (!selectedSuggestion.id || selectedSuggestion.id.trim() === '') {
+          throw new Error('Invalid suggestion ID');
+        }
         await updateSuggestion(selectedSuggestion.id, formData);
         success = true;
       } else {
@@ -198,7 +214,9 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
         toast.success(selectedSuggestion ? 'Suggestion updated' : 'Suggestion created');
       }
     } catch (error) {
-      toast.error('Failed to save suggestion');
+      console.error('Save error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save suggestion';
+      toast.error(errorMessage);
     }
   };
 
@@ -371,9 +389,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       if (toStatus === 'completed') {
         ConfettiService.celebrate();
       }
-      setTimeout(() => {
-        setRefreshKey(prev => prev + 1);
-      }, 100);
+      // Remove the refreshKey update to prevent unnecessary re-renders
+      // The real-time subscription will handle updates automatically
     } catch (err) {
       // Rollback UI on error
       toast.error('Failed to move suggestion. Please try again.');
@@ -433,7 +450,6 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
         <>
 
           <DndContext
-            key={`dnd-context-${refreshKey}`}
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
@@ -487,9 +503,9 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
         />
       )}
 
-      {/* Centered modal for suggestion form */}
-      {(showSuggestionForm || isEditModalOpen) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {/* Centered modal for suggestion form - rendered as portal to ensure full coverage */}
+      {(showSuggestionForm || isEditModalOpen) && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ margin: 0 }}>
           <div className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto">
             <SuggestionForm
               key={selectedSuggestion?.id || initialStatusId || 'new-suggestion'}
@@ -505,7 +521,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
               initialStatusId={initialStatusId}
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

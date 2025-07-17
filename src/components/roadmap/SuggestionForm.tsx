@@ -56,13 +56,19 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
       setIsSubmitting(true);
       
       // Only include fields that the user can update
-      const dataToSave = isAdmin ? formData : {
+      const dataToSave: any = {
         title: formData.title,
         description: formData.description,
         type: formData.type,
         priority: formData.priority,
-        status: initialStatusId || formData.status,
       };
+      
+      // Only include status for new suggestions or if admin
+      if (isAdmin) {
+        Object.assign(dataToSave, formData);
+      } else if (!suggestion && initialStatusId) {
+        dataToSave.status = initialStatusId;
+      }
       
       await onSave(dataToSave);
     } catch (error) {
@@ -236,7 +242,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
                     className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="submitted">Submitted</option>
-                    <option value="under_review">Under Review</option>
+                    <option value="under_review">Planned</option>
                     <option value="in_progress">In Progress</option>
                     <option value="testing">Testing</option>
                     <option value="completed">Completed</option>

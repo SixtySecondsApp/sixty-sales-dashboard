@@ -194,6 +194,10 @@ export function useRoadmap() {
       throw new Error('No authentication token');
     }
 
+    if (!id || id.trim() === '') {
+      throw new Error('Invalid suggestion ID provided');
+    }
+
     // Check permissions
     const { data: existingSuggestion } = await supabase
       .from('roadmap_suggestions')
