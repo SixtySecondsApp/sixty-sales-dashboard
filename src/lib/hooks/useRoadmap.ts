@@ -229,8 +229,14 @@ export function useRoadmap() {
     // Restrict fields that regular users can update
     let allowedUpdates: any = {};
     if (isAdmin) {
-      // Admins can update any field
-      allowedUpdates = updates;
+      // Admins can update any field, but clean up empty UUID fields
+      allowedUpdates = { ...updates };
+      
+      // Remove empty assigned_to field which expects a UUID
+      if (allowedUpdates.assigned_to === '' || allowedUpdates.assigned_to === null) {
+        delete allowedUpdates.assigned_to;
+      }
+      
       if (updates.status === 'completed' && !updates.completion_date) {
         allowedUpdates.completion_date = new Date().toISOString();
       }
@@ -239,6 +245,8 @@ export function useRoadmap() {
       const { title, description, type, priority } = updates;
       allowedUpdates = { title, description, type, priority };
     }
+    
+    console.log('Updating suggestion with allowedUpdates:', allowedUpdates);
 
     const { data: suggestion, error } = await supabase
       .from('roadmap_suggestions')

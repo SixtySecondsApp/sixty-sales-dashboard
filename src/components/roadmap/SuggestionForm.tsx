@@ -68,7 +68,13 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
       
       // Only include status for new suggestions or if admin
       if (isAdmin) {
+        // Include all form data but clean up empty UUID fields
         Object.assign(dataToSave, formData);
+        
+        // Remove empty assigned_to field to prevent UUID errors
+        if (!dataToSave.assigned_to || dataToSave.assigned_to.trim() === '') {
+          delete dataToSave.assigned_to;
+        }
       } else if (!validSuggestion && initialStatusId) {
         dataToSave.status = initialStatusId;
       }
