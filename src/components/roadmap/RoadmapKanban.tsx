@@ -363,8 +363,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
     // Find the index in the target status
     let toIndex = localSuggestionsByStatus[toStatus].findIndex(s => s.id === overId);
-    if (toIndex === -1) {
-      // If dropped on the column itself, empty space, or overId is the status ID, add to end
+    if (toIndex === -1 || overId === toStatus || overId.endsWith('-placeholder')) {
+      // If dropped on the column itself, empty space, placeholder, or overId is the status ID, add to end
       toIndex = localSuggestionsByStatus[toStatus].length;
     }
 
@@ -416,8 +416,11 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     let toStatus = null;
     if (over) {
       const overId = String(over.id);
-      // First check if it's a status ID (empty column)
-      if (statuses.find(s => s.id === overId)) {
+      // Check if it's a placeholder ID for empty column
+      if (overId.endsWith('-placeholder')) {
+        toStatus = overId.replace('-placeholder', '');
+      } else if (statuses.find(s => s.id === overId)) {
+        // Check if it's a status ID (empty column)
         toStatus = overId;
       } else {
         // Otherwise find which status contains this item
@@ -447,9 +450,14 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     let toIndex = draggedOverIndex;
     if (over) {
       const overId = String(over.id);
-      toIndex = localSuggestionsByStatus[toStatus].findIndex(s => s.id === overId);
-      if (toIndex === -1 || overId === toStatus) {
-        toIndex = localSuggestionsByStatus[toStatus].length;
+      // Handle placeholder IDs for empty columns
+      if (overId.endsWith('-placeholder') || overId === toStatus) {
+        toIndex = 0; // Place at beginning of empty column
+      } else {
+        toIndex = localSuggestionsByStatus[toStatus].findIndex(s => s.id === overId);
+        if (toIndex === -1) {
+          toIndex = localSuggestionsByStatus[toStatus].length;
+        }
       }
     } else if (toIndex == null) {
       toIndex = localSuggestionsByStatus[toStatus].length;
