@@ -82,6 +82,11 @@ export function PipelineColumn({
               style={{ backgroundColor: stage.color }}
             />
             <h3 className="font-semibold text-white text-lg">{stage.name}</h3>
+            {deals.length === 0 && (
+              <span className="text-xs text-gray-500 bg-gray-800/50 px-2 py-0.5 rounded-full">
+                Empty
+              </span>
+            )}
           </div>
           <div className="bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-400">
             {deals.length}
@@ -113,8 +118,13 @@ export function PipelineColumn({
       >
         {/* Empty state when no deals */}
         {deals.length === 0 && !isOver && (
-          <div className="text-gray-500 text-center text-sm h-20 flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg">
-            Drop deals here
+          <div className="text-gray-500 text-center text-sm space-y-2">
+            <div className="h-20 flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg">
+              Drop deals here
+            </div>
+            <div className="text-xs text-gray-600">
+              {stage.default_probability}% probability • Included in pipeline total
+            </div>
           </div>
         )}
 

@@ -152,8 +152,9 @@ serve(async (req) => {
         { name: 'Qualified', description: 'Qualified opportunity', color: '#8B5CF6', order_position: 20, default_probability: 25 },
         { name: 'Proposal', description: 'Proposal sent', color: '#EAB308', order_position: 30, default_probability: 50 },
         { name: 'Negotiation', description: 'In negotiation', color: '#F97316', order_position: 40, default_probability: 75 },
-        { name: 'Closed Won', description: 'Deal won', color: '#10B981', order_position: 50, default_probability: 100 },
-        { name: 'Closed Lost', description: 'Deal lost', color: '#EF4444', order_position: 60, default_probability: 0 }
+        { name: 'Signed', description: 'Deal signed', color: '#10B981', order_position: 50, default_probability: 100 },
+        { name: 'Signed & Paid', description: 'Deal signed and payment received', color: '#059669', order_position: 60, default_probability: 100 },
+        { name: 'Lost', description: 'Deal lost', color: '#EF4444', order_position: 70, default_probability: 0 }
       ];
       
       const insertResult = await supabaseClient

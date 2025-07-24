@@ -610,6 +610,31 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
               <ErrorMessage id="closeDate-error">{errors.closeDate.message as string}</ErrorMessage>
             )}
           </FormField>
+          
+          {/* First Billing Date */}
+          <FormField
+            id="firstBillingDate"
+            label="First Billing Date"
+            error={errors?.firstBillingDate?.message as string}
+          >
+            <InputWithIcon
+              id="firstBillingDate"
+              type="date"
+              icon={<Calendar className="w-4 h-4" />}
+              placeholder="Select first billing date..."
+              {...register("firstBillingDate")}
+              aria-invalid={!!errors?.firstBillingDate}
+              aria-describedby={errors?.firstBillingDate ? "firstBillingDate-error" : undefined}
+            />
+            
+            {errors?.firstBillingDate && (
+              <ErrorMessage id="firstBillingDate-error">{errors.firstBillingDate.message as string}</ErrorMessage>
+            )}
+            
+            <div className="mt-1 text-xs text-gray-500">
+              When should billing/invoicing begin for this deal? (Optional)
+            </div>
+          </FormField>
         </div>
 
         {/* Right Column: Revenue & Priority Stack */}

@@ -41,23 +41,26 @@ export default function AuditLogs() {
     start: null,
     end: null
   });
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  const loadRecentLogs = useCallback(async () => {
+  const loadRecentLogs = async () => {
     try {
       const data = await getRecentAuditLogs(100);
       setLogs(data);
+      setInitialLoadComplete(true);
     } catch (err) {
       // Error is already handled by the useAuditLogs hook's setError
       // The error state will be displayed in the UI automatically
       console.error('Failed to load audit logs:', err);
+      setInitialLoadComplete(true);
     }
-  }, [getRecentAuditLogs]);
+  };
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && !initialLoadComplete) {
       loadRecentLogs();
     }
-  }, [isAdmin, loadRecentLogs]);
+  }, [isAdmin, initialLoadComplete]);
 
   const handleSearch = async () => {
     try {
@@ -198,7 +201,7 @@ export default function AuditLogs() {
               Search
             </Button>
             <Button 
-              variant="outline" 
+              variant="secondary" 
               onClick={() => {
                 setSelectedTable('');
                 setSelectedAction('');

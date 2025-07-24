@@ -128,6 +128,7 @@ export interface Deal {
   stage_id: string;
   owner_id: string;
   expected_close_date?: string;
+  first_billing_date?: string;
   probability?: number;
   status: 'active' | 'archived' | 'deleted';
   created_at: string;
@@ -156,6 +157,46 @@ export interface Deal {
   // Computed fields
   daysInStage?: number;
   timeStatus?: 'normal' | 'warning' | 'danger';
+}
+
+/**
+ * Deal Split model - NEW FEATURE
+ * Allows deals to be split between multiple team members
+ */
+export interface DealSplit {
+  id: string;
+  deal_id: string;
+  user_id: string;
+  percentage: number; // 0-100
+  amount: number; // Calculated field: deal_value * (percentage / 100)
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Deal Split with User Info - Joined view
+ * Includes user details for easier display
+ */
+export interface DealSplitWithUser extends DealSplit {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  full_name?: string;
+  deal_name: string;
+  deal_value: number;
+  deal_owner_id: string;
+}
+
+/**
+ * Deal with Splits - Extended Deal interface
+ * Includes split information when needed
+ */
+export interface DealWithSplits extends Deal {
+  splits?: DealSplitWithUser[];
+  my_split_percentage?: number; // Current user's split percentage
+  my_split_amount?: number; // Current user's split amount
+  remaining_percentage?: number; // 100 - total allocated percentage
 }
 
 /**

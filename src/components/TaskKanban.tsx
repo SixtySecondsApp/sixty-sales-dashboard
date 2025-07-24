@@ -371,12 +371,8 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Task Board</h1>
-          <p className="text-gray-400 mt-1">Manage your tasks with drag and drop</p>
-        </div>
+      {/* Add Task Button */}
+      <div className="flex justify-end">
         <Button 
           onClick={() => handleCreateTask()}
           className="bg-blue-600 hover:bg-blue-700 text-white"

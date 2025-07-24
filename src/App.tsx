@@ -6,6 +6,7 @@ import { createApiMonitor } from '@/lib/utils/apiUtils';
 import { API_BASE_URL } from '@/lib/config';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
+import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import Dashboard from '@/pages/Dashboard';
 import ActivityLog from '@/pages/ActivityLog';
@@ -47,6 +48,9 @@ declare global {
 window.queryClient = queryClient;
 
 function App() {
+  // Initialize audit session tracking
+  useInitializeAuditSession();
+  
   // Initialize API connection monitoring
   useEffect(() => {
     const monitor = createApiMonitor(API_BASE_URL, 30000); // Check every 30 seconds

@@ -49,8 +49,11 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
   const getStageColor = (stage: string) => {
     switch (stage?.toLowerCase()) {
       case 'won': 
+      case 'signed':
       case 'closed won': 
         return 'border-l-green-500';
+      case 'signed & paid':
+        return 'border-l-emerald-500';
       case 'lost':
       case 'closed lost':
         return 'border-l-red-500';

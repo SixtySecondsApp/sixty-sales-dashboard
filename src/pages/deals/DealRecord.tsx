@@ -99,11 +99,13 @@ const DealRecord: React.FC = () => {
   };
 
   const getStageBadge = (stage: string, color?: string) => {
-    const stageKey = stage?.toLowerCase();
-    switch (stageKey) {
-      case 'won': 
-      case 'closed won': 
-        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Won</Badge>;
+    switch (stage?.toLowerCase()) {
+      case 'won':
+      case 'signed':
+      case 'closed won':
+        return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Signed</Badge>;
+      case 'signed & paid':
+        return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Signed & Paid</Badge>;
       case 'lost':
       case 'closed lost':
         return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Lost</Badge>;

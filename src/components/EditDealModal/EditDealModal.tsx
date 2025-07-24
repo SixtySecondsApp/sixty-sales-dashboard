@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Trash2, Edit } from 'lucide-react';
+import { X, Save, Trash2, Edit, PieChart } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -9,6 +9,7 @@ import {
   DialogDescription 
 } from '../ui/dialog';
 import { Button } from '../ui/button';
+import DealSplitModal from '../DealSplitModal';
 import { EditDealProvider } from './contexts/EditDealContext';
 import { useEditDeal } from './contexts/EditDealContext';
 import SectionTabs from './components/SectionTabs';
@@ -32,22 +33,19 @@ interface EditDealModalProps {
 }
 
 // Helper function to get the badge class based on stage color
-const getStageBadgeClass = (stageName: string, stageColor?: string) => {
-  // If we have a stage color, use it for styling
-  if (stageColor) {
-    return `bg-opacity-15 border border-opacity-20 text-opacity-90` +
-      ` style="background-color: ${stageColor}20; border-color: ${stageColor}40; color: ${stageColor}"`;
-  }
-
-  // Fallback to hard-coded colors if no stage color is provided
+const getStageBadgeClass = (stageName: string, stageColor: string) => {
   const stageClasses: Record<string, string> = {
-    'lead': 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
-    'discovery': 'bg-violet-500/15 text-violet-400 border border-violet-500/20',
-    'proposal': 'bg-orange-500/15 text-orange-400 border border-orange-500/20',
-    'negotiation': 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20',
+    'sql': 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
+    'opportunity': 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20',
+    'verbal': 'bg-orange-500/15 text-orange-400 border border-orange-500/20',
+    'signed': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
+    'signed & paid': 'bg-green-500/15 text-green-400 border border-green-500/20',
+    'lost': 'bg-red-500/15 text-red-400 border border-red-500/20',
+    // Keep old names for backward compatibility
     'closed won': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
     'closed lost': 'bg-red-500/15 text-red-400 border border-red-500/20'
   };
+  
   return stageClasses[stageName.toLowerCase()] || 'bg-gray-500/15 text-gray-400 border border-gray-500/20';
 };
 
@@ -77,6 +75,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
   const [stageColor, setStageColor] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
   
   // Create a form instance
   const methods = useForm({
@@ -90,6 +89,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       oneOffRevenue: deal?.one_off_revenue || '',
       monthlyMrr: deal?.monthly_mrr || '',
       closeDate: deal?.expected_close_date || '',
+      firstBillingDate: deal?.first_billing_date || '',
       notes: deal?.notes || deal?.description || '',
       probability: deal?.probability || 20,
       nextAction: deal?.next_steps || '',
@@ -265,6 +265,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         // Try expected_close_date first, fallback to close_date if column doesn't exist
         expected_close_date: processedCloseDate,
         close_date: processedCloseDate, // Fallback field name
+        first_billing_date: formData.firstBillingDate || null,
         description: formData.notes || null,
         stage_id: stageId,
         probability: formData.probability ? parseInt(formData.probability.toString()) : null,
@@ -369,6 +370,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         oneOffRevenue: deal.one_off_revenue ?? '',
         monthlyMrr: deal.monthly_mrr ?? '',
         closeDate: closeDateValue,
+        firstBillingDate: formatDateForInput(deal.first_billing_date),
         notes: notesValue,
         probability: probabilityValue,
         nextAction: nextActionValue,
@@ -392,6 +394,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       methods.setValue('oneOffRevenue', deal.one_off_revenue ?? '', setValueOptions);
       methods.setValue('monthlyMrr', deal.monthly_mrr ?? '', setValueOptions);
       methods.setValue('closeDate', closeDateValue, setValueOptions);
+      methods.setValue('firstBillingDate', formatDateForInput(deal.first_billing_date), setValueOptions);
       methods.setValue('notes', notesValue, setValueOptions);
       methods.setValue('probability', probabilityValue, setValueOptions);
       methods.setValue('nextAction', nextActionValue, setValueOptions);
@@ -510,17 +513,30 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
             </div>
             
             <DialogFooter className="p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between">
-              <button
-                ref={deleteButtonRef}
-                onClick={handleDelete}
-                className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 
-                  py-2 px-4 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-opacity-50"
-                disabled={isDeleting}
-                aria-label="Delete deal"
-              >
-                <Trash2 className="w-4 h-4" />
-                {isDeleting ? 'Deleting...' : 'Delete Deal'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  ref={deleteButtonRef}
+                  onClick={handleDelete}
+                  className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 
+                    py-2 px-4 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-600 focus:ring-opacity-50"
+                  disabled={isDeleting}
+                  aria-label="Delete deal"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeleting ? 'Deleting...' : 'Delete Deal'}
+                </button>
+                
+                <button
+                  onClick={() => setShowSplitModal(true)}
+                  className="flex items-center gap-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 
+                    py-2 px-4 rounded-lg text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-opacity-50"
+                  aria-label="Split deal"
+                >
+                  <PieChart className="w-4 h-4" />
+                  Split Deal
+                </button>
+              </div>
+              
               <div className="flex gap-3">
                 <button
                   onClick={() => setOpen(false)}
@@ -561,6 +577,15 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        
+        {/* Deal Split Modal */}
+        {deal && deal.id && (
+          <DealSplitModal 
+            open={showSplitModal}
+            onOpenChange={setShowSplitModal}
+            deal={deal as Deal}
+          />
+        )}
       </FormProvider>
     </EditDealProvider>
   );

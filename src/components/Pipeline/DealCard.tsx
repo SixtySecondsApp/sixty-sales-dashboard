@@ -1,16 +1,19 @@
 import React, { useMemo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Badge } from './Badge';
-import {
-  Clock,
-  AlertCircle,
-  User,
-  Calendar,
-  Building2,
-  Mail,
-  Phone
+import { 
+  Building2, 
+  User, 
+  Calendar, 
+  Clock, 
+  AlertCircle, 
+  ExternalLink,
+  Users,
+  PieChart
 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useDealSplits } from '@/lib/hooks/useDealSplits';
+import { Badge } from './Badge';
 import { format } from 'date-fns';
 
 interface DealCardProps {
@@ -21,9 +24,26 @@ interface DealCardProps {
 }
 
 export function DealCard({ deal, onClick, isDragOverlay = false }: DealCardProps) {
-
   // Assurer que l'ID est une chaîne de caractères
   const dealId = String(deal.id);
+
+  // Get deal splits information
+  const { splits, calculateSplitTotals } = useDealSplits({ dealId: deal.id });
+  
+  // Calculate split information
+  const splitInfo = useMemo(() => {
+    const totals = calculateSplitTotals(deal.id);
+    const hasSplits = totals.splitCount > 0;
+    const userSplit = splits.find(split => split.user_id === deal.owner_id);
+    
+    return {
+      hasSplits,
+      totalSplits: totals.splitCount,
+      remainingPercentage: totals.remainingPercentage,
+      userSplitPercentage: userSplit?.percentage || (hasSplits ? totals.remainingPercentage : 100),
+      userSplitAmount: userSplit?.amount || (deal.value * (hasSplits ? totals.remainingPercentage : 100) / 100)
+    };
+  }, [splits, calculateSplitTotals, deal.id, deal.value, deal.owner_id]);
 
   // Set up sortable drag behavior
   const {
@@ -238,8 +258,31 @@ export function DealCard({ deal, onClick, isDragOverlay = false }: DealCardProps
             </div>
           </div>
 
-          <div className="text-emerald-400 font-semibold text-lg ml-3 flex-shrink-0">
-            {formattedValue}
+          <div className="ml-3 flex-shrink-0 text-right">
+            {splitInfo.hasSplits ? (
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <PieChart className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-emerald-400 font-semibold text-base">
+                    {new Intl.NumberFormat('en-GB', {
+                      style: 'currency',
+                      currency: 'GBP',
+                      maximumFractionDigits: 0
+                    }).format(splitInfo.userSplitAmount)}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  {splitInfo.userSplitPercentage}% of {formattedValue}
+                </div>
+                <div className="text-xs text-blue-400">
+                  Split with {splitInfo.totalSplits} other{splitInfo.totalSplits === 1 ? '' : 's'}
+                </div>
+              </div>
+            ) : (
+              <div className="text-emerald-400 font-semibold text-lg">
+                {formattedValue}
+              </div>
+            )}
           </div>
         </div>
 

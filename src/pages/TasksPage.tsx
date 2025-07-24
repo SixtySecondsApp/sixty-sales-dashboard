@@ -9,7 +9,7 @@ import { Task } from '@/lib/database/models';
 const TasksPage: React.FC = () => {
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
-  const [view, setView] = useState<'list' | 'kanban'>('list');
+  const [view, setView] = useState<'list' | 'kanban'>('kanban');
 
   const handleCreateTask = () => {
     setEditingTask(undefined);

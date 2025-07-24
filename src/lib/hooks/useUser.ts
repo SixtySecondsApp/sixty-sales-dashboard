@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import type { Database } from '@/lib/database.types';
+import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -78,8 +79,9 @@ export const stopImpersonating = async () => {
     }
 
     if (data?.magicLink) {
-      // Clear impersonation data
+      // Clear impersonation data and audit context
       clearImpersonationData();
+      clearAuditContext();
       
       toast.success('Restoring your admin session...');
       
@@ -90,8 +92,9 @@ export const stopImpersonating = async () => {
     }
   } catch (error: any) {
     console.error('Stop impersonation error:', error);
-    // Clear sessionStorage even if there's an error to prevent user from being stuck
+    // Clear sessionStorage and audit context even if there's an error to prevent user from being stuck
     clearImpersonationData();
+    clearAuditContext();
     toast.error('Failed to stop impersonation: ' + (error.message || 'Unknown error'));
     throw error;
   }
@@ -148,6 +151,13 @@ export function useUser() {
     // Check if we're in an impersonation session
     const { isImpersonating: isImpersonated, originalUserId } = getImpersonationData();
     setIsImpersonating(isImpersonated && !!originalUserId);
+    
+    // Set audit context if impersonating
+    if (isImpersonated && originalUserId) {
+      setAuditContext();
+    } else {
+      clearAuditContext();
+    }
 
     async function fetchUser() {
       try {
@@ -308,6 +318,8 @@ export function useUser() {
       setIsImpersonating(false);
       // Clear all impersonation data
       clearImpersonationData();
+      // Clear audit context
+      clearAuditContext();
     } catch (error) {
       console.error('Error signing out:', error);
       // Force clear user data even if signOut fails
@@ -315,6 +327,7 @@ export function useUser() {
       setOriginalUserData(null);
       setIsImpersonating(false);
       clearImpersonationData();
+      clearAuditContext();
     }
   };
 

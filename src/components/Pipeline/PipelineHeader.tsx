@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download } from 'lucide-react';
+import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download, Info, ArrowUpDown, Grid3X3, List } from 'lucide-react';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { OwnerFilter } from '@/components/OwnerFilter';
+import { DateFilter } from '@/components/ui/date-filter';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 interface PipelineHeaderProps {
   onAddDealClick: () => void;
@@ -33,7 +38,12 @@ export function PipelineHeader({
     activePipelineValue,
     stages,
     exportPipeline,
-    getExportSummary
+    getExportSummary,
+    dateFilterPreset,
+    setDateFilterPreset,
+    customDateRange,
+    setCustomDateRange,
+    stageMetrics
   } = usePipeline();
   
   const [showFilters, setShowFilters] = useState(false);
@@ -242,13 +252,154 @@ export function PipelineHeader({
   return (
     <div className="mb-6 space-y-4">
       {/* Main Header Bar */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        {/* Total Pipeline Section */}
+        <div className="flex items-center gap-6">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col justify-center px-4 py-2.5 bg-gray-800/50 rounded-lg border border-gray-700/50 min-h-[44px] cursor-help">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-gray-400">Total Pipeline</span>
+                    <Info className="w-3 h-3 text-gray-500" />
+                  </div>
+                  <div className="text-lg font-bold text-emerald-400 leading-tight">
+                    {formattedActivePipelineValue}
+                  </div>
+                  <div className="text-xs text-gray-500 leading-tight">
+                    {/* Show breakdown of active stages with their weighted values */}
+                    {stages && stages.length > 0 && (() => {
+                      // Only show SQL, Opportunity, and Verbal in the breakdown
+                      const activeStageNames = ['sql', 'opportunity', 'verbal'];
+                      const activeStages = stages.filter(stage => 
+                        activeStageNames.includes(stage.name.toLowerCase())
+                      );
+                      
+                      const breakdown = activeStages.map(stage => {
+                        const stageMetric = stageMetrics?.find(m => m.stageId === stage.id);
+                        const weightedValue = stageMetric?.weightedValue || 0;
+                        return `${stage.name}: £${Math.round(weightedValue).toLocaleString()}`;
+                      }).join(' + ');
+                      return breakdown || 'SQL + Opportunity + Verbal (Weighted)';
+                    })()}
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm">
+                <div className="space-y-2">
+                  <p className="font-medium">Active Pipeline Calculation</p>
+                  <p className="text-sm">
+                    This shows the weighted total of active pipeline stages (SQL, Opportunity, and Verbal only).
+                    Each stage's total value is multiplied by its probability percentage.
+                  </p>
+                  {stages && stageMetrics && (
+                    <div className="space-y-1 text-xs">
+                      {stages
+                        .filter(stage => {
+                          const stageName = stage.name.toLowerCase();
+                          return ['sql', 'opportunity', 'verbal'].includes(stageName);
+                        })
+                        .map(stage => {
+                          const stageMetric = stageMetrics.find(m => m.stageId === stage.id);
+                          const totalValue = stageMetric?.value || 0;
+                          const weightedValue = stageMetric?.weightedValue || 0;
+                          const count = stageMetric?.count || 0;
+                          return (
+                            <div key={stage.id} className="flex justify-between">
+                              <span>{stage.name} ({count} deals):</span>
+                              <span>£{Math.round(totalValue).toLocaleString()} × {stage.default_probability}% = £{Math.round(weightedValue).toLocaleString()}</span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {/* Header Controls */}
+        <div className="flex items-center gap-4">
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              type="text"
+              placeholder="Search deals..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          {/* Separator */}
+          <div className="w-px h-6 bg-gray-700"></div>
+
+          {/* Deals Added Filter */}
+          <DateFilter
+            value={dateFilterPreset}
+            customRange={customDateRange}
+            onPresetChange={setDateFilterPreset}
+            onCustomRangeChange={setCustomDateRange}
+            label="Deals Added"
+            compact={true}
+            className="min-w-[160px]"
+          />
+
+          {/* Owner Filter */}
+          <OwnerFilter 
+            selectedOwnerId={selectedOwnerId}
+            onOwnerChange={onOwnerChange}
+          />
+
+          {/* Sort Controls */}
+          <Select value={sortBy} onValueChange={onSortChange}>
+            <SelectTrigger className="w-40 bg-gray-800/50 border-gray-700 text-white hover:bg-gray-700/50 focus:border-emerald-500 transition-colors">
+              <ArrowUpDown className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectItem value="none" className="text-white hover:bg-gray-700">No Sorting</SelectItem>
+              <SelectItem value="value" className="text-white hover:bg-gray-700">Value (High to Low)</SelectItem>
+              <SelectItem value="date" className="text-white hover:bg-gray-700">Date Created</SelectItem>
+              <SelectItem value="alpha" className="text-white hover:bg-gray-700">Alphabetical</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Separator */}
+          <div className="w-px h-6 bg-gray-700"></div>
+
+          {/* View Mode Toggle */}
+          <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+            <Button
+              variant={view === 'kanban' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onViewChange('kanban')}
+              className={view === 'kanban' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={view === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => onViewChange('table')}
+              className={view === 'table' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
         <div className="flex items-center gap-3">
           <button
             onClick={onAddDealClick}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg
               bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
-              hover:bg-emerald-500/20 transition-colors"
+              hover:bg-emerald-500/20 transition-colors font-medium"
           >
             <PlusCircle className="w-4 h-4" />
             <span>New Deal</span>
@@ -258,19 +409,21 @@ export function PipelineHeader({
             onClick={handleExportClick}
             className="flex items-center gap-2 px-4 py-2.5 rounded-lg
               bg-blue-500/10 text-blue-400 border border-blue-500/20
-              hover:bg-blue-500/20 transition-colors"
+              hover:bg-blue-500/20 transition-colors font-medium"
             title="Export current pipeline view to CSV"
           >
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">Export</span>
           </button>
-          
+        </div>
+
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`
               flex items-center gap-2 px-4 py-2.5 rounded-lg
-              border transition-colors relative
+              border transition-colors relative font-medium
               ${hasActiveFilters
                 ? 'bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30'
                 : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700/50'}
@@ -284,62 +437,6 @@ export function PipelineHeader({
               </span>
             )}
           </button>
-
-          <button
-            onClick={toggleSorting}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg
-              bg-gray-800/50 text-gray-300 border border-gray-700 
-              hover:bg-gray-700/50 transition-colors"
-          >
-            <ArrowDownUp className="w-4 h-4" />
-            <span className="hidden sm:inline">{getSortLabel()}</span>
-            <span className="sm:hidden">Sort</span>
-          </button>
-          
-          <div className="border border-gray-700 rounded-lg overflow-hidden flex">
-            <button 
-              onClick={() => onViewChange('kanban')}
-              className={`flex items-center gap-2 px-3 py-2.5 transition-colors ${view === 'kanban' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800/50'}`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              <span className="hidden sm:inline">Kanban</span>
-            </button>
-            <button 
-              onClick={() => onViewChange('table')}
-              className={`flex items-center gap-2 px-3 py-2.5 transition-colors ${view === 'table' ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800/50'}`}
-            >
-              <Table className="w-4 h-4" />
-              <span className="hidden sm:inline">Table</span>
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          {/* Total Pipeline Value - Made same height as search box */}
-          <div className="flex flex-col justify-center px-4 py-2.5 bg-gray-800/50 rounded-lg border border-gray-700/50 min-h-[44px]">
-            <div className="text-xs text-gray-400">Total Pipeline</div>
-            <div className="text-lg font-bold text-emerald-400 leading-tight">
-              {formattedActivePipelineValue}
-            </div>
-            <div className="text-xs text-gray-500 leading-tight">
-              SQL + Opportunity + Verbal (Weighted)
-            </div>
-          </div>
-          
-          {/* Search */}
-          <div className="flex items-center px-4 py-2.5 rounded-lg border border-gray-700
-            bg-gray-800/50 w-full sm:w-auto min-w-[300px] min-h-[44px]"
-          >
-            <Search className="w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search deals..."
-              className="ml-3 bg-transparent border-none outline-none text-white w-full
-                placeholder:text-gray-500"
-            />
-          </div>
         </div>
       </div>
 
@@ -553,6 +650,18 @@ export function PipelineHeader({
                           }
                         })}
                         className="p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-orange-500 focus:outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Deals Added Filter - New section */}
+                    <div className="pt-4 border-t border-gray-700">
+                      <DateFilter
+                        value={dateFilterPreset}
+                        customRange={customDateRange}
+                        onPresetChange={setDateFilterPreset}
+                        onCustomRangeChange={setCustomDateRange}
+                        label="Deals Added"
+                        compact={false}
                       />
                     </div>
 

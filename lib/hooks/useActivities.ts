@@ -39,7 +39,7 @@ const generateDummyData = async () => {
       details: type === 'meeting' ? meetingTypes[Math.floor(Math.random() * meetingTypes.length)] :
                type === 'outbound' ? contactMethods[Math.floor(Math.random() * contactMethods.length)] :
                type === 'proposal' ? `Proposal Value: £${Math.floor(Math.random() * 75000) + 10000}` :
-               'Closed Won',
+               'Signed',
       priority: priorities[Math.floor(Math.random() * priorities.length)],
       quantity: type === 'outbound' ? Math.floor(Math.random() * 30) + 10 : 1  // 10-40 for outbound, 1 for others
     });
@@ -62,7 +62,7 @@ const generateDummyData = async () => {
       details: type === 'meeting' ? meetingTypes[Math.floor(Math.random() * meetingTypes.length)] :
                type === 'outbound' ? contactMethods[Math.floor(Math.random() * contactMethods.length)] :
                type === 'proposal' ? `Proposal Value: £${Math.floor(Math.random() * 75000) + 10000}` :
-               'Closed Won',
+               'Signed',
       priority: priorities[Math.floor(Math.random() * priorities.length)],
       quantity: type === 'outbound' ? Math.floor(Math.random() * 30) + 10 : 1  // 10-40 for outbound, 1 for others
     });

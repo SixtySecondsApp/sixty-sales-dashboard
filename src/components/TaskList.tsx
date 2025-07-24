@@ -248,34 +248,28 @@ const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
+      {/* Action Buttons */}
       {!isContextual && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-white">Tasks</h1>
-            <p className="text-gray-400">Manage your sales tasks and follow-ups</p>
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="flex justify-end gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+            className="border-gray-700 text-gray-300 hover:bg-gray-800"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            Filters
+          </Button>
+          {onCreateTask && (
             <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className="border-gray-700 text-gray-300 hover:bg-gray-800"
+              size="sm" 
+              className="bg-[#37bd7e] hover:bg-[#37bd7e]/90"
+              onClick={onCreateTask}
             >
-              <Filter className="w-4 h-4 mr-2" />
-              Filters
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
             </Button>
-            {onCreateTask && (
-              <Button 
-                size="sm" 
-                className="bg-[#37bd7e] hover:bg-[#37bd7e]/90"
-                onClick={onCreateTask}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Task
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       )}
 

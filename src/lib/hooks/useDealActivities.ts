@@ -39,7 +39,7 @@ const extractDomain = (email: string): string | undefined => {
 const activityTypeToStageName: { [key: string]: string } = {
   Meeting: 'SQL',
   Proposal: 'Opportunity',
-  Sale: 'Closed Won',
+  Sale: 'Signed',
 };
 
 const matchingActivityTypes = ['Meeting', 'Proposal', 'Sale'];

@@ -351,7 +351,9 @@ export function useDeals(ownerId?: string) {
 
         console.log('✅ Edge Function update successful');
         toast.success('Deal updated successfully');
+        console.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
         await fetchDeals(); // Refresh to get updated data
+        console.log('✅ Pipeline data refreshed after deal update');
         return true;
       } catch (edgeFunctionError) {
         console.warn('⚠️ Edge Function failed, trying direct Supabase client:', edgeFunctionError);
@@ -427,7 +429,9 @@ export function useDeals(ownerId?: string) {
               if (fallbackError) throw fallbackError;
               
               toast.success('Deal updated successfully (note: close date may need manual update)');
+              console.log('🔄 Calling fetchDeals to refresh pipeline data after fallback update...');
               await fetchDeals();
+              console.log('✅ Pipeline data refreshed after fallback deal update');
               return true;
             }
             throw error;
@@ -435,7 +439,9 @@ export function useDeals(ownerId?: string) {
           
           console.log('✅ Direct Supabase update successful');
           toast.success('Deal updated successfully');
+          console.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
           await fetchDeals(); // Refresh to get updated data
+          console.log('✅ Pipeline data refreshed after deal update');
           return true;
           
         } catch (supabaseError: any) {
@@ -472,7 +478,9 @@ export function useDeals(ownerId?: string) {
             if (basicError) throw basicError;
             
             toast.success('Deal updated successfully (some fields may need manual update)');
+            console.log('🔄 Calling fetchDeals to refresh pipeline data after basic update...');
             await fetchDeals();
+            console.log('✅ Pipeline data refreshed after basic deal update');
             return true;
           }
           

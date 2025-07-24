@@ -24,9 +24,10 @@ import { DealCard } from './DealCard';
 import { DealForm } from './DealForm';
 import { PipelineTable } from './PipelineTable';
 import { OwnerFilter } from '@/components/OwnerFilter';
+import EditDealModal from '@/components/EditDealModal';
+import DealClosingModal from '@/components/DealClosingModal';
 
 import { Loader2 } from 'lucide-react';
-import EditDealModal from '@/components/EditDealModal';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
@@ -136,6 +137,10 @@ function PipelineContent() {
   // State for the complex EditDealModal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
+  // State for the DealClosingModal
+  const [isDealClosingModalOpen, setIsDealClosingModalOpen] = useState(false);
+  const [closingDeal, setClosingDeal] = useState<any>(null);
+
   // Update local state when the context data changes
   useEffect(() => {
     setLocalDealsByStage(structuredClone(contextDealsByStage));
@@ -212,7 +217,14 @@ function PipelineContent() {
     if (success) {
       setShowDealForm(false);
       setIsEditModalOpen(false);
-          }
+      
+      // Force a refresh of the deals data to update pipeline totals immediately
+      console.log('🔄 Deal saved successfully, refreshing deals data...');
+      await refreshDeals();
+      
+      // Force a component refresh to ensure calculations update
+      setRefreshKey(prev => prev + 1);
+    }
   };
 
 
@@ -389,13 +401,32 @@ function PipelineContent() {
         .select();
       if (error) throw error;
 
-      // Celebrate if moved to Closed Won
-      const closedWonStage = stages.find(
-        stage => stage.name.toLowerCase() === 'closed won'
+      // Check if moved to Signed or Signed & Paid - show closing modal for Signed, confetti for Signed & Paid
+      const signedStage = stages.find(
+        stage => stage.name.toLowerCase() === 'signed'
       );
-      if (closedWonStage && toStage === closedWonStage.id) {
+      const signedPaidStage = stages.find(
+        stage => stage.name.toLowerCase() === 'signed & paid'
+      );
+      
+      if (signedStage && toStage === signedStage.id) {
+        // Find the deal that was moved to Signed
+        const movedDeal = Object.values(localDealsByStage)
+          .flat()
+          .find(deal => deal.id === activeId);
+        
+        if (movedDeal) {
+          setClosingDeal(movedDeal);
+          setIsDealClosingModalOpen(true);
+          // Celebrate after modal is closed
+          ConfettiService.celebrate();
+        }
+      } else if (signedPaidStage && toStage === signedPaidStage.id) {
+        // Confetti for Signed & Paid (final stage)
         ConfettiService.celebrate();
+        toast.success('🎉 Deal fully completed - payment received!');
       }
+      
       setTimeout(() => {
         setRefreshKey(prev => prev + 1);
       }, 100);
@@ -415,6 +446,40 @@ function PipelineContent() {
 
   const handleDeleteDeal = async (dealId: string) => {
     await deleteDeal(dealId);
+  };
+
+  const handleDealClosure = async (firstBillingDate: string | null) => {
+    if (!closingDeal) return;
+
+    try {
+      // Update the deal with the first billing date
+      const updateData: any = {};
+      if (firstBillingDate) {
+        updateData.first_billing_date = firstBillingDate;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        const success = await updateDeal(closingDeal.id, updateData);
+        if (!success) {
+          throw new Error('Failed to update deal with billing information');
+        }
+      }
+
+      toast.success('🎉 Deal closed successfully!');
+      
+      // Reset closing state
+      setClosingDeal(null);
+      setIsDealClosingModalOpen(false);
+      
+      // Refresh the deals data
+      await refreshDeals();
+      setRefreshKey(prev => prev + 1);
+      
+    } catch (error) {
+      console.error('Error closing deal:', error);
+      toast.error('Failed to save deal closure information');
+      throw error;
+    }
   };
 
   if (isLoading) {
@@ -481,6 +546,13 @@ function PipelineContent() {
                 />
               ))}
             </div>
+            
+            {/* Scroll indicator for mobile/small screens */}
+            {stages.length > 3 && (
+              <div className="text-center text-xs text-gray-500 mt-2 md:hidden">
+                ← Scroll horizontally to see all pipeline stages →
+              </div>
+            )}
             <DragOverlay>
               {activeDeal && (
                 <DealCard
@@ -525,6 +597,15 @@ function PipelineContent() {
           initialStageId={initialStageId}
         />
       </Modal>
+
+      {closingDeal && (
+        <DealClosingModal
+          open={isDealClosingModalOpen}
+          onOpenChange={setIsDealClosingModalOpen}
+          deal={closingDeal}
+          onSave={handleDealClosure}
+        />
+      )}
     </>
   );
 }

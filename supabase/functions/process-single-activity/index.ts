@@ -163,7 +163,7 @@ serve(async (req) => {
             // Determine target stage based on activity
             switch (activity.type) {
                 case 'sale':
-                    targetStageName = 'Closed Won';
+                    targetStageName = 'Signed';
                     break;
                 // Add other stage update mappings if needed
                 // case 'meeting': targetStageName = 'SQL'; break;
@@ -229,7 +229,7 @@ serve(async (req) => {
                  case 'outbound': targetStageName = 'SQL'; break;
                  case 'meeting': targetStageName = 'SQL'; break;
                  case 'proposal': targetStageName = 'Opportunity'; break;
-                 case 'sale': targetStageName = 'Closed Won'; break;
+                 case 'sale': targetStageName = 'Signed'; break;
                  default: targetStageName = 'SQL'; console.warn(`Unmapped activity type '${activity.type}'. Defaulting stage to SQL.`); 
              }
              console.log(`Activity type '${activity.type}' mapped to stage '${targetStageName}' for new deal`);

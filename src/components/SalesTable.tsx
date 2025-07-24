@@ -46,10 +46,8 @@ import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { ActivityUploadModal } from './admin/ActivityUploadModal'; // Import the new modal
 import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
 import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
+import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-filter';
 // ActivityFilters component created inline to avoid import issues
-
-// Define type for date range presets
-type DateRangePreset = 'today' | 'thisWeek' | 'thisMonth' | 'last30Days' | 'custom';
 
 interface StatCardProps {
   title: string;
@@ -71,13 +69,24 @@ export function SalesTable() {
   
   // State for date filtering
   const [selectedRangeType, setSelectedRangeType] = useState<DateRangePreset>('thisMonth');
-  // State for custom date range (implement date pickers later if needed)
-  // const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null);
+  // State for custom date range
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // State for upload modal
   const [showFilters, setShowFilters] = useState(false); // State for filters panel
 
   // Calculate the current and previous date ranges based on the selected type
   const { currentDateRange, previousDateRange } = useMemo(() => {
+    // Use custom range if available and preset is 'custom'
+    if (selectedRangeType === 'custom' && customDateRange) {
+      return {
+        currentDateRange: customDateRange,
+        previousDateRange: {
+          start: new Date(customDateRange.start.getTime() - (customDateRange.end.getTime() - customDateRange.start.getTime())),
+          end: new Date(customDateRange.start.getTime() - 1)
+        }
+      };
+    }
+
     const now = new Date();
     let currentStart, currentEnd, previousStart, previousEnd;
 
@@ -115,7 +124,7 @@ export function SalesTable() {
       currentDateRange: { start: currentStart, end: currentEnd },
       previousDateRange: { start: previousStart, end: previousEnd }
     };
-  }, [selectedRangeType]);
+  }, [selectedRangeType, customDateRange]);
 
   // Sync selected date range with filters
   useEffect(() => {
@@ -127,7 +136,7 @@ export function SalesTable() {
     });
   }, [currentDateRange, setFilters]);
 
-  // Filter activities with comprehensive filtering
+  // Filter activities with comprehensive filtering (for table display)
   const filteredActivities = useMemo(() => {
     return activities.filter(activity => {
       try {
@@ -196,29 +205,45 @@ export function SalesTable() {
     });
   }, [activities, currentDateRange, filters]);
 
-  // Filter activities for the PREVIOUS equivalent period
-  const previousPeriodActivities = useMemo(() => {
+  // Filter activities for metrics cards (date filtering only, no type filtering)
+  const metricsFilteredActivities = useMemo(() => {
+    return activities.filter(activity => {
+      try {
+        const activityDate = new Date(activity.date);
+        
+        // Only apply date range filtering for metrics cards
+        const matchesDate = activityDate >= currentDateRange.start && 
+                           activityDate <= currentDateRange.end;
+        
+        return matchesDate;
+      } catch (e) {
+        console.error("Error parsing activity date:", activity.date, e);
+        return false; // Exclude activities with invalid dates
+      }
+    });
+  }, [activities, currentDateRange]);
+
+  // Filter activities for the PREVIOUS equivalent period (for metrics cards)
+  const previousPeriodMetricsActivities = useMemo(() => {
     if (!previousDateRange) return []; // Should not happen with default
     return activities.filter(activity => {
       try {
         const activityDate = new Date(activity.date);
-        const matchesType = !filters.type || activity.type === filters.type;
-        // Ensure previous range dates are valid before comparing
+        // Only apply date filtering, no type filtering for metrics
         return previousDateRange.start && previousDateRange.end && 
                activityDate >= previousDateRange.start && 
-               activityDate <= previousDateRange.end &&
-               matchesType;
+               activityDate <= previousDateRange.end;
       } catch (e) {
         console.error("Error parsing activity date for previous period:", activity.date, e);
         return false; 
       }
     });
-  }, [activities, previousDateRange, filters.type]);
+  }, [activities, previousDateRange]);
 
   // Calculate stats for the CURRENT period including meeting -> proposal rate
   const currentStats = useMemo(() => {
-    // Calculate total revenue including LTV
-    const totalRevenue = filteredActivities
+    // Calculate total revenue including LTV - using metricsFilteredActivities for all activity types
+    const totalRevenue = metricsFilteredActivities
       .filter(a => a.type === 'sale')
       .reduce((sum, a) => {
         const ltvValue = a.deals ? calculateLTVValue(a.deals, a.amount) : 0;
@@ -226,11 +251,11 @@ export function SalesTable() {
         const value = ltvValue > (a.amount || 0) ? ltvValue : (a.amount || 0);
         return sum + value;
       }, 0);
-    const activeDeals = filteredActivities
+    const activeDeals = metricsFilteredActivities
       .filter(a => a.type === 'sale' && a.status === 'completed').length; // Only count completed sales as won deals
-    const salesActivities = filteredActivities.filter(a => a.type === 'sale').length;
-    const proposalActivities = filteredActivities.filter(a => a.type === 'proposal').length;
-    const meetingActivities = filteredActivities.filter(a => a.type === 'meeting').length;
+    const salesActivities = metricsFilteredActivities.filter(a => a.type === 'sale').length;
+    const proposalActivities = metricsFilteredActivities.filter(a => a.type === 'proposal').length;
+    const meetingActivities = metricsFilteredActivities.filter(a => a.type === 'meeting').length;
     const proposalWinRate = Math.round( // Renamed for clarity: Proposal -> Deal (Sale)
       (salesActivities / Math.max(1, proposalActivities)) * 100
     ) || 0;
@@ -245,22 +270,22 @@ export function SalesTable() {
       meetingToProposalRate,
       avgDeal
     };
-  }, [filteredActivities]);
+  }, [metricsFilteredActivities]);
 
   // Calculate stats for the PREVIOUS period including meeting -> proposal rate
   const previousStats = useMemo(() => {
-    const totalRevenue = previousPeriodActivities
+    const totalRevenue = previousPeriodMetricsActivities
       .filter(a => a.type === 'sale')
       .reduce((sum, a) => {
         const ltvValue = a.deals ? calculateLTVValue(a.deals, a.amount) : 0;
         const value = ltvValue > (a.amount || 0) ? ltvValue : (a.amount || 0);
         return sum + value;
       }, 0);
-    const activeDeals = previousPeriodActivities
+    const activeDeals = previousPeriodMetricsActivities
       .filter(a => a.type === 'sale' && a.status === 'completed').length; // Only count completed sales as won deals
-    const salesActivities = previousPeriodActivities.filter(a => a.type === 'sale').length;
-    const proposalActivities = previousPeriodActivities.filter(a => a.type === 'proposal').length;
-    const meetingActivities = previousPeriodActivities.filter(a => a.type === 'meeting').length;
+    const salesActivities = previousPeriodMetricsActivities.filter(a => a.type === 'sale').length;
+    const proposalActivities = previousPeriodMetricsActivities.filter(a => a.type === 'proposal').length;
+    const meetingActivities = previousPeriodMetricsActivities.filter(a => a.type === 'meeting').length;
     const proposalWinRate = Math.round( // Renamed for clarity: Proposal -> Deal (Sale)
       (salesActivities / Math.max(1, proposalActivities)) * 100
     ) || 0;
@@ -275,7 +300,7 @@ export function SalesTable() {
       meetingToProposalRate,
       avgDeal
     };
-  }, [previousPeriodActivities]);
+  }, [previousPeriodMetricsActivities]);
 
   // Calculate percentage change
   const calculatePercentageChange = (current: number, previous: number): number => {
@@ -681,7 +706,7 @@ export function SalesTable() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               {isTypeFiltered && (
                 <Button variant="secondary" onClick={resetFilters} size="sm">
                   Show All Types
@@ -691,22 +716,23 @@ export function SalesTable() {
                 onClick={handleExportCSV}
                 variant="outline"
                 size="sm"
-                className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300"
+                className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors"
                 disabled={filteredActivities.length === 0}
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV ({filteredActivities.length})
               </Button>
-              <select
+              
+              {/* Main Date Filter */}
+              <DateFilter
                 value={selectedRangeType}
-                onChange={(e) => setSelectedRangeType(e.target.value as DateRangePreset)}
-                className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white text-sm focus:ring-offset-gray-900 focus:ring-offset-2 focus:ring-emerald-500"
-              >
-                <option value="today">Today</option>
-                <option value="thisWeek">This Week</option>
-                <option value="thisMonth">This Month</option>
-                <option value="last30Days">Last 30 Days</option>
-              </select>
+                customRange={customDateRange}
+                onPresetChange={setSelectedRangeType}
+                onCustomRangeChange={setCustomDateRange}
+                label="Activity Date"
+                compact={true}
+                className="min-w-[160px]"
+              />
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import { useDealStages } from '@/lib/hooks/useDealStages';
 import { useUser } from '@/lib/hooks/useUser';
 import { exportPipelineToCSV, getPipelineExportSummary, CSVExportOptions } from '@/lib/utils/csvExport';
 import { format } from 'date-fns';
+import { DateRangePreset, DateRange, getDateRangeFromPreset } from '@/components/ui/date-filter';
 
 interface FilterOptions {
   minValue: number | null;
@@ -60,6 +61,11 @@ interface PipelineContextType {
   stageMetrics: StageMetric[];
   selectedOwnerId: string | undefined;
   setSelectedOwnerId: (ownerId: string | undefined) => void;
+  // Add date filter state
+  dateFilterPreset: DateRangePreset;
+  setDateFilterPreset: (preset: DateRangePreset) => void;
+  customDateRange: DateRange | null;
+  setCustomDateRange: (range: DateRange | null) => void;
   exportPipeline: (options?: CSVExportOptions) => Promise<void>;
   getExportSummary: () => any;
 }
@@ -76,6 +82,9 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   
   // Use current user's ID as default owner if available
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(userData?.id);
+  
+  // Add a refresh timestamp to force re-calculations when needed
+  const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
   
   // Update selectedOwnerId when user data loads
   useEffect(() => {
@@ -104,6 +113,13 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     refreshDeals
   } = useDeals(selectedOwnerId);
   
+  // Wrap refreshDeals to also update our refresh timestamp
+  const wrappedRefreshDeals = useCallback(async () => {
+    await refreshDeals();
+    setLastRefresh(Date.now());
+    console.log('🔄 Pipeline data refreshed, forcing re-calculations...');
+  }, [refreshDeals]);
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     minValue: null,
@@ -129,6 +145,10 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     timeStatus: [],
     quickFilter: null
   });
+
+  // Add date filter state
+  const [dateFilterPreset, setDateFilterPreset] = useState<DateRangePreset>('all');
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
 
   // Helper functions using useCallback to stabilize references
   const matchesSearch = useCallback((deal: any, term: string) => {
@@ -212,102 +232,86 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     return 'normal';
   }, []);
   
-  // Group deals by stage
+  // Group deals by stage with filtering applied (using filtered deals)
   const dealsByStage = useMemo(() => {
-    const groupedDeals: Record<string, any[]> = {};
-    
-    // Initialize with empty arrays for all stages
-    if (stages) {
-      stages.forEach(stage => {
-        groupedDeals[stage.id] = [];
-      });
-    }
-    
-    // Filter and group deals
-    if (deals) {
-      let filteredDeals = [...deals];
-      
-      // Apply quick filters first
-      if (filterOptions.quickFilter) {
-        filteredDeals = applyQuickFilter(filteredDeals, filterOptions.quickFilter, userData?.id);
-      }
-      
-      filteredDeals.forEach(deal => {
-        // Apply search filter
+    if (!stages) return {};
+
+    // Get the effective date range for filtering
+    const effectiveDateRange = dateFilterPreset === 'custom' && customDateRange 
+      ? customDateRange 
+      : getDateRangeFromPreset(dateFilterPreset);
+
+    // Apply all filters to the deals
+    let filteredDeals = deals.filter(deal => {
+      try {
+        // Date filtering - filter by when deals were created
+        if (effectiveDateRange) {
+          const dealDate = new Date(deal.created_at);
+          if (dealDate < effectiveDateRange.start || dealDate > effectiveDateRange.end) {
+            return false;
+          }
+        }
+
+        // Search term filtering
         if (searchTerm && !matchesSearch(deal, searchTerm)) {
-          return;
+          return false;
         }
+
+        // Apply other filters
+        const matchesValue = (!filterOptions.minValue || deal.value >= filterOptions.minValue) &&
+                            (!filterOptions.maxValue || deal.value <= filterOptions.maxValue);
         
-        // Apply value filter
-        if (filterOptions.minValue && Number(deal.value || 0) < filterOptions.minValue) {
-          return;
-        }
-        if (filterOptions.maxValue && Number(deal.value || 0) > filterOptions.maxValue) {
-          return;
-        }
+        const matchesProbability = !filterOptions.probability || deal.probability >= filterOptions.probability;
         
-        // Apply probability filter
-        if (filterOptions.probability && Number(deal.probability || 0) < filterOptions.probability) {
-          return;
-        }
+        const matchesStages = filterOptions.stages.length === 0 || filterOptions.stages.includes(deal.stage_id);
         
-        // Apply date range filter
-        if (filterOptions.dateRange.field && (filterOptions.dateRange.from || filterOptions.dateRange.to)) {
-          if (!matchesDateRange(deal, filterOptions.dateRange)) {
-            return;
-          }
-        }
+        const matchesPriorities = filterOptions.priorities.length === 0 || 
+                                  ((deal as any).priority && filterOptions.priorities.includes((deal as any).priority));
         
-        // Apply stage filter
-        if (filterOptions.stages.length > 0 && !filterOptions.stages.includes(deal.stage_id)) {
-          return;
-        }
+        const matchesDealSizes = filterOptions.dealSizes.length === 0 || 
+                                 ((deal as any).deal_size && filterOptions.dealSizes.includes((deal as any).deal_size));
         
-        // Apply priority filter
-        if (filterOptions.priorities.length > 0 && !filterOptions.priorities.includes((deal as any).priority || 'medium')) {
-          return;
-        }
+        const matchesLeadSources = (filterOptions.leadSources.types.length === 0 || 
+                                    ((deal as any).lead_source_type && filterOptions.leadSources.types.includes((deal as any).lead_source_type))) &&
+                                   (filterOptions.leadSources.channels.length === 0 || 
+                                    ((deal as any).lead_source_channel && filterOptions.leadSources.channels.includes((deal as any).lead_source_channel)));
         
-        // Apply deal size filter
-        if (filterOptions.dealSizes.length > 0 && !filterOptions.dealSizes.includes((deal as any).deal_size || 'medium')) {
-          return;
-        }
+        const matchesDaysInStage = (!filterOptions.daysInStage.min || deal.daysInStage >= filterOptions.daysInStage.min) &&
+                                   (!filterOptions.daysInStage.max || deal.daysInStage <= filterOptions.daysInStage.max);
         
-        // Apply lead source filter
-        if (filterOptions.leadSources.types.length > 0 || filterOptions.leadSources.channels.length > 0) {
-          if (!matchesLeadSource(deal, filterOptions.leadSources)) {
-            return;
-          }
-        }
+        const matchesTimeStatus = filterOptions.timeStatus.length === 0 || 
+                                  (deal.timeStatus && filterOptions.timeStatus.includes(deal.timeStatus));
         
-        // Apply days in stage filter
-        if (filterOptions.daysInStage.min || filterOptions.daysInStage.max) {
-          const daysInStage = deal.daysInStage || 0;
-          if (filterOptions.daysInStage.min && daysInStage < filterOptions.daysInStage.min) {
-            return;
-          }
-          if (filterOptions.daysInStage.max && daysInStage > filterOptions.daysInStage.max) {
-            return;
-          }
-        }
+        const matchesFilterDateRange = matchesDateRange(deal, filterOptions.dateRange);
         
-        // Apply time status filter
-        if (filterOptions.timeStatus.length > 0) {
-          const timeStatus = getTimeStatus(deal);
-          if (!filterOptions.timeStatus.includes(timeStatus)) {
-            return;
-          }
-        }
-        
-        // Add deal to its stage group
-        if (groupedDeals[deal.stage_id]) {
-          groupedDeals[deal.stage_id].push(deal);
-        }
-      });
+        return matchesValue && matchesProbability && matchesStages && matchesPriorities && 
+               matchesDealSizes && matchesLeadSources && matchesDaysInStage && 
+               matchesTimeStatus && matchesFilterDateRange;
+      } catch (error) {
+        console.error('Error filtering deal:', deal, error);
+        return false;
+      }
+    });
+
+    // Apply quick filter
+    if (filterOptions.quickFilter && filterOptions.quickFilter !== 'all') {
+      filteredDeals = applyQuickFilter(filteredDeals, filterOptions.quickFilter, userData?.id);
     }
-    
-    return groupedDeals;
-  }, [deals, stages, searchTerm, filterOptions, userData?.id, applyQuickFilter, matchesSearch, matchesDateRange, matchesLeadSource, getTimeStatus]);
+
+    // Group by stage
+    const grouped: Record<string, any[]> = {};
+    stages.forEach(stage => {
+      grouped[stage.id] = [];
+    });
+
+    filteredDeals.forEach(deal => {
+      if (grouped[deal.stage_id]) {
+        grouped[deal.stage_id].push(deal);
+      }
+    });
+
+    return grouped;
+  }, [deals, stages, searchTerm, filterOptions, userData?.id, matchesSearch, applyQuickFilter, matchesDateRange, lastRefresh, dateFilterPreset, customDateRange]);
   
   // Calculate pipeline value (total of filtered deals)
   const pipelineValue = useMemo(() => {
@@ -318,7 +322,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
       });
     });
     return totalValue;
-  }, [dealsByStage]);
+  }, [dealsByStage, lastRefresh]);
   
   // Calculate weighted pipeline value (based on probability) - use filtered deals
   const weightedPipelineValue = useMemo(() => {
@@ -326,42 +330,50 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     
     // Sum up weighted values from all filtered deals by stage
     let totalWeighted = 0;
-    Object.values(dealsByStage).forEach(stageDeals => {
-      stageDeals.forEach(deal => {
-        const stage = stages.find(s => s.id === deal.stage_id);
-        const probability = deal.probability || deal.deal_stages?.default_probability || stage?.default_probability || 0;
-        totalWeighted += Number(deal.value || 0) * (Number(probability) / 100);
-      });
+    Object.entries(dealsByStage).forEach(([stageId, stageDeals]) => {
+      const stage = stages.find(s => s.id === stageId);
+      if (!stage) return;
+      
+      // Calculate total value for this stage
+      const stageValue = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+      // Use stage's default probability for consistency
+      totalWeighted += stageValue * (stage.default_probability / 100);
     });
     
     return totalWeighted;
-  }, [dealsByStage, stages]);
+  }, [dealsByStage, stages, lastRefresh]);
 
-  // Calculate active pipeline value (excludes Closed Lost and Closed Won) - only weighted amount
+  // Calculate active pipeline value (only SQL, Opportunity, and Verbal) - only weighted amount
   const activePipelineValue = useMemo(() => {
     if (!stages) return 0;
     
-    // Get stages to exclude (Closed Lost and Closed Won)
-    const excludedStages = stages.filter(stage => 
-      stage.name.toLowerCase().includes('closed')
-    );
-    const excludedStageIds = excludedStages.map(stage => stage.id);
+    // Only include truly active stages: SQL, Opportunity, Verbal
+    const activeStageNames = ['sql', 'opportunity', 'verbal'];
+    
+    const activeStages = stages.filter(stage => {
+      const stageName = stage.name.toLowerCase();
+      return activeStageNames.includes(stageName);
+    });
+    
+    const activeStageIds = activeStages.map(stage => stage.id);
     
     // Sum up weighted values from active deals only (SQL, Opportunity, Verbal)
     let totalWeighted = 0;
     Object.entries(dealsByStage).forEach(([stageId, stageDeals]) => {
-      // Skip closed stages
-      if (excludedStageIds.includes(stageId)) return;
+      // Only include active stages
+      if (!activeStageIds.includes(stageId)) return;
       
-      stageDeals.forEach(deal => {
-        const stage = stages.find(s => s.id === deal.stage_id);
-        const probability = deal.probability || deal.deal_stages?.default_probability || stage?.default_probability || 0;
-        totalWeighted += Number(deal.value || 0) * (Number(probability) / 100);
-      });
+      const stage = stages.find(s => s.id === stageId);
+      if (!stage) return;
+      
+      // Calculate total value for this stage
+      const stageValue = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
+      // Use stage's default probability for consistency
+      totalWeighted += stageValue * (stage.default_probability / 100);
     });
     
     return totalWeighted;
-  }, [dealsByStage, stages]);
+  }, [dealsByStage, stages, lastRefresh]);
   
   // Calculate total count and value by stage (using filtered deals)
   const stageMetrics = useMemo(() => {
@@ -371,10 +383,8 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
       const stageDeals = dealsByStage[stage.id] || [];
       const count = stageDeals.length;
       const value = stageDeals.reduce((sum, deal) => sum + Number(deal.value || 0), 0);
-      const weightedValue = stageDeals.reduce((sum, deal) => {
-        const probability = deal.probability || deal.deal_stages?.default_probability || stage.default_probability || 0;
-        return sum + (Number(deal.value || 0) * (probability / 100));
-      }, 0);
+      // Use stage's default probability for consistency with column headers
+      const weightedValue = value * (stage.default_probability / 100);
       
       return {
         stageId: stage.id,
@@ -386,7 +396,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     });
     
     return metrics;
-  }, [dealsByStage, stages]);
+  }, [dealsByStage, stages, lastRefresh]);
   
   // Export functionality
   const exportPipeline = useCallback(async (options: CSVExportOptions = {}) => {
@@ -416,12 +426,12 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
       console.error('Failed to export pipeline:', error);
       throw error;
     }
-  }, [dealsByStage, stages, selectedOwnerId]);
+  }, [dealsByStage, stages, selectedOwnerId, lastRefresh]);
   
   const getExportSummary = useCallback(() => {
     const filteredDeals = Object.values(dealsByStage).flat();
     return getPipelineExportSummary(filteredDeals, stages);
-  }, [dealsByStage, stages]);
+  }, [dealsByStage, stages, lastRefresh]);
   
   // Memoize the context value to prevent unnecessary re-renders
   const value = useMemo(() => ({
@@ -434,7 +444,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     deleteDeal,
     moveDealToStage,
     forceUpdateDealStage,
-    refreshDeals,
+    refreshDeals: wrappedRefreshDeals,
     searchTerm,
     setSearchTerm,
     filterOptions,
@@ -446,6 +456,11 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     stageMetrics,
     selectedOwnerId,
     setSelectedOwnerId,
+    // Add date filter state
+    dateFilterPreset,
+    setDateFilterPreset,
+    customDateRange,
+    setCustomDateRange,
     exportPipeline,
     getExportSummary
   }), [
@@ -460,9 +475,11 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     deleteDeal, 
     moveDealToStage, 
     forceUpdateDealStage,
-    refreshDeals, 
+    wrappedRefreshDeals,
     searchTerm, 
+    setSearchTerm,
     filterOptions, 
+    setFilterOptions,
     dealsByStage, 
     pipelineValue, 
     weightedPipelineValue, 
@@ -470,8 +487,14 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     stageMetrics,
     selectedOwnerId,
     setSelectedOwnerId,
+    // Add date filter state
+    dateFilterPreset,
+    setDateFilterPreset,
+    customDateRange,
+    setCustomDateRange,
     exportPipeline,
-    getExportSummary
+    getExportSummary,
+    lastRefresh // Add the refresh timestamp to force re-calculation
   ]);
   
   return (
