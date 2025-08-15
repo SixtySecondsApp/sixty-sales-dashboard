@@ -24,7 +24,8 @@ import {
   Filter,
   X,
   Search,
-  Download
+  Download,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActivities, Activity } from '@/lib/hooks/useActivities';
@@ -52,9 +53,13 @@ import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-fil
 interface StatCardProps {
   title: string;
   value: string | number;
+  amount?: string;
+  percentage?: string;
   trendPercentage: number;
   icon: React.ElementType;
   color: string;
+  contextInfo?: string;
+  period?: string;
 }
 
 export function SalesTable() {
@@ -240,7 +245,7 @@ export function SalesTable() {
     });
   }, [activities, previousDateRange]);
 
-  // Calculate stats for the CURRENT period including meeting -> proposal rate
+  // Calculate stats for the CURRENT period including meeting -> proposal rate and no-show rate
   const currentStats = useMemo(() => {
     // Calculate total revenue including LTV - using metricsFilteredActivities for all activity types
     const totalRevenue = metricsFilteredActivities
@@ -256,6 +261,15 @@ export function SalesTable() {
     const salesActivities = metricsFilteredActivities.filter(a => a.type === 'sale').length;
     const proposalActivities = metricsFilteredActivities.filter(a => a.type === 'proposal').length;
     const meetingActivities = metricsFilteredActivities.filter(a => a.type === 'meeting').length;
+    
+    // Calculate no-show rate across all activities that can have no-shows (meetings, proposals, sales calls)
+    const noShowActivities = metricsFilteredActivities.filter(a => a.status === 'no_show').length;
+    const totalScheduledActivities = metricsFilteredActivities
+      .filter(a => ['meeting', 'proposal', 'sale'].includes(a.type)).length;
+    const noShowRate = Math.round(
+      (noShowActivities / Math.max(1, totalScheduledActivities)) * 100
+    ) || 0;
+    
     const proposalWinRate = Math.round( // Renamed for clarity: Proposal -> Deal (Sale)
       (salesActivities / Math.max(1, proposalActivities)) * 100
     ) || 0;
@@ -268,11 +282,14 @@ export function SalesTable() {
       activeDeals,
       proposalWinRate, // Use the more descriptive name
       meetingToProposalRate,
-      avgDeal
+      avgDeal,
+      noShowRate,
+      noShowCount: noShowActivities,
+      totalScheduledCount: totalScheduledActivities
     };
   }, [metricsFilteredActivities]);
 
-  // Calculate stats for the PREVIOUS period including meeting -> proposal rate
+  // Calculate stats for the PREVIOUS period including meeting -> proposal rate and no-show rate
   const previousStats = useMemo(() => {
     const totalRevenue = previousPeriodMetricsActivities
       .filter(a => a.type === 'sale')
@@ -286,6 +303,15 @@ export function SalesTable() {
     const salesActivities = previousPeriodMetricsActivities.filter(a => a.type === 'sale').length;
     const proposalActivities = previousPeriodMetricsActivities.filter(a => a.type === 'proposal').length;
     const meetingActivities = previousPeriodMetricsActivities.filter(a => a.type === 'meeting').length;
+    
+    // Calculate no-show rate for previous period
+    const noShowActivities = previousPeriodMetricsActivities.filter(a => a.status === 'no_show').length;
+    const totalScheduledActivities = previousPeriodMetricsActivities
+      .filter(a => ['meeting', 'proposal', 'sale'].includes(a.type)).length;
+    const noShowRate = Math.round(
+      (noShowActivities / Math.max(1, totalScheduledActivities)) * 100
+    ) || 0;
+    
     const proposalWinRate = Math.round( // Renamed for clarity: Proposal -> Deal (Sale)
       (salesActivities / Math.max(1, proposalActivities)) * 100
     ) || 0;
@@ -298,7 +324,10 @@ export function SalesTable() {
       activeDeals,
       proposalWinRate, // Use the more descriptive name
       meetingToProposalRate,
-      avgDeal
+      avgDeal,
+      noShowRate,
+      noShowCount: noShowActivities,
+      totalScheduledCount: totalScheduledActivities
     };
   }, [previousPeriodMetricsActivities]);
 
@@ -319,6 +348,7 @@ export function SalesTable() {
   const proposalWinRateTrend = calculatePercentageChange(currentStats.proposalWinRate, previousStats.proposalWinRate); // Updated trend name
   const meetingToProposalRateTrend = calculatePercentageChange(currentStats.meetingToProposalRate, previousStats.meetingToProposalRate);
   const avgDealTrend = calculatePercentageChange(currentStats.avgDeal, previousStats.avgDeal);
+  const noShowRateTrend = calculatePercentageChange(currentStats.noShowRate, previousStats.noShowRate);
 
   const handleEdit = (activity: Activity) => {
     setEditingActivity(activity);
@@ -616,20 +646,22 @@ export function SalesTable() {
     [editingActivity]
   );
 
-  // Define StatCard component here, before the return statement
-  const StatCard = ({ title, value, trendPercentage, icon: Icon, color }: StatCardProps) => {
+  // Enhanced StatCard component with better visual hierarchy
+  const StatCard = ({ title, value, amount, percentage, trendPercentage, icon: Icon, color, contextInfo, period = 'vs last period' }: StatCardProps) => {
     const trendText = trendPercentage > 0 ? `+${trendPercentage}%` : `${trendPercentage}%`;
     const trendColor = trendPercentage > 0 ? `text-emerald-500` : trendPercentage < 0 ? `text-red-500` : `text-gray-500`;
+    const trendIcon = trendPercentage > 0 ? '↗' : trendPercentage < 0 ? '↘' : '→';
 
     return (
       <div 
-        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:border-${color}-500/50 transition-all duration-300`}
+        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:border-${color}-500/50 transition-all duration-300 relative min-h-[120px] flex flex-col`}
         onClick={() => {
           // When clicking a stat card, filter by its corresponding type
           const typeMap: Record<string, Activity['type'] | undefined> = {
             'Total Revenue': 'sale',
             'Meeting Conversion': 'meeting',
             'Proposal Win Rate': 'proposal',
+            'No-Show Rate': undefined, // Show all to see no-shows across types
             'Won Deals': 'sale',
             'Average Deal Value': 'sale',
           };
@@ -643,16 +675,48 @@ export function SalesTable() {
           }
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg bg-${color}-500/10`}>
+        {/* Trend indicator in top-right */}
+        <div className="absolute top-3 right-3 flex flex-col items-end">
+          <div className={`flex items-center gap-1 text-xs font-medium ${trendColor}`}>
+            <span>{trendIcon}</span>
+            <span>{trendText}</span>
+          </div>
+          <div className="text-[10px] text-gray-500 mt-0.5">
+            {period}
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div className="flex items-start gap-3 pr-16 flex-1">
+          <div className={`p-2.5 rounded-xl bg-${color}-500/10 border border-${color}-500/20`}>
             <Icon className={`w-5 h-5 text-${color}-500`} />
           </div>
-          <div>
-            <p className="text-sm text-gray-400">{title}</p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold text-white">{value}</span>
-              <span className={`text-xs font-medium ${trendColor}`}>{trendText}</span>
+          
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{title}</p>
+            
+            {/* Primary metric */}
+            <div className="space-y-1">
+              {amount && (
+                <div className="text-2xl font-bold text-white tracking-tight">{amount}</div>
+              )}
+              {percentage && (
+                <div className="text-2xl font-bold text-white tracking-tight">{percentage}</div>
+              )}
+              {!amount && !percentage && (
+                <div className="text-2xl font-bold text-white tracking-tight">{value}</div>
+              )}
             </div>
+            
+            {/* Spacer to push context info to bottom */}
+            <div className="flex-1"></div>
+            
+            {/* Contextual information */}
+            {contextInfo && (
+              <div className="text-xs text-gray-500 mt-2">
+                {contextInfo}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -957,46 +1021,61 @@ export function SalesTable() {
             </AnimatePresence>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 px-4 sm:px-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 px-4 sm:px-0 auto-rows-fr">
             <StatCard
               key="revenue"
               title="Total Revenue"
-              value={`£${currentStats.totalRevenue.toLocaleString()}`}
+              value={currentStats.totalRevenue}
+              amount={`£${currentStats.totalRevenue.toLocaleString()}`}
               trendPercentage={revenueTrend}
               icon={PoundSterling}
               color="emerald"
+              contextInfo={`From ${metricsFilteredActivities.filter(a => a.type === 'sale').length} completed sales`}
+              period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
             <StatCard
               key="meetingConversion"
               title="Meeting Conversion"
-              value={`${currentStats.meetingToProposalRate}%`}
+              value={currentStats.meetingToProposalRate}
+              percentage={`${currentStats.meetingToProposalRate}%`}
               trendPercentage={meetingToProposalRateTrend}
               icon={Users}
               color="cyan"
+              contextInfo={`${metricsFilteredActivities.filter(a => a.type === 'proposal').length} proposals from ${metricsFilteredActivities.filter(a => a.type === 'meeting').length} meetings`}
+              period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
             <StatCard
               key="proposalWinRate"
               title="Proposal Win Rate"
-              value={`${currentStats.proposalWinRate}%`}
+              value={currentStats.proposalWinRate}
+              percentage={`${currentStats.proposalWinRate}%`}
               trendPercentage={proposalWinRateTrend}
               icon={FileText}
               color="blue"
+              contextInfo={`${metricsFilteredActivities.filter(a => a.type === 'sale').length} wins from ${metricsFilteredActivities.filter(a => a.type === 'proposal').length} proposals`}
+              period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
             <StatCard
-              key="deals"
-              title="Won Deals"
-              value={currentStats.activeDeals.toString()}
-              trendPercentage={dealsTrend}
-              icon={BarChartIcon}
-              color="violet"
+              key="noShowRate"
+              title="No-Show Rate"
+              value={currentStats.noShowRate}
+              percentage={`${currentStats.noShowRate}%`}
+              trendPercentage={noShowRateTrend}
+              icon={XCircle}
+              color="red"
+              contextInfo={`${currentStats.noShowCount} no-shows from ${currentStats.totalScheduledCount} scheduled`}
+              period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
             <StatCard
               key="avgdeal"
-              title="Average Deal Value"
-              value={`£${Math.round(currentStats.avgDeal).toLocaleString()}`}
+              title="Avg Deal Value"
+              value={Math.round(currentStats.avgDeal)}
+              amount={`£${Math.round(currentStats.avgDeal).toLocaleString()}`}
               trendPercentage={avgDealTrend}
               icon={TrendingUp}
               color="amber"
+              contextInfo={`Average from ${currentStats.activeDeals} won deals`}
+              period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
           </div>
 
