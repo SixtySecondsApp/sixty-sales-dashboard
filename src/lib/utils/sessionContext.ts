@@ -27,11 +27,19 @@ export function setSessionId(sessionId: string): void {
   // This will be available in the auth context for the audit trigger
   if (typeof window !== 'undefined') {
     // Set a custom setting that can be accessed in the trigger
-    supabase.rpc('set_config', {
-      setting_name: 'app.session_id',
-      setting_value: sessionId,
-      is_local: true
-    }).catch(console.error);
+    // Safely handle RPC call that may not exist
+    try {
+      supabase.rpc('set_config', {
+        setting_name: 'app.session_id',
+        setting_value: sessionId,
+        is_local: true
+      }).catch((error) => {
+        // Silently handle RPC function not found - this is optional functionality
+        console.debug('Session context RPC not available:', error.message);
+      });
+    } catch (error) {
+      console.debug('Session context RPC call failed:', error);
+    }
   }
 }
 

@@ -19,7 +19,7 @@ export async function withAuditContext<T>(
         is_local: true
       });
     } catch (error) {
-      console.warn('Failed to set session context:', error);
+      console.debug('Session context RPC not available:', error);
       // Continue with operation even if setting context fails
     }
   }
@@ -70,7 +70,7 @@ export async function setAuditSessionContext(): Promise<void> {
         is_local: true
       });
     } catch (error) {
-      console.warn('Failed to set session context:', error);
+      console.debug('Session context RPC not available:', error);
     }
   }
 }

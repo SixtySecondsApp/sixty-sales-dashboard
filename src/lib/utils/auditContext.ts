@@ -17,11 +17,15 @@ export async function setAuditContext(): Promise<void> {
       
       if (currentUser) {
         // Set the impersonation context in the database session
-        await supabase.rpc('set_audit_context', {
-          p_original_user_id: originalUserId,
-          p_impersonated_user_id: currentUser.id,
-          p_is_impersonating: true
-        });
+        try {
+          await supabase.rpc('set_audit_context', {
+            p_original_user_id: originalUserId,
+            p_impersonated_user_id: currentUser.id,
+            p_is_impersonating: true
+          });
+        } catch (rpcError) {
+          console.debug('Audit context RPC not available:', rpcError);
+        }
       }
     } else {
       // Clear any existing impersonation context
@@ -40,7 +44,7 @@ export async function clearAuditContext(): Promise<void> {
   try {
     await supabase.rpc('clear_audit_context');
   } catch (error) {
-    console.error('Failed to clear audit context:', error);
+    console.debug('Clear audit context RPC not available:', error);
     // Don't throw here as this shouldn't block the main operation
   }
 }
