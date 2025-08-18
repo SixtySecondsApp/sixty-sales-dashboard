@@ -3,9 +3,12 @@ import { Deal } from '@/lib/database/models';
 /**
  * Calculate the Lifetime Value (LTV) based on revenue model fields
  * 
+ * BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
+ * This gives 3x monthly subscription value PLUS 1x one-time deal value
+ * 
  * @param deal - The deal object with revenue fields
  * @param fallbackAmount - Fallback amount to use as one-off if no revenue fields are set
- * @param contractYears - Number of years for recurring revenue (default: 1)
+ * @param contractYears - Number of years for recurring revenue (default: 1, ignored in standardized formula)
  * @returns The calculated LTV
  */
 export function calculateLTVValue(
@@ -26,9 +29,9 @@ export function calculateLTVValue(
   const monthlyMRR = deal.monthly_mrr || 0;
   const annualValue = deal.annual_value || 0;
 
-  // Calculate total LTV
-  // One-off revenue + (Annual value * years) + (Monthly MRR * 12 months * years)
-  const ltvValue = oneOffRevenue + (annualValue * contractYears) + (monthlyMRR * 12 * contractYears);
+  // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
+  // This gives 3x monthly subscription value PLUS 1x one-time deal value
+  const ltvValue = (monthlyMRR * 3) + oneOffRevenue;
 
   return ltvValue;
 }

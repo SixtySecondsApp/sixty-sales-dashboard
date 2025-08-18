@@ -52,14 +52,8 @@ export function useUsers() {
         return;
       }
 
-      // Try to use RPC function first for complete user data
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_users_with_targets');
-      
-      if (!rpcError && rpcData) {
-        // RPC function exists and returned data
-        setUsers(rpcData);
-        return;
-      }
+      // Skip RPC function as it doesn't exist in this database
+      console.log('Using direct profiles query method');
       
       // Fallback: Query profiles and get auth info via edge function
       const { data: profiles, error } = await supabase

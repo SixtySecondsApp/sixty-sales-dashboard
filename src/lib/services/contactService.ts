@@ -25,7 +25,22 @@ export class ContactService {
 
         // Apply search filter
         if (options?.search) {
-          query = query.or(`full_name.ilike.%${options.search}%,email.ilike.%${options.search}%`);
+          // Import security utilities
+          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
+          
+          // Validate search term
+          const validation = validateSearchTerm(options.search);
+          if (!validation.isValid) {
+            throw new Error(validation.error || 'Invalid search term');
+          }
+          
+          // Build safe OR clause
+          const searchOrClause = new SafeQueryBuilder()
+            .addSearchCondition('full_name', validation.sanitized)
+            .addSearchCondition('email', validation.sanitized)
+            .buildOrClause();
+            
+          query = query.or(searchOrClause);
         }
 
         // Apply company filter
@@ -49,7 +64,22 @@ export class ContactService {
 
         // Apply search filter
         if (options?.search) {
-          query = query.or(`full_name.ilike.%${options.search}%,email.ilike.%${options.search}%`);
+          // Import security utilities
+          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
+          
+          // Validate search term
+          const validation = validateSearchTerm(options.search);
+          if (!validation.isValid) {
+            throw new Error(validation.error || 'Invalid search term');
+          }
+          
+          // Build safe OR clause
+          const searchOrClause = new SafeQueryBuilder()
+            .addSearchCondition('full_name', validation.sanitized)
+            .addSearchCondition('email', validation.sanitized)
+            .buildOrClause();
+            
+          query = query.or(searchOrClause);
         }
 
         // Apply company filter

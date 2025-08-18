@@ -15,13 +15,15 @@ interface PipelineColumnProps {
   deals: any[];
   onDealClick: (deal: any) => void;
   onAddDealClick: (stageId: string) => void;
+  onConvertToSubscription?: (deal: any) => void;
 }
 
 export function PipelineColumn({
   stage,
   deals,
   onDealClick,
-  onAddDealClick
+  onAddDealClick,
+  onConvertToSubscription
 }: PipelineColumnProps) {
   // Set up droppable behavior
   const { setNodeRef, isOver } = useDroppable({
@@ -135,6 +137,7 @@ export function PipelineColumn({
               deal={deal}
               index={index}
               onClick={onDealClick}
+              onConvertToSubscription={onConvertToSubscription}
             />
           ))}
         </SortableContext>

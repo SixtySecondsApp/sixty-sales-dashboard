@@ -4,6 +4,7 @@ import { useUser } from './useUser';
 
 export interface RoadmapSuggestion {
   id: string;
+  ticket_id: number;
   title: string;
   description: string;
   type: 'feature' | 'bug' | 'improvement' | 'other';
@@ -72,14 +73,20 @@ export function useRoadmap() {
       }
       setError(null);
 
-      // Get all roadmap suggestions
+      // Get all roadmap suggestions (handle missing ticket_id column gracefully)
       const { data: suggestions, error } = await supabase
         .from('roadmap_suggestions')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
-        throw new Error(error.message);
+        console.error('Supabase error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
       }
 
       if (!suggestions || suggestions.length === 0) {
@@ -120,11 +127,16 @@ export function useRoadmap() {
           return true;
         })
         .map(suggestion => {
+          // Debug log to see if ticket_id is present
+          console.log('Processing suggestion:', { id: suggestion.id, ticket_id: suggestion.ticket_id, title: suggestion.title });
+          
           const submitterProfile = profiles.find(p => p.id === suggestion.submitted_by);
           const assigneeProfile = profiles.find(p => p.id === suggestion.assigned_to);
           
           return {
             ...suggestion,
+            // Fallback ticket_id if not present in database
+            ticket_id: suggestion.ticket_id || (suggestions.length - suggestions.indexOf(suggestion)),
             hasUserVoted: userVoteIds.has(suggestion.id),
             submitted_by_profile: submitterProfile ? {
               id: submitterProfile.id,
@@ -178,7 +190,13 @@ export function useRoadmap() {
       .single();
 
     if (error) {
-      throw new Error(error.message);
+      console.error('Create suggestion error:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code
+      });
+      throw new Error(`Failed to create suggestion: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
     }
 
     // Get submitter profile

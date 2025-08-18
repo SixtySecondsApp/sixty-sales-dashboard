@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Lightbulb, Bug, ArrowUp, AlertTriangle, Settings, HelpCircle, Trash2, X } from 'lucide-react';
+import { Plus, Lightbulb, Bug, ArrowUp, AlertTriangle, Settings, HelpCircle, Trash2, X, Hash } from 'lucide-react';
 import { RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 import { useUser } from '@/lib/hooks/useUser';
+import { TicketShareMenu } from './TicketShareMenu';
 
 interface SuggestionFormProps {
   suggestion?: RoadmapSuggestion | null;
@@ -135,9 +136,23 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-white">
-          {validSuggestion ? 'Edit Suggestion' : 'Submit a Feature Request or Bug Report'}
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold text-white">
+            {validSuggestion ? 'Edit Suggestion' : 'Submit a Feature Request or Bug Report'}
+          </h2>
+          {validSuggestion?.ticket_id && (
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-1 text-sm text-gray-400">
+                <Hash className="w-4 h-4" />
+                <span className="font-mono">Ticket #{validSuggestion.ticket_id}</span>
+              </div>
+              <TicketShareMenu 
+                suggestion={validSuggestion} 
+                size="medium"
+              />
+            </div>
+          )}
+        </div>
         <button
           onClick={onCancel}
           className="text-gray-400 hover:text-white transition-colors"

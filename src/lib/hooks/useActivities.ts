@@ -88,6 +88,7 @@ async function createActivity(activity: {
   contactIdentifier?: string;
   contactIdentifierType?: IdentifierType;
   status?: Activity['status'];
+  deal_id?: string | null;
 }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -114,7 +115,8 @@ async function createActivity(activity: {
       status: activity.status || 'completed',
       quantity: activity.quantity || 1,
       contact_identifier: activity.contactIdentifier,
-      contact_identifier_type: activity.contactIdentifierType
+      contact_identifier_type: activity.contactIdentifierType,
+      deal_id: activity.deal_id
     })
     .select()
     .single();
@@ -137,6 +139,7 @@ async function createSale(sale: {
   date?: string;
   contactIdentifier?: string;
   contactIdentifierType?: IdentifierType;
+  deal_id?: string | null;
 }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -149,6 +152,62 @@ async function createSale(sale: {
 
   if (!profile) throw new Error('User profile not found');
 
+  let finalDealId = sale.deal_id;
+
+  // Auto-create deal if not provided
+  if (!finalDealId) {
+    try {
+      // Get "Closed Won" stage or create if doesn't exist
+      const { data: stages } = await supabase
+        .from('deal_stages')
+        .select('id, name')
+        .or('name.ilike.%closed%,name.ilike.%won%,name.ilike.%signed%')
+        .limit(1);
+
+      let closedStageId = stages?.[0]?.id;
+
+      // If no closed stage found, get the last stage
+      if (!closedStageId) {
+        const { data: lastStage } = await supabase
+          .from('deal_stages')
+          .select('id')
+          .order('order_position', { ascending: false })
+          .limit(1);
+        
+        closedStageId = lastStage?.[0]?.id;
+      }
+
+      if (closedStageId) {
+        // Create a new deal for this sale
+        const { data: newDeal, error: dealError } = await supabase
+          .from('deals')
+          .insert({
+            name: `${sale.client_name} - ${sale.saleType} Sale`,
+            company: sale.client_name,
+            value: sale.amount,
+            stage_id: closedStageId,
+            owner_id: user.id,
+            probability: 100,
+            status: 'active',
+            expected_close_date: sale.date || new Date().toISOString(),
+            one_off_revenue: sale.saleType === 'one-off' ? sale.amount : null,
+            monthly_mrr: sale.saleType === 'subscription' ? sale.amount : null,
+            annual_value: sale.saleType === 'lifetime' ? sale.amount : null
+          })
+          .select('id')
+          .single();
+
+        if (!dealError && newDeal) {
+          finalDealId = newDeal.id;
+          console.log(`Auto-created deal ${newDeal.id} for sale to ${sale.client_name}`);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to auto-create deal for sale:', error);
+      // Continue without deal linkage
+    }
+  }
+
   const activityData = {
     user_id: user.id,
     type: 'sale',
@@ -160,7 +219,8 @@ async function createSale(sale: {
     date: sale.date || new Date().toISOString(),
     status: 'completed',
     contact_identifier: sale.contactIdentifier,
-    contact_identifier_type: sale.contactIdentifierType
+    contact_identifier_type: sale.contactIdentifierType,
+    deal_id: finalDealId
   };
 
   const { data, error } = await supabase

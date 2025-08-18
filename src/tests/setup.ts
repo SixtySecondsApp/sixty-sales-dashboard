@@ -1,5 +1,6 @@
 // Vitest setup file
 import { vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 
 // Mock window objects that might not exist in test environment
 Object.defineProperty(window, 'matchMedia', {

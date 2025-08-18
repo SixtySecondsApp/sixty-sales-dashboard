@@ -88,7 +88,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   
   // Update selectedOwnerId when user data loads
   useEffect(() => {
-    if (userData?.id && !selectedOwnerId) {
+    if (userData?.id && selectedOwnerId === undefined) {
       setSelectedOwnerId(userData.id);
     }
   }, [userData?.id, selectedOwnerId]);

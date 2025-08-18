@@ -11,9 +11,11 @@ import {
   Settings,
   HelpCircle,
   ChevronUp,
-  Users
+  Users,
+  Hash
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { TicketShareMenu } from './TicketShareMenu';
 
 interface SuggestionCardProps {
   suggestion: any;
@@ -137,7 +139,25 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
       )}
 
       <div className="relative z-[2]">
-        {/* Header with title and votes */}
+        {/* Header with ticket ID and share */}
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Hash className="w-3 h-3" />
+            <span className="font-mono">#{suggestion.ticket_id || 'N/A'}</span>
+          </div>
+          
+          {suggestion.ticket_id && (
+            <div onClick={(e) => e.stopPropagation()}>
+              <TicketShareMenu 
+                suggestion={suggestion} 
+                size="small"
+                className="opacity-0 group-hover:opacity-100 transition-opacity"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Title and votes */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">

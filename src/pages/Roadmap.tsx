@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Map,
@@ -86,13 +87,36 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) 
 }
 
 export default function Roadmap() {
+  const { ticketId } = useParams();
+  const navigate = useNavigate();
   const { suggestions, loading, error } = useRoadmap();
   const { userData } = useUser();
   const { debouncedQuery, setQuery } = useSearch('', { debounceDelay: 300, minSearchLength: 0 });
   const [typeFilter, setTypeFilter] = useState<RoadmapSuggestion['type'] | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<RoadmapSuggestion['status'] | 'all'>('all');
+  const roadmapKanbanRef = useRef<RoadmapKanbanHandle>(null);
 
   const isAdmin = userData?.is_admin || false;
+
+  // Handle ticket ID routing
+  useEffect(() => {
+    if (ticketId && suggestions.length > 0 && roadmapKanbanRef.current) {
+      const ticketNumber = parseInt(ticketId, 10);
+      const targetSuggestion = suggestions.find(s => s.ticket_id === ticketNumber);
+      
+      if (targetSuggestion) {
+        console.log('Found ticket:', targetSuggestion);
+        // Open the suggestion modal
+        roadmapKanbanRef.current.openSuggestionModal?.(targetSuggestion);
+        // Clear the URL to show the regular roadmap
+        navigate('/roadmap', { replace: true });
+      } else {
+        console.log('Ticket not found:', ticketNumber);
+        // Ticket not found, redirect to main roadmap
+        navigate('/roadmap', { replace: true });
+      }
+    }
+  }, [ticketId, suggestions, navigate]);
 
   // Optimized filtering with useMemo to prevent unnecessary re-renders
   const filteredSuggestions = useMemo(() => {
@@ -293,7 +317,6 @@ export default function Roadmap() {
               <option value="in_progress">In Progress</option>
               <option value="testing">Testing</option>
               <option value="completed">Completed</option>
-              <option value="rejected">Rejected</option>
             </select>
           </div>
         </div>
@@ -311,7 +334,7 @@ export default function Roadmap() {
         </div>
 
         {/* Kanban Board */}
-        <RoadmapKanban />
+        <RoadmapKanban ref={roadmapKanbanRef} />
       </div>
     </div>
   );

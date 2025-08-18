@@ -134,9 +134,13 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   // State for the edit modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Expose method to parent component
+  // Expose methods to parent component
   React.useImperativeHandle(ref, () => ({
-    openSuggestionForm: () => handleAddSuggestionClick(null)
+    openSuggestionForm: () => handleAddSuggestionClick(null),
+    openSuggestionModal: (suggestion: any) => {
+      setSelectedSuggestion(suggestion);
+      setIsEditModalOpen(true);
+    }
   }), []);
 
   // Update local state when the context data changes
@@ -617,6 +621,7 @@ RoadmapContent.displayName = 'RoadmapContent';
 
 export interface RoadmapKanbanHandle {
   openSuggestionForm: () => void;
+  openSuggestionModal?: (suggestion: any) => void;
 }
 
 export const RoadmapKanban = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {

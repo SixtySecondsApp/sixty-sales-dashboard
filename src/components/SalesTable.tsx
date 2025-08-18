@@ -48,6 +48,7 @@ import { ActivityUploadModal } from './admin/ActivityUploadModal'; // Import the
 import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
 import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
 import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-filter';
+import { SubscriptionStats } from './SubscriptionStats';
 // ActivityFilters component created inline to avoid import issues
 
 interface StatCardProps {
@@ -78,6 +79,7 @@ export function SalesTable() {
   const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // State for upload modal
   const [showFilters, setShowFilters] = useState(false); // State for filters panel
+  const [showSubscriptionStats, setShowSubscriptionStats] = useState(false); // State for subscription cards visibility
 
   // Calculate the current and previous date ranges based on the selected type
   const { currentDateRange, previousDateRange } = useMemo(() => {
@@ -776,6 +778,22 @@ export function SalesTable() {
                   Show All Types
                 </Button>
               )}
+              
+              {/* Subscription Stats Toggle */}
+              <Button
+                onClick={() => setShowSubscriptionStats(!showSubscriptionStats)}
+                variant="outline"
+                size="sm"
+                className={`transition-colors ${
+                  showSubscriptionStats 
+                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300 hover:bg-violet-500/30' 
+                    : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
+                }`}
+              >
+                <BarChartIcon className="w-4 h-4 mr-2" />
+                {showSubscriptionStats ? 'Hide' : 'Show'} Subscription Stats
+              </Button>
+              
               <Button
                 onClick={handleExportCSV}
                 variant="outline"
@@ -1078,6 +1096,21 @@ export function SalesTable() {
               period={selectedRangeType === 'today' ? 'vs yesterday' : selectedRangeType === 'thisWeek' ? 'vs last week' : selectedRangeType === 'last30Days' ? 'vs prev 30 days' : 'vs last month'}
             />
           </div>
+
+          {/* Subscription Management Stats - Conditionally Rendered */}
+          {showSubscriptionStats && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">
+                  Subscription Management
+                </h3>
+                <div className="text-sm text-gray-400">
+                  Revenue Overview
+                </div>
+              </div>
+              <SubscriptionStats className="w-full" />
+            </div>
+          )}
 
           <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-800/50 overflow-hidden w-full">
             <div className="overflow-x-auto">

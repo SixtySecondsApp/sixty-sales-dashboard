@@ -247,6 +247,64 @@ export interface Database {
           }
         ]
       }
+      clients: {
+        Row: {
+          id: string
+          company_name: string
+          contact_name: string | null
+          contact_email: string | null
+          subscription_amount: number
+          status: 'active' | 'churned' | 'paused'
+          deal_id: string | null
+          owner_id: string
+          subscription_start_date: string | null
+          churn_date: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          company_name: string
+          contact_name?: string | null
+          contact_email?: string | null
+          subscription_amount?: number
+          status?: 'active' | 'churned' | 'paused'
+          deal_id?: string | null
+          owner_id: string
+          subscription_start_date?: string | null
+          churn_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          company_name?: string
+          contact_name?: string | null
+          contact_email?: string | null
+          subscription_amount?: number
+          status?: 'active' | 'churned' | 'paused'
+          deal_id?: string | null
+          owner_id?: string
+          subscription_start_date?: string | null
+          churn_date?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_deal_id_fkey"
+            columns: ["deal_id"]
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_owner_id_fkey"
+            columns: ["owner_id"]
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       // Add other tables as needed
     }
     Views: {
@@ -299,7 +357,7 @@ export interface Database {
       }
     }
     Enums: {
-      [_ in never]: never
+      client_status: 'active' | 'churned' | 'paused'
     }
     CompositeTypes: {
       [_ in never]: never

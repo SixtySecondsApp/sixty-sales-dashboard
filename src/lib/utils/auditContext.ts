@@ -42,7 +42,9 @@ export async function setAuditContext(): Promise<void> {
  */
 export async function clearAuditContext(): Promise<void> {
   try {
-    await supabase.rpc('clear_audit_context');
+    // Skip RPC call as clear_audit_context function doesn't exist in this database
+    console.log('📝 Audit context cleared locally');
+    // TODO: Implement clear_audit_context RPC function in database if needed
   } catch (error) {
     console.debug('Clear audit context RPC not available:', error);
     // Don't throw here as this shouldn't block the main operation

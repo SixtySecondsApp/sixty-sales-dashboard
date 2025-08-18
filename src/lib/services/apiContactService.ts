@@ -1,6 +1,7 @@
 import type { Contact } from '@/lib/database/models';
-import { API_BASE_URL } from '@/lib/config';
+import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
+import { supabase } from '@/lib/supabase/clientV2';
 
 export class ApiContactService {
   
@@ -51,6 +52,12 @@ export class ApiContactService {
    */
   static async getContactById(id: string, includeRelationships = true) {
     try {
+      // If edge functions are disabled or we're in local development, use direct Supabase
+      if (DISABLE_EDGE_FUNCTIONS || API_BASE_URL === '/api') {
+        console.log('🔄 Using direct Supabase for contact fetch');
+        return await this.getContactByIdDirect(id, includeRelationships);
+      }
+
       const params = new URLSearchParams();
       params.append('id', id);
       params.append('includeCompany', includeRelationships.toString());
@@ -75,7 +82,70 @@ export class ApiContactService {
       
       return result.data as Contact;
     } catch (error) {
-      console.error('Error fetching contact:', error);
+      console.error('Error fetching contact via API, falling back to direct Supabase:', error);
+      
+      // Fallback to direct Supabase
+      try {
+        return await this.getContactByIdDirect(id, includeRelationships);
+      } catch (fallbackError) {
+        console.error('Direct Supabase fallback also failed:', fallbackError);
+        throw fallbackError;
+      }
+    }
+  }
+
+  /**
+   * Direct Supabase method to get contact by ID
+   */
+  private static async getContactByIdDirect(id: string, includeRelationships = true): Promise<Contact | null> {
+    try {
+      console.log('📋 Fetching contact directly from Supabase:', id);
+
+      // Get the contact record
+      const { data: contact, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          return null;
+        }
+        throw error;
+      }
+
+      if (!contact) {
+        return null;
+      }
+
+      // Format the contact data to match the expected interface
+      const formattedContact: Contact = {
+        id: contact.id,
+        email: contact.email,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        full_name: contact.full_name || 
+          (contact.first_name && contact.last_name 
+            ? `${contact.first_name} ${contact.last_name}` 
+            : contact.first_name || contact.last_name || ''),
+        phone: contact.phone,
+        title: contact.title,
+        company_name: contact.company_name,
+        company_id: contact.company_id,
+        is_primary: contact.is_primary || false,
+        linkedin_url: contact.linkedin_url,
+        notes: contact.notes,
+        owner_id: contact.owner_id,
+        created_at: contact.created_at,
+        updated_at: contact.updated_at,
+      };
+
+      console.log('✅ Contact fetched successfully from Supabase:', formattedContact.email);
+      return formattedContact;
+    } catch (error) {
+      console.error('❌ Error fetching contact from Supabase:', error);
       throw error;
     }
   }

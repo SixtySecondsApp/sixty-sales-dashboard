@@ -4,6 +4,34 @@ import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { fetchWithRetry, apiCall } from '@/lib/utils/apiUtils';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 
+// Security: Sanitize error messages to prevent sensitive data exposure
+function sanitizeErrorMessage(error: any): string {
+  const message = error?.message || 'Unknown error';
+  
+  // Log full error server-side but return sanitized message to user
+  console.error('Deal operation error (sanitized for user):', {
+    message,
+    timestamp: new Date().toISOString(),
+    // Don't log full error object to prevent sensitive data exposure
+  });
+  
+  // Return generic error messages for common errors
+  if (message.includes('duplicate key')) {
+    return 'A deal with this information already exists';
+  }
+  if (message.includes('foreign key')) {
+    return 'Referenced record not found';
+  }
+  if (message.includes('PGRST')) {
+    return 'Database connection error';
+  }
+  if (message.includes('JWT')) {
+    return 'Authentication required';
+  }
+  
+  return 'Operation failed. Please try again.';
+}
+
 export interface DealWithRelationships {
   id: string;
   name: string;
@@ -85,13 +113,11 @@ export function useDeals(ownerId?: string) {
 
   // Fetch deals from API
   const fetchDeals = useCallback(async () => {
-    if (!ownerId) return;
-    
     try {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Starting deals fetch for owner:', ownerId);
+      console.log('🔄 Starting deals fetch for owner:', ownerId || 'ALL');
       
       // Check authentication first
       const { data: { session } } = await supabase.auth.getSession();
@@ -103,11 +129,16 @@ export function useDeals(ownerId?: string) {
         let serviceDealsData, serviceError;
         try {
           console.log('🔄 Trying basic deals query with service key...');
-          const result = await (supabaseAdmin as any)
+          let query = (supabaseAdmin as any)
             .from('deals')
-            .select('*')
-            .eq('owner_id', ownerId)
-            .order('created_at', { ascending: false });
+            .select('*');
+          
+          // Only filter by owner if ownerId is provided
+          if (ownerId) {
+            query = query.eq('owner_id', ownerId);
+          }
+          
+          const result = await query.order('created_at', { ascending: false });
             
           serviceDealsData = result.data;
           serviceError = result.error;
@@ -148,9 +179,10 @@ export function useDeals(ownerId?: string) {
         }
 
         console.log('🔄 Trying Edge Functions...');
-        const response = await apiCall<{ data: DealWithRelationships[] }>(
-          `${API_BASE_URL}/deals?owner_id=${ownerId}&includeRelationships=true`
-        );
+        const url = ownerId 
+          ? `${API_BASE_URL}/deals?owner_id=${ownerId}&includeRelationships=true`
+          : `${API_BASE_URL}/deals?includeRelationships=true`;
+        const response = await apiCall<{ data: DealWithRelationships[] }>(url);
         
         const processedDeals = response.data?.map((deal: any) => ({
           ...deal,
@@ -174,11 +206,16 @@ export function useDeals(ownerId?: string) {
         let dealsData, supabaseError;
         try {
           console.log('🔄 Trying basic Supabase client query...');
-          const result = await (supabase as any)
+          let query = (supabase as any)
             .from('deals')
-            .select('*')
-            .eq('owner_id', ownerId)
-            .order('created_at', { ascending: false });
+            .select('*');
+          
+          // Only filter by owner if ownerId is provided
+          if (ownerId) {
+            query = query.eq('owner_id', ownerId);
+          }
+          
+          const result = await query.order('created_at', { ascending: false });
           
           dealsData = result.data;
           supabaseError = result.error;
@@ -197,11 +234,16 @@ export function useDeals(ownerId?: string) {
           // Last resort: try with service role client (singleton)
           try {
             console.log('🔄 Last resort: trying service key...');
-            const result = await (supabaseAdmin as any)
+            let query = (supabaseAdmin as any)
               .from('deals')
-              .select('*')
-              .eq('owner_id', ownerId)
-              .order('created_at', { ascending: false });
+              .select('*');
+            
+            // Only filter by owner if ownerId is provided
+            if (ownerId) {
+              query = query.eq('owner_id', ownerId);
+            }
+            
+            const result = await query.order('created_at', { ascending: false });
               
             dealsData = result.data;
             const serviceError = result.error;
@@ -235,9 +277,10 @@ export function useDeals(ownerId?: string) {
         setIsLoading(false);
       }
     } catch (err: any) {
-      console.error('❌ Error fetching deals:', err);
-      setError(err.message);
-      toast.error(err.message || 'Failed to fetch deals');
+      const sanitizedMessage = sanitizeErrorMessage(err);
+      console.error('❌ Error fetching deals - sanitized message:', sanitizedMessage);
+      setError(sanitizedMessage);
+      toast.error(sanitizedMessage);
     } finally {
       setIsLoading(false);
     }
@@ -275,12 +318,10 @@ export function useDeals(ownerId?: string) {
     }
   }, []);
 
-  // Load data on mount and when ownerId changes
+  // Load data on mount and when ownerId changes (including when undefined for "ALL")
   useEffect(() => {
     fetchStages();
-    if (ownerId) {
-      fetchDeals();
-    }
+    fetchDeals(); // Always fetch deals - let the query logic handle filtering
   }, [ownerId, fetchDeals, fetchStages]);
 
   // Group deals by stage for pipeline display
@@ -328,8 +369,9 @@ export function useDeals(ownerId?: string) {
         return true;
       }
     } catch (error: any) {
-      console.error('Error creating deal:', error);
-      toast.error(error.message || 'Failed to create deal');
+      const sanitizedMessage = sanitizeErrorMessage(error);
+      console.error('Error creating deal - sanitized message:', sanitizedMessage);
+      toast.error(sanitizedMessage);
       return false;
     }
   };
@@ -488,10 +530,11 @@ export function useDeals(ownerId?: string) {
         }
       }
     } catch (error: any) {
-      console.error('❌ Error updating deal:', error);
+      const sanitizedMessage = sanitizeErrorMessage(error);
+      console.error('❌ Error updating deal - sanitized message:', sanitizedMessage);
       
-      // Provide more specific error messages
-      let errorMessage = 'Failed to update deal';
+      // Provide more specific error messages while maintaining sanitization
+      let errorMessage = sanitizedMessage;
       if (error.message && error.message.includes('expected_close_date')) {
         errorMessage = 'Failed to update deal - there may be an issue with the close date field';
       } else if (error.message && error.message.includes('schema cache')) {
@@ -533,8 +576,9 @@ export function useDeals(ownerId?: string) {
         return true;
       }
     } catch (error: any) {
-      console.error('Error deleting deal:', error);
-      toast.error(error.message || 'Failed to delete deal');
+      const sanitizedMessage = sanitizeErrorMessage(error);
+      console.error('Error deleting deal - sanitized message:', sanitizedMessage);
+      toast.error(sanitizedMessage);
       return false;
     }
   };
@@ -576,8 +620,9 @@ export function useDeals(ownerId?: string) {
         return true;
       }
     } catch (error: any) {
-      console.error('Error moving deal:', error);
-      toast.error(error.message || 'Failed to move deal');
+      const sanitizedMessage = sanitizeErrorMessage(error);
+      console.error('Error moving deal - sanitized message:', sanitizedMessage);
+      toast.error(sanitizedMessage);
       return false;
     }
   };

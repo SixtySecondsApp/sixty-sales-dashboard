@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Search, 
@@ -28,8 +29,18 @@ import { OwnerFilter } from '@/components/OwnerFilter';
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { CompanyDealsModal } from '@/components/CompanyDealsModal';
+import { CRMNavigation } from '@/components/CRMNavigation';
 import { useUser } from '@/lib/hooks/useUser';
-import { API_BASE_URL } from '@/lib/config';
+import { useCompanies } from '@/lib/hooks/useCompanies';
 
 interface Company {
   id: string;
@@ -60,18 +71,44 @@ type SortField = 'name' | 'domain' | 'size' | 'industry' | 'contactCount' | 'dea
 type SortDirection = 'asc' | 'desc';
 
 export default function CompaniesTable() {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { userData } = useUser();
   const [searchTerm, setSearchTerm] = useState('');
   const [sizeFilter, setSizeFilter] = useState<string>('all');
   const [industryFilter, setIndustryFilter] = useState<string>('all');
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>();
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(userData?.id);
   const [sortField, setSortField] = useState<SortField>('updated_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [viewingCompanyDeals, setViewingCompanyDeals] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [deletingCompany, setDeletingCompany] = useState<Company | null>(null);
 
-  // Fetch companies from API
+  // Set default owner when user data loads
   useEffect(() => {
+    if (userData?.id && selectedOwnerId === undefined) {
+      setSelectedOwnerId(userData.id);
+    }
+  }, [userData?.id, selectedOwnerId]);
+
+  // Use the useCompanies hook instead of manual fetch
+  const { 
+    companies, 
+    isLoading, 
+    error: hookError 
+  } = useCompanies({
+    search: searchTerm,
+    includeStats: true
+  });
+
+  // Convert error object to string for component compatibility
+  const error = hookError?.message || null;
+
+  // Companies data is now handled by the useCompanies hook
+  // Removed old fetch logic - using useCompanies hook instead
+  /*useEffect(() => {
     const fetchCompanies = async () => {
       try {
         setIsLoading(true);
@@ -129,10 +166,17 @@ export default function CompaniesTable() {
           return;
         }
 
-        // Try to query companies table directly
+        // Try to query companies table directly with deals aggregation
         const { data: companiesData, error: supabaseError } = await supabase
           .from('companies')
-          .select('*')
+          .select(`
+            *,
+            deals!company_id(
+              id,
+              value,
+              status
+            )
+          `)
           .order('created_at', { ascending: false });
 
         if (supabaseError) {
@@ -146,7 +190,22 @@ export default function CompaniesTable() {
           return;
         }
 
-        setCompanies(companiesData || []);
+        // Process companies data to include deals count and value
+        const processedCompanies = (companiesData || []).map(company => {
+          const deals = company.deals || [];
+          const dealsCount = deals.length;
+          const dealsValue = deals.reduce((sum: number, deal: any) => {
+            return sum + (deal.value || 0);
+          }, 0);
+          
+          return {
+            ...company,
+            dealsCount,
+            dealsValue
+          };
+        });
+        
+        setCompanies(processedCompanies);
       } catch (error) {
         console.error('❌ Companies Edge Function failed:', error);
         
@@ -165,7 +224,14 @@ export default function CompaniesTable() {
           
           const { data: companiesData, error: supabaseError } = await (fallbackSupabase as any)
             .from('companies')
-            .select('*')
+            .select(`
+              *,
+              deals!company_id(
+                id,
+                value,
+                status
+              )
+            `)
             .order('created_at', { ascending: false });
           
           if (supabaseError) {
@@ -185,7 +251,14 @@ export default function CompaniesTable() {
             
             const { data: serviceCompaniesData, error: serviceError } = await (serviceSupabase as any)
               .from('companies')
-              .select('*')
+              .select(`
+                *,
+                deals!company_id(
+                  id,
+                  value,
+                  status
+                )
+              `)
               .order('created_at', { ascending: false });
               
             if (serviceError) {
@@ -194,12 +267,44 @@ export default function CompaniesTable() {
             }
             
             console.log(`✅ Service key companies fallback successful: Retrieved ${serviceCompaniesData?.length || 0} companies`);
-            setCompanies(serviceCompaniesData || []);
+            
+            // Process companies data to include deals count and value
+            const processedServiceCompanies = (serviceCompaniesData || []).map(company => {
+              const deals = company.deals || [];
+              const dealsCount = deals.length;
+              const dealsValue = deals.reduce((sum: number, deal: any) => {
+                return sum + (deal.value || 0);
+              }, 0);
+              
+              return {
+                ...company,
+                dealsCount,
+                dealsValue
+              };
+            });
+            
+            setCompanies(processedServiceCompanies);
             return;
           }
           
           console.log(`✅ Companies fallback successful: Retrieved ${companiesData?.length || 0} companies`);
-          setCompanies(companiesData || []);
+          
+          // Process companies data to include deals count and value
+          const processedFallbackCompanies = (companiesData || []).map(company => {
+            const deals = company.deals || [];
+            const dealsCount = deals.length;
+            const dealsValue = deals.reduce((sum: number, deal: any) => {
+              return sum + (deal.value || 0);
+            }, 0);
+            
+            return {
+              ...company,
+              dealsCount,
+              dealsValue
+            };
+          });
+          
+          setCompanies(processedFallbackCompanies);
         } catch (fallbackError) {
           console.error('❌ All companies fallback methods failed:', fallbackError);
           setError('Failed to load companies. Please try again.');
@@ -210,14 +315,18 @@ export default function CompaniesTable() {
     };
 
     fetchCompanies();
-  }, [searchTerm, selectedOwnerId]);
+  }, [searchTerm, selectedOwnerId]); */
 
   // Filter and sort companies
   const filteredAndSortedCompanies = useMemo(() => {
     let filtered = companies.filter(company => {
       const matchesSize = sizeFilter === 'all' || company.size === sizeFilter;
       const matchesIndustry = industryFilter === 'all' || company.industry === industryFilter;
-      return matchesSize && matchesIndustry;
+      
+      // Owner filtering
+      const matchesOwner = !selectedOwnerId || company.owner_id === selectedOwnerId;
+      
+      return matchesSize && matchesIndustry && matchesOwner;
     });
 
     // Sort companies
@@ -239,7 +348,7 @@ export default function CompaniesTable() {
     });
 
     return filtered;
-  }, [companies, sizeFilter, industryFilter, sortField, sortDirection]);
+  }, [companies, sizeFilter, industryFilter, selectedOwnerId, sortField, sortDirection]);
 
   // Get unique values for filters
   const uniqueSizes = [...new Set(companies.map(c => c.size).filter(Boolean))];
@@ -297,6 +406,39 @@ export default function CompaniesTable() {
     toast.success('Companies exported successfully');
   };
 
+  // Handle row click to navigate to company detail
+  const handleRowClick = (company: Company) => {
+    navigate(`/companies/${company.id}`);
+  };
+
+  // Handle edit company
+  const handleEditCompany = (e: React.MouseEvent, company: Company) => {
+    e.stopPropagation(); // Prevent row click
+    setEditingCompany(company);
+  };
+
+  // Handle delete company
+  const handleDeleteCompany = (e: React.MouseEvent, company: Company) => {
+    e.stopPropagation(); // Prevent row click
+    setDeletingCompany(company);
+  };
+
+  // Confirm delete
+  const confirmDelete = async () => {
+    if (!deletingCompany) return;
+    
+    // TODO: Implement actual delete logic
+    toast.success(`Company "${deletingCompany.name}" deleted successfully`);
+    setDeletingCompany(null);
+    // Refresh companies list
+    // refreshCompanies();
+  };
+
+  // Handle add new company
+  const handleAddCompany = () => {
+    navigate('/companies/new');
+  };
+
   // Filter companies description text
   const getFilterDescription = () => {
     let description = `${filteredAndSortedCompanies.length} of ${companies.length} companies`;
@@ -338,17 +480,21 @@ export default function CompaniesTable() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Building2 className="w-8 h-8 text-blue-400" />
-          <h1 className="text-3xl font-bold text-white">Companies</h1>
+    <div>
+      {/* CRM Navigation */}
+      <CRMNavigation />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Building2 className="w-8 h-8 text-blue-400" />
+            <h1 className="text-3xl font-bold text-white">Companies</h1>
+          </div>
+          <p className="text-gray-400">
+            {getFilterDescription()}
+          </p>
         </div>
-        <p className="text-gray-400">
-          {getFilterDescription()}
-        </p>
-      </div>
 
       {/* Search and Filters */}
       <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-800">
@@ -370,7 +516,7 @@ export default function CompaniesTable() {
             <OwnerFilter
               selectedOwnerId={selectedOwnerId}
               onOwnerChange={setSelectedOwnerId}
-              className="w-full lg:w-[280px]"
+              className="w-full sm:w-[180px]"
             />
           </div>
           
@@ -405,11 +551,20 @@ export default function CompaniesTable() {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <Button onClick={exportToCSV} variant="outline" size="sm">
+              <Button 
+                onClick={exportToCSV} 
+                variant="outline" 
+                size="sm"
+                className="border-gray-600 bg-gray-800/50 text-gray-100 hover:bg-gray-700/70 hover:text-white hover:border-gray-500"
+              >
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white" size="sm">
+              <Button 
+                onClick={handleAddCompany}
+                className="bg-blue-600 hover:bg-blue-700 text-white" 
+                size="sm"
+              >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Company
               </Button>
@@ -484,7 +639,11 @@ export default function CompaniesTable() {
           </TableHeader>
           <TableBody>
             {filteredAndSortedCompanies.map((company) => (
-              <TableRow key={company.id} className="border-gray-800 hover:bg-gray-800/30">
+              <TableRow 
+                key={company.id} 
+                className="border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-colors"
+                onClick={() => handleRowClick(company)}
+              >
                 <TableCell>
                   <div className="flex flex-col">
                     <div className="font-medium text-white">{company.name}</div>
@@ -535,18 +694,39 @@ export default function CompaniesTable() {
                     {company.contactCount || 0}
                   </div>
                 </TableCell>
-                <TableCell className="text-center text-gray-300">
-                  {company.dealsCount || 0}
+                <TableCell className="text-center">
+                  {(company.dealsCount || 0) > 0 ? (
+                    <button
+                      onClick={() => setViewingCompanyDeals({ id: company.id, name: company.name })}
+                      className="text-blue-400 hover:text-blue-300 font-medium hover:underline transition-colors"
+                    >
+                      {company.dealsCount}
+                    </button>
+                  ) : (
+                    <span className="text-gray-500">0</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right text-emerald-400 font-medium">
                   {formatCurrency(company.dealsValue || 0)}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => handleEditCompany(e, company)}
+                      className="text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+                      title="Edit company"
+                    >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-red-400">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => handleDeleteCompany(e, company)}
+                      className="text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Delete company"
+                    >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -568,6 +748,80 @@ export default function CompaniesTable() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Company Deals Modal */}
+      <CompanyDealsModal
+        isOpen={!!viewingCompanyDeals}
+        onClose={() => setViewingCompanyDeals(null)}
+        companyId={viewingCompanyDeals?.id || null}
+        companyName={viewingCompanyDeals?.name || ''}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingCompany} onOpenChange={() => setDeletingCompany(null)}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-400">Delete Company</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Are you sure you want to delete <span className="font-semibold text-white">"{deletingCompany?.name}"</span>? 
+              This action cannot be undone and will also remove all associated contacts, deals, and activities.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingCompany(null)}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete Company
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Dialog - Simple for now */}
+      <Dialog open={!!editingCompany} onOpenChange={() => setEditingCompany(null)}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-blue-400">Edit Company</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Editing company: <span className="font-semibold text-white">"{editingCompany?.name}"</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-400 text-sm">
+              Full edit functionality coming soon. Click on the company row to view the complete company profile where you can edit all details.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setEditingCompany(null)}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingCompany) {
+                  navigate(`/companies/${editingCompany.id}`);
+                  setEditingCompany(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Open Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

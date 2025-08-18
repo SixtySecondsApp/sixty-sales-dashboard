@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import SalesActivityChart from '@/components/SalesActivityChart';
 import ReactDOM from 'react-dom';
+import { SubscriptionStats } from '@/components/SubscriptionStats';
 
 interface MetricCardProps {
   title: string;
@@ -695,6 +696,20 @@ export default function Dashboard() {
           type="proposal"
           dateRange={selectedMonthRange}
           previousMonthTotal={previousMonthTotals.proposals}
+        />
+      </div>
+
+      {/* MRR Subscription Statistics */}
+      <div className="mb-8">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold text-white">Subscription Revenue</h2>
+          <p className="text-sm text-gray-400">Track your monthly recurring revenue and client metrics</p>
+        </div>
+        <SubscriptionStats 
+          onClick={(cardTitle) => {
+            // Navigate to subscriptions page when clicking on MRR cards
+            navigate('/subscriptions');
+          }}
         />
       </div>
 
