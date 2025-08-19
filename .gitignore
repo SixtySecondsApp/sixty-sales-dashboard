@@ -70,3 +70,10 @@ playwright/.cache/
 .vscode-test/
 .nyc_output/
 node_modules.nosync/
+
+# Environment variables
+.env
+.env.*
+*.env
+!.env.example
+!.env.sample
