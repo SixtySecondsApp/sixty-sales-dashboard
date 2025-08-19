@@ -90,7 +90,18 @@ async function handleContactsList(supabaseClient: any, url: URL) {
 
     // Apply filters
     if (search) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,full_name.ilike.%${search}%,email.ilike.%${search}%`)
+      // Validate and sanitize search term
+      const sanitized = search.trim();
+      if (!/^[a-zA-Z0-9\s\-_@.'"\(\)&\[\]]+$/.test(sanitized) || sanitized.length > 500) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid search term' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      query = query.or(`first_name.ilike."%${sanitized}%",last_name.ilike."%${sanitized}%",full_name.ilike."%${sanitized}%",email.ilike."%${sanitized}%"`)
     }
     if (companyId) {
       query = query.eq('company_id', companyId)

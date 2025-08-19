@@ -25,7 +25,8 @@ import {
   MailCheck,
   Building2,
   Shield,
-  Map
+  Map,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -75,6 +76,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         { icon: UsersIcon, label: 'Contacts', href: '/crm/contacts' }
       ]
     },
+    { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: Activity, label: 'Heatmap', href: '/heatmap' },
     { icon: FileText, label: 'Activity Log', href: '/activity' },
     { icon: MailWarning, label: 'Activity Processing', href: '/activity-processing' },

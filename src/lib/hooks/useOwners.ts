@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { supabase } from '@/lib/supabase/clientV2';
 
 export interface Owner {
@@ -24,88 +23,82 @@ export function useOwners() {
         setIsLoading(true);
         setError(null);
 
-        // If edge functions are disabled, return hardcoded owners for now
-        if (DISABLE_EDGE_FUNCTIONS) {
-          console.log('🔄 Using hardcoded owners list (fallback)');
-          
-          // Hardcoded list of common sales representatives
-          const hardcodedOwners: Owner[] = [
-            {
-              id: '1',
-              first_name: 'Steve',
-              last_name: 'Gibson',
-              full_name: 'Steve Gibson',
-              stage: 'Director',
-              email: 'steve@company.com'
-            },
-            {
-              id: '2',
-              first_name: 'Andrew',
-              last_name: 'Bryce',
-              full_name: 'Andrew Bryce',
-              stage: 'Senior Rep',
-              email: 'andrew@company.com'
-            },
-            {
-              id: '3',
-              first_name: 'Phil',
-              last_name: 'Johnson',
-              full_name: 'Phil Johnson',
-              stage: 'Rep',
-              email: 'phil@company.com'
-            }
-          ];
+        console.log('🔄 Fetching owners from database...');
+        
+        // Check if user is authenticated first
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          console.warn('No authenticated user, skipping owners fetch');
+          setOwners([]);
+          return;
+        }
+        
+        // Fetch directly from profiles table
+        const { data: profiles, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: true });
 
-          setOwners(hardcodedOwners);
+        if (error) {
+          console.error('Database error fetching profiles:', error);
+          throw error;
+        }
+
+        if (!profiles || profiles.length === 0) {
+          console.warn('No profiles found in database, trying to get at least current user');
+          
+          // Try to get at least the current user's profile
+          const { data: userProfile, error: userProfileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+            
+          if (userProfile && !userProfileError) {
+            console.log('Found current user profile, using as single owner');
+            const transformedOwner: Owner = {
+              id: userProfile.id,
+              first_name: userProfile.first_name,
+              last_name: userProfile.last_name,
+              full_name: userProfile.full_name || 
+                (userProfile.first_name || userProfile.last_name 
+                  ? `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim()
+                  : null),
+              stage: userProfile.stage || 'Sales Rep',
+              email: userProfile.email || user.email || `user_${userProfile.id.slice(0, 8)}@private.local`
+            };
+            setOwners([transformedOwner]);
+          } else {
+            console.warn('No profiles found at all, setting empty list');
+            setOwners([]);
+          }
           return;
         }
 
-        // Try edge function first (fallback approach)
-        try {
-          const response = await fetch(`${API_BASE_URL}/owners`);
-          
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          
-          const result = await response.json();
-          setOwners(result.data || []);
-        } catch (edgeFunctionError) {
-          console.warn('Edge function failed, using hardcoded fallback:', edgeFunctionError);
-          
-          // Fallback to hardcoded list
-          const hardcodedOwners: Owner[] = [
-            {
-              id: '1',
-              first_name: 'Steve',
-              last_name: 'Gibson',
-              full_name: 'Steve Gibson',
-              stage: 'Director',
-              email: 'steve@company.com'
-            },
-            {
-              id: '2',
-              first_name: 'Andrew',
-              last_name: 'Bryce',
-              full_name: 'Andrew Bryce',
-              stage: 'Senior Rep',
-              email: 'andrew@company.com'
-            },
-            {
-              id: '3',
-              first_name: 'Phil',
-              last_name: 'Johnson',
-              full_name: 'Phil Johnson',
-              stage: 'Rep',
-              email: 'phil@company.com'
-            }
-          ];
+        // Transform profiles to Owner format
+        const transformedOwners: Owner[] = profiles.map(profile => ({
+          id: profile.id,
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          full_name: profile.full_name || 
+            (profile.first_name || profile.last_name 
+              ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+              : null),
+          stage: profile.stage || 'Sales Rep',
+          email: profile.email || `user_${profile.id.slice(0, 8)}@private.local`
+        }));
 
-          setOwners(hardcodedOwners);
-        }
+        console.log(`✅ Successfully fetched ${transformedOwners.length} owners from database`);
+        console.log('Owners data:', transformedOwners.map(o => ({ id: o.id, name: o.full_name, email: o.email })));
+        setOwners(transformedOwners);
+
       } catch (err) {
-        console.error('Error fetching owners:', err);
-        setError(err instanceof Error ? err : new Error('Failed to fetch owners'));
+        console.error('Error fetching owners from database:', err);
+        
+        // Only use fallback in extreme cases and make sure IDs won't conflict
+        console.warn('Database query failed, setting empty owners list');
+        setOwners([]); // Set empty instead of hardcoded to prevent invalid owner_id queries
+        setError(err instanceof Error ? err : new Error('Failed to fetch owners from database'));
       } finally {
         setIsLoading(false);
       }

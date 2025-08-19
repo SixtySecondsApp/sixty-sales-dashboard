@@ -52,12 +52,13 @@ function useFunnelMetrics(activities: any[] | undefined) {
     if (!activities) return {
       outbound: 0,
       meetings: 0,
+      meetingsBooked: 0,
       proposals: 0,
       closed: 0,
       meetingToProposalRate: 0,
       proposalWinRate: 0,
       avgDealSize: 0,
-      avgSalesVelocity: 18
+      avgSalesVelocity: 0
     };
 
     const monthStart = startOfMonth(new Date());
@@ -69,9 +70,17 @@ function useFunnelMetrics(activities: any[] | undefined) {
     const outboundCount = monthActivities
       .filter(a => a.type === 'outbound')
       .reduce((sum, a) => sum + (a.quantity || 1), 0);
-    const meetingsCount = monthActivities
+    
+    // Meetings held (completed status only)
+    const meetingsHeld = monthActivities
+      .filter(a => a.type === 'meeting' && a.status === 'completed')
+      .reduce((sum, a) => sum + (a.quantity || 1), 0);
+    
+    // Total meetings booked (including no-shows and cancellations)
+    const meetingsBooked = monthActivities
       .filter(a => a.type === 'meeting')
       .reduce((sum, a) => sum + (a.quantity || 1), 0);
+    
     const proposalsCount = monthActivities
       .filter(a => a.type === 'proposal')
       .reduce((sum, a) => sum + (a.quantity || 1), 0);
@@ -79,8 +88,8 @@ function useFunnelMetrics(activities: any[] | undefined) {
       .filter(a => a.type === 'sale')
       .reduce((sum, a) => sum + (a.quantity || 1), 0);
 
-    const meetingToProposalRate = meetingsCount > 0 
-        ? Math.round((proposalsCount / meetingsCount) * 100) 
+    const meetingToProposalRate = meetingsHeld > 0 
+        ? Math.round((proposalsCount / meetingsHeld) * 100) 
         : 0;
 
     const proposalWinRate = proposalsCount > 0 
@@ -92,15 +101,74 @@ function useFunnelMetrics(activities: any[] | undefined) {
       .reduce((sum, a) => sum + (a.amount || 0), 0);
     const avgDealSize = closedCount > 0 ? Math.round(totalRevenue / closedCount) : 0;
 
+    // Calculate actual sales velocity: average days from first activity to deal close
+    const calculateSalesVelocity = () => {
+      const closedSales = monthActivities.filter(a => a.type === 'sale' && a.deal_id);
+      if (closedSales.length === 0) return 0;
+
+      const velocities = [];
+      
+      for (const sale of closedSales) {
+        // Find the first activity for this deal (using deal_id for accurate linking)
+        const firstActivity = activities
+          .filter(a => 
+            a.deal_id === sale.deal_id && 
+            (a.type === 'meeting' || a.type === 'outbound' || a.type === 'proposal')
+          )
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+        if (firstActivity) {
+          const firstActivityDate = new Date(firstActivity.date);
+          const closeDate = new Date(sale.date);
+          const daysDiff = Math.ceil((closeDate.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (daysDiff >= 0) {
+            velocities.push(daysDiff);
+          }
+        }
+      }
+
+      // Fallback to client name matching for deals without proper linking
+      if (velocities.length === 0) {
+        const unlinkedSales = monthActivities.filter(a => a.type === 'sale' && !a.deal_id);
+        
+        for (const sale of unlinkedSales) {
+          const firstMeeting = activities
+            .filter(a => 
+              a.type === 'meeting' && 
+              a.client_name === sale.client_name
+            )
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+          if (firstMeeting) {
+            const meetingDate = new Date(firstMeeting.date);
+            const closeDate = new Date(sale.date);
+            const daysDiff = Math.ceil((closeDate.getTime() - meetingDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff >= 0) {
+              velocities.push(daysDiff);
+            }
+          }
+        }
+      }
+
+      return velocities.length > 0 
+        ? Math.round(velocities.reduce((sum, v) => sum + v, 0) / velocities.length)
+        : 0;
+    };
+
+    const avgSalesVelocity = calculateSalesVelocity();
+
     return {
       outbound: outboundCount,
-      meetings: meetingsCount,
+      meetings: meetingsHeld,
+      meetingsBooked: meetingsBooked,
       proposals: proposalsCount,
       closed: closedCount,
       meetingToProposalRate,
       proposalWinRate,
       avgDealSize,
-      avgSalesVelocity: 18
+      avgSalesVelocity
     };
   }, [activities]);
 }
@@ -154,9 +222,10 @@ export default function SalesFunnel() {
       id: 'meetings',
       label: 'Meetings',
       value: funnelMetrics.meetings,
+      totalBooked: funnelMetrics.meetingsBooked,
       icon: Users,
       color: 'violet',
-      description: 'Qualified meetings held'
+      description: 'Meetings held vs booked'
     },
     {
       id: 'proposals',
@@ -216,6 +285,11 @@ export default function SalesFunnel() {
             const maxValue = Math.max(...funnelStages.map(s => s.value));
             const width = maxValue > 0 ? (stage.value / maxValue) * 100 : 0;
             
+            // For meetings, calculate additional width for total booked
+            const totalBookedWidth = stage.totalBooked && maxValue > 0 
+              ? (stage.totalBooked / maxValue) * 100 
+              : width;
+            
             return (
               <div key={stage.id} className="mb-4">
                 <div className="flex items-center gap-4 mb-2">
@@ -239,14 +313,30 @@ export default function SalesFunnel() {
                       <span className="font-medium text-white">{stage.label}</span>
                       <span className="text-sm text-gray-400">{stage.description}</span>
                     </div>
-                    <div className="text-2xl font-bold text-white">{stage.value}</div>
+                    <div className="flex items-baseline gap-2">
+                      <div className="text-2xl font-bold text-white">{stage.value}</div>
+                      {stage.totalBooked && stage.totalBooked !== stage.value && (
+                        <div className="text-lg text-gray-400">/ {stage.totalBooked}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="relative">
+                  {/* Background bar for total meetings booked (grey) - only for meetings */}
+                  {stage.id === 'meetings' && stage.totalBooked && stage.totalBooked > stage.value && (
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${totalBookedWidth}%` }}
+                      transition={{ duration: 0.4, ease: "easeOut" }}
+                      className="h-16 bg-gray-600/20 border border-gray-600/30 backdrop-blur-xl rounded-xl absolute inset-0"
+                    />
+                  )}
+                  
+                  {/* Main bar */}
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${width}%` }}
-                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
                     onClick={() => {
                       setFilters({ 
                         type: stage.id === 'closed' ? 'sale' : stage.id,
@@ -258,7 +348,7 @@ export default function SalesFunnel() {
                       stage.color === 'blue'
                         ? 'bg-blue-400/5 border-blue-500/10 hover:bg-blue-400/10 hover:border-blue-500/20 hover:shadow-blue-400/10'
                         : `bg-${stage.color}-500/10 border-${stage.color}-500/20 hover:bg-${stage.color}-500/20 hover:border-${stage.color}-500/40 hover:shadow-${stage.color}-500/20`
-                    } backdrop-blur-xl border rounded-xl relative overflow-hidden group transition-all duration-300 hover:shadow-lg cursor-pointer`}
+                    } backdrop-blur-xl border rounded-xl relative overflow-hidden group transition-all duration-300 hover:shadow-lg cursor-pointer z-10`}
                   >
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
                     {index < funnelStages.length - 1 && (

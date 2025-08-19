@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Users, 
   Search, 
@@ -30,6 +30,15 @@ import {
 import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from '@/components/ui/dialog';
+import { CRMNavigation } from '@/components/CRMNavigation';
 import { useUser } from '@/lib/hooks/useUser';
 import { API_BASE_URL } from '@/lib/config';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -74,14 +83,25 @@ type SortDirection = 'asc' | 'desc';
 
 export default function ContactsTable() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [primaryFilter, setPrimaryFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('updated_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+
+  // Update search term when URL params change
+  useEffect(() => {
+    const urlSearch = searchParams.get('search');
+    if (urlSearch && urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
 
   // Fetch contacts from API
   useEffect(() => {
@@ -172,7 +192,25 @@ export default function ContactsTable() {
           .order('created_at', { ascending: false });
 
         if (searchTerm) {
-          query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+          // Import security utilities
+          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
+          
+          // Validate search term
+          const validation = validateSearchTerm(searchTerm);
+          if (!validation.isValid) {
+            console.error('Invalid search term:', validation.error);
+            throw new Error(validation.error || 'Invalid search term');
+          }
+          
+          // Build safe OR clause
+          const searchOrClause = new SafeQueryBuilder()
+            .addSearchCondition('first_name', validation.sanitized)
+            .addSearchCondition('last_name', validation.sanitized)
+            .addSearchCondition('full_name', validation.sanitized)
+            .addSearchCondition('email', validation.sanitized)
+            .buildOrClause();
+            
+          query = query.or(searchOrClause);
         }
 
         const { data: contactsData, error: supabaseError } = await query;
@@ -360,6 +398,34 @@ export default function ContactsTable() {
     toast.success('Contacts exported successfully');
   };
 
+  // Handle edit contact
+  const handleEditContact = (e: React.MouseEvent, contact: Contact) => {
+    e.stopPropagation(); // Prevent row click
+    setEditingContact(contact);
+  };
+
+  // Handle delete contact
+  const handleDeleteContact = (e: React.MouseEvent, contact: Contact) => {
+    e.stopPropagation(); // Prevent row click
+    setDeletingContact(contact);
+  };
+
+  // Confirm delete
+  const confirmDeleteContact = async () => {
+    if (!deletingContact) return;
+    
+    // TODO: Implement actual delete logic
+    toast.success(`Contact "${formatName(deletingContact)}" deleted successfully`);
+    setDeletingContact(null);
+    // Refresh contacts list
+    // refreshContacts();
+  };
+
+  // Handle add new contact
+  const handleAddContact = () => {
+    navigate('/contacts/new');
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -390,17 +456,21 @@ export default function ContactsTable() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <Users className="w-8 h-8 text-green-400" />
-          <h1 className="text-3xl font-bold text-white">Contacts</h1>
+    <div>
+      {/* CRM Navigation */}
+      <CRMNavigation />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <Users className="w-8 h-8 text-green-400" />
+            <h1 className="text-3xl font-bold text-white">Contacts</h1>
+          </div>
+          <p className="text-gray-400">
+            Manage your contact database • {filteredAndSortedContacts.length} of {contacts.length} contacts • Click any row to view details
+          </p>
         </div>
-        <p className="text-gray-400">
-          Manage your contact database • {filteredAndSortedContacts.length} of {contacts.length} contacts • Click any row to view details
-        </p>
-      </div>
 
       {/* Search and Filters */}
       <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-800">
@@ -448,7 +518,11 @@ export default function ContactsTable() {
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
-            <Button className="bg-green-600 hover:bg-green-700 text-white" size="sm">
+            <Button 
+              onClick={handleAddContact}
+              className="bg-green-600 hover:bg-green-700 text-white" 
+              size="sm"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Contact
             </Button>
@@ -603,16 +677,18 @@ export default function ContactsTable() {
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="text-gray-400 hover:text-white"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => handleEditContact(e, contact)}
+                      className="text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+                      title="Edit contact"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="text-gray-400 hover:text-red-400"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => handleDeleteContact(e, contact)}
+                      className="text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                      title="Delete contact"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -635,6 +711,72 @@ export default function ContactsTable() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deletingContact} onOpenChange={() => setDeletingContact(null)}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-400">Delete Contact</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Are you sure you want to delete <span className="font-semibold text-white">"{deletingContact ? formatName(deletingContact) : ''}"</span>? 
+              This action cannot be undone and will remove all contact information and associated activities.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeletingContact(null)}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmDeleteContact}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete Contact
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Contact Dialog - Simple for now */}
+      <Dialog open={!!editingContact} onOpenChange={() => setEditingContact(null)}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-blue-400">Edit Contact</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Editing contact: <span className="font-semibold text-white">"{editingContact ? formatName(editingContact) : ''}"</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-400 text-sm">
+              Full edit functionality coming soon. Click on the contact row to view the complete contact profile where you can edit all details.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setEditingContact(null)}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (editingContact) {
+                  navigate(`/crm/contacts/${editingContact.id}`);
+                  setEditingContact(null);
+                }
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Open Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

@@ -47,6 +47,17 @@ export default defineConfig({
       'recharts',
       'date-fns',
     ],
+    exclude: [
+      // Exclude heavy dev dependencies
+      '@testing-library/react',
+      '@playwright/test',
+    ],
+  },
+  // Performance optimizations
+  esbuild: {
+    target: 'es2020',
+    drop: ['console', 'debugger'],
+    legalComments: 'none',
   },
   test: {
     globals: true,

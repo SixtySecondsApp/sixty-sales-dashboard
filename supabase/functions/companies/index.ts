@@ -102,7 +102,18 @@ async function handleCompaniesList(supabaseClient: any, url: URL) {
 
     // Apply filters
     if (search) {
-      query = query.or(`name.ilike.%${search}%,domain.ilike.%${search}%`)
+      // Validate and sanitize search term
+      const sanitized = search.trim();
+      if (!/^[a-zA-Z0-9\s\-_@.'"\(\)&\[\]]+$/.test(sanitized) || sanitized.length > 500) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid search term' }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      query = query.or(`name.ilike."%${sanitized}%",domain.ilike."%${sanitized}%"`)
     }
     if (industry) {
       query = query.eq('industry', industry)

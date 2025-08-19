@@ -9,7 +9,8 @@ import {
   AlertCircle, 
   ExternalLink,
   Users,
-  PieChart
+  PieChart,
+  DollarSign
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useDealSplits } from '@/lib/hooks/useDealSplits';
@@ -20,10 +21,11 @@ interface DealCardProps {
   deal: any;
   index?: number;
   onClick: (deal: any) => void;
+  onConvertToSubscription?: (deal: any) => void;
   isDragOverlay?: boolean;
 }
 
-export function DealCard({ deal, onClick, isDragOverlay = false }: DealCardProps) {
+export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay = false }: DealCardProps) {
   // Assurer que l'ID est une chaîne de caractères
   const dealId = String(deal.id);
 
@@ -207,6 +209,17 @@ export function DealCard({ deal, onClick, isDragOverlay = false }: DealCardProps
     return {};
   }, [deal.deal_stages?.color]);
 
+  // Check if deal can be converted to subscription (is in Won/Closed/Signed stage)
+  const canConvertToSubscription = useMemo(() => {
+    const wonStageNames = ['closed', 'won', 'closed/won', 'closed-won', 'signed', 'signed & paid'];
+    const currentStageName = stageName?.toLowerCase() || '';
+    const stageId = deal.stage_id?.toLowerCase() || '';
+    
+    return wonStageNames.some(wonStage => 
+      currentStageName.includes(wonStage) || stageId.includes(wonStage)
+    ) && onConvertToSubscription;
+  }, [stageName, deal.stage_id, onConvertToSubscription]);
+
   return (
     <div
       ref={setNodeRef}
@@ -347,6 +360,24 @@ export function DealCard({ deal, onClick, isDragOverlay = false }: DealCardProps
             </span>
           </div>
         </div>
+
+        {/* Convert to Subscription Button */}
+        {canConvertToSubscription && (
+          <div className="mt-3 pt-3 border-t border-gray-700/50">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onConvertToSubscription?.(deal);
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-emerald-500/10 
+                         hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/30 
+                         rounded-lg transition-all text-emerald-400 hover:text-emerald-300 text-sm font-medium"
+            >
+              <DollarSign className="w-4 h-4" />
+              Convert to Subscription
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

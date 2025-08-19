@@ -26,6 +26,7 @@ import { PipelineTable } from './PipelineTable';
 import { OwnerFilter } from '@/components/OwnerFilter';
 import EditDealModal from '@/components/EditDealModal';
 import DealClosingModal from '@/components/DealClosingModal';
+import { ConvertDealModal } from '@/components/ConvertDealModal';
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -140,6 +141,10 @@ function PipelineContent() {
   // State for the DealClosingModal
   const [isDealClosingModalOpen, setIsDealClosingModalOpen] = useState(false);
   const [closingDeal, setClosingDeal] = useState<any>(null);
+
+  // State for the ConvertDealModal
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [convertingDeal, setConvertingDeal] = useState<any>(null);
 
   // Update local state when the context data changes
   useEffect(() => {
@@ -401,12 +406,9 @@ function PipelineContent() {
         .select();
       if (error) throw error;
 
-      // Check if moved to Signed or Signed & Paid - show closing modal for Signed, confetti for Signed & Paid
+      // Check if moved to Signed - show closing modal and celebrate
       const signedStage = stages.find(
         stage => stage.name.toLowerCase() === 'signed'
-      );
-      const signedPaidStage = stages.find(
-        stage => stage.name.toLowerCase() === 'signed & paid'
       );
       
       if (signedStage && toStage === signedStage.id) {
@@ -420,11 +422,8 @@ function PipelineContent() {
           setIsDealClosingModalOpen(true);
           // Celebrate after modal is closed
           ConfettiService.celebrate();
+          toast.success('🎉 Deal signed! Track payment status on the Payments page.');
         }
-      } else if (signedPaidStage && toStage === signedPaidStage.id) {
-        // Confetti for Signed & Paid (final stage)
-        ConfettiService.celebrate();
-        toast.success('🎉 Deal fully completed - payment received!');
       }
       
       setTimeout(() => {
@@ -446,6 +445,11 @@ function PipelineContent() {
 
   const handleDeleteDeal = async (dealId: string) => {
     await deleteDeal(dealId);
+  };
+
+  const handleConvertToSubscription = (deal: any) => {
+    setConvertingDeal(deal);
+    setIsConvertModalOpen(true);
   };
 
   const handleDealClosure = async (firstBillingDate: string | null) => {
@@ -543,6 +547,7 @@ function PipelineContent() {
                   deals={localDealsByStage[stage.id] || []}
                   onAddDealClick={() => handleAddDealClick(stage.id)}
                   onDealClick={handleDealClick}
+                  onConvertToSubscription={handleConvertToSubscription}
                 />
               ))}
             </div>
@@ -606,6 +611,19 @@ function PipelineContent() {
           onSave={handleDealClosure}
         />
       )}
+      
+      <ConvertDealModal
+        deal={convertingDeal}
+        isOpen={isConvertModalOpen}
+        onClose={() => {
+          setIsConvertModalOpen(false);
+          setConvertingDeal(null);
+        }}
+        onSuccess={() => {
+          // Refresh deals after successful conversion
+          refreshDeals();
+        }}
+      />
     </>
   );
 }

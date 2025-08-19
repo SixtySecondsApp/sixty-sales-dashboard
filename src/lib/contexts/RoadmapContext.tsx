@@ -7,8 +7,7 @@ export const ROADMAP_STATUSES = [
   { id: 'under_review', name: 'Planned', color: '#3b82f6' },
   { id: 'in_progress', name: 'In Progress', color: '#f59e0b' },
   { id: 'testing', name: 'Testing', color: '#8b5cf6' },
-  { id: 'completed', name: 'Completed', color: '#10b981' },
-  { id: 'rejected', name: 'Rejected', color: '#ef4444' }
+  { id: 'completed', name: 'Completed', color: '#10b981' }
 ] as const;
 
 interface RoadmapContextType {

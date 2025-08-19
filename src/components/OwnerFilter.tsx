@@ -18,6 +18,13 @@ export function OwnerFilter({
 }: OwnerFilterProps) {
   const { owners, isLoading } = useOwners();
   const { userData } = useUser();
+  
+  // Set default to current user on component mount if no owner is selected
+  React.useEffect(() => {
+    if (userData?.id && selectedOwnerId === undefined) {
+      onOwnerChange(userData.id);
+    }
+  }, [userData?.id, selectedOwnerId, onOwnerChange]);
 
   const getOwnerDisplayName = (owner: any) => {
     if (owner.full_name) return owner.full_name;
@@ -51,18 +58,18 @@ export function OwnerFilter({
     <div className={`relative ${className}`}>
       <select
         value={selectedOwnerId || ''}
-        onChange={(e) => onOwnerChange(e.target.value || undefined)}
+        onChange={(e) => onOwnerChange(e.target.value === '' ? undefined : e.target.value)}
         className="appearance-none w-full px-3 py-3 pl-10 pr-10 bg-gray-900/80 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 hover:bg-gray-800/70 transition-colors cursor-pointer"
       >
-        <option value="" className="bg-gray-800 text-white">
-          All Sales Representatives
-        </option>
-        
         {userData && (
           <option value={userData.id} className="bg-gray-800 text-white">
             👤 My Items Only
           </option>
         )}
+        
+        <option value="" className="bg-gray-800 text-white">
+          📋 All Sales Representatives
+        </option>
         
         {owners.length > 0 && (
           <option disabled className="bg-gray-700 text-gray-400 font-medium">

@@ -52,13 +52,34 @@ export function ManualMatchControl({
     }
     setIsSearching(true);
     try {
+      // Import security utilities
+      const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
+      
+      // Validate search terms
+      const termValidation = validateSearchTerm(term);
+      if (!termValidation.isValid) {
+        console.error('Invalid search term:', termValidation.error);
+        throw new Error(termValidation.error || 'Invalid search term');
+      }
+      
       // Search by domain OR company name
       const domainSearchTerm = term.includes('@') ? term.split('@')[1] : term;
+      const domainValidation = validateSearchTerm(domainSearchTerm);
+      if (!domainValidation.isValid) {
+        console.error('Invalid domain search term:', domainValidation.error);
+        throw new Error(domainValidation.error || 'Invalid domain search term');
+      }
+      
+      // Build safe OR clause
+      const searchOrClause = new SafeQueryBuilder()
+        .addSearchCondition('contact_email', domainValidation.sanitized)
+        .addSearchCondition('company', termValidation.sanitized)
+        .buildOrClause();
       
       const { data, error } = await supabase
         .from('deals')
         .select('id, name, company, contact_email') // Select needed fields
-        .or(`contact_email.ilike.%${domainSearchTerm}%,company.ilike.%${term}%`) // Case-insensitive search
+        .or(searchOrClause) // Case-insensitive search
         .limit(10); // Limit results
 
       if (error) throw error;

@@ -253,7 +253,9 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       // Calculate total value from revenue fields
       const oneOffRevenue = formData.oneOffRevenue ? parseFloat(formData.oneOffRevenue as string) : 0;
       const monthlyMrr = formData.monthlyMrr ? parseFloat(formData.monthlyMrr as string) : 0;
-      const totalValue = oneOffRevenue + (monthlyMrr * 3);
+      // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
+      // This gives 3x monthly subscription value PLUS 1x one-time deal value
+      const totalValue = (monthlyMrr * 3) + oneOffRevenue;
       
       // Map form field names to database column names
       const dataToSave = {

@@ -9,6 +9,7 @@ import { useUser } from '@/lib/hooks/useUser';
 import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IdentifierField, IdentifierType } from './IdentifierField';
+import { DealSelector } from './DealSelector';
 
 interface QuickAddProps {
   isOpen: boolean;
@@ -39,7 +40,10 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     priority: 'medium' as const,
     due_date: '',
     contact_name: '',
-    company: ''
+    company: '',
+    // Deal linking
+    deal_id: null as string | null,
+    selectedDeal: null as any
   });
 
   // Reset selectedAction when modal is closed
@@ -64,7 +68,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       priority: 'medium',
       due_date: '',
       contact_name: '',
-      company: ''
+      company: '',
+      deal_id: null,
+      selectedDeal: null
     });
     onClose();
   };
@@ -169,6 +175,12 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       return;
     }
     
+    // Require deal for sales and proposals
+    if ((selectedAction === 'sale' || selectedAction === 'proposal') && !formData.deal_id) {
+      toast.error(`Please select or create a deal for this ${selectedAction}`);
+      return;
+    }
+    
     // For non-outbound, require identifier
     if (selectedAction !== 'outbound') {
       if (!formData.contactIdentifier) {
@@ -190,6 +202,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           details: formData.outboundType,
           quantity: parseInt(formData.outboundCount) || 1,
           date: selectedDate.toISOString(),
+          deal_id: formData.deal_id,
           // Only include identifier fields if present
           ...(formData.contactIdentifier
             ? {
@@ -202,8 +215,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         // Calculate total amount from oneOffRevenue and monthlyMrr
         const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
         const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-        // Use LTV calculation: one-off + (monthly * 3)
-        const totalAmount = oneOff + (monthly * 3);
+        // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
+        // This gives 3x monthly subscription value PLUS 1x one-time deal value
+        const totalAmount = (monthly * 3) + oneOff;
         
         const saleData = {
           client_name: formData.client_name,
@@ -211,6 +225,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           details: formData.details || `${formData.saleType} Sale`,
           saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
           date: selectedDate.toISOString(),
+          deal_id: formData.deal_id,
           contactIdentifier: formData.contactIdentifier,
           contactIdentifierType: formData.contactIdentifierType
         };
@@ -221,8 +236,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         if (selectedAction === 'proposal') {
           const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
           const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-          // Use LTV calculation: one-off + (monthly * 3)
-          proposalAmount = oneOff + (monthly * 3);
+          // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
+          // This gives 3x monthly subscription value PLUS 1x one-time deal value
+          proposalAmount = (monthly * 3) + oneOff;
         }
 
         await addActivity({
@@ -231,6 +247,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           details: formData.details,
           amount: selectedAction === 'proposal' ? proposalAmount : undefined,
           date: selectedDate.toISOString(),
+          deal_id: formData.deal_id,
           contactIdentifier: formData.contactIdentifier,
           contactIdentifierType: formData.contactIdentifierType,
           status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
@@ -654,6 +671,45 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                       value={formData.client_name}
                       onChange={(e) => setFormData({...formData, client_name: e.target.value})}
                     />
+                  </div>
+                )}
+
+                {/* Deal Selector - Required for sales and proposals, optional for meetings */}
+                {(selectedAction === 'sale' || selectedAction === 'meeting' || selectedAction === 'proposal') && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-400/90 flex items-center">
+                      Pipeline Deal
+                      {(selectedAction === 'sale' || selectedAction === 'proposal') && <span className="text-red-500 ml-1">*</span>}
+                    </label>
+                    <DealSelector
+                      selectedDealId={formData.deal_id}
+                      onDealSelect={(dealId, dealInfo) => {
+                        setFormData({
+                          ...formData, 
+                          deal_id: dealId,
+                          selectedDeal: dealInfo,
+                          // Auto-populate client name from deal if available
+                          client_name: dealInfo?.company || formData.client_name
+                        });
+                      }}
+                      clientName={formData.client_name}
+                      required={selectedAction === 'sale' || selectedAction === 'proposal'}
+                      placeholder={
+                        selectedAction === 'sale' 
+                          ? 'Required: Select or create a deal...'
+                          : selectedAction === 'proposal'
+                          ? 'Required: Select or create a deal...'
+                          : 'Optional: Link to a deal...'
+                      }
+                    />
+                    {(selectedAction === 'sale' || selectedAction === 'proposal') && !formData.deal_id && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {selectedAction === 'sale' 
+                          ? 'Link this sale to a pipeline deal for accurate tracking'
+                          : 'Link this proposal to a pipeline deal for accurate tracking'
+                        }
+                      </p>
+                    )}
                   </div>
                 )}
 

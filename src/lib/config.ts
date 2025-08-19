@@ -25,12 +25,14 @@ const getApiBaseUrl = () => {
   return '/api'; // Fallback to relative path
 };
 
-export const API_BASE_URL = import.meta.env.VITE_SUPABASE_URL 
-  ? `${import.meta.env.VITE_SUPABASE_URL.replace('/rest/v1', '')}/functions/v1`
-  : '';
-
 // Temporary flag to disable Edge Functions after Neon -> Supabase migration
 export const DISABLE_EDGE_FUNCTIONS = true;
+
+export const API_BASE_URL = DISABLE_EDGE_FUNCTIONS 
+  ? '/api'
+  : (import.meta.env.VITE_SUPABASE_URL 
+    ? `${import.meta.env.VITE_SUPABASE_URL.replace('/rest/v1', '')}/functions/v1`
+    : '');
 
 // Database configuration (using Supabase only)
 export const config = {
@@ -48,8 +50,9 @@ if (config.debug) {
     isLocalhost: config.isLocalhost,
     isProduction: config.isProduction,
     debug: config.debug,
+    disableEdgeFunctions: DISABLE_EDGE_FUNCTIONS,
     apiBaseUrl: API_BASE_URL,
     supabaseUrl: config.supabaseUrl,
-    note: 'Using Supabase Edge Functions for all API calls'
+    note: DISABLE_EDGE_FUNCTIONS ? 'Using local /api endpoints' : 'Using Supabase Edge Functions for all API calls'
   });
 } 

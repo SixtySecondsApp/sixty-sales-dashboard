@@ -339,6 +339,73 @@ export function useTasks(filters?: TaskFilters) {
     }
   }, []);
 
+  // Company-specific helper functions
+  const createCompanyTask = useCallback(async (companyId: string, companyName: string, taskData: Omit<CreateTaskData, 'company_id' | 'company'>) => {
+    return createTask({
+      ...taskData,
+      company_id: companyId,
+      company: companyName,
+    });
+  }, [createTask]);
+
+  const getTasksByCompany = useCallback(async (companyId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          assignee:profiles!assigned_to(id, first_name, last_name, email, avatar_url),
+          creator:profiles!created_by(id, first_name, last_name, email, avatar_url)
+        `)
+        .eq('company_id', companyId)
+        .order('due_date', { ascending: true, nullsFirst: false });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching company tasks:', err);
+      throw err;
+    }
+  }, []);
+
+  const getCompanyTaskStats = useCallback(async (companyId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, status, priority, due_date, completed')
+        .eq('company_id', companyId);
+
+      if (error) throw error;
+
+      const tasks = data || [];
+      const now = new Date();
+      
+      return {
+        total: tasks.length,
+        pending: tasks.filter(t => t.status === 'pending').length,
+        in_progress: tasks.filter(t => t.status === 'in_progress').length,
+        completed: tasks.filter(t => t.completed).length,
+        overdue: tasks.filter(t => 
+          t.due_date && 
+          new Date(t.due_date) < now && 
+          !t.completed &&
+          t.status !== 'cancelled'
+        ).length,
+        due_today: tasks.filter(t => {
+          if (!t.due_date || t.completed) return false;
+          const dueDate = new Date(t.due_date);
+          return dueDate.toDateString() === now.toDateString();
+        }).length,
+        high_priority: tasks.filter(t => 
+          t.priority === 'high' || t.priority === 'urgent'
+        ).length,
+      };
+    } catch (err) {
+      console.error('Error fetching company task stats:', err);
+      throw err;
+    }
+  }, []);
+
   const getTasksByDeal = useCallback(async (dealId: string) => {
     try {
       const { data, error } = await supabase
@@ -375,26 +442,6 @@ export function useTasks(filters?: TaskFilters) {
       return data || [];
     } catch (err) {
       console.error('Error fetching tasks by contact:', err);
-      throw err;
-    }
-  }, []);
-
-  const getTasksByCompany = useCallback(async (companyId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          assignee:profiles!assigned_to(id, first_name, last_name, email, avatar_url),
-          creator:profiles!created_by(id, first_name, last_name, email, avatar_url)
-        `)
-        .eq('company_id', companyId)
-        .order('due_date', { ascending: true, nullsFirst: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (err) {
-      console.error('Error fetching tasks by company:', err);
       throw err;
     }
   }, []);
