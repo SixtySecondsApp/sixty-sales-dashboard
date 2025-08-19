@@ -74,9 +74,17 @@ function getSupabaseClient(): TypedSupabaseClient {
  */
 export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
   get(target, prop) {
-    const client = getSupabaseClient();
-    const value = client[prop as keyof TypedSupabaseClient];
-    return typeof value === 'function' ? value.bind(client) : value;
+    try {
+      const client = getSupabaseClient();
+      if (!client) {
+        throw new Error('Supabase client not initialized');
+      }
+      const value = client[prop as keyof TypedSupabaseClient];
+      return typeof value === 'function' ? value.bind(client) : value;
+    } catch (error) {
+      console.error('Supabase client proxy error:', error);
+      throw error;
+    }
   }
 });
 
@@ -107,9 +115,17 @@ function getSupabaseAdminClient(): TypedSupabaseClient {
  */
 export const supabaseAdmin: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
   get(target, prop) {
-    const client = getSupabaseAdminClient();
-    const value = client[prop as keyof TypedSupabaseClient];
-    return typeof value === 'function' ? value.bind(client) : value;
+    try {
+      const client = getSupabaseAdminClient();
+      if (!client) {
+        throw new Error('Supabase admin client not initialized');
+      }
+      const value = client[prop as keyof TypedSupabaseClient];
+      return typeof value === 'function' ? value.bind(client) : value;
+    } catch (error) {
+      console.error('Supabase admin client proxy error:', error);
+      throw error;
+    }
   }
 });
 
