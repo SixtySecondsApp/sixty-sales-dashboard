@@ -24,7 +24,7 @@ export default defineConfig({
           // Charts
           charts: ['recharts'],
           // Utils
-          utils: ['date-fns', 'clsx', 'cn']
+          utils: ['date-fns', 'clsx']
         }
       },
     },
