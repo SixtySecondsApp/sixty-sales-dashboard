@@ -21,10 +21,10 @@ let supabaseInstance: TypedSupabaseClient | null = null;
 let supabaseAdminInstance: TypedSupabaseClient | null = null;
 
 /**
- * Main Supabase client for user operations
- * Configured with proper auth settings and persistence
+ * Get the main Supabase client for user operations
+ * Uses lazy initialization to avoid vendor bundle issues
  */
-export const supabase: TypedSupabaseClient = (() => {
+function getSupabaseClient(): TypedSupabaseClient {
   if (!supabaseInstance) {
     supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -67,13 +67,32 @@ export const supabase: TypedSupabaseClient = (() => {
     });
   }
   return supabaseInstance;
-})();
+}
 
 /**
- * Admin Supabase client for service role operations
- * Should only be used in secure contexts
+ * Main Supabase client for user operations - Proxy wrapper for safe initialization
  */
-export const supabaseAdmin: TypedSupabaseClient = (() => {
+export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
+  get(target, prop) {
+    try {
+      const client = getSupabaseClient();
+      if (!client) {
+        throw new Error('Supabase client not initialized');
+      }
+      const value = client[prop as keyof TypedSupabaseClient];
+      return typeof value === 'function' ? value.bind(client) : value;
+    } catch (error) {
+      console.error('Supabase client proxy error:', error);
+      throw error;
+    }
+  }
+});
+
+/**
+ * Get the admin Supabase client for service role operations
+ * Uses lazy initialization to avoid vendor bundle issues
+ */
+function getSupabaseAdminClient(): TypedSupabaseClient {
   if (!supabaseAdminInstance && supabaseServiceKey) {
     supabaseAdminInstance = createClient<Database>(supabaseUrl, supabaseServiceKey, {
       auth: {
@@ -88,8 +107,27 @@ export const supabaseAdmin: TypedSupabaseClient = (() => {
       }
     });
   }
-  return supabaseAdminInstance || supabase; // Fallback to regular client if no service key
-})();
+  return supabaseAdminInstance || getSupabaseClient(); // Fallback to regular client if no service key
+}
+
+/**
+ * Admin Supabase client for service role operations - Proxy wrapper for safe initialization
+ */
+export const supabaseAdmin: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
+  get(target, prop) {
+    try {
+      const client = getSupabaseAdminClient();
+      if (!client) {
+        throw new Error('Supabase admin client not initialized');
+      }
+      const value = client[prop as keyof TypedSupabaseClient];
+      return typeof value === 'function' ? value.bind(client) : value;
+    } catch (error) {
+      console.error('Supabase admin client proxy error:', error);
+      throw error;
+    }
+  }
+});
 
 // Export types for use in other files
 export type { Session, User };
