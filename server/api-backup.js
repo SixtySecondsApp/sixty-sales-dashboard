@@ -2,8 +2,9 @@
 
 import express from 'express';
 import cors from 'cors';
-import db from './connection-pooling.js';
+import pkg from 'pg';
 
+const { Client } = pkg;
 const app = express();
 const PORT = 8000;
 
@@ -11,9 +12,7 @@ const PORT = 8000;
 app.use(cors());
 app.use(express.json());
 
-// Database connection is handled by the connection pooling module
-// The old client connection code has been replaced
-/*
+// Neon database client with connection pooling
 let client = new Client({
   connectionString: 'postgresql://neondb_owner:npg_p29ezkLxYgqh@ep-divine-heart-abzonafv-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require',
   keepAlive: true,
@@ -23,7 +22,66 @@ let client = new Client({
   statement_timeout: 30000,
   idle_in_transaction_session_timeout: 30000
 });
-*/
+
+// Connect to database with retry logic
+async function connectDB() {
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      await client.connect();
+      console.log('🔗 Connected to Neon database');
+      
+      // Set up error handler for connection drops
+      client.on('error', async (err) => {
+        console.error('❌ Database connection error:', err);
+        console.log('🔄 Attempting to reconnect...');
+        await reconnectDB();
+      });
+      
+      return;
+    } catch (error) {
+      console.error(`❌ Database connection failed (${6 - retries}/5):`, error.message);
+      retries--;
+      if (retries > 0) {
+        console.log(`⏳ Retrying in 5 seconds... (${retries} attempts remaining)`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        console.error('❌ Failed to connect after 5 attempts. Exiting...');
+        process.exit(1);
+      }
+    }
+  }
+}
+
+// Reconnect function for handling connection drops
+async function reconnectDB() {
+  try {
+    // Create new client instance
+    client = new Client({
+      connectionString: 'postgresql://neondb_owner:npg_p29ezkLxYgqh@ep-divine-heart-abzonafv-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require',
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      connectionTimeoutMillis: 30000,
+      query_timeout: 30000,
+      statement_timeout: 30000,
+      idle_in_transaction_session_timeout: 30000
+    });
+    
+    await client.connect();
+    console.log('✅ Successfully reconnected to database');
+    
+    // Re-add error handler
+    client.on('error', async (err) => {
+      console.error('❌ Database connection error:', err);
+      console.log('🔄 Attempting to reconnect...');
+      await reconnectDB();
+    });
+  } catch (error) {
+    console.error('❌ Reconnection failed:', error.message);
+    // Try again in 10 seconds
+    setTimeout(reconnectDB, 10000);
+  }
+}
 
 // User endpoint - Andrew Bryce's profile
 app.get('/api/user', (req, res) => {
@@ -94,7 +152,7 @@ app.get('/api/companies', async (req, res) => {
       params.push(parseInt(limit));
     }
 
-    const result = await db.query(query, params);
+    const result = await client.query(query, params);
     
     res.json({
       data: result.rows,
@@ -154,7 +212,7 @@ app.get('/api/deals', async (req, res) => {
       params.push(parseInt(limit));
     }
 
-    const result = await db.query(query, params);
+    const result = await client.query(query, params);
     
     res.json({
       data: result.rows,
@@ -197,7 +255,7 @@ app.post('/api/deals', async (req, res) => {
     // If no stage_id provided, get the first stage
     let finalStageId = stage_id;
     if (!finalStageId) {
-      const stageResult = await db.query(
+      const stageResult = await client.query(
         'SELECT id FROM deal_stages ORDER BY order_position ASC LIMIT 1'
       );
       if (stageResult.rows.length > 0) {
@@ -222,7 +280,7 @@ app.post('/api/deals', async (req, res) => {
       contact_identifier, contact_identifier_type, contact_name
     ];
     
-    const result = await db.query(query, params);
+    const result = await client.query(query, params);
     
     res.status(201).json({
       data: result.rows[0],
@@ -274,7 +332,7 @@ app.put('/api/deals/:id', async (req, res) => {
       RETURNING *
     `;
     
-    const result = await db.query(query, params);
+    const result = await client.query(query, params);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Deal not found' });
@@ -296,7 +354,7 @@ app.delete('/api/deals/:id', async (req, res) => {
     const { id } = req.params;
     
     const query = 'DELETE FROM deals WHERE id = $1 RETURNING *';
-    const result = await db.query(query, [id]);
+    const result = await client.query(query, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Deal not found' });
@@ -384,7 +442,7 @@ app.get('/api/contacts', async (req, res) => {
       params.push(parseInt(limit));
     }
 
-    const result = await db.query(query, params);
+    const result = await client.query(query, params);
     
     const data = result.rows.map(row => ({
       ...row,
@@ -432,7 +490,7 @@ app.get('/api/contacts/:id', async (req, res) => {
       WHERE ct.id = $1
     `;
 
-    const result = await db.query(query, [id]);
+    const result = await client.query(query, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -484,7 +542,7 @@ app.get('/api/contacts/:id/deals', async (req, res) => {
       ORDER BY d.updated_at DESC
     `;
 
-    const result = await db.query(query, [id]);
+    const result = await client.query(query, [id]);
     
     res.json({
       data: result.rows,
@@ -514,7 +572,7 @@ app.get('/api/contacts/:id/activities', async (req, res) => {
       LIMIT $2
     `;
 
-    const result = await db.query(query, [id, parseInt(limit)]);
+    const result = await client.query(query, [id, parseInt(limit)]);
     
     res.json({
       data: result.rows,
@@ -612,7 +670,7 @@ app.get('/api/contacts/:id/owner', async (req, res) => {
       WHERE c.id = $1
     `;
 
-    const result = await db.query(query, [id]);
+    const result = await client.query(query, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -646,7 +704,7 @@ app.get('/api/contacts/:id/owner', async (req, res) => {
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    await db.query('SELECT 1');
+    await client.query('SELECT 1');
     res.json({ 
       status: 'healthy', 
       database: 'connected',
@@ -659,18 +717,6 @@ app.get('/api/health', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-});
-
-// Performance monitoring endpoints
-app.get('/api/performance/stats', (req, res) => {
-  const stats = db.getStats();
-  res.json(stats);
-});
-
-app.post('/api/performance/clear-cache', (req, res) => {
-  const { tier = 'all', pattern = null } = req.body;
-  db.clearCache(tier, pattern);
-  res.json({ message: `Cache cleared for tier: ${tier}${pattern ? ` with pattern: ${pattern}` : ''}` });
 });
 
 // Deal stages endpoint
@@ -689,7 +735,7 @@ app.get('/api/stages', async (req, res) => {
       ORDER BY order_position ASC, created_at ASC
     `;
 
-    const result = await db.query(query);
+    const result = await client.query(query);
     
     res.json({
       data: result.rows,
@@ -729,7 +775,7 @@ app.get('/api/owners', async (req, res) => {
       ORDER BY p.first_name, p.last_name
     `;
 
-    const result = await db.query(query);
+    const result = await client.query(query);
     
     res.json({
       data: result.rows,
@@ -785,7 +831,7 @@ app.get('/api/contacts/:id/tasks', async (req, res) => {
       LIMIT 10
     `;
 
-    const result = await db.query(tasksQuery, [id]);
+    const result = await client.query(tasksQuery, [id]);
     
     res.json({
       data: result.rows,
@@ -828,7 +874,7 @@ app.get('/api/deals/:id', async (req, res) => {
       WHERE d.id = $1
     `;
 
-    const result = await db.query(query, [id]);
+    const result = await client.query(query, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -869,7 +915,7 @@ async function handleSingleContactExpress(res, contactId, query) {
       WHERE ct.id = $1
     `;
 
-    const result = await db.query(querySQL, [contactId]);
+    const result = await client.query(querySQL, [contactId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -910,7 +956,7 @@ async function handleContactDealsExpress(res, contactId) {
       ORDER BY d.updated_at DESC
     `;
 
-    const result = await db.query(query, [contactId]);
+    const result = await client.query(query, [contactId]);
     res.json({ data: result.rows, error: null, count: result.rows.length });
   } catch (error) {
     console.error('Error fetching contact deals:', error);
@@ -931,7 +977,7 @@ async function handleContactActivitiesExpress(res, contactId, query) {
       LIMIT $2
     `;
 
-    const result = await db.query(querySQL, [contactId, parseInt(limit)]);
+    const result = await client.query(querySQL, [contactId, parseInt(limit)]);
     res.json({ data: result.rows, error: null, count: result.rows.length });
   } catch (error) {
     console.error('Error fetching contact activities:', error);
@@ -987,7 +1033,7 @@ async function handleContactOwnerExpress(res, contactId) {
       FROM contacts c LEFT JOIN profiles p ON c.owner_id = p.id WHERE c.id = $1
     `;
 
-    const result = await db.query(query, [contactId]);
+    const result = await client.query(query, [contactId]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Contact or owner not found', data: null });
@@ -1030,7 +1076,7 @@ async function handleContactTasksExpress(res, contactId) {
       ORDER BY due_date DESC LIMIT 10
     `;
 
-    const result = await db.query(tasksQuery, [contactId]);
+    const result = await client.query(tasksQuery, [contactId]);
     res.json({ data: result.rows, error: null, count: result.rows.length });
   } catch (error) {
     console.error('Error fetching contact tasks:', error);
@@ -1038,12 +1084,16 @@ async function handleContactTasksExpress(res, contactId) {
   }
 }
 
-// Start server directly - database connection pool initializes automatically
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`🚀 API Server running on http://127.0.0.1:${PORT}`);
-  console.log(`📊 Companies API: http://127.0.0.1:${PORT}/api/companies`);
-  console.log(`👥 Contacts API: http://127.0.0.1:${PORT}/api/contacts`);
-  console.log(`📋 Deals API: http://127.0.0.1:${PORT}/api/deals`);
-  console.log(`❤️ Health Check: http://127.0.0.1:${PORT}/api/health`);
-  console.log(`📈 Performance Stats: http://127.0.0.1:${PORT}/api/performance/stats`);
-}); 
+async function startServer() {
+  await connectDB();
+  
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`🚀 API Server running on http://127.0.0.1:${PORT}`);
+    console.log(`📊 Companies API: http://127.0.0.1:${PORT}/api/companies`);
+    console.log(`👥 Contacts API: http://127.0.0.1:${PORT}/api/contacts`);
+    console.log(`📋 Deals API: http://127.0.0.1:${PORT}/api/deals`);
+    console.log(`❤️ Health Check: http://127.0.0.1:${PORT}/api/health`);
+  });
+}
+
+startServer().catch(console.error); 
