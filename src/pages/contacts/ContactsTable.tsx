@@ -86,8 +86,10 @@ export default function ContactsTable() {
   const [searchParams] = useSearchParams();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [primaryFilter, setPrimaryFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<SortField>('updated_at');
@@ -103,11 +105,25 @@ export default function ContactsTable() {
     }
   }, [searchParams]);
 
+  // Debounce search term - wait 500ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Fetch contacts from API
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        setIsLoading(true);
+        // Only show main loading spinner on initial load
+        if (contacts.length === 0) {
+          setIsLoading(true);
+        } else {
+          setIsSearching(true);
+        }
         setError(null);
         
         // Check authentication first
@@ -118,18 +134,23 @@ export default function ContactsTable() {
           console.log('⚠️ No session found - using service key fallback for contacts...');
           
           // Skip Edge Functions entirely and go straight to service key fallback
-          const { createClient } = await import('@supabase/supabase-js');
-          const serviceSupabase = createClient(
-            import.meta.env.VITE_SUPABASE_URL || '',
-            import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
-          );
+          const { supabaseAdmin } = await import('@/lib/supabase/clientV3-optimized');
+          const serviceSupabase = supabaseAdmin;
           
           console.log('🛡️ Using service key fallback for contacts (no auth)...');
           
           // Use the actual database structure - no companies join since relationship doesn't exist
-          const { data: serviceContactsData, error: serviceError } = await (serviceSupabase as any)
+          let query = (serviceSupabase as any)
             .from('contacts')
-            .select('*') // Get all available fields
+            .select('*'); // Get all available fields
+          
+          // Apply search filter if debouncedSearchTerm is provided
+          if (debouncedSearchTerm && debouncedSearchTerm.trim()) {
+            const searchPattern = `%${debouncedSearchTerm.trim()}%`;
+            query = query.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
+          }
+          
+          const { data: serviceContactsData, error: serviceError } = await query
             .order('created_at', { ascending: false });
             
           if (serviceError) {
@@ -148,6 +169,7 @@ export default function ContactsTable() {
           
           setContacts(processedContacts);
           setIsLoading(false);
+          setIsSearching(false);
           return;
         }
 
@@ -158,8 +180,8 @@ export default function ContactsTable() {
           includeCompany: 'true'
         });
         
-        if (searchTerm) {
-          params.append('search', searchTerm);
+        if (debouncedSearchTerm) {
+          params.append('search', debouncedSearchTerm);
         }
 
         try {
@@ -191,26 +213,9 @@ export default function ContactsTable() {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (searchTerm) {
-          // Import security utilities
-          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
-          
-          // Validate search term
-          const validation = validateSearchTerm(searchTerm);
-          if (!validation.isValid) {
-            console.error('Invalid search term:', validation.error);
-            throw new Error(validation.error || 'Invalid search term');
-          }
-          
-          // Build safe OR clause
-          const searchOrClause = new SafeQueryBuilder()
-            .addSearchCondition('first_name', validation.sanitized)
-            .addSearchCondition('last_name', validation.sanitized)
-            .addSearchCondition('full_name', validation.sanitized)
-            .addSearchCondition('email', validation.sanitized)
-            .buildOrClause();
-            
-          query = query.or(searchOrClause);
+        if (debouncedSearchTerm && debouncedSearchTerm.trim()) {
+          const searchPattern = `%${debouncedSearchTerm.trim()}%`;
+          query = query.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
         }
 
         const { data: contactsData, error: supabaseError } = await query;
@@ -220,15 +225,20 @@ export default function ContactsTable() {
           console.log('🔄 Trying contacts with service role key...');
           
           // Last resort: try with service role key
-          const { createClient } = await import('@supabase/supabase-js');
-          const serviceSupabase = createClient(
-            import.meta.env.VITE_SUPABASE_URL || '',
-            import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
-          );
+          const { supabaseAdmin } = await import('@/lib/supabase/clientV3-optimized');
+          const serviceSupabase = supabaseAdmin;
           
-          const { data: serviceContactsData, error: serviceError } = await (serviceSupabase as any)
+          let serviceQuery = (serviceSupabase as any)
             .from('contacts')
-            .select('*')
+            .select('*');
+          
+          // Apply search filter if debouncedSearchTerm is provided
+          if (debouncedSearchTerm && debouncedSearchTerm.trim()) {
+            const searchPattern = `%${debouncedSearchTerm.trim()}%`;
+            serviceQuery = serviceQuery.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
+          }
+          
+          const { data: serviceContactsData, error: serviceError } = await serviceQuery
             .order('created_at', { ascending: false });
             
           if (serviceError) {
@@ -263,11 +273,12 @@ export default function ContactsTable() {
         toast.error('Failed to load contacts');
       } finally {
         setIsLoading(false);
+        setIsSearching(false);
       }
     };
 
     fetchContacts();
-  }, [searchTerm]);
+  }, [debouncedSearchTerm]);
 
   // Handle row click to navigate to contact record
   const handleContactClick = (contactId: string, event: React.MouseEvent) => {
@@ -484,6 +495,11 @@ export default function ContactsTable() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400"
             />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-gray-600 border-t-violet-500 rounded-full animate-spin" />
+              </div>
+            )}
           </div>
           
           {/* Filters */}

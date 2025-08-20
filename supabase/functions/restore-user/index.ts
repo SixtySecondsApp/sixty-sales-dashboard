@@ -65,21 +65,45 @@ serve(async (req) => {
       throw new Error('Email mismatch for original user')
     }
 
-    // Generate magic link for the original admin user
-    const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
-      options: {
-        redirectTo: redirectTo,
-        data: {
-          restored_from_impersonation: true,
-          impersonated_user_id: user.id
-        }
-      }
+    // Instead of generating a magic link (which invalidates password),
+    // create a temporary recovery token that can be exchanged for a session
+    // without affecting the user's password
+    
+    // First, create a recovery token for the admin user
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession({
+      userId: userId,
+      expiresIn: 300 // 5 minutes expiry for security
     })
 
-    if (magicLinkError || !magicLinkData) {
-      throw new Error('Failed to generate magic link for restoration')
+    if (sessionError || !sessionData) {
+      // Fallback to magic link if session creation fails
+      console.warn('Session creation failed, falling back to magic link:', sessionError)
+      const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email,
+        options: {
+          redirectTo: redirectTo,
+          data: {
+            restored_from_impersonation: true,
+            impersonated_user_id: user.id
+          }
+        }
+      })
+
+      if (magicLinkError || !magicLinkData) {
+        throw new Error('Failed to generate magic link for restoration')
+      }
+
+      return new Response(
+        JSON.stringify({
+          magicLink: magicLinkData.properties.action_link,
+          requiresPasswordReset: true // Indicate that password reset will be needed
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
     // Log the restoration for audit purposes
@@ -98,9 +122,11 @@ serve(async (req) => {
       console.error('Failed to log restoration:', logError)
     }
 
+    // Return the session data to restore the admin session
     return new Response(
       JSON.stringify({
-        magicLink: magicLinkData.properties.action_link
+        session: sessionData.session,
+        requiresPasswordReset: false // No password reset needed with session restoration
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

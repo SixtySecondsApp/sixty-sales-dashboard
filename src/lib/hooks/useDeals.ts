@@ -336,6 +336,9 @@ export function useDeals(ownerId?: string) {
 
   const createDeal = async (dealData: any) => {
     try {
+      console.log('🚀 Starting deal creation with data:', dealData);
+      console.log('📍 API_BASE_URL:', API_BASE_URL);
+      
       // Try Edge Function first
       try {
         const result = await apiCall(
@@ -347,10 +350,12 @@ export function useDeals(ownerId?: string) {
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
+        console.log('✅ Deal API response:', result);
         toast.success('Deal created successfully');
         await fetchDeals(); // Refresh to get updated data
-        return true;
+        return result.data; // Return the created deal object
       } catch (edgeFunctionError) {
+        console.log('⚠️ API call failed, falling back to Supabase:', edgeFunctionError);
         
         // Fallback to direct Supabase client
         const { data: deal, error } = await (supabase as any)
@@ -362,11 +367,15 @@ export function useDeals(ownerId?: string) {
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Supabase fallback also failed:', error);
+          throw error;
+        }
         
+        console.log('✅ Deal created via Supabase fallback:', deal);
         toast.success('Deal created successfully');
         await fetchDeals(); // Refresh to get updated data
-        return true;
+        return deal; // Return the created deal object
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);

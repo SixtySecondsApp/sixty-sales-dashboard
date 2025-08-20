@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IdentifierField, IdentifierType } from './IdentifierField';
 import { DealSelector } from './DealSelector';
+import { DealWizard } from './DealWizard';
 
 interface QuickAddProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showDealWizard, setShowDealWizard] = useState(false);
   const [formData, setFormData] = useState({
     type: 'outbound',
     client_name: '',
@@ -261,6 +263,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   };
 
   const quickActions = [
+    { id: 'deal', icon: Target, label: 'Create Deal', color: 'purple' },
     { id: 'task', icon: CheckSquare, label: 'Add Task', color: 'indigo' },
     { id: 'sale', icon: PoundSterling, label: 'Add Sale', color: 'emerald' },
     { id: 'outbound', icon: Phone, label: 'Add Outbound', color: 'blue' },
@@ -356,7 +359,14 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedAction(action.id)}
+                    onClick={() => {
+                      if (action.id === 'deal' || action.id === 'proposal' || action.id === 'sale') {
+                        setShowDealWizard(true);
+                        setSelectedAction(action.id);
+                      } else {
+                        setSelectedAction(action.id);
+                      }
+                    }}
                     className={`flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl ${
                       action.color === 'blue'
                         ? 'bg-blue-400/5'
@@ -364,7 +374,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           ? 'bg-orange-500/10'
                           : action.color === 'indigo'
                             ? 'bg-indigo-500/10'
-                            : `bg-${action.color}-500/10`
+                            : action.color === 'purple'
+                              ? 'bg-purple-500/10'
+                              : `bg-${action.color}-500/10`
                     } border ${
                       action.color === 'blue'
                         ? 'border-blue-500/10'
@@ -372,7 +384,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           ? 'border-orange-500/20'
                           : action.color === 'indigo'
                             ? 'border-indigo-500/20'
-                            : `border-${action.color}-500/20`
+                            : action.color === 'purple'
+                              ? 'border-purple-500/20'
+                              : `border-${action.color}-500/20`
                     } hover:bg-${action.color}-500/20 transition-all duration-300 group backdrop-blur-sm`}
                   >
                     <div className={`p-3 rounded-xl ${
@@ -382,7 +396,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           ? 'bg-orange-500/10'
                           : action.color === 'indigo'
                             ? 'bg-indigo-500/10'
-                            : `bg-${action.color}-500/10`
+                            : action.color === 'purple'
+                              ? 'bg-purple-500/10'
+                              : `bg-${action.color}-500/10`
                     } transition-all duration-300 group-hover:scale-110 group-hover:bg-${action.color}-500/20 ring-1 ${
                       action.color === 'blue'
                         ? 'ring-blue-500/50 group-hover:ring-blue-500/60'
@@ -390,7 +406,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           ? 'ring-orange-500/30 group-hover:ring-orange-500/50'
                           : action.color === 'indigo'
                             ? 'ring-indigo-500/30 group-hover:ring-indigo-500/50'
-                            : `ring-${action.color}-500/30 group-hover:ring-${action.color}-500/50`
+                            : action.color === 'purple'
+                              ? 'ring-purple-500/30 group-hover:ring-purple-500/50'
+                              : `ring-${action.color}-500/30 group-hover:ring-${action.color}-500/50`
                     } backdrop-blur-sm mb-3`}>
                       <action.icon className={`w-6 h-6 ${
                         action.color === 'blue'
@@ -399,13 +417,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                             ? 'text-orange-500'
                             : action.color === 'indigo'
                               ? 'text-indigo-500'
-                              : `text-${action.color}-500`
+                              : action.color === 'purple'
+                                ? 'text-purple-500'
+                                : `text-${action.color}-500`
                       }`} />
                     </div>
                     <span className="text-sm font-medium text-white/90">{action.label}</span>
                   </motion.button>
                 ))}
               </motion.div>
+            ) : showDealWizard ? (
+              // Don't show any form when DealWizard is active
+              null
             ) : selectedAction === 'task' ? (
               // Amazing Task Creation Form
               <motion.form
@@ -909,6 +932,41 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               </motion.form>
             )}
           </motion.div>
+          
+          {/* Deal Wizard Modal */}
+          <DealWizard
+            isOpen={showDealWizard}
+            onClose={() => {
+              setShowDealWizard(false);
+              // Reset to the initial selection screen
+              setSelectedAction(null);
+            }}
+            onDealCreated={(deal) => {
+              setShowDealWizard(false);
+              
+              // For 'deal' or 'proposal' action, reset and close properly
+              if (selectedAction === 'deal' || selectedAction === 'proposal') {
+                // Reset everything back to initial state
+                handleClose();
+                toast.success(selectedAction === 'deal' ? 'Deal created successfully!' : 'Proposal created successfully!');
+              } else {
+                // Update the deal selector with the new deal if we're in a deal-related action
+                if (selectedAction === 'sale' || selectedAction === 'meeting') {
+                  setFormData(prev => ({
+                    ...prev,
+                    deal_id: deal.id,
+                    selectedDeal: deal,
+                    client_name: deal.company || prev.client_name
+                  }));
+                }
+              }
+            }}
+            initialData={{
+              clientName: formData.client_name,
+              contactEmail: formData.contactIdentifier,
+              dealValue: parseFloat(formData.amount) || 0
+            }}
+          />
         </motion.div>
       )}
     </AnimatePresence>

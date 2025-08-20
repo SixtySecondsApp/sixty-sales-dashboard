@@ -77,22 +77,43 @@ serve(async (req) => {
       throw new Error('Target user does not have a valid email address. Cannot generate magic link for impersonation.')
     }
 
-    // Generate magic link for the target user
-    const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: targetUser.user.email,
-      options: {
-        redirectTo: redirectTo,
-        data: {
-          impersonated_by: adminId,
-          impersonated_by_email: adminEmail,
-          is_impersonation: true
-        }
-      }
+    // Try to create a session for the target user first (preserves their password)
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.createSession({
+      userId: userId,
+      expiresIn: 3600 // 1 hour expiry for impersonation sessions
     })
 
-    if (magicLinkError || !magicLinkData) {
-      throw new Error('Failed to generate magic link')
+    if (sessionError || !sessionData) {
+      // Fallback to magic link if session creation fails
+      console.warn('Session creation failed, falling back to magic link:', sessionError)
+      
+      const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: targetUser.user.email,
+        options: {
+          redirectTo: redirectTo,
+          data: {
+            impersonated_by: adminId,
+            impersonated_by_email: adminEmail,
+            is_impersonation: true
+          }
+        }
+      })
+
+      if (magicLinkError || !magicLinkData) {
+        throw new Error('Failed to generate magic link')
+      }
+
+      return new Response(
+        JSON.stringify({
+          magicLink: magicLinkData.properties.action_link,
+          sessionBased: false // Using magic link fallback
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
     }
 
     // Log the impersonation for audit purposes
@@ -111,9 +132,13 @@ serve(async (req) => {
       console.error('Failed to log impersonation:', logError)
     }
 
+    // Return the session data for impersonation
     return new Response(
       JSON.stringify({
-        magicLink: magicLinkData.properties.action_link
+        session: sessionData.session,
+        sessionBased: true, // Using session-based impersonation
+        adminId: adminId,
+        adminEmail: adminEmail
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

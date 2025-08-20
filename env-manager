@@ -1,0 +1,50 @@
+#!/bin/bash
+# Universal Environment Manager - Cross-Platform Launcher
+# Automatically detects OS and runs the appropriate script
+# Usage: ./env-manager [command] [project-name]
+
+# Detect operating system
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)     echo "linux";;
+        Darwin*)    echo "mac";;
+        CYGWIN*)    echo "windows";;
+        MINGW*)     echo "windows";;
+        MSYS*)      echo "windows";;
+        *)          echo "unknown";;
+    esac
+}
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OS_TYPE=$(detect_os)
+
+# Choose appropriate script based on OS
+case "$OS_TYPE" in
+    "windows")
+        # On Windows, prefer PowerShell but fall back to batch
+        if command -v powershell.exe >/dev/null 2>&1; then
+            powershell.exe -ExecutionPolicy Bypass -File "$SCRIPT_DIR/env-manager-universal.ps1" "$@"
+        elif [ -f "$SCRIPT_DIR/env-manager-universal.bat" ]; then
+            "$SCRIPT_DIR/env-manager-universal.bat" "$@"
+        else
+            echo "Error: No Windows scripts found"
+            exit 1
+        fi
+        ;;
+    "mac"|"linux")
+        # On Mac/Linux, use the shell script
+        if [ -f "$SCRIPT_DIR/env-manager-universal.sh" ]; then
+            chmod +x "$SCRIPT_DIR/env-manager-universal.sh"
+            "$SCRIPT_DIR/env-manager-universal.sh" "$@"
+        else
+            echo "Error: env-manager-universal.sh not found"
+            exit 1
+        fi
+        ;;
+    *)
+        echo "Error: Unsupported operating system: $OS_TYPE"
+        echo "This script supports Windows, Mac, and Linux"
+        exit 1
+        ;;
+esac

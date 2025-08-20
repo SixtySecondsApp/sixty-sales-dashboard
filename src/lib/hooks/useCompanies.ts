@@ -61,7 +61,8 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
             .order('created_at', { ascending: false });
 
           if (options.search) {
-            query = query.or(`name.ilike.%${options.search}%,domain.ilike.%${options.search}%`);
+            const searchPattern = `%${options.search.trim()}%`;
+            query = query.or(`name.ilike.${searchPattern},domain.ilike.${searchPattern},industry.ilike.${searchPattern}`);
           }
 
           const { data: companiesData, error: companiesError } = await query;

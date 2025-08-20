@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { setImpersonationData } from './useUser';
+import { getSiteUrl } from '@/lib/utils/siteUrl';
 
 // Mock implementation - temporarily disabled Supabase calls to avoid 400 errors
 // TODO: Implement with Neon API when user management functionality is needed
@@ -176,7 +177,7 @@ export function useUsers() {
           userId,
           adminId: currentUser.id,
           adminEmail: currentUser.email,
-          redirectTo: window.location.origin
+          redirectTo: getSiteUrl()
         }
       });
 
@@ -208,8 +209,24 @@ export function useUsers() {
         return;
       }
 
-      if (data?.magicLink) {
+      if (data?.session) {
+        // New session-based impersonation
         // Store original user info for restoration
+        setImpersonationData(currentUser.id, currentUser.email!);
+        
+        // Set the new session directly
+        const { error: setSessionError } = await supabase.auth.setSession(data.session);
+        
+        if (setSessionError) {
+          throw setSessionError;
+        }
+        
+        toast.success('Impersonation started successfully!');
+        
+        // Reload to refresh the app with the new session
+        window.location.reload();
+      } else if (data?.magicLink) {
+        // Fallback to magic link impersonation
         setImpersonationData(currentUser.id, currentUser.email!);
         
         toast.success('Starting impersonation...');
@@ -218,7 +235,7 @@ export function useUsers() {
         window.location.href = data.magicLink;
       } else {
         console.error('Unexpected response format:', data);
-        throw new Error('Failed to generate magic link for impersonation. Response: ' + JSON.stringify(data));
+        throw new Error('Failed to start impersonation. Response: ' + JSON.stringify(data));
       }
     } catch (error: any) {
       console.error('Impersonation error:', error);

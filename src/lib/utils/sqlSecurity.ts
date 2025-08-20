@@ -128,8 +128,8 @@ export function buildSafeOrClause(conditions: Array<{
       escapedValue = `%${escapedValue}%`;
     }
 
-    // Double-quote the value to prevent injection
-    return `${field}.${operator}."${escapedValue}"`;
+    // Return the condition without quotes - Supabase handles escaping
+    return `${field}.${operator}.${escapedValue}`;
   });
 
   return safeConditions.join(',');

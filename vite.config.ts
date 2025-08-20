@@ -10,6 +10,44 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    // Allow Vite to use any available port
+    strictPort: false,
+    host: true, // Listen on all addresses
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        // Add timeout and retry logic
+        timeout: 30000,
+        proxyTimeout: 30000,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, req, res) => {
+            console.log('proxy error', err);
+            // Send a proper error response instead of hanging
+            if (res && !res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ 
+                error: 'Backend server unavailable', 
+                message: 'Please ensure the backend server is running on port 8000',
+                details: err.message 
+              }));
+            }
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to the Target:', req.method, req.url);
+            // Add keep-alive to prevent connection drops
+            proxyReq.setHeader('Connection', 'keep-alive');
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+          });
+        },
+      },
+    },
+  },
   build: {
     // Simplified chunking to avoid initialization order issues
     rollupOptions: {

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import type { Database } from '@/lib/database.types';
 import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
+import { getSiteUrl } from '@/lib/utils/siteUrl';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -48,7 +49,7 @@ export const stopImpersonating = async () => {
       body: { 
         userId: originalUserId,
         email: originalUserEmail,
-        redirectTo: window.location.origin 
+        redirectTo: getSiteUrl() 
       }
     });
 
@@ -78,17 +79,37 @@ export const stopImpersonating = async () => {
       return;
     }
 
-    if (data?.magicLink) {
-      // Clear impersonation data and audit context
+    if (data?.session) {
+      // New session-based restoration
       clearImpersonationData();
       clearAuditContext();
       
-      toast.success('Restoring your admin session...');
+      // Set the new session directly
+      const { error: setSessionError } = await supabase.auth.setSession(data.session);
+      
+      if (setSessionError) {
+        throw setSessionError;
+      }
+      
+      toast.success('Admin session restored successfully!');
+      
+      // Reload to refresh the app with the new session
+      window.location.reload();
+    } else if (data?.magicLink) {
+      // Fallback to magic link restoration
+      clearImpersonationData();
+      clearAuditContext();
+      
+      if (data.requiresPasswordReset) {
+        toast.warning('Restoring session. You may need to reset your password.');
+      } else {
+        toast.success('Restoring your admin session...');
+      }
       
       // Redirect to the magic link
       window.location.href = data.magicLink;
     } else {
-      throw new Error('Failed to generate magic link for restoration. Response: ' + JSON.stringify(data));
+      throw new Error('Failed to restore session. Response: ' + JSON.stringify(data));
     }
   } catch (error: any) {
     console.error('Stop impersonation error:', error);
@@ -114,7 +135,7 @@ export const impersonateUser = async (userId: string) => {
         userId,
         adminId: currentUser.id,
         adminEmail: currentUser.email,
-        redirectTo: window.location.origin
+        redirectTo: getSiteUrl()
       }
     });
 
@@ -122,8 +143,24 @@ export const impersonateUser = async (userId: string) => {
       throw error;
     }
 
-    if (data?.magicLink) {
+    if (data?.session) {
+      // New session-based impersonation
       // Store original user info for restoration
+      setImpersonationData(currentUser.id, currentUser.email!);
+      
+      // Set the new session directly
+      const { error: setSessionError } = await supabase.auth.setSession(data.session);
+      
+      if (setSessionError) {
+        throw setSessionError;
+      }
+      
+      toast.success('Impersonation started successfully!');
+      
+      // Reload to refresh the app with the new session
+      window.location.reload();
+    } else if (data?.magicLink) {
+      // Fallback to magic link impersonation
       setImpersonationData(currentUser.id, currentUser.email!);
       
       toast.success('Starting impersonation...');
@@ -131,7 +168,7 @@ export const impersonateUser = async (userId: string) => {
       // Redirect to the magic link
       window.location.href = data.magicLink;
     } else {
-      throw new Error('Failed to generate magic link for impersonation');
+      throw new Error('Failed to start impersonation. Response: ' + JSON.stringify(data));
     }
   } catch (error: any) {
     console.error('Impersonation error:', error);
@@ -246,11 +283,11 @@ export function useUser() {
           // No user session - create a mock user for development
           console.log('No authenticated user, creating mock user for development');
           setUserData({
-            id: 'mock-user-id',
-            email: 'demo@example.com',
-            first_name: 'Demo',
-            last_name: 'User',
-            full_name: 'Demo User',
+            id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+            email: 'andrew.bryce@sixtyseconds.video',
+            first_name: 'Andrew',
+            last_name: 'Bryce',
+            full_name: 'Andrew Bryce',
             avatar_url: null,
             role: 'Senior',
             department: 'Sales',

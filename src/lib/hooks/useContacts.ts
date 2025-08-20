@@ -23,7 +23,7 @@ interface UseContactsReturn {
   createContact: (contactData: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'full_name'>) => Promise<Contact | null>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<Contact | null>;
   deleteContact: (id: string) => Promise<boolean>;
-  searchContacts: (query: string) => Promise<Contact[]>;
+  searchContacts: (query: string, includeCompany?: boolean) => Promise<Contact[]>;
   
   // Utility functions
   findContactByEmail: (email: string) => Promise<Contact | null>;
@@ -126,9 +126,11 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
   }, []);
 
   // Search contacts
-  const searchContacts = useCallback(async (query: string) => {
+  const searchContacts = useCallback(async (query: string, includeCompany?: boolean) => {
     try {
-      const results = await ApiContactService.searchContacts(query, options.includeCompany);
+      // Use the parameter if provided, otherwise fall back to options.includeCompany
+      const shouldIncludeCompany = includeCompany !== undefined ? includeCompany : options.includeCompany;
+      const results = await ApiContactService.searchContacts(query, shouldIncludeCompany);
       return results;
     } catch (err) {
       const error = err as Error;

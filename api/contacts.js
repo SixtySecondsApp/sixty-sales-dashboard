@@ -66,6 +66,9 @@ export default async function handler(request, response) {
       }
       
       return apiResponse(response, null, 'Endpoint not found', 404);
+    } else if (request.method === 'POST') {
+      // Handle POST requests for creating contacts
+      return await handleCreateContact(response, request);
     } else if (request.method === 'PATCH') {
       // Handle PATCH requests for updating contacts
       const contactId = new URLSearchParams(request.url.split('?')[1] || '').get('id');
@@ -96,24 +99,23 @@ async function handleContactsList(response, searchParams) {
     
     let query = `
       SELECT 
-        ct.*,
-        ${includeCompany === 'true' ? `
-          c.id as company_id,
-          c.name as company_name,
-          c.domain as company_domain,
-          c.size as company_size,
-          c.industry as company_industry
-        ` : 'null as company_id, null as company_name, null as company_domain'}
+        ct.*
       FROM contacts ct
-      ${includeCompany === 'true' ? 'LEFT JOIN companies c ON ct.company_id = c.id' : ''}
     `;
     
     const params = [];
     const conditions = [];
     
-    if (search) {
-      conditions.push(`(ct.first_name ILIKE $${params.length + 1} OR ct.last_name ILIKE $${params.length + 1} OR ct.full_name ILIKE $${params.length + 1} OR ct.email ILIKE $${params.length + 1})`);
-      params.push(`%${search}%`);
+    if (search && search.trim() !== '') {
+      const searchPattern = `%${search.trim()}%`;
+      conditions.push(`(
+        ct.first_name ILIKE $${params.length + 1} OR 
+        ct.last_name ILIKE $${params.length + 2} OR 
+        ct.email ILIKE $${params.length + 3} OR
+        ct.company ILIKE $${params.length + 4}
+      )`);
+      // Add the same search pattern 4 times for each field
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
     
     if (companyId) {
@@ -132,24 +134,14 @@ async function handleContactsList(response, searchParams) {
     
     query += ` ORDER BY ct.updated_at DESC`;
     
-    if (limit) {
-      query += ` LIMIT $${params.length + 1}`;
-      params.push(parseInt(limit));
-    }
+    // Always apply a limit to prevent huge result sets
+    const maxLimit = limit ? parseInt(limit) : 50;
+    query += ` LIMIT $${params.length + 1}`;
+    params.push(maxLimit);
 
     const result = await executeQuery(query, params);
     
-    const data = result.rows.map(row => ({
-      ...row,
-      // Company relationship if included
-      companies: (includeCompany === 'true' && row.company_id) ? {
-        id: row.company_id,
-        name: row.company_name,
-        domain: row.company_domain,
-        size: row.company_size,
-        industry: row.company_industry
-      } : null
-    }));
+    const data = result.rows;
 
     return apiResponse(response, data);
   } catch (error) {
@@ -165,16 +157,8 @@ async function handleSingleContact(response, searchParams, contactId) {
     
     let query = `
       SELECT 
-        ct.*,
-        ${includeCompany === 'true' ? `
-          c.id as company_id,
-          c.name as company_name,
-          c.domain as company_domain,
-          c.size as company_size,
-          c.industry as company_industry
-        ` : 'null as company_id, null as company_name, null as company_domain'}
+        ct.*
       FROM contacts ct
-      ${includeCompany === 'true' ? 'LEFT JOIN companies c ON ct.company_id = c.id' : ''}
       WHERE ct.id = $1
     `;
 
@@ -184,18 +168,7 @@ async function handleSingleContact(response, searchParams, contactId) {
       return apiResponse(response, null, 'Contact not found', 404);
     }
     
-    const row = result.rows[0];
-    const data = {
-      ...row,
-      // Company relationship if included
-      companies: (includeCompany === 'true' && row.company_id) ? {
-        id: row.company_id,
-        name: row.company_name,
-        domain: row.company_domain,
-        size: row.company_size,
-        industry: row.company_industry
-      } : null
-    };
+    const data = result.rows[0];
 
     return apiResponse(response, data);
   } catch (error) {
@@ -412,13 +385,7 @@ async function handleUpdateContact(response, request, contactId) {
       last_name,
       email,
       phone,
-      title,
-      company_id,
-      owner_id,
-      is_primary,
-      linkedin_url,
-      twitter_url,
-      notes
+      company
     } = body;
     
     // Build dynamic update query
@@ -442,33 +409,9 @@ async function handleUpdateContact(response, request, contactId) {
       updates.push(`phone = $${paramCount++}`);
       values.push(phone);
     }
-    if (title !== undefined) {
-      updates.push(`title = $${paramCount++}`);
-      values.push(title);
-    }
-    if (company_id !== undefined) {
-      updates.push(`company_id = $${paramCount++}`);
-      values.push(company_id);
-    }
-    if (owner_id !== undefined) {
-      updates.push(`owner_id = $${paramCount++}`);
-      values.push(owner_id);
-    }
-    if (is_primary !== undefined) {
-      updates.push(`is_primary = $${paramCount++}`);
-      values.push(is_primary);
-    }
-    if (linkedin_url !== undefined) {
-      updates.push(`linkedin_url = $${paramCount++}`);
-      values.push(linkedin_url);
-    }
-    if (twitter_url !== undefined) {
-      updates.push(`twitter_url = $${paramCount++}`);
-      values.push(twitter_url);
-    }
-    if (notes !== undefined) {
-      updates.push(`notes = $${paramCount++}`);
-      values.push(notes);
+    if (company !== undefined) {
+      updates.push(`company = $${paramCount++}`);
+      values.push(company);
     }
     
     if (updates.length === 0) {
@@ -501,6 +444,61 @@ async function handleUpdateContact(response, request, contactId) {
     return apiResponse(response, result.rows[0]);
   } catch (error) {
     console.error('Error updating contact:', error);
+    return apiResponse(response, null, error.message, 500);
+  }
+}
+
+// Create contact
+async function handleCreateContact(response, request) {
+  try {
+    const body = await request.json();
+    const { 
+      first_name,
+      last_name,
+      email,
+      phone,
+      company,
+      title
+    } = body;
+    
+    const query = `
+      INSERT INTO contacts (
+        first_name,
+        last_name,
+        email,
+        phone,
+        company,
+        created_at,
+        updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, NOW(), NOW()
+      )
+      RETURNING *
+    `;
+    
+    const values = [
+      first_name || null,
+      last_name || null,
+      email || null,
+      phone || null,
+      company || null
+    ];
+    
+    const result = await executeQuery(query, values);
+    
+    if (result.rows.length === 0) {
+      return apiResponse(response, null, 'Failed to create contact', 500);
+    }
+    
+    return apiResponse(response, result.rows[0], null, 201);
+  } catch (error) {
+    console.error('Error creating contact:', error);
+    
+    // Check for unique constraint violation
+    if (error.code === '23505') {
+      return apiResponse(response, null, 'A contact with this email already exists', 409);
+    }
+    
     return apiResponse(response, null, error.message, 500);
   }
 }

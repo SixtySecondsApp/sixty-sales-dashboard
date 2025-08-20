@@ -12,19 +12,74 @@ const PORT = 8000;
 app.use(cors());
 app.use(express.json());
 
-// Neon database client
-const client = new Client({
-  connectionString: 'postgresql://neondb_owner:npg_p29ezkLxYgqh@ep-divine-heart-abzonafv-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require'
+// Neon database client with connection pooling
+let client = new Client({
+  connectionString: 'postgresql://neondb_owner:npg_p29ezkLxYgqh@ep-divine-heart-abzonafv-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require',
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
+  connectionTimeoutMillis: 30000,
+  query_timeout: 30000,
+  statement_timeout: 30000,
+  idle_in_transaction_session_timeout: 30000
 });
 
-// Connect to database
+// Connect to database with retry logic
 async function connectDB() {
+  let retries = 5;
+  while (retries > 0) {
+    try {
+      await client.connect();
+      console.log('🔗 Connected to Neon database');
+      
+      // Set up error handler for connection drops
+      client.on('error', async (err) => {
+        console.error('❌ Database connection error:', err);
+        console.log('🔄 Attempting to reconnect...');
+        await reconnectDB();
+      });
+      
+      return;
+    } catch (error) {
+      console.error(`❌ Database connection failed (${6 - retries}/5):`, error.message);
+      retries--;
+      if (retries > 0) {
+        console.log(`⏳ Retrying in 5 seconds... (${retries} attempts remaining)`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        console.error('❌ Failed to connect after 5 attempts. Exiting...');
+        process.exit(1);
+      }
+    }
+  }
+}
+
+// Reconnect function for handling connection drops
+async function reconnectDB() {
   try {
+    // Create new client instance
+    client = new Client({
+      connectionString: 'postgresql://neondb_owner:npg_p29ezkLxYgqh@ep-divine-heart-abzonafv-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require',
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      connectionTimeoutMillis: 30000,
+      query_timeout: 30000,
+      statement_timeout: 30000,
+      idle_in_transaction_session_timeout: 30000
+    });
+    
     await client.connect();
-    console.log('🔗 Connected to Neon database');
+    console.log('✅ Successfully reconnected to database');
+    
+    // Re-add error handler
+    client.on('error', async (err) => {
+      console.error('❌ Database connection error:', err);
+      console.log('🔄 Attempting to reconnect...');
+      await reconnectDB();
+    });
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
-    process.exit(1);
+    console.error('❌ Reconnection failed:', error.message);
+    // Try again in 10 seconds
+    setTimeout(reconnectDB, 10000);
   }
 }
 
@@ -166,6 +221,151 @@ app.get('/api/deals', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching deals:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create deal endpoint
+app.post('/api/deals', async (req, res) => {
+  try {
+    const dealData = req.body;
+    
+    // Set default values if not provided
+    const {
+      name,
+      company = name, // Default company to name if not provided
+      value = 0,
+      company_id = null,
+      primary_contact_id = null,
+      stage_id,
+      probability = 50,
+      expected_close_date = null,
+      description = '',
+      owner_id = 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Default to Andrew's ID
+      contact_identifier = null,
+      contact_identifier_type = 'unknown',
+      contact_name = ''
+    } = dealData;
+    
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ error: 'Deal name is required' });
+    }
+    
+    // If no stage_id provided, get the first stage
+    let finalStageId = stage_id;
+    if (!finalStageId) {
+      const stageResult = await client.query(
+        'SELECT id FROM deal_stages ORDER BY order_position ASC LIMIT 1'
+      );
+      if (stageResult.rows.length > 0) {
+        finalStageId = stageResult.rows[0].id;
+      }
+    }
+    
+    const query = `
+      INSERT INTO deals (
+        name, company, value, company_id, primary_contact_id, stage_id,
+        probability, expected_close_date, description, owner_id,
+        contact_identifier, contact_identifier_type, contact_name,
+        stage_changed_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW()
+      ) RETURNING *
+    `;
+    
+    const params = [
+      name, company, value, company_id, primary_contact_id, finalStageId,
+      probability, expected_close_date, description, owner_id,
+      contact_identifier, contact_identifier_type, contact_name
+    ];
+    
+    const result = await client.query(query, params);
+    
+    res.status(201).json({
+      data: result.rows[0],
+      error: null
+    });
+  } catch (error) {
+    console.error('Error creating deal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update deal endpoint
+app.put('/api/deals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    // Build dynamic update query
+    const updateFields = [];
+    const params = [];
+    let paramCount = 1;
+    
+    Object.keys(updates).forEach(key => {
+      if (key !== 'id' && updates[key] !== undefined) {
+        updateFields.push(`${key} = $${paramCount}`);
+        params.push(updates[key]);
+        paramCount++;
+      }
+    });
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    
+    // Add updated_at timestamp
+    updateFields.push(`updated_at = NOW()`);
+    
+    // If stage_id is being updated, also update stage_changed_at
+    if (updates.stage_id) {
+      updateFields.push(`stage_changed_at = NOW()`);
+    }
+    
+    params.push(id);
+    
+    const query = `
+      UPDATE deals 
+      SET ${updateFields.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+    
+    const result = await client.query(query, params);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+    
+    res.json({
+      data: result.rows[0],
+      error: null
+    });
+  } catch (error) {
+    console.error('Error updating deal:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete deal endpoint
+app.delete('/api/deals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const query = 'DELETE FROM deals WHERE id = $1 RETURNING *';
+    const result = await client.query(query, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Deal not found' });
+    }
+    
+    res.json({
+      data: { deleted: true, deal: result.rows[0] },
+      error: null
+    });
+  } catch (error) {
+    console.error('Error deleting deal:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -887,12 +1087,12 @@ async function handleContactTasksExpress(res, contactId) {
 async function startServer() {
   await connectDB();
   
-  app.listen(PORT, () => {
-    console.log(`🚀 API Server running on http://localhost:${PORT}`);
-    console.log(`📊 Companies API: http://localhost:${PORT}/api/companies`);
-    console.log(`👥 Contacts API: http://localhost:${PORT}/api/contacts`);
-    console.log(`📋 Deals API: http://localhost:${PORT}/api/deals`);
-    console.log(`❤️ Health Check: http://localhost:${PORT}/api/health`);
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`🚀 API Server running on http://127.0.0.1:${PORT}`);
+    console.log(`📊 Companies API: http://127.0.0.1:${PORT}/api/companies`);
+    console.log(`👥 Contacts API: http://127.0.0.1:${PORT}/api/contacts`);
+    console.log(`📋 Deals API: http://127.0.0.1:${PORT}/api/deals`);
+    console.log(`❤️ Health Check: http://127.0.0.1:${PORT}/api/health`);
   });
 }
 

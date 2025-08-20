@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
 import { authLogger } from '../services/authLogger';
 import { toast } from 'sonner';
+import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 
 // Auth context types
 interface AuthContextType {
@@ -221,11 +222,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Reset password function
   const resetPassword = useCallback(async (email: string) => {
     try {
-      // Determine the correct redirect URL based on environment
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      const redirectUrl = isLocalhost 
-        ? 'http://localhost:5173/auth/reset-password'
-        : `${window.location.origin}/auth/reset-password`;
+      // Use helper function to get correct redirect URL
+      const redirectUrl = getAuthRedirectUrl('/auth/reset-password');
       
       console.log('Reset password redirect URL:', redirectUrl);
       

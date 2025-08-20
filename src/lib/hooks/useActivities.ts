@@ -367,6 +367,7 @@ export function useActivities() {
     activities,
     isLoading,
     addActivity: addActivityMutation.mutate,
+    addActivityAsync: addActivityMutation.mutateAsync,
     addSale: addSaleMutation.mutate,
     updateActivity: updateActivityMutation.mutate,
     removeActivity: removeActivityMutation.mutate,

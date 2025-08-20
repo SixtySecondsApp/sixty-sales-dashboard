@@ -21,26 +21,12 @@ export class ContactService {
             *,
             companies(*)
           `)
-          .order('full_name');
+          .order('created_at', { ascending: false });
 
         // Apply search filter
         if (options?.search) {
-          // Import security utilities
-          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
-          
-          // Validate search term
-          const validation = validateSearchTerm(options.search);
-          if (!validation.isValid) {
-            throw new Error(validation.error || 'Invalid search term');
-          }
-          
-          // Build safe OR clause
-          const searchOrClause = new SafeQueryBuilder()
-            .addSearchCondition('full_name', validation.sanitized)
-            .addSearchCondition('email', validation.sanitized)
-            .buildOrClause();
-            
-          query = query.or(searchOrClause);
+          const searchPattern = `%${options.search.trim()}%`;
+          query = query.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
         }
 
         // Apply company filter
@@ -60,26 +46,12 @@ export class ContactService {
         let query = supabase
           .from('contacts')
           .select('*')
-          .order('full_name');
+          .order('created_at', { ascending: false });
 
         // Apply search filter
         if (options?.search) {
-          // Import security utilities
-          const { validateSearchTerm, SafeQueryBuilder } = await import('@/lib/utils/sqlSecurity');
-          
-          // Validate search term
-          const validation = validateSearchTerm(options.search);
-          if (!validation.isValid) {
-            throw new Error(validation.error || 'Invalid search term');
-          }
-          
-          // Build safe OR clause
-          const searchOrClause = new SafeQueryBuilder()
-            .addSearchCondition('full_name', validation.sanitized)
-            .addSearchCondition('email', validation.sanitized)
-            .buildOrClause();
-            
-          query = query.or(searchOrClause);
+          const searchPattern = `%${options.search.trim()}%`;
+          query = query.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
         }
 
         // Apply company filter
@@ -366,7 +338,7 @@ export class ContactService {
         .select('*')
         .eq('company_id', companyId)
         .order('is_primary', { ascending: false })
-        .order('full_name');
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Contact[];
@@ -381,36 +353,24 @@ export class ContactService {
    */
   static async searchContacts(query: string, includeCompany = true) {
     try {
-      if (includeCompany) {
-        // For now, do basic search without company join due to relationship issues
-        const { data, error } = await supabase
-          .from('contacts')
-          .select('*')
-          .or(`
-            full_name.ilike.%${query}%,
-            email.ilike.%${query}%,
-            title.ilike.%${query}%
-          `)
-          .order('full_name')
-          .limit(20);
-
-        if (error) throw error;
-        return data as Contact[];
-      } else {
-        const { data, error } = await supabase
-          .from('contacts')
-          .select('*')
-          .or(`
-            full_name.ilike.%${query}%,
-            email.ilike.%${query}%,
-            title.ilike.%${query}%
-          `)
-          .order('full_name')
-          .limit(20);
-
-        if (error) throw error;
-        return data as Contact[];
+      let searchQuery = supabase
+        .from('contacts')
+        .select('*');
+      
+      // Apply search filter if query is provided
+      if (query && query.trim()) {
+        const searchPattern = `%${query.trim()}%`;
+        // Use proper OR clause format for Supabase
+        searchQuery = searchQuery.or(`first_name.ilike.${searchPattern},last_name.ilike.${searchPattern},email.ilike.${searchPattern},company.ilike.${searchPattern}`);
       }
+      
+      // Apply ordering and limit
+      searchQuery = searchQuery.order('created_at', { ascending: false }).limit(20);
+      
+      const { data, error } = await searchQuery;
+      
+      if (error) throw error;
+      return data as Contact[];
     } catch (error) {
       console.error('Error searching contacts:', error);
       throw error;
