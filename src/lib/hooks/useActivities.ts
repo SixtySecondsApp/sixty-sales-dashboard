@@ -36,11 +36,11 @@ export interface Activity {
   };
 }
 
-async function fetchActivities() {
+async function fetchActivities(dateRange?: { start: Date; end: Date }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const { data, error } = await (supabase as any)
+  let query = (supabase as any)
     .from('activities')
     .select(`
       *,
@@ -54,8 +54,18 @@ async function fetchActivities() {
         stage_id
       )
     `)
-    .eq('user_id', user.id)
-    .order('date', { ascending: false });
+    .eq('user_id', user.id);
+
+  // Apply date range filter if provided
+  if (dateRange) {
+    query = query
+      .gte('date', dateRange.start.toISOString())
+      .lte('date', dateRange.end.toISOString());
+  }
+
+  query = query.order('date', { ascending: false });
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -261,11 +271,13 @@ async function deleteActivity(id: string) {
   if (error) throw error;
 }
 
-export function useActivities() {
+export function useActivities(dateRange?: { start: Date; end: Date }) {
   const queryClient = useQueryClient();
 
-  // Set up real-time subscription for live updates
+  // Set up real-time subscription for live updates (only once)
   useEffect(() => {
+    if (dateRange) return; // Only set up subscription for the main activities hook
+    
     async function setupSubscription() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -295,11 +307,16 @@ export function useActivities() {
     }
 
     setupSubscription();
-  }, [queryClient]);
+  }, [queryClient, dateRange]);
+
+  // Create unique query key based on date range
+  const queryKey = dateRange 
+    ? ['activities', dateRange.start.toISOString(), dateRange.end.toISOString()]
+    : ['activities'];
 
   const { data: activities = [], isLoading } = useQuery({
-    queryKey: ['activities'],
-    queryFn: fetchActivities,
+    queryKey,
+    queryFn: () => fetchActivities(dateRange),
   });
 
   // Add activity mutation with error handling

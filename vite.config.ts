@@ -7,12 +7,9 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     react({
-      // Optimize React for production
+      // Optimize React for production  
       babel: {
-        plugins: process.env.NODE_ENV === 'production' ? [
-          // Remove React dev tools in production
-          ['babel-plugin-react-remove-properties', { properties: ['data-testid'] }],
-        ] : [],
+        plugins: [],
       },
     }),
     visualizer({

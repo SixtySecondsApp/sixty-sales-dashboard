@@ -125,9 +125,6 @@ const OptimizedDashboard: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [chartVisible, setChartVisible] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
-  
-  // Get setFilters from the activity filters hook
-  const { setFilters } = useActivityFilters();
 
   // Preload dashboard-specific icons
   usePreloadIcons([
@@ -148,10 +145,10 @@ const OptimizedDashboard: React.FC = () => {
   }), [currentDate]);
 
   // Hooks
-  const { user } = useUser();
-  const { data: targets } = useTargets();
-  const { dateRange: filterDateRange, setDateRange } = useActivityFilters();
-  const { data: activities, isLoading: activitiesLoading } = useActivities();
+  const { userData: user } = useUser();
+  const { data: targets } = useTargets(user?.id);
+  const { filters, setFilters } = useActivityFilters();
+  const { data: activities, isLoading: activitiesLoading } = useActivities(dateRange);
   const { data: previousActivities } = useActivities(previousMonthRange);
 
   // Intersection Observer for chart lazy loading
@@ -176,48 +173,42 @@ const OptimizedDashboard: React.FC = () => {
   const metrics = useMemo(() => {
     if (!activities || !targets) return null;
 
-    const currentActivities = activities.filter(activity => {
-      const activityDate = new Date(activity.activity_date);
-      return activityDate >= dateRange.start && activityDate <= dateRange.end;
-    });
-
-    const previousActivitiesData = previousActivities?.filter(activity => {
-      const activityDate = new Date(activity.activity_date);
-      return activityDate >= previousMonthRange.start && activityDate <= previousMonthRange.end;
-    }) || [];
+    // Activities are already filtered by date range from the hooks
+    const currentActivities = activities || [];
+    const previousActivitiesData = previousActivities || [];
 
     // Calculate metrics
     const revenue = currentActivities
-      .filter(a => a.status === 'won')
+      .filter(a => a.status === 'completed' && a.type === 'sale')
       .reduce((sum, a) => sum + (a.amount || 0), 0);
 
     const calls = currentActivities
-      .filter(a => a.activity_type === 'call')
+      .filter(a => a.type === 'outbound')
       .length;
 
     const meetings = currentActivities
-      .filter(a => a.activity_type === 'meeting')
+      .filter(a => a.type === 'meeting')
       .length;
 
     const proposals = currentActivities
-      .filter(a => a.activity_type === 'proposal')
+      .filter(a => a.type === 'proposal')
       .length;
 
     // Previous month totals
     const previousRevenue = previousActivitiesData
-      .filter(a => a.status === 'won')
+      .filter(a => a.status === 'completed' && a.type === 'sale')
       .reduce((sum, a) => sum + (a.amount || 0), 0);
 
     const previousCalls = previousActivitiesData
-      .filter(a => a.activity_type === 'call')
+      .filter(a => a.type === 'outbound')
       .length;
 
     const previousMeetings = previousActivitiesData
-      .filter(a => a.activity_type === 'meeting')
+      .filter(a => a.type === 'meeting')
       .length;
 
     const previousProposals = previousActivitiesData
-      .filter(a => a.activity_type === 'proposal')
+      .filter(a => a.type === 'proposal')
       .length;
 
     // Calculate trends
@@ -241,7 +232,7 @@ const OptimizedDashboard: React.FC = () => {
       {
         title: 'Revenue',
         value: revenue,
-        target: targets.monthly_revenue_target || 50000,
+        target: targets?.revenue_target || 50000,
         trend: revenueTrend,
         iconName: 'PoundSterling',
         type: 'currency',
@@ -250,7 +241,7 @@ const OptimizedDashboard: React.FC = () => {
       {
         title: 'Calls',
         value: calls,
-        target: targets.monthly_calls_target || 100,
+        target: targets?.outbound_target || 100,
         trend: callsTrend,
         iconName: 'Phone',
         previousMonthTotal: previousCalls
@@ -258,7 +249,7 @@ const OptimizedDashboard: React.FC = () => {
       {
         title: 'Meetings',
         value: meetings,
-        target: targets.monthly_meetings_target || 50,
+        target: targets?.meetings_target || 50,
         trend: meetingsTrend,
         iconName: 'Users',
         previousMonthTotal: previousMeetings
@@ -266,7 +257,7 @@ const OptimizedDashboard: React.FC = () => {
       {
         title: 'Proposals',
         value: proposals,
-        target: targets.monthly_proposals_target || 20,
+        target: targets?.proposal_target || 20,
         trend: proposalsTrend,
         iconName: 'FileText',
         previousMonthTotal: previousProposals
