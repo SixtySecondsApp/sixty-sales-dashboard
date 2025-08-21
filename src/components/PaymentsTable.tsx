@@ -17,7 +17,7 @@ import {
   PauseCircle,
   XCircle,
   AlertCircle,
-  HandshakeIcon,
+  UserCheck,
   PoundSterling
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -508,7 +508,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
       case 'active':
         return CheckCircle;
       case 'signed':
-        return HandshakeIcon;
+        return UserCheck;
       case 'deposit_paid':
         return DollarSign;
       case 'paused':

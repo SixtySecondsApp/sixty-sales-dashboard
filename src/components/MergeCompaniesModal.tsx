@@ -5,7 +5,7 @@ import {
   X,
   Building2,
   ArrowRight,
-  Handshake,
+  Heart,
   Users,
   Activity,
   FileText,
@@ -276,7 +276,7 @@ export function MergeCompaniesModal({
             <Card className="bg-gray-800/50 border-gray-700/50">
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <Handshake className="w-4 h-4 text-blue-400" />
+                  <Heart className="w-4 h-4 text-blue-400" />
                   <CardTitle className="text-sm text-gray-400">Deals</CardTitle>
                 </div>
               </CardHeader>

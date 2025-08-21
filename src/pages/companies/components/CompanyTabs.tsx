@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3, 
-  Handshake, 
+  Heart, 
   Users, 
   Activity,
   FileText,
@@ -31,7 +31,7 @@ export function CompanyTabs({ activeTab, onTabChange, company, deals, activities
     {
       id: 'deals' as const,
       label: 'Deals',
-      icon: Handshake,
+      icon: Heart,
       count: deals.length,
       description: 'Sales opportunities and pipeline'
     },

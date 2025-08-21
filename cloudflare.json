@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json.schemastore.org/cloudflare-workers",
+  "name": "sixty-sales-dashboard-cdn",
+  "main": "src/worker.js",
+  "compatibility_date": "2024-01-01",
+  "environment": "production",
+  "cdn_configuration": {
+    "name": "sixty-sales-dashboard-cdn",
+    "domain": "*.yourdomain.com",
+    "cache_rules": [
+      {
+        "name": "Static Assets Long-Term Cache",
+        "expression": "(http.request.uri.path contains \"/assets/\" or ends_with(http.request.uri.path, \".js\") or ends_with(http.request.uri.path, \".css\") or ends_with(http.request.uri.path, \".woff2\") or ends_with(http.request.uri.path, \".woff\") or ends_with(http.request.uri.path, \".ttf\"))",
+        "action": "cache",
+        "cache_key": {
+          "cache_by_device_type": false,
+          "ignore_query_strings_order": true,
+          "custom_key": {
+            "query_string": {
+              "include": []
+            },
+            "header": {
+              "include": ["Accept-Encoding"]
+            }
+          }
+        },
+        "edge_cache_ttl": 31536000,
+        "browser_cache_ttl": 31536000,
+        "cache_level": "cache_everything"
+      },
+      {
+        "name": "Images with Optimization",
+        "expression": "(ends_with(http.request.uri.path, \".jpg\") or ends_with(http.request.uri.path, \".jpeg\") or ends_with(http.request.uri.path, \".png\") or ends_with(http.request.uri.path, \".webp\") or ends_with(http.request.uri.path, \".svg\"))",
+        "action": "cache",
+        "cache_key": {
+          "cache_by_device_type": true,
+          "custom_key": {
+            "query_string": {
+              "include": ["w", "h", "q", "format"]
+            },
+            "header": {
+              "include": ["Accept", "Accept-Encoding"]
+            }
+          }
+        },
+        "edge_cache_ttl": 2592000,
+        "browser_cache_ttl": 604800,
+        "image_optimization": {
+          "polish": "lossless",
+          "webp": true,
+          "avif": true,
+          "quality": 85,
+          "format": "auto"
+        }
+      },
+      {
+        "name": "API Responses No Cache",
+        "expression": "starts_with(http.request.uri.path, \"/api/\")",
+        "action": "bypass_cache",
+        "cache_level": "bypass",
+        "headers": {
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Pragma": "no-cache"
+        }
+      },
+      {
+        "name": "HTML with Short Cache",
+        "expression": "(ends_with(http.request.uri.path, \".html\") or http.request.uri.path eq \"/\" or not contains(http.request.uri.path, \".\"))",
+        "action": "cache",
+        "edge_cache_ttl": 300,
+        "browser_cache_ttl": 60,
+        "cache_level": "cache_everything",
+        "headers": {
+          "Cache-Control": "public, max-age=60, stale-while-revalidate=300"
+        }
+      },
+      {
+        "name": "Fonts with Perfect Cache",
+        "expression": "(ends_with(http.request.uri.path, \".woff2\") or ends_with(http.request.uri.path, \".woff\") or ends_with(http.request.uri.path, \".eot\") or ends_with(http.request.uri.path, \".ttf\") or ends_with(http.request.uri.path, \".otf\"))",
+        "action": "cache",
+        "edge_cache_ttl": 63072000,
+        "browser_cache_ttl": 31536000,
+        "cache_level": "cache_everything",
+        "headers": {
+          "Cache-Control": "public, max-age=31536000, immutable"
+        }
+      }
+    ],
+    "page_rules": [
+      {
+        "targets": [
+          {
+            "target": "url",
+            "constraint": {
+              "operator": "matches",
+              "value": "*.yourdomain.com/assets/*"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "id": "cache_level",
+            "value": "cache_everything"
+          },
+          {
+            "id": "edge_cache_ttl",
+            "value": 31536000
+          },
+          {
+            "id": "browser_cache_ttl",
+            "value": 31536000
+          }
+        ]
+      }
+    ],
+    "origin_rules": [
+      {
+        "expression": "http.request.uri.path starts_with \"/api/\"",
+        "action": "route",
+        "action_parameters": {
+          "origin": {
+            "name": "api-backend",
+            "host": "your-api-domain.com"
+          }
+        }
+      }
+    ],
+    "compression": {
+      "algorithms": ["gzip", "brotli"],
+      "file_extensions": [
+        "css", "js", "html", "json", "xml", "svg", "txt",
+        "woff", "woff2", "ttf", "eot"
+      ]
+    },
+    "security": {
+      "waf": {
+        "mode": "on",
+        "managed_rules": [
+          "cloudflare_managed_rules",
+          "cloudflare_owasp_core_ruleset"
+        ]
+      },
+      "ddos_protection": {
+        "mode": "on",
+        "sensitivity": "medium"
+      },
+      "rate_limiting": [
+        {
+          "name": "API Rate Limit",
+          "expression": "http.request.uri.path starts_with \"/api/\"",
+          "action": "challenge",
+          "characteristics": ["ip.src"],
+          "period": 60,
+          "requests_per_period": 100
+        },
+        {
+          "name": "Login Protection",
+          "expression": "http.request.uri.path contains \"/auth/\" and http.request.method eq \"POST\"",
+          "action": "block",
+          "characteristics": ["ip.src"],
+          "period": 300,
+          "requests_per_period": 5
+        }
+      ]
+    },
+    "performance": {
+      "minification": {
+        "css": "on",
+        "js": "on",
+        "html": "on"
+      },
+      "http3": "on",
+      "tls_1_3": "on",
+      "ipv6": "on",
+      "http2_prioritization": "on",
+      "early_hints": "on"
+    },
+    "geo_routing": {
+      "rules": [
+        {
+          "name": "North America",
+          "countries": ["US", "CA", "MX"],
+          "origin": "us-east-1.yourdomain.com"
+        },
+        {
+          "name": "Europe",
+          "countries": ["GB", "DE", "FR", "ES", "IT", "NL"],
+          "origin": "eu-west-1.yourdomain.com"
+        },
+        {
+          "name": "Asia Pacific",
+          "countries": ["JP", "KR", "SG", "AU", "IN"],
+          "origin": "ap-southeast-1.yourdomain.com"
+        }
+      ]
+    }
+  },
+  "worker_configuration": {
+    "script": "// Edge Worker for Advanced Caching and Optimization\n\nconst CACHE_HEADERS = {\n  STATIC_ASSETS: 'public, max-age=31536000, immutable',\n  IMAGES: 'public, max-age=604800, stale-while-revalidate=86400',\n  HTML: 'public, max-age=60, stale-while-revalidate=300',\n  API_NO_CACHE: 'no-store, no-cache, must-revalidate'\n};\n\nconst SECURITY_HEADERS = {\n  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',\n  'X-Content-Type-Options': 'nosniff',\n  'X-Frame-Options': 'DENY',\n  'X-XSS-Protection': '1; mode=block',\n  'Referrer-Policy': 'strict-origin-when-cross-origin',\n  'Content-Security-Policy': \"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://supabase.yourdomain.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://supabase.yourdomain.com wss://supabase.yourdomain.com; frame-ancestors 'none';\"\n};\n\nclass EdgeOptimizer {\n  constructor() {\n    this.imageFormats = ['webp', 'avif'];\n    this.cacheNamespace = 'sixty-sales-v1';\n  }\n\n  async handleRequest(request) {\n    const url = new URL(request.url);\n    const pathname = url.pathname;\n    \n    // Route API requests directly to backend\n    if (pathname.startsWith('/api/')) {\n      return this.handleAPIRequest(request);\n    }\n    \n    // Handle image optimization\n    if (this.isImage(pathname)) {\n      return this.handleImageRequest(request);\n    }\n    \n    // Handle static assets with long-term caching\n    if (this.isStaticAsset(pathname)) {\n      return this.handleStaticAsset(request);\n    }\n    \n    // Handle HTML with smart caching\n    return this.handleHTMLRequest(request);\n  }\n\n  async handleAPIRequest(request) {\n    const response = await fetch(request);\n    const modifiedResponse = new Response(response.body, response);\n    \n    // Add security headers and disable caching\n    Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {\n      modifiedResponse.headers.set(key, value);\n    });\n    \n    modifiedResponse.headers.set('Cache-Control', CACHE_HEADERS.API_NO_CACHE);\n    return modifiedResponse;\n  }\n\n  async handleImageRequest(request) {\n    const url = new URL(request.url);\n    const acceptHeader = request.headers.get('Accept') || '';\n    \n    // Check for WebP/AVIF support\n    let format = url.searchParams.get('format') || 'auto';\n    if (format === 'auto') {\n      if (acceptHeader.includes('image/avif')) {\n        format = 'avif';\n      } else if (acceptHeader.includes('image/webp')) {\n        format = 'webp';\n      }\n    }\n    \n    const cacheKey = `${url.pathname}-${format}-${url.searchParams.get('w') || 'orig'}`;\n    const cached = await caches.default.match(cacheKey);\n    \n    if (cached) {\n      return cached;\n    }\n    \n    const response = await fetch(request);\n    const modifiedResponse = new Response(response.body, {\n      status: response.status,\n      statusText: response.statusText,\n      headers: {\n        ...response.headers,\n        'Cache-Control': CACHE_HEADERS.IMAGES,\n        'Vary': 'Accept, Accept-Encoding'\n      }\n    });\n    \n    // Cache the optimized image\n    await caches.default.put(cacheKey, modifiedResponse.clone());\n    return modifiedResponse;\n  }\n\n  async handleStaticAsset(request) {\n    const cached = await caches.default.match(request);\n    if (cached) {\n      return cached;\n    }\n    \n    const response = await fetch(request);\n    const modifiedResponse = new Response(response.body, {\n      status: response.status,\n      statusText: response.statusText,\n      headers: {\n        ...response.headers,\n        'Cache-Control': CACHE_HEADERS.STATIC_ASSETS,\n        'Vary': 'Accept-Encoding'\n      }\n    });\n    \n    await caches.default.put(request, modifiedResponse.clone());\n    return modifiedResponse;\n  }\n\n  async handleHTMLRequest(request) {\n    const response = await fetch(request);\n    const modifiedResponse = new Response(response.body, {\n      status: response.status,\n      statusText: response.statusText,\n      headers: {\n        ...response.headers,\n        'Cache-Control': CACHE_HEADERS.HTML,\n        ...SECURITY_HEADERS\n      }\n    });\n    \n    return modifiedResponse;\n  }\n\n  isImage(pathname) {\n    return /\\.(jpg|jpeg|png|webp|svg|avif)$/i.test(pathname);\n  }\n\n  isStaticAsset(pathname) {\n    return /\\.(js|css|woff2?|ttf|eot|ico|json)$/i.test(pathname) || pathname.includes('/assets/');\n  }\n}\n\nconst optimizer = new EdgeOptimizer();\n\naddEventListener('fetch', event => {\n  event.respondWith(optimizer.handleRequest(event.request));\n});",
+    "triggers": [
+      {
+        "pattern": "*yourdomain.com/*",
+        "zone": "yourdomain.com"
+      }
+    ]
+  }
+}

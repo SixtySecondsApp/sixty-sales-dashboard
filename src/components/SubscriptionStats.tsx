@@ -134,3 +134,5 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
     </div>
   );
 }
+
+export default SubscriptionStats;

@@ -13,7 +13,7 @@ import {
   PauseCircle,
   XCircle,
   AlertCircle,
-  HandshakeIcon,
+  UserCheck,
   PoundSterling
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -148,7 +148,7 @@ const PaymentRow = memo(({ index, style, data }: {
       case 'active':
         return CheckCircle;
       case 'signed':
-        return HandshakeIcon;
+        return UserCheck;
       case 'deposit_paid':
         return DollarSign;
       case 'paused':

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { 
   Building2, 
   Users, 
-  HandHeart, 
+  Heart, 
   Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
       description: 'Individual contact management'
     },
     { 
-      icon: HandHeart, 
+      icon: Heart, 
       label: 'Deals', 
       href: '/pipeline',
       description: 'Sales opportunities and pipeline'

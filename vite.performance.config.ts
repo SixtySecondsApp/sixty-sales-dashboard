@@ -1,18 +1,27 @@
+/**
+ * Performance-Optimized Vite Configuration
+ * 
+ * This configuration implements the recommendations from the performance analysis:
+ * - Optimized bundle splitting
+ * - Reduced initial bundle size
+ * - Better caching strategies
+ * - Resource preloading
+ */
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react({
       // Optimize React for production
       babel: {
-        plugins: process.env.NODE_ENV === 'production' ? [
+        plugins: [
           // Remove React dev tools in production
           ['babel-plugin-react-remove-properties', { properties: ['data-testid'] }],
-        ] : [],
+        ],
       },
     }),
     visualizer({
@@ -20,7 +29,6 @@ export default defineConfig({
       open: false,
       gzipSize: true,
       brotliSize: true,
-      template: 'treemap', // Better visualization
     }),
   ],
   resolve: {
@@ -29,22 +37,19 @@ export default defineConfig({
     },
   },
   server: {
-    // Allow Vite to use any available port
     strictPort: false,
-    host: true, // Listen on all addresses
+    host: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
         secure: false,
         ws: true,
-        // Add timeout and retry logic
         timeout: 30000,
         proxyTimeout: 30000,
         configure: (proxy, _options) => {
           proxy.on('error', (err, req, res) => {
             console.log('proxy error', err);
-            // Send a proper error response instead of hanging
             if (res && !res.headersSent) {
               res.writeHead(502, { 'Content-Type': 'application/json' });
               res.end(JSON.stringify({ 
@@ -56,7 +61,6 @@ export default defineConfig({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Sending Request to the Target:', req.method, req.url);
-            // Add keep-alive to prevent connection drops
             proxyReq.setHeader('Connection', 'keep-alive');
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
@@ -67,7 +71,7 @@ export default defineConfig({
     },
   },
   build: {
-    // Performance-optimized chunking strategy
+    // Performance-optimized build settings
     rollupOptions: {
       output: {
         manualChunks: {
@@ -109,12 +113,22 @@ export default defineConfig({
           'vendor-utils': ['date-fns', 'clsx', 'class-variance-authority'],
           'vendor-parsing': ['papaparse'],
           'vendor-icons': ['lucide-react'],
+          
+          // Feature-specific chunks
+          'feature-pipeline': [
+            './src/pages/PipelinePage',
+            './src/components/Pipeline'
+          ],
+          'feature-charts-dashboard': [
+            './src/components/SalesActivityChart',
+            './src/pages/Dashboard'
+          ]
         }
       },
     },
     
     // Optimize bundle size
-    chunkSizeWarningLimit: 500, // Reduced from 1000KB to encourage smaller chunks
+    chunkSizeWarningLimit: 500, // Reduced from 1000KB
     sourcemap: process.env.NODE_ENV === 'development', // Only in dev
     minify: 'esbuild', // Faster than terser
     target: 'es2020',
@@ -125,10 +139,8 @@ export default defineConfig({
     // Optimize asset handling
     assetsDir: 'assets',
     assetsInlineLimit: 4096, // 4KB limit for inlining
-    
-    // Copy service worker
-    copyPublicDir: true,
   },
+  
   // Enhanced dependency optimization
   optimizeDeps: {
     include: [
@@ -191,9 +203,33 @@ export default defineConfig({
       localsConvention: 'camelCase',
     },
   },
+  
+  // Vitest configuration
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/tests/setup.ts'],
+    // Optimize test runs
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: true
+      }
+    }
   },
+  
+  // Performance monitoring
+  define: {
+    // Enable performance monitoring in development
+    __DEV_PERFORMANCE__: JSON.stringify(process.env.NODE_ENV === 'development'),
+    __BUNDLE_ANALYZER__: JSON.stringify(process.env.ANALYZE === 'true'),
+  },
+  
+  // Experimental features for performance
+  experimental: {
+    // Enable render optimization
+    renderBuiltUrl(filename) {
+      return `/${filename}`;
+    }
+  }
 });

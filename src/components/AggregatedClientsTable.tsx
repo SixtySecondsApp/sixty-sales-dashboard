@@ -11,7 +11,7 @@ import {
   PauseCircle,
   XCircle,
   AlertCircle,
-  HandshakeIcon,
+  UserCheck,
   PoundSterling,
   Calendar,
   Mail,
@@ -123,7 +123,7 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
       case 'active':
         return CheckCircle;
       case 'signed':
-        return HandshakeIcon;
+        return UserCheck;
       case 'deposit_paid':
         return DollarSign;
       case 'paused':
@@ -699,3 +699,6 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
     </div>
   );
 }
+
+// Export memoized component for performance
+export default React.memo(AggregatedClientsTable);

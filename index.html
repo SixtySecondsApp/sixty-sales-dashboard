@@ -2,17 +2,130 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon_0_16x16.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon_0_32x32.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon_0_48x48.png">
-    <link rel="icon" type="image/png" sizes="64x64" href="/favicon_0_64x64.png">
-    <link rel="icon" type="image/png" sizes="128x128" href="/favicon_0_128x128.png">
-    <link rel="icon" type="image/png" sizes="256x256" href="/favicon_0_256x256.png">
+    
+    <!-- Performance Optimizations -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Resource hints for performance -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Favicon optimizations -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon_0_32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon_0_16x16.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="/favicon_0_128x128.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Meta tags for PWA -->
+    <meta name="theme-color" content="#10b981">
+    <meta name="description" content="Modern sales dashboard for tracking performance and managing pipeline">
+    <meta name="keywords" content="sales, dashboard, CRM, pipeline, performance, analytics">
+    
+    <!-- Critical CSS will be inlined here by build process -->
+    <style id="critical-css">
+      /* Critical above-the-fold styles */
+      body { 
+        margin: 0; 
+        padding: 0; 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background-color: #f9fafb;
+      }
+      #root { 
+        min-height: 100vh; 
+      }
+      .loading-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f9fafb;
+        z-index: 9999;
+      }
+      .loading-spinner {
+        width: 32px;
+        height: 32px;
+        border: 2px solid #e5e7eb;
+        border-top: 2px solid #10b981;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      /* Hide loading screen once React hydrates */
+      .hydrated .loading-screen { display: none; }
+    </style>
+    
     <title>Sixty Sales Dashboard</title>
   </head>
   <body>
+    <!-- Loading screen for better perceived performance -->
+    <div class="loading-screen">
+      <div class="loading-spinner"></div>
+    </div>
+    
     <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      // Register service worker for caching and offline support
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+              
+              // Handle service worker updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed') {
+                    if (navigator.serviceWorker.controller) {
+                      // New update available
+                      console.log('New version available, please refresh');
+                    } else {
+                      // Content is cached for offline use
+                      console.log('Content is cached for offline use');
+                    }
+                  }
+                });
+              });
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
+    </script>
+    
+    <!-- Performance monitoring -->
+    <script>
+      // Mark the start of app initialization
+      performance.mark('app-init-start');
+      
+      // Remove loading screen once React renders
+      window.addEventListener('DOMContentLoaded', () => {
+        const observer = new MutationObserver(() => {
+          const rootElement = document.getElementById('root');
+          if (rootElement && rootElement.children.length > 0) {
+            document.documentElement.classList.add('hydrated');
+            performance.mark('app-init-complete');
+            performance.measure('app-init-time', 'app-init-start', 'app-init-complete');
+            observer.disconnect();
+          }
+        });
+        
+        observer.observe(document.getElementById('root'), {
+          childList: true,
+          subtree: true
+        });
+      });
+    </script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

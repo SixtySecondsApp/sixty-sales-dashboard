@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { 
   BarChart3, 
-  Handshake, 
+  Heart, 
   Users, 
   Activity,
   FileText,
@@ -128,7 +128,7 @@ export function CompanyMainContent({
 
         <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50">
           <div className="flex items-center gap-3 mb-4">
-            <Handshake className="w-5 h-5 text-blue-400" />
+            <Heart className="w-5 h-5 text-blue-400" />
             <h3 className="text-sm font-medium text-gray-400">Deal Pipeline</h3>
           </div>
           <div className="space-y-2">

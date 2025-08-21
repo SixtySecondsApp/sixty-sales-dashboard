@@ -5,7 +5,7 @@ import {
   PauseCircle, 
   XCircle, 
   AlertCircle, 
-  HandshakeIcon, 
+  UserCheck, 
   DollarSign,
   Calendar
 } from 'lucide-react';
@@ -48,7 +48,7 @@ export function ClientStatusModal({
     {
       value: 'signed',
       label: 'Signed',
-      icon: HandshakeIcon,
+      icon: UserCheck,
       color: 'border-blue-500/50 bg-blue-500/10 text-blue-400',
       description: 'Contract signed, awaiting setup'
     },

@@ -9,10 +9,12 @@ import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
+import { IntelligentPreloader } from '@/components/LazyComponents';
+import { webVitalsOptimizer } from '@/lib/utils/webVitals';
 
-// Performance Optimization: Lazy load routes for better bundle splitting
-// Core routes - load eagerly for better UX
-import Dashboard from '@/pages/Dashboard';
+// Performance Optimization: Use optimized dashboard
+import OptimizedDashboard from '@/components/OptimizedDashboard';
 import Login from '@/pages/auth/login';
 
 // Heavy routes - lazy load to reduce initial bundle size
@@ -74,16 +76,25 @@ function App() {
   // Initialize audit session tracking
   useInitializeAuditSession();
   
+  // Initialize performance optimizations
+  const { performanceMetrics, measurePerformance, addCleanup } = usePerformanceOptimization({
+    enableResourcePreloading: true,
+    enableSmartPreloading: true,
+    enableBundleMonitoring: true,
+    enableMemoryCleanup: true,
+    debugMode: process.env.NODE_ENV === 'development'
+  });
+  
   // Initialize API connection monitoring
   useEffect(() => {
     const monitor = createApiMonitor(API_BASE_URL, 30000); // Check every 30 seconds
     monitor.start();
     
-    // Cleanup on unmount
-    return () => {
-      monitor.stop();
-    };
-  }, []);
+    const cleanup = () => monitor.stop();
+    addCleanup(cleanup);
+    
+    return cleanup;
+  }, [addCleanup]);
 
   // Initialize performance monitoring
   useEffect(() => {
@@ -92,27 +103,37 @@ function App() {
     // Enable performance monitoring in production for real user monitoring
     performanceMonitor.setEnabled(true);
     
-    // Log performance summary on development
+    // Initialize Web Vitals optimization
+    webVitalsOptimizer.initializeMonitoring(process.env.NODE_ENV === 'production');
+    
+    // Enhanced performance logging with optimization metrics
     if (process.env.NODE_ENV === 'development') {
       const interval = setInterval(() => {
-        const summary = performanceMonitor.getPerformanceSummary();
-        console.log('📊 Performance Summary:', summary);
+        measurePerformance('performance-summary', () => {
+          const summary = performanceMonitor.getPerformanceSummary();
+          console.log('📊 Performance Summary:', summary);
+          console.log('🚀 Optimization Metrics:', performanceMetrics);
+        });
       }, 30000); // Every 30 seconds
       
-      return () => {
+      const cleanup = () => {
         clearInterval(interval);
         performanceMonitor.cleanup();
       };
+      
+      addCleanup(cleanup);
+      return cleanup;
     }
     
-    return () => {
-      performanceMonitor.cleanup();
-    };
-  }, []);
+    const cleanup = () => performanceMonitor.cleanup();
+    addCleanup(cleanup);
+    return cleanup;
+  }, [measurePerformance, performanceMetrics, addCleanup]);
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        <IntelligentPreloader />
         <ProtectedRoute>
           <Suspense fallback={<RouteLoader />}>
             <Routes>
@@ -120,7 +141,7 @@ function App() {
               <Route path="/auth/signup" element={<Signup />} />
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+              <Route path="/" element={<AppLayout><OptimizedDashboard /></AppLayout>} />
               <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
               <Route path="/heatmap" element={<AppLayout><Heatmap /></AppLayout>} />
               <Route path="/funnel" element={<AppLayout><SalesFunnel /></AppLayout>} />

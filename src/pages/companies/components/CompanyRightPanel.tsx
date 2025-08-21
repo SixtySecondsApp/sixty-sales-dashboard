@@ -9,7 +9,7 @@ import {
   TrendingDown,
   DollarSign,
   Users,
-  Handshake,
+  Heart,
   AlertCircle,
   CheckCircle,
   Star,
