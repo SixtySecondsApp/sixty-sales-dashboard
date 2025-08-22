@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 export interface Owner {
   id: string;
@@ -23,12 +24,12 @@ export function useOwners() {
         setIsLoading(true);
         setError(null);
 
-        console.log('🔄 Fetching owners from database...');
+        logger.log('🔄 Fetching owners from database...');
         
         // Check if user is authenticated first
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) {
-          console.warn('No authenticated user, skipping owners fetch');
+          logger.warn('No authenticated user, skipping owners fetch');
           setOwners([]);
           return;
         }
@@ -40,12 +41,12 @@ export function useOwners() {
           .order('created_at', { ascending: true });
 
         if (error) {
-          console.error('Database error fetching profiles:', error);
+          logger.error('Database error fetching profiles:', error);
           throw error;
         }
 
         if (!profiles || profiles.length === 0) {
-          console.warn('No profiles found in database, trying to get at least current user');
+          logger.warn('No profiles found in database, trying to get at least current user');
           
           // Try to get at least the current user's profile
           const { data: userProfile, error: userProfileError } = await supabase
@@ -55,7 +56,7 @@ export function useOwners() {
             .single();
             
           if (userProfile && !userProfileError) {
-            console.log('Found current user profile, using as single owner');
+            logger.log('Found current user profile, using as single owner');
             const transformedOwner: Owner = {
               id: userProfile.id,
               first_name: userProfile.first_name,
@@ -69,7 +70,7 @@ export function useOwners() {
             };
             setOwners([transformedOwner]);
           } else {
-            console.warn('No profiles found at all, setting empty list');
+            logger.warn('No profiles found at all, setting empty list');
             setOwners([]);
           }
           return;
@@ -88,15 +89,15 @@ export function useOwners() {
           email: profile.email || `user_${profile.id.slice(0, 8)}@private.local`
         }));
 
-        console.log(`✅ Successfully fetched ${transformedOwners.length} owners from database`);
-        console.log('Owners data:', transformedOwners.map(o => ({ id: o.id, name: o.full_name, email: o.email })));
+        logger.log(`✅ Successfully fetched ${transformedOwners.length} owners from database`);
+        logger.log('Owners data:', transformedOwners.map(o => ({ id: o.id, name: o.full_name, email: o.email })));
         setOwners(transformedOwners);
 
       } catch (err) {
-        console.error('Error fetching owners from database:', err);
+        logger.error('Error fetching owners from database:', err);
         
         // Only use fallback in extreme cases and make sure IDs won't conflict
-        console.warn('Database query failed, setting empty owners list');
+        logger.warn('Database query failed, setting empty owners list');
         setOwners([]); // Set empty instead of hardcoded to prevent invalid owner_id queries
         setError(err instanceof Error ? err : new Error('Failed to fetch owners from database'));
       } finally {

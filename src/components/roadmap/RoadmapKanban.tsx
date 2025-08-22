@@ -35,6 +35,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
+import logger from '@/lib/utils/logger';
 
 
 
@@ -201,14 +202,14 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
   const handleSuggestionClick = (suggestion: any) => {
     if (!suggestion || !suggestion.id) {
-      console.error('Invalid suggestion clicked:', suggestion);
+      logger.error('Invalid suggestion clicked:', suggestion);
       toast.error('Unable to open suggestion - invalid data');
       return;
     }
     
     const foundSuggestion = suggestions.find(s => s.id === suggestion.id);
     if (!foundSuggestion) {
-      console.error('Suggestion not found in list:', suggestion.id);
+      logger.error('Suggestion not found in list:', suggestion.id);
       toast.error('Unable to find suggestion');
       return;
     }
@@ -223,7 +224,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     let savedOrCreatedSuggestion = null;
 
     try {
-      console.log('handleSaveSuggestion called with:', {
+      logger.log('handleSaveSuggestion called with:', {
         selectedSuggestionId: selectedSuggestion?.id,
         selectedSuggestionTitle: selectedSuggestion?.title,
         formData,
@@ -243,12 +244,12 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       if (selectedSuggestion && hasValidId) {
         // This is an update operation
         const suggestionId = selectedSuggestion.id.trim();
-        console.log('Updating suggestion with ID:', suggestionId);
+        logger.log('Updating suggestion with ID:', suggestionId);
         await updateSuggestion(suggestionId, formData);
         success = true;
       } else if (!selectedSuggestion || !hasValidId) {
         // This is a create operation (either no suggestion or invalid ID)
-        console.log('Creating new suggestion');
+        logger.log('Creating new suggestion');
         savedOrCreatedSuggestion = await createSuggestion(formData);
         success = !!savedOrCreatedSuggestion;
       }
@@ -259,7 +260,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
         toast.success(selectedSuggestion ? 'Suggestion updated' : 'Suggestion created');
       }
     } catch (error) {
-      console.error('Save error:', error);
+      logger.error('Save error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to save suggestion';
       toast.error(errorMessage);
     }
@@ -271,12 +272,12 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   const findStatusForId = (id: string): string | undefined => {
     // Check if it's a status ID directly
     if (statuses.some(s => s.id === id)) {
-      console.log(`Found status ID directly: ${id}`);
+      logger.log(`Found status ID directly: ${id}`);
       return id;
     }
     // Check if it's in the local suggestions mapping
     if (id in localSuggestionsByStatus) {
-      console.log(`Found in localSuggestionsByStatus: ${id}`);
+      logger.log(`Found in localSuggestionsByStatus: ${id}`);
       return id;
     }
     // Otherwise find which status contains this suggestion
@@ -284,9 +285,9 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       localSuggestionsByStatus[statusId].some(suggestion => suggestion.id === id)
     );
     if (foundStatus) {
-      console.log(`Found suggestion ${id} in status ${foundStatus}`);
+      logger.log(`Found suggestion ${id} in status ${foundStatus}`);
     } else {
-      console.log(`Could not find status for ID: ${id}`);
+      logger.log(`Could not find status for ID: ${id}`);
     }
     return foundStatus;
   };
@@ -333,7 +334,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     }
 
     if (!fromStatus || !toStatus) {
-      console.log('Drag over - status detection:', { 
+      logger.log('Drag over - status detection:', { 
         activeId, 
         overId, 
         fromStatus, 

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Slider } from '@/components/ui/slider';
 import { supabaseAdmin } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 type DealStage = {
   id: string;
@@ -56,7 +57,7 @@ export default function PipelineSettings() {
       if (error) throw error;
       setStages(data || []);
     } catch (error) {
-      console.error('Error fetching pipeline stages:', error);
+      logger.error('Error fetching pipeline stages:', error);
       toast.error('Failed to load pipeline stages');
     } finally {
       setIsLoading(false);
@@ -154,7 +155,7 @@ export default function PipelineSettings() {
         default_probability: 50,
       });
     } catch (error) {
-      console.error('Error saving pipeline stage:', error);
+      logger.error('Error saving pipeline stage:', error);
       toast.error('Failed to save pipeline stage');
     }
   };
@@ -175,7 +176,7 @@ export default function PipelineSettings() {
       toast.success('Pipeline stage deleted successfully');
       fetchStages();
     } catch (error) {
-      console.error('Error deleting pipeline stage:', error);
+      logger.error('Error deleting pipeline stage:', error);
       toast.error('Failed to delete pipeline stage. It may be in use by existing deals.');
     }
   };
@@ -198,7 +199,7 @@ export default function PipelineSettings() {
       
       toast.success('Probability updated');
     } catch (error) {
-      console.error('Error updating probability:', error);
+      logger.error('Error updating probability:', error);
       toast.error('Failed to update probability');
     }
   };

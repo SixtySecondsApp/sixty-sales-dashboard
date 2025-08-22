@@ -10,6 +10,7 @@
 
 import React, { Suspense, lazy } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import logger from '@/lib/utils/logger';
 
 // Enhanced loading component with better UX
 interface LoadingProps {
@@ -171,7 +172,7 @@ const createLazyComponent = <T extends Record<string, any>>(
   WrappedComponent.preload = () => {
     const delay = options.preloadDelay || 0;
     setTimeout(() => {
-      importFn().catch(err => console.warn('Failed to preload component:', err));
+      importFn().catch(err => logger.warn('Failed to preload component:', err));
     }, delay);
   };
 

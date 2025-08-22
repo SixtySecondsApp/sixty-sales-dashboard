@@ -7,10 +7,10 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, addHours, setHours, setMinutes, startOfWeek, addWeeks } from 'date-fns';
 import { useUser } from '@/lib/hooks/useUser';
 import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { IdentifierField, IdentifierType } from './IdentifierField';
 import { DealSelector } from './DealSelector';
 import { DealWizard } from './DealWizard';
+import logger from '@/lib/utils/logger';
 
 interface QuickAddProps {
   isOpen: boolean;
@@ -75,13 +75,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       selectedDeal: null
     });
     onClose();
-  };
-
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  const reloadPage = () => {
-    navigate(location.pathname, { replace: true });
   };
 
   const { addActivity, addSale } = useActivities();
@@ -165,7 +158,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         handleClose();
         return;
       } catch (error) {
-        console.error('Error creating task:', error);
+        logger.error('Error creating task:', error);
         toast.error('Failed to create task. Please try again.');
         return;
       }
@@ -197,6 +190,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
     try {
       if (selectedAction === 'outbound') {
+        logger.log('📤 Creating outbound activity...');
         // Always add the activity, but only pass identifier fields if present
         await addActivity({
           type: 'outbound',
@@ -213,7 +207,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               }
             : {})
         });
+        logger.log('✅ Outbound activity created successfully');
       } else if (selectedAction === 'sale') {
+        logger.log('💰 Creating sale activity...');
         // Calculate total amount from oneOffRevenue and monthlyMrr
         const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
         const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
@@ -231,8 +227,11 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           contactIdentifier: formData.contactIdentifier,
           contactIdentifierType: formData.contactIdentifierType
         };
+        logger.log('💰 Sale data:', saleData);
         await addSale(saleData);
+        logger.log('✅ Sale created successfully');
       } else if (selectedAction) {
+        logger.log(`📝 Creating ${selectedAction} activity...`);
         // Calculate total amount for proposals from oneOffRevenue and monthlyMrr
         let proposalAmount;
         if (selectedAction === 'proposal') {
@@ -254,8 +253,10 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           contactIdentifierType: formData.contactIdentifierType,
           status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
         });
+        logger.log(`✅ ${selectedAction} activity created successfully`);
       }
       
+      toast.success(`✅ ${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`);
       handleClose();
     } catch (error) {
       toast.error('Failed to add activity');
@@ -325,6 +326,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               <div className="w-12 h-1 rounded-full bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden" />
               <h2 className="text-xl font-semibold text-white/90 tracking-wide">Quick Add</h2>
               <button
+                type="button"
                 onClick={handleClose}
                 className="p-2 hover:bg-gray-800/50 rounded-xl transition-colors"
               >
@@ -348,6 +350,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 {quickActions.map((action) => (
                   <motion.button
                     key={action.id}
+                    type="button"
                     variants={{
                       hidden: { y: 20, opacity: 0 },
                       show: { y: 0, opacity: 1 }
@@ -359,7 +362,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       if (action.id === 'deal' || action.id === 'proposal' || action.id === 'sale') {
                         setShowDealWizard(true);
                         setSelectedAction(action.id);
@@ -936,6 +941,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           {/* Deal Wizard Modal */}
           <DealWizard
             isOpen={showDealWizard}
+            actionType={selectedAction as 'deal' | 'proposal' | 'sale'}
             onClose={() => {
               setShowDealWizard(false);
               // Reset to the initial selection screen
@@ -948,7 +954,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               if (selectedAction === 'deal' || selectedAction === 'proposal') {
                 // Reset everything back to initial state
                 handleClose();
-                toast.success(selectedAction === 'deal' ? 'Deal created successfully!' : 'Proposal created successfully!');
+                // Don't show duplicate success toast - DealWizard already shows one
               } else {
                 // Update the deal selector with the new deal if we're in a deal-related action
                 if (selectedAction === 'sale' || selectedAction === 'meeting') {

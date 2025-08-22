@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import TaskForm from './TaskForm';
+import logger from '@/lib/utils/logger';
 
 interface TaskKanbanProps {
   assigneeFilter?: string;
@@ -171,7 +172,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
       complete: []
     };
 
-    console.log('Re-grouping tasks, total count:', tasks.length);
+    logger.log('Re-grouping tasks, total count:', tasks.length);
 
     tasks.forEach(task => {
       // Ensure we're working with current date calculations
@@ -190,7 +191,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
       }
     });
 
-    console.log('Task grouping completed:', {
+    logger.log('Task grouping completed:', {
       planned: grouped.planned.length,
       overdue: grouped.overdue.length,
       started: grouped.started.length,

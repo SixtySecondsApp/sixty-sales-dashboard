@@ -22,6 +22,7 @@ import { useUser } from '@/lib/hooks/useUser';
 import { RoadmapKanban, RoadmapKanbanHandle } from '@/components/roadmap/RoadmapKanban';
 import { SearchInput } from '@/components/SearchInput';
 import { useSearch } from '@/hooks/useSearch';
+import logger from '@/lib/utils/logger';
 
 interface StatCardProps {
   title: string;
@@ -105,13 +106,13 @@ export default function Roadmap() {
       const targetSuggestion = suggestions.find(s => s.ticket_id === ticketNumber);
       
       if (targetSuggestion) {
-        console.log('Found ticket:', targetSuggestion);
+        logger.log('Found ticket:', targetSuggestion);
         // Open the suggestion modal
         roadmapKanbanRef.current.openSuggestionModal?.(targetSuggestion);
         // Clear the URL to show the regular roadmap
         navigate('/roadmap', { replace: true });
       } else {
-        console.log('Ticket not found:', ticketNumber);
+        logger.log('Ticket not found:', ticketNumber);
         // Ticket not found, redirect to main roadmap
         navigate('/roadmap', { replace: true });
       }

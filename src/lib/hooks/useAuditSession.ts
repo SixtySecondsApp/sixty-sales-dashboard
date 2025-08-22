@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useUser } from './useUser';
+import logger from '@/lib/utils/logger';
 import { 
   generateSessionId, 
   setSessionId, 
@@ -76,7 +77,7 @@ export function useInitializeAuditSession() {
 
   useEffect(() => {
     if (isInitialized && sessionId) {
-      console.log('Audit session initialized:', sessionId);
+      logger.log('Audit session initialized:', sessionId);
     }
   }, [sessionId, isInitialized]);
 

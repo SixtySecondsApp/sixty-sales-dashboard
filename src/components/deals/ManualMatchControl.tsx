@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner'; // Assuming use of sonner for toasts
 import { Loader2, Link2, Search } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 interface ManualMatchControlProps {
   activityId: string;
@@ -58,7 +59,7 @@ export function ManualMatchControl({
       // Validate search terms
       const termValidation = validateSearchTerm(term);
       if (!termValidation.isValid) {
-        console.error('Invalid search term:', termValidation.error);
+        logger.error('Invalid search term:', termValidation.error);
         throw new Error(termValidation.error || 'Invalid search term');
       }
       
@@ -66,7 +67,7 @@ export function ManualMatchControl({
       const domainSearchTerm = term.includes('@') ? term.split('@')[1] : term;
       const domainValidation = validateSearchTerm(domainSearchTerm);
       if (!domainValidation.isValid) {
-        console.error('Invalid domain search term:', domainValidation.error);
+        logger.error('Invalid domain search term:', domainValidation.error);
         throw new Error(domainValidation.error || 'Invalid domain search term');
       }
       
@@ -86,7 +87,7 @@ export function ManualMatchControl({
       setSearchResults(data || []);
 
     } catch (error: any) {
-      console.error('Error searching deals:', error);
+      logger.error('Error searching deals:', error);
       toast.error('Failed to search for deals', { description: error.message });
       setSearchResults([]);
     } finally {
@@ -118,7 +119,7 @@ export function ManualMatchControl({
         toast.error('Failed to link activity.');
       }
     } catch (error: any) { 
-      console.error('Error linking activity:', error);
+      logger.error('Error linking activity:', error);
       toast.error('Failed to link activity.', { description: error.message });
     } finally {
       setIsLinking(false);

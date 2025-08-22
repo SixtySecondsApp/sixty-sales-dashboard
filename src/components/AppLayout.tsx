@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
+import logger from '@/lib/utils/logger';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -55,7 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       // Success toast is handled by the respective functions
     } catch (error: any) {
       toast.error(isImpersonating ? 'Error stopping impersonation' : 'Error logging out');
-      console.error('[Auth]', error);
+      logger.error('[Auth]', error);
     }
   };
 
@@ -145,6 +146,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Quick Add FAB */}
       <motion.button
+        type="button"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsQuickAddOpen(true)}

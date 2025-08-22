@@ -3,6 +3,7 @@ import { API_BASE_URL } from '@/lib/config';
 import { apiCall } from '@/lib/utils/apiUtils';
 import { supabase } from '@/lib/supabase/clientV2';
 import { createClient } from '@supabase/supabase-js';
+import logger from '@/lib/utils/logger';
 
 interface DealStage {
   id: string;
@@ -19,6 +20,7 @@ export function useDealStages() {
   const [stages, setStages] = useState<DealStage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<any>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const fetchStages = async () => {
@@ -27,11 +29,11 @@ export function useDealStages() {
         setError(null);
         
         // Check authentication first
-        console.log('🔍 Checking user authentication for stages...');
+        logger.log('🔍 Checking user authentication for stages...');
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          console.log('⚠️ No session found - skipping Edge Functions, going straight to service key fallback for stages...');
+          logger.log('⚠️ No session found - skipping Edge Functions, going straight to service key fallback for stages...');
           
           // Skip Edge Functions entirely and go straight to service key fallback
           const serviceSupabase = createClient(
@@ -39,19 +41,20 @@ export function useDealStages() {
             import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
           );
           
-          console.log('🛡️ Stages service key fallback (no auth)...');
+          logger.log('🛡️ Stages service key fallback (no auth)...');
           const { data: serviceStagesData, error: serviceError } = await (serviceSupabase as any)
             .from('deal_stages')
             .select('*')
             .order('order_position');
             
           if (serviceError) {
-            console.error('❌ Service key stages fallback failed:', serviceError);
+            logger.error('❌ Service key stages fallback failed:', serviceError);
             throw serviceError;
           }
           
-          console.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
-          serviceStagesData?.forEach((stage: any) => console.log(`   📋 Stage: ${stage.name}`));
+          logger.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
+          logger.log('📊 Stage data structure:', serviceStagesData?.[0]);
+          serviceStagesData?.forEach((stage: any) => logger.log(`   📋 Stage: id=${stage.id}, name=${stage.name}, order=${stage.order_position}`));
           
           setStages(serviceStagesData || []);
           setIsLoading(false);
@@ -59,25 +62,33 @@ export function useDealStages() {
         }
 
         // Try Edge Functions if authenticated
-        console.log('🌐 User authenticated - trying Edge Functions for stages...');
+        logger.log('🌐 User authenticated - trying Edge Functions for stages...');
         try {
           const response = await apiCall<DealStage[]>(`${API_BASE_URL}/stages`);
+          logger.log('🌐 Edge Function stages response:', response);
+          logger.log('🌐 Response type:', typeof response, 'Is Array:', Array.isArray(response));
+          logger.log('🌐 First stage from Edge Function:', response?.[0]);
+          if (response && Array.isArray(response)) {
+            response.forEach((stage, index) => {
+              logger.log(`   Stage ${index}: id=${stage.id}, name="${stage.name}", type=${typeof stage.name}`);
+            });
+          }
           setStages(response || []);
           setIsLoading(false);
           return;
         } catch (edgeFunctionError) {
-          console.warn('Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+          logger.warn('Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
           
           // Fallback to direct Supabase client
-          console.log('🛡️ Stages fallback: Using direct Supabase client...');
+          logger.log('🛡️ Stages fallback: Using direct Supabase client...');
           const { data: stagesData, error: supabaseError } = await (supabase as any)
             .from('deal_stages')
             .select('*')
             .order('order_position');
           
           if (supabaseError) {
-            console.error('❌ Stages fallback failed:', supabaseError);
-            console.log('🔄 Trying stages with service role key...');
+            logger.error('❌ Stages fallback failed:', supabaseError);
+            logger.log('🔄 Trying stages with service role key...');
             
             // Last resort: try with service role key
             try {
@@ -92,29 +103,30 @@ export function useDealStages() {
                 .order('order_position');
                 
               if (serviceError) {
-                console.error('❌ Service key stages fallback also failed:', serviceError);
+                logger.error('❌ Service key stages fallback also failed:', serviceError);
                 throw serviceError;
               }
               
-              console.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
-              serviceStagesData?.forEach((stage: any) => console.log(`   📋 Stage: ${stage.name}`));
+              logger.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
+              serviceStagesData?.forEach((stage: any) => logger.log(`   📋 Stage: ${stage.name}`));
               
               setStages(serviceStagesData || []);
               return;
               
             } catch (serviceError) {
-              console.error('❌ All stages fallback methods failed:', serviceError);
+              logger.error('❌ All stages fallback methods failed:', serviceError);
               throw serviceError;
             }
           }
           
-          console.log(`✅ Stages fallback successful: Retrieved ${stagesData?.length || 0} stages`);
-          stagesData?.forEach((stage: any) => console.log(`   📋 Stage: ${stage.name}`));
+          logger.log(`✅ Stages fallback successful: Retrieved ${stagesData?.length || 0} stages`);
+          logger.log('📊 First stage data structure:', stagesData?.[0]);
+          stagesData?.forEach((stage: any) => logger.log(`   📋 Stage: id=${stage.id}, name="${stage.name}", order=${stage.order_position}`));
           
           setStages(stagesData || []);
         }
       } catch (err) {
-        console.error('Error fetching deal stages:', err);
+        logger.error('Error fetching deal stages:', err);
         setError(err);
       } finally {
         setIsLoading(false);
@@ -122,7 +134,7 @@ export function useDealStages() {
     }
 
     fetchStages();
-  }, []);
+  }, [refreshKey]);
 
   const createStage = async (stageData: Omit<DealStage, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -142,7 +154,7 @@ export function useDealStages() {
         setStages(prevStages => [...prevStages, result as DealStage].sort((a, b) => a.order_position - b.order_position));
         return result;
       } catch (edgeFunctionError) {
-        console.warn('Edge Function failed, falling back to direct Supabase client');
+        logger.warn('Edge Function failed, falling back to direct Supabase client');
         
                  // Get next order position
          const { data: maxStage } = await (supabase as any)
@@ -169,7 +181,7 @@ export function useDealStages() {
         return stage;
       }
     } catch (err) {
-      console.error('Error creating stage:', err);
+      logger.error('Error creating stage:', err);
       setError(err);
       return null;
     }
@@ -196,7 +208,7 @@ export function useDealStages() {
         );
         return true;
       } catch (edgeFunctionError) {
-        console.warn('Edge Function failed, falling back to direct Supabase client');
+        logger.warn('Edge Function failed, falling back to direct Supabase client');
         
                  const { data: stage, error } = await (supabase as any)
            .from('deal_stages')
@@ -214,7 +226,7 @@ export function useDealStages() {
         return true;
       }
     } catch (err) {
-      console.error('Error updating stage:', err);
+      logger.error('Error updating stage:', err);
       setError(err);
       return false;
     }
@@ -237,7 +249,7 @@ export function useDealStages() {
         setStages(prevStages => prevStages.filter(s => s.id !== id));
         return true;
       } catch (edgeFunctionError) {
-        console.warn('Edge Function failed, falling back to direct Supabase client');
+        logger.warn('Edge Function failed, falling back to direct Supabase client');
         
                  // Check if stage has deals first
          const { data: deals } = await (supabase as any)
@@ -261,10 +273,14 @@ export function useDealStages() {
         return true;
       }
     } catch (err) {
-      console.error('Error deleting stage:', err);
+      logger.error('Error deleting stage:', err);
       setError(err);
       return false;
     }
+  };
+
+  const refetchStages = () => {
+    setRefreshKey(prev => prev + 1);
   };
 
   return {
@@ -273,6 +289,7 @@ export function useDealStages() {
     error,
     createStage,
     updateStage,
-    deleteStage
+    deleteStage,
+    refetchStages
   };
 } 

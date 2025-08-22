@@ -1,5 +1,6 @@
 // Vitest setup file
 import { vi } from 'vitest';
+import logger from '@/lib/utils/logger';
 import '@testing-library/jest-dom/vitest';
 
 // Mock window objects that might not exist in test environment
@@ -43,4 +44,4 @@ window.requestAnimationFrame = vi.fn(callback => setTimeout(callback, 0));
 window.cancelAnimationFrame = vi.fn(id => clearTimeout(id));
 
 // Silence console errors during tests
-console.error = vi.fn(); 
+logger.error = vi.fn(); 

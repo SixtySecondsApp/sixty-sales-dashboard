@@ -102,7 +102,7 @@ async function handleStagesList(supabaseClient: any, url: URL) {
     }
 
     return new Response(JSON.stringify({
-      data: processedStages,
+      data: processedStages || [],
       error: null
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

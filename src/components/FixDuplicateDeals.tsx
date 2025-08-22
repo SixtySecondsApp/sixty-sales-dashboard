@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { supabaseAdmin } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import logger from '@/lib/utils/logger';
 
 export function FixDuplicateDeals() {
   const [isFixing, setIsFixing] = useState(false);
@@ -10,7 +11,7 @@ export function FixDuplicateDeals() {
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
-    console.log(message);
+    logger.log(message);
   };
 
   const fixDuplicateDeals = async () => {

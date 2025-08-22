@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useTasks, CreateTaskData, UpdateTaskData } from '@/lib/hooks/useTasks';
 import { useUser } from '@/lib/hooks/useUser';
 import { Task } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 import {
   Dialog,
   DialogContent,
@@ -107,7 +108,7 @@ export function CompanyTasks({ companyId, companyName, className }: CompanyTasks
       setCompanyTasks(tasksData);
       setTaskStats(statsData);
     } catch (error) {
-      console.error('Error fetching company tasks:', error);
+      logger.error('Error fetching company tasks:', error);
     }
   };
 
@@ -150,7 +151,7 @@ export function CompanyTasks({ companyId, companyName, className }: CompanyTasks
       setShowCreateModal(false);
       await fetchCompanyData(); // Refresh data
     } catch (error) {
-      console.error('Error creating task:', error);
+      logger.error('Error creating task:', error);
     }
   };
 
@@ -174,7 +175,7 @@ export function CompanyTasks({ companyId, companyName, className }: CompanyTasks
       resetForm();
       await fetchCompanyData(); // Refresh data
     } catch (error) {
-      console.error('Error updating task:', error);
+      logger.error('Error updating task:', error);
     }
   };
 
@@ -185,7 +186,7 @@ export function CompanyTasks({ companyId, companyName, className }: CompanyTasks
       setShowDeleteConfirm(null);
       await fetchCompanyData(); // Refresh data
     } catch (error) {
-      console.error('Error deleting task:', error);
+      logger.error('Error deleting task:', error);
     }
   };
 
@@ -199,7 +200,7 @@ export function CompanyTasks({ companyId, companyName, className }: CompanyTasks
       }
       await fetchCompanyData(); // Refresh data
     } catch (error) {
-      console.error('Error toggling task completion:', error);
+      logger.error('Error toggling task completion:', error);
     }
   };
 

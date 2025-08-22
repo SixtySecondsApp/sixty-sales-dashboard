@@ -1,6 +1,7 @@
 import { Activity } from '@/lib/hooks/useActivities';
 import { DealWithRelationships, DealStage } from '@/lib/hooks/useDeals';
 import { format } from 'date-fns';
+import logger from '@/lib/utils/logger';
 
 export interface CSVExportOptions {
   filename?: string;
@@ -79,7 +80,7 @@ export const exportActivitiesToCSV = (
       !validColumns.includes(col as keyof typeof allColumns)
     );
     if (invalidColumns.length > 0) {
-      console.warn(`Invalid column names filtered out from CSV export: ${invalidColumns.join(', ')}`);
+      logger.warn(`Invalid column names filtered out from CSV export: ${invalidColumns.join(', ')}`);
     }
   } else {
     columnsToInclude = validColumns;
@@ -104,13 +105,13 @@ export const exportActivitiesToCSV = (
             const dateObj = new Date(value as string);
             // Check if the date is valid
             if (isNaN(dateObj.getTime())) {
-              console.warn(`Invalid date value in activity: ${value}`);
+              logger.warn(`Invalid date value in activity: ${value}`);
               return escapeCSVValue(''); // Return empty string for invalid dates
             }
             const formattedDate = format(dateObj, 'yyyy-MM-dd HH:mm');
             return escapeCSVValue(formattedDate);
           } catch (error) {
-            console.warn(`Error parsing date for CSV export: ${value}`, error);
+            logger.warn(`Error parsing date for CSV export: ${value}`, error);
             return escapeCSVValue(''); // Return empty string on parsing error
           }
         case 'type':
@@ -132,13 +133,13 @@ export const exportActivitiesToCSV = (
           try {
             const numericValue = Number(value);
             if (isNaN(numericValue)) {
-              console.warn(`Invalid amount value in activity: ${value}`);
+              logger.warn(`Invalid amount value in activity: ${value}`);
               return escapeCSVValue('');
             }
             const formattedAmount = `£${numericValue.toLocaleString()}`;
             return escapeCSVValue(formattedAmount);
           } catch (error) {
-            console.warn(`Error parsing amount for CSV export: ${value}`, error);
+            logger.warn(`Error parsing amount for CSV export: ${value}`, error);
             return escapeCSVValue('');
           }
         case 'quantity':
@@ -147,7 +148,7 @@ export const exportActivitiesToCSV = (
             const quantityValue = value.toString();
             return escapeCSVValue(quantityValue);
           } catch (error) {
-            console.warn(`Error formatting quantity for CSV export: ${value}`, error);
+            logger.warn(`Error formatting quantity for CSV export: ${value}`, error);
             return escapeCSVValue('1');
           }
         default:
@@ -180,7 +181,7 @@ export const exportActivitiesToCSV = (
       throw new Error('File download not supported in this browser');
     }
   } catch (error) {
-    console.error('Error downloading CSV file:', error);
+    logger.error('Error downloading CSV file:', error);
     alert('Failed to download CSV file. Please try again or contact support if the problem persists.');
     throw error; // Re-throw to allow calling code to handle if needed
   }
@@ -218,10 +219,10 @@ export const getExportSummary = (activities: Activity[]) => {
           summary.dateRange.end = activityDate;
         }
       } else {
-        console.warn(`Invalid date value in activity for summary: ${activity.date} (Activity ID: ${activity.id || 'unknown'})`);
+        logger.warn(`Invalid date value in activity for summary: ${activity.date} (Activity ID: ${activity.id || 'unknown'})`);
       }
     } catch (error) {
-      console.warn(`Error parsing date for export summary: ${activity.date} (Activity ID: ${activity.id || 'unknown'})`, error);
+      logger.warn(`Error parsing date for export summary: ${activity.date} (Activity ID: ${activity.id || 'unknown'})`, error);
       // Continue processing other activities even if this one has a bad date
     }
     
@@ -303,7 +304,7 @@ export const exportPipelineToCSV = (
       !validColumns.includes(col as keyof typeof allColumns)
     );
     if (invalidColumns.length > 0) {
-      console.warn(`Invalid column names filtered out from pipeline export: ${invalidColumns.join(', ')}`);
+      logger.warn(`Invalid column names filtered out from pipeline export: ${invalidColumns.join(', ')}`);
     }
   } else {
     columnsToInclude = validColumns;
@@ -358,12 +359,12 @@ export const exportPipelineToCSV = (
           try {
             const numericValue = Number(deal.value);
             if (isNaN(numericValue)) {
-              console.warn(`Invalid deal value: ${deal.value} for deal ${deal.id}`);
+              logger.warn(`Invalid deal value: ${deal.value} for deal ${deal.id}`);
               return escapeCSVValue('');
             }
             return escapeCSVValue(`£${numericValue.toLocaleString()}`);
           } catch (error) {
-            console.warn(`Error formatting deal value: ${deal.value} for deal ${deal.id}`, error);
+            logger.warn(`Error formatting deal value: ${deal.value} for deal ${deal.id}`, error);
             return escapeCSVValue('');
           }
         case 'weighted_value':
@@ -371,7 +372,7 @@ export const exportPipelineToCSV = (
             const formattedWeighted = `£${weightedValue.toLocaleString()}`;
             return escapeCSVValue(formattedWeighted);
           } catch (error) {
-            console.warn(`Error formatting weighted value for deal ${deal.id}`, error);
+            logger.warn(`Error formatting weighted value for deal ${deal.id}`, error);
             return escapeCSVValue('');
           }
         case 'probability':
@@ -392,12 +393,12 @@ export const exportPipelineToCSV = (
           try {
             const dateObj = new Date(deal.created_at);
             if (isNaN(dateObj.getTime())) {
-              console.warn(`Invalid created date for deal ${deal.id}: ${deal.created_at}`);
+              logger.warn(`Invalid created date for deal ${deal.id}: ${deal.created_at}`);
               return escapeCSVValue('');
             }
             return escapeCSVValue(format(dateObj, 'yyyy-MM-dd HH:mm'));
           } catch (error) {
-            console.warn(`Error parsing created date for deal ${deal.id}:`, error);
+            logger.warn(`Error parsing created date for deal ${deal.id}:`, error);
             return escapeCSVValue('');
           }
         case 'close_date':
@@ -405,12 +406,12 @@ export const exportPipelineToCSV = (
           try {
             const dateObj = new Date(deal.close_date);
             if (isNaN(dateObj.getTime())) {
-              console.warn(`Invalid close date for deal ${deal.id}: ${deal.close_date}`);
+              logger.warn(`Invalid close date for deal ${deal.id}: ${deal.close_date}`);
               return escapeCSVValue('');
             }
             return escapeCSVValue(format(dateObj, 'yyyy-MM-dd'));
           } catch (error) {
-            console.warn(`Error parsing close date for deal ${deal.id}:`, error);
+            logger.warn(`Error parsing close date for deal ${deal.id}:`, error);
             return escapeCSVValue('');
           }
         case 'stage_changed_date':
@@ -418,12 +419,12 @@ export const exportPipelineToCSV = (
           try {
             const dateObj = new Date(deal.stage_changed_at);
             if (isNaN(dateObj.getTime())) {
-              console.warn(`Invalid stage changed date for deal ${deal.id}: ${deal.stage_changed_at}`);
+              logger.warn(`Invalid stage changed date for deal ${deal.id}: ${deal.stage_changed_at}`);
               return escapeCSVValue('');
             }
             return escapeCSVValue(format(dateObj, 'yyyy-MM-dd HH:mm'));
           } catch (error) {
-            console.warn(`Error parsing stage changed date for deal ${deal.id}:`, error);
+            logger.warn(`Error parsing stage changed date for deal ${deal.id}:`, error);
             return escapeCSVValue('');
           }
         case 'one_off_revenue':
@@ -433,7 +434,7 @@ export const exportPipelineToCSV = (
             if (isNaN(numericValue)) return escapeCSVValue('');
             return escapeCSVValue(`£${numericValue.toLocaleString()}`);
           } catch (error) {
-            console.warn(`Error formatting one-off revenue for deal ${deal.id}`, error);
+            logger.warn(`Error formatting one-off revenue for deal ${deal.id}`, error);
             return escapeCSVValue('');
           }
         case 'monthly_mrr':
@@ -443,7 +444,7 @@ export const exportPipelineToCSV = (
             if (isNaN(numericValue)) return escapeCSVValue('');
             return escapeCSVValue(`£${numericValue.toLocaleString()}`);
           } catch (error) {
-            console.warn(`Error formatting monthly MRR for deal ${deal.id}`, error);
+            logger.warn(`Error formatting monthly MRR for deal ${deal.id}`, error);
             return escapeCSVValue('');
           }
         case 'annual_value':
@@ -453,7 +454,7 @@ export const exportPipelineToCSV = (
             if (isNaN(numericValue)) return escapeCSVValue('');
             return escapeCSVValue(`£${numericValue.toLocaleString()}`);
           } catch (error) {
-            console.warn(`Error formatting annual value for deal ${deal.id}`, error);
+            logger.warn(`Error formatting annual value for deal ${deal.id}`, error);
             return escapeCSVValue('');
           }
         case 'company_size':
@@ -501,7 +502,7 @@ export const exportPipelineToCSV = (
       throw new Error('File download not supported in this browser');
     }
   } catch (error) {
-    console.error('Error downloading pipeline CSV file:', error);
+    logger.error('Error downloading pipeline CSV file:', error);
     alert('Failed to download pipeline CSV file. Please try again or contact support if the problem persists.');
     throw error; // Re-throw to allow calling code to handle if needed
   }
@@ -563,7 +564,7 @@ export const getPipelineExportSummary = (deals: DealWithRelationships[], stages:
           }
         }
       } catch (error) {
-        console.warn(`Error parsing date for pipeline summary: ${deal.created_at} (Deal ID: ${deal.id})`, error);
+        logger.warn(`Error parsing date for pipeline summary: ${deal.created_at} (Deal ID: ${deal.id})`, error);
       }
     }
   });

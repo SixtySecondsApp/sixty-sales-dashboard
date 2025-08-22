@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
+import logger from '@/lib/utils/logger';
 
 export interface Activity {
   id: string;
@@ -200,6 +201,9 @@ async function createSale(sale: {
             probability: 100,
             status: 'active',
             expected_close_date: sale.date || new Date().toISOString(),
+            // Store lifetime deals in annual_value field (as a single lifetime value)
+            // One-off deals in one_off_revenue
+            // Subscriptions in monthly_mrr
             one_off_revenue: sale.saleType === 'one-off' ? sale.amount : null,
             monthly_mrr: sale.saleType === 'subscription' ? sale.amount : null,
             annual_value: sale.saleType === 'lifetime' ? sale.amount : null
@@ -209,11 +213,11 @@ async function createSale(sale: {
 
         if (!dealError && newDeal) {
           finalDealId = newDeal.id;
-          console.log(`Auto-created deal ${newDeal.id} for sale to ${sale.client_name}`);
+          logger.log(`Auto-created deal ${newDeal.id} for sale to ${sale.client_name}`);
         }
       }
     } catch (error) {
-      console.warn('Failed to auto-create deal for sale:', error);
+      logger.warn('Failed to auto-create deal for sale:', error);
       // Continue without deal linkage
     }
   }
@@ -331,7 +335,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
     },
     onError: (error: Error) => {
       toast.error('Failed to add activity');
-      console.error('[Activities]', error);
+      logger.error('[Activities]', error);
     },
   });
 

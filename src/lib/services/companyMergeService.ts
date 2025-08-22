@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 export interface MergePreview {
   deals: {
@@ -185,7 +186,7 @@ export class CompanyMergeService {
       return duplicateGroups.sort((a, b) => b.combined_value - a.combined_value);
 
     } catch (error) {
-      console.error('Error finding duplicate companies:', error);
+      logger.error('Error finding duplicate companies:', error);
       throw error;
     }
   }
@@ -337,7 +338,7 @@ export class CompanyMergeService {
       });
 
     } catch (error) {
-      console.warn('Error getting company statistics:', error);
+      logger.warn('Error getting company statistics:', error);
       // Return empty statistics if RPC functions don't exist yet
       return companyIds.map(id => ({
         company_id: id,
@@ -363,7 +364,7 @@ export class CompanyMergeService {
       return data[0] as MergePreview;
 
     } catch (error) {
-      console.error('Error previewing merge:', error);
+      logger.error('Error previewing merge:', error);
       throw error;
     }
   }
@@ -389,7 +390,7 @@ export class CompanyMergeService {
       return data as MergeResult;
 
     } catch (error) {
-      console.error('Error executing merge:', error);
+      logger.error('Error executing merge:', error);
       toast.error('Failed to merge companies');
       throw error;
     }
@@ -416,7 +417,7 @@ export class CompanyMergeService {
       return data || [];
 
     } catch (error) {
-      console.error('Error getting merge history:', error);
+      logger.error('Error getting merge history:', error);
       throw error;
     }
   }
@@ -458,7 +459,7 @@ export class CompanyMergeService {
       };
 
     } catch (error) {
-      console.error('Error validating merge permissions:', error);
+      logger.error('Error validating merge permissions:', error);
       return {
         valid: false,
         errors: ['Failed to validate permissions']

@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { Lock } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,10 +28,10 @@ export default function ResetPassword() {
         const hash = window.location.hash;
         const search = window.location.search;
         
-        console.log('=== RECOVERY SESSION DEBUG ===');
-        console.log('Current URL:', currentUrl);
-        console.log('Hash params:', hash);
-        console.log('Search params:', search);
+        logger.log('=== RECOVERY SESSION DEBUG ===');
+        logger.log('Current URL:', currentUrl);
+        logger.log('Hash params:', hash);
+        logger.log('Search params:', search);
         
         setDebugInfo(`URL: ${currentUrl}\nHash: ${hash}\nSearch: ${search}`);
         
@@ -50,23 +51,23 @@ export default function ResetPassword() {
           tokenHash: !!tokenHash 
         };
         
-        console.log('Parsed parameters:', debugParams);
+        logger.log('Parsed parameters:', debugParams);
         setDebugInfo(prev => prev + '\nParsed: ' + JSON.stringify(debugParams));
         
         // Handle modern Supabase recovery flow with token_hash
         if (type === 'recovery' && tokenHash) {
-          console.log('✅ Modern recovery flow detected with token_hash');
+          logger.log('✅ Modern recovery flow detected with token_hash');
           setDebugInfo(prev => prev + '\n✅ Modern recovery flow detected');
           
           // For recovery links, we just need to verify the token exists
           // We DON'T want to establish the session yet - that happens when password is reset
-          console.log('✅ Valid recovery token detected, showing password reset form');
+          logger.log('✅ Valid recovery token detected, showing password reset form');
           setDebugInfo(prev => prev + '\n✅ Valid recovery token, showing form');
           setIsValidRecovery(true);
         }
         // Handle legacy recovery flow with access_token
         else if (type === 'recovery' && accessToken) {
-          console.log('✅ Legacy recovery flow detected with access_token');
+          logger.log('✅ Legacy recovery flow detected with access_token');
           setDebugInfo(prev => prev + '\n✅ Legacy recovery flow detected');
           
           // Set the session manually for legacy flow
@@ -75,10 +76,10 @@ export default function ResetPassword() {
             refresh_token: refreshToken || ''
           });
           
-          console.log('Legacy recovery session:', { session: !!session, error });
+          logger.log('Legacy recovery session:', { session: !!session, error });
           
           if (error || !session) {
-            console.error('❌ Legacy recovery error:', error);
+            logger.error('❌ Legacy recovery error:', error);
             setDebugInfo(prev => prev + '\n❌ Legacy session failed');
             toast.error('Your reset link has expired. Please request a new one.');
             setIsCheckingSession(false);
@@ -88,14 +89,14 @@ export default function ResetPassword() {
           setIsValidRecovery(true);
           setDebugInfo(prev => prev + '\n✅ Legacy session established');
         } else {
-          console.log('❌ No valid recovery parameters found');
+          logger.log('❌ No valid recovery parameters found');
           setDebugInfo(prev => prev + '\n❌ No valid parameters found');
           toast.error('Invalid password reset link');
         }
         
         setIsCheckingSession(false);
       } catch (error) {
-        console.error('❌ Recovery check error:', error);
+        logger.error('❌ Recovery check error:', error);
         setDebugInfo(prev => prev + '\n❌ Exception: ' + (error as Error).message);
         toast.error('Your reset link has expired. Please request a new one.');
         navigate('/auth/forgot-password');
@@ -128,11 +129,11 @@ export default function ResetPassword() {
       const tokenHash = searchParams.get('token_hash');
       const accessToken = hashParams.get('access_token') || searchParams.get('access_token');
       
-      console.log('Password update attempt:', { tokenHash: !!tokenHash, accessToken: !!accessToken });
+      logger.log('Password update attempt:', { tokenHash: !!tokenHash, accessToken: !!accessToken });
 
       // If we have a token_hash, verify the OTP first to establish the session
       if (tokenHash) {
-        console.log('Verifying recovery token before password update...');
+        logger.log('Verifying recovery token before password update...');
         
         const { data, error: verifyError } = await supabase.auth.verifyOtp({
           token_hash: tokenHash,
@@ -140,19 +141,19 @@ export default function ResetPassword() {
         });
 
         if (verifyError) {
-          console.error('Token verification failed:', verifyError);
+          logger.error('Token verification failed:', verifyError);
           toast.error('Your reset link has expired. Please request a new one.');
           navigate('/auth/forgot-password');
           return;
         }
 
         if (!data?.session) {
-          console.error('No session established during verification');
+          logger.error('No session established during verification');
           toast.error('Failed to establish session. Please try again.');
           return;
         }
 
-        console.log('✅ Recovery session established, updating password...');
+        logger.log('✅ Recovery session established, updating password...');
       }
 
       // Now update the password
@@ -161,7 +162,7 @@ export default function ResetPassword() {
       });
 
       if (error) {
-        console.error('Password update error:', error);
+        logger.error('Password update error:', error);
         toast.error(error.message || 'Failed to update password. Please try again.');
       } else {
         toast.success('Password updated successfully! Redirecting to dashboard...');
@@ -172,7 +173,7 @@ export default function ResetPassword() {
         }, 1000);
       }
     } catch (error: any) {
-      console.error('Password update error:', error);
+      logger.error('Password update error:', error);
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);

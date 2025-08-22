@@ -1,3 +1,5 @@
+import logger from '@/lib/utils/logger';
+
 export interface ExportColumn {
   key: string;
   label: string;
@@ -93,7 +95,7 @@ export const exportToCSV = (data: any[], options: ExportOptions = {}) => {
     
     return true;
   } catch (error) {
-    console.error('CSV export error:', error);
+    logger.error('CSV export error:', error);
     throw error;
   }
 };

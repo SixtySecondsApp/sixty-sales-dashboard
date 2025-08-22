@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface ContactRightPanelProps {
   contact: Contact;
@@ -32,7 +33,7 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
         setDeals(dealsData || []);
         setActivities(activitiesData || []);
       } catch (error) {
-        console.error('Error fetching right panel data:', error);
+        logger.error('Error fetching right panel data:', error);
       } finally {
         setLoading(false);
       }

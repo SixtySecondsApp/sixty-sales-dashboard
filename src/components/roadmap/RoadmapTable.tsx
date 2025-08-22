@@ -2,6 +2,7 @@ import React from 'react';
 import { useRoadmapContext } from '@/lib/contexts/RoadmapContext';
 import { format } from 'date-fns';
 import { ChevronUp, User, Calendar, Bug, Lightbulb, Settings, HelpCircle } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 interface RoadmapTableProps {
   onSuggestionClick: (suggestion: any) => void;
@@ -65,7 +66,7 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
         await voteForSuggestion(suggestion.id);
       }
     } catch (error) {
-      console.error('Failed to toggle vote:', error);
+      logger.error('Failed to toggle vote:', error);
     }
   };
 
@@ -92,7 +93,7 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
                   if (suggestion.id && suggestion.id.trim() !== '') {
                     onSuggestionClick(suggestion);
                   } else {
-                    console.error('Cannot edit suggestion with invalid ID:', suggestion);
+                    logger.error('Cannot edit suggestion with invalid ID:', suggestion);
                   }
                 }}
                 className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors"

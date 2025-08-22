@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 import { copySlackMessage } from '@/lib/utils/slackIntegration';
+import logger from '@/lib/utils/logger';
 
 interface TicketShareMenuProps {
   suggestion: RoadmapSuggestion;
@@ -62,7 +63,7 @@ export function TicketShareMenu({ suggestion, className = '', size = 'medium' }:
       setTimeout(() => setCopiedRecently(false), 2000);
       setIsOpen(false);
     } catch (error) {
-      console.error('Error copying to clipboard:', error);
+      logger.error('Error copying to clipboard:', error);
       toast.error('Failed to copy to clipboard');
     }
   };
@@ -100,7 +101,7 @@ export function TicketShareMenu({ suggestion, className = '', size = 'medium' }:
         description: 'Formatted message with priority and type info is ready to paste in Slack.'
       });
     } catch (error) {
-      console.error('Failed to copy Slack message:', error);
+      logger.error('Failed to copy Slack message:', error);
       // Fallback: just copy the URL
       try {
         await navigator.clipboard.writeText(`${ticketTitle}\n${ticketUrl}`);
@@ -145,7 +146,7 @@ export function TicketShareMenu({ suggestion, className = '', size = 'medium' }:
       await navigator.clipboard.writeText(markdownText);
       toast.success('Markdown copied to clipboard');
     } catch (error) {
-      console.error('Failed to copy markdown:', error);
+      logger.error('Failed to copy markdown:', error);
       toast.error('Failed to copy markdown');
     }
     
@@ -167,7 +168,7 @@ export function TicketShareMenu({ suggestion, className = '', size = 'medium' }:
       }
     } catch (error) {
       if (error.name !== 'AbortError') {
-        console.error('Error sharing:', error);
+        logger.error('Error sharing:', error);
         toast.error('Sharing failed');
       }
     }

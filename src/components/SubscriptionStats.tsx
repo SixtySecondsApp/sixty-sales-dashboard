@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback } from 'react';
 import { Building2, Users, TrendingUp, DollarSign } from 'lucide-react';
 import { EnhancedStatCard } from '@/components/ui/enhanced-stat-card';
 import { useMRR, MRRSummary } from '@/lib/hooks/useClients';
@@ -10,18 +10,23 @@ interface SubscriptionStatsProps {
   onClick?: (cardTitle: string) => void;
 }
 
-export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps) {
+const SubscriptionStatsComponent = ({ className, onClick }: SubscriptionStatsProps) => {
   const { userData } = useUser();
   const { mrrSummary, isLoading, error, fetchMRRSummary } = useMRR(userData?.id);
 
-  useEffect(() => {
+  // Memoize fetch function to prevent unnecessary re-renders
+  const fetchData = useCallback(() => {
     if (userData?.id) {
       fetchMRRSummary();
     }
   }, [userData?.id, fetchMRRSummary]);
 
-  // Default values when no data is available
-  const defaultMRR: MRRSummary = {
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Memoize default values
+  const defaultMRR = useMemo((): MRRSummary => ({
     total_clients: 0,
     active_clients: 0,
     churned_clients: 0,
@@ -32,37 +37,42 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
     max_mrr: 0,
     churn_rate: 0,
     active_rate: 100
-  };
+  }), []);
 
-  // SECURITY: Validate all financial data before display
-  const rawStats = mrrSummary || defaultMRR;
-  const stats = {
-    total_clients: Math.max(0, Math.floor(rawStats.total_clients || 0)),
-    active_clients: Math.max(0, Math.floor(rawStats.active_clients || 0)),
-    churned_clients: Math.max(0, Math.floor(rawStats.churned_clients || 0)),
-    paused_clients: Math.max(0, Math.floor(rawStats.paused_clients || 0)),
-    total_mrr: safeParseFinancial(rawStats.total_mrr || 0, 0, { fieldName: 'total_mrr', allowZero: true }),
-    avg_mrr: safeParseFinancial(rawStats.avg_mrr || 0, 0, { fieldName: 'avg_mrr', allowZero: true }),
-    min_mrr: safeParseFinancial(rawStats.min_mrr || 0, 0, { fieldName: 'min_mrr', allowZero: true }),
-    max_mrr: safeParseFinancial(rawStats.max_mrr || 0, 0, { fieldName: 'max_mrr', allowZero: true }),
-    churn_rate: Math.max(0, Math.min(100, safeParseFinancial(rawStats.churn_rate || 0, 0, { fieldName: 'churn_rate', allowZero: true }))),
-    active_rate: Math.max(0, Math.min(100, safeParseFinancial(rawStats.active_rate || 100, 100, { fieldName: 'active_rate', allowZero: false })))
-  };
+  // SECURITY: Validate all financial data before display - memoized for performance
+  const stats = useMemo(() => {
+    const rawStats = mrrSummary || defaultMRR;
+    return {
+      total_clients: Math.max(0, Math.floor(rawStats.total_clients || 0)),
+      active_clients: Math.max(0, Math.floor(rawStats.active_clients || 0)),
+      churned_clients: Math.max(0, Math.floor(rawStats.churned_clients || 0)),
+      paused_clients: Math.max(0, Math.floor(rawStats.paused_clients || 0)),
+      total_mrr: safeParseFinancial(rawStats.total_mrr || 0, 0, { fieldName: 'total_mrr', allowZero: true }),
+      avg_mrr: safeParseFinancial(rawStats.avg_mrr || 0, 0, { fieldName: 'avg_mrr', allowZero: true }),
+      min_mrr: safeParseFinancial(rawStats.min_mrr || 0, 0, { fieldName: 'min_mrr', allowZero: true }),
+      max_mrr: safeParseFinancial(rawStats.max_mrr || 0, 0, { fieldName: 'max_mrr', allowZero: true }),
+      churn_rate: Math.max(0, Math.min(100, safeParseFinancial(rawStats.churn_rate || 0, 0, { fieldName: 'churn_rate', allowZero: true }))),
+      active_rate: Math.max(0, Math.min(100, safeParseFinancial(rawStats.active_rate || 100, 100, { fieldName: 'active_rate', allowZero: false })))
+    };
+  }, [mrrSummary, defaultMRR]);
 
-  // Calculate trends (placeholder for now - would need historical data)
-  const mrrTrend = 12; // +12% month over month
-  const clientTrend = 8;  // +8% new clients
-  const churnTrend = -15; // -15% churn rate (improvement)
-  const avgTrend = 5;     // +5% average value
+  // Memoize trend calculations
+  const trends = useMemo(() => ({
+    mrrTrend: 12, // +12% month over month
+    clientTrend: 8,  // +8% new clients
+    churnTrend: -15, // -15% churn rate (improvement)
+    avgTrend: 5     // +5% average value
+  }), []);
 
-  const formatCurrency = (value: number) => {
+  // Memoize currency formatter
+  const formatCurrency = useCallback((value: number) => {
     return new Intl.NumberFormat('en-GB', { 
       style: 'currency', 
       currency: 'GBP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value);
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -90,7 +100,7 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
       <EnhancedStatCard
         title="Total MRR"
         primaryValue={formatCurrency(stats.total_mrr)}
-        trendPercentage={mrrTrend}
+        trendPercentage={trends.mrrTrend}
         periodContext="vs last month"
         icon={DollarSign}
         color="emerald"
@@ -102,7 +112,7 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
         primaryValue={stats.active_clients}
         secondaryValue={`${stats.total_clients} total clients`}
         percentageValue={stats.active_rate}
-        trendPercentage={clientTrend}
+        trendPercentage={trends.clientTrend}
         periodContext="vs last month"
         icon={Users}
         color="blue"
@@ -113,7 +123,7 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
         title="Avg Client Value"
         primaryValue={formatCurrency(stats.avg_mrr)}
         secondaryValue={`Range: ${formatCurrency(stats.min_mrr)} - ${formatCurrency(stats.max_mrr)}`}
-        trendPercentage={avgTrend}
+        trendPercentage={trends.avgTrend}
         periodContext="vs last month"
         icon={TrendingUp}
         color="violet"
@@ -124,7 +134,7 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
         title="Monthly Churn"
         primaryValue={`${stats.churn_rate.toFixed(1)}%`}
         secondaryValue={`${stats.churned_clients} churned clients`}
-        trendPercentage={churnTrend}
+        trendPercentage={trends.churnTrend}
         periodContext="vs last month"
         icon={Building2}
         color="orange"
@@ -135,4 +145,6 @@ export function SubscriptionStats({ className, onClick }: SubscriptionStatsProps
   );
 }
 
+// Export memoized component for performance optimization
+export const SubscriptionStats = React.memo(SubscriptionStatsComponent);
 export default SubscriptionStats;

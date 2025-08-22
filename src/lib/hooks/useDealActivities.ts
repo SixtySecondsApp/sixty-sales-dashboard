@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { Deal } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface DealActivity {
   id: string;
@@ -62,7 +63,7 @@ export function useDealActivities(filters?: ActivityFilters) {
         .from('deal_stages')
         .select('id, name');
       if (error) {
-        console.error('Error fetching deal stage IDs:', error);
+        logger.error('Error fetching deal stage IDs:', error);
         setError(error);
       } else if (data) {
         const ids = data.reduce((acc, stage) => {
@@ -94,17 +95,17 @@ export function useDealActivities(filters?: ActivityFilters) {
       });
       
       if (error) {
-        console.error('Supabase function error:', error);
+        logger.error('Supabase function error:', error);
         throw error;
       }
       
       setActivities(data?.data || []);
     } catch (err: any) {
-      console.error('Error fetching deal activities:', err);
+      logger.error('Error fetching deal activities:', err);
       
       // Fallback: Try to fetch directly from the view if edge function fails
       try {
-        console.log('Attempting fallback query...');
+        logger.log('Attempting fallback query...');
         let query = supabase
           .from('deal_activities_with_profile')
           .select('*')
@@ -121,9 +122,9 @@ export function useDealActivities(filters?: ActivityFilters) {
         }
         
         setActivities(fallbackData || []);
-        console.log('Fallback query successful');
+        logger.log('Fallback query successful');
       } catch (fallbackErr: any) {
-        console.error('Fallback query also failed:', fallbackErr);
+        logger.error('Fallback query also failed:', fallbackErr);
         setError(fallbackErr);
       }
     } finally {
@@ -148,7 +149,7 @@ export function useDealActivities(filters?: ActivityFilters) {
           table: 'deal_activities',
           filter: subscriptionFilter 
         }, (payload) => {
-          console.log('Deal activity change received, refetching from view...', payload);
+          logger.log('Deal activity change received, refetching from view...', payload);
           fetchActivities();
         })
         .subscribe();
@@ -163,7 +164,7 @@ export function useDealActivities(filters?: ActivityFilters) {
   
   const createActivity = async (activityData: Omit<DealActivity, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'is_matched' | 'deal_id' | 'profile_id' | 'profile_full_name' | 'profile_avatar_url'> & { contact_email?: string }) => {
     if (!userData?.id || !Object.keys(stageIds).length) {
-      console.error("User data or stage IDs not available for creating activity.");
+      logger.error("User data or stage IDs not available for creating activity.");
       setError("User data or stage IDs not available.");
       return null;
     }
@@ -308,7 +309,7 @@ export function useDealActivities(filters?: ActivityFilters) {
       return finalActivityDataForState;
 
     } catch (err) {
-      console.error('Error creating activity and handling deal logic:', err);
+      logger.error('Error creating activity and handling deal logic:', err);
       setError(err);
       return null;
     } finally {
@@ -333,7 +334,7 @@ export function useDealActivities(filters?: ActivityFilters) {
       
       return true;
     } catch (err) {
-      console.error('Error updating activity:', err);
+      logger.error('Error updating activity:', err);
       setError(err);
       return false;
     }
@@ -354,7 +355,7 @@ export function useDealActivities(filters?: ActivityFilters) {
       
       return true;
     } catch (err) {
-      console.error('Error deleting activity:', err);
+      logger.error('Error deleting activity:', err);
       setError(err);
       return false;
     }

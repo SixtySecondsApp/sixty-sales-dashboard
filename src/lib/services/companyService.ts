@@ -1,5 +1,6 @@
 import type { Company } from '@/lib/database/models';
 import { API_BASE_URL } from '@/lib/config';
+import logger from '@/lib/utils/logger';
 
 export class CompanyService {
   
@@ -31,7 +32,7 @@ export class CompanyService {
       const result = await response.json();
       return result.data as Company[];
     } catch (error) {
-      console.error('Error fetching companies:', error);
+      logger.error('Error fetching companies:', error);
       throw error;
     }
   }
@@ -49,7 +50,7 @@ export class CompanyService {
       
       return await response.json() as Company;
     } catch (error) {
-      console.error('Error fetching company:', error);
+      logger.error('Error fetching company:', error);
       throw error;
     }
   }
@@ -68,7 +69,7 @@ export class CompanyService {
       const result = await response.json();
       return result.data.length > 0 ? result.data[0] as Company : null;
     } catch (error) {
-      console.error('Error finding company by domain:', error);
+      logger.error('Error finding company by domain:', error);
       return null;
     }
   }
@@ -132,7 +133,7 @@ export class CompanyService {
 
       return await response.json() as Company;
     } catch (error) {
-      console.error('Error creating company:', error);
+      logger.error('Error creating company:', error);
       throw error;
     }
   }
@@ -161,7 +162,7 @@ export class CompanyService {
 
       return await response.json() as Company;
     } catch (error) {
-      console.error('Error updating company:', error);
+      logger.error('Error updating company:', error);
       throw error;
     }
   }
@@ -181,7 +182,7 @@ export class CompanyService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting company:', error);
+      logger.error('Error deleting company:', error);
       throw error;
     }
   }
@@ -211,7 +212,7 @@ export class CompanyService {
         owner_id: owner_id || 'dev-user-123' // Provide default for development
       });
     } catch (error) {
-      console.error('Error auto-creating company:', error);
+      logger.error('Error auto-creating company:', error);
       return null;
     }
   }
@@ -229,7 +230,7 @@ export class CompanyService {
       
       return await response.json();
     } catch (error) {
-      console.error('Error fetching company stats:', error);
+      logger.error('Error fetching company stats:', error);
       throw error;
     }
   }

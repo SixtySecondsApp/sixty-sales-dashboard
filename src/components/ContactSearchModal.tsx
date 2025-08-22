@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
 import { cn } from '@/lib/utils';
+import logger from '@/lib/utils/logger';
 
 interface ContactSearchModalProps {
   isOpen: boolean;
@@ -105,20 +106,20 @@ export function ContactSearchModal({
     setIsSearching(true);
     try {
       // Fetch contacts without search term to get all
-      console.log('Calling searchContacts with empty string...');
+      logger.log('Calling searchContacts with empty string...');
       const results = await searchContacts('', true); // Explicitly pass includeCompany: true
-      console.log('Fetched all contacts:', results);
-      console.log('Results type:', typeof results);
-      console.log('Results is array:', Array.isArray(results));
-      console.log('Results length:', results?.length);
+      logger.log('Fetched all contacts:', results);
+      logger.log('Results type:', typeof results);
+      logger.log('Results is array:', Array.isArray(results));
+      logger.log('Results length:', results?.length);
       setAllContacts(results || []);
       // If no search query, also set as search results
       if (!searchQuery.trim()) {
         setSearchResults(results || []);
       }
     } catch (error) {
-      console.error('Error fetching all contacts:', error);
-      console.error('Error stack:', error.stack);
+      logger.error('Error fetching all contacts:', error);
+      logger.error('Error stack:', error.stack);
       setAllContacts([]);
       setSearchResults([]);
     } finally {
@@ -136,10 +137,10 @@ export function ContactSearchModal({
     setIsSearching(true);
     try {
       const results = await searchContacts(query.trim(), true); // Explicitly pass includeCompany: true
-      console.log('Search results for', query, ':', results);
+      logger.log('Search results for', query, ':', results);
       setSearchResults(results || []);
     } catch (error) {
-      console.error('Search error:', error);
+      logger.error('Search error:', error);
       toast.error('Failed to search contacts');
       setSearchResults([]);
     } finally {
@@ -195,7 +196,7 @@ export function ContactSearchModal({
         handleContactSelect(newContact);
       }
     } catch (error) {
-      console.error('Error creating contact:', error);
+      logger.error('Error creating contact:', error);
       toast.error('Failed to create contact');
     } finally {
       setIsCreating(false);

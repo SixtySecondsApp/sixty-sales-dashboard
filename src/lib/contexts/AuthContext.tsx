@@ -4,6 +4,7 @@ import { supabase, authUtils, type Session, type User, type AuthError } from '..
 import { authLogger } from '../services/authLogger';
 import { toast } from 'sonner';
 import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
+import logger from '@/lib/utils/logger';
 
 // Auth context types
 interface AuthContextType {
@@ -57,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (mounted) {
           if (error) {
-            console.error('Error getting session:', error);
+            logger.error('Error getting session:', error);
             // Clear potentially corrupted session data
             authUtils.clearAuthStorage();
           } else {
@@ -66,7 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
                           // Log session restoration without showing toast
               if (session?.user && isInitialLoad) {
-                console.log('📱 Session restored for:', session.user.email);
+                logger.log('📱 Session restored for:', session.user.email);
                 authLogger.logAuthEvent({
                   event_type: 'SIGNED_IN',
                   user_id: session.user.id,
@@ -77,7 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setLoading(false);
         }
       } catch (error) {
-        console.error('Failed to initialize auth:', error);
+        logger.error('Failed to initialize auth:', error);
         if (mounted) {
           authUtils.clearAuthStorage();
           setLoading(false);
@@ -90,7 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state change:', event, !!session);
+        logger.log('Auth state change:', event, !!session);
         
         if (mounted) {
           setSession(session);
@@ -101,7 +102,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             case 'SIGNED_IN':
               // Only log for manual sign-ins, not session restoration
               if (!isInitialLoad) {
-                console.log('🔐 Manual sign-in successful for:', session?.user?.email);
+                logger.log('🔐 Manual sign-in successful for:', session?.user?.email);
               }
               
               // Invalidate all queries to refetch with new auth context
@@ -126,7 +127,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               break;
               
             case 'TOKEN_REFRESHED':
-              console.log('Token refreshed successfully');
+              logger.log('Token refreshed successfully');
               // Log token refresh for security monitoring
               if (session?.user) {
                 authLogger.logAuthEvent({
@@ -137,7 +138,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               break;
               
             case 'PASSWORD_RECOVERY':
-              console.log('Password recovery initiated');
+              logger.log('Password recovery initiated');
               if (session?.user) {
                 authLogger.logAuthEvent({
                   event_type: 'PASSWORD_RECOVERY',
@@ -225,7 +226,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Use helper function to get correct redirect URL
       const redirectUrl = getAuthRedirectUrl('/auth/reset-password');
       
-      console.log('Reset password redirect URL:', redirectUrl);
+      logger.log('Reset password redirect URL:', redirectUrl);
       
       const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
         redirectTo: redirectUrl,

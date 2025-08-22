@@ -3,6 +3,7 @@ import { useAuditLogs, type FieldHistoryEntry, type AuditHistoryEntry } from '@/
 import { format } from 'date-fns';
 import { History, AlertCircle, Plus, Edit, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import logger from '@/lib/utils/logger';
 
 interface AuditLogViewerProps {
   tableName: string;
@@ -39,7 +40,7 @@ export function AuditLogViewer({
         setFieldHistory([]); // Clear field history when showing audit history
       }
     } catch (err) {
-      console.error('Failed to load history:', err);
+      logger.error('Failed to load history:', err);
     }
   };
 

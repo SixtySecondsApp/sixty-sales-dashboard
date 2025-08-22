@@ -31,6 +31,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import logger from '@/lib/utils/logger';
 
 interface Company {
   id: string;
@@ -117,7 +118,7 @@ export function MergeCompaniesModal({
 
       await previewMerge(sourceIds, target.id);
     } catch (error) {
-      console.error('Failed to generate preview:', error);
+      logger.error('Failed to generate preview:', error);
     }
   };
 
@@ -133,7 +134,7 @@ export function MergeCompaniesModal({
       setValidationResult(validation);
       setCurrentStep('confirm');
     } catch (error) {
-      console.error('Validation failed:', error);
+      logger.error('Validation failed:', error);
     }
   };
 
@@ -164,7 +165,7 @@ export function MergeCompaniesModal({
         onMergeComplete(result);
       }
     } catch (error) {
-      console.error('Merge execution failed:', error);
+      logger.error('Merge execution failed:', error);
     }
   };
 

@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { onCLS, onFCP, onLCP, onTTFB } from 'web-vitals';
+import logger from '@/lib/utils/logger';
 
 // Thresholds for Core Web Vitals
 export const WEB_VITALS_THRESHOLDS = {
@@ -66,7 +67,7 @@ class WebVitalsOptimizer {
     this.optimizeLCP();
     this.optimizeCLS();
 
-    console.log('🚀 Web Vitals monitoring initialized');
+    logger.log('🚀 Web Vitals monitoring initialized');
   }
 
   private handleMetric(metric: any): void {
@@ -87,7 +88,7 @@ class WebVitalsOptimizer {
 
     // Log performance issues
     if (metric.rating !== 'good') {
-      console.warn(`⚠️ ${metric.name} needs improvement:`, {
+      logger.warn(`⚠️ ${metric.name} needs improvement:`, {
         value: metric.value,
         rating: metric.rating,
         threshold: this.getThreshold(metric.name)

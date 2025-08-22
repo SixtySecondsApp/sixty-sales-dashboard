@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 
 // Get the type definition from the hook
 import type { OriginalActivity } from '@/lib/hooks/useOriginalActivities';
+import logger from '@/lib/utils/logger';
 
 interface EditActivityEmailModalProps {
   activity: OriginalActivity | null; // The activity to edit
@@ -66,7 +67,7 @@ export function EditActivityEmailModal({
         setError("Failed to save email. See console for details."); // Optional fallback error
       }
     } catch (err) {
-      console.error("Error in handleSave:", err);
+      logger.error("Error in handleSave:", err);
       setError("An unexpected error occurred while saving.");
       toast.error("An unexpected error occurred.");
     } finally {

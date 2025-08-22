@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/lib/utils/logger';
 
 // Mock hook - temporarily disabled Supabase calls to avoid 400 errors
 // TODO: Implement with Neon API when targets functionality is needed
@@ -14,32 +15,37 @@ export interface Target {
 }
 
 export function useTargets(userId: string | undefined) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<any>({
+    id: 'mock-target-1',
+    user_id: userId || 'default',
+    revenue_target: 50000,
+    outbound_target: 100,
+    meetings_target: 50,
+    proposal_target: 20,
+    start_date: new Date().toISOString(),
+    end_date: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // Mock implementation - returns proper target object structure
+    // Mock implementation - returns proper target object structure immediately
     // Eliminates Supabase 400 errors while keeping components functional
     if (userId) {
-      setIsLoading(true);
-      setTimeout(() => {
-        // Return mock target data that matches what Dashboard expects
-        setData({
-          id: 'mock-target-1',
-          user_id: userId,
-          revenue_target: 20000,
-          outbound_target: 100,
-          meetings_target: 20,
-          proposal_target: 15,
-          start_date: new Date().toISOString(),
-          end_date: new Date().toISOString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-        setError(null);
-        setIsLoading(false);
-      }, 100);
+      setData({
+        id: 'mock-target-1',
+        user_id: userId,
+        revenue_target: 50000,
+        outbound_target: 100,
+        meetings_target: 50,
+        proposal_target: 20,
+        start_date: new Date().toISOString(),
+        end_date: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
     }
   }, [userId]);
 
@@ -54,7 +60,7 @@ export function useCreateTarget() {
   return {
     mutate: async () => {
       // Mock implementation - does nothing
-      console.log('Target creation temporarily disabled');
+      logger.log('Target creation temporarily disabled');
     },
     isLoading: false,
     error: null
@@ -65,7 +71,7 @@ export function useUpdateTarget() {
   return {
     mutate: async () => {
       // Mock implementation - does nothing  
-      console.log('Target update temporarily disabled');
+      logger.log('Target update temporarily disabled');
     },
     isLoading: false,
     error: null
@@ -76,7 +82,7 @@ export function useDeleteTarget() {
   return {
     mutate: async () => {
       // Mock implementation - does nothing
-      console.log('Target deletion temporarily disabled');
+      logger.log('Target deletion temporarily disabled');
     },
     isLoading: false,
     error: null

@@ -3,6 +3,7 @@ import { User, Users, Mail, Phone, Building2, TrendingUp, ExternalLink } from 'l
 import { Button } from '@/components/ui/button';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface ContactSidebarProps {
   contact: Contact;
@@ -29,7 +30,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         setLeadOwner(ownerData);
         setActivitySummary(statsData);
       } catch (error) {
-        console.error('Error fetching sidebar data:', error);
+        logger.error('Error fetching sidebar data:', error);
       } finally {
         setLoading(false);
       }

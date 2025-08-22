@@ -37,6 +37,7 @@ import {
 import { USER_STAGES } from '@/lib/hooks/useUser';
 import { format, parseISO } from 'date-fns';
 import { User } from '@/lib/hooks/useUsers';
+import logger from '@/lib/utils/logger';
 
 export default function Users() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,7 +107,7 @@ export default function Users() {
 
   const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
     if (!userId) {
-      console.error("handleUpdateUser called without userId");
+      logger.error("handleUpdateUser called without userId");
       toast.error("Cannot update user: User ID missing.");
       return;
     }
@@ -115,7 +116,7 @@ export default function Users() {
       setEditingUser(null);
       setModalTargets([]);
     } catch (error) {
-      console.error('Update error in component:', error);
+      logger.error('Update error in component:', error);
     }
   };
 
@@ -126,7 +127,7 @@ export default function Users() {
       navigate('/');
     } catch (error) {
       toast.error('Failed to impersonate user');
-      console.error('[Impersonation]', error);
+      logger.error('[Impersonation]', error);
     }
   };
 
@@ -535,7 +536,7 @@ export default function Users() {
                 e.preventDefault();
                 const formData = new FormData(e.target as HTMLFormElement);
                 if (editingUser.isNew) {
-                  console.warn("New user creation not implemented yet.");
+                  logger.warn("New user creation not implemented yet.");
                   toast.info("New user creation not implemented.");
                 } else {
                   const userToUpdate = editingUser as User;

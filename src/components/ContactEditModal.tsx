@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useCompanies } from '@/lib/hooks/useCompanies';
 import type { Contact } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface ContactEditModalProps {
   open: boolean;
@@ -78,7 +79,7 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
       const formIsValid = await methods.trigger();
       if (!formIsValid) {
         const errors = methods.formState.errors;
-        console.error("Form validation errors:", errors);
+        logger.error("Form validation errors:", errors);
         toast.error("Please fix the highlighted fields.");
         setIsSaving(false);
         return;
@@ -98,14 +99,14 @@ const ContactEditModal: React.FC<ContactEditModalProps> = ({
         is_primary: formData.is_primary
       };
       
-      console.log("Saving contact with data:", dataToSave);
+      logger.log("Saving contact with data:", dataToSave);
       await updateContact(contact.id, dataToSave);
       
       toast.success("Contact has been successfully updated.");
       
       handleClose();
     } catch (error) {
-      console.error("Error saving contact:", error);
+      logger.error("Error saving contact:", error);
       toast.error("There was a problem saving your changes.");
     } finally {
       setIsSaving(false);

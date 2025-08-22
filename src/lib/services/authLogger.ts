@@ -1,4 +1,5 @@
 import { supabase } from '../supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 interface AuthLogEvent {
   event_type: 'SIGNED_IN' | 'SIGNED_OUT' | 'SIGNED_UP' | 'PASSWORD_RECOVERY' | 'TOKEN_REFRESHED' | 'USER_UPDATED';
@@ -23,7 +24,7 @@ class AuthLogger {
    */
   async logAuthEvent(event: AuthLogEvent): Promise<void> {
     if (!this.isEnabled) {
-      console.log('Auth logging disabled - skipping event:', event.event_type);
+      logger.log('Auth logging disabled - skipping event:', event.event_type);
       return;
     }
 
@@ -33,11 +34,11 @@ class AuthLogger {
       });
 
       if (error) {
-        console.warn('Failed to log auth event:', error);
+        logger.warn('Failed to log auth event:', error);
         // Don't throw - logging failures shouldn't break auth flow
       }
     } catch (error) {
-      console.warn('Auth logger service error:', error);
+      logger.warn('Auth logger service error:', error);
       // Silently fail - don't interrupt auth operations
     }
   }

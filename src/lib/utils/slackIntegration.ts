@@ -1,6 +1,8 @@
 // Slack Integration Utilities
 // This file provides various ways to integrate with Slack for sharing roadmap tickets
 
+import logger from '@/lib/utils/logger';
+
 export interface SlackShareOptions {
   ticketId: number;
   title: string;
@@ -161,7 +163,7 @@ export async function sendToSlackWebhook(
 
     return response.ok;
   } catch (error) {
-    console.error('Failed to send to Slack webhook:', error);
+    logger.error('Failed to send to Slack webhook:', error);
     return false;
   }
 }
@@ -180,7 +182,7 @@ export function openSlackApp(options: SlackShareOptions): boolean {
     // Return true if we attempted to open
     return true;
   } catch (error) {
-    console.error('Failed to open Slack app:', error);
+    logger.error('Failed to open Slack app:', error);
     return false;
   }
 }

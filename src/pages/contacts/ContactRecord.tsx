@@ -9,6 +9,7 @@ import { ContactMainContent } from './components/ContactMainContent';
 import { ContactRightPanel } from './components/ContactRightPanel';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 const ContactRecord: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +31,7 @@ const ContactRecord: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        console.log('Fetching contact with ID:', id);
+        logger.log('Fetching contact with ID:', id);
         const contactData = await ApiContactService.getContactById(id, true);
         
         if (!contactData) {
@@ -38,10 +39,10 @@ const ContactRecord: React.FC = () => {
           return;
         }
         
-        console.log('Contact data received:', contactData);
+        logger.log('Contact data received:', contactData);
         setContact(contactData);
       } catch (err) {
-        console.error('Error fetching contact:', err);
+        logger.error('Error fetching contact:', err);
         setError(err instanceof Error ? err.message : 'Failed to load contact');
       } finally {
         setLoading(false);

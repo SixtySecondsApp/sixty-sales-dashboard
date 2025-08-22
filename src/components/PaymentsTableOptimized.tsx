@@ -45,6 +45,7 @@ import { navigateToCompanyProfile } from '@/lib/utils/companyNavigation';
 // Virtual scrolling imports
 import { FixedSizeList as List } from 'react-window';
 import { areEqual } from 'react-window';
+import logger from '@/lib/utils/logger';
 
 interface PaymentsTableProps {
   className?: string;
@@ -293,7 +294,7 @@ const PaymentRow = memo(({ index, style, data }: {
         {payment.deal_id ? (
           <button
             onClick={() => {
-              console.log('🔍 Opening deal details for ID:', payment.deal_id);
+              logger.log('🔍 Opening deal details for ID:', payment.deal_id);
               onViewDeal(payment.deal_id!);
             }}
             className="text-left hover:bg-gray-700/50 rounded-lg p-2 -m-2 transition-colors group"
@@ -564,7 +565,7 @@ export const PaymentsTableOptimized = memo(({ className }: PaymentsTableProps) =
         .sort((a, b) => new Date(b.signed_date).getTime() - new Date(a.signed_date).getTime());
 
     } catch (error) {
-      console.error('Error processing payment records:', error);
+      logger.error('Error processing payment records:', error);
       FinancialLogger.log('high', 'Payment records processing failed', { error: error.message });
       return [];
     }
@@ -729,7 +730,7 @@ export const PaymentsTableOptimized = memo(({ className }: PaymentsTableProps) =
       
       setEditingClientStatus(null);
     } catch (error: any) {
-      console.error('Error updating client status:', error);
+      logger.error('Error updating client status:', error);
       toast.error('Failed to update client status');
     }
   };
@@ -955,10 +956,10 @@ export const PaymentsTableOptimized = memo(({ className }: PaymentsTableProps) =
         currentOneOff={editingDeal?.one_off_revenue}
         currentAnnualValue={editingDeal?.annual_value}
         onSave={async () => {
-          console.log('🔄 Deal revenue updated, refreshing data...');
+          logger.log('🔄 Deal revenue updated, refreshing data...');
           await refreshDeals();
           await fetchMRRSummary();
-          console.log('✅ Data refreshed after deal revenue update');
+          logger.log('✅ Data refreshed after deal revenue update');
         }}
       />
 

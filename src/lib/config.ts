@@ -1,3 +1,5 @@
+import logger from '@/lib/utils/logger';
+
 // Environment detection and configuration
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const isProduction = window.location.hostname.includes('vercel.app') || !isLocalhost;
@@ -21,12 +23,13 @@ const getApiBaseUrl = () => {
   }
   
   // Fallback - should not happen if environment is properly configured
-  console.error('⚠️ VITE_SUPABASE_URL not found. Please check your environment variables.');
+  logger.error('⚠️ VITE_SUPABASE_URL not found. Please check your environment variables.');
   return '/api'; // Fallback to relative path
 };
 
 // Temporary flag to disable Edge Functions after Neon -> Supabase migration
-export const DISABLE_EDGE_FUNCTIONS = true;
+// Setting to false to use Edge Functions for stages
+export const DISABLE_EDGE_FUNCTIONS = false;
 
 export const API_BASE_URL = DISABLE_EDGE_FUNCTIONS 
   ? '/api'
@@ -45,7 +48,7 @@ export const config = {
 
 // Helper to log configuration in development
 if (config.debug) {
-  console.log('🔧 Configuration:', {
+  logger.log('🔧 Configuration:', {
     hostname: window.location.hostname,
     isLocalhost: config.isLocalhost,
     isProduction: config.isProduction,

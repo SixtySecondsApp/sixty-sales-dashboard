@@ -18,6 +18,7 @@ import { CompanyTabs } from './components/CompanyTabs';
 import { CompanySidebar } from './components/CompanySidebar';
 import { CompanyMainContent } from './components/CompanyMainContent';
 import { CompanyRightPanel } from './components/CompanyRightPanel';
+import logger from '@/lib/utils/logger';
 
 interface CompanyProfileProps {
   className?: string;
@@ -30,7 +31,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
   
   // Debug: Log company profile state changes
   React.useEffect(() => {
-    console.log('📋 CompanyProfile render:', {
+    logger.log('📋 CompanyProfile render:', {
       companyId,
       companyName: company?.name,
       companyStatus: company?.status,

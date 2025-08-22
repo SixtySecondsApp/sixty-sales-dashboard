@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { AuditLog } from '@/lib/hooks/useAuditLogs';
+import logger from '@/lib/utils/logger';
 
 interface AuditLogSearchParams {
   tableName?: string;
@@ -51,7 +52,7 @@ export default function AuditLogs() {
     } catch (err) {
       // Error is already handled by the useAuditLogs hook's setError
       // The error state will be displayed in the UI automatically
-      console.error('Failed to load audit logs:', err);
+      logger.error('Failed to load audit logs:', err);
       setInitialLoadComplete(true);
     }
   };
@@ -76,7 +77,7 @@ export default function AuditLogs() {
     } catch (err) {
       // Error is already handled by the useAuditLogs hook's setError
       // The error state will be displayed in the UI automatically
-      console.error('Failed to search audit logs:', err);
+      logger.error('Failed to search audit logs:', err);
     }
   };
 

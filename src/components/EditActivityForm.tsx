@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Activity } from '@/lib/hooks/useActivities'; // Assuming Activity type path
 import { IdentifierType } from './IdentifierField'; // Assuming IdentifierType path
 import { Button } from '@/components/ui/button';
+import logger from '@/lib/utils/logger';
 import {
   DialogHeader,
   DialogTitle,
@@ -95,7 +96,7 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
     if (!updates.client_name || !updates.details || !updates.status) {
       // Consider using a local error state instead of toast here if needed
       // toast.error("Client Name, Details, and Status are required."); 
-      console.error("Validation failed: Client Name, Details, Status required.");
+      logger.error("Validation failed: Client Name, Details, Status required.");
       return; 
     }
 

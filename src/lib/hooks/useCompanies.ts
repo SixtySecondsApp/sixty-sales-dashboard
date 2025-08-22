@@ -5,6 +5,7 @@ import type { Company } from '@/lib/database/models';
 import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from './useUser';
+import logger from '@/lib/utils/logger';
 
 interface UseCompaniesOptions {
   search?: string;
@@ -51,7 +52,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
 
       // Use direct Supabase queries when local API isn't available
       if (DISABLE_EDGE_FUNCTIONS) {
-        console.log('🔄 Trying direct Supabase queries for companies');
+        logger.log('🔄 Trying direct Supabase queries for companies');
         
         try {
           // Build companies query
@@ -68,7 +69,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
           const { data: companiesData, error: companiesError } = await query;
 
           if (companiesError) {
-            console.warn('⚠️ Companies table query failed:', companiesError);
+            logger.warn('⚠️ Companies table query failed:', companiesError);
             throw companiesError;
           }
 
@@ -80,12 +81,12 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
             dealsValue: 0 // TODO: Get from deals table if needed
           }));
 
-          console.log('📊 Companies loaded from table:', companies.map(c => ({ id: c.id, name: c.name })));
+          logger.log('📊 Companies loaded from table:', companies.map(c => ({ id: c.id, name: c.name })));
           setCompanies(companies);
           setTotalCount(companies.length);
           return;
         } catch (directQueryError) {
-          console.warn('⚠️ Direct companies table query failed, using mock data:', directQueryError);
+          logger.warn('⚠️ Direct companies table query failed, using mock data:', directQueryError);
           
           // Fallback to mock data when companies table doesn't exist
           const mockCompanies = [
@@ -111,7 +112,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
                    company.domain.toLowerCase().includes(searchLower);
           });
           
-          console.log('📊 Using mock companies data');
+          logger.log('📊 Using mock companies data');
           setCompanies(mockCompanies);
           setTotalCount(mockCompanies.length);
           return;
@@ -120,7 +121,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
 
       // Fallback to API endpoints for edge functions
       let url = `${API_BASE_URL}/companies?includeStats=true`;
-      console.log('🔄 Fetching companies from URL:', url);
+      logger.log('🔄 Fetching companies from URL:', url);
       const params = new URLSearchParams();
       
       if (options.search) {
@@ -151,7 +152,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
       setCompanies(result.data || []);
       setTotalCount(result.data?.length || 0);
     } catch (err) {
-      console.error('Error fetching companies, using mock data fallback:', err);
+      logger.error('Error fetching companies, using mock data fallback:', err);
       
       // Fallback to mock data when API calls fail
       const mockCompanies = [
@@ -191,7 +192,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
                company.domain.toLowerCase().includes(searchLower);
       });
       
-      console.log('📊 Using mock companies data as fallback');
+      logger.log('📊 Using mock companies data as fallback');
       setCompanies(mockCompanies);
       setTotalCount(mockCompanies.length);
       setError(null); // Clear error since we have fallback data
@@ -215,7 +216,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
       const error = err as Error;
       setError(error);
       toast.error('Failed to create company');
-      console.error('Error creating company:', error);
+      logger.error('Error creating company:', error);
       return null;
     }
   }, []);
@@ -238,7 +239,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
       const error = err as Error;
       setError(error);
       toast.error('Failed to update company');
-      console.error('Error updating company:', error);
+      logger.error('Error updating company:', error);
       return null;
     }
   }, []);
@@ -258,7 +259,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
       const error = err as Error;
       setError(error);
       toast.error('Failed to delete company');
-      console.error('Error deleting company:', error);
+      logger.error('Error deleting company:', error);
       return false;
     }
   }, []);
@@ -274,7 +275,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error searching companies:', error);
+      logger.error('Error searching companies:', error);
       return [];
     }
   }, []);
@@ -286,7 +287,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error finding company by domain:', error);
+      logger.error('Error finding company by domain:', error);
       return null;
     }
   }, []);
@@ -309,7 +310,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error auto-creating company:', error);
+      logger.error('Error auto-creating company:', error);
       return null;
     }
   }, []);
@@ -370,7 +371,7 @@ export function useCompany(id: string, includeRelationships = true) {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error fetching company:', error);
+      logger.error('Error fetching company:', error);
     } finally {
       setIsLoading(false);
     }

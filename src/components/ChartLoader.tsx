@@ -7,6 +7,7 @@
 
 import React, { Suspense, lazy } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import logger from '@/lib/utils/logger';
 
 // Lazy load chart components to reduce bundle size
 const ComposedChart = lazy(() => 
@@ -159,7 +160,7 @@ export const usePreloadCharts = () => {
     const timer = setTimeout(() => {
       // Preload the recharts module
       import('recharts').catch(err => 
-        console.warn('Failed to preload charts:', err)
+        logger.warn('Failed to preload charts:', err)
       );
     }, 2000); // 2 second delay
 

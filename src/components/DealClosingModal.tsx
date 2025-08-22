@@ -21,6 +21,7 @@ import {
 import { Deal } from '@/lib/database/models';
 import { toast } from 'sonner';
 import { format, addDays, addWeeks, addMonths } from 'date-fns';
+import logger from '@/lib/utils/logger';
 
 interface DealClosingModalProps {
   open: boolean;
@@ -72,7 +73,7 @@ export default function DealClosingModal({
       onOpenChange(false);
       
     } catch (error) {
-      console.error('Error saving deal closure:', error);
+      logger.error('Error saving deal closure:', error);
       toast.error('Failed to close deal. Please try again.');
     } finally {
       setIsSaving(false);
@@ -85,7 +86,7 @@ export default function DealClosingModal({
       await onSave(null);
       onOpenChange(false);
     } catch (error) {
-      console.error('Error closing deal:', error);
+      logger.error('Error closing deal:', error);
       toast.error('Failed to close deal. Please try again.');
     } finally {
       setIsSaving(false);

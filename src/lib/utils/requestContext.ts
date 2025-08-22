@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 /**
  * Request context system for tracking HTTP requests in audit logs
@@ -96,7 +97,7 @@ export async function setRequestContext(metadata: RequestMetadata): Promise<void
       p_duration: metadata.duration || null
     });
   } catch (error) {
-    console.error('Failed to set request context:', error);
+    logger.error('Failed to set request context:', error);
   }
 }
 
@@ -132,7 +133,7 @@ export async function updateRequestContext(
       p_duration: duration
     });
   } catch (error) {
-    console.error('Failed to update request context:', error);
+    logger.error('Failed to update request context:', error);
   }
 }
 
@@ -347,7 +348,7 @@ export class RequestPerformanceMonitor {
     
     // Log performance metrics if duration is significant
     if (duration > 1000) { // Log slow requests (>1 second)
-      console.warn(`Slow request detected: ${this.metadata.method} ${this.metadata.endpoint} took ${duration}ms`);
+      logger.warn(`Slow request detected: ${this.metadata.method} ${this.metadata.endpoint} took ${duration}ms`);
     }
   }
 }

@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Building2, User, Calendar, DollarSign, Target, TrendingUp, Edit, Phone, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { API_BASE_URL } from '@/lib/config';
+import logger from '@/lib/utils/logger';
 
 interface Deal {
   id: string;
@@ -63,7 +64,7 @@ const DealRecord: React.FC = () => {
         
         setDeal(result.data);
       } catch (err) {
-        console.error('Error fetching deal:', err);
+        logger.error('Error fetching deal:', err);
         setError(err instanceof Error ? err.message : 'Failed to load deal');
       } finally {
         setLoading(false);

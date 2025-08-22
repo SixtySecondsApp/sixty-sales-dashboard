@@ -21,6 +21,7 @@ import {
 import { supabase } from '@/lib/supabase/clientV2';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface CompanyDealsModalProps {
   isOpen: boolean;
@@ -61,7 +62,7 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
     
     setIsLoading(true);
     try {
-      console.log('🔍 Fetching deals for company ID:', companyId);
+      logger.log('🔍 Fetching deals for company ID:', companyId);
       
       // Try with relationship first
       let { data, error } = await supabase
@@ -78,7 +79,7 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
 
       // If relationship fails, try without it and manually fetch stage data
       if (error) {
-        console.warn('Relationship query failed, trying basic query:', error);
+        logger.warn('Relationship query failed, trying basic query:', error);
         
         const { data: basicData, error: basicError } = await supabase
           .from('deals')
@@ -87,7 +88,7 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
           .order('created_at', { ascending: false });
 
         if (basicError) {
-          console.error('Error fetching company deals:', basicError);
+          logger.error('Error fetching company deals:', basicError);
           toast.error('Failed to load company deals');
           return;
         }
@@ -107,7 +108,7 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
                   deal.deal_stages = stageData;
                 }
               } catch (stageError) {
-                console.warn(`Could not fetch stage data for deal ${deal.id}:`, stageError);
+                logger.warn(`Could not fetch stage data for deal ${deal.id}:`, stageError);
               }
             }
             return deal;
@@ -117,10 +118,10 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
         data = dealsWithStages;
       }
 
-      console.log(`✅ Found ${data?.length || 0} deals for company`);
+      logger.log(`✅ Found ${data?.length || 0} deals for company`);
       setDeals(data || []);
     } catch (error: any) {
-      console.error('Error fetching deals:', error);
+      logger.error('Error fetching deals:', error);
       toast.error('Failed to load company deals');
     } finally {
       setIsLoading(false);

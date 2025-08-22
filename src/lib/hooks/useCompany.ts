@@ -3,13 +3,14 @@ import { toast } from 'sonner';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { validateCompanyId, SafeQueryBuilder } from '@/lib/utils/sqlSecurity';
+import logger from '@/lib/utils/logger';
 
 // Security: Sanitize error messages to prevent sensitive data exposure
 function sanitizeErrorMessage(error: any): string {
   const message = error?.message || 'Unknown error';
   
   // Log full error server-side but return sanitized message to user
-  console.error('Company operation error (sanitized for user):', {
+  logger.error('Company operation error (sanitized for user):', {
     message,
     timestamp: new Date().toISOString(),
     // Don't log full error object to prevent sensitive data exposure
@@ -146,7 +147,7 @@ interface CompanyDataCache {
  * @returns Company data with deals, activities, clients and performance metrics
  */
 export function useCompany(companyId?: string) {
-  console.log('🏭 useCompany hook initialized with companyId:', companyId);
+  logger.log('🏭 useCompany hook initialized with companyId:', companyId);
   
   const { userData } = useUser();
   const [company, setCompany] = useState<Company | null>(null);
@@ -174,7 +175,7 @@ export function useCompany(companyId?: string) {
       if (hasValidData) {
         return cached;
       } else {
-        console.log('⚠️ Cached data invalid, removing from cache');
+        logger.log('⚠️ Cached data invalid, removing from cache');
         cacheRef.current.delete(cacheKey);
       }
     }
@@ -199,7 +200,7 @@ export function useCompany(companyId?: string) {
         const oldestKey = cache.keys().next().value;
         if (oldestKey) {
           cache.delete(oldestKey);
-          console.log('🗑️ Evicted old cache entry:', oldestKey);
+          logger.log('🗑️ Evicted old cache entry:', oldestKey);
         }
       }
       
@@ -208,9 +209,9 @@ export function useCompany(companyId?: string) {
         timestamp: Date.now(),
         companyId: companyId!
       });
-      console.log('💾 Cached valid company data:', data.company.name);
+      logger.log('💾 Cached valid company data:', data.company.name);
     } else {
-      console.log('⚠️ Skipping cache for invalid company data');
+      logger.log('⚠️ Skipping cache for invalid company data');
     }
   }, [companyId]);
 
@@ -220,7 +221,7 @@ export function useCompany(companyId?: string) {
       try {
         return await operation();
       } catch (error) {
-        console.log(`⚠️ Attempt ${attempt + 1} failed:`, error);
+        logger.log(`⚠️ Attempt ${attempt + 1} failed:`, error);
         if (attempt === maxRetries) {
           throw error;
         }
@@ -232,10 +233,10 @@ export function useCompany(companyId?: string) {
   }, []);
 
   const fetchCompanyData = useCallback(async () => {
-    console.log('🚀 fetchCompanyData called with companyId:', companyId);
+    logger.log('🚀 fetchCompanyData called with companyId:', companyId);
     
     if (!companyId) {
-      console.log('❌ No companyId provided, aborting fetch');
+      logger.log('❌ No companyId provided, aborting fetch');
       setIsLoading(false);
       return;
     }
@@ -246,7 +247,7 @@ export function useCompany(companyId?: string) {
     
     // Check if already fetching this company (prevents double fetching in React Strict Mode)
     if (cacheRef.current.has(fetchingKey)) {
-      console.log('🔄 Already fetching company data for:', companyId, '(likely React Strict Mode double-mount)');
+      logger.log('🔄 Already fetching company data for:', companyId, '(likely React Strict Mode double-mount)');
       return;
     }
     
@@ -269,7 +270,7 @@ export function useCompany(companyId?: string) {
       setActivities(cachedData.data.activities);
       setClients(cachedData.data.clients);
       setIsLoading(false);
-      console.log('⚡ Using cached company data for ID:', companyId, `(${(queryEndTime - queryStartTime).toFixed(2)}ms)`);
+      logger.log('⚡ Using cached company data for ID:', companyId, `(${(queryEndTime - queryStartTime).toFixed(2)}ms)`);
       return;
     }
 
@@ -280,7 +281,7 @@ export function useCompany(companyId?: string) {
       setIsLoading(true);
       setError(null);
 
-      console.log('🏢 Fetching company data for ID:', companyId);
+      logger.log('🏢 Fetching company data for ID:', companyId);
 
       // Check authentication
       const { data: { session } } = await supabase.auth.getSession();
@@ -288,7 +289,7 @@ export function useCompany(companyId?: string) {
       
       // Check if companyId is a valid UUID format (needed for multiple queries)
       const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(companyId);
-      console.log('🔍 Company ID format:', { companyId, isValidUUID });
+      logger.log('🔍 Company ID format:', { companyId, isValidUUID });
       
       // Validate and sanitize company ID
       const validation = validateCompanyId(companyId);
@@ -368,12 +369,12 @@ export function useCompany(companyId?: string) {
         activitiesResult.status === 'fulfilled' ? activitiesResult.value : { data: null, error: activitiesResult.reason };
       
       if (dealsError) {
-        console.error('❌ Error fetching deals with clients:', dealsError);
+        logger.error('❌ Error fetching deals with clients:', dealsError);
         throw dealsError;
       }
       
       if (activitiesError) {
-        console.error('❌ Error fetching activities:', activitiesError);
+        logger.error('❌ Error fetching activities:', activitiesError);
         // Don't throw - activities are supplementary data, but log for monitoring
       }
 
@@ -400,12 +401,12 @@ export function useCompany(companyId?: string) {
         standaloneClientsData = clientsData || [];
         
         if (clientsError) {
-          console.error('❌ Error fetching standalone clients:', clientsError);
+          logger.error('❌ Error fetching standalone clients:', clientsError);
           // Don't throw - clients are supplementary data, but ensure empty array
           standaloneClientsData = [];
         }
       } else {
-        console.log('🆔 Skipping clients query for UUID company ID');
+        logger.log('🆔 Skipping clients query for UUID company ID');
         standaloneClientsData = []; // Empty array for UUID company IDs
       }
 
@@ -443,8 +444,8 @@ export function useCompany(companyId?: string) {
       let companyContactInfo: any = {};
 
       // First try to get company info from a companies table if it exists
-      console.log('🏢 Attempting to fetch company from companies table with ID:', companyId);
-      console.log('🔍 Using client type:', session ? 'authenticated supabase' : 'supabaseAdmin');
+      logger.log('🏢 Attempting to fetch company from companies table with ID:', companyId);
+      logger.log('🔍 Using client type:', session ? 'authenticated supabase' : 'supabaseAdmin');
       
       try {
         let companyRecord = null;
@@ -452,7 +453,7 @@ export function useCompany(companyId?: string) {
         
         if (isValidUUID) {
           // If it's a UUID, query by ID
-          console.log('🆔 Querying companies table by UUID:', companyId);
+          logger.log('🆔 Querying companies table by UUID:', companyId);
           const result = await client
             .from('companies')
             .select('name, website, industry, size, description, address, phone')
@@ -462,7 +463,7 @@ export function useCompany(companyId?: string) {
           companyError = result.error;
         } else {
           // If it's not a UUID, try to match by name or domain
-          console.log('🔤 Querying companies table by name/domain:', companyId);
+          logger.log('🔤 Querying companies table by name/domain:', companyId);
           const searchTerm = companyId.replace(/-/g, ' '); // Convert URL slug to searchable name
           
           const result = await client
@@ -480,7 +481,7 @@ export function useCompany(companyId?: string) {
           companyError = result.error;
         }
 
-        console.log('📊 Companies table query result:', { 
+        logger.log('📊 Companies table query result:', { 
           hasData: !!companyRecord, 
           error: companyError?.message,
           errorCode: companyError?.code,
@@ -499,22 +500,22 @@ export function useCompany(companyId?: string) {
             address: companyRecord.address,
             primary_phone: companyRecord.phone,
           };
-          console.log('✅ Found company in companies table:', companyName);
+          logger.log('✅ Found company in companies table:', companyName);
         } else if (companyError) {
-          console.log('⚠️ Companies table query error:', companyError.message);
+          logger.log('⚠️ Companies table query error:', companyError.message);
         } else {
-          console.log('⚠️ No company record found in companies table');
+          logger.log('⚠️ No company record found in companies table');
         }
       } catch (companiesTableError) {
-        console.log('📋 Companies table error (catch):', companiesTableError);
-        console.log('📋 Falling back to deals/clients data');
+        logger.log('📋 Companies table error (catch):', companiesTableError);
+        logger.log('📋 Falling back to deals/clients data');
       }
 
       // Fallback: Get company info from first deal if companies table didn't work
       if (companyName === 'Unknown Company' && dealsData.length > 0) {
         const firstDeal = dealsWithClients![0];
         const dealCompanyName = firstDeal.company || 'Unknown Company';
-        console.log('📋 Using company name from first deal:', dealCompanyName);
+        logger.log('📋 Using company name from first deal:', dealCompanyName);
         companyName = dealCompanyName;
         companyContactInfo = {
           primary_contact: firstDeal.contact_name,
@@ -529,7 +530,7 @@ export function useCompany(companyId?: string) {
         const firstClient = uniqueClients[0];
         const clientCompanyName = firstClient.company_name || companyName;
         if (clientCompanyName !== companyName) {
-          console.log('👤 Using company name from first client:', clientCompanyName, '(was:', companyName + ')');
+          logger.log('👤 Using company name from first client:', clientCompanyName, '(was:', companyName + ')');
         }
         companyName = clientCompanyName;
         companyContactInfo = {
@@ -540,7 +541,7 @@ export function useCompany(companyId?: string) {
         };
       }
 
-      console.log('🏢 Final company name resolved:', companyName, {
+      logger.log('🏢 Final company name resolved:', companyName, {
         fromCompaniesTable: companyName !== 'Unknown Company' && !dealsData.length && !uniqueClients.length,
         fromDeals: dealsData.length > 0,
         fromClients: uniqueClients.length > 0,
@@ -598,7 +599,7 @@ export function useCompany(companyId?: string) {
         queryType: 'optimized_join'
       });
 
-      console.log('✅ Company data compiled (optimized):', {
+      logger.log('✅ Company data compiled (optimized):', {
         name: companyData.name,
         deals: dealsData.length,
         activities: activitiesData?.length || 0,
@@ -628,7 +629,7 @@ export function useCompany(companyId?: string) {
       
       // Only update state if data actually changed (prevent re-renders)
       if (hasCompanyChanged) {
-        console.log('🔄 Company data changed - updating state:', {
+        logger.log('🔄 Company data changed - updating state:', {
           oldName: company?.name,
           newName: companyData.name,
           oldId: company?.id,
@@ -650,7 +651,7 @@ export function useCompany(companyId?: string) {
 
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('❌ Error fetching company data - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error fetching company data - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
       toast.error(sanitizedMessage);
     } finally {
@@ -661,7 +662,7 @@ export function useCompany(companyId?: string) {
   }, [companyId]); // Remove userData?.id dependency to prevent double fetches
 
   useEffect(() => {
-    console.log('🔄 useCompany useEffect triggered:', { 
+    logger.log('🔄 useCompany useEffect triggered:', { 
       companyId, 
       userDataId: userData?.id,
       isStrictMode: process.env.NODE_ENV === 'development'
@@ -680,7 +681,7 @@ export function useCompany(companyId?: string) {
       return true;
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('❌ Error updating company - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error updating company - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }
@@ -702,7 +703,7 @@ export function useCompany(companyId?: string) {
 
   // Debug: Log company state changes
   useEffect(() => {
-    console.log('🏢 Company state changed:', {
+    logger.log('🏢 Company state changed:', {
       companyId,
       name: company?.name,
       status: company?.status,

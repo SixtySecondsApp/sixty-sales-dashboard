@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface RetryOptions {
   maxRetries?: number;
@@ -35,19 +36,19 @@ export async function getSupabaseHeaders(): Promise<HeadersInit> {
     const { data: { session }, error } = await supabase.auth.getSession();
     
     if (error) {
-      console.warn('Error getting auth session:', error);
+      logger.warn('Error getting auth session:', error);
     } else if (session?.access_token) {
       // Use the user's access token for authenticated requests
       headers['Authorization'] = `Bearer ${session.access_token}`;
-      console.log('✅ Using authenticated session for API calls');
+      logger.log('✅ Using authenticated session for API calls');
     } else {
       // No session - this will trigger 401 errors for protected endpoints
-      console.warn('No active session found. Some features may require authentication.');
+      logger.warn('No active session found. Some features may require authentication.');
       // Still include the anon key as authorization fallback
       headers['Authorization'] = `Bearer ${supabaseKey}`;
     }
   } catch (error) {
-    console.warn('Failed to get auth session:', error);
+    logger.warn('Failed to get auth session:', error);
     // Continue with just the anon key
     headers['Authorization'] = `Bearer ${supabaseKey}`;
   }
@@ -103,14 +104,14 @@ export async function fetchWithRetry(
       
       // Handle authentication errors specially
       if (error instanceof Error && error.name === 'AuthenticationError') {
-        console.error('Authentication error:', error.message);
+        logger.error('Authentication error:', error.message);
         toast.error('Please log in to access this feature');
         throw error;
       }
       
       // Handle connection errors
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-        console.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries! + 1}), retrying in ${config.retryDelay! * Math.pow(2, attempt)}ms:`, error.message);
+        logger.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries! + 1}), retrying in ${config.retryDelay! * Math.pow(2, attempt)}ms:`, error.message);
         
         if (attempt < config.maxRetries!) {
           await new Promise(resolve => setTimeout(resolve, config.retryDelay! * Math.pow(2, attempt)));
@@ -128,7 +129,7 @@ export async function fetchWithRetry(
         ? config.retryDelay! * Math.pow(2, attempt)
         : config.retryDelay!;
       
-      console.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries! + 1}), retrying in ${delay}ms:`, error.message);
+      logger.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries! + 1}), retrying in ${delay}ms:`, error.message);
       
       // Wait before retrying
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -172,7 +173,7 @@ export async function checkApiHealth(baseUrl: string): Promise<boolean> {
   // Skip health check for local API endpoints in development
   // since they require a separate server to execute the API files
   if (baseUrl === '/api') {
-    console.log('Skipping health check for local API endpoints in development mode');
+    logger.log('Skipping health check for local API endpoints in development mode');
     return true; // Assume healthy to avoid errors
   }
   
@@ -191,7 +192,7 @@ export async function checkApiHealth(baseUrl: string): Promise<boolean> {
     
     return false;
   } catch (error) {
-    console.warn('API health check failed:', error);
+    logger.warn('API health check failed:', error);
     return false;
   }
 }

@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import logger from '@/lib/utils/logger';
 
 interface PipelineHeaderProps {
   onAddDealClick: () => void;
@@ -175,7 +176,7 @@ export function PipelineHeader({
     const newQuickFilter = filterId === 'all' ? null : filterId as any;
     const selectedFilter = quickFilters.find(f => f.id === filterId);
     
-    console.log(`🎯 Quick filter selected: ${filterId}`, { 
+    logger.log(`🎯 Quick filter selected: ${filterId}`, { 
       newQuickFilter, 
       criteria: selectedFilter?.tooltip,
       currentDeals: pipelineValue 
@@ -229,7 +230,7 @@ export function PipelineHeader({
       
       // Optional: Show export summary
       const summary = getExportSummary();
-      console.log('Export Summary:', {
+      logger.log('Export Summary:', {
         totalDeals: summary.totalDeals,
         totalValue: summary.totalValue,
         weightedValue: summary.totalWeightedValue,
@@ -238,7 +239,7 @@ export function PipelineHeader({
       
       // You could show a toast notification here if you have a toast system
     } catch (error) {
-      console.error('Export failed:', error);
+      logger.error('Export failed:', error);
       // You could show an error toast here
     }
   };

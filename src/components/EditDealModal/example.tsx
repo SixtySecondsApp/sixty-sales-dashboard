@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import EditDealModal from './EditDealModal';
+import logger from '@/lib/utils/logger';
 
 // Example deal data
 const exampleDeal = {
@@ -33,7 +34,7 @@ export const EditDealModalExample: React.FC = () => {
       ...formData
     });
     
-    console.log('Deal saved:', formData);
+    logger.log('Deal saved:', formData);
     
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -43,7 +44,7 @@ export const EditDealModalExample: React.FC = () => {
   };
   
   const handleDelete = async (dealId: string) => {
-    console.log('Deal deleted:', dealId);
+    logger.log('Deal deleted:', dealId);
     
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));

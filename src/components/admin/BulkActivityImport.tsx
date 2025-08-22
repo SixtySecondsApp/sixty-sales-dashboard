@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UploadCloud, Info } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 // Define the expected column order for reference if needed elsewhere
 const COLUMN_ORDER = [
@@ -15,7 +16,7 @@ const COLUMN_ORDER = [
 // It is kept here in case it's imported elsewhere or for future reference.
 // The main upload functionality is now handled by the modal triggered from SalesTable.tsx.
 function BulkActivityImport() {
-  console.warn("BulkActivityImport component rendered - functionality moved to ActivityUploadModal");
+  logger.warn("BulkActivityImport component rendered - functionality moved to ActivityUploadModal");
 
   return (
     <div className="space-y-4 p-4 mb-6 bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-800/50">

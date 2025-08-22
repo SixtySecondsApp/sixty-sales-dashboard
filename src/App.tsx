@@ -13,9 +13,10 @@ import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimizati
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
 
-// Performance Optimization: Use optimized dashboard
-import OptimizedDashboard from '@/components/OptimizedDashboard';
+// Use regular dashboard - optimization had issues
+import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
+import logger from '@/lib/utils/logger';
 
 // Heavy routes - lazy load to reduce initial bundle size
 const ActivityLog = lazy(() => import('@/pages/ActivityLog'));
@@ -111,8 +112,8 @@ function App() {
       const interval = setInterval(() => {
         measurePerformance('performance-summary', () => {
           const summary = performanceMonitor.getPerformanceSummary();
-          console.log('📊 Performance Summary:', summary);
-          console.log('🚀 Optimization Metrics:', performanceMetrics);
+          logger.log('📊 Performance Summary:', summary);
+          logger.log('🚀 Optimization Metrics:', performanceMetrics);
         });
       }, 30000); // Every 30 seconds
       
@@ -141,7 +142,7 @@ function App() {
               <Route path="/auth/signup" element={<Signup />} />
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/" element={<AppLayout><OptimizedDashboard /></AppLayout>} />
+              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
               <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
               <Route path="/heatmap" element={<AppLayout><Heatmap /></AppLayout>} />
               <Route path="/funnel" element={<AppLayout><SalesFunnel /></AppLayout>} />

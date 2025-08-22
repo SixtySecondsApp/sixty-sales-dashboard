@@ -41,6 +41,7 @@ import { CompanyDealsModal } from '@/components/CompanyDealsModal';
 import { CRMNavigation } from '@/components/CRMNavigation';
 import { useUser } from '@/lib/hooks/useUser';
 import { useCompanies } from '@/lib/hooks/useCompanies';
+import logger from '@/lib/utils/logger';
 
 interface Company {
   id: string;
@@ -143,7 +144,7 @@ export default function CompaniesTable() {
           setCompanies(result.data || []);
           return;
         } catch (apiError) {
-          console.warn('Companies API failed:', apiError);
+          logger.warn('Companies API failed:', apiError);
         }
 
         // Fallback: Check if companies table exists
@@ -207,10 +208,10 @@ export default function CompaniesTable() {
         
         setCompanies(processedCompanies);
       } catch (error) {
-        console.error('❌ Companies Edge Function failed:', error);
+        logger.error('❌ Companies Edge Function failed:', error);
         
         // Fallback to direct Supabase client
-        console.log('🛡️ Companies fallback: Using direct Supabase client...');
+        logger.log('🛡️ Companies fallback: Using direct Supabase client...');
         try {
           const { createClient: createClientFallback } = await import('@supabase/supabase-js');
           const fallbackUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -235,8 +236,8 @@ export default function CompaniesTable() {
             .order('created_at', { ascending: false });
           
           if (supabaseError) {
-            console.error('❌ Companies anon fallback failed:', supabaseError);
-            console.log('🔄 Trying companies with service role key...');
+            logger.error('❌ Companies anon fallback failed:', supabaseError);
+            logger.log('🔄 Trying companies with service role key...');
             
             // Last resort: try with service role key
             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -262,11 +263,11 @@ export default function CompaniesTable() {
               .order('created_at', { ascending: false });
               
             if (serviceError) {
-              console.error('❌ Service key companies fallback failed:', serviceError);
+              logger.error('❌ Service key companies fallback failed:', serviceError);
               throw serviceError;
             }
             
-            console.log(`✅ Service key companies fallback successful: Retrieved ${serviceCompaniesData?.length || 0} companies`);
+            logger.log(`✅ Service key companies fallback successful: Retrieved ${serviceCompaniesData?.length || 0} companies`);
             
             // Process companies data to include deals count and value
             const processedServiceCompanies = (serviceCompaniesData || []).map(company => {
@@ -287,7 +288,7 @@ export default function CompaniesTable() {
             return;
           }
           
-          console.log(`✅ Companies fallback successful: Retrieved ${companiesData?.length || 0} companies`);
+          logger.log(`✅ Companies fallback successful: Retrieved ${companiesData?.length || 0} companies`);
           
           // Process companies data to include deals count and value
           const processedFallbackCompanies = (companiesData || []).map(company => {
@@ -306,7 +307,7 @@ export default function CompaniesTable() {
           
           setCompanies(processedFallbackCompanies);
         } catch (fallbackError) {
-          console.error('❌ All companies fallback methods failed:', fallbackError);
+          logger.error('❌ All companies fallback methods failed:', fallbackError);
           setError('Failed to load companies. Please try again.');
         } finally {
           setIsLoading(false);

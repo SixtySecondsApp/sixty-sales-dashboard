@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '@/lib/config';
+import logger from '@/lib/utils/logger';
 
 export interface ContactWithFilters {
   id: string;
@@ -59,7 +60,7 @@ export function useContactsWithFilters(options?: {
       const result = await response.json();
       setContacts(result.data || []);
     } catch (err) {
-      console.error('Error fetching contacts:', err);
+      logger.error('Error fetching contacts:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch contacts'));
     } finally {
       setIsLoading(false);

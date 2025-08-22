@@ -3,6 +3,7 @@ import { Plus, Lightbulb, Bug, ArrowUp, AlertTriangle, Settings, HelpCircle, Tra
 import { RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 import { useUser } from '@/lib/hooks/useUser';
 import { TicketShareMenu } from './TicketShareMenu';
+import logger from '@/lib/utils/logger';
 
 interface SuggestionFormProps {
   suggestion?: RoadmapSuggestion | null;
@@ -82,7 +83,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
       
       await onSave(dataToSave);
     } catch (error) {
-      console.error('Error saving suggestion:', error);
+      logger.error('Error saving suggestion:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -96,7 +97,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
         setIsSubmitting(true);
         await onDelete(validSuggestion.id);
       } catch (error) {
-        console.error('Error deleting suggestion:', error);
+        logger.error('Error deleting suggestion:', error);
       } finally {
         setIsSubmitting(false);
       }

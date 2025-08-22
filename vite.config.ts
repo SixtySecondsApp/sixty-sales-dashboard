@@ -142,14 +142,24 @@ export default defineConfig({
       'date-fns',
       
       // Supabase for API calls
-      '@supabase/supabase-js'
+      '@supabase/supabase-js',
+      
+      // Fix lodash imports for recharts
+      'recharts',
+      'lodash/get',
+      'lodash/isEqual',
+      'lodash/isNil',
+      'lodash/isFunction',
+      'lodash/isObject',
+      'lodash/isArray',
+      'lodash/upperFirst',
+      'lodash/sortBy',
+      'lodash/uniqueId'
     ],
     exclude: [
       // Don't pre-bundle heavy/rarely used libs
-      'recharts',
       '@radix-ui/react-tabs',
       'framer-motion',
-      'papaparse',
       
       // Test dependencies
       '@testing-library/react',

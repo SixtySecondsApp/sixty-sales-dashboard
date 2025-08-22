@@ -23,6 +23,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { useToast } from '../../../hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Deal } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface EditDealModalProps {
   open: boolean;
@@ -144,7 +145,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
   
   // Handle stage change
   const handleStageChange = (stageId: string) => {
-    console.log("Stage changed to:", stageId);
+    logger.log("Stage changed to:", stageId);
     setCurrentStage(stageId);
     
     // Update stage name and color
@@ -196,7 +197,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       const day = date.getDate().toString().padStart(2, '0');
       return `${year}-${month}-${day}`;
     } catch (e) {
-      console.error("Error formatting date:", e);
+      logger.error("Error formatting date:", e);
       return ''; // Return empty string on error
     }
   };
@@ -209,7 +210,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       const formIsValid = await methods.trigger();
       if (!formIsValid) {
         const errors = methods.formState.errors;
-        console.error("Form validation errors:", errors);
+        logger.error("Form validation errors:", errors);
         toast({
           title: "Form Error",
           description: "Please fix the highlighted fields.",
@@ -220,8 +221,8 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       }
       
       const formData = methods.getValues();
-      console.log(">>> DEBUG: Form data in handleSave:", formData);
-      console.log(">>> DEBUG: Expected close date value:", formData.closeDate);
+      logger.log(">>> DEBUG: Form data in handleSave:", formData);
+      logger.log(">>> DEBUG: Expected close date value:", formData.closeDate);
       
       // Ensure we're using a valid stage ID
       let stageId = currentStage;
@@ -237,9 +238,9 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
           }
           // Format as YYYY-MM-DD for database storage
           processedCloseDate = formData.closeDate;
-          console.log(">>> DEBUG: Processed close date:", processedCloseDate);
+          logger.log(">>> DEBUG: Processed close date:", processedCloseDate);
         } catch (dateError) {
-          console.error("Date validation error:", dateError);
+          logger.error("Date validation error:", dateError);
           toast({
             title: "Invalid Date",
             description: "Please enter a valid expected close date.",
@@ -281,7 +282,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         lead_source_channel: formData.leadSourceChannel === '' ? null : formData.leadSourceChannel
       };
 
-      console.log(">>> DEBUG: dataToSave expected_close_date value:", dataToSave.expected_close_date);
+      logger.log(">>> DEBUG: dataToSave expected_close_date value:", dataToSave.expected_close_date);
 
       // Filter out null or undefined values, but keep expected_close_date and close_date for null values
       const cleanedData = Object.fromEntries(
@@ -292,7 +293,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         })
       );
 
-      console.log("Saving deal with data:", cleanedData);
+      logger.log("Saving deal with data:", cleanedData);
       await onSave(cleanedData);
       
       toast({
@@ -303,7 +304,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       
       setOpen(false);
     } catch (error) {
-      console.error("Error saving deal:", error);
+      logger.error("Error saving deal:", error);
       toast({
         title: "Error Saving Deal",
         description: "There was a problem saving your changes.",
@@ -329,7 +330,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         
         setOpen(false);
       } catch (error) {
-        console.error('Error deleting deal:', error);
+        logger.error('Error deleting deal:', error);
         toast({
           title: "Error Deleting Deal",
           description: "There was a problem deleting this deal.",
@@ -358,9 +359,9 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       const leadSourceChannelValue = (deal as any)?.lead_source_channel || '';
       const priorityValue = (deal as any)?.priority || '';
 
-      console.log('>>> DEBUG: Resetting form with deal:', deal);
-      console.log('>>> DEBUG: Deal size value:', dealSizeValue);
-      console.log('>>> DEBUG: Priority value:', priorityValue);
+      logger.log('>>> DEBUG: Resetting form with deal:', deal);
+      logger.log('>>> DEBUG: Deal size value:', dealSizeValue);
+      logger.log('>>> DEBUG: Priority value:', priorityValue);
 
       const resetValues = {
         name: nameValue,
@@ -383,7 +384,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       };
 
       methods.reset(resetValues);
-      console.log('>>> DEBUG: Called methods.reset with:', resetValues);
+      logger.log('>>> DEBUG: Called methods.reset with:', resetValues);
 
       // *** Explicitly set values for all fields after reset ***
       const setValueOptions = { shouldValidate: false, shouldDirty: false };
@@ -404,11 +405,11 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
       methods.setValue('leadSourceType', leadSourceTypeValue, setValueOptions);
       methods.setValue('leadSourceChannel', leadSourceChannelValue, setValueOptions);
       methods.setValue('priority', priorityValue, setValueOptions);
-      console.log('>>> DEBUG: Explicitly called setValue for all fields.');
+      logger.log('>>> DEBUG: Explicitly called setValue for all fields.');
 
       // *** Log the form state AFTER setting values ***
       const currentFormValues = methods.getValues();
-      console.log('>>> DEBUG: Form state values AFTER all setValue calls:', currentFormValues);
+      logger.log('>>> DEBUG: Form state values AFTER all setValue calls:', currentFormValues);
 
       // Focus the first interactive element after opening
       setTimeout(() => {

@@ -5,6 +5,7 @@ import { useUser } from '@/lib/hooks/useUser';
 import { exportPipelineToCSV, getPipelineExportSummary, CSVExportOptions } from '@/lib/utils/csvExport';
 import { format } from 'date-fns';
 import { DateRangePreset, DateRange, getDateRangeFromPreset } from '@/components/ui/date-filter';
+import logger from '@/lib/utils/logger';
 
 interface FilterOptions {
   minValue: number | null;
@@ -117,7 +118,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   const wrappedRefreshDeals = useCallback(async () => {
     await refreshDeals();
     setLastRefresh(Date.now());
-    console.log('🔄 Pipeline data refreshed, forcing re-calculations...');
+    logger.log('🔄 Pipeline data refreshed, forcing re-calculations...');
   }, [refreshDeals]);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -288,7 +289,7 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
                matchesDealSizes && matchesLeadSources && matchesDaysInStage && 
                matchesTimeStatus && matchesFilterDateRange;
       } catch (error) {
-        console.error('Error filtering deal:', deal, error);
+        logger.error('Error filtering deal:', deal, error);
         return false;
       }
     });
@@ -351,8 +352,8 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
     const activeStageNames = ['sql', 'opportunity', 'verbal'];
     
     const activeStages = stages.filter(stage => {
-      const stageName = stage.name.toLowerCase();
-      return activeStageNames.includes(stageName);
+      const stageName = stage?.name?.toLowerCase();
+      return stageName && activeStageNames.includes(stageName);
     });
     
     const activeStageIds = activeStages.map(stage => stage.id);
@@ -421,9 +422,9 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
       await exportPipelineToCSV(filteredDeals, stages, exportOptions);
       
       // Optional: Show success message
-      console.log(`Successfully exported ${filteredDeals.length} deals to CSV`);
+      logger.log(`Successfully exported ${filteredDeals.length} deals to CSV`);
     } catch (error) {
-      console.error('Failed to export pipeline:', error);
+      logger.error('Failed to export pipeline:', error);
       throw error;
     }
   }, [dealsByStage, stages, selectedOwnerId, lastRefresh]);

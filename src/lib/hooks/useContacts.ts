@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface UseContactsOptions {
   ownerId?: string;
@@ -56,7 +57,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error fetching contacts:', error);
+      logger.error('Error fetching contacts:', error);
     } finally {
       setIsLoading(false);
     }
@@ -77,7 +78,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
       const error = err as Error;
       setError(error);
       toast.error('Failed to create contact');
-      console.error('Error creating contact:', error);
+      logger.error('Error creating contact:', error);
       return null;
     }
   }, []);
@@ -100,7 +101,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
       const error = err as Error;
       setError(error);
       toast.error('Failed to update contact');
-      console.error('Error updating contact:', error);
+      logger.error('Error updating contact:', error);
       return null;
     }
   }, []);
@@ -120,7 +121,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
       const error = err as Error;
       setError(error);
       toast.error('Failed to delete contact');
-      console.error('Error deleting contact:', error);
+      logger.error('Error deleting contact:', error);
       return false;
     }
   }, []);
@@ -135,7 +136,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error searching contacts:', error);
+      logger.error('Error searching contacts:', error);
       return [];
     }
   }, [options.includeCompany]);
@@ -147,7 +148,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error finding contact by email:', error);
+      logger.error('Error finding contact by email:', error);
       return null;
     }
   }, []);
@@ -182,7 +183,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error auto-creating contact:', error);
+      logger.error('Error auto-creating contact:', error);
       return null;
     }
   }, []);
@@ -208,7 +209,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
       const error = err as Error;
       setError(error);
       toast.error('Failed to set primary contact');
-      console.error('Error setting primary contact:', error);
+      logger.error('Error setting primary contact:', error);
       return null;
     }
   }, []);
@@ -275,7 +276,7 @@ export function useContact(id: string, includeRelationships = true) {
         const data = await ApiContactService.getContactById(id, includeRelationships);
         setContact(data);
       } catch (err) {
-        console.error('Error fetching contact:', err);
+        logger.error('Error fetching contact:', err);
         setError(err instanceof Error ? err : new Error('Failed to fetch contact'));
       } finally {
         setIsLoading(false);
@@ -295,7 +296,7 @@ export function useContact(id: string, includeRelationships = true) {
       const data = await ApiContactService.getContactById(id, includeRelationships);
       setContact(data);
     } catch (err) {
-      console.error('Error refetching contact:', err);
+      logger.error('Error refetching contact:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch contact'));
     } finally {
       setIsLoading(false);
@@ -328,7 +329,7 @@ export function useContactsByCompany(companyId: string) {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Error fetching company contacts:', error);
+      logger.error('Error fetching company contacts:', error);
     } finally {
       setIsLoading(false);
     }

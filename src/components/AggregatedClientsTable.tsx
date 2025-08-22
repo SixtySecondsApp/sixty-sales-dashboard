@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, 
@@ -37,12 +37,13 @@ import { useOwners } from '@/lib/hooks/useOwners';
 import { ClientStatusModal } from './ClientStatusModal';
 import { navigateToCompanyProfile } from '@/lib/utils/companyNavigation';
 import { format } from 'date-fns';
+import logger from '@/lib/utils/logger';
 
 interface AggregatedClientsTableProps {
   className?: string;
 }
 
-export function AggregatedClientsTable({ className }: AggregatedClientsTableProps) {
+const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTableProps) => {
   const { userData } = useUser();
   
   // State for selected owner (for hook filtering)
@@ -98,8 +99,8 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
     });
   }, [aggregatedClients, filters]);
 
-  // Client status styling and icons
-  const getClientStatusColor = (status: ClientStatus) => {
+  // Memoized client status styling and icons to prevent recreation on every render
+  const getClientStatusColor = useCallback((status: ClientStatus) => {
     switch (status) {
       case 'active':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -116,9 +117,9 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
       default:
         return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
     }
-  };
+  }, []);
 
-  const getClientStatusIcon = (status: ClientStatus) => {
+  const getClientStatusIcon = useCallback((status: ClientStatus) => {
     switch (status) {
       case 'active':
         return CheckCircle;
@@ -135,9 +136,9 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
       default:
         return AlertCircle;
     }
-  };
+  }, []);
 
-  const getClientStatusLabel = (status: ClientStatus) => {
+  const getClientStatusLabel = useCallback((status: ClientStatus) => {
     switch (status) {
       case 'active':
         return 'Active';
@@ -154,18 +155,18 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
       default:
         return status || 'Unknown';
     }
-  };
+  }, []);
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = useCallback((value: number) => {
     return new Intl.NumberFormat('en-GB', { 
       style: 'currency', 
       currency: 'GBP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value);
-  };
+  }, []);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({
       searchQuery: '',
       status: undefined,
@@ -176,15 +177,15 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
     
     // Reset owner to current user
     setSelectedOwnerId(userData?.id);
-  };
+  }, [userData?.id]);
 
-  const handleEditClientStatus = (client: AggregatedClient) => {
+  const handleEditClientStatus = useCallback((client: AggregatedClient) => {
     setEditingClientStatus({
       clientName: client.client_name,
       currentStatus: client.status,
       dealId: client.deals[0]?.id // Use first deal ID if available
     });
-  };
+  }, []);
 
   const handleSaveClientStatus = async (newStatus: ClientStatus, additionalData?: {
     noticeDate?: string;
@@ -200,7 +201,7 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
       await refreshAggregatedClients();
       setEditingClientStatus(null);
     } catch (error: any) {
-      console.error('Error updating client status:', error);
+      logger.error('Error updating client status:', error);
       toast.error('Failed to update client status');
     }
   };
@@ -700,5 +701,6 @@ export function AggregatedClientsTable({ className }: AggregatedClientsTableProp
   );
 }
 
-// Export memoized component for performance
-export default React.memo(AggregatedClientsTable);
+// Export memoized component for performance optimization
+export const AggregatedClientsTable = React.memo(AggregatedClientsTableComponent);
+export default AggregatedClientsTable;

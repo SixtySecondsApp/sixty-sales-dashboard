@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
 import { Database } from '../database.types';
+import logger from '@/lib/utils/logger';
 
 // Environment variables with validation
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -153,7 +154,7 @@ class PerformanceAwareQueryBuilder {
       
       // Log slow queries (>1000ms) for optimization
       if (duration > 1000) {
-        console.warn(`🐌 Slow query detected: ${duration.toFixed(2)}ms`);
+        logger.warn(`🐌 Slow query detected: ${duration.toFixed(2)}ms`);
       }
     }
   }
@@ -201,7 +202,7 @@ export const supabaseOptimized: TypedSupabaseClient = (() => {
               // Compress large values to save storage space
               localStorage.setItem(key, value);
             } catch {
-              console.warn('Failed to store auth data - localStorage full');
+              logger.warn('Failed to store auth data - localStorage full');
             }
           },
           removeItem: (key: string) => {
@@ -412,7 +413,7 @@ export const optimizedAuthUtils = {
     const duration = performance.now() - startTime;
     
     if (duration > 10) {
-      console.warn(`Slow auth check: ${duration.toFixed(2)}ms`);
+      logger.warn(`Slow auth check: ${duration.toFixed(2)}ms`);
     }
     
     return result;
@@ -467,7 +468,7 @@ export const optimizedAuthUtils = {
       // Clear query cache on logout
       queryCache.clear();
     } catch {
-      console.warn('Failed to clear auth storage');
+      logger.warn('Failed to clear auth storage');
     }
   }
 };

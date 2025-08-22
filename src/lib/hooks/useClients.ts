@@ -5,13 +5,14 @@ import { fetchWithRetry, apiCall } from '@/lib/utils/apiUtils';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 import { Database } from '@/lib/database.types';
 import { useUsers } from '@/lib/hooks/useUsers';
+import logger from '@/lib/utils/logger';
 
 // Security: Sanitize error messages to prevent sensitive data exposure
 function sanitizeErrorMessage(error: any): string {
   const message = error?.message || 'Unknown error';
   
   // Log full error server-side but return sanitized message to user
-  console.error('Client operation error (sanitized for user):', {
+  logger.error('Client operation error (sanitized for user):', {
     message,
     timestamp: new Date().toISOString(),
     // Don't log full error object to prevent sensitive data exposure
@@ -114,17 +115,17 @@ export function useClients(ownerId?: string) {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Starting clients fetch for owner:', ownerId);
+      logger.log('🔄 Starting clients fetch for owner:', ownerId);
       
       // Check authentication first
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        console.log('❌ No session found, using service key fallback');
+        logger.log('❌ No session found, using service key fallback');
         // Use basic query without complex relationships
         let serviceClientsData, serviceError;
         try {
-          console.log('🔄 Trying basic clients query with service key...');
+          logger.log('🔄 Trying basic clients query with service key...');
           let query = supabaseAdmin.from('clients').select('*');
           
           if (ownerId) {
@@ -137,13 +138,13 @@ export function useClients(ownerId?: string) {
           serviceError = result.error;
           
           if (serviceError) {
-            console.error('❌ Service key basic query failed:', serviceError);
+            logger.error('❌ Service key basic query failed:', serviceError);
             throw serviceError;
           }
           
-          console.log(`✅ Service key query successful: ${serviceClientsData?.length || 0} clients found`);
+          logger.log(`✅ Service key query successful: ${serviceClientsData?.length || 0} clients found`);
         } catch (relationshipError) {
-          console.error('❌ Service client query failed:', relationshipError);
+          logger.error('❌ Service client query failed:', relationshipError);
           throw relationshipError;
         }
           
@@ -160,7 +161,7 @@ export function useClients(ownerId?: string) {
         return;
       }
 
-      console.log('✅ Session found, trying authenticated queries');
+      logger.log('✅ Session found, trying authenticated queries');
 
       // Try Edge Functions if authenticated
       try {
@@ -169,7 +170,7 @@ export function useClients(ownerId?: string) {
           throw new Error('Edge Functions disabled due to migration');
         }
 
-        console.log('🔄 Trying Edge Functions...');
+        logger.log('🔄 Trying Edge Functions...');
         const params = new URLSearchParams();
         if (ownerId) params.append('owner_id', ownerId);
         
@@ -185,17 +186,17 @@ export function useClients(ownerId?: string) {
             : 0
         })) || [];
         
-        console.log(`✅ Edge Functions successful: ${processedClients.length} clients processed`);
+        logger.log(`✅ Edge Functions successful: ${processedClients.length} clients processed`);
         setClients(processedClients);
         setIsLoading(false);
         return;
       } catch (edgeFunctionError) {
-        console.warn('⚠️ Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+        logger.warn('⚠️ Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
         
         // Fallback to direct Supabase client
         let clientsData, supabaseError;
         try {
-          console.log('🔄 Trying basic Supabase client query...');
+          logger.log('🔄 Trying basic Supabase client query...');
           let query = supabase.from('clients').select('*');
           
           if (ownerId) {
@@ -208,19 +209,19 @@ export function useClients(ownerId?: string) {
           supabaseError = result.error;
           
           if (supabaseError) {
-            console.error('❌ Basic Supabase query failed:', supabaseError);
+            logger.error('❌ Basic Supabase query failed:', supabaseError);
           } else {
-            console.log(`✅ Basic Supabase query successful: ${clientsData?.length || 0} clients found`);
+            logger.log(`✅ Basic Supabase query successful: ${clientsData?.length || 0} clients found`);
           }
         } catch (relationshipError) {
-          console.error('❌ Supabase query failed:', relationshipError);
+          logger.error('❌ Supabase query failed:', relationshipError);
           supabaseError = relationshipError;
         }
         
         if (supabaseError) {
           // Last resort: try with service role client
           try {
-            console.log('🔄 Last resort: trying service key...');
+            logger.log('🔄 Last resort: trying service key...');
             let query = supabaseAdmin.from('clients').select('*');
             
             if (ownerId) {
@@ -233,14 +234,14 @@ export function useClients(ownerId?: string) {
             const serviceError = result.error;
               
             if (serviceError) {
-              console.error('❌ Service key fallback failed:', serviceError);
+              logger.error('❌ Service key fallback failed:', serviceError);
               throw serviceError;
             }
             
-            console.log(`✅ Service key fallback successful: ${clientsData?.length || 0} clients found`);
+            logger.log(`✅ Service key fallback successful: ${clientsData?.length || 0} clients found`);
             
           } catch (serviceError) {
-            console.error('❌ All fallbacks failed:', serviceError);
+            logger.error('❌ All fallbacks failed:', serviceError);
             throw serviceError;
           }
         }
@@ -254,13 +255,13 @@ export function useClients(ownerId?: string) {
             : 0
         })) || [];
         
-        console.log(`✅ Final processing complete: ${processedClients.length} clients ready`);
+        logger.log(`✅ Final processing complete: ${processedClients.length} clients ready`);
         setClients(processedClients);
         setIsLoading(false);
       }
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('❌ Error fetching clients - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error fetching clients - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
       toast.error(sanitizedMessage);
     } finally {
@@ -319,7 +320,7 @@ export function useClients(ownerId?: string) {
 
   const updateClient = async (id: string, updates: Database['public']['Tables']['clients']['Update']) => {
     try {
-      console.log('🔄 Updating client with data:', updates);
+      logger.log('🔄 Updating client with data:', updates);
       
       // Try Edge Function first
       try {
@@ -332,12 +333,12 @@ export function useClients(ownerId?: string) {
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
-        console.log('✅ Edge Function update successful');
+        logger.log('✅ Edge Function update successful');
         toast.success('Client updated successfully');
         await fetchClients(); // Refresh to get updated data
         return true;
       } catch (edgeFunctionError) {
-        console.warn('⚠️ Edge Function failed, trying direct Supabase client:', edgeFunctionError);
+        logger.warn('⚠️ Edge Function failed, trying direct Supabase client:', edgeFunctionError);
         
         // Fallback to direct Supabase client
         const { data: client, error } = await supabase
@@ -349,14 +350,14 @@ export function useClients(ownerId?: string) {
         
         if (error) throw error;
         
-        console.log('✅ Direct Supabase update successful');
+        logger.log('✅ Direct Supabase update successful');
         toast.success('Client updated successfully');
         await fetchClients(); // Refresh to get updated data
         return true;
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('❌ Error updating client - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error updating client - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }
@@ -393,7 +394,7 @@ export function useClients(ownerId?: string) {
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('Error deleting client - sanitized message:', sanitizedMessage);
+      logger.error('Error deleting client - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }
@@ -416,7 +417,7 @@ export function useClients(ownerId?: string) {
         await fetchClients(); // Refresh data
         return result;
       } catch (edgeFunctionError) {
-        console.error('Deal conversion via Edge Function failed:', edgeFunctionError);
+        logger.error('Deal conversion via Edge Function failed:', edgeFunctionError);
         throw edgeFunctionError;
       }
     } catch (error: any) {
@@ -504,7 +505,7 @@ export function useAggregatedClients(ownerId?: string) {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Fetching aggregated client data...');
+      logger.log('🔄 Fetching aggregated client data...');
       
       // Get clients data with enhanced aggregation
       const { data: { session } } = await supabase.auth.getSession();
@@ -667,7 +668,7 @@ export function useAggregatedClients(ownerId?: string) {
           return dateB - dateA;
         });
       
-      console.log('✅ Aggregated clients data:', {
+      logger.log('✅ Aggregated clients data:', {
         totalClients: aggregatedData.length,
         clients: aggregatedData.map(c => ({
           name: c.client_name,
@@ -680,7 +681,7 @@ export function useAggregatedClients(ownerId?: string) {
       setAggregatedClients(aggregatedData);
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('❌ Error aggregating clients - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error aggregating clients - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
     } finally {
       setIsLoading(false);
@@ -713,7 +714,7 @@ export function useMRR(ownerId?: string) {
       
       // Check if Edge Functions are disabled
       if (DISABLE_EDGE_FUNCTIONS) {
-        console.log('⚠️ Edge Functions disabled, calculating MRR summary from deals and clients directly');
+        logger.log('⚠️ Edge Functions disabled, calculating MRR summary from deals and clients directly');
         
         // Fetch both clients and deals with joined data to calculate accurate MRR
         let clientsQuery = supabaseAdmin
@@ -735,10 +736,10 @@ export function useMRR(ownerId?: string) {
         const { data: clientsWithDeals, error: clientsError } = await clientsQuery;
         
         if (clientsError) {
-          console.error('❌ Error fetching clients with deals for MRR calculation:', clientsError);
+          logger.error('❌ Error fetching clients with deals for MRR calculation:', clientsError);
           // If clients table doesn't exist, return default values
           if (clientsError.message.includes('relation "clients" does not exist')) {
-            console.log('📋 Clients table does not exist yet - returning empty MRR summary');
+            logger.log('📋 Clients table does not exist yet - returning empty MRR summary');
             setMRRSummary({
               total_clients: 0,
               active_clients: 0,
@@ -778,7 +779,7 @@ export function useMRR(ownerId?: string) {
           // Use deal MRR if available, otherwise fall back to subscription_amount
           const mrrAmount = dealMRR > 0 ? parseFloat(dealMRR.toString()) : parseFloat(client.subscription_amount?.toString() || '0');
           
-          console.log(`💰 MRR calculation for ${client.company_name}:`, {
+          logger.log(`💰 MRR calculation for ${client.company_name}:`, {
             dealMRR,
             subscription_amount: client.subscription_amount,
             finalMRR: mrrAmount,
@@ -806,7 +807,7 @@ export function useMRR(ownerId?: string) {
           active_rate: totalClients > 0 ? (activeClients.length / totalClients * 100) : 0
         };
         
-        console.log('✅ MRR Summary calculated with deal-based revenue:', summary);
+        logger.log('✅ MRR Summary calculated with deal-based revenue:', summary);
         setMRRSummary(summary);
         return;
       }
@@ -821,7 +822,7 @@ export function useMRR(ownerId?: string) {
       setMRRSummary(result);
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('Error fetching MRR summary - sanitized message:', sanitizedMessage);
+      logger.error('Error fetching MRR summary - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
     } finally {
       setIsLoading(false);
@@ -835,7 +836,7 @@ export function useMRR(ownerId?: string) {
       
       // Check if Edge Functions are disabled
       if (DISABLE_EDGE_FUNCTIONS) {
-        console.log('⚠️ Edge Functions disabled, calculating MRR by owner from Supabase directly');
+        logger.log('⚠️ Edge Functions disabled, calculating MRR by owner from Supabase directly');
         
         // Calculate MRR by owner directly from Supabase
         const { data: clientsWithProfiles, error } = await supabaseAdmin
@@ -852,10 +853,10 @@ export function useMRR(ownerId?: string) {
           `);
         
         if (error) {
-          console.error('❌ Error fetching clients with profiles for MRR by owner:', error);
+          logger.error('❌ Error fetching clients with profiles for MRR by owner:', error);
           // If clients table doesn't exist, return empty array
           if (error.message.includes('relation "clients" does not exist')) {
-            console.log('📋 Clients table does not exist yet - returning empty MRR by owner');
+            logger.log('📋 Clients table does not exist yet - returning empty MRR by owner');
             setMRRByOwner([]);
             return;
           }
@@ -921,7 +922,7 @@ export function useMRR(ownerId?: string) {
       setMRRByOwner(result || []);
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('Error fetching MRR by owner - sanitized message:', sanitizedMessage);
+      logger.error('Error fetching MRR by owner - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
     } finally {
       setIsLoading(false);

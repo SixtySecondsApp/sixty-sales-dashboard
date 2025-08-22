@@ -5,13 +5,14 @@ import { Button } from '@/components/ui/button';
 import { AggregatedClientsTable } from '@/components/AggregatedClientsTable';
 import { PaymentsTable } from '@/components/PaymentsTable';
 import { SubscriptionStats } from '@/components/SubscriptionStats';
+import logger from '@/lib/utils/logger';
 
 export default function Clients() {
   const [viewMode, setViewMode] = useState<'aggregated' | 'detailed'>('aggregated');
 
   const handleStatsCardClick = (cardTitle: string) => {
     // Optional: Add filtering logic here
-    console.log(`Clicked on ${cardTitle} card`);
+    logger.log(`Clicked on ${cardTitle} card`);
   };
 
   return (

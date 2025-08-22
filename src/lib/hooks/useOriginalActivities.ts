@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser'; // To ensure user is logged in
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 // Cast supabase client to bypass type issues
 const db = supabase as any;
@@ -57,7 +58,7 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
     }
 
     // Log the filters being used
-    console.log('[useOriginalActivities] Fetching with filters:', filters);
+    logger.log('[useOriginalActivities] Fetching with filters:', filters);
 
     try {
       setIsLoading(true);
@@ -72,45 +73,45 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
       // Apply filters dynamically (using base table columns)
       if (filters) {
           if (filters.contact_identifier === 'IS_NULL') {
-              console.log('[useOriginalActivities] Applying filter: contact_identifier IS NULL');
+              logger.log('[useOriginalActivities] Applying filter: contact_identifier IS NULL');
               query = query.is('contact_identifier', null);
           } else if (filters.contact_identifier === 'IS_NOT_NULL') {
-              console.log('[useOriginalActivities] Applying filter: contact_identifier IS NOT NULL');
+              logger.log('[useOriginalActivities] Applying filter: contact_identifier IS NOT NULL');
               query = query.not('contact_identifier', 'is', null);
           } 
           // else if (filters.contact_identifier !== undefined) { ... }
 
           if (filters.is_processed !== undefined) {
-             console.log(`[useOriginalActivities] Applying filter: is_processed = ${filters.is_processed}`);
+             logger.log(`[useOriginalActivities] Applying filter: is_processed = ${filters.is_processed}`);
              query = query.eq('is_processed', filters.is_processed);
           }
 
           // Handle the case-insensitive not-equal filter for type
           if (filters.type_neq !== undefined) {
-             console.log(`[useOriginalActivities] Applying filter: type ILIKE not ${filters.type_neq}`);
+             logger.log(`[useOriginalActivities] Applying filter: type ILIKE not ${filters.type_neq}`);
              query = query.not('type', 'ilike', filters.type_neq);
           }
 
           // Apply user_id filter if present
           if (filters.user_id) {
-             console.log(`[useOriginalActivities] Applying filter: user_id = ${filters.user_id}`);
+             logger.log(`[useOriginalActivities] Applying filter: user_id = ${filters.user_id}`);
              query = query.eq('user_id', filters.user_id);
           }
       }
       
-      console.log('[useOriginalActivities] FINAL Query object before execution:', query);
+      logger.log('[useOriginalActivities] FINAL Query object before execution:', query);
       
       const { data, error: queryError } = await query;
         
       if (queryError) {
-          console.error('[useOriginalActivities] Query error:', queryError);
+          logger.error('[useOriginalActivities] Query error:', queryError);
           throw queryError;
       }
-      console.log('[useOriginalActivities] Fetched data:', data?.length, 'items');
+      logger.log('[useOriginalActivities] Fetched data:', data?.length, 'items');
       
       setActivities(data || []);
     } catch (err: any) {
-      console.error('Error fetching original activities:', err);
+      logger.error('Error fetching original activities:', err);
       setError(err);
       setActivities([]);
     } finally {
@@ -132,7 +133,7 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
           table: 'activities' // LISTEN to the base table
         }, (payload) => {
           // But trigger a refetch from the VIEW
-          console.log('Original activity change received, refetching from view...', payload);
+          logger.log('Original activity change received, refetching from view...', payload);
           fetchActivities(); 
         })
         .subscribe();
@@ -149,7 +150,7 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
   const updateActivity = async (id: string, updates: Partial<Omit<OriginalActivity, 'profiles'>>) => {
     // Ensure user is logged in or has permission (basic check)
     if (!userData?.id) {
-        console.error('User not logged in, cannot update activity.');
+        logger.error('User not logged in, cannot update activity.');
         toast.error('Authentication required to update activities.');
         return false; 
     }
@@ -157,7 +158,7 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
     try {
       const { profiles, ...updateData } = updates;
 
-      console.log(`[useOriginalActivities] Attempting to update activity ${id} with:`, updateData);
+      logger.log(`[useOriginalActivities] Attempting to update activity ${id} with:`, updateData);
 
       const { error } = await db
         .from('activities') 
@@ -166,13 +167,13 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
         // Removed .select().single() - we only care if the update itself had an error
 
       if (error) { 
-        console.error(`[useOriginalActivities] Error during supabase update for activity ${id}:`, error);
+        logger.error(`[useOriginalActivities] Error during supabase update for activity ${id}:`, error);
         throw error; // Throw the error to be caught below
       }
 
       // If no error was thrown, the update command executed successfully
       // (even if it updated 0 rows because the ID didn't exist anymore)
-      console.log(`[useOriginalActivities] Update command successful for activity ${id}.`);
+      logger.log(`[useOriginalActivities] Update command successful for activity ${id}.`);
       
       // Optional: Trigger manual refresh if needed, though realtime should handle it.
       // refreshActivities(); 
@@ -183,7 +184,7 @@ export function useOriginalActivities(filters?: OriginalActivityFilters) {
       // Error is already logged if it came from the supabase call
       // Log other potential errors
       if (!err.code) { // Avoid double logging supabase errors
-           console.error(`[useOriginalActivities] Error updating activity ${id}:`, err);
+           logger.error(`[useOriginalActivities] Error updating activity ${id}:`, err);
       }
       setError(err); // Set error state in the hook
       toast.error('Failed to update activity', { description: err.message });

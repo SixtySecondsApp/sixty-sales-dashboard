@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from './useUser';
 import { Task } from '@/lib/database/models';
+import logger from '@/lib/utils/logger';
 
 interface TaskFilters {
   assigned_to?: string;
@@ -69,7 +70,7 @@ export function useTasks(filters?: TaskFilters) {
   const fetchTasks = useCallback(async () => {
     // Ensure we have user data before proceeding
     if (!userData?.id) {
-      console.log('fetchTasks: No userData.id available, skipping fetch');
+      logger.log('fetchTasks: No userData.id available, skipping fetch');
       setIsLoading(false);
       return;
     }
@@ -169,7 +170,7 @@ export function useTasks(filters?: TaskFilters) {
       if (error) {
         // Handle specific errors
         if (error.message?.includes('relation "tasks" does not exist')) {
-          console.warn('Tasks table does not exist. Please run the migration.');
+          logger.warn('Tasks table does not exist. Please run the migration.');
           setTasks([]);
           return;
         }
@@ -178,7 +179,7 @@ export function useTasks(filters?: TaskFilters) {
 
       setTasks(data || []);
     } catch (err: any) {
-      console.error('Error fetching tasks:', err);
+      logger.error('Error fetching tasks:', err);
       setError(err);
       // Set empty array if table doesn't exist
       if (err.message?.includes('relation "tasks" does not exist')) {
@@ -195,30 +196,30 @@ export function useTasks(filters?: TaskFilters) {
 
   const createTask = useCallback(async (taskData: CreateTaskData) => {
     // Debug logging
-    console.log('createTask called with:', { taskData, userData });
+    logger.log('createTask called with:', { taskData, userData });
     
     // Wait for userData to be loaded or use fallback
     let userId = userData?.id;
     
     if (!userId) {
-      console.log('No userId found, userData:', userData);
+      logger.log('No userId found, userData:', userData);
       // If userData is still loading, wait a bit or use fallback
       if (!userData) {
-        console.error('userData is null/undefined');
+        logger.error('userData is null/undefined');
         throw new Error('🔄 User authentication data is still loading. Please try again in a moment.');
       }
       // Use fallback ID for development/mock scenarios
-      console.log('Using fallback mock-user-id');
+      logger.log('Using fallback mock-user-id');
       userId = 'mock-user-id';
     }
     
     // Double-check we have a valid userId
     if (!userId || userId === '') {
-      console.error('Invalid userId after processing:', userId);
+      logger.error('Invalid userId after processing:', userId);
       throw new Error('❌ Invalid user ID. Please refresh the page and try again.');
     }
 
-    console.log('Using userId:', userId);
+    logger.log('Using userId:', userId);
 
     try {
       const { data, error } = await supabase
@@ -239,7 +240,7 @@ export function useTasks(filters?: TaskFilters) {
       setTasks((prev: Task[]) => [data, ...prev]);
       return data;
     } catch (err) {
-      console.error('Error creating task:', err);
+      logger.error('Error creating task:', err);
       throw err;
     }
   }, [userData]);
@@ -275,7 +276,7 @@ export function useTasks(filters?: TaskFilters) {
       ));
       return data;
     } catch (err) {
-      console.error('Error updating task:', err);
+      logger.error('Error updating task:', err);
       throw err;
     }
   }, []);
@@ -291,7 +292,7 @@ export function useTasks(filters?: TaskFilters) {
 
       setTasks((prev: Task[]) => prev.filter((task: Task) => task.id !== taskId));
     } catch (err) {
-      console.error('Error deleting task:', err);
+      logger.error('Error deleting task:', err);
       throw err;
     }
   }, []);
@@ -334,7 +335,7 @@ export function useTasks(filters?: TaskFilters) {
       );
       return data;
     } catch (err) {
-      console.error('Error bulk updating tasks:', err);
+      logger.error('Error bulk updating tasks:', err);
       throw err;
     }
   }, []);
@@ -363,7 +364,7 @@ export function useTasks(filters?: TaskFilters) {
       if (error) throw error;
       return data || [];
     } catch (err) {
-      console.error('Error fetching company tasks:', err);
+      logger.error('Error fetching company tasks:', err);
       throw err;
     }
   }, []);
@@ -401,7 +402,7 @@ export function useTasks(filters?: TaskFilters) {
         ).length,
       };
     } catch (err) {
-      console.error('Error fetching company task stats:', err);
+      logger.error('Error fetching company task stats:', err);
       throw err;
     }
   }, []);
@@ -421,7 +422,7 @@ export function useTasks(filters?: TaskFilters) {
       if (error) throw error;
       return data || [];
     } catch (err) {
-      console.error('Error fetching tasks by deal:', err);
+      logger.error('Error fetching tasks by deal:', err);
       throw err;
     }
   }, []);
@@ -441,7 +442,7 @@ export function useTasks(filters?: TaskFilters) {
       if (error) throw error;
       return data || [];
     } catch (err) {
-      console.error('Error fetching tasks by contact:', err);
+      logger.error('Error fetching tasks by contact:', err);
       throw err;
     }
   }, []);
@@ -488,7 +489,7 @@ export function useTasks(filters?: TaskFilters) {
 
       return groupedTasks;
     } catch (err) {
-      console.error('Error fetching tasks grouped by contact:', err);
+      logger.error('Error fetching tasks grouped by contact:', err);
       throw err;
     }
   }, []);

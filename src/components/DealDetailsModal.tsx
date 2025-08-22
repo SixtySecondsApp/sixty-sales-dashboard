@@ -26,6 +26,7 @@ import {
 import { supabase } from '@/lib/supabase/clientV2';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface DealDetailsModalProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
     
     setIsLoading(true);
     try {
-      console.log('🔍 Fetching deal details for ID:', dealId);
+      logger.log('🔍 Fetching deal details for ID:', dealId);
       
       // First try a simple query without joins to see if the deal exists
       const { data: basicData, error: basicError } = await supabase
@@ -90,8 +91,8 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
         .single();
 
       if (basicError) {
-        console.error('Error fetching basic deal data:', basicError);
-        console.error('Deal ID attempted:', dealId);
+        logger.error('Error fetching basic deal data:', basicError);
+        logger.error('Deal ID attempted:', dealId);
         
         // Show user-friendly error message
         if (basicError.code === 'PGRST116') {
@@ -102,7 +103,7 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
         return;
       }
 
-      console.log('✅ Basic deal data found:', basicData);
+      logger.log('✅ Basic deal data found:', basicData);
 
       // Now try to enrich with related data (if available)
       try {
@@ -124,7 +125,7 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
           .single();
 
         if (enrichedError) {
-          console.warn('Could not fetch enriched deal data, using basic data:', enrichedError);
+          logger.warn('Could not fetch enriched deal data, using basic data:', enrichedError);
           // Manually fetch stage data if relationship fails
           if (basicData.stage_id) {
             try {
@@ -138,16 +139,16 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
                 basicData.deal_stages = stageData;
               }
             } catch (stageError) {
-              console.warn('Could not fetch stage data:', stageError);
+              logger.warn('Could not fetch stage data:', stageError);
             }
           }
           setDeal(basicData);
         } else {
-          console.log('✅ Enriched deal data found:', enrichedData);
+          logger.log('✅ Enriched deal data found:', enrichedData);
           setDeal(enrichedData);
         }
       } catch (enrichedError) {
-        console.warn('Error with enriched query, using basic data:', enrichedError);
+        logger.warn('Error with enriched query, using basic data:', enrichedError);
         // Manually fetch stage data if relationship fails
         if (basicData.stage_id) {
           try {
@@ -161,17 +162,17 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
               basicData.deal_stages = stageData;
             }
           } catch (stageError) {
-            console.warn('Could not fetch stage data:', stageError);
+            logger.warn('Could not fetch stage data:', stageError);
           }
         }
         setDeal(basicData);
       }
     } catch (error: any) {
-      console.error('Error fetching deal:', error);
+      logger.error('Error fetching deal:', error);
       // Handle different types of errors
       if (error.message && error.message.includes('<!DOCTYPE')) {
         toast.error('Server error: Please try again later');
-        console.error('HTML response received instead of JSON - possible routing issue');
+        logger.error('HTML response received instead of JSON - possible routing issue');
       } else {
         toast.error('Failed to load deal details');
       }

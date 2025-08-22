@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { Badge } from '@/components/ui/badge';
+import logger from '@/lib/utils/logger';
 
 interface DealDetailsSectionProps {
   initialFocusRef?: RefObject<HTMLInputElement>;
@@ -177,7 +178,7 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
       setSearchedContacts(results.slice(0, 10));
       setShowCreateContact(results.length === 0);
     } catch (error) {
-      console.error('Error searching contacts:', error);
+      logger.error('Error searching contacts:', error);
       setSearchedContacts([]);
       setShowCreateContact(true);
     }

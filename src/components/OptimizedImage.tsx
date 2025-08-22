@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import logger from '@/lib/utils/logger';
 
 interface OptimizedImageProps {
   src: string;
@@ -264,7 +265,7 @@ export const useImagePreloader = () => {
     try {
       await Promise.all(srcs.map(preloadImage));
     } catch (error) {
-      console.warn('Some images failed to preload:', error);
+      logger.warn('Some images failed to preload:', error);
     }
   };
 

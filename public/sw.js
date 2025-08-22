@@ -14,7 +14,8 @@ const urlsToCache = [
 const isDevelopment = self.location.hostname === 'localhost' && 
                        (self.location.port === '5173' || 
                         self.location.port === '5174' || 
-                        self.location.port === '5175');
+                        self.location.port === '5175' ||
+                        self.location.port === '5176');
 
 // Install event - cache essential files
 self.addEventListener('install', event => {

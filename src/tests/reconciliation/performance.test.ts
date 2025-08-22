@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { performance } from 'perf_hooks';
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 // Performance monitoring utilities
 class PerformanceMonitor {
@@ -202,7 +203,7 @@ describe('Performance Testing', () => {
 
       // Performance assertions
       expect(metrics.duration).toBeLessThan(500); // Should complete within 500ms
-      console.log(`Large dataset analysis took ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Large dataset analysis took ${metrics.duration.toFixed(2)}ms`);
 
       // Verify data integrity with large dataset
       expect(result.data.orphan_activities).toBeGreaterThan(0);
@@ -241,7 +242,7 @@ describe('Performance Testing', () => {
 
       // Performance assertions for large dataset
       expect(metrics.duration).toBeLessThan(750); // Should handle large orphan sets efficiently
-      console.log(`Large orphan analysis took ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Large orphan analysis took ${metrics.duration.toFixed(2)}ms`);
 
       // Verify data structure integrity
       expect(result.data.summary.total_orphan_activities).toBe(800);
@@ -305,7 +306,7 @@ describe('Performance Testing', () => {
 
       // Performance assertions for complex matching
       expect(metrics.duration).toBeLessThan(1000); // Complex matching should still be under 1s
-      console.log(`Complex matching analysis took ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Complex matching analysis took ${metrics.duration.toFixed(2)}ms`);
 
       // Verify confidence distribution
       const totalMatches = result.data.summary.high_confidence_matches + 
@@ -360,7 +361,7 @@ describe('Performance Testing', () => {
 
       // Performance assertions for multi-user aggregation
       expect(metrics.duration).toBeLessThan(400); // Multi-user stats should be fast
-      console.log(`Multi-user statistics took ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Multi-user statistics took ${metrics.duration.toFixed(2)}ms`);
 
       // Verify aggregation accuracy
       expect(result.data.summary.total_users_analyzed).toBe(userCount);
@@ -408,8 +409,8 @@ describe('Performance Testing', () => {
       const throughputPerSecond = totalRecords / (metrics.duration / 1000);
       expect(throughputPerSecond).toBeGreaterThan(500); // Should process >500 records/second
 
-      console.log(`Batch processing: ${totalRecords} records in ${metrics.duration.toFixed(2)}ms`);
-      console.log(`Throughput: ${throughputPerSecond.toFixed(0)} records/second`);
+      logger.log(`Batch processing: ${totalRecords} records in ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Throughput: ${throughputPerSecond.toFixed(0)} records/second`);
     });
 
     it('should handle batch processing with optimal memory usage', async () => {
@@ -445,14 +446,14 @@ describe('Performance Testing', () => {
       if (metrics.memoryDelta) {
         const memoryIncreaseMB = metrics.memoryDelta.heapUsed / (1024 * 1024);
         expect(memoryIncreaseMB).toBeLessThan(50); // Should use <50MB additional memory
-        console.log(`Memory usage increase: ${memoryIncreaseMB.toFixed(2)}MB`);
+        logger.log(`Memory usage increase: ${memoryIncreaseMB.toFixed(2)}MB`);
       }
 
       // Performance should still be good despite memory optimization
       const throughputPerSecond = 2000 / (metrics.duration / 1000);
       expect(throughputPerSecond).toBeGreaterThan(300); // Slightly lower but still efficient
 
-      console.log(`Memory-optimized batch: ${throughputPerSecond.toFixed(0)} records/second`);
+      logger.log(`Memory-optimized batch: ${throughputPerSecond.toFixed(0)} records/second`);
     });
 
     it('should scale batch processing linearly', async () => {
@@ -494,7 +495,7 @@ describe('Performance Testing', () => {
           throughput
         });
 
-        console.log(`Batch size ${batchSize}: ${throughput.toFixed(0)} records/second`);
+        logger.log(`Batch size ${batchSize}: ${throughput.toFixed(0)} records/second`);
       }
 
       // Verify that larger batch sizes don't severely degrade performance
@@ -553,7 +554,7 @@ describe('Performance Testing', () => {
       // Concurrent processing should achieve higher total throughput
       expect(throughput).toBeGreaterThan(800); // Should handle concurrent loads well
 
-      console.log(`Concurrent batches: ${throughput.toFixed(0)} total records/second`);
+      logger.log(`Concurrent batches: ${throughput.toFixed(0)} total records/second`);
     });
   });
 
@@ -589,7 +590,7 @@ describe('Performance Testing', () => {
       if (metrics.memoryDelta) {
         const memoryIncreaseMB = metrics.memoryDelta.heapUsed / (1024 * 1024);
         expect(memoryIncreaseMB).toBeLessThan(100); // Should use <100MB for large dataset
-        console.log(`Large dataset memory usage: ${memoryIncreaseMB.toFixed(2)}MB`);
+        logger.log(`Large dataset memory usage: ${memoryIncreaseMB.toFixed(2)}MB`);
       }
 
       // Performance should still be acceptable
@@ -631,7 +632,7 @@ describe('Performance Testing', () => {
       if (metrics.memoryDelta) {
         const memoryIncreaseMB = metrics.memoryDelta.heapUsed / (1024 * 1024);
         expect(memoryIncreaseMB).toBeLessThan(75); // Streaming should use less memory
-        console.log(`Streaming batch memory usage: ${memoryIncreaseMB.toFixed(2)}MB`);
+        logger.log(`Streaming batch memory usage: ${memoryIncreaseMB.toFixed(2)}MB`);
       }
 
       const throughput = 5000 / (metrics.duration / 1000);
@@ -668,7 +669,7 @@ describe('Performance Testing', () => {
         
         // Should timeout within reasonable time
         expect(metrics.duration).toBeLessThan(6000);
-        console.log(`Timeout handled in ${metrics.duration.toFixed(2)}ms`);
+        logger.log(`Timeout handled in ${metrics.duration.toFixed(2)}ms`);
       }
     });
 
@@ -721,7 +722,7 @@ describe('Performance Testing', () => {
 
       // Should handle partial timeouts reasonably
       expect(metrics.duration).toBeLessThan(5000);
-      console.log(`Partial timeout handled: ${result.totalProcessed} records in ${metrics.duration.toFixed(2)}ms`);
+      logger.log(`Partial timeout handled: ${result.totalProcessed} records in ${metrics.duration.toFixed(2)}ms`);
     });
 
     it('should implement progressive timeout strategies', async () => {
@@ -767,7 +768,7 @@ describe('Performance Testing', () => {
           if (strategy.expectSuccess) {
             expect(response.ok).toBe(true);
             expect(apiResult.success).toBe(true);
-            console.log(`${strategy.name} timeout (${strategy.timeout}ms): SUCCESS in ${metrics.duration.toFixed(2)}ms`);
+            logger.log(`${strategy.name} timeout (${strategy.timeout}ms): SUCCESS in ${metrics.duration.toFixed(2)}ms`);
           } else {
             expect.fail('Should have timed out');
           }
@@ -776,7 +777,7 @@ describe('Performance Testing', () => {
           
           if (!strategy.expectSuccess) {
             expect(error.message).toBe('Timeout');
-            console.log(`${strategy.name} timeout (${strategy.timeout}ms): TIMEOUT in ${metrics.duration.toFixed(2)}ms`);
+            logger.log(`${strategy.name} timeout (${strategy.timeout}ms): TIMEOUT in ${metrics.duration.toFixed(2)}ms`);
           } else {
             throw error;
           }
@@ -791,7 +792,7 @@ describe('Performance Testing', () => {
       ];
 
       for (const scenario of scenarios) {
-        console.log(`Testing: ${scenario.description}`);
+        logger.log(`Testing: ${scenario.description}`);
 
         // Mock progressive attempts
         if (scenario.firstAttempt === 'timeout') {
@@ -841,7 +842,7 @@ describe('Performance Testing', () => {
 
         const metrics = monitor.end();
         expect(success).toBe(true);
-        console.log(`Recovery successful after ${attempt} attempts in ${metrics.duration.toFixed(2)}ms`);
+        logger.log(`Recovery successful after ${attempt} attempts in ${metrics.duration.toFixed(2)}ms`);
       }
     });
   });
@@ -881,7 +882,7 @@ describe('Performance Testing', () => {
         const throughput = size / (metrics.duration / 1000);
         expect(throughput).toBeGreaterThan(baseline.minThroughput);
 
-        console.log(`Size ${size}: ${metrics.duration.toFixed(2)}ms, ${throughput.toFixed(0)} records/sec`);
+        logger.log(`Size ${size}: ${metrics.duration.toFixed(2)}ms, ${throughput.toFixed(0)} records/sec`);
       }
     });
 
@@ -919,7 +920,7 @@ describe('Performance Testing', () => {
         if (metrics.memoryDelta) {
           const memoryIncreaseMB = metrics.memoryDelta.heapUsed / (1024 * 1024);
           expect(memoryIncreaseMB).toBeLessThan(test.maxMemoryMB);
-          console.log(`${test.description}: ${memoryIncreaseMB.toFixed(2)}MB (limit: ${test.maxMemoryMB}MB)`);
+          logger.log(`${test.description}: ${memoryIncreaseMB.toFixed(2)}MB (limit: ${test.maxMemoryMB}MB)`);
         }
       }
     });
@@ -962,10 +963,10 @@ describe('Performance Testing', () => {
         const variance = durations.reduce((sum, d) => sum + Math.pow(d - avgDuration, 2), 0) / durations.length;
         const stdDev = Math.sqrt(variance);
 
-        console.log(`${operation.name} Benchmark:`);
-        console.log(`  Average: ${avgDuration.toFixed(2)}ms`);
-        console.log(`  Min/Max: ${minDuration.toFixed(2)}ms / ${maxDuration.toFixed(2)}ms`);
-        console.log(`  Std Dev: ${stdDev.toFixed(2)}ms`);
+        logger.log(`${operation.name} Benchmark:`);
+        logger.log(`  Average: ${avgDuration.toFixed(2)}ms`);
+        logger.log(`  Min/Max: ${minDuration.toFixed(2)}ms / ${maxDuration.toFixed(2)}ms`);
+        logger.log(`  Std Dev: ${stdDev.toFixed(2)}ms`);
 
         // Performance should be consistent (low standard deviation)
         expect(stdDev).toBeLessThan(avgDuration * 0.3); // StdDev should be <30% of average

@@ -10,6 +10,7 @@
 
 import { useEffect, useCallback, useRef, useMemo } from 'react';
 import { loadCriticalResources, progressiveLoader, smartPreloader, BundleMonitor } from '@/lib/utils/bundleOptimizer';
+import logger from '@/lib/utils/logger';
 
 interface PerformanceConfig {
   enableResourcePreloading?: boolean;
@@ -41,11 +42,17 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
   const performanceObserver = useRef<PerformanceObserver | null>(null);
   const cleanupFunctions = useRef<(() => void)[]>([]);
 
-  // Track component renders
+  // Track component renders with throttled warnings
+  const lastWarning = useRef(0);
   useEffect(() => {
     renderCount.current++;
     if (debugMode && renderCount.current > 10) {
-      console.warn('Component re-rendered more than 10 times, consider optimization');
+      const now = Date.now();
+      // Only warn once every 5 seconds to prevent console spam
+      if (now - lastWarning.current > 5000) {
+        logger.warn(`Component re-rendered ${renderCount.current} times, consider optimization`);
+        lastWarning.current = now;
+      }
     }
   });
 
@@ -61,19 +68,23 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
         await progressiveLoader.executeImmediate();
         
         if (debugMode) {
-          console.log('Critical resources loaded');
+          logger.log('Critical resources loaded');
         }
       } catch (error) {
-        console.warn('Failed to load critical resources:', error);
+        logger.warn('Failed to load critical resources:', error);
       }
     };
 
     loadResources();
   }, [enableResourcePreloading, debugMode]);
 
-  // Smart preloading setup
+  // Smart preloading setup with proper cleanup
   useEffect(() => {
     if (!enableSmartPreloading) return;
+
+    let interactionTimer: NodeJS.Timeout;
+    const events = ['mousedown', 'touchstart', 'keydown', 'scroll'];
+    const listeners: Array<{ target: EventTarget; event: string; listener: EventListener }> = [];
 
     // Set up navigation tracking
     const handleRouteChange = () => {
@@ -82,15 +93,6 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
       smartPreloader.preloadPredictedRoute();
     };
 
-    // Track initial route
-    handleRouteChange();
-
-    // Listen for route changes (works with React Router)
-    window.addEventListener('popstate', handleRouteChange);
-    
-    // Set up intersection-based preloading
-    let interactionTimer: NodeJS.Timeout;
-    
     const handleUserInteraction = () => {
       clearTimeout(interactionTimer);
       interactionTimer = setTimeout(() => {
@@ -98,19 +100,33 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
       }, 100);
     };
 
-    // Listen for user interactions
-    const events = ['mousedown', 'touchstart', 'keydown', 'scroll'];
+    // Track initial route
+    handleRouteChange();
+
+    // Register route change listener
+    window.addEventListener('popstate', handleRouteChange);
+    listeners.push({ target: window, event: 'popstate', listener: handleRouteChange });
+    
+    // Register interaction listeners
     events.forEach(event => {
       document.addEventListener(event, handleUserInteraction, { passive: true });
+      listeners.push({ target: document, event, listener: handleUserInteraction });
     });
 
-    // Cleanup
+    // Comprehensive cleanup function
     const cleanup = () => {
-      window.removeEventListener('popstate', handleRouteChange);
-      events.forEach(event => {
-        document.removeEventListener(event, handleUserInteraction);
+      // Clear timer
+      if (interactionTimer) {
+        clearTimeout(interactionTimer);
+      }
+      
+      // Remove all tracked listeners
+      listeners.forEach(({ target, event, listener }) => {
+        target.removeEventListener(event, listener);
       });
-      clearTimeout(interactionTimer);
+      
+      // Clear listeners array
+      listeners.length = 0;
     };
 
     cleanupFunctions.current.push(cleanup);
@@ -145,14 +161,14 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
           const entries = list.getEntries();
           entries.forEach(entry => {
             if (entry.entryType === 'measure' && debugMode) {
-              console.log(`Performance measure: ${entry.name} - ${entry.duration}ms`);
+              logger.log(`Performance measure: ${entry.name} - ${entry.duration}ms`);
             }
           });
         });
 
         performanceObserver.current.observe({ entryTypes: ['measure', 'navigation'] });
       } catch (error) {
-        console.warn('PerformanceObserver not supported or failed to initialize');
+        logger.warn('PerformanceObserver not supported or failed to initialize');
       }
     }
 
@@ -178,7 +194,7 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
           oldCaches.forEach(cacheName => {
             caches.delete(cacheName);
           });
-        }).catch(err => console.warn('Cache cleanup failed:', err));
+        }).catch(err => logger.warn('Cache cleanup failed:', err));
       }
     };
 
@@ -238,12 +254,12 @@ export const usePerformanceOptimization = (config: PerformanceConfig = {}) => {
     
     const end = performance.now();
     if (end - start > 16) { // More than one frame
-      console.warn(`Performance warning: ${name} took ${(end - start).toFixed(2)}ms`);
+      logger.warn(`Performance warning: ${name} took ${(end - start).toFixed(2)}ms`);
     }
   }, [debugMode]);
 
   const preloadModule = useCallback((moduleId: string, priority: 'high' | 'medium' | 'low' = 'medium') => {
-    progressiveLoader.add('onIdle', () => import(moduleId));
+    progressiveLoader.add('onIdle', () => import(/* @vite-ignore */ moduleId));
   }, []);
 
   const addCleanup = useCallback((cleanup: () => void) => {
@@ -272,7 +288,7 @@ export const useComponentOptimization = (componentName: string) => {
     if (renderRef.current > 5) {
       const timeSinceMount = Date.now() - startTime.current;
       if (timeSinceMount < 10000 && process.env.NODE_ENV === 'development') {
-        console.warn(
+        logger.warn(
           `${componentName} has re-rendered ${renderRef.current} times in ${timeSinceMount}ms. Consider optimization.`
         );
       }

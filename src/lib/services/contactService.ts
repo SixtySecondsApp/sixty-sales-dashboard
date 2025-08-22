@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/client';
 import type { Contact, Company } from '@/lib/database/models';
 import { CompanyService } from './companyService';
+import logger from '@/lib/utils/logger';
 
 export class ContactService {
   
@@ -69,7 +70,7 @@ export class ContactService {
         return data as Contact[];
       }
     } catch (error) {
-      console.error('Error fetching contacts:', error);
+      logger.error('Error fetching contacts:', error);
       throw error;
     }
   }
@@ -120,7 +121,7 @@ export class ContactService {
           dealsData = deals;
         }
       } catch (dealsError) {
-        console.warn('Could not fetch deals for contact:', dealsError);
+        logger.warn('Could not fetch deals for contact:', dealsError);
       }
 
       // Combine the data
@@ -130,7 +131,7 @@ export class ContactService {
         deals: dealsData
       } as any as Contact;
     } catch (error) {
-      console.error('Error fetching contact:', error);
+      logger.error('Error fetching contact:', error);
       throw error;
     }
   }
@@ -152,7 +153,7 @@ export class ContactService {
 
       return data as Contact | null;
     } catch (error) {
-      console.error('Error finding contact by email:', error);
+      logger.error('Error finding contact by email:', error);
       return null;
     }
   }
@@ -187,7 +188,7 @@ export class ContactService {
       if (error) throw error;
       return data as Contact;
     } catch (error) {
-      console.error('Error creating contact:', error);
+      logger.error('Error creating contact:', error);
       throw error;
     }
   }
@@ -212,7 +213,7 @@ export class ContactService {
       if (error) throw error;
       return data as Contact;
     } catch (error) {
-      console.error('Error updating contact:', error);
+      logger.error('Error updating contact:', error);
       throw error;
     }
   }
@@ -230,7 +231,7 @@ export class ContactService {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('Error deleting contact:', error);
+      logger.error('Error deleting contact:', error);
       throw error;
     }
   }
@@ -253,7 +254,7 @@ export class ContactService {
 
       return !!data;
     } catch (error) {
-      console.error('Error checking primary contact:', error);
+      logger.error('Error checking primary contact:', error);
       return false;
     }
   }
@@ -280,7 +281,7 @@ export class ContactService {
       if (error) throw error;
       return data as Contact;
     } catch (error) {
-      console.error('Error setting primary contact:', error);
+      logger.error('Error setting primary contact:', error);
       throw error;
     }
   }
@@ -323,7 +324,7 @@ export class ContactService {
         is_primary: company ? !await this.hasExistingPrimaryContact(company.id) : false
       });
     } catch (error) {
-      console.error('Error auto-creating contact:', error);
+      logger.error('Error auto-creating contact:', error);
       return null;
     }
   }
@@ -343,7 +344,7 @@ export class ContactService {
       if (error) throw error;
       return data as Contact[];
     } catch (error) {
-      console.error('Error fetching company contacts:', error);
+      logger.error('Error fetching company contacts:', error);
       throw error;
     }
   }
@@ -372,7 +373,7 @@ export class ContactService {
       if (error) throw error;
       return data as Contact[];
     } catch (error) {
-      console.error('Error searching contacts:', error);
+      logger.error('Error searching contacts:', error);
       throw error;
     }
   }
@@ -413,7 +414,7 @@ export class ContactService {
         activityCount: activities.length
       };
     } catch (error) {
-      console.error('Error fetching contact stats:', error);
+      logger.error('Error fetching contact stats:', error);
       throw error;
     }
   }

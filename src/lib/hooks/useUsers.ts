@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { setImpersonationData } from './useUser';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
+import logger from '@/lib/utils/logger';
 
 // Mock implementation - temporarily disabled Supabase calls to avoid 400 errors
 // TODO: Implement with Neon API when user management functionality is needed
@@ -48,13 +49,13 @@ export function useUsers() {
       // Get current user first
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) {
-        console.log('No authenticated user');
+        logger.log('No authenticated user');
         setUsers([]);
         return;
       }
 
       // Skip RPC function as it doesn't exist in this database
-      console.log('Using direct profiles query method');
+      logger.log('Using direct profiles query method');
       
       // Fallback: Query profiles and get auth info via edge function
       const { data: profiles, error } = await supabase
@@ -85,7 +86,7 @@ export function useUsers() {
 
       setUsers(usersData);
     } catch (error: any) {
-      console.error('Error fetching users:', error);
+      logger.error('Error fetching users:', error);
       if (error.message?.includes('auth.users')) {
         // If auth.users is not accessible, show a more specific message
         toast.error('User management requires additional permissions. Please contact your administrator.');
@@ -134,7 +135,7 @@ export function useUsers() {
       toast.success('User updated successfully');
       await fetchUsers();
     } catch (error: any) {
-      console.error('Update error:', error);
+      logger.error('Update error:', error);
       toast.error('Failed to update user: ' + (error.message || 'Unknown error'));
     }
   };
@@ -153,7 +154,7 @@ export function useUsers() {
       toast.success('User deleted successfully');
       await fetchUsers();
     } catch (error: any) {
-      console.error('Delete error:', error);
+      logger.error('Delete error:', error);
       toast.error('Failed to delete user: ' + (error.message || 'Unknown error'));
     }
   };
@@ -185,11 +186,11 @@ export function useUsers() {
         throw error;
       }
 
-      console.log('Impersonate response:', data);
+      logger.log('Impersonate response:', data);
 
       // Check if we got the old response format (email/password)
       if (data?.email && data?.password) {
-        console.warn('Edge Function is returning old format. Using fallback password-based impersonation.');
+        logger.warn('Edge Function is returning old format. Using fallback password-based impersonation.');
         
         // Store original user info for restoration
         setImpersonationData(currentUser.id, currentUser.email!);
@@ -234,11 +235,11 @@ export function useUsers() {
         // Redirect to the magic link
         window.location.href = data.magicLink;
       } else {
-        console.error('Unexpected response format:', data);
+        logger.error('Unexpected response format:', data);
         throw new Error('Failed to start impersonation. Response: ' + JSON.stringify(data));
       }
     } catch (error: any) {
-      console.error('Impersonation error:', error);
+      logger.error('Impersonation error:', error);
       toast.error('Failed to impersonate user: ' + (error.message || 'Unknown error'));
     }
   };

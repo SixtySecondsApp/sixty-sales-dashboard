@@ -3,13 +3,14 @@ import { toast } from 'sonner';
 import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { fetchWithRetry, apiCall } from '@/lib/utils/apiUtils';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 // Security: Sanitize error messages to prevent sensitive data exposure
 function sanitizeErrorMessage(error: any): string {
   const message = error?.message || 'Unknown error';
   
   // Log full error server-side but return sanitized message to user
-  console.error('Deal operation error (sanitized for user):', {
+  logger.error('Deal operation error (sanitized for user):', {
     message,
     timestamp: new Date().toISOString(),
     // Don't log full error object to prevent sensitive data exposure
@@ -117,18 +118,18 @@ export function useDeals(ownerId?: string) {
       setIsLoading(true);
       setError(null);
       
-      console.log('🔄 Starting deals fetch for owner:', ownerId || 'ALL');
+      logger.log('🔄 Starting deals fetch for owner:', ownerId || 'ALL');
       
       // Check authentication first
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
-        console.log('❌ No session found, using service key fallback');
+        logger.log('❌ No session found, using service key fallback');
         // Skip Edge Functions entirely and go straight to service key fallback
         // Use basic query without complex relationships
         let serviceDealsData, serviceError;
         try {
-          console.log('🔄 Trying basic deals query with service key...');
+          logger.log('🔄 Trying basic deals query with service key...');
           let query = (supabaseAdmin as any)
             .from('deals')
             .select('*');
@@ -144,13 +145,13 @@ export function useDeals(ownerId?: string) {
           serviceError = result.error;
           
           if (serviceError) {
-            console.error('❌ Service key basic query failed:', serviceError);
+            logger.error('❌ Service key basic query failed:', serviceError);
             throw serviceError;
           }
           
-          console.log(`✅ Service key query successful: ${serviceDealsData?.length || 0} deals found`);
+          logger.log(`✅ Service key query successful: ${serviceDealsData?.length || 0} deals found`);
         } catch (relationshipError) {
-          console.error('❌ Service client query failed:', relationshipError);
+          logger.error('❌ Service client query failed:', relationshipError);
           throw relationshipError;
         }
           
@@ -169,100 +170,58 @@ export function useDeals(ownerId?: string) {
         return;
       }
 
-      console.log('✅ Session found, trying authenticated queries');
+      logger.log('✅ Session found, using direct Supabase query');
 
-      // Try Edge Functions if authenticated
+      // Use a single, efficient query instead of multiple fallbacks
+      let dealsData, queryError;
+      
       try {
-        // Check if Edge Functions are disabled
-        if (DISABLE_EDGE_FUNCTIONS) {
-          throw new Error('Edge Functions disabled due to migration');
+        // Try with regular client first (has user context)
+        let query = (supabase as any)
+          .from('deals')
+          .select('*');
+        
+        // Only filter by owner if ownerId is provided
+        if (ownerId) {
+          query = query.eq('owner_id', ownerId);
         }
-
-        console.log('🔄 Trying Edge Functions...');
-        const url = ownerId 
-          ? `${API_BASE_URL}/deals?owner_id=${ownerId}&includeRelationships=true`
-          : `${API_BASE_URL}/deals?includeRelationships=true`;
-        const response = await apiCall<{ data: DealWithRelationships[] }>(url);
         
-        const processedDeals = response.data?.map((deal: any) => ({
-          ...deal,
-          company: deal.company || deal.companies?.name || '',
-          contact_name: deal.contact_name || deal.contacts?.full_name || deal.contacts?.name || `${deal.contacts?.first_name || ''} ${deal.contacts?.last_name || ''}`.trim(),
-          daysInStage: deal.stage_changed_at 
-            ? Math.floor((new Date().getTime() - new Date(deal.stage_changed_at).getTime()) / (1000 * 60 * 60 * 24))
-            : 0,
-          timeStatus: 'normal' as const
-        })) || [];
+        const result = await query.order('created_at', { ascending: false });
         
-        console.log(`✅ Edge Functions successful: ${processedDeals.length} deals processed`);
-        setDeals(processedDeals);
-        setIsLoading(false);
-        return;
-      } catch (edgeFunctionError) {
-        console.warn('⚠️ Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+        dealsData = result.data;
+        queryError = result.error;
         
-        // Fallback to direct Supabase client
-        // Use basic query without complex relationships
-        let dealsData, supabaseError;
-        try {
-          console.log('🔄 Trying basic Supabase client query...');
-          let query = (supabase as any)
+        if (queryError) {
+          // If regular client fails, try admin client as fallback
+          logger.warn('Regular client failed, trying admin client:', queryError);
+          
+          let adminQuery = (supabaseAdmin as any)
             .from('deals')
             .select('*');
           
-          // Only filter by owner if ownerId is provided
           if (ownerId) {
-            query = query.eq('owner_id', ownerId);
+            adminQuery = adminQuery.eq('owner_id', ownerId);
           }
           
-          const result = await query.order('created_at', { ascending: false });
-          
-          dealsData = result.data;
-          supabaseError = result.error;
-          
-          if (supabaseError) {
-            console.error('❌ Basic Supabase query failed:', supabaseError);
-          } else {
-            console.log(`✅ Basic Supabase query successful: ${dealsData?.length || 0} deals found`);
-          }
-        } catch (relationshipError) {
-          console.error('❌ Supabase query failed:', relationshipError);
-          supabaseError = relationshipError;
+          const adminResult = await adminQuery.order('created_at', { ascending: false });
+          dealsData = adminResult.data;
+          queryError = adminResult.error;
         }
         
-        if (supabaseError) {
-          // Last resort: try with service role client (singleton)
-          try {
-            console.log('🔄 Last resort: trying service key...');
-            let query = (supabaseAdmin as any)
-              .from('deals')
-              .select('*');
-            
-            // Only filter by owner if ownerId is provided
-            if (ownerId) {
-              query = query.eq('owner_id', ownerId);
-            }
-            
-            const result = await query.order('created_at', { ascending: false });
-              
-            dealsData = result.data;
-            const serviceError = result.error;
-              
-            if (serviceError) {
-              console.error('❌ Service key fallback failed:', serviceError);
-              throw serviceError;
-            }
-            
-            console.log(`✅ Service key fallback successful: ${dealsData?.length || 0} deals found`);
-            
-          } catch (serviceError) {
-            console.error('❌ All fallbacks failed:', serviceError);
-            throw serviceError;
-          }
+        if (queryError) {
+          logger.error('❌ All queries failed:', queryError);
+          throw queryError;
         }
         
-        // Process deals to match expected format
-        const processedDeals = dealsData?.map((deal: any) => ({
+        logger.log(`✅ Query successful: ${dealsData?.length || 0} deals found`);
+        
+      } catch (err) {
+        logger.error('❌ Failed to fetch deals:', err);
+        throw err;
+      }
+      
+      // Process deals to match expected format
+      const processedDeals = dealsData?.map((deal: any) => ({
           ...deal,
           company: deal.company || '', // Use basic company field
           contact_name: deal.contact_name || '', // Use basic contact name field
@@ -272,13 +231,11 @@ export function useDeals(ownerId?: string) {
           timeStatus: 'normal' as const
         })) || [];
         
-        console.log(`✅ Final processing complete: ${processedDeals.length} deals ready`);
+        logger.log(`✅ Processing complete: ${processedDeals.length} deals ready`);
         setDeals(processedDeals);
-        setIsLoading(false);
-      }
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
-      console.error('❌ Error fetching deals - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error fetching deals - sanitized message:', sanitizedMessage);
       setError(sanitizedMessage);
       toast.error(sanitizedMessage);
     } finally {
@@ -313,7 +270,7 @@ export function useDeals(ownerId?: string) {
         setStages(stagesData || []);
       }
     } catch (err: any) {
-      console.error('Error fetching stages:', err);
+      logger.error('Error fetching stages:', err);
       setError(err.message);
     }
   }, []);
@@ -336,8 +293,8 @@ export function useDeals(ownerId?: string) {
 
   const createDeal = async (dealData: any) => {
     try {
-      console.log('🚀 Starting deal creation with data:', dealData);
-      console.log('📍 API_BASE_URL:', API_BASE_URL);
+      logger.log('🚀 Starting deal creation with data:', dealData);
+      logger.log('📍 API_BASE_URL:', API_BASE_URL);
       
       // Try Edge Function first
       try {
@@ -350,12 +307,15 @@ export function useDeals(ownerId?: string) {
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
-        console.log('✅ Deal API response:', result);
+        logger.log('✅ Deal API response:', result);
         toast.success('Deal created successfully');
         await fetchDeals(); // Refresh to get updated data
-        return result.data; // Return the created deal object
+        // API returns { data: dealObject }, so we need to check the structure
+        const createdDeal = result.data?.data || result.data || result;
+        logger.log('📦 Extracted deal from response:', createdDeal);
+        return createdDeal; // Return the created deal object
       } catch (edgeFunctionError) {
-        console.log('⚠️ API call failed, falling back to Supabase:', edgeFunctionError);
+        logger.log('⚠️ API call failed, falling back to Supabase:', edgeFunctionError);
         
         // Fallback to direct Supabase client
         const { data: deal, error } = await (supabase as any)
@@ -368,18 +328,18 @@ export function useDeals(ownerId?: string) {
           .single();
         
         if (error) {
-          console.error('❌ Supabase fallback also failed:', error);
+          logger.error('❌ Supabase fallback also failed:', error);
           throw error;
         }
         
-        console.log('✅ Deal created via Supabase fallback:', deal);
+        logger.log('✅ Deal created via Supabase fallback:', deal);
         toast.success('Deal created successfully');
         await fetchDeals(); // Refresh to get updated data
         return deal; // Return the created deal object
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('Error creating deal - sanitized message:', sanitizedMessage);
+      logger.error('Error creating deal - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }
@@ -387,7 +347,7 @@ export function useDeals(ownerId?: string) {
 
   const updateDeal = async (id: string, updates: any) => {
     try {
-      console.log('🔄 Updating deal with data:', updates);
+      logger.log('🔄 Updating deal with data:', updates);
       
       // Try Edge Function first
       try {
@@ -400,14 +360,14 @@ export function useDeals(ownerId?: string) {
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
-        console.log('✅ Edge Function update successful');
+        logger.log('✅ Edge Function update successful');
         toast.success('Deal updated successfully');
-        console.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
+        logger.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
         await fetchDeals(); // Refresh to get updated data
-        console.log('✅ Pipeline data refreshed after deal update');
+        logger.log('✅ Pipeline data refreshed after deal update');
         return true;
       } catch (edgeFunctionError) {
-        console.warn('⚠️ Edge Function failed, trying direct Supabase client:', edgeFunctionError);
+        logger.warn('⚠️ Edge Function failed, trying direct Supabase client:', edgeFunctionError);
         
         // Fallback to direct Supabase client
         const updateData = { ...updates };
@@ -428,7 +388,7 @@ export function useDeals(ownerId?: string) {
         
         // Handle expected_close_date specifically
         if ('expected_close_date' in updateData) {
-          console.log('🗓️ Processing expected_close_date:', updateData.expected_close_date);
+          logger.log('🗓️ Processing expected_close_date:', updateData.expected_close_date);
           
           // Ensure proper date format or null
           if (updateData.expected_close_date === '' || updateData.expected_close_date === undefined) {
@@ -438,20 +398,20 @@ export function useDeals(ownerId?: string) {
               // Validate and format the date
               const dateObj = new Date(updateData.expected_close_date);
               if (isNaN(dateObj.getTime())) {
-                console.warn('⚠️ Invalid date format, setting to null');
+                logger.warn('⚠️ Invalid date format, setting to null');
                 updateData.expected_close_date = null;
               } else {
                 // Format as YYYY-MM-DD for PostgreSQL DATE type
                 updateData.expected_close_date = dateObj.toISOString().split('T')[0];
               }
             } catch (dateError) {
-              console.warn('⚠️ Date processing error, setting to null:', dateError);
+              logger.warn('⚠️ Date processing error, setting to null:', dateError);
               updateData.expected_close_date = null;
             }
           }
         }
         
-        console.log('📤 Final update data being sent to Supabase:', updateData);
+        logger.log('📤 Final update data being sent to Supabase:', updateData);
         
         // Try the update with error handling for schema issues
         try {
@@ -465,7 +425,7 @@ export function useDeals(ownerId?: string) {
           if (error) {
             // Handle specific schema cache errors
             if (error.message && error.message.includes('expected_close_date') && error.message.includes('schema cache')) {
-              console.warn('⚠️ Schema cache issue detected, trying update without expected_close_date');
+              logger.warn('⚠️ Schema cache issue detected, trying update without expected_close_date');
               
               // Remove problematic field and retry
               const { expected_close_date, ...safeUpdateData } = updateData;
@@ -480,27 +440,27 @@ export function useDeals(ownerId?: string) {
               if (fallbackError) throw fallbackError;
               
               toast.success('Deal updated successfully (note: close date may need manual update)');
-              console.log('🔄 Calling fetchDeals to refresh pipeline data after fallback update...');
+              logger.log('🔄 Calling fetchDeals to refresh pipeline data after fallback update...');
               await fetchDeals();
-              console.log('✅ Pipeline data refreshed after fallback deal update');
+              logger.log('✅ Pipeline data refreshed after fallback deal update');
               return true;
             }
             throw error;
           }
           
-          console.log('✅ Direct Supabase update successful');
+          logger.log('✅ Direct Supabase update successful');
           toast.success('Deal updated successfully');
-          console.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
+          logger.log('🔄 Calling fetchDeals to refresh pipeline data after update...');
           await fetchDeals(); // Refresh to get updated data
-          console.log('✅ Pipeline data refreshed after deal update');
+          logger.log('✅ Pipeline data refreshed after deal update');
           return true;
           
         } catch (supabaseError: any) {
-          console.error('❌ Supabase update failed:', supabaseError);
+          logger.error('❌ Supabase update failed:', supabaseError);
           
           // Last resort: try basic update without potentially problematic fields
           if (supabaseError.message && supabaseError.message.includes('schema cache')) {
-            console.log('🔄 Attempting basic update without problematic fields...');
+            logger.log('🔄 Attempting basic update without problematic fields...');
             
             const basicUpdateData: any = {
               name: updateData.name,
@@ -529,9 +489,9 @@ export function useDeals(ownerId?: string) {
             if (basicError) throw basicError;
             
             toast.success('Deal updated successfully (some fields may need manual update)');
-            console.log('🔄 Calling fetchDeals to refresh pipeline data after basic update...');
+            logger.log('🔄 Calling fetchDeals to refresh pipeline data after basic update...');
             await fetchDeals();
-            console.log('✅ Pipeline data refreshed after basic deal update');
+            logger.log('✅ Pipeline data refreshed after basic deal update');
             return true;
           }
           
@@ -540,7 +500,7 @@ export function useDeals(ownerId?: string) {
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('❌ Error updating deal - sanitized message:', sanitizedMessage);
+      logger.error('❌ Error updating deal - sanitized message:', sanitizedMessage);
       
       // Provide more specific error messages while maintaining sanitization
       let errorMessage = sanitizedMessage;
@@ -586,7 +546,7 @@ export function useDeals(ownerId?: string) {
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('Error deleting deal - sanitized message:', sanitizedMessage);
+      logger.error('Error deleting deal - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }
@@ -630,7 +590,7 @@ export function useDeals(ownerId?: string) {
       }
     } catch (error: any) {
       const sanitizedMessage = sanitizeErrorMessage(error);
-      console.error('Error moving deal - sanitized message:', sanitizedMessage);
+      logger.error('Error moving deal - sanitized message:', sanitizedMessage);
       toast.error(sanitizedMessage);
       return false;
     }

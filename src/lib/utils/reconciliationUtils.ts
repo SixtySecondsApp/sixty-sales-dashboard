@@ -7,6 +7,7 @@
  */
 
 import { differenceInDays, parseISO, isValid } from 'date-fns';
+import logger from '@/lib/utils/logger';
 
 // Types for utility functions
 export interface FuzzyMatchResult {
@@ -268,7 +269,7 @@ export function calculateDateProximity(date1: string | Date, date2: string | Dat
       confidence
     };
   } catch (error) {
-    console.error('Error calculating date proximity:', error);
+    logger.error('Error calculating date proximity:', error);
     return {
       daysDifference: Infinity,
       isWithinThreshold: false,
@@ -589,7 +590,7 @@ export function sanitizeString(input: string): string {
  */
 export function exportToCSV(data: any[], filename: string = 'reconciliation_data.csv'): void {
   if (!data || data.length === 0) {
-    console.warn('No data to export');
+    logger.warn('No data to export');
     return;
   }
 

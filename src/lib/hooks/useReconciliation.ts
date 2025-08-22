@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 // Types for reconciliation data
 export interface ReconciliationOverview {
@@ -323,7 +324,7 @@ export function useReconciliationAnalysis(filters: ReconciliationFilters = {}) {
       toast.success('Reconciliation data refreshed');
     } catch (error) {
       toast.error('Failed to refresh reconciliation data');
-      console.error('Error refreshing reconciliation data:', error);
+      logger.error('Error refreshing reconciliation data:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -337,7 +338,7 @@ export function useReconciliationAnalysis(filters: ReconciliationFilters = {}) {
       await refreshAll();
     } catch (error) {
       toast.error('Failed to clear cache and refresh');
-      console.error('Error clearing cache:', error);
+      logger.error('Error clearing cache:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -586,7 +587,7 @@ export function useReconciliationExecution() {
     },
     onError: (error: Error) => {
       toast.error(`Reconciliation failed: ${error.message}`);
-      console.error('Reconciliation execution error:', error);
+      logger.error('Reconciliation execution error:', error);
     }
   });
 
@@ -599,7 +600,7 @@ export function useReconciliationExecution() {
     },
     onError: (error: Error) => {
       toast.error(`Batch reconciliation failed: ${error.message}`);
-      console.error('Batch reconciliation error:', error);
+      logger.error('Batch reconciliation error:', error);
     }
   });
 
@@ -611,7 +612,7 @@ export function useReconciliationExecution() {
     },
     onError: (error: Error) => {
       toast.error(`Rollback failed: ${error.message}`);
-      console.error('Reconciliation rollback error:', error);
+      logger.error('Reconciliation rollback error:', error);
     }
   });
 
@@ -684,7 +685,7 @@ export function useReconciliationActions() {
     },
     onError: (error: Error, variables) => {
       toast.error(`Failed to ${variables.action.replace('_', ' ')}: ${error.message}`);
-      console.error('Reconciliation action error:', error);
+      logger.error('Reconciliation action error:', error);
     }
   });
 

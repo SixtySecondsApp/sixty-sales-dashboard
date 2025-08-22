@@ -7,6 +7,7 @@
 
 import React, { Suspense, lazy, useMemo } from 'react';
 import { LucideProps } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 // Icon cache to prevent re-importing
 const iconCache = new Map<string, React.ComponentType<LucideProps>>();
@@ -69,13 +70,13 @@ export const DynamicIcon: React.FC<DynamicIconProps> = ({
         const IconComp = mod[name as keyof typeof mod] as React.ComponentType<LucideProps>;
         
         if (!IconComp) {
-          console.warn(`Icon "${name}" not found in lucide-react`);
+          logger.warn(`Icon "${name}" not found in lucide-react`);
           return { default: fallback };
         }
         
         return { default: IconComp };
       } catch (error) {
-        console.warn(`Failed to load icon "${name}":`, error);
+        logger.warn(`Failed to load icon "${name}":`, error);
         return { default: fallback };
       }
     });
@@ -117,7 +118,7 @@ export const usePreloadIcons = (iconNames: string[]) => {
               const LazyIcon = lazy(() => Promise.resolve({ default: IconComp }));
               iconCache.set(name, LazyIcon as React.ComponentType<LucideProps>);
             }
-          }).catch(err => console.warn(`Failed to preload icon "${name}":`, err));
+          }).catch(err => logger.warn(`Failed to preload icon "${name}":`, err));
         }
       });
     }, 1000); // Preload after 1 second

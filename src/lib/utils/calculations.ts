@@ -29,8 +29,17 @@ export function calculateLTVValue(
   const monthlyMRR = deal.monthly_mrr || 0;
   const annualValue = deal.annual_value || 0;
 
-  // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
-  // This gives 3x monthly subscription value PLUS 1x one-time deal value
+  // BUSINESS RULE: LTV calculation depends on what fields are set
+  // - If only annual_value is set (lifetime deal), use it as the total LTV
+  // - Otherwise: LTV = (monthlyMRR * 3) + oneOffRevenue
+  // This prevents double-counting lifetime deals
+  
+  // Check if this is a lifetime deal (only annual_value is set)
+  if (annualValue > 0 && !oneOffRevenue && !monthlyMRR) {
+    return annualValue;
+  }
+  
+  // Standard calculation: 3x monthly subscription + one-time payment
   const ltvValue = (monthlyMRR * 3) + oneOffRevenue;
 
   return ltvValue;

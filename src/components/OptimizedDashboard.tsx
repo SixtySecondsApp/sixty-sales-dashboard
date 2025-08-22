@@ -17,7 +17,7 @@ import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns
 import { useUser } from '@/lib/hooks/useUser';
 import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
-import { useActivities } from '@/lib/hooks/useActivities';
+import { useActivities } from '@/lib/hooks/useActivitiesMock';
 
 // Optimized icon imports
 import { DynamicIcon, usePreloadIcons } from '@/components/IconLoader';

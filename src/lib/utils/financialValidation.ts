@@ -12,6 +12,8 @@
  * - Type-safe validation with TypeScript
  */
 
+import logger from '@/lib/utils/logger';
+
 export interface ValidationResult {
   isValid: boolean;
   value: number;
@@ -73,42 +75,54 @@ class FinancialLogger {
   }
 
   static log(severity: 'low' | 'medium' | 'high' | 'critical', message: string, data?: any) {
+    // Only log critical and high severity in production to reduce memory usage
+    if (process.env.NODE_ENV === 'production' && !['critical', 'high'].includes(severity)) {
+      return;
+    }
+
     const timestamp = new Date().toISOString();
     const logEntry = {
       timestamp,
       severity,
       message,
-      data,
+      data: process.env.NODE_ENV === 'development' ? data : undefined, // Reduce data retention in production
       source: 'FinancialValidation'
     };
 
-    // Console logging based on severity
+    // Console logging based on severity - reduced verbosity
     switch (severity) {
       case 'critical':
-        console.error('🚨 CRITICAL FINANCIAL ERROR:', logEntry);
-        // In production, this would also alert monitoring systems
+        logger.error('CRITICAL FINANCIAL ERROR:', message);
         break;
       case 'high':
-        console.error('❌ HIGH FINANCIAL ERROR:', logEntry);
+        logger.error('HIGH FINANCIAL ERROR:', message);
         break;
       case 'medium':
-        console.warn('⚠️ MEDIUM FINANCIAL WARNING:', logEntry);
+        if (process.env.NODE_ENV === 'development') {
+          logger.warn('MEDIUM FINANCIAL WARNING:', message);
+        }
         break;
       case 'low':
         if (this.logLevel === 'debug') {
-          console.info('ℹ️ LOW FINANCIAL INFO:', logEntry);
+          logger.info('LOW FINANCIAL INFO:', message);
         }
         break;
     }
 
-    // Store in session storage for debugging (limit to last 100 entries)
-    try {
-      const stored = JSON.parse(sessionStorage.getItem('financial_validation_logs') || '[]');
-      stored.push(logEntry);
-      if (stored.length > 100) stored.shift();
-      sessionStorage.setItem('financial_validation_logs', JSON.stringify(stored));
-    } catch (e) {
-      // Ignore storage errors
+    // Store in session storage for debugging (limit to last 50 entries to reduce memory)
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('financial_validation_logs') || '[]');
+        stored.push(logEntry);
+        if (stored.length > 50) {
+          // Remove older entries more aggressively
+          stored.splice(0, stored.length - 50);
+        }
+        sessionStorage.setItem('financial_validation_logs', JSON.stringify(stored));
+      } catch (e) {
+        // Clear storage if it becomes corrupted
+        sessionStorage.removeItem('financial_validation_logs');
+      }
     }
   }
 
@@ -452,6 +466,8 @@ export function calculateLifetimeValue(monthlyMRR: any, oneOffRevenue: any): {
   const validMRR = mrrValidation.isValid ? mrrValidation.value : 0;
   const validRevenue = revenueValidation.isValid ? revenueValidation.value : 0;
   
+  // If both are 0, this might be a lifetime deal stored elsewhere
+  // The actual LTV calculation should handle this in the calculations.ts file
   const lifetimeValue = (validMRR * 3) + validRevenue;
   
   // Validate the calculated result

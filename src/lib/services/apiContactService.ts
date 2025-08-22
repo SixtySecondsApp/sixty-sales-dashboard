@@ -2,6 +2,7 @@ import type { Contact } from '@/lib/database/models';
 import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 export class ApiContactService {
   
@@ -42,7 +43,7 @@ export class ApiContactService {
       
       return result.data as Contact[];
     } catch (error) {
-      console.error('Error fetching contacts:', error);
+      logger.error('Error fetching contacts:', error);
       throw error;
     }
   }
@@ -54,7 +55,7 @@ export class ApiContactService {
     try {
       // If edge functions are disabled or we're in local development, use direct Supabase
       if (DISABLE_EDGE_FUNCTIONS || API_BASE_URL === '/api') {
-        console.log('🔄 Using direct Supabase for contact fetch');
+        logger.log('🔄 Using direct Supabase for contact fetch');
         return await this.getContactByIdDirect(id, includeRelationships);
       }
 
@@ -82,13 +83,13 @@ export class ApiContactService {
       
       return result.data as Contact;
     } catch (error) {
-      console.error('Error fetching contact via API, falling back to direct Supabase:', error);
+      logger.error('Error fetching contact via API, falling back to direct Supabase:', error);
       
       // Fallback to direct Supabase
       try {
         return await this.getContactByIdDirect(id, includeRelationships);
       } catch (fallbackError) {
-        console.error('Direct Supabase fallback also failed:', fallbackError);
+        logger.error('Direct Supabase fallback also failed:', fallbackError);
         throw fallbackError;
       }
     }
@@ -99,7 +100,7 @@ export class ApiContactService {
    */
   private static async getContactByIdDirect(id: string, includeRelationships = true): Promise<Contact | null> {
     try {
-      console.log('📋 Fetching contact directly from Supabase:', id);
+      logger.log('📋 Fetching contact directly from Supabase:', id);
 
       // Get the contact record
       const { data: contact, error } = await supabase
@@ -142,10 +143,10 @@ export class ApiContactService {
         updated_at: contact.updated_at,
       };
 
-      console.log('✅ Contact fetched successfully from Supabase:', formattedContact.email);
+      logger.log('✅ Contact fetched successfully from Supabase:', formattedContact.email);
       return formattedContact;
     } catch (error) {
-      console.error('❌ Error fetching contact from Supabase:', error);
+      logger.error('❌ Error fetching contact from Supabase:', error);
       throw error;
     }
   }
@@ -165,7 +166,7 @@ export class ApiContactService {
       const contact = contacts.find(c => c.email?.toLowerCase() === email.toLowerCase());
       return contact || null;
     } catch (error) {
-      console.error('Error finding contact by email:', error);
+      logger.error('Error finding contact by email:', error);
       return null;
     }
   }
@@ -197,7 +198,7 @@ export class ApiContactService {
       
       return result.data as Contact;
     } catch (error) {
-      console.error('Error creating contact:', error);
+      logger.error('Error creating contact:', error);
       throw error;
     }
   }
@@ -229,7 +230,7 @@ export class ApiContactService {
       
       return result.data as Contact;
     } catch (error) {
-      console.error('Error updating contact:', error);
+      logger.error('Error updating contact:', error);
       throw error;
     }
   }
@@ -251,7 +252,7 @@ export class ApiContactService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting contact:', error);
+      logger.error('Error deleting contact:', error);
       throw error;
     }
   }
@@ -266,7 +267,7 @@ export class ApiContactService {
         includeCompany: false 
       });
     } catch (error) {
-      console.error('Error fetching company contacts:', error);
+      logger.error('Error fetching company contacts:', error);
       throw error;
     }
   }
@@ -282,7 +283,7 @@ export class ApiContactService {
         limit: 20
       });
     } catch (error) {
-      console.error('Error searching contacts:', error);
+      logger.error('Error searching contacts:', error);
       throw error;
     }
   }
@@ -318,7 +319,7 @@ export class ApiContactService {
         recentActivities: []
       };
     } catch (error) {
-      console.error('Error fetching contact stats:', error);
+      logger.error('Error fetching contact stats:', error);
       // Return fallback mock data
       return {
         meetings: 0,
@@ -359,7 +360,7 @@ export class ApiContactService {
         // TODO: Add company auto-detection logic via API
       });
     } catch (error) {
-      console.error('Error auto-creating contact:', error);
+      logger.error('Error auto-creating contact:', error);
       return null;
     }
   }
@@ -374,7 +375,7 @@ export class ApiContactService {
       // TODO: Add server-side logic to handle making other contacts non-primary
       return await this.updateContact(contactId, { is_primary: true });
     } catch (error) {
-      console.error('Error setting primary contact:', error);
+      logger.error('Error setting primary contact:', error);
       throw error;
     }
   }
@@ -401,7 +402,7 @@ export class ApiContactService {
       
       return result.data || [];
     } catch (error) {
-      console.error('Error fetching contact deals:', error);
+      logger.error('Error fetching contact deals:', error);
       return []; // Return empty array on error
     }
   }
@@ -428,7 +429,7 @@ export class ApiContactService {
       
       return result.data || [];
     } catch (error) {
-      console.error('Error fetching contact activities:', error);
+      logger.error('Error fetching contact activities:', error);
       return []; // Return empty array on error
     }
   }
@@ -455,7 +456,7 @@ export class ApiContactService {
       
       return result.data || null;
     } catch (error) {
-      console.error('Error fetching contact owner:', error);
+      logger.error('Error fetching contact owner:', error);
       return null; // Return null on error
     }
   }
@@ -482,7 +483,7 @@ export class ApiContactService {
       
       return result.data || [];
     } catch (error) {
-      console.error('Error fetching contact tasks:', error);
+      logger.error('Error fetching contact tasks:', error);
       return []; // Return empty array on error
     }
   }

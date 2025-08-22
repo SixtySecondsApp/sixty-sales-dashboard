@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from './useUser';
+import logger from '@/lib/utils/logger';
 
 export interface RoadmapSuggestion {
   id: string;
@@ -80,7 +81,7 @@ export function useRoadmap() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Supabase error details:', {
+        logger.error('Supabase error details:', {
           message: error.message,
           details: error.details,
           hint: error.hint,
@@ -121,14 +122,14 @@ export function useRoadmap() {
         .filter(suggestion => {
           // Filter out suggestions with invalid IDs
           if (!suggestion.id || typeof suggestion.id !== 'string' || suggestion.id.trim() === '') {
-            console.warn('Filtering out suggestion with invalid ID:', suggestion);
+            logger.warn('Filtering out suggestion with invalid ID:', suggestion);
             return false;
           }
           return true;
         })
         .map(suggestion => {
           // Debug log to see if ticket_id is present
-          console.log('Processing suggestion:', { id: suggestion.id, ticket_id: suggestion.ticket_id, title: suggestion.title });
+          logger.log('Processing suggestion:', { id: suggestion.id, ticket_id: suggestion.ticket_id, title: suggestion.title });
           
           const submitterProfile = profiles.find(p => p.id === suggestion.submitted_by);
           const assigneeProfile = profiles.find(p => p.id === suggestion.assigned_to);
@@ -153,7 +154,7 @@ export function useRoadmap() {
 
       setSuggestions(transformedSuggestions);
     } catch (err) {
-      console.error('Error fetching suggestions:', err);
+      logger.error('Error fetching suggestions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch suggestions');
     } finally {
       setLoading(false);
@@ -190,7 +191,7 @@ export function useRoadmap() {
       .single();
 
     if (error) {
-      console.error('Create suggestion error:', {
+      logger.error('Create suggestion error:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
@@ -269,7 +270,7 @@ export function useRoadmap() {
       allowedUpdates = { title, description, type, priority };
     }
     
-    console.log('Updating suggestion with allowedUpdates:', allowedUpdates);
+    logger.log('Updating suggestion with allowedUpdates:', allowedUpdates);
 
     const { data: suggestion, error } = await supabase
       .from('roadmap_suggestions')

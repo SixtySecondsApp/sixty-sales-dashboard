@@ -1,507 +1,368 @@
-/**
- * Memory Management and Leak Prevention Utilities
- * 
- * Implements:
- * - Event listener cleanup
- * - Subscription cleanup
- * - Timer cleanup
- * - Cache management
- * - Component unmount cleanup
- * - Observer cleanup
- */
+// Memory Management & Error Boundaries for Backend Optimization
+// Handles memory leaks, cleanup, and error recovery
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import React from 'react';
+import logger from '@/lib/utils/logger';
 
-// Memory leak prevention utilities
-export class MemoryManager {
+interface MemoryUsage {
+  heapUsed: number;
+  heapTotal: number;
+  external: number;
+  rss: number;
+  timestamp: number;
+}
+
+interface ComponentMemoryTracker {
+  componentId: string;
+  mountTime: number;
+  unmountTime?: number;
+  memoryAtMount: MemoryUsage;
+  memoryAtUnmount?: MemoryUsage;
+  intervalIds: number[];
+  timeoutIds: number[];
+  eventListeners: Array<{ target: EventTarget; event: string; handler: Function }>;
+  subscriptions: Array<{ unsubscribe: Function }>;
+}
+
+class MemoryManager {
   private static instance: MemoryManager;
-  private subscriptions: Set<() => void> = new Set();
-  private timers: Set<number> = new Set();
-  private intervals: Set<number> = new Set();
-  private observers: Set<MutationObserver | IntersectionObserver | ResizeObserver | PerformanceObserver> = new Set();
-  private eventListeners: Map<EventTarget, Map<string, EventListener>> = new Map();
-  private isCleaningUp = false;
+  private components = new Map<string, ComponentMemoryTracker>();
+  private memoryHistory: MemoryUsage[] = [];
+  private readonly maxHistorySize = 100;
+  private memoryWarningThreshold = 100 * 1024 * 1024; // 100MB
+  private memoryCriticalThreshold = 200 * 1024 * 1024; // 200MB
+  private monitoringInterval?: number;
 
-  public static getInstance(): MemoryManager {
+  static getInstance(): MemoryManager {
     if (!MemoryManager.instance) {
       MemoryManager.instance = new MemoryManager();
     }
     return MemoryManager.instance;
   }
 
-  constructor() {
-    // Setup cleanup on page unload
-    if (typeof window !== 'undefined') {
-      window.addEventListener('beforeunload', this.cleanup.bind(this));
-      window.addEventListener('unload', this.cleanup.bind(this));
-      
-      // Cleanup on visibility change (mobile browsers)
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          this.cleanup();
-        }
-      });
-    }
-  }
-
-  // Register a subscription for cleanup
-  public registerSubscription(cleanup: () => void): void {
-    this.subscriptions.add(cleanup);
-  }
-
-  // Register a timer for cleanup
-  public registerTimer(timerId: number): void {
-    this.timers.add(timerId);
-  }
-
-  // Register an interval for cleanup
-  public registerInterval(intervalId: number): void {
-    this.intervals.add(intervalId);
-  }
-
-  // Register an observer for cleanup
-  public registerObserver(observer: MutationObserver | IntersectionObserver | ResizeObserver | PerformanceObserver): void {
-    this.observers.add(observer);
-  }
-
-  // Register an event listener for cleanup
-  public registerEventListener(target: EventTarget, event: string, listener: EventListener): void {
-    if (!this.eventListeners.has(target)) {
-      this.eventListeners.set(target, new Map());
-    }
-    this.eventListeners.get(target)!.set(event, listener);
-  }
-
-  // Unregister subscription
-  public unregisterSubscription(cleanup: () => void): void {
-    this.subscriptions.delete(cleanup);
-  }
-
-  // Clean up a specific timer
-  public clearTimer(timerId: number): void {
-    clearTimeout(timerId);
-    this.timers.delete(timerId);
-  }
-
-  // Clean up a specific interval
-  public clearInterval(intervalId: number): void {
-    clearInterval(intervalId);
-    this.intervals.delete(intervalId);
-  }
-
-  // Clean up a specific observer
-  public disconnectObserver(observer: MutationObserver | IntersectionObserver | ResizeObserver | PerformanceObserver): void {
-    observer.disconnect();
-    this.observers.delete(observer);
-  }
-
-  // Remove a specific event listener
-  public removeEventListener(target: EventTarget, event: string): void {
-    const listeners = this.eventListeners.get(target);
-    if (listeners) {
-      const listener = listeners.get(event);
-      if (listener) {
-        target.removeEventListener(event, listener);
-        listeners.delete(event);
-        if (listeners.size === 0) {
-          this.eventListeners.delete(target);
-        }
-      }
-    }
-  }
-
-  // Clean up all registered resources
-  public cleanup(): void {
-    if (this.isCleaningUp) return;
-    this.isCleaningUp = true;
-
-    console.log('🧹 Starting memory cleanup...');
-
-    // Clean up subscriptions
-    this.subscriptions.forEach(cleanup => {
-      try {
-        cleanup();
-      } catch (error) {
-        console.warn('Error during subscription cleanup:', error);
-      }
-    });
-    this.subscriptions.clear();
-
-    // Clean up timers
-    this.timers.forEach(timerId => {
-      clearTimeout(timerId);
-    });
-    this.timers.clear();
-
-    // Clean up intervals
-    this.intervals.forEach(intervalId => {
-      clearInterval(intervalId);
-    });
-    this.intervals.clear();
-
-    // Clean up observers
-    this.observers.forEach(observer => {
-      try {
-        observer.disconnect();
-      } catch (error) {
-        console.warn('Error disconnecting observer:', error);
-      }
-    });
-    this.observers.clear();
-
-    // Clean up event listeners
-    this.eventListeners.forEach((listeners, target) => {
-      listeners.forEach((listener, event) => {
-        try {
-          target.removeEventListener(event, listener);
-        } catch (error) {
-          console.warn('Error removing event listener:', error);
-        }
-      });
-    });
-    this.eventListeners.clear();
-
-    console.log('✅ Memory cleanup completed');
-    this.isCleaningUp = false;
-  }
-
-  // Get memory usage statistics
-  public getMemoryStats(): {
-    subscriptions: number;
-    timers: number;
-    intervals: number;
-    observers: number;
-    eventListeners: number;
-    heapUsed?: number;
-    heapTotal?: number;
-  } {
-    const stats = {
-      subscriptions: this.subscriptions.size,
-      timers: this.timers.size,
-      intervals: this.intervals.size,
-      observers: this.observers.size,
-      eventListeners: Array.from(this.eventListeners.values()).reduce((total, listeners) => total + listeners.size, 0),
-    };
-
-    // Add heap information if available
-    if ('memory' in performance) {
-      const memory = (performance as any).memory;
+  private getCurrentMemoryUsage(): MemoryUsage {
+    // In browser environment, use performance.memory if available
+    if (typeof performance !== 'undefined' && performance.memory) {
       return {
-        ...stats,
-        heapUsed: Math.round(memory.usedJSHeapSize / 1024 / 1024), // MB
-        heapTotal: Math.round(memory.totalJSHeapSize / 1024 / 1024), // MB
+        heapUsed: performance.memory.usedJSHeapSize,
+        heapTotal: performance.memory.totalJSHeapSize,
+        external: 0,
+        rss: 0,
+        timestamp: Date.now()
       };
     }
 
-    return stats;
+    // Fallback for environments without performance.memory
+    return {
+      heapUsed: 0,
+      heapTotal: 0,
+      external: 0,
+      rss: 0,
+      timestamp: Date.now()
+    };
   }
-}
 
-// React hook for automatic cleanup on unmount
-export function useCleanup(cleanup: () => void): void {
-  const manager = MemoryManager.getInstance();
-  
-  useEffect(() => {
-    manager.registerSubscription(cleanup);
+  private trackMemoryUsage(): void {
+    const usage = this.getCurrentMemoryUsage();
+    this.memoryHistory.push(usage);
+
+    // Keep only recent history
+    if (this.memoryHistory.length > this.maxHistorySize) {
+      this.memoryHistory = this.memoryHistory.slice(-this.maxHistorySize);
+    }
+
+    // Check for memory warnings
+    if (usage.heapUsed > this.memoryCriticalThreshold) {
+      logger.error('🚨 CRITICAL: Memory usage is extremely high:', this.formatMemorySize(usage.heapUsed));
+      this.emergencyCleanup();
+    } else if (usage.heapUsed > this.memoryWarningThreshold) {
+      logger.warn('⚠️ WARNING: High memory usage detected:', this.formatMemorySize(usage.heapUsed));
+      this.performCleanup();
+    }
+  }
+
+  private formatMemorySize(bytes: number): string {
+    const mb = bytes / (1024 * 1024);
+    return `${mb.toFixed(2)} MB`;
+  }
+
+  private emergencyCleanup(): void {
+    logger.log('🧹 Performing emergency memory cleanup...');
     
-    return () => {
-      manager.unregisterSubscription(cleanup);
-      cleanup();
-    };
-  }, [cleanup, manager]);
-}
-
-// React hook for safe timers that auto-cleanup
-export function useSafeTimeout(): {
-  setTimeout: (callback: () => void, delay: number) => number;
-  clearTimeout: (id: number) => void;
-} {
-  const manager = MemoryManager.getInstance();
-  const timeouts = useRef<Set<number>>(new Set());
-
-  const safeSetTimeout = useCallback((callback: () => void, delay: number): number => {
-    const id = window.setTimeout(() => {
-      callback();
-      timeouts.current.delete(id);
-      manager.clearTimer(id);
-    }, delay);
-    
-    timeouts.current.add(id);
-    manager.registerTimer(id);
-    return id;
-  }, [manager]);
-
-  const safeClearTimeout = useCallback((id: number): void => {
-    window.clearTimeout(id);
-    timeouts.current.delete(id);
-    manager.clearTimer(id);
-  }, [manager]);
-
-  useEffect(() => {
-    return () => {
-      // Cleanup all timeouts on unmount
-      timeouts.current.forEach(id => {
-        window.clearTimeout(id);
-        manager.clearTimer(id);
-      });
-      timeouts.current.clear();
-    };
-  }, [manager]);
-
-  return {
-    setTimeout: safeSetTimeout,
-    clearTimeout: safeClearTimeout,
-  };
-}
-
-// React hook for safe intervals that auto-cleanup
-export function useSafeInterval(): {
-  setInterval: (callback: () => void, delay: number) => number;
-  clearInterval: (id: number) => void;
-} {
-  const manager = MemoryManager.getInstance();
-  const intervals = useRef<Set<number>>(new Set());
-
-  const safeSetInterval = useCallback((callback: () => void, delay: number): number => {
-    const id = window.setInterval(callback, delay);
-    intervals.current.add(id);
-    manager.registerInterval(id);
-    return id;
-  }, [manager]);
-
-  const safeClearInterval = useCallback((id: number): void => {
-    window.clearInterval(id);
-    intervals.current.delete(id);
-    manager.clearInterval(id);
-  }, [manager]);
-
-  useEffect(() => {
-    return () => {
-      // Cleanup all intervals on unmount
-      intervals.current.forEach(id => {
-        window.clearInterval(id);
-        manager.clearInterval(id);
-      });
-      intervals.current.clear();
-    };
-  }, [manager]);
-
-  return {
-    setInterval: safeSetInterval,
-    clearInterval: safeClearInterval,
-  };
-}
-
-// React hook for safe event listeners that auto-cleanup
-export function useSafeEventListener<T extends EventTarget>(
-  target: T | null,
-  event: string,
-  listener: EventListener,
-  options?: boolean | AddEventListenerOptions
-): void {
-  const manager = MemoryManager.getInstance();
-  const savedListener = useRef<EventListener>();
-
-  useEffect(() => {
-    if (!target) return;
-
-    // Update saved listener
-    savedListener.current = listener;
-
-    // Create wrapper to ensure consistent reference
-    const wrappedListener = (e: Event) => savedListener.current?.(e);
-
-    target.addEventListener(event, wrappedListener, options);
-    manager.registerEventListener(target, event, wrappedListener);
-
-    return () => {
-      target.removeEventListener(event, wrappedListener, options);
-      manager.removeEventListener(target, event);
-    };
-  }, [target, event, manager]);
-
-  // Update listener reference when it changes
-  useEffect(() => {
-    savedListener.current = listener;
-  }, [listener]);
-}
-
-// React hook for safe observers that auto-cleanup
-export function useSafeObserver<T extends MutationObserver | IntersectionObserver | ResizeObserver>(
-  createObserver: () => T,
-  dependencies: any[] = []
-): T | null {
-  const manager = MemoryManager.getInstance();
-  const observer = useRef<T | null>(null);
-
-  useEffect(() => {
-    observer.current = createObserver();
-    manager.registerObserver(observer.current as any);
-
-    return () => {
-      if (observer.current) {
-        observer.current.disconnect();
-        manager.disconnectObserver(observer.current as any);
-        observer.current = null;
+    // Force cleanup of unmounted components
+    for (const [componentId, tracker] of this.components.entries()) {
+      if (tracker.unmountTime && Date.now() - tracker.unmountTime > 30000) { // 30 seconds
+        this.forceCleanupComponent(componentId);
       }
-    };
-  }, dependencies);
+    }
 
-  return observer.current;
-}
+    // Clear old memory history
+    this.memoryHistory = this.memoryHistory.slice(-50);
 
-// Cache with automatic cleanup and size limits
-export class SafeCache<K, V> {
-  private cache = new Map<K, V>();
-  private maxSize: number;
-  private ttl: number;
-  private timestamps = new Map<K, number>();
-  private cleanupInterval: number;
+    // Force garbage collection if available
+    if (global.gc) {
+      global.gc();
+    }
+  }
 
-  constructor(maxSize: number = 100, ttl: number = 5 * 60 * 1000) { // 5 minutes default
-    this.maxSize = maxSize;
-    this.ttl = ttl;
+  private performCleanup(): void {
+    logger.log('🧹 Performing routine memory cleanup...');
     
-    // Setup periodic cleanup
-    this.cleanupInterval = window.setInterval(() => {
-      this.cleanup();
-    }, Math.min(ttl / 2, 60000)); // Cleanup every minute or half TTL
-
-    MemoryManager.getInstance().registerInterval(this.cleanupInterval);
-  }
-
-  set(key: K, value: V): void {
-    // Remove expired entries if cache is full
-    if (this.cache.size >= this.maxSize) {
-      this.evictOldest();
+    // Cleanup old unmounted components
+    for (const [componentId, tracker] of this.components.entries()) {
+      if (tracker.unmountTime && Date.now() - tracker.unmountTime > 60000) { // 1 minute
+        this.forceCleanupComponent(componentId);
+      }
     }
-
-    this.cache.set(key, value);
-    this.timestamps.set(key, Date.now());
   }
 
-  get(key: K): V | undefined {
-    const timestamp = this.timestamps.get(key);
-    if (!timestamp || Date.now() - timestamp > this.ttl) {
-      this.delete(key);
-      return undefined;
-    }
+  private forceCleanupComponent(componentId: string): void {
+    const tracker = this.components.get(componentId);
+    if (!tracker) return;
 
-    return this.cache.get(key);
-  }
+    logger.log(`🗑️ Force cleaning up component: ${componentId}`);
 
-  has(key: K): boolean {
-    const timestamp = this.timestamps.get(key);
-    if (!timestamp || Date.now() - timestamp > this.ttl) {
-      this.delete(key);
-      return false;
-    }
-
-    return this.cache.has(key);
-  }
-
-  delete(key: K): void {
-    this.cache.delete(key);
-    this.timestamps.delete(key);
-  }
-
-  clear(): void {
-    this.cache.clear();
-    this.timestamps.clear();
-  }
-
-  private evictOldest(): void {
-    const oldestEntry = Array.from(this.timestamps.entries())
-      .sort(([, a], [, b]) => a - b)[0];
+    // Clear all intervals
+    tracker.intervalIds.forEach(id => clearInterval(id));
     
-    if (oldestEntry) {
-      this.delete(oldestEntry[0]);
-    }
-  }
+    // Clear all timeouts
+    tracker.timeoutIds.forEach(id => clearTimeout(id));
 
-  private cleanup(): void {
-    const now = Date.now();
-    const keysToDelete: K[] = [];
-
-    this.timestamps.forEach((timestamp, key) => {
-      if (now - timestamp > this.ttl) {
-        keysToDelete.push(key);
+    // Remove event listeners
+    tracker.eventListeners.forEach(({ target, event, handler }) => {
+      try {
+        target.removeEventListener(event, handler as EventListener);
+      } catch (error) {
+        logger.warn('Failed to remove event listener:', error);
       }
     });
 
-    keysToDelete.forEach(key => this.delete(key));
-  }
-
-  getStats(): {
-    size: number;
-    maxSize: number;
-    ttl: number;
-    hitRate: number;
-  } {
-    return {
-      size: this.cache.size,
-      maxSize: this.maxSize,
-      ttl: this.ttl,
-      hitRate: 0, // Could be tracked with hit/miss counters
-    };
-  }
-
-  destroy(): void {
-    this.clear();
-    const manager = MemoryManager.getInstance();
-    manager.clearInterval(this.cleanupInterval);
-  }
-}
-
-// React hook for safe cache that auto-cleans on unmount
-export function useSafeCache<K, V>(maxSize?: number, ttl?: number): SafeCache<K, V> {
-  const cache = useRef<SafeCache<K, V>>();
-
-  if (!cache.current) {
-    cache.current = new SafeCache<K, V>(maxSize, ttl);
-  }
-
-  useEffect(() => {
-    return () => {
-      cache.current?.destroy();
-    };
-  }, []);
-
-  return cache.current;
-}
-
-// Performance monitoring for memory usage
-export function useMemoryMonitor(intervalMs: number = 10000): {
-  memoryStats: any;
-  managerStats: any;
-} {
-  const [memoryStats, setMemoryStats] = useState<any>(null);
-  const [managerStats, setManagerStats] = useState<any>(null);
-  const { setInterval, clearInterval } = useSafeInterval();
-
-  useEffect(() => {
-    const updateStats = () => {
-      const manager = MemoryManager.getInstance();
-      setManagerStats(manager.getMemoryStats());
-
-      if ('memory' in performance) {
-        const memory = (performance as any).memory;
-        setMemoryStats({
-          usedJSHeapSize: Math.round(memory.usedJSHeapSize / 1024 / 1024), // MB
-          totalJSHeapSize: Math.round(memory.totalJSHeapSize / 1024 / 1024), // MB
-          jsHeapSizeLimit: Math.round(memory.jsHeapSizeLimit / 1024 / 1024), // MB
-          usagePercentage: Math.round((memory.usedJSHeapSize / memory.totalJSHeapSize) * 100),
-        });
+    // Unsubscribe from subscriptions
+    tracker.subscriptions.forEach(({ unsubscribe }) => {
+      try {
+        unsubscribe();
+      } catch (error) {
+        logger.warn('Failed to unsubscribe:', error);
       }
+    });
+
+    this.components.delete(componentId);
+  }
+
+  // Public API for components
+  registerComponent(componentId: string): ComponentMemoryTracker {
+    const tracker: ComponentMemoryTracker = {
+      componentId,
+      mountTime: Date.now(),
+      memoryAtMount: this.getCurrentMemoryUsage(),
+      intervalIds: [],
+      timeoutIds: [],
+      eventListeners: [],
+      subscriptions: []
     };
 
-    updateStats(); // Initial call
-    const intervalId = setInterval(updateStats, intervalMs);
+    this.components.set(componentId, tracker);
+    logger.log(`📝 Registered component: ${componentId}`);
+    
+    return tracker;
+  }
 
-    return () => clearInterval(intervalId);
-  }, [intervalMs, setInterval, clearInterval]);
+  unregisterComponent(componentId: string): void {
+    const tracker = this.components.get(componentId);
+    if (!tracker) return;
 
-  return { memoryStats, managerStats };
+    tracker.unmountTime = Date.now();
+    tracker.memoryAtUnmount = this.getCurrentMemoryUsage();
+
+    // Calculate memory impact
+    const memoryDiff = tracker.memoryAtUnmount.heapUsed - tracker.memoryAtMount.heapUsed;
+    const lifespanMs = tracker.unmountTime - tracker.mountTime;
+
+    logger.log(`📊 Component ${componentId} unregistered:`, {
+      lifespan: `${lifespanMs}ms`,
+      memoryImpact: this.formatMemorySize(memoryDiff),
+      intervalsCleared: tracker.intervalIds.length,
+      timeoutsCleared: tracker.timeoutIds.length,
+      listenersRemoved: tracker.eventListeners.length,
+      subscriptionsRemoved: tracker.subscriptions.length
+    });
+
+    // Clean up immediately
+    this.forceCleanupComponent(componentId);
+  }
+
+  // Track intervals created by components
+  trackInterval(componentId: string, intervalId: number): void {
+    const tracker = this.components.get(componentId);
+    if (tracker) {
+      tracker.intervalIds.push(intervalId);
+    }
+  }
+
+  // Track timeouts created by components
+  trackTimeout(componentId: string, timeoutId: number): void {
+    const tracker = this.components.get(componentId);
+    if (tracker) {
+      tracker.timeoutIds.push(timeoutId);
+    }
+  }
+
+  // Track event listeners created by components
+  trackEventListener(
+    componentId: string, 
+    target: EventTarget, 
+    event: string, 
+    handler: Function
+  ): void {
+    const tracker = this.components.get(componentId);
+    if (tracker) {
+      tracker.eventListeners.push({ target, event, handler });
+    }
+  }
+
+  // Track subscriptions created by components
+  trackSubscription(componentId: string, unsubscribe: Function): void {
+    const tracker = this.components.get(componentId);
+    if (tracker) {
+      tracker.subscriptions.push({ unsubscribe });
+    }
+  }
+
+  // Start memory monitoring
+  startMonitoring(intervalMs = 30000): void { // 30 seconds default
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+
+    this.monitoringInterval = window.setInterval(() => {
+      this.trackMemoryUsage();
+    }, intervalMs);
+
+    logger.log(`🔍 Started memory monitoring (interval: ${intervalMs}ms)`);
+  }
+
+  // Stop memory monitoring
+  stopMonitoring(): void {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = undefined;
+      logger.log('🛑 Stopped memory monitoring');
+    }
+  }
+
+  // Get memory statistics
+  getMemoryStats(): {
+    current: MemoryUsage;
+    peak: MemoryUsage;
+    average: number;
+    trend: 'increasing' | 'decreasing' | 'stable';
+    componentsTracked: number;
+  } {
+    const current = this.getCurrentMemoryUsage();
+    const peak = this.memoryHistory.reduce((max, usage) => 
+      usage.heapUsed > max.heapUsed ? usage : max, current);
+    
+    const avgHeapUsed = this.memoryHistory.length > 0 
+      ? this.memoryHistory.reduce((sum, usage) => sum + usage.heapUsed, 0) / this.memoryHistory.length
+      : current.heapUsed;
+
+    // Determine trend from last 10 measurements
+    const recentHistory = this.memoryHistory.slice(-10);
+    let trend: 'increasing' | 'decreasing' | 'stable' = 'stable';
+    
+    if (recentHistory.length >= 3) {
+      const first = recentHistory[0].heapUsed;
+      const last = recentHistory[recentHistory.length - 1].heapUsed;
+      const diff = last - first;
+      const threshold = first * 0.1; // 10% threshold
+      
+      if (Math.abs(diff) > threshold) {
+        trend = diff > 0 ? 'increasing' : 'decreasing';
+      }
+    }
+
+    return {
+      current,
+      peak,
+      average: avgHeapUsed,
+      trend,
+      componentsTracked: this.components.size
+    };
+  }
+
+  // Clean up all tracked resources
+  cleanup(): void {
+    logger.log('🧹 Performing complete memory manager cleanup...');
+    
+    // Stop monitoring
+    this.stopMonitoring();
+    
+    // Clean up all components
+    const componentIds = Array.from(this.components.keys());
+    componentIds.forEach(id => this.forceCleanupComponent(id));
+    
+    // Clear memory history
+    this.memoryHistory = [];
+    
+    logger.log('✅ Memory manager cleanup complete');
+  }
 }
 
-export default MemoryManager;
+// Hook for React components to use memory management
+export function useMemoryManagement(componentName: string) {
+  const memoryManager = MemoryManager.getInstance();
+  const componentId = `${componentName}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Register component on mount
+  React.useEffect(() => {
+    const tracker = memoryManager.registerComponent(componentId);
+
+    // Return cleanup function
+    return () => {
+      memoryManager.unregisterComponent(componentId);
+    };
+  }, [componentId]);
+
+  // Helper functions for tracking resources
+  const trackInterval = (intervalId: number) => {
+    memoryManager.trackInterval(componentId, intervalId);
+  };
+
+  const trackTimeout = (timeoutId: number) => {
+    memoryManager.trackTimeout(componentId, timeoutId);
+  };
+
+  const trackEventListener = (target: EventTarget, event: string, handler: Function) => {
+    memoryManager.trackEventListener(componentId, target, event, handler);
+  };
+
+  const trackSubscription = (unsubscribe: Function) => {
+    memoryManager.trackSubscription(componentId, unsubscribe);
+  };
+
+  return {
+    trackInterval,
+    trackTimeout,
+    trackEventListener,
+    trackSubscription
+  };
+}
+
+// Error Boundary Component - moved to separate .tsx file due to JSX limitations in .ts files
+// This is a utility interface that can be imported by React components
+
+// Global memory manager instance
+const globalMemoryManager = MemoryManager.getInstance();
+
+// Start monitoring on initialization
+if (typeof window !== 'undefined') {
+  globalMemoryManager.startMonitoring();
+  
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', () => {
+    globalMemoryManager.cleanup();
+  });
+}
+
+export default globalMemoryManager;
+export { MemoryManager };

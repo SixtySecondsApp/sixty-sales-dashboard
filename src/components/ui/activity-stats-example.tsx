@@ -1,6 +1,7 @@
 import React from 'react';
 import { PoundSterling, Users, FileText, BarChart3, UserX } from 'lucide-react';
 import { EnhancedStatCard } from './enhanced-stat-card';
+import logger from '@/lib/utils/logger';
 
 // Example data structure for Activity Log stats
 interface ActivityStats {
@@ -157,7 +158,7 @@ export function ActivityStatsExample() {
   };
 
   const handleStatClick = (statType: string) => {
-    console.log(`Clicked on ${statType} stat`);
+    logger.log(`Clicked on ${statType} stat`);
     // Implement filtering logic here
   };
 

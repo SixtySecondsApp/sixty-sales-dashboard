@@ -46,6 +46,7 @@ import {
   FinancialLogger 
 } from '@/lib/utils/financialValidation';
 import { navigateToCompanyProfile } from '@/lib/utils/companyNavigation';
+import logger from '@/lib/utils/logger';
 
 interface PaymentsTableProps {
   className?: string;
@@ -74,7 +75,7 @@ interface ExtendedPaymentRecord extends PaymentRecord {
   status?: string;
 }
 
-export function PaymentsTable({ className }: PaymentsTableProps) {
+const PaymentsTableComponent = ({ className }: PaymentsTableProps) => {
   const { userData } = useUser();
   const { users } = useUsers();
   const { activities } = useActivities();
@@ -140,12 +141,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
 
   // Extract payment records by combining clients table records AND standalone sale activities
   const paymentRecords = useMemo((): ExtendedPaymentRecord[] => {
-    console.log('💰 Processing payment records from clients table AND activities:', { 
-      clientsCount: clients.length, 
-      dealsCount: deals?.length || 0,
-      activitiesCount: activities?.length || 0,
-      isLoading 
-    });
+    // Processing payment records from clients table AND activities
     
     // Don't render until data is loaded
     if (isLoading || !clients || !activities) {
@@ -154,21 +150,12 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
     
     // Step 1: Get all payment records from clients table
     const clientPaymentRecords = clients.map(paymentRecord => {
-        console.log('💳 Processing payment record:', { 
-          company: paymentRecord.company_name, 
-          deal_id: paymentRecord.deal_id,
-          subscription_amount: paymentRecord.subscription_amount,
-          status: paymentRecord.status
-        });
+        // Processing payment record
         
         // Find corresponding deal if it exists
         const correspondingDeal = paymentRecord.deal_id ? deals?.find(deal => deal.id === paymentRecord.deal_id) : null;
         
-        console.log('🔗 Found deal for payment record:', { 
-          payment: paymentRecord.company_name,
-          dealFound: !!correspondingDeal,
-          dealName: correspondingDeal?.name 
-        });
+        // Found deal for payment record
         
         // Determine payment type: Subscription if there's subscription amount, otherwise One-off invoice
         let paymentType: 'one-off' | 'subscription' = 'one-off';
@@ -276,15 +263,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
         // Resolve the sales rep (convert UUID to readable name if needed)
         const salesRep = resolveUserName(rawSalesRep);
         
-        console.log('🎯 Sales rep resolution for payment:', {
-          payment: paymentRecord.company_name,
-          raw_sales_rep: rawSalesRep,
-          final_sales_rep: salesRep,
-          signed_date: actualSignedDate,
-          activity_found: !!correspondingActivity,
-          deal_found: !!correspondingDeal,
-          deal_id: paymentRecord.deal_id
-        });
+        // Sales rep resolution for payment
 
         const result: ExtendedPaymentRecord = {
           id: paymentRecord.id, // Use payment record ID
@@ -306,7 +285,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
           annual_value: annualValue
         };
         
-        console.log('✅ Processed payment record:', result);
+        // Processed payment record
         return result;
     });
 
@@ -328,12 +307,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
         return !hasPaymentRecord;
       })
       .map(activity => {
-        console.log('🔥 Processing standalone activity as payment:', { 
-          company: activity.client_name, 
-          deal_id: activity.deal_id,
-          amount: activity.amount,
-          sales_rep: activity.sales_rep
-        });
+        // Processing standalone activity as payment
 
         // Find corresponding deal if it exists
         const correspondingDeal = activity.deal_id ? deals?.find(deal => deal.id === activity.deal_id) : null;
@@ -383,13 +357,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
         let rawActivitySalesRep = activity.sales_rep || correspondingDeal?.assigned_to || correspondingDeal?.owner_id || 'Unknown';
         const activitySalesRep = resolveUserName(rawActivitySalesRep);
         
-        console.log('🔥 Standalone activity sales rep resolution:', {
-          activity: activity.client_name,
-          raw_sales_rep: rawActivitySalesRep,
-          final_sales_rep: activitySalesRep,
-          activity_date: activity.date,
-          deal_found: !!correspondingDeal
-        });
+        // Standalone activity sales rep resolution
 
         const result: ExtendedPaymentRecord = {
           id: `activity-${activity.id}`, // Unique ID for standalone activities
@@ -411,7 +379,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
           annual_value: annualValue
         };
 
-        console.log('✅ Processed standalone activity as payment:', result);
+        // Processed standalone activity as payment
         return result;
       });
 
@@ -419,11 +387,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
     const allPaymentRecords = [...clientPaymentRecords, ...standaloneActivityRecords]
       .sort((a, b) => new Date(b.signed_date).getTime() - new Date(a.signed_date).getTime());
 
-    console.log('📊 Final payment records summary:', {
-      clientPaymentRecords: clientPaymentRecords.length,
-      standaloneActivityRecords: standaloneActivityRecords.length,
-      totalPaymentRecords: allPaymentRecords.length
-    });
+    // Final payment records summary
 
     return allPaymentRecords;
   }, [clients, deals, activities, isLoading, resolveUserName]);
@@ -541,16 +505,16 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
     }
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = useCallback((value: number) => {
     return new Intl.NumberFormat('en-GB', { 
       style: 'currency', 
       currency: 'GBP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value);
-  };
+  }, []);
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setFilters({
       searchQuery: '',
       dealType: undefined,
@@ -563,7 +527,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
       dateTo: undefined,
       owner: undefined,
     });
-  };
+  }, []);
 
   // Handle editing deal revenue
   const handleEditDealRevenue = (payment: any) => {
@@ -657,7 +621,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
       
       setEditingClientStatus(null);
     } catch (error: any) {
-      console.error('Error updating client status:', error);
+      logger.error('Error updating client status:', error);
       toast.error('Failed to update client status');
     }
   };
@@ -1074,13 +1038,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
                         {payment.deal_id ? (
                           <button
                             onClick={() => {
-                              console.log('🔍 Opening deal details for ID:', payment.deal_id);
-                              console.log('🔍 Client details:', { 
-                                client_name: payment.client_name,
-                                deal_name: payment.deal_name,
-                                deal_id: payment.deal_id,
-                                activity_id: payment.activity_id 
-                              });
+                              // Opening deal details
                               setViewingDealId(payment.deal_id);
                             }}
                             className="text-left hover:bg-gray-700/50 rounded-lg p-2 -m-2 transition-colors group"
@@ -1156,10 +1114,10 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
         currentAnnualValue={editingDeal?.annual_value}
         onSave={async () => {
           // Refresh both deals data and MRR calculations when a deal is updated
-          console.log('🔄 Deal revenue updated, refreshing data...');
+          // Deal revenue updated, refreshing data
           await refreshDeals();
           await fetchMRRSummary();
-          console.log('✅ Data refreshed after deal revenue update');
+          // Data refreshed after deal revenue update
         }}
       />
 
@@ -1181,3 +1139,7 @@ export function PaymentsTable({ className }: PaymentsTableProps) {
     </div>
   );
 }
+
+// Export memoized component for performance optimization
+export const PaymentsTable = React.memo(PaymentsTableComponent);
+export default PaymentsTable;

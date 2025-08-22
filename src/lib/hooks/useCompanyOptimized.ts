@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { validateCompanyId, SafeQueryBuilder } from '@/lib/utils/sqlSecurity';
+import logger from '@/lib/utils/logger';
 
 // Performance monitoring interface
 interface QueryPerformanceMetrics {
@@ -187,7 +188,7 @@ export function useCompanyOptimized(companyId?: string) {
       setActivities(cachedData.data.activities);
       setClients(cachedData.data.clients);
       setIsLoading(false);
-      console.log('⚡ Using optimized cached data:', `${(queryEndTime - queryStartTime).toFixed(2)}ms`);
+      logger.log('⚡ Using optimized cached data:', `${(queryEndTime - queryStartTime).toFixed(2)}ms`);
       return;
     }
 
@@ -214,7 +215,7 @@ export function useCompanyOptimized(companyId?: string) {
         searchableId = sanitizedCompanyId.replace(/-/g, ' ');
       }
 
-      console.log('🚀 Starting optimized company data fetch for:', { companyId, isValidUUID, searchableId });
+      logger.log('🚀 Starting optimized company data fetch for:', { companyId, isValidUUID, searchableId });
 
       // OPTIMIZED: Single comprehensive query using CTEs
       const optimizedQuery = `
@@ -301,7 +302,7 @@ export function useCompanyOptimized(companyId?: string) {
       });
 
       if (queryError) {
-        console.error('❌ Optimized query error:', queryError);
+        logger.error('❌ Optimized query error:', queryError);
         throw queryError;
       }
 
@@ -364,7 +365,7 @@ export function useCompanyOptimized(companyId?: string) {
         queryType: 'optimized_single_query'
       });
 
-      console.log('✅ Optimized company data compiled:', {
+      logger.log('✅ Optimized company data compiled:', {
         name: optimizedCompany.name,
         deals: dealsData.length,
         activities: activitiesData.length,
@@ -388,7 +389,7 @@ export function useCompanyOptimized(companyId?: string) {
       setClients(uniqueClients);
 
     } catch (err: any) {
-      console.error('❌ Optimized company fetch error:', err);
+      logger.error('❌ Optimized company fetch error:', err);
       setError(err.message || 'Failed to fetch company data');
       toast.error('Failed to load company data');
     } finally {
@@ -408,7 +409,7 @@ export function useCompanyOptimized(companyId?: string) {
       toast.success('Company updated successfully');
       return true;
     } catch (error: any) {
-      console.error('❌ Error updating company:', error);
+      logger.error('❌ Error updating company:', error);
       toast.error('Failed to update company');
       return false;
     }

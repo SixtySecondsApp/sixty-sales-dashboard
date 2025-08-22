@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { Database } from '@/lib/database.types';
 import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
+import logger from '@/lib/utils/logger';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -59,7 +60,7 @@ export const stopImpersonating = async () => {
 
     // Check if we got the old response format (email/password)
     if (data?.email && data?.password) {
-      console.warn('Edge Function is returning old format. Using fallback password-based restoration.');
+      logger.warn('Edge Function is returning old format. Using fallback password-based restoration.');
       
       // Clear impersonation data
       clearImpersonationData();
@@ -112,7 +113,7 @@ export const stopImpersonating = async () => {
       throw new Error('Failed to restore session. Response: ' + JSON.stringify(data));
     }
   } catch (error: any) {
-    console.error('Stop impersonation error:', error);
+    logger.error('Stop impersonation error:', error);
     // Clear sessionStorage and audit context even if there's an error to prevent user from being stuck
     clearImpersonationData();
     clearAuditContext();
@@ -171,7 +172,7 @@ export const impersonateUser = async (userId: string) => {
       throw new Error('Failed to start impersonation. Response: ' + JSON.stringify(data));
     }
   } catch (error: any) {
-    console.error('Impersonation error:', error);
+    logger.error('Impersonation error:', error);
     toast.error('Failed to impersonate user: ' + (error.message || 'Unknown error'));
     throw error;
   }
@@ -196,15 +197,34 @@ export function useUser() {
       clearAuditContext();
     }
 
+    let isUserFetching = false;
+    
     async function fetchUser() {
+      // Prevent concurrent fetches
+      if (isUserFetching) {
+        logger.log('⏭️ Skipping concurrent user fetch');
+        return;
+      }
+      
+      isUserFetching = true;
+      
       try {
         setIsLoading(true);
         setError(null);
 
-        // Get the current user session from Supabase
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // Get the current user session from Supabase with timeout
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+        );
+        
+        const { data: { session }, error: sessionError } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]).catch(err => ({ data: { session: null }, error: err }));
         
         if (sessionError) {
+          logger.warn('Session error (will use fallback):', sessionError.message);
           throw sessionError;
         }
 
@@ -241,7 +261,7 @@ export function useUser() {
               .single();
 
             if (createError) {
-              console.warn('Could not create profile, using basic user data:', createError);
+              logger.warn('Could not create profile, using basic user data:', createError);
               // Fall back to basic user data
               setUserData({
                 id: user.id,
@@ -276,12 +296,12 @@ export function useUser() {
                 .single();
               setOriginalUserData(originalProfile);
             } catch (error) {
-              console.warn('Could not fetch original user data:', error);
+              logger.warn('Could not fetch original user data:', error);
             }
           }
         } else {
           // No user session - create a mock user for development
-          console.log('No authenticated user, creating mock user for development');
+          logger.log('No authenticated user, creating mock user for development');
           setUserData({
             id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
             email: 'andrew.bryce@sixtyseconds.video',
@@ -300,28 +320,34 @@ export function useUser() {
           } as UserProfile);
         }
       } catch (err) {
-        console.error('Error fetching user:', err);
+        // Only log once, not repeatedly
+        if (!error) {
+          logger.error('Error fetching user (using fallback):', err);
+        }
         setError(err);
         
         // Fall back to mock user in case of errors
-        setUserData({
-          id: 'mock-user-id',
-          email: 'demo@example.com',
-          first_name: 'Demo',
-          last_name: 'User',
-          full_name: 'Demo User',
-          avatar_url: null,
-          role: 'Senior',
-          department: 'Sales',
-          stage: 'Senior',
-          is_admin: false,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          username: null,
-          website: null
-        } as UserProfile);
+        if (!userData) {
+          setUserData({
+            id: 'mock-user-id',
+            email: 'demo@example.com',
+            first_name: 'Demo',
+            last_name: 'User',
+            full_name: 'Demo User',
+            avatar_url: null,
+            role: 'Senior',
+            department: 'Sales',
+            stage: 'Senior',
+            is_admin: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            username: null,
+            website: null
+          } as UserProfile);
+        }
       } finally {
         setIsLoading(false);
+        isUserFetching = false;
       }
     }
 
@@ -330,8 +356,13 @@ export function useUser() {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          // User signed in, fetch their profile
+        // Skip initial session event to prevent duplicate fetch
+        if (event === 'INITIAL_SESSION') {
+          return;
+        }
+        
+        if (event === 'SIGNED_IN' && session && !userData) {
+          // User signed in and we don't have user data yet
           fetchUser();
         } else if (event === 'SIGNED_OUT') {
           // User signed out
@@ -358,7 +389,7 @@ export function useUser() {
       // Clear audit context
       clearAuditContext();
     } catch (error) {
-      console.error('Error signing out:', error);
+      logger.error('Error signing out:', error);
       // Force clear user data even if signOut fails
       setUserData(null);
       setOriginalUserData(null);
@@ -372,7 +403,7 @@ export function useUser() {
     try {
       await stopImpersonating();
     } catch (error) {
-      console.error('Error stopping impersonation:', error);
+      logger.error('Error stopping impersonation:', error);
     }
   };
 

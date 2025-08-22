@@ -14,6 +14,7 @@ import { format, addDays, addHours } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import logger from '@/lib/utils/logger';
 
 interface ActivitySectionProps {
   dealId?: string;
@@ -63,7 +64,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
           setRecentNotes(extractRecentNotes(deal.notes));
         }
       } catch (error) {
-        console.error('Error loading recent notes:', error);
+        logger.error('Error loading recent notes:', error);
       }
     };
 
@@ -83,20 +84,20 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
     }
 
     try {
-      console.log('Creating activity:', { activityData, dealId });
+      logger.log('Creating activity:', { activityData, dealId });
       
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) {
         throw new Error('User not authenticated');
       }
 
-      console.log('User authenticated:', userData.user.email);
+      logger.log('User authenticated:', userData.user.email);
 
       // Use simple user email as sales rep name
       const salesRepName = userData.user.email || 'Unknown Rep';
 
       if (activityData.activity_type === 'note') {
-        console.log('Adding note to deal...');
+        logger.log('Adding note to deal...');
         
         // For notes, get current notes and append new one
         const { data: currentDeal, error: fetchError } = await (supabase as any)
@@ -106,11 +107,11 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
           .single();
 
         if (fetchError) {
-          console.error('Error fetching current deal:', fetchError);
+          logger.error('Error fetching current deal:', fetchError);
           throw fetchError;
         }
 
-        console.log('Current deal notes:', currentDeal?.notes);
+        logger.log('Current deal notes:', currentDeal?.notes);
 
         const currentNotes = currentDeal?.notes || '';
         const newNote = `${new Date().toLocaleDateString()}: ${activityData.notes}\n\n${currentNotes}`;
@@ -121,11 +122,11 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
           .eq('id', dealId);
 
         if (updateError) {
-          console.error('Error updating deal notes:', updateError);
+          logger.error('Error updating deal notes:', updateError);
           throw updateError;
         }
 
-        console.log('Note added successfully');
+        logger.log('Note added successfully');
         toast.success('Note added to deal');
         
         // Refresh recent notes display
@@ -133,7 +134,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
         return;
         
       } else if (activityData.activity_type === 'task') {
-        console.log('Creating task in tasks table...');
+        logger.log('Creating task in tasks table...');
         
         // For tasks, create in the tasks table (not activities table)
         const { error: taskError } = await (supabase as any)
@@ -155,7 +156,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
           });
 
         if (taskError) {
-          console.error('Error creating task:', taskError);
+          logger.error('Error creating task:', taskError);
           throw taskError;
         }
 
@@ -175,15 +176,15 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
 
         // Don't fail if activity creation fails (tasks table is more important)
         if (activityError) {
-          console.warn('Activity record creation failed, but task was created successfully:', activityError);
+          logger.warn('Activity record creation failed, but task was created successfully:', activityError);
         }
 
-        console.log('Task created successfully');
+        logger.log('Task created successfully');
         toast.success('Task scheduled and added to task list');
         return;
         
       } else if (activityData.activity_type === 'call' || activityData.activity_type === 'email') {
-        console.log(`Creating ${activityData.activity_type} activity...`);
+        logger.log(`Creating ${activityData.activity_type} activity...`);
         
         // For calls and emails, add to main activities as outbound
         const basicData = {
@@ -212,7 +213,7 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
 
         // If enhanced insert fails, try basic insert
         if (insertError && insertError.message?.includes('column')) {
-          console.log('Enhanced columns not available, trying basic insert...');
+          logger.log('Enhanced columns not available, trying basic insert...');
           const { error: basicError } = await (supabase as any)
             .from('activities')
             .insert(basicData);
@@ -220,17 +221,17 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
         }
 
         if (insertError) {
-          console.error(`Error creating ${activityData.activity_type} activity:`, insertError);
+          logger.error(`Error creating ${activityData.activity_type} activity:`, insertError);
           throw insertError;
         }
 
-        console.log(`${activityData.activity_type} activity created successfully`);
+        logger.log(`${activityData.activity_type} activity created successfully`);
         toast.success(`${activityData.activity_type === 'call' ? 'Call' : 'Email'} logged successfully and added to activity tracking`);
         return;
       }
       
     } catch (error: any) {
-      console.error('Error creating activity:', error);
+      logger.error('Error creating activity:', error);
       toast.error(`Failed to add activity: ${error?.message || 'Unknown error'}`);
     }
   };
@@ -261,15 +262,15 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
   
   // Handle adding a note
   const handleAddNote = async (e?: React.MouseEvent) => {
-    console.log('handleAddNote called');
+    logger.log('handleAddNote called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('Event prevented and stopped');
+      logger.log('Event prevented and stopped');
     }
     
     if (activityNote.trim() && dealId) {
-      console.log('About to create note activity');
+      logger.log('About to create note activity');
       await createDealActivity({
         activity_type: 'note',
         notes: activityNote.trim()
@@ -282,39 +283,39 @@ const ActivitySection: React.FC<ActivitySectionProps> = ({ dealId }) => {
         textareaRef.current.focus();
       }
     } else {
-      console.log('Note not added - missing note or dealId:', { note: activityNote.trim(), dealId });
+      logger.log('Note not added - missing note or dealId:', { note: activityNote.trim(), dealId });
     }
   };
 
   // Handle scheduling a task
   const handleScheduleTask = (e?: React.MouseEvent) => {
-    console.log('handleScheduleTask called');
+    logger.log('handleScheduleTask called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('Event prevented and stopped');
+      logger.log('Event prevented and stopped');
     }
     setShowTaskForm(true);
   };
 
   // Handle logging a call
   const handleLogCall = (e?: React.MouseEvent) => {
-    console.log('handleLogCall called');
+    logger.log('handleLogCall called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('Event prevented and stopped');
+      logger.log('Event prevented and stopped');
     }
     setShowCallForm(true);
   };
 
   // Handle logging an email
   const handleLogEmail = (e?: React.MouseEvent) => {
-    console.log('handleLogEmail called');
+    logger.log('handleLogEmail called');
     if (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log('Event prevented and stopped');
+      logger.log('Event prevented and stopped');
     }
     setShowEmailForm(true);
   };

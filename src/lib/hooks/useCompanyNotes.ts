@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from './useUser';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 export interface CompanyNote {
   id: string;
@@ -99,14 +100,14 @@ export function useCompanyNotes(options: UseCompanyNotesOptions = {}) {
           .rpc('get_company_note_stats', { target_company_id: queryCompanyId });
 
         if (statsError) {
-          console.warn('Failed to fetch note stats:', statsError);
+          logger.warn('Failed to fetch note stats:', statsError);
         } else if (statsData && statsData.length > 0) {
           setStats(statsData[0]);
         }
       }
 
     } catch (err: any) {
-      console.error('Error fetching company notes:', err);
+      logger.error('Error fetching company notes:', err);
       setError(err.message || 'Failed to fetch notes');
       toast.error('Failed to load notes');
     } finally {
@@ -160,7 +161,7 @@ export function useCompanyNotes(options: UseCompanyNotesOptions = {}) {
       return data;
 
     } catch (err: any) {
-      console.error('Error creating note:', err);
+      logger.error('Error creating note:', err);
       toast.error(err.message || 'Failed to create note');
       return null;
     }
@@ -207,7 +208,7 @@ export function useCompanyNotes(options: UseCompanyNotesOptions = {}) {
       return true;
 
     } catch (err: any) {
-      console.error('Error updating note:', err);
+      logger.error('Error updating note:', err);
       toast.error(err.message || 'Failed to update note');
       return false;
     }
@@ -242,7 +243,7 @@ export function useCompanyNotes(options: UseCompanyNotesOptions = {}) {
       return true;
 
     } catch (err: any) {
-      console.error('Error deleting note:', err);
+      logger.error('Error deleting note:', err);
       toast.error(err.message || 'Failed to delete note');
       return false;
     }
@@ -298,7 +299,7 @@ export function useCompanyNotes(options: UseCompanyNotesOptions = {}) {
           filter: `company_id=eq.${companyId}`,
         },
         (payload) => {
-          console.log('Real-time note update:', payload);
+          logger.log('Real-time note update:', payload);
           // Refetch notes to get updated data with joins
           fetchNotes();
         }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '@/lib/hooks/useUser';
 import { createClient } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/button';
+import logger from '@/lib/utils/logger';
 
 export default function TestFallback() {
   const { userData, isAuthenticated } = useUser();
@@ -45,7 +46,7 @@ export default function TestFallback() {
     
     // Test 3: Service Role Key Fallback (This should always work)
     try {
-      console.log('🧪 Testing service role key fallback...');
+      logger.log('🧪 Testing service role key fallback...');
       
       const serviceSupabase = createClient(
         import.meta.env.VITE_SUPABASE_URL,

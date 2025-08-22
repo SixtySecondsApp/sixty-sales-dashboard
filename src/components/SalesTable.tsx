@@ -49,6 +49,7 @@ import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
 import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
 import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-filter';
 import { SubscriptionStats } from './SubscriptionStats';
+import logger from '@/lib/utils/logger';
 // ActivityFilters component created inline to avoid import issues
 
 interface StatCardProps {
@@ -206,7 +207,7 @@ export function SalesTable() {
                matchesStatus && matchesPriority && matchesAmountRange && 
                matchesSubType && matchesSearch;
       } catch (e) {
-        console.error("Error parsing activity date:", activity.date, e);
+        logger.error("Error parsing activity date:", activity.date, e);
         return false; // Exclude activities with invalid dates
       }
     });
@@ -224,7 +225,7 @@ export function SalesTable() {
         
         return matchesDate;
       } catch (e) {
-        console.error("Error parsing activity date:", activity.date, e);
+        logger.error("Error parsing activity date:", activity.date, e);
         return false; // Exclude activities with invalid dates
       }
     });
@@ -241,7 +242,7 @@ export function SalesTable() {
                activityDate >= previousDateRange.start && 
                activityDate <= previousDateRange.end;
       } catch (e) {
-        console.error("Error parsing activity date for previous period:", activity.date, e);
+        logger.error("Error parsing activity date for previous period:", activity.date, e);
         return false; 
       }
     });
@@ -357,9 +358,9 @@ export function SalesTable() {
   };
 
   const handleDelete = (id: string | null) => {
-    console.log('Attempting to delete activity with id:', id);
+    logger.log('Attempting to delete activity with id:', id);
     if (!id) {
-      console.error('No activity ID provided for deletion');
+      logger.error('No activity ID provided for deletion');
       return;
     }
     removeActivity(id);
@@ -368,7 +369,7 @@ export function SalesTable() {
   };
 
   const handleDeleteClick = (id: string) => {
-    console.log('Setting activity to delete:', id);
+    logger.log('Setting activity to delete:', id);
     setActivityToDelete(id);
     setDeleteDialogOpen(true);
   };
@@ -382,7 +383,7 @@ export function SalesTable() {
       await updateActivity({ id: activityId, updates });
       setEditingActivity(null);
     } catch (error) {
-      console.error("Failed to update activity:", error);
+      logger.error("Failed to update activity:", error);
       toast.error("Failed to update activity. Please try again.");
     }
   };
@@ -750,7 +751,7 @@ export function SalesTable() {
       
       toast.success(`Exported ${filteredActivities.length} activities to ${filename}`);
     } catch (error) {
-      console.error('Export error:', error);
+      logger.error('Export error:', error);
       toast.error('Failed to export data. Please try again.');
     }
   };
@@ -1191,7 +1192,7 @@ export function SalesTable() {
             <Button
               type="button"
               onClick={() => {
-                console.log('Delete button clicked, id:', activityToDelete);
+                logger.log('Delete button clicked, id:', activityToDelete);
                 handleDelete(activityToDelete);
               }}
               className="bg-red-500 hover:bg-red-600 text-white"

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Camera, Save, Lock } from 'lucide-react';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 export default function Profile() {
   const { userData } = useUser();
@@ -148,7 +149,7 @@ export default function Profile() {
       toast.success('Profile picture updated successfully');
     } catch (error) {
       toast.error('Upload failed');
-      console.error('[Profile]', error);
+      logger.error('[Profile]', error);
       setUploading(false);
     }
   };

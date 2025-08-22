@@ -8,6 +8,8 @@
  * - Critical resource prioritization
  */
 
+import logger from '@/lib/utils/logger';
+
 // Resource preloading utilities
 export const preloadModule = (moduleId: string, priority: 'high' | 'medium' | 'low' = 'medium') => {
   if (typeof window === 'undefined') return;
@@ -252,7 +254,7 @@ export const smartPreloader = {
     const predicted = smartPreloader.predictNextRoute();
     if (predicted) {
       // This would trigger route-specific preloading
-      console.log('Preloading predicted route:', predicted);
+      logger.log('Preloading predicted route:', predicted);
     }
   }
 };
@@ -273,7 +275,7 @@ export const treeShakeUtils = {
     const script = document.querySelector(`script[src*="${moduleName}"]`);
     if (script && !treeShakeUtils.isModuleUsed(moduleName)) {
       script.remove();
-      console.log(`Removed unused module: ${moduleName}`);
+      logger.log(`Removed unused module: ${moduleName}`);
     }
   }
 };

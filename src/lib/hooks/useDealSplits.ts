@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { DealSplit, DealSplitWithUser } from '@/lib/database/models';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface UseDealSplitsOptions {
   dealId?: string;
@@ -42,7 +43,7 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
 
       setSplits(data || []);
     } catch (err: any) {
-      console.error('Error fetching deal splits:', err);
+      logger.error('Error fetching deal splits:', err);
       setError(err.message);
       toast.error('Failed to load deal splits');
     } finally {
@@ -90,7 +91,7 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       
       return data;
     } catch (err: any) {
-      console.error('Error creating deal split:', err);
+      logger.error('Error creating deal split:', err);
       setError(err.message);
       toast.error(err.message || 'Failed to create deal split');
       throw err;
@@ -141,7 +142,7 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       
       return data;
     } catch (err: any) {
-      console.error('Error updating deal split:', err);
+      logger.error('Error updating deal split:', err);
       setError(err.message);
       toast.error(err.message || 'Failed to update deal split');
       throw err;
@@ -169,7 +170,7 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       
       return true;
     } catch (err: any) {
-      console.error('Error deleting deal split:', err);
+      logger.error('Error deleting deal split:', err);
       setError(err.message);
       toast.error(err.message || 'Failed to delete deal split');
       return false;

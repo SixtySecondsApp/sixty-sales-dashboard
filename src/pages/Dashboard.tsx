@@ -21,6 +21,7 @@ import {
 import SalesActivityChart from '@/components/SalesActivityChart';
 import ReactDOM from 'react-dom';
 import { SubscriptionStats } from '@/components/SubscriptionStats';
+import logger from '@/lib/utils/logger';
 
 interface MetricCardProps {
   title: string;
@@ -101,7 +102,7 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
         navigate('/activity', { state: { preserveFilters: true } });
       }
     } catch (error) {
-      console.error('Navigation error:', error);
+      logger.error('Navigation error:', error);
     }
   };
 
@@ -126,7 +127,7 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
       if (!previousMonthTotal || previousMonthTotal === 0) return 0;
       return Math.round(((value - previousMonthTotal) / previousMonthTotal) * 100);
     } catch (error) {
-      console.error('Error calculating total trend:', error);
+      logger.error('Error calculating total trend:', error);
       return 0;
     }
   }, [value, previousMonthTotal]);
@@ -157,7 +158,7 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
         setShowTrendTooltip(true);
       }
     } catch (error) {
-      console.error('Error showing trend tooltip:', error);
+      logger.error('Error showing trend tooltip:', error);
     }
   };
 
@@ -173,7 +174,7 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
         setShowTotalTooltip(true);
       }
     } catch (error) {
-      console.error('Error showing total tooltip:', error);
+      logger.error('Error showing total tooltip:', error);
     }
   };
 
@@ -388,13 +389,13 @@ export default function Dashboard() {
         const newMonth = subMonths(prev, 1);
         // Ensure the date is valid
         if (isNaN(newMonth.getTime())) {
-          console.error('Invalid date after subtracting month');
+          logger.error('Invalid date after subtracting month');
           return prev;
         }
         return newMonth;
       });
     } catch (error) {
-      console.error('Error navigating to previous month:', error);
+      logger.error('Error navigating to previous month:', error);
     }
   };
   
@@ -404,7 +405,7 @@ export default function Dashboard() {
         const newMonth = addMonths(prev, 1);
         // Ensure the date is valid
         if (isNaN(newMonth.getTime())) {
-          console.error('Invalid date after adding month');
+          logger.error('Invalid date after adding month');
           return prev;
         }
         // Don't go beyond current month
@@ -414,7 +415,7 @@ export default function Dashboard() {
         return newMonth;
       });
     } catch (error) {
-      console.error('Error navigating to next month:', error);
+      logger.error('Error navigating to next month:', error);
     }
   };
   const { userData } = useUser();
@@ -433,7 +434,7 @@ export default function Dashboard() {
     try {
       return getDate(new Date());
     } catch (error) {
-      console.error('Error getting current day of month:', error);
+      logger.error('Error getting current day of month:', error);
       return 1; // Fallback to 1st of month
     }
   }, []);
@@ -450,12 +451,12 @@ export default function Dashboard() {
           if (isNaN(activityDate.getTime())) return false;
           return activityDate >= selectedMonthRange.start && activityDate <= selectedMonthRange.end;
         } catch (error) {
-          console.error('Error filtering activity:', error);
+          logger.error('Error filtering activity:', error);
           return false;
         }
       });
     } catch (error) {
-      console.error('Error filtering selected month activities:', error);
+      logger.error('Error filtering selected month activities:', error);
       return [];
     }
   }, [activities, selectedMonthRange]);
@@ -480,12 +481,12 @@ export default function Dashboard() {
           if (isNaN(activityDate.getTime())) return false;
           return activityDate >= prevMonthStart && activityDate <= prevMonthCutoff;
         } catch (error) {
-          console.error('Error filtering previous month activity:', error);
+          logger.error('Error filtering previous month activity:', error);
           return false;
         }
       });
     } catch (error) {
-      console.error('Error calculating previous month activities:', error);
+      logger.error('Error calculating previous month activities:', error);
       return [];
     }
   }, [activities, selectedMonth, currentDayOfMonth]);
@@ -508,7 +509,7 @@ export default function Dashboard() {
           .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0)
       };
     } catch (error) {
-      console.error('Error calculating metrics:', error);
+      logger.error('Error calculating metrics:', error);
       return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
     }
   }, [selectedMonthActivities]);
@@ -544,7 +545,7 @@ export default function Dashboard() {
           if (isNaN(activityDate.getTime())) return false;
           return !isBefore(activityDate, prevMonthStart) && !isAfter(activityDate, prevMonthEnd);
         } catch (error) {
-          console.error('Error filtering previous month total activity:', error);
+          logger.error('Error filtering previous month total activity:', error);
           return false;
         }
       }) || [];
@@ -565,7 +566,7 @@ export default function Dashboard() {
           .reduce((sum, a) => sum + (a.quantity || 1), 0)
       };
     } catch (error) {
-      console.error('Error calculating previous month totals:', error);
+      logger.error('Error calculating previous month totals:', error);
       return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
     }
   }, [activities, selectedMonth]);
@@ -639,7 +640,7 @@ export default function Dashboard() {
                 try {
                   return format(selectedMonth, 'MMMM yyyy');
                 } catch (error) {
-                  console.error('Error formatting selected month:', error);
+                  logger.error('Error formatting selected month:', error);
                   return 'Invalid Date';
                 }
               })()}

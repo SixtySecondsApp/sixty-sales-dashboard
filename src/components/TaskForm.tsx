@@ -34,6 +34,7 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface TaskFormProps {
   task?: Task;
@@ -264,7 +265,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
       
       setSearchedContacts(results);
     } catch (error) {
-      console.error('Error searching contacts:', error);
+      logger.error('Error searching contacts:', error);
       setSearchedContacts([]);
     }
   };
@@ -313,7 +314,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
           due_date: formattedDate
         }));
       } catch (error) {
-        console.error('Error setting date:', error);
+        logger.error('Error setting date:', error);
         // Fallback to simple date format
         const fallbackDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${selectedTime}`;
         setFormData(prev => ({
@@ -338,7 +339,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
           due_date: formattedDate
         }));
       } catch (error) {
-        console.error('Error setting time:', error);
+        logger.error('Error setting time:', error);
         // Fallback to simple date format
         const fallbackDate = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}T${time}`;
         setFormData(prev => ({
@@ -378,7 +379,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
         }
       ];
     } catch (error) {
-      console.error('Error generating quick dates:', error);
+      logger.error('Error generating quick dates:', error);
       // Fallback to simple dates
       const now = new Date();
       return [
@@ -400,8 +401,8 @@ const TaskForm: React.FC<TaskFormProps> = ({
     e.preventDefault();
     
     // Debug user data
-    console.log('TaskForm handleSubmit - userData:', userData);
-    console.log('TaskForm handleSubmit - isUserLoading:', isUserLoading);
+    logger.log('TaskForm handleSubmit - userData:', userData);
+    logger.log('TaskForm handleSubmit - isUserLoading:', isUserLoading);
     
     if (!formData.title.trim()) {
       toast.error('Task title is required');
@@ -474,7 +475,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
         toast.success('Task updated successfully');
       } else {
         const newTask = await createTask(taskData);
-        console.log('Task created successfully:', newTask);
+        logger.log('Task created successfully:', newTask);
         
         // Notify parent component of task creation
         if (onTaskCreated && newTask) {
@@ -499,7 +500,7 @@ const TaskForm: React.FC<TaskFormProps> = ({
       }, 100);
       
     } catch (error) {
-      console.error('Error saving task:', error);
+      logger.error('Error saving task:', error);
       toast.error('Failed to save task. Please try again.');
     } finally {
       setIsSubmitting(false);

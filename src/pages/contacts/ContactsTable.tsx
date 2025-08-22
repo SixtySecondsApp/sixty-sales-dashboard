@@ -43,6 +43,7 @@ import { useUser } from '@/lib/hooks/useUser';
 import { API_BASE_URL } from '@/lib/config';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
+import logger from '@/lib/utils/logger';
 
 interface Contact {
   id: string;
@@ -127,17 +128,17 @@ export default function ContactsTable() {
         setError(null);
         
         // Check authentication first
-        console.log('🔍 Checking user authentication for contacts...');
+        logger.log('🔍 Checking user authentication for contacts...');
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          console.log('⚠️ No session found - using service key fallback for contacts...');
+          logger.log('⚠️ No session found - using service key fallback for contacts...');
           
           // Skip Edge Functions entirely and go straight to service key fallback
           const { supabaseAdmin } = await import('@/lib/supabase/clientV3-optimized');
           const serviceSupabase = supabaseAdmin;
           
-          console.log('🛡️ Using service key fallback for contacts (no auth)...');
+          logger.log('🛡️ Using service key fallback for contacts (no auth)...');
           
           // Use the actual database structure - no companies join since relationship doesn't exist
           let query = (serviceSupabase as any)
@@ -154,11 +155,11 @@ export default function ContactsTable() {
             .order('created_at', { ascending: false });
             
           if (serviceError) {
-            console.error('❌ Service key contacts fallback failed:', serviceError);
+            logger.error('❌ Service key contacts fallback failed:', serviceError);
             throw serviceError;
           }
           
-          console.log(`✅ Service key contacts fallback successful: Retrieved ${serviceContactsData?.length || 0} contacts`);
+          logger.log(`✅ Service key contacts fallback successful: Retrieved ${serviceContactsData?.length || 0} contacts`);
           
           // Process contacts - no company join available, so use the company text field
           const processedContacts = serviceContactsData?.map((contact: any) => ({
@@ -174,7 +175,7 @@ export default function ContactsTable() {
         }
 
         // If authenticated, try Edge Functions first
-        console.log('🌐 User authenticated - trying Edge Functions for contacts...');
+        logger.log('🌐 User authenticated - trying Edge Functions for contacts...');
         
         const params = new URLSearchParams({
           includeCompany: 'true'
@@ -202,11 +203,11 @@ export default function ContactsTable() {
           setContacts(result.data || []);
           return;
         } catch (edgeFunctionError) {
-          console.warn('Contacts Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+          logger.warn('Contacts Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
         }
 
         // Fallback to direct Supabase client with anon key
-        console.log('🛡️ Contacts fallback: Using direct Supabase client...');
+        logger.log('🛡️ Contacts fallback: Using direct Supabase client...');
         
         let query = (supabase as any)
           .from('contacts')
@@ -221,8 +222,8 @@ export default function ContactsTable() {
         const { data: contactsData, error: supabaseError } = await query;
 
         if (supabaseError) {
-          console.error('❌ Contacts anon fallback failed:', supabaseError);
-          console.log('🔄 Trying contacts with service role key...');
+          logger.error('❌ Contacts anon fallback failed:', supabaseError);
+          logger.log('🔄 Trying contacts with service role key...');
           
           // Last resort: try with service role key
           const { supabaseAdmin } = await import('@/lib/supabase/clientV3-optimized');
@@ -242,11 +243,11 @@ export default function ContactsTable() {
             .order('created_at', { ascending: false });
             
           if (serviceError) {
-            console.error('❌ Service key contacts fallback failed:', serviceError);
+            logger.error('❌ Service key contacts fallback failed:', serviceError);
             throw serviceError;
           }
           
-          console.log(`✅ Service key contacts fallback successful: Retrieved ${serviceContactsData?.length || 0} contacts`);
+          logger.log(`✅ Service key contacts fallback successful: Retrieved ${serviceContactsData?.length || 0} contacts`);
           const processedContacts = serviceContactsData?.map((contact: any) => ({
             ...contact,
             is_primary: contact.is_primary || false,
@@ -257,7 +258,7 @@ export default function ContactsTable() {
           return;
         }
 
-        console.log(`✅ Contacts fallback successful: Retrieved ${contactsData?.length || 0} contacts`);
+        logger.log(`✅ Contacts fallback successful: Retrieved ${contactsData?.length || 0} contacts`);
         
         // Process the data to match expected interface
         const processedContacts = contactsData?.map((contact: any) => ({
@@ -268,7 +269,7 @@ export default function ContactsTable() {
 
         setContacts(processedContacts);
       } catch (err) {
-        console.error('Error fetching contacts:', err);
+        logger.error('Error fetching contacts:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch contacts');
         toast.error('Failed to load contacts');
       } finally {

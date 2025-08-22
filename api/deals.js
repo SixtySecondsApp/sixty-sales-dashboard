@@ -487,6 +487,15 @@ async function handleCreateDeal(response, request, requestStartTime) {
       probability,
       status = 'active'
     } = body;
+
+    // Validation: Ensure required fields are present
+    if (!name || !company || !owner_id) {
+      return apiResponse(response, null, 'Missing required fields: name, company, owner_id', 400, { requestStartTime });
+    }
+    
+    console.log('🚀 Creating deal with validated data:', {
+      name, company, company_id, primary_contact_id, value, stage_id, owner_id
+    });
     
     const query = `
       INSERT INTO deals (
@@ -505,15 +514,32 @@ async function handleCreateDeal(response, request, requestStartTime) {
     
     const result = await executeQueryWithRetry(query, params);
     
+    // Ensure we got a result
+    if (!result || !result.rows || result.rows.length === 0) {
+      console.error('❌ Database returned no rows after insert');
+      throw new Error('Failed to create deal - database returned no data');
+    }
+    
+    const createdDeal = result.rows[0];
+    
+    // Validate the created deal has required fields
+    if (!createdDeal.id) {
+      console.error('❌ Created deal missing ID:', createdDeal);
+      throw new Error('Failed to create deal - missing ID in response');
+    }
+    
+    console.log('✅ Deal created successfully:', { id: createdDeal.id, name: createdDeal.name });
+    
     // Invalidate relevant caches
     await invalidateCachePattern('deals.*');
     await invalidateCachePattern('dashboard.*');
     await invalidateCachePattern('pipeline-stats.*');
     
-    return apiResponse(response, result.rows[0], 'Deal created successfully', 201, { requestStartTime });
+    // Return properly formatted response with data wrapper for consistency
+    return apiResponse(response, { data: createdDeal }, 'Deal created successfully', 201, { requestStartTime });
   } catch (error) {
-    console.error('Error creating deal:', error);
-    return apiResponse(response, null, error.message, 500);
+    console.error('❌ Error creating deal:', error);
+    return apiResponse(response, null, error.message, 500, { requestStartTime });
   }
 }
 

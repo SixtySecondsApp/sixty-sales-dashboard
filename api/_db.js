@@ -23,17 +23,28 @@ function initializePool() {
         rejectUnauthorized: false
       },
       // Pool configuration for optimal performance
-      max: 20, // Maximum number of clients in the pool
-      min: 2, // Minimum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 10000, // Connection timeout
-      query_timeout: 15000, // Query timeout
-      statement_timeout: 15000, // Statement timeout
-      idle_in_transaction_session_timeout: 15000, // Idle transaction timeout
+      max: 15, // Reduced maximum number of clients in the pool for better resource management
+      min: 3, // Increased minimum to ensure availability
+      idleTimeoutMillis: 20000, // Reduced idle timeout for faster cleanup
+      connectionTimeoutMillis: 8000, // Reduced connection timeout for faster failures
+      query_timeout: 12000, // Reduced query timeout for better performance
+      statement_timeout: 12000, // Reduced statement timeout
+      idle_in_transaction_session_timeout: 10000, // Reduced idle transaction timeout
       
       // Pool-specific settings
       allowExitOnIdle: true, // Allow pool to close when all clients are idle
-      maxUses: 7500, // Maximum uses per connection before cycling
+      maxUses: 5000, // Reduced max uses to cycle connections more frequently
+      
+      // Additional optimizations
+      keepAlive: true, // Keep TCP connections alive
+      keepAliveInitialDelayMillis: 10000, // Initial delay before keepalive
+      
+      // Advanced pool settings
+      acquireTimeoutMillis: 8000, // Time to wait for connection acquisition
+      createTimeoutMillis: 8000, // Time to wait for connection creation
+      destroyTimeoutMillis: 5000, // Time to wait for connection destruction
+      reapIntervalMillis: 1000, // How often to check for idle connections
+      createRetryIntervalMillis: 200, // Retry interval for failed connections
     });
 
     // Pool event handlers for monitoring
@@ -82,7 +93,7 @@ export async function getDbClient() {
   }
 }
 
-// Get pool statistics
+// Get pool statistics with enhanced monitoring
 export function getPoolStats() {
   if (!pool) return null;
   
@@ -91,8 +102,104 @@ export function getPoolStats() {
     idleCount: pool.idleCount,
     waitingCount: pool.waitingCount,
     maxPoolSize: pool.options.max,
-    minPoolSize: pool.options.min
+    minPoolSize: pool.options.min,
+    utilizationRate: ((pool.totalCount - pool.idleCount) / pool.options.max * 100).toFixed(2) + '%',
+    healthStatus: pool.waitingCount > 5 ? 'overloaded' : pool.idleCount < 2 ? 'busy' : 'healthy'
   };
+}
+
+// Query optimization cache for frequently used queries
+const queryCache = new Map();
+const QUERY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 100;
+
+// Add query to cache
+function cacheQuery(queryKey, result) {
+  // Implement LRU eviction if cache is full
+  if (queryCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = queryCache.keys().next().value;
+    queryCache.delete(firstKey);
+  }
+  
+  queryCache.set(queryKey, {
+    result,
+    timestamp: Date.now(),
+    hitCount: 0
+  });
+}
+
+// Get query from cache
+function getCachedQuery(queryKey) {
+  const cached = queryCache.get(queryKey);
+  if (!cached) return null;
+  
+  // Check if expired
+  if (Date.now() - cached.timestamp > QUERY_CACHE_TTL) {
+    queryCache.delete(queryKey);
+    return null;
+  }
+  
+  cached.hitCount++;
+  return cached.result;
+}
+
+// Generate cache key for query
+function generateQueryKey(query, params) {
+  const paramStr = params ? JSON.stringify(params) : '';
+  return `${query.trim().substring(0, 100)}_${paramStr}`.replace(/\s+/g, ' ');
+}
+
+// Optimized query execution for SELECT operations
+export async function executeOptimizedQuery(query, params = [], options = {}) {
+  const { enableCache = false, cacheTTL = QUERY_CACHE_TTL } = options;
+  
+  // Only cache SELECT queries
+  const isSelectQuery = query.trim().toUpperCase().startsWith('SELECT');
+  
+  if (enableCache && isSelectQuery) {
+    const queryKey = generateQueryKey(query, params);
+    const cached = getCachedQuery(queryKey);
+    
+    if (cached) {
+      console.log(`🚀 Query cache HIT for: ${queryKey.substring(0, 50)}...`);
+      return cached;
+    }
+  }
+  
+  // Execute query normally
+  const result = await executeQuery(query, params, options);
+  
+  // Cache result if it's a SELECT query and caching is enabled
+  if (enableCache && isSelectQuery && result) {
+    const queryKey = generateQueryKey(query, params);
+    cacheQuery(queryKey, result);
+    console.log(`💾 Cached query result for: ${queryKey.substring(0, 50)}...`);
+  }
+  
+  return result;
+}
+
+// Get cache statistics
+export function getQueryCacheStats() {
+  const entries = Array.from(queryCache.entries());
+  const totalHits = entries.reduce((sum, [_, value]) => sum + value.hitCount, 0);
+  
+  return {
+    size: queryCache.size,
+    maxSize: MAX_CACHE_SIZE,
+    totalHits,
+    hitRate: entries.length > 0 ? (totalHits / entries.length).toFixed(2) : '0.00',
+    oldestEntry: entries.length > 0 ? Math.min(...entries.map(([_, value]) => value.timestamp)) : null,
+    utilizationRate: ((queryCache.size / MAX_CACHE_SIZE) * 100).toFixed(2) + '%'
+  };
+}
+
+// Clear query cache
+export function clearQueryCache() {
+  const size = queryCache.size;
+  queryCache.clear();
+  console.log(`🗑️ Cleared query cache: ${size} entries removed`);
+  return size;
 }
 
 // Enhanced query execution with performance monitoring and connection pooling

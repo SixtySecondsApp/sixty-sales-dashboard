@@ -13,6 +13,7 @@
  */
 
 import { LZString } from 'lz-string';
+import logger from '@/lib/utils/logger';
 
 // Cache entry types
 interface CacheEntry<T> {
@@ -118,12 +119,12 @@ export class SmartCache {
       const request = indexedDB.open(this.dbName, 1);
       
       request.onerror = () => {
-        console.warn('IndexedDB initialization failed, falling back to localStorage');
+        logger.warn('IndexedDB initialization failed, falling back to localStorage');
       };
       
       request.onsuccess = () => {
         this.indexedDB = request.result;
-        console.log('✅ IndexedDB cache initialized');
+        logger.log('✅ IndexedDB cache initialized');
       };
       
       request.onupgradeneeded = (event) => {
@@ -136,7 +137,7 @@ export class SmartCache {
         }
       };
     } catch (error) {
-      console.warn('IndexedDB not available:', error);
+      logger.warn('IndexedDB not available:', error);
     }
   }
 
@@ -240,7 +241,7 @@ export class SmartCache {
     
     if (oldestKey) {
       this.memoryCache.delete(oldestKey);
-      console.log(`🗑️ Evicted LRU cache entry: ${oldestKey}`);
+      logger.log(`🗑️ Evicted LRU cache entry: ${oldestKey}`);
     }
   }
 
@@ -268,7 +269,7 @@ export class SmartCache {
         const store = transaction.objectStore('cache');
         await store.put({ key, ...persistentEntry });
       } catch (error) {
-        console.warn('IndexedDB storage failed, falling back to localStorage:', error);
+        logger.warn('IndexedDB storage failed, falling back to localStorage:', error);
         this.storeInLocalStorage(key, persistentEntry);
       }
     } else {
@@ -280,7 +281,7 @@ export class SmartCache {
     try {
       localStorage.setItem(`cache:${key}`, JSON.stringify(entry));
     } catch (error) {
-      console.warn('localStorage storage failed:', error);
+      logger.warn('localStorage storage failed:', error);
     }
   }
 
@@ -305,7 +306,7 @@ export class SmartCache {
           request.onerror = () => resolve(null);
         });
       } catch (error) {
-        console.warn('IndexedDB retrieval failed:', error);
+        logger.warn('IndexedDB retrieval failed:', error);
       }
     }
     
@@ -318,7 +319,7 @@ export class SmartCache {
         return { ...entry, data };
       }
     } catch (error) {
-      console.warn('localStorage retrieval failed:', error);
+      logger.warn('localStorage retrieval failed:', error);
     }
     
     return null;
@@ -357,12 +358,12 @@ export class SmartCache {
       entry.lastAccessed = Date.now();
       this.metrics.hits++;
       
-      console.log(`⚡ Cache hit for ${key} (${duration.toFixed(2)}ms)`);
+      logger.log(`⚡ Cache hit for ${key} (${duration.toFixed(2)}ms)`);
       return entry.data;
     }
     
     this.metrics.misses++;
-    console.log(`❌ Cache miss for ${key} (${duration.toFixed(2)}ms)`);
+    logger.log(`❌ Cache miss for ${key} (${duration.toFixed(2)}ms)`);
     return null;
   }
 
@@ -404,7 +405,7 @@ export class SmartCache {
     }
     
     this.updateMetrics();
-    console.log(`💾 Cached ${key} (${(originalSize / 1024).toFixed(2)}KB, TTL: ${ttl / 1000}s)`);
+    logger.log(`💾 Cached ${key} (${(originalSize / 1024).toFixed(2)}KB, TTL: ${ttl / 1000}s)`);
     
     // Predictive caching
     if (this.config.enablePredictive) {
@@ -444,11 +445,11 @@ export class SmartCache {
           }
         };
       } catch (error) {
-        console.warn('IndexedDB invalidation failed:', error);
+        logger.warn('IndexedDB invalidation failed:', error);
       }
     }
     
-    console.log(`🗑️ Invalidated ${invalidatedKeys.length} cache entries for pattern: ${pattern}`);
+    logger.log(`🗑️ Invalidated ${invalidatedKeys.length} cache entries for pattern: ${pattern}`);
   }
 
   private shouldInvalidate(entryPattern: string, invalidationPattern: string): boolean {
@@ -461,7 +462,7 @@ export class SmartCache {
     const predictiveQueries = PREDICTIVE_PATTERNS[pattern];
     
     if (predictiveQueries) {
-      console.log(`🔮 Triggering predictive caching for pattern: ${pattern}`);
+      logger.log(`🔮 Triggering predictive caching for pattern: ${pattern}`);
       // This would be implemented with actual query functions
       // For now, just log the intention
     }
@@ -496,7 +497,7 @@ export class SmartCache {
     }
     
     if (cleanedCount > 0) {
-      console.log(`🧹 Cleaned up ${cleanedCount} expired cache entries`);
+      logger.log(`🧹 Cleaned up ${cleanedCount} expired cache entries`);
     }
   }
 
@@ -531,7 +532,7 @@ export class SmartCache {
       }
     }
     
-    console.log('🗑️ All cache cleared');
+    logger.log('🗑️ All cache cleared');
   }
 }
 

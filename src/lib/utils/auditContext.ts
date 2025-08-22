@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getImpersonationData } from '@/lib/hooks/useUser';
+import logger from '@/lib/utils/logger';
 
 /**
  * Sets the impersonation context in the database session for audit logging
@@ -24,7 +25,7 @@ export async function setAuditContext(): Promise<void> {
             p_is_impersonating: true
           });
         } catch (rpcError) {
-          console.debug('Audit context RPC not available:', rpcError);
+          logger.debug('Audit context RPC not available:', rpcError);
         }
       }
     } else {
@@ -32,7 +33,7 @@ export async function setAuditContext(): Promise<void> {
       await clearAuditContext();
     }
   } catch (error) {
-    console.error('Failed to set audit context:', error);
+    logger.error('Failed to set audit context:', error);
     // Don't throw here as this shouldn't block the main operation
   }
 }
@@ -43,10 +44,10 @@ export async function setAuditContext(): Promise<void> {
 export async function clearAuditContext(): Promise<void> {
   try {
     // Skip RPC call as clear_audit_context function doesn't exist in this database
-    console.log('📝 Audit context cleared locally');
+    logger.log('📝 Audit context cleared locally');
     // TODO: Implement clear_audit_context RPC function in database if needed
   } catch (error) {
-    console.debug('Clear audit context RPC not available:', error);
+    logger.debug('Clear audit context RPC not available:', error);
     // Don't throw here as this shouldn't block the main operation
   }
 }

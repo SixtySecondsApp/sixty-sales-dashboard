@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient, Session, User } from '@supabase/supabase-js';
 import { Database } from '../database.types';
+import logger from '@/lib/utils/logger';
 
 // Environment variables with validation
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -82,7 +83,7 @@ export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient
       const value = client[prop as keyof TypedSupabaseClient];
       return typeof value === 'function' ? value.bind(client) : value;
     } catch (error) {
-      console.error('Supabase client proxy error:', error);
+      logger.error('Supabase client proxy error:', error);
       throw error;
     }
   }
@@ -123,7 +124,7 @@ export const supabaseAdmin: TypedSupabaseClient = new Proxy({} as TypedSupabaseC
       const value = client[prop as keyof TypedSupabaseClient];
       return typeof value === 'function' ? value.bind(client) : value;
     } catch (error) {
-      console.error('Supabase admin client proxy error:', error);
+      logger.error('Supabase admin client proxy error:', error);
       throw error;
     }
   }

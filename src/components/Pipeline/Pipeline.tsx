@@ -32,6 +32,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
+import logger from '@/lib/utils/logger';
 
 
 
@@ -224,7 +225,7 @@ function PipelineContent() {
       setIsEditModalOpen(false);
       
       // Force a refresh of the deals data to update pipeline totals immediately
-      console.log('🔄 Deal saved successfully, refreshing deals data...');
+      logger.log('🔄 Deal saved successfully, refreshing deals data...');
       await refreshDeals();
       
       // Force a component refresh to ensure calculations update
@@ -480,7 +481,7 @@ function PipelineContent() {
       setRefreshKey(prev => prev + 1);
       
     } catch (error) {
-      console.error('Error closing deal:', error);
+      logger.error('Error closing deal:', error);
       toast.error('Failed to save deal closure information');
       throw error;
     }

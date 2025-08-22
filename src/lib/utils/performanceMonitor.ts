@@ -10,6 +10,7 @@
  */
 
 import React from 'react';
+import logger from '@/lib/utils/logger';
 
 // Core Web Vitals types
 interface WebVital {
@@ -65,6 +66,7 @@ class PerformanceMonitor {
   private apiMetrics: APIPerformanceData[] = [];
   private observers: PerformanceObserver[] = [];
   private isEnabled: boolean = true;
+  private memoryInterval: NodeJS.Timeout | null = null;
   
   // Performance budgets (in milliseconds)
   private readonly PERFORMANCE_BUDGETS = {
@@ -128,7 +130,7 @@ class PerformanceMonitor {
         const webVitals = await import('web-vitals');
         (window as any).webVitals = webVitals;
       } catch (error) {
-        console.warn('Failed to load web-vitals library:', error);
+        logger.warn('Failed to load web-vitals library:', error);
       }
     }
   }
@@ -170,7 +172,7 @@ class PerformanceMonitor {
 
       this.observers.push(observer);
     } catch (error) {
-      console.warn(`Failed to observe ${metricName}:`, error);
+      logger.warn(`Failed to observe ${metricName}:`, error);
     }
   }
 
@@ -178,7 +180,7 @@ class PerformanceMonitor {
   private recordWebVital(metric: WebVital, budget: number): void {
     const isWithinBudget = metric.value <= budget;
     
-    console.log(`📊 ${metric.name}: ${metric.value}ms (Budget: ${budget}ms) - ${
+    logger.log(`📊 ${metric.name}: ${metric.value}ms (Budget: ${budget}ms) - ${
       isWithinBudget ? '✅ GOOD' : '⚠️ NEEDS IMPROVEMENT'
     }`);
 
@@ -200,7 +202,7 @@ class PerformanceMonitor {
   private recordMetric(metricName: keyof PerformanceMetrics, value: number, budget: number): void {
     const isWithinBudget = value <= budget;
     
-    console.log(`📊 ${metricName.toUpperCase()}: ${value}ms (Budget: ${budget}ms) - ${
+    logger.log(`📊 ${metricName.toUpperCase()}: ${value}ms (Budget: ${budget}ms) - ${
       isWithinBudget ? '✅ GOOD' : '⚠️ NEEDS IMPROVEMENT'
     }`);
 
@@ -226,7 +228,7 @@ class PerformanceMonitor {
       observer.observe({ entryTypes: ['navigation'] });
       this.observers.push(observer);
     } catch (error) {
-      console.warn('Failed to observe navigation:', error);
+      logger.warn('Failed to observe navigation:', error);
     }
   }
 
@@ -236,7 +238,7 @@ class PerformanceMonitor {
     const domContentLoaded = entry.domContentLoadedEventEnd - entry.domContentLoadedEventStart;
     const loadComplete = entry.loadEventEnd - entry.loadEventStart;
 
-    console.log('📊 Navigation Metrics:', {
+    logger.log('📊 Navigation Metrics:', {
       TTFB: `${ttfb.toFixed(2)}ms`,
       'DOM Content Loaded': `${domContentLoaded.toFixed(2)}ms`,
       'Load Complete': `${loadComplete.toFixed(2)}ms`,
@@ -249,7 +251,14 @@ class PerformanceMonitor {
   // Initialize memory monitoring
   private initializeMemoryMonitoring(): void {
     if ('memory' in performance) {
-      setInterval(() => {
+      // Clear any existing interval
+      if (this.memoryInterval) {
+        clearInterval(this.memoryInterval);
+      }
+      
+      this.memoryInterval = setInterval(() => {
+        if (!this.isEnabled) return;
+        
         const memory = (performance as any).memory;
         if (memory) {
           const usedJSHeapSize = memory.usedJSHeapSize;
@@ -257,13 +266,13 @@ class PerformanceMonitor {
           const usagePercentage = (usedJSHeapSize / totalJSHeapSize) * 100;
 
           if (usagePercentage > 80) {
-            console.warn(`⚠️ High memory usage: ${usagePercentage.toFixed(1)}%`);
+            logger.warn(`⚠️ High memory usage: ${usagePercentage.toFixed(1)}%`);
           }
 
           const currentMetrics = this.getCurrentMetrics();
           currentMetrics.memoryUsage = usedJSHeapSize / 1024 / 1024; // Convert to MB
         }
-      }, 10000); // Check every 10 seconds
+      }, 30000); // Check every 30 seconds instead of 10
     }
   }
 
@@ -287,7 +296,7 @@ class PerformanceMonitor {
             currentMetrics.bundleSize = totalSize / 1024; // Convert to KB
             
             if (totalSize > 500 * 1024) { // 500KB warning
-              console.warn(`⚠️ Large bundle size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+              logger.warn(`⚠️ Large bundle size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
             }
           }
         });
@@ -295,7 +304,7 @@ class PerformanceMonitor {
         observer.observe({ entryTypes: ['resource'] });
         this.observers.push(observer);
       } catch (error) {
-        console.warn('Failed to observe resources:', error);
+        logger.warn('Failed to observe resources:', error);
       }
     }
   }
@@ -316,12 +325,12 @@ class PerformanceMonitor {
 
     // Warn about slow renders
     if (renderTime > this.PERFORMANCE_BUDGETS.RENDER) {
-      console.warn(`⚠️ Slow render: ${componentName} took ${renderTime.toFixed(2)}ms`);
+      logger.warn(`⚠️ Slow render: ${componentName} took ${renderTime.toFixed(2)}ms`);
     }
 
-    // Limit stored metrics to prevent memory leaks
-    if (this.componentMetrics.length > 1000) {
-      this.componentMetrics = this.componentMetrics.slice(-500);
+    // Limit stored metrics to prevent memory leaks - reduced from 1000 to 100
+    if (this.componentMetrics.length > 100) {
+      this.componentMetrics = this.componentMetrics.slice(-50);
     }
   }
 
@@ -342,12 +351,12 @@ class PerformanceMonitor {
 
     // Warn about slow API calls
     if (responseTime > this.PERFORMANCE_BUDGETS.API) {
-      console.warn(`⚠️ Slow API call: ${method} ${endpoint} took ${responseTime}ms`);
+      logger.warn(`⚠️ Slow API call: ${method} ${endpoint} took ${responseTime}ms`);
     }
 
-    // Limit stored metrics
-    if (this.apiMetrics.length > 1000) {
-      this.apiMetrics = this.apiMetrics.slice(-500);
+    // Limit stored metrics - reduced from 1000 to 100
+    if (this.apiMetrics.length > 100) {
+      this.apiMetrics = this.apiMetrics.slice(-50);
     }
   }
 
@@ -371,9 +380,9 @@ class PerformanceMonitor {
 
     this.metrics.push(newMetrics);
     
-    // Limit stored metrics
-    if (this.metrics.length > 100) {
-      this.metrics = this.metrics.slice(-50);
+    // Limit stored metrics - reduced from 100 to 20
+    if (this.metrics.length > 20) {
+      this.metrics = this.metrics.slice(-10);
     }
 
     return newMetrics;
@@ -383,7 +392,7 @@ class PerformanceMonitor {
   private sendToAnalytics(eventType: string, data: any): void {
     // Implementation depends on analytics provider (Google Analytics, PostHog, etc.)
     if (process.env.NODE_ENV === 'development') {
-      console.log(`📈 Analytics: ${eventType}`, data);
+      logger.log(`📈 Analytics: ${eventType}`, data);
     }
     
     // Example: Google Analytics 4
@@ -433,6 +442,17 @@ class PerformanceMonitor {
   public cleanup(): void {
     this.observers.forEach(observer => observer.disconnect());
     this.observers = [];
+    
+    // Clear memory monitoring interval
+    if (this.memoryInterval) {
+      clearInterval(this.memoryInterval);
+      this.memoryInterval = null;
+    }
+    
+    // Clear stored metrics to free memory
+    this.metrics = [];
+    this.componentMetrics = [];
+    this.apiMetrics = [];
   }
 }
 

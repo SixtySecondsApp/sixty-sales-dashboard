@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 
 // Business logic calculation utilities
 class ConfidenceCalculator {
@@ -260,7 +261,7 @@ describe('Business Logic Testing', () => {
         const level = ConfidenceCalculator.getConfidenceLevel(totalScore);
 
         expect(level).toBe(testCase.expectedLevel);
-        console.log(`${testCase.description}: Score=${totalScore}, Level=${level}`);
+        logger.log(`${testCase.description}: Score=${totalScore}, Level=${level}`);
       }
     });
 
@@ -308,7 +309,7 @@ describe('Business Logic Testing', () => {
 
         expect(level).toBe(testCase.expectedLevel);
         expect(totalScore).toBeLessThan(60);
-        console.log(`${testCase.description}: Score=${totalScore}, Level=${level}`);
+        logger.log(`${testCase.description}: Score=${totalScore}, Level=${level}`);
       }
     });
 
@@ -403,7 +404,7 @@ describe('Business Logic Testing', () => {
       for (const variation of viewpointVariations) {
         const isViewpoint = ViewpointMatcher.isViewpointVariation(variation);
         expect(isViewpoint).toBe(true);
-        console.log(`✓ Recognized: "${variation}"`);
+        logger.log(`✓ Recognized: "${variation}"`);
       }
     });
 
@@ -442,10 +443,10 @@ describe('Business Logic Testing', () => {
 
         if (variation.shouldMatch) {
           expect(isMatch).toBe(true);
-          console.log(`✓ Fuzzy match: "${variation.name}" (similarity: ${similarity.toFixed(2)})`);
+          logger.log(`✓ Fuzzy match: "${variation.name}" (similarity: ${similarity.toFixed(2)})`);
         } else {
           expect(isMatch).toBe(false);
-          console.log(`✗ No match: "${variation.name}" (similarity: ${similarity.toFixed(2)})`);
+          logger.log(`✗ No match: "${variation.name}" (similarity: ${similarity.toFixed(2)})`);
         }
       }
     });
@@ -534,7 +535,7 @@ describe('Business Logic Testing', () => {
 
       // Verify Viewpoint variations are correctly matched
       result.data.matches.high_confidence.forEach((match: any) => {
-        console.log(`High confidence match: "${match.client_name}" ↔ "${match.company}" (score: ${match.total_confidence_score})`);
+        logger.log(`High confidence match: "${match.client_name}" ↔ "${match.company}" (score: ${match.total_confidence_score})`);
       });
     });
   });
@@ -589,7 +590,7 @@ describe('Business Logic Testing', () => {
         );
 
         expect(score).toBe(testCase.expectedScore);
-        console.log(`${testCase.description}: ${score} points`);
+        logger.log(`${testCase.description}: ${score} points`);
       }
     });
 
@@ -659,7 +660,7 @@ describe('Business Logic Testing', () => {
 
         // Basic date proximity (not accounting for business days in this implementation)
         expect(score).toBeGreaterThanOrEqual(0);
-        console.log(`${test.description}: ${score} points`);
+        logger.log(`${test.description}: ${score} points`);
       }
     });
   });
@@ -723,7 +724,7 @@ describe('Business Logic Testing', () => {
         );
 
         expect(score).toBe(testCase.expectedScore);
-        console.log(`${testCase.description}: ${score} points`);
+        logger.log(`${testCase.description}: ${score} points`);
       }
     });
 
@@ -786,7 +787,7 @@ describe('Business Logic Testing', () => {
           expect(score).toBeGreaterThanOrEqual(0);
         }
         
-        console.log(`${testCase.description}: ${score} points`);
+        logger.log(`${testCase.description}: ${score} points`);
       }
     });
 
@@ -970,12 +971,12 @@ describe('Business Logic Testing', () => {
       expect(confidenceLevel).toBe('high_confidence');
       expect(totalScore).toBeGreaterThan(80);
 
-      console.log(`Complex scenario breakdown:`);
-      console.log(`  Name score: ${nameScore} (similarity: ${nameSimilarity.toFixed(3)})`);
-      console.log(`  Date score: ${dateScore}`);
-      console.log(`  Amount score: ${amountScore}`);
-      console.log(`  Total score: ${totalScore}`);
-      console.log(`  Confidence level: ${confidenceLevel}`);
+      logger.log(`Complex scenario breakdown:`);
+      logger.log(`  Name score: ${nameScore} (similarity: ${nameSimilarity.toFixed(3)})`);
+      logger.log(`  Date score: ${dateScore}`);
+      logger.log(`  Amount score: ${amountScore}`);
+      logger.log(`  Total score: ${totalScore}`);
+      logger.log(`  Confidence level: ${confidenceLevel}`);
     });
 
     it('should handle real-world data inconsistencies', async () => {
@@ -1020,7 +1021,7 @@ describe('Business Logic Testing', () => {
           expect(totalScore).toBeGreaterThan(60); // Should be at least medium confidence
         }
 
-        console.log(`${scenario.description}: ${totalScore} points`);
+        logger.log(`${scenario.description}: ${totalScore} points`);
       }
     });
 
@@ -1075,10 +1076,10 @@ describe('Business Logic Testing', () => {
       const assignedStage = DealStageAssigner.assignStageFromDealStatus(testDeal.status);
       expect(assignedStage).toBe('Closed Won');
 
-      console.log('End-to-end integration test passed:');
-      console.log(`  Confidence score: ${totalScore}`);
-      console.log(`  Confidence level: ${confidenceLevel}`);
-      console.log(`  Stage assignment: ${assignedStage}`);
+      logger.log('End-to-end integration test passed:');
+      logger.log(`  Confidence score: ${totalScore}`);
+      logger.log(`  Confidence level: ${confidenceLevel}`);
+      logger.log(`  Stage assignment: ${assignedStage}`);
     });
   });
 });

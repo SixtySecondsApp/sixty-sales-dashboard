@@ -14,6 +14,7 @@ import { useDeals } from '@/lib/hooks/useDeals';
 import { useDealStages } from '@/lib/hooks/useDealStages';
 import { useUser } from '@/lib/hooks/useUser';
 import { cn } from '@/lib/utils';
+import logger from '@/lib/utils/logger';
 
 export interface DealSelectorProps {
   selectedDealId?: string | null;
@@ -141,7 +142,7 @@ export function DealSelector({
         });
       }
     } catch (error) {
-      console.error('Failed to create deal:', error);
+      logger.error('Failed to create deal:', error);
     } finally {
       setIsCreating(false);
     }

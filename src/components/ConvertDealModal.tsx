@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useClients, ClientStatus, ConvertDealToClientParams } from '@/lib/hooks/useClients';
 import { DealWithRelationships } from '@/lib/hooks/useDeals';
 import { cn } from '@/lib/utils';
+import logger from '@/lib/utils/logger';
 
 interface ConvertDealModalProps {
   deal: DealWithRelationships | null;
@@ -85,7 +86,7 @@ export function ConvertDealModal({ deal, isOpen, onClose, onSuccess }: ConvertDe
         }, 2000);
       }
     } catch (error) {
-      console.error('Conversion failed:', error);
+      logger.error('Conversion failed:', error);
     } finally {
       setIsConverting(false);
     }

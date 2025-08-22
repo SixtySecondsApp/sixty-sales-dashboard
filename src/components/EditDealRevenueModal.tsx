@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
 import { 
   safeParseFinancial, 
   calculateLifetimeValue, 
@@ -121,7 +122,7 @@ export function EditDealRevenueModal({
         .single();
 
       if (error) {
-        console.error('Error updating deal revenue:', error);
+        logger.error('Error updating deal revenue:', error);
         throw error;
       }
 
@@ -129,7 +130,7 @@ export function EditDealRevenueModal({
       onSave?.();
       onClose();
     } catch (error: any) {
-      console.error('Error updating deal:', error);
+      logger.error('Error updating deal:', error);
       toast.error(error.message || 'Failed to update deal revenue');
     } finally {
       setIsLoading(false);

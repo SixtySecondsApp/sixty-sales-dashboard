@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import Papa from 'papaparse';
+import * as Papa from 'papaparse';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog"; // Assuming Dialog is in ui
 import { CheckCircle, XCircle, Info, UploadCloud } from 'lucide-react';
+import logger from '@/lib/utils/logger';
 
 // Define the expected column order (same as before)
 const COLUMN_ORDER = [
@@ -55,7 +56,7 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
       skipEmptyLines: true,
       delimiter: uploadType === 'csv' ? ',' : '\t',
       complete: async (results) => {
-        console.log("Parsed data:", results.data);
+        logger.log("Parsed data:", results.data);
         if (!Array.isArray(results.data) || results.data.length === 0 || !Array.isArray(results.data[0])) {
            toast.error('Parsing failed or file is empty. Please check file format.');
            setIsLoading(false);
@@ -66,7 +67,7 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
         const activitiesToInsert = dataToProcess.map((row: any[], rowIndex: number) => {
           const activity: { [key: string]: any } = {};
           if (row.length !== COLUMN_ORDER.length) {
-            console.warn(`Row ${rowIndex + 1}: Incorrect column count (${row.length}), expected ${COLUMN_ORDER.length}. Skipping.`);
+            logger.warn(`Row ${rowIndex + 1}: Incorrect column count (${row.length}), expected ${COLUMN_ORDER.length}. Skipping.`);
             toast.warning(`Row ${rowIndex + 1} has an incorrect number of columns (${row.length}). It will be skipped.`);
             return null;
           }
@@ -82,7 +83,7 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
              activity[colName] = value;
           });
           if (!activity.id || !activity.user_id) {
-             console.warn(`Row ${rowIndex + 1}: Missing required 'id' or 'user_id'. Skipping.`);
+             logger.warn(`Row ${rowIndex + 1}: Missing required 'id' or 'user_id'. Skipping.`);
              toast.warning(`Row ${rowIndex + 1} is missing required 'id' or 'user_id'. It will be skipped.`);
              return null;
           }
@@ -94,11 +95,11 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
             setIsLoading(false);
             return;
         }
-        console.log("Activities to insert:", activitiesToInsert);
+        logger.log("Activities to insert:", activitiesToInsert);
         await invokeImportFunction(activitiesToInsert);
       },
       error: (error: any) => {
-        console.error('PapaParse Error:', error);
+        logger.error('PapaParse Error:', error);
         toast.error(`Error parsing ${uploadType?.toUpperCase()} file: ${error.message}`);
         setIsLoading(false);
       }
@@ -118,18 +119,18 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
         setIsLoading(false); return;
       }
 
-      console.log("Invoking function with:", parsedData);
+      logger.log("Invoking function with:", parsedData);
       const { data, error } = await supabase.functions.invoke('bulk-import-activities', {
         body: JSON.stringify(parsedData),
         headers: { 'Content-Type': 'application/json' }
       });
 
       if (error) {
-        console.error('Function Invoke Error:', error);
+        logger.error('Function Invoke Error:', error);
         toast.error(`Function invocation failed: ${error.message}`);
         setResult({ type: 'error', message: `Invocation failed: ${error.message}` });
       } else {
-        console.log('Function Response:', data);
+        logger.log('Function Response:', data);
         if (data.error || data.databaseError) {
             const errorMessage = data.databaseError || data.message || data.error || 'Unknown import error.';
             toast.error(`Import failed: ${errorMessage}`);
@@ -142,7 +143,7 @@ export function ActivityUploadModal({ open, setOpen }: ActivityUploadModalProps)
         }
       }
     } catch (err: any) {
-      console.error('Unexpected Import Error:', err);
+      logger.error('Unexpected Import Error:', err);
       toast.error('An unexpected error occurred during import.');
       setResult({ type: 'error', message: `Unexpected error: ${err.message}` });
     } finally {

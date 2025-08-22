@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/lib/config';
+import logger from '@/lib/utils/logger';
 
 export interface DashboardMetrics {
   revenue: number;
@@ -75,7 +76,7 @@ export class DashboardService {
         proposals
       };
     } catch (error) {
-      console.error('Error fetching dashboard metrics:', error);
+      logger.error('Error fetching dashboard metrics:', error);
       throw error;
     }
   }
@@ -134,7 +135,7 @@ export class DashboardService {
 
       return result_data.sort((a, b) => a.date.localeCompare(b.date));
     } catch (error) {
-      console.error('Error fetching activity data:', error);
+      logger.error('Error fetching activity data:', error);
       throw error;
     }
   }
@@ -164,7 +165,7 @@ export class DashboardService {
         details: activity.details || 'Sale activity'
       }));
     } catch (error) {
-      console.error('Error fetching recent deals:', error);
+      logger.error('Error fetching recent deals:', error);
       throw error;
     }
   }
@@ -199,7 +200,7 @@ export class DashboardService {
         proposals: calculateTrend(currentMetrics.proposals, previousMetrics.proposals)
       };
     } catch (error) {
-      console.error('Error calculating trends:', error);
+      logger.error('Error calculating trends:', error);
       return {
         revenue: '0%',
         outbound: '0%',

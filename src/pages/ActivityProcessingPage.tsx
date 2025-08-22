@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import type { OriginalActivity } from '@/lib/hooks/useOriginalActivities';
 import { supabase } from '@/lib/supabase/clientV2';
 import { EditActivityEmailModal } from '@/components/activities/EditActivityEmailModal';
+import logger from '@/lib/utils/logger';
 import {
   Select,
   SelectContent,
@@ -55,7 +56,7 @@ export function ActivityProcessingPage() {
         if (error) throw error;
         setUserList(data || []);
       } catch (error) {
-        console.error("Error fetching users:", error);
+        logger.error("Error fetching users:", error);
         toast.error("Failed to load user list for filtering.");
         setUserList([]); // Set empty list on error
       } finally {
@@ -131,7 +132,7 @@ export function ActivityProcessingPage() {
   // --- Handler for Process Ready View ---
   const handleProcessClick = async (activityId: string) => {
     setProcessingActivityId(activityId);
-    console.log(`[ActivityProcessingPage] Attempting to process activity: ${activityId}`);
+    logger.log(`[ActivityProcessingPage] Attempting to process activity: ${activityId}`);
     const toastId = toast.loading(`Processing activity ${activityId}...`);
 
     try {
@@ -147,12 +148,12 @@ export function ActivityProcessingPage() {
               throw functionError;
           }
       } else {
-          console.log('[ActivityProcessingPage] Function response:', data);
+          logger.log('[ActivityProcessingPage] Function response:', data);
           toast.success(`Successfully processed activity ${activityId}.`, { id: toastId });
           refreshActivities();
       }
     } catch (err: any) {
-      console.error(`Error processing activity ${activityId}:`, err);
+      logger.error(`Error processing activity ${activityId}:`, err);
       const context = err.context ? ` (${err.context.status || 'unknown status'})` : '';
       toast.error('Failed to process activity', {
           id: toastId,

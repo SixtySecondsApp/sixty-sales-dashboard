@@ -6,6 +6,7 @@ import { useTasks } from '@/lib/hooks/useTasks';
 import TaskForm from '@/components/TaskForm';
 import type { Contact, Task } from '@/lib/database/models';
 import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
 
 interface ContactMainContentProps {
   contact: Contact;
@@ -70,7 +71,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
         toast.success('Task completed!');
       }
     } catch (error) {
-      console.error('Error updating task:', error);
+      logger.error('Error updating task:', error);
       toast.error('Failed to update task');
     }
   };
@@ -82,7 +83,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
         await removeTask(task.id);
         toast.success('Task deleted');
       } catch (error) {
-        console.error('Error deleting task:', error);
+        logger.error('Error deleting task:', error);
         toast.error('Failed to delete task');
       }
     }
@@ -102,7 +103,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
 
   // Handle task creation callback from TaskForm
   const handleTaskCreated = async (newTask: Task) => {
-    console.log('Task created, refreshing list:', newTask);
+    logger.log('Task created, refreshing list:', newTask);
     // Force immediate refresh to show the new task
     await fetchTasks();
   };
@@ -127,10 +128,10 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
       });
       
       // Task should automatically appear due to useTasks hook updating
-      console.log('Task created for contact:', newTask);
+      logger.log('Task created for contact:', newTask);
       return newTask;
     } catch (error) {
-      console.error('Error creating task:', error);
+      logger.error('Error creating task:', error);
       throw error;
     }
   };
@@ -410,7 +411,7 @@ function TasksTabContent({
         toast.success('Task completed!');
       }
     } catch (error) {
-      console.error('Error updating task:', error);
+      logger.error('Error updating task:', error);
       toast.error('Failed to update task');
     }
   };
@@ -421,7 +422,7 @@ function TasksTabContent({
         await removeTask(task.id);
         toast.success('Task deleted');
       } catch (error) {
-        console.error('Error deleting task:', error);
+        logger.error('Error deleting task:', error);
         toast.error('Failed to delete task');
       }
     }
