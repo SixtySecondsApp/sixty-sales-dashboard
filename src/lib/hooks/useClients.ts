@@ -714,20 +714,12 @@ export function useMRR(ownerId?: string) {
       
       // Check if Edge Functions are disabled
       if (DISABLE_EDGE_FUNCTIONS) {
-        logger.log('⚠️ Edge Functions disabled, calculating MRR summary from deals and clients directly');
+        logger.log('⚠️ Edge Functions disabled, calculating MRR summary from clients directly');
         
-        // Fetch both clients and deals with joined data to calculate accurate MRR
+        // Fetch clients without the foreign key relationship that doesn't exist
         let clientsQuery = supabaseAdmin
           .from('clients')
-          .select(`
-            *,
-            deals!clients_deal_id_fkey (
-              id,
-              monthly_mrr,
-              one_off_revenue,
-              annual_value
-            )
-          `);
+          .select('*');
         
         if (ownerId) {
           clientsQuery = clientsQuery.eq('owner_id', ownerId);
@@ -763,27 +755,14 @@ export function useMRR(ownerId?: string) {
         const churnedClients = clientsWithDeals?.filter(c => c.status === 'churned') || [];
         const pausedClients = clientsWithDeals?.filter(c => c.status === 'paused') || [];
         
-        // Calculate total MRR from active clients using both deal MRR and subscription_amount
+        // Calculate total MRR from active clients using subscription_amount
         const activeMRRAmounts = activeClients.map(client => {
-          // First try deal MRR if the relationship is properly loaded
-          let dealMRR = 0;
-          if (client.deals && typeof client.deals === 'object') {
-            // Handle both single deal object and array of deals
-            if (Array.isArray(client.deals)) {
-              dealMRR = client.deals[0]?.monthly_mrr || 0;
-            } else {
-              dealMRR = (client.deals as any)?.monthly_mrr || 0;
-            }
-          }
-          
-          // Use deal MRR if available, otherwise fall back to subscription_amount
-          const mrrAmount = dealMRR > 0 ? parseFloat(dealMRR.toString()) : parseFloat(client.subscription_amount?.toString() || '0');
+          // Use subscription_amount directly since we don't have the deal relationship
+          const mrrAmount = parseFloat(client.subscription_amount?.toString() || '0');
           
           logger.log(`💰 MRR calculation for ${client.company_name}:`, {
-            dealMRR,
             subscription_amount: client.subscription_amount,
-            finalMRR: mrrAmount,
-            dealStructure: typeof client.deals
+            finalMRR: mrrAmount
           });
           
           return mrrAmount;
@@ -812,14 +791,55 @@ export function useMRR(ownerId?: string) {
         return;
       }
       
-      const params = new URLSearchParams();
-      if (ownerId) params.append('owner_id', ownerId);
+      // Since Edge Functions are enabled but MRR endpoint doesn't exist, use direct calculation
+      logger.log('📊 Calculating MRR summary directly (Edge Function endpoint not available)');
       
-      const result = await apiCall<MRRSummary>(
-        `${API_BASE_URL}/clients/mrr/summary?${params.toString()}`
-      );
+      // Use the same logic as above
+      let clientsQuery = supabaseAdmin
+        .from('clients')
+        .select('*');
       
-      setMRRSummary(result);
+      if (ownerId) {
+        clientsQuery = clientsQuery.eq('owner_id', ownerId);
+      }
+      
+      const { data: clientsData, error: clientsError } = await clientsQuery;
+      
+      if (clientsError) {
+        logger.error('❌ Error fetching clients for MRR:', clientsError);
+        throw clientsError;
+      }
+      
+      // Calculate MRR summary
+      const totalClients = clientsData?.length || 0;
+      const activeClients = clientsData?.filter(c => c.status === 'active') || [];
+      const churnedClients = clientsData?.filter(c => c.status === 'churned') || [];
+      const pausedClients = clientsData?.filter(c => c.status === 'paused') || [];
+      
+      const activeMRRAmounts = activeClients.map(client => {
+        const mrrAmount = parseFloat(client.subscription_amount?.toString() || '0');
+        return mrrAmount;
+      }).filter(amount => amount > 0);
+      
+      const totalMRR = activeMRRAmounts.reduce((sum, amount) => sum + amount, 0);
+      const avgMRR = activeMRRAmounts.length > 0 ? totalMRR / activeMRRAmounts.length : 0;
+      const minMRR = activeMRRAmounts.length > 0 ? Math.min(...activeMRRAmounts) : 0;
+      const maxMRR = activeMRRAmounts.length > 0 ? Math.max(...activeMRRAmounts) : 0;
+      
+      const summary: MRRSummary = {
+        total_clients: totalClients,
+        active_clients: activeClients.length,
+        churned_clients: churnedClients.length,
+        paused_clients: pausedClients.length,
+        total_mrr: totalMRR,
+        avg_mrr: avgMRR,
+        min_mrr: minMRR,
+        max_mrr: maxMRR,
+        churn_rate: totalClients > 0 ? (churnedClients.length / totalClients * 100) : 0,
+        active_rate: totalClients > 0 ? (activeClients.length / totalClients * 100) : 0
+      };
+      
+      setMRRSummary(summary);
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
       logger.error('Error fetching MRR summary - sanitized message:', sanitizedMessage);
@@ -915,11 +935,76 @@ export function useMRR(ownerId?: string) {
         return;
       }
       
-      const result = await apiCall<MRRByOwner[]>(
-        `${API_BASE_URL}/clients/mrr/by-owner`
-      );
+      // Since Edge Functions are enabled but MRR by owner endpoint doesn't exist, use direct calculation
+      logger.log('📊 Calculating MRR by owner directly (Edge Function endpoint not available)');
       
-      setMRRByOwner(result || []);
+      // Use the same logic as above
+      const { data: clientsWithProfiles, error } = await supabaseAdmin
+        .from('clients')
+        .select(`
+          owner_id,
+          subscription_amount,
+          status,
+          profiles:owner_id (
+            first_name,
+            last_name,
+            full_name
+          )
+        `);
+      
+      if (error) {
+        logger.error('❌ Error fetching clients for MRR by owner:', error);
+        throw error;
+      }
+      
+      // Group by owner and calculate MRR (same logic as above)
+      const ownerMRRMap = new Map();
+      
+      clientsWithProfiles.forEach((client: any) => {
+        const ownerId = client.owner_id;
+        if (!ownerMRRMap.has(ownerId)) {
+          ownerMRRMap.set(ownerId, {
+            owner_id: ownerId,
+            owner_name: client.profiles?.full_name || 
+                       `${client.profiles?.first_name || ''} ${client.profiles?.last_name || ''}`.trim() || 
+                       'Unknown',
+            total_clients: 0,
+            active_clients: 0,
+            churned_clients: 0,
+            paused_clients: 0,
+            total_mrr: 0,
+            amounts: []
+          });
+        }
+        
+        const ownerData = ownerMRRMap.get(ownerId);
+        ownerData.total_clients++;
+        
+        if (client.status === 'active') {
+          ownerData.active_clients++;
+          const amount = parseFloat(client.subscription_amount || 0);
+          ownerData.total_mrr += amount;
+          ownerData.amounts.push(amount);
+        } else if (client.status === 'churned') {
+          ownerData.churned_clients++;
+        } else if (client.status === 'paused') {
+          ownerData.paused_clients++;
+        }
+      });
+      
+      const mrrByOwnerData: MRRByOwner[] = Array.from(ownerMRRMap.values()).map(owner => ({
+        owner_id: owner.owner_id,
+        owner_name: owner.owner_name,
+        total_clients: owner.total_clients,
+        active_clients: owner.active_clients,
+        churned_clients: owner.churned_clients,
+        paused_clients: owner.paused_clients,
+        total_mrr: owner.total_mrr,
+        avg_mrr: owner.amounts.length > 0 ? owner.total_mrr / owner.amounts.length : 0,
+        churn_rate: owner.total_clients > 0 ? (owner.churned_clients / owner.total_clients * 100) : 0
+      })).sort((a, b) => b.total_mrr - a.total_mrr);
+      
+      setMRRByOwner(mrrByOwnerData);
     } catch (err: any) {
       const sanitizedMessage = sanitizeErrorMessage(err);
       logger.error('Error fetching MRR by owner - sanitized message:', sanitizedMessage);
