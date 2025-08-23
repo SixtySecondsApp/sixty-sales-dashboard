@@ -411,7 +411,7 @@ export default function Dashboard() {
     logger.log(`Dashboard version: ${useOptimized ? 'OPTIMIZED' : 'ORIGINAL'} for user ${user?.id || 'anonymous'}`);
   }, [useOptimized, user?.id]);
   
-  // Use optimized dashboard hook only if feature flag is enabled
+  // Always pass selectedMonth to ensure correct data is fetched
   const { 
     activities, 
     mrr, 
@@ -420,7 +420,7 @@ export default function Dashboard() {
     isLoading,
     isRefreshing,
     error 
-  } = useDashboard(useOptimized ? selectedMonth : undefined);
+  } = useDashboard(selectedMonth);
   
   // Safe month navigation handlers
   const handlePreviousMonth = () => {

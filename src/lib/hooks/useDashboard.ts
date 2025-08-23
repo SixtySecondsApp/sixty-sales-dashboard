@@ -217,9 +217,9 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
     const proposals = activities.filter(a => a.type === 'proposal').length;
     
     // Calculate previous month metrics for trend calculation
-    const prevMonthStart = new Date();
+    // Use the selected month, not current date!
+    const prevMonthStart = new Date(monthStart);
     prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
-    prevMonthStart.setDate(1);
     const prevMonthEnd = new Date(prevMonthStart);
     prevMonthEnd.setMonth(prevMonthEnd.getMonth() + 1);
     prevMonthEnd.setDate(0);
@@ -228,7 +228,8 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
       .from('activities')
       .select('*')
       .gte('date', prevMonthStart.toISOString())
-      .lte('date', prevMonthEnd.toISOString());
+      .lte('date', prevMonthEnd.toISOString())
+      .eq('user_id', session.user.id);
     
     const prevActivities = prevActivitiesResult.data || [];
     
@@ -240,10 +241,21 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
     const previousMonthProposals = prevActivities.filter(a => a.type === 'proposal').length;
     
     // Calculate trends
-    const revenueTrend = previousMonthRevenue > 0 ? Math.round(((revenue - previousMonthRevenue) / previousMonthRevenue) * 100) : 0;
-    const outboundTrend = previousMonthOutbound > 0 ? Math.round(((outbound - previousMonthOutbound) / previousMonthOutbound) * 100) : 0;
-    const meetingsTrend = previousMonthMeetings > 0 ? Math.round(((meetings - previousMonthMeetings) / previousMonthMeetings) * 100) : 0;
-    const proposalsTrend = previousMonthProposals > 0 ? Math.round(((proposals - previousMonthProposals) / previousMonthProposals) * 100) : 0;
+    const revenueTrend = previousMonthRevenue > 0 ? Math.round(((revenue - previousMonthRevenue) / previousMonthRevenue) * 100) : (revenue > 0 ? 100 : 0);
+    const outboundTrend = previousMonthOutbound > 0 ? Math.round(((outbound - previousMonthOutbound) / previousMonthOutbound) * 100) : (outbound > 0 ? 100 : 0);
+    const meetingsTrend = previousMonthMeetings > 0 ? Math.round(((meetings - previousMonthMeetings) / previousMonthMeetings) * 100) : (meetings > 0 ? 100 : 0);
+    const proposalsTrend = previousMonthProposals > 0 ? Math.round(((proposals - previousMonthProposals) / previousMonthProposals) * 100) : (proposals > 0 ? 100 : 0);
+    
+    // Log for debugging
+    logger.log(`📊 Dashboard Metrics for ${currentMonth}:`, {
+      current: { revenue, outbound, meetings, proposals },
+      previous: { previousMonthRevenue, previousMonthOutbound, previousMonthMeetings, previousMonthProposals },
+      trends: { revenueTrend, outboundTrend, meetingsTrend, proposalsTrend },
+      dateRange: { 
+        current: `${monthStart.toISOString()} to ${monthEnd.toISOString()}`,
+        previous: `${prevMonthStart.toISOString()} to ${prevMonthEnd.toISOString()}`
+      }
+    });
     
     const activeClients = clients.filter(c => c.status === 'active');
     const totalMRR = activeClients.reduce((sum, c) => sum + (c.subscription_amount || 0), 0);
