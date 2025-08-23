@@ -1,19 +1,19 @@
 // Feature flags for controlled rollout of new features
 export const FEATURES = {
   // Dashboard optimization feature flag
-  USE_OPTIMIZED_DASHBOARD: process.env.REACT_APP_USE_OPTIMIZED_DASHBOARD === 'true' || false,
+  USE_OPTIMIZED_DASHBOARD: import.meta.env.VITE_USE_OPTIMIZED_DASHBOARD === 'true' || import.meta.env.DEV || false,
   
   // Percentage of users to get optimized dashboard (0-100)
-  DASHBOARD_OPTIMIZATION_PERCENTAGE: parseInt(process.env.REACT_APP_DASHBOARD_OPT_PERCENTAGE || '0'),
+  DASHBOARD_OPTIMIZATION_PERCENTAGE: parseInt(import.meta.env.VITE_DASHBOARD_OPT_PERCENTAGE || '100'),
   
   // Enable performance monitoring
-  ENABLE_PERFORMANCE_MONITORING: process.env.REACT_APP_ENABLE_PERF_MONITORING === 'true' || true,
+  ENABLE_PERFORMANCE_MONITORING: import.meta.env.VITE_ENABLE_PERF_MONITORING === 'true' || true,
   
   // Use Edge Functions
-  USE_EDGE_FUNCTIONS: process.env.REACT_APP_USE_EDGE_FUNCTIONS === 'true' || false,
+  USE_EDGE_FUNCTIONS: import.meta.env.VITE_USE_EDGE_FUNCTIONS === 'true' || false,
   
   // Cache TTL in seconds
-  CACHE_TTL: parseInt(process.env.REACT_APP_CACHE_TTL || '60'),
+  CACHE_TTL: parseInt(import.meta.env.VITE_CACHE_TTL || '60'),
 };
 
 // Progressive rollout control based on user ID
