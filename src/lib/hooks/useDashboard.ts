@@ -207,7 +207,7 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
     const clients = clientsResult.data || [];
     const recentActivities = recentResult.data || [];
     
-    // Calculate metrics (simplified for fallback)
+    // Calculate current month metrics
     const revenue = activities
       .filter(a => a.type === 'sale')
       .reduce((sum, a) => sum + (a.amount || 0), 0);
@@ -215,6 +215,35 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
     const outbound = activities.filter(a => a.type === 'outbound').length;
     const meetings = activities.filter(a => a.type === 'meeting').length;
     const proposals = activities.filter(a => a.type === 'proposal').length;
+    
+    // Calculate previous month metrics for trend calculation
+    const prevMonthStart = new Date();
+    prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+    prevMonthStart.setDate(1);
+    const prevMonthEnd = new Date(prevMonthStart);
+    prevMonthEnd.setMonth(prevMonthEnd.getMonth() + 1);
+    prevMonthEnd.setDate(0);
+    
+    const prevActivitiesResult = await supabase
+      .from('activities')
+      .select('*')
+      .gte('date', prevMonthStart.toISOString())
+      .lte('date', prevMonthEnd.toISOString());
+    
+    const prevActivities = prevActivitiesResult.data || [];
+    
+    const previousMonthRevenue = prevActivities
+      .filter(a => a.type === 'sale')
+      .reduce((sum, a) => sum + (a.amount || 0), 0);
+    const previousMonthOutbound = prevActivities.filter(a => a.type === 'outbound').length;
+    const previousMonthMeetings = prevActivities.filter(a => a.type === 'meeting').length;
+    const previousMonthProposals = prevActivities.filter(a => a.type === 'proposal').length;
+    
+    // Calculate trends
+    const revenueTrend = previousMonthRevenue > 0 ? Math.round(((revenue - previousMonthRevenue) / previousMonthRevenue) * 100) : 0;
+    const outboundTrend = previousMonthOutbound > 0 ? Math.round(((outbound - previousMonthOutbound) / previousMonthOutbound) * 100) : 0;
+    const meetingsTrend = previousMonthMeetings > 0 ? Math.round(((meetings - previousMonthMeetings) / previousMonthMeetings) * 100) : 0;
+    const proposalsTrend = previousMonthProposals > 0 ? Math.round(((proposals - previousMonthProposals) / previousMonthProposals) * 100) : 0;
     
     const activeClients = clients.filter(c => c.status === 'active');
     const totalMRR = activeClients.reduce((sum, c) => sum + (c.subscription_amount || 0), 0);
@@ -224,20 +253,20 @@ async function fetchDashboardMetrics(month?: string): Promise<DashboardMetrics> 
       activities: {
         revenue,
         revenueTarget: 50000,
-        revenueTrend: 0,
+        revenueTrend,
         outbound,
         outboundTarget: 100,
-        outboundTrend: 0,
+        outboundTrend,
         meetings,
         meetingsTarget: 20,
-        meetingsTrend: 0,
+        meetingsTrend,
         proposals,
         proposalsTarget: 10,
-        proposalsTrend: 0,
-        previousMonthRevenue: 0,
-        previousMonthOutbound: 0,
-        previousMonthMeetings: 0,
-        previousMonthProposals: 0
+        proposalsTrend,
+        previousMonthRevenue,
+        previousMonthOutbound,
+        previousMonthMeetings,
+        previousMonthProposals
       },
       mrr: {
         totalMRR,

@@ -19,12 +19,8 @@ export function OwnerFilter({
   const { owners, isLoading } = useOwners();
   const { userData } = useUser();
   
-  // Set default to current user on component mount if no owner is selected
-  React.useEffect(() => {
-    if (userData?.id && selectedOwnerId === undefined) {
-      onOwnerChange(userData.id);
-    }
-  }, [userData?.id, selectedOwnerId, onOwnerChange]);
+  // Note: Default owner is now set in PipelineContext, not here
+  // This prevents conflicts between multiple components trying to set the default
 
   const getOwnerDisplayName = (owner: any) => {
     if (owner.full_name) return owner.full_name;
