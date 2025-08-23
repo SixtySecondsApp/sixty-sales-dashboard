@@ -42,9 +42,19 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  // TEMPORARY: Mock user for development testing
+  const mockUser = import.meta.env.DEV ? {
+    id: 'mock-user-id',
+    email: 'test@example.com',
+    user_metadata: {},
+    app_metadata: {},
+    aud: 'authenticated',
+    created_at: new Date().toISOString()
+  } as User : null;
+  
+  const [user, setUser] = useState<User | null>(mockUser);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!import.meta.env.DEV); // Skip loading in dev
   const queryClient = useQueryClient();
 
   // Initialize auth state

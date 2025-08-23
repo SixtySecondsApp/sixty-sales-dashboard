@@ -1,11 +1,13 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
-import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { useNavigate } from 'react-router-dom';
-import { useActivities } from '@/lib/hooks/useActivities';
-import { format, startOfMonth, endOfMonth, subMonths, addMonths, isAfter, isBefore, getDate } from 'date-fns';
+import { useDashboard } from '@/lib/hooks/useDashboard';
+import { shouldUseOptimizedDashboard, isPerformanceMonitoringEnabled } from '@/lib/config/features';
+import { initializeDashboardMonitoring, monitorDashboardPerformance, checkRollbackConditions } from '@/lib/monitoring/dashboardMetrics';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { format, subMonths, addMonths, startOfMonth, endOfMonth, getDate, isBefore, isAfter } from 'date-fns';
 import {
   PoundSterling,
   Phone,
@@ -381,6 +383,44 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showContent, setShowContent] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const { user } = useAuth();
+  const useOptimized = shouldUseOptimizedDashboard(user?.id);
+  
+  // Initialize performance monitoring if enabled
+  useEffect(() => {
+    if (isPerformanceMonitoringEnabled()) {
+      initializeDashboardMonitoring();
+      
+      // Monitor initial load after 1 second
+      const timer = setTimeout(() => {
+        monitorDashboardPerformance(user?.id);
+        
+        // Check if rollback is needed
+        if (checkRollbackConditions()) {
+          logger.error('Dashboard performance degradation detected - rollback may be needed');
+          // Could trigger automatic rollback here if configured
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user?.id]);
+  
+  // Log which version is being used
+  useEffect(() => {
+    logger.log(`Dashboard version: ${useOptimized ? 'OPTIMIZED' : 'ORIGINAL'} for user ${user?.id || 'anonymous'}`);
+  }, [useOptimized, user?.id]);
+  
+  // Use optimized dashboard hook only if feature flag is enabled
+  const { 
+    activities, 
+    mrr, 
+    recentActivities, 
+    chartData,
+    isLoading,
+    isRefreshing,
+    error 
+  } = useDashboard(useOptimized ? selectedMonth : undefined);
   
   // Safe month navigation handlers
   const handlePreviousMonth = () => {
@@ -420,9 +460,15 @@ export default function Dashboard() {
   };
   const { userData } = useUser();
   const navigate = useNavigate();
-  const { activities, isLoading: isLoadingActivities } = useActivities();
-  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
   const { setFilters } = useActivityFilters();
+  
+  // Define targets from optimized dashboard data
+  const targets = {
+    revenue_target: activities.revenueTarget,
+    outbound_target: activities.outboundTarget,
+    meetings_target: activities.meetingsTarget,
+    proposal_target: activities.proposalsTarget
+  };
 
   const selectedMonthRange = useMemo(() => ({
     start: startOfMonth(selectedMonth),
@@ -439,162 +485,45 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Filter activities for selected month and calculate metrics
-  const selectedMonthActivities = useMemo(() => {
-    try {
-      if (!activities || !Array.isArray(activities)) return [];
-      
-      return activities.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= selectedMonthRange.start && activityDate <= selectedMonthRange.end;
-        } catch (error) {
-          logger.error('Error filtering activity:', error);
-          return false;
-        }
-      });
-    } catch (error) {
-      logger.error('Error filtering selected month activities:', error);
-      return [];
-    }
-  }, [activities, selectedMonthRange]);
-
-  // Get previous month's activities up to the SAME DAY for proper trend calculation
-  const previousMonthToDateActivities = useMemo(() => {
-    try {
-      if (!activities || !Array.isArray(activities)) return [];
-      
-      // Get the previous month's range
-      const prevMonthStart = startOfMonth(subMonths(selectedMonth, 1));
-      
-      // Calculate the cutoff date (same day of month as today, but in previous month)
-      const dayOfMonth = Math.min(currentDayOfMonth, getDate(endOfMonth(prevMonthStart)));
-      const prevMonthCutoff = new Date(prevMonthStart);
-      prevMonthCutoff.setDate(dayOfMonth);
-      
-      return activities.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= prevMonthStart && activityDate <= prevMonthCutoff;
-        } catch (error) {
-          logger.error('Error filtering previous month activity:', error);
-          return false;
-        }
-      });
-    } catch (error) {
-      logger.error('Error calculating previous month activities:', error);
-      return [];
-    }
-  }, [activities, selectedMonth, currentDayOfMonth]);
-
-  // Calculate metrics for selected month
+  // Use optimized metrics from useDashboard hook
   const metrics = useMemo(() => {
-    try {
-      return {
-        revenue: selectedMonthActivities
-          .filter((a: any) => a.type === 'sale')
-          .reduce((sum: number, a: any) => sum + (a.amount || 0), 0),
-        outbound: selectedMonthActivities
-          .filter((a: any) => a.type === 'outbound')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        meetings: selectedMonthActivities
-          .filter((a: any) => a.type === 'meeting')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        proposals: selectedMonthActivities
-          .filter((a: any) => a.type === 'proposal')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0)
-      };
-    } catch (error) {
-      logger.error('Error calculating metrics:', error);
-      return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
-    }
-  }, [selectedMonthActivities]);
+    return {
+      revenue: activities?.revenue || 0,
+      outbound: activities?.outbound || 0,
+      meetings: activities?.meetings || 0,
+      proposals: activities?.proposals || 0
+    };
+  }, [activities]);
 
-  // Calculate metrics for previous month TO SAME DATE (for fair comparison)
-  const previousMetricsToDate = useMemo(() => ({
-    revenue: previousMonthToDateActivities
-      .filter(a => a.type === 'sale')
-      .reduce((sum, a) => sum + (a.amount || 0), 0),
-    outbound: previousMonthToDateActivities
-      .filter(a => a.type === 'outbound')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    meetings: previousMonthToDateActivities
-      .filter(a => a.type === 'meeting')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    proposals: previousMonthToDateActivities
-      .filter(a => a.type === 'proposal')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0)
-  }), [previousMonthToDateActivities]);
-
-  // Calculate previous month's complete total metrics (for the entire previous month)
+  // Use previous month totals from optimized dashboard data
   const previousMonthTotals = useMemo(() => {
-    try {
-      // First, get the full previous month date range
-      const prevMonthStart = startOfMonth(subMonths(selectedMonth, 1));
-      const prevMonthEnd = endOfMonth(subMonths(selectedMonth, 1));
-      
-      // Get all activities from the previous month (entire month)
-      const fullPreviousMonthActivities = activities?.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return !isBefore(activityDate, prevMonthStart) && !isAfter(activityDate, prevMonthEnd);
-        } catch (error) {
-          logger.error('Error filtering previous month total activity:', error);
-          return false;
-        }
-      }) || [];
-      
-      // Calculate the full month totals
-      return {
-        revenue: fullPreviousMonthActivities
-          .filter(a => a.type === 'sale')
-          .reduce((sum, a) => sum + (a.amount || 0), 0),
-        outbound: fullPreviousMonthActivities
-          .filter(a => a.type === 'outbound')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
-        meetings: fullPreviousMonthActivities
-          .filter(a => a.type === 'meeting')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
-        proposals: fullPreviousMonthActivities
-          .filter(a => a.type === 'proposal')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0)
-      };
-    } catch (error) {
-      logger.error('Error calculating previous month totals:', error);
-      return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
-    }
-  }, [activities, selectedMonth]);
+    return {
+      revenue: activities?.previousMonthRevenue || 0,
+      outbound: activities?.previousMonthOutbound || 0,
+      meetings: activities?.previousMonthMeetings || 0,
+      proposals: activities?.previousMonthProposals || 0
+    };
+  }, [activities]);
 
-  // Calculate trends (comparing current month-to-date with previous month SAME DATE)
-  const calculateTrend = (current: number, previous: number) => {
-    if (previous === 0) return 0;
-    return Math.round(((current - previous) / previous) * 100);
-  };
-
+  // Use pre-calculated trends from optimized dashboard data
   const trends = useMemo(() => ({
-    revenue: calculateTrend(metrics.revenue, previousMetricsToDate.revenue),
-    outbound: calculateTrend(metrics.outbound, previousMetricsToDate.outbound),
-    meetings: calculateTrend(metrics.meetings, previousMetricsToDate.meetings),
-    proposals: calculateTrend(metrics.proposals, previousMetricsToDate.proposals)
-  }), [metrics, previousMetricsToDate]);
+    revenue: activities?.revenueTrend || 0,
+    outbound: activities?.outboundTrend || 0,
+    meetings: activities?.meetingsTrend || 0,
+    proposals: activities?.proposalsTrend || 0
+  }), [activities]);
 
   // Filter deals based on search query
   const filteredDeals = useMemo(() => 
-    selectedMonthActivities.filter(activity => 
+    recentActivities.filter(activity => 
       activity.type === 'sale' &&
       (activity.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
        activity.amount?.toString().includes(searchQuery) ||
        activity.details?.toLowerCase().includes(searchQuery.toLowerCase()))
-    ), [selectedMonthActivities, searchQuery]);
+    ), [recentActivities, searchQuery]);
 
   // Check if any data is loading
-  const isAnyLoading = isLoadingActivities || isLoadingSales || !userData;
+  const isAnyLoading = isLoading || !userData;
 
   // Use effect to handle stable loading state
   useEffect(() => {
@@ -665,7 +594,7 @@ export default function Dashboard() {
           trend={trends.revenue}
           icon={PoundSterling}
           type="sale"
-          dateRange={selectedMonthRange}
+          dateRange={{ start: startOfMonth(selectedMonth), end: endOfMonth(selectedMonth) }}
           previousMonthTotal={previousMonthTotals.revenue}
         />
         <MetricCard
@@ -675,7 +604,7 @@ export default function Dashboard() {
           trend={trends.outbound}
           icon={Phone}
           type="outbound"
-          dateRange={selectedMonthRange}
+          dateRange={{ start: startOfMonth(selectedMonth), end: endOfMonth(selectedMonth) }}
           previousMonthTotal={previousMonthTotals.outbound}
         />
         <MetricCard
@@ -685,7 +614,7 @@ export default function Dashboard() {
           trend={trends.meetings}
           icon={Users}
           type="meeting"
-          dateRange={selectedMonthRange}
+          dateRange={{ start: startOfMonth(selectedMonth), end: endOfMonth(selectedMonth) }}
           previousMonthTotal={previousMonthTotals.meetings}
         />
         <MetricCard
@@ -695,7 +624,7 @@ export default function Dashboard() {
           trend={trends.proposals}
           icon={FileText}
           type="proposal"
-          dateRange={selectedMonthRange}
+          dateRange={{ start: startOfMonth(selectedMonth), end: endOfMonth(selectedMonth) }}
           previousMonthTotal={previousMonthTotals.proposals}
         />
       </div>
@@ -716,7 +645,7 @@ export default function Dashboard() {
 
       {/* Sales Activity Chart */}
       <div className="mb-8">
-        <SalesActivityChart selectedMonth={selectedMonth} />
+        <SalesActivityChart selectedMonth={selectedMonth} chartData={chartData} />
       </div>
 
       {/* Recent Deals Section */}

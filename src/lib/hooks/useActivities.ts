@@ -4,11 +4,19 @@ import { supabase } from '@/lib/supabase/clientV2';
 
 // Type assertion for build compatibility
 const supabaseClient = supabase as any;
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
+import { SmartCache } from '@/lib/cache/smartCache';
 import logger from '@/lib/utils/logger';
+
+// Initialize smart cache for activities
+const activitiesCache = new SmartCache({
+  maxMemorySize: 20, // 20MB for activities data
+  defaultTTL: 2 * 60 * 1000, // 2 minutes cache
+  enablePredictive: true,
+});
 
 export interface Activity {
   id: string;
@@ -37,9 +45,39 @@ export interface Activity {
   };
 }
 
-async function fetchActivities(dateRange?: { start: Date; end: Date }) {
+async function fetchActivities(
+  dateRange?: { start: Date; end: Date },
+  options?: { 
+    limit?: number; 
+    offset?: number;
+    useCache?: boolean;
+  }
+) {
+  const startTime = performance.now();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+
+  // Generate cache key
+  const cacheKey = dateRange 
+    ? `activities:${user.id}:${dateRange.start.toISOString()}:${dateRange.end.toISOString()}`
+    : `activities:${user.id}:all`;
+
+  // Try cache first if enabled
+  if (options?.useCache !== false) {
+    const cachedData = await activitiesCache.get<Activity[]>(
+      'activities:list',
+      { 
+        userId: user.id, 
+        dateRange: dateRange ? `${dateRange.start.toISOString()}-${dateRange.end.toISOString()}` : 'all' 
+      }
+    );
+    
+    if (cachedData) {
+      const loadTime = performance.now() - startTime;
+      logger.log(`📊 Activities loaded from cache in ${loadTime.toFixed(0)}ms`);
+      return cachedData;
+    }
+  }
 
   let query = (supabase as any)
     .from('activities')
@@ -64,13 +102,39 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }) {
       .lte('date', dateRange.end.toISOString());
   }
 
+  // Apply pagination if specified
+  if (options?.limit) {
+    query = query.limit(options.limit);
+    if (options.offset) {
+      query = query.range(options.offset, options.offset + options.limit - 1);
+    }
+  }
+
   query = query.order('date', { ascending: false });
 
   const { data, error } = await query;
 
   if (error) throw error;
 
-  return data?.filter(activity => activity.user_id === user.id) || [];
+  const activities = data?.filter(activity => activity.user_id === user.id) || [];
+
+  // Cache the result
+  if (options?.useCache !== false) {
+    await activitiesCache.set(
+      'activities:list',
+      { 
+        userId: user.id, 
+        dateRange: dateRange ? `${dateRange.start.toISOString()}-${dateRange.end.toISOString()}` : 'all' 
+      },
+      activities,
+      2 * 60 * 1000 // 2 minutes TTL
+    );
+  }
+
+  const loadTime = performance.now() - startTime;
+  logger.log(`✅ Activities fetched from database in ${loadTime.toFixed(0)}ms (${activities.length} records)`);
+
+  return activities;
 }
 
 // Helper to process activity if ready
@@ -327,12 +391,19 @@ async function deleteActivity(id: string) {
   if (error) throw error;
 }
 
-export function useActivities(dateRange?: { start: Date; end: Date }) {
+export function useActivities(
+  dateRange?: { start: Date; end: Date },
+  options?: { 
+    limit?: number;
+    enableRealtime?: boolean;
+    useCache?: boolean;
+  }
+) {
   const queryClient = useQueryClient();
 
-  // Set up real-time subscription for live updates (only once)
+  // Set up real-time subscription for live updates (only once, if enabled)
   useEffect(() => {
-    if (dateRange) return; // Only set up subscription for the main activities hook
+    if (dateRange || options?.enableRealtime === false) return; // Only set up subscription for the main activities hook
     
     async function setupSubscription() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -349,10 +420,13 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
+            // Invalidate cache when data changes
+            activitiesCache.invalidate('activities:*');
             // Invalidate all relevant queries
             queryClient.invalidateQueries({ queryKey: ['activities'] });
             queryClient.invalidateQueries({ queryKey: ['salesData'] });
             queryClient.invalidateQueries({ queryKey: ['targets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
           }
         )
         .subscribe();
@@ -363,16 +437,29 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
     }
 
     setupSubscription();
-  }, [queryClient, dateRange]);
+  }, [queryClient, dateRange, options?.enableRealtime]);
 
-  // Create unique query key based on date range
-  const queryKey = dateRange 
-    ? ['activities', dateRange.start.toISOString(), dateRange.end.toISOString()]
-    : ['activities'];
+  // Create unique query key based on date range and options
+  const queryKey = useMemo(() => {
+    const key = ['activities'];
+    if (dateRange) {
+      key.push(dateRange.start.toISOString(), dateRange.end.toISOString());
+    }
+    if (options?.limit) {
+      key.push(`limit:${options.limit}`);
+    }
+    return key;
+  }, [dateRange, options?.limit]);
 
   const { data: activities = [], isLoading } = useQuery({
     queryKey,
-    queryFn: () => fetchActivities(dateRange),
+    queryFn: () => fetchActivities(dateRange, {
+      limit: options?.limit,
+      useCache: options?.useCache
+    }),
+    staleTime: 30 * 1000, // Consider data fresh for 30 seconds
+    cacheTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnWindowFocus: false, // Don't refetch on window focus
   });
 
   // Add activity mutation with error handling

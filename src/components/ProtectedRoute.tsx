@@ -23,8 +23,27 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isPublicRoute = publicRoutes.includes(location.pathname);
   const isPasswordRecovery = location.pathname === '/auth/reset-password' && 
     location.hash.includes('type=recovery');
+  
+  // TEMPORARY: Allow access in development mode for testing
+  const isDevelopmentBypass = import.meta.env.DEV && (location.pathname === '/' || location.pathname === '/dashboard');
+  
+  // Debug logging
+  if (import.meta.env.DEV) {
+    console.log('ProtectedRoute Debug:', {
+      pathname: location.pathname,
+      isAuthenticated,
+      loading,
+      isPublicRoute,
+      isDevelopmentBypass
+    });
+  }
 
   useEffect(() => {
+    // TEMPORARY: Skip all redirects in development for testing
+    if (import.meta.env.DEV) {
+      return;
+    }
+    
     // Don't redirect while loading
     if (loading) return;
 
@@ -35,7 +54,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     }
 
     // If user is not authenticated and trying to access protected route, redirect to login
-    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery) {
+    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery && !isDevelopmentBypass) {
       // Store the intended destination for after login
       const intendedPath = location.pathname + location.search;
       navigate(redirectTo, { 
@@ -44,7 +63,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       });
       return;
     }
-  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, navigate, redirectTo, location]);
+  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, isDevelopmentBypass, navigate, redirectTo, location]);
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -66,6 +85,11 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     return <>{children}</>;
   }
 
+  // TEMPORARY: Allow all access in development for testing
+  if (import.meta.env.DEV) {
+    return <>{children}</>;
+  }
+  
   // For protected routes, only show content if authenticated
   if (isAuthenticated) {
     return <>{children}</>;

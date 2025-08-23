@@ -18,15 +18,22 @@ import { useUser } from '@/lib/hooks/useUser';
 
 interface SalesActivityChartProps {
   selectedMonth: Date;
+  chartData?: any; // Pre-calculated chart data from useDashboard
 }
 
-const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
+const SalesActivityChart = ({ selectedMonth, chartData: providedChartData }: SalesActivityChartProps) => {
   const [timeframe, setTimeframe] = useState('daily');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { activities } = useActivities();
   const { userData } = useUser();
 
   const chartData = useMemo(() => {
+    // Use provided chartData if available (from optimized useDashboard hook)
+    if (providedChartData) {
+      return providedChartData;
+    }
+    
+    // Fallback to calculating from activities (for backward compatibility)
     if (timeframe === 'daily') {
       // Get all days in the selected month
       const monthStart = startOfMonth(selectedMonth);
@@ -131,7 +138,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
     }
     
     return monthsData;
-  }, [activities, timeframe, selectedMonth]);
+  }, [providedChartData, activities, timeframe, selectedMonth]);
 
   const timeframeOptions = [
     { value: 'daily', label: 'Daily' },

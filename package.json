@@ -34,7 +34,10 @@
     "test:memory:coverage": "vitest run tests/memory --coverage",
     "playwright": "playwright test",
     "playwright:ui": "playwright test --ui",
-    "playwright:report": "playwright show-report"
+    "playwright:report": "playwright show-report",
+    "test:performance": "playwright test --config playwright.performance.config.ts",
+    "test:performance:baseline": "playwright test --config playwright.performance.config.ts --reporter=json",
+    "test:performance:watch": "playwright test --config playwright.performance.config.ts --ui"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",

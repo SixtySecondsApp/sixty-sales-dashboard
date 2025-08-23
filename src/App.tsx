@@ -42,6 +42,7 @@ const TasksPage = lazy(() => import('@/pages/TasksPage'));
 const Roadmap = lazy(() => import('@/pages/Roadmap'));
 const Clients = lazy(() => import('@/pages/Clients'));
 const TestFallback = lazy(() => import('@/pages/TestFallback'));
+const TestDashboard = lazy(() => import('@/pages/TestDashboard'));
 
 // CRM routes - heavy components, lazy load
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
@@ -150,6 +151,12 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <IntelligentPreloader />
+        <Suspense fallback={<RouteLoader />}>
+          <Routes>
+            {/* Test route without auth */}
+            <Route path="/test-dashboard" element={<TestDashboard />} />
+          </Routes>
+        </Suspense>
         <ProtectedRoute>
           <Suspense fallback={<RouteLoader />}>
             <Routes>
@@ -180,7 +187,7 @@ function App() {
               <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
               <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
               <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
-              <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
+              <Route path="/test-fallback" element={<TestFallback />} />
             </Routes>
           </Suspense>
         </ProtectedRoute>
