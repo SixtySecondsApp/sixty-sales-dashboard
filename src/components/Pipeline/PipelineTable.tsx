@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
+import { useUser } from '@/lib/hooks/useUser';
+import { canDeleteDeal, isDealSplit } from '@/lib/utils/adminUtils';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ interface PipelineTableProps {
 }
 
 export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps) {
+  const { userData } = useUser();
   const [sorting, setSorting] = useState([]);
   const { deals, stages, searchTerm, filterOptions, deleteDeal } = usePipeline();
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -252,6 +255,9 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
         id: 'actions',
         cell: ({ row }) => {
           const deal = row.original;
+          const canDelete = canDeleteDeal(deal, userData);
+          const isSplit = isDealSplit(deal);
+          
           return (
             <div className="flex items-center justify-end gap-2">
               <Button
@@ -265,23 +271,39 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
               >
                 <Edit className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteClick(deal.id);
-                }}
-                className="h-8 w-8 text-gray-400 hover:text-red-500"
-              >
-                <Trash className="h-4 w-4" />
-              </Button>
+              {canDelete ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(deal.id);
+                  }}
+                  className="h-8 w-8 text-gray-400 hover:text-red-500"
+                >
+                  <Trash className="h-4 w-4" />
+                </Button>
+              ) : isSplit ? (
+                <div 
+                  className="h-8 w-8 flex items-center justify-center text-gray-500 cursor-not-allowed"
+                  title="Split deals can only be deleted by administrators"
+                >
+                  <Trash className="h-4 w-4 opacity-30" />
+                </div>
+              ) : (
+                <div 
+                  className="h-8 w-8 flex items-center justify-center text-gray-500 cursor-not-allowed"
+                  title="You can only delete deals you own"
+                >
+                  <Trash className="h-4 w-4 opacity-30" />
+                </div>
+              )}
             </div>
           );
         },
       },
     ],
-    [stages]
+    [stages, userData]
   );
 
   const table = useReactTable({

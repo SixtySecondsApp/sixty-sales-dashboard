@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { IdentifierField, IdentifierType } from './IdentifierField';
 import { DealSelector } from './DealSelector';
 import { DealWizard } from './DealWizard';
+import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
 
 interface QuickAddProps {
@@ -18,6 +19,7 @@ interface QuickAddProps {
 }
 
 export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
+  const { userData } = useUser();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -660,31 +662,74 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 onSubmit={handleSubmit}
                 className="space-y-6"
               >
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-400/90">
-                    Date
+                {/* Enhanced Date Selection Section */}
+                <div className="space-y-3">
+                  <label className="block text-base font-semibold text-white flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-[#37bd7e]" />
+                    {selectedAction === 'meeting' ? 'Meeting Date' : 
+                     selectedAction === 'proposal' ? 'Proposal Date' : 
+                     selectedAction === 'sale' ? 'Sale Date' : 'Date'}
                   </label>
+                  
+                  {/* Quick Date Options */}
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {[
+                      { label: 'Today', date: new Date() },
+                      { label: 'Tomorrow', date: addDays(new Date(), 1) },
+                      { label: 'Next Week', date: addWeeks(new Date(), 1) }
+                    ].map((option) => (
+                      <button
+                        key={option.label}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(option.date);
+                          setShowCalendar(false);
+                        }}
+                        className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                          format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
+                            ? 'bg-[#37bd7e]/20 border-[#37bd7e] text-[#37bd7e]'
+                            : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => setShowCalendar(!showCalendar)}
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2.5 text-white text-left hover:bg-gray-800/50 transition-colors"
+                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white text-left hover:bg-gray-700/50 transition-all flex items-center justify-between group"
                   >
-                    {format(selectedDate, 'MMMM d, yyyy')}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#37bd7e]/10 rounded-lg flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-[#37bd7e]" />
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</div>
+                        <div className="text-gray-400 text-sm">Click to change</div>
+                      </div>
+                    </div>
+                    <div className={`transition-transform ${showCalendar ? 'rotate-180' : ''}`}>
+                      <Calendar className="w-4 h-4 text-gray-400 group-hover:text-white" />
+                    </div>
                   </button>
+                  
                   {showCalendar && (
-                  <div className="absolute left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-3 z-10 shadow-xl">
-                    <CalendarComponent
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => {
-                        if (date) {
-                          setSelectedDate(date);
-                          setShowCalendar(false);
-                        }
-                      }}
-                      className="bg-transparent [&_.rdp-day]:text-white [&_.rdp-day_button:hover]:bg-[#37bd7e]/20 [&_.rdp-day_button:focus]:bg-[#37bd7e]/20 [&_.rdp-day_selected]:!bg-[#37bd7e] [&_.rdp-day_selected]:hover:!bg-[#2da76c] [&_.rdp-caption]:text-white [&_.rdp-head_cell]:text-gray-400"
-                    />
-                  </div>)}
+                    <div className="absolute left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-4 z-20 shadow-xl">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => {
+                          if (date) {
+                            setSelectedDate(date);
+                            setShowCalendar(false);
+                          }
+                        }}
+                        className="bg-transparent [&_.rdp-day]:text-white [&_.rdp-day_button:hover]:bg-[#37bd7e]/20 [&_.rdp-day_button:focus]:bg-[#37bd7e]/20 [&_.rdp-day_selected]:!bg-[#37bd7e] [&_.rdp-day_selected]:hover:!bg-[#2da76c] [&_.rdp-caption]:text-white [&_.rdp-head_cell]:text-gray-400"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {(selectedAction === 'sale' || selectedAction === 'meeting' || selectedAction === 'proposal') && (
@@ -865,8 +910,14 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </>
                 )}
 
-                {(selectedAction === 'sale' || selectedAction === 'proposal') && (
+                {/* Admin-Only Revenue Split Section */}
+                {(selectedAction === 'sale' || selectedAction === 'proposal') && canSplitDeals(userData) && (
                   <div className="space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <PoundSterling className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-semibold text-emerald-400">Revenue Split (Admin Only)</span>
+                    </div>
+                    
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-gray-400/90">
                         One-off Revenue (£)
@@ -916,6 +967,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+                
+                {/* Non-Admin Warning for Sales and Proposals */}
+                {(selectedAction === 'sale' || selectedAction === 'proposal') && !canSplitDeals(userData) && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                    <div className="text-sm text-amber-400">
+                      <span className="font-medium">⚠️ Revenue Split Unavailable</span>
+                      <div className="text-xs text-gray-400 mt-1">
+                        Only administrators can create sales/proposals with revenue split. Use the amount field above for simple deals.
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -971,7 +1034,10 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             initialData={{
               clientName: formData.client_name,
               contactEmail: formData.contactIdentifier,
-              dealValue: parseFloat(formData.amount) || 0
+              dealValue: parseFloat(formData.amount) || 0,
+              oneOffRevenue: parseFloat(formData.oneOffRevenue || '0') || 0,
+              monthlyMrr: parseFloat(formData.monthlyMrr || '0') || 0,
+              saleType: formData.saleType
             }}
           />
         </motion.div>

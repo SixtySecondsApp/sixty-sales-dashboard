@@ -5,7 +5,8 @@ import {
   Users, 
   Building2, 
   CheckCircle,
-  X
+  X,
+  PoundSterling
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUser } from '@/lib/hooks/useUser';
@@ -18,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { initializeDefaultStages } from '@/lib/utils/initializeStages';
 import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
 import { supabase } from '@/lib/supabase/clientV2';
+import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
 
 interface DealWizardProps {
@@ -29,6 +31,9 @@ interface DealWizardProps {
     clientName?: string;
     contactEmail?: string;
     dealValue?: number;
+    oneOffRevenue?: number;
+    monthlyMrr?: number;
+    saleType?: string;
   };
 }
 
@@ -47,6 +52,9 @@ interface WizardState {
     contact_name: string;
     contact_email: string;
     contact_phone: string;
+    oneOffRevenue: number;
+    monthlyMrr: number;
+    saleType: string;
   };
 }
 
@@ -98,6 +106,9 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
       contact_name: '',
       contact_email: initialData?.contactEmail || '',
       contact_phone: '',
+      oneOffRevenue: initialData?.oneOffRevenue || 0,
+      monthlyMrr: initialData?.monthlyMrr || 0,
+      saleType: initialData?.saleType || 'one-off',
     }
   });
 
@@ -257,6 +268,9 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         contact_name: '',
         contact_email: initialData?.contactEmail || '',
         contact_phone: '',
+        oneOffRevenue: initialData?.oneOffRevenue || 0,
+        monthlyMrr: initialData?.monthlyMrr || 0,
+        saleType: initialData?.saleType || 'one-off',
       }
     });
     setShowContactSearch(false); // Reset contact search state
@@ -377,11 +391,11 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         expected_close_date: wizard.dealData.expected_close_date || null,
         probability: actionType === 'sale' ? 100 : (defaultStage?.default_probability || 10),
         status: 'active',
-        // For sales, set the revenue fields based on the sale type
+        // For sales, set the revenue fields based on the actual revenue split
         ...(actionType === 'sale' && {
-          one_off_revenue: wizard.dealData.value, // For sales via DealWizard, treat as one-off
-          monthly_mrr: null,
-          annual_value: null
+          one_off_revenue: wizard.dealData.oneOffRevenue || 0,
+          monthly_mrr: wizard.dealData.monthlyMrr || 0,
+          annual_value: wizard.dealData.monthlyMrr ? (wizard.dealData.monthlyMrr * 12) : null
         })
       };
 
@@ -459,15 +473,20 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
               logger.log('💰 Creating sale activity for verified deal...');
               
               try {
+                // Calculate total amount using same business logic as QuickAdd
+                const totalAmount = (wizard.dealData.monthlyMrr * 3) + wizard.dealData.oneOffRevenue;
+                
                 await addSale({
                   client_name: wizard.dealData.company || wizard.dealData.name,
-                  amount: wizard.dealData.value,
+                  amount: totalAmount,
                   details: `Sale closed: ${wizard.dealData.name}`,
-                  saleType: 'one-off', // Default to one-off for now
+                  saleType: wizard.dealData.saleType as 'one-off' | 'subscription' | 'lifetime',
                   date: new Date().toISOString(),
                   deal_id: newDeal.id,
                   contactIdentifier: wizard.selectedContact?.email,
-                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
+                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown',
+                  oneOffRevenue: wizard.dealData.oneOffRevenue,
+                  monthlyMrr: wizard.dealData.monthlyMrr
                 });
                 logger.log('✅ Sale activity created successfully for deal:', newDeal.id);
               } catch (error) {
@@ -484,17 +503,24 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
               logger.log(`📝 Creating ${activityType} activity for verified deal...`);
               
               try {
+                // Calculate total amount using same business logic as QuickAdd for proposals
+                const proposalAmount = (wizard.dealData.monthlyMrr * 3) + wizard.dealData.oneOffRevenue;
+                
                 await addActivityAsync({
                   type: activityType as 'proposal' | 'meeting',
                   client_name: wizard.dealData.company || wizard.dealData.name,
                   details: activityDetails,
-                  amount: wizard.dealData.value,
+                  amount: proposalAmount || wizard.dealData.value,
                   priority: 'high',
                   date: new Date().toISOString(),
                   status: 'completed',
                   deal_id: newDeal.id,
                   contactIdentifier: wizard.selectedContact?.email,
-                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
+                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown',
+                  ...(activityType === 'proposal' && {
+                    oneOffRevenue: wizard.dealData.oneOffRevenue,
+                    monthlyMrr: wizard.dealData.monthlyMrr
+                  })
                 });
                 logger.log(`✅ ${activityType} activity created successfully for deal:`, newDeal.id);
               } catch (error) {
@@ -708,17 +734,116 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                           />
                         </div>
 
+                        {/* Revenue Split Section - Admin Only for Sales and Proposals */}
+                        {(actionType === 'sale' || actionType === 'proposal') && canSplitDeals(userData) && (
+                          <div className="space-y-4 p-4 bg-gradient-to-r from-emerald-500/5 to-blue-500/5 border border-emerald-500/20 rounded-xl">
+                            <div className="flex items-center gap-2">
+                              <PoundSterling className="w-5 h-5 text-emerald-400" />
+                              <h3 className="text-base font-semibold text-white">Revenue Breakdown</h3>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">One-off Revenue (£)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={wizard.dealData.oneOffRevenue || ''}
+                                  onChange={(e) => {
+                                    const oneOff = parseFloat(e.target.value) || 0;
+                                    setWizard(prev => ({
+                                      ...prev,
+                                      dealData: { 
+                                        ...prev.dealData, 
+                                        oneOffRevenue: oneOff,
+                                        value: oneOff + (prev.dealData.monthlyMrr * 3) // Update total value
+                                      }
+                                    }))
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                                />
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-300">Monthly MRR (£)</label>
+                                <input
+                                  type="number"
+                                  placeholder="0"
+                                  value={wizard.dealData.monthlyMrr || ''}
+                                  onChange={(e) => {
+                                    const monthly = parseFloat(e.target.value) || 0;
+                                    setWizard(prev => ({
+                                      ...prev,
+                                      dealData: { 
+                                        ...prev.dealData, 
+                                        monthlyMrr: monthly,
+                                        value: prev.dealData.oneOffRevenue + (monthly * 3) // Update total value
+                                      }
+                                    }))
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-300">Sale Type</label>
+                              <select
+                                value={wizard.dealData.saleType}
+                                onChange={(e) => setWizard(prev => ({
+                                  ...prev,
+                                  dealData: { ...prev.dealData, saleType: e.target.value }
+                                }))}
+                                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                              >
+                                <option value="one-off">One-off</option>
+                                <option value="subscription">Subscription</option>
+                                <option value="lifetime">Lifetime</option>
+                              </select>
+                            </div>
+
+                            {(wizard.dealData.oneOffRevenue > 0 || wizard.dealData.monthlyMrr > 0) && (
+                              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                <div className="text-sm text-emerald-400">
+                                  <span className="font-medium">Total Deal Value: </span>
+                                  £{((wizard.dealData.oneOffRevenue || 0) + ((wizard.dealData.monthlyMrr || 0) * 3)).toLocaleString('en-GB')}
+                                </div>
+                                {wizard.dealData.monthlyMrr > 0 && (
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    Annual Value: £{((wizard.dealData.oneOffRevenue || 0) + ((wizard.dealData.monthlyMrr || 0) * 12)).toLocaleString('en-GB')}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Non-Admin Warning for Sales and Proposals */}
+                        {(actionType === 'sale' || actionType === 'proposal') && !canSplitDeals(userData) && (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                            <div className="text-sm text-amber-400">
+                              <span className="font-medium">⚠️ Revenue Split Unavailable</span>
+                              <div className="text-xs text-gray-400 mt-1">
+                                Only administrators can create deals with revenue split. This deal will use the simple value field below.
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <input
-                            type="number"
-                            placeholder="Deal Value (£)"
-                            value={wizard.dealData.value || ''}
-                            onChange={(e) => setWizard(prev => ({
-                              ...prev,
-                              dealData: { ...prev.dealData, value: parseFloat(e.target.value) || 0 }
-                            }))}
-                            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
-                          />
+                          {/* Show simple deal value field for: 1) Non sales/proposal actions, OR 2) Non-admin users doing sales/proposals */}
+                          {(!(actionType === 'sale' || actionType === 'proposal') || !canSplitDeals(userData)) && (
+                            <input
+                              type="number"
+                              placeholder="Deal Value (£)"
+                              value={wizard.dealData.value || ''}
+                              onChange={(e) => setWizard(prev => ({
+                                ...prev,
+                                dealData: { ...prev.dealData, value: parseFloat(e.target.value) || 0 }
+                              }))}
+                              className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
+                            />
+                          )}
                           <select
                             value={wizard.dealData.stage_id}
                             onChange={(e) => setWizard(prev => ({
