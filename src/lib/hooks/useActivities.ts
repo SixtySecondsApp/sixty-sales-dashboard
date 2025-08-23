@@ -151,6 +151,8 @@ async function createSale(sale: {
   contactIdentifier?: string;
   contactIdentifierType?: IdentifierType;
   deal_id?: string | null;
+  oneOffRevenue?: number;
+  monthlyMrr?: number;
 }) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
@@ -216,11 +218,9 @@ async function createSale(sale: {
             probability: 100,
             status: 'active',
             expected_close_date: sale.date || new Date().toISOString(),
-            // Store lifetime deals in annual_value field (as a single lifetime value)
-            // One-off deals in one_off_revenue
-            // Subscriptions in monthly_mrr
-            one_off_revenue: sale.saleType === 'one-off' ? sale.amount : null,
-            monthly_mrr: sale.saleType === 'subscription' ? sale.amount : null,
+            // Handle revenue splits: use specific fields if provided, otherwise use sale type logic
+            one_off_revenue: sale.oneOffRevenue ?? (sale.saleType === 'one-off' ? sale.amount : null),
+            monthly_mrr: sale.monthlyMrr ?? (sale.saleType === 'subscription' ? sale.amount : null),
             annual_value: sale.saleType === 'lifetime' ? sale.amount : null
           })
           .select('id')
@@ -248,6 +248,33 @@ async function createSale(sale: {
         .single();
 
       if (signedStage) {
+        // First, get the existing deal to preserve any existing revenue fields
+        const { data: existingDeal } = await supabase
+          .from('deals')
+          .select('one_off_revenue, monthly_mrr, annual_value')
+          .eq('id', finalDealId)
+          .single();
+
+        // Calculate the updated revenue fields, preserving existing values where appropriate
+        let updatedOneOff = existingDeal?.one_off_revenue || 0;
+        let updatedMonthly = existingDeal?.monthly_mrr || 0;
+        let updatedAnnual = existingDeal?.annual_value || 0;
+
+        // If specific revenue splits provided, use them
+        if (sale.oneOffRevenue !== undefined || sale.monthlyMrr !== undefined) {
+          updatedOneOff = sale.oneOffRevenue || 0;
+          updatedMonthly = sale.monthlyMrr || 0;
+        } else {
+          // Otherwise use sale type logic, but don't overwrite existing values
+          if (sale.saleType === 'one-off') {
+            updatedOneOff = (existingDeal?.one_off_revenue || 0) + sale.amount;
+          } else if (sale.saleType === 'subscription') {
+            updatedMonthly = (existingDeal?.monthly_mrr || 0) + sale.amount;
+          } else if (sale.saleType === 'lifetime') {
+            updatedAnnual = sale.amount;
+          }
+        }
+
         // Update the deal to "Signed" stage and update revenue fields
         const { error: updateError } = await supabase
           .from('deals')
@@ -255,10 +282,9 @@ async function createSale(sale: {
             stage_id: signedStage.id,
             probability: 100,
             expected_close_date: sale.date || new Date().toISOString(),
-            // Update revenue fields based on sale type
-            one_off_revenue: sale.saleType === 'one-off' ? sale.amount : null,
-            monthly_mrr: sale.saleType === 'subscription' ? sale.amount : null,
-            annual_value: sale.saleType === 'lifetime' ? sale.amount : null,
+            one_off_revenue: updatedOneOff > 0 ? updatedOneOff : null,
+            monthly_mrr: updatedMonthly > 0 ? updatedMonthly : null,
+            annual_value: updatedAnnual > 0 ? updatedAnnual : null,
             value: sale.amount
           })
           .eq('id', finalDealId);

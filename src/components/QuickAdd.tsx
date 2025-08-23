@@ -81,7 +81,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
   const { addActivity, addSale } = useActivities();
   const { createTask } = useTasks();
-  const { userData } = useUser();
 
   // Task type options with icons and colors
   const taskTypes = [
@@ -212,36 +211,65 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         logger.log('✅ Outbound activity created successfully');
       } else if (selectedAction === 'sale') {
         logger.log('💰 Creating sale activity...');
-        // Calculate total amount from oneOffRevenue and monthlyMrr
+        
+        // For admin revenue splits, pass the individual amounts
         const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
         const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-        // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
-        // This gives 3x monthly subscription value PLUS 1x one-time deal value
-        const totalAmount = (monthly * 3) + oneOff;
+        
+        // If admin has split the revenue, use the individual amounts
+        // Otherwise, use the basic sale amount for the sale type
+        let saleAmount = 0;
+        let revenueData: any = {};
+        
+        if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
+          // Admin revenue split: pass individual amounts
+          if (formData.saleType === 'one-off') {
+            saleAmount = oneOff;
+            revenueData.oneOffRevenue = oneOff;
+            if (monthly > 0) {
+              revenueData.monthlyMrr = monthly;
+            }
+          } else if (formData.saleType === 'subscription') {
+            saleAmount = monthly;
+            revenueData.monthlyMrr = monthly;
+            if (oneOff > 0) {
+              revenueData.oneOffRevenue = oneOff;
+            }
+          }
+        } else {
+          // Regular sale: use the single amount for the sale type
+          saleAmount = parseFloat(formData.amount || '0') || 0;
+        }
         
         const saleData = {
           client_name: formData.client_name,
-          amount: totalAmount,
+          amount: saleAmount,
           details: formData.details || `${formData.saleType} Sale`,
           saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
           date: selectedDate.toISOString(),
           deal_id: formData.deal_id,
           contactIdentifier: formData.contactIdentifier,
-          contactIdentifierType: formData.contactIdentifierType
+          contactIdentifierType: formData.contactIdentifierType,
+          ...revenueData
         };
         logger.log('💰 Sale data:', saleData);
         await addSale(saleData);
         logger.log('✅ Sale created successfully');
       } else if (selectedAction) {
         logger.log(`📝 Creating ${selectedAction} activity...`);
-        // Calculate total amount for proposals from oneOffRevenue and monthlyMrr
+        // For admin revenue splits, calculate proposal amount based on primary type
         let proposalAmount;
         if (selectedAction === 'proposal') {
           const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
           const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-          // BUSINESS RULE: LTV = (monthlyMRR * 3) + oneOffRevenue
-          // This gives 3x monthly subscription value PLUS 1x one-time deal value
-          proposalAmount = (monthly * 3) + oneOff;
+          
+          if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
+            // For proposals, show the total deal value (LTV) since it's a proposed value
+            proposalAmount = (monthly * 3) + oneOff;
+          } else {
+            // Regular proposal: use the basic amount
+            proposalAmount = parseFloat(formData.amount || '0') || 0;
+          }
         }
 
         await addActivity({

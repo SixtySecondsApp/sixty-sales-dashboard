@@ -38,6 +38,18 @@ export function calculateLTVValue(
   if (annualValue > 0 && !oneOffRevenue && !monthlyMRR) {
     return annualValue;
   }
+
+  // ACTIVITY DISPLAY FIX: If we have a fallback amount and it matches the one-off revenue,
+  // and there's no monthly MRR, then this is likely a simple one-off activity
+  // In this case, use the activity amount rather than the deal's total revenue
+  if (fallbackAmount && 
+      oneOffRevenue > 0 && 
+      monthlyMRR === 0 && 
+      fallbackAmount !== oneOffRevenue &&
+      fallbackAmount > 0) {
+    // This is an activity with a specific amount that's different from the deal's total
+    return fallbackAmount;
+  }
   
   // Standard calculation: 3x monthly subscription + one-time payment
   const ltvValue = (monthlyMRR * 3) + oneOffRevenue;
