@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revenue Split Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .result { margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Revenue Split Calculation Test</h1>
+    
+    <div class="test-case">
+        <h3>Test Case 1: Pure One-off Revenue</h3>
+        <p>One-off: £5000, Monthly MRR: £0</p>
+        <div class="result" id="test1"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 2: Pure Subscription Revenue</h3>
+        <p>One-off: £0, Monthly MRR: £1000</p>
+        <div class="result" id="test2"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 3: Mixed Revenue</h3>
+        <p>One-off: £2500, Monthly MRR: £500</p>
+        <div class="result" id="test3"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 4: Complex Mixed Revenue</h3>
+        <p>One-off: £10000, Monthly MRR: £2500</p>
+        <div class="result" id="test4"></div>
+    </div>
+
+    <script>
+        // Business logic from QuickAdd and DealWizard
+        function calculateRevenueSplit(oneOffRevenue, monthlyMrr) {
+            const oneOff = parseFloat(oneOffRevenue) || 0;
+            const monthly = parseFloat(monthlyMrr) || 0;
+            
+            // Business rule: LTV = (monthlyMRR * 3) + oneOffRevenue
+            const totalDealValue = (monthly * 3) + oneOff;
+            const annualValue = (monthly * 12) + oneOff;
+            
+            return {
+                oneOffRevenue: oneOff,
+                monthlyMrr: monthly,
+                totalDealValue,
+                annualValue,
+                formatted: {
+                    oneOff: `£${oneOff.toLocaleString('en-GB')}`,
+                    monthly: `£${monthly.toLocaleString('en-GB')}`,
+                    total: `£${totalDealValue.toLocaleString('en-GB')}`,
+                    annual: `£${annualValue.toLocaleString('en-GB')}`
+                }
+            };
+        }
+
+        // Test cases
+        const tests = [
+            { oneOff: 5000, monthly: 0, expected: 5000 },
+            { oneOff: 0, monthly: 1000, expected: 3000 },
+            { oneOff: 2500, monthly: 500, expected: 4000 },
+            { oneOff: 10000, monthly: 2500, expected: 17500 }
+        ];
+
+        tests.forEach((test, index) => {
+            const result = calculateRevenueSplit(test.oneOff, test.monthly);
+            const element = document.getElementById(`test${index + 1}`);
+            
+            const passed = result.totalDealValue === test.expected;
+            const status = passed ? '✅ PASS' : '❌ FAIL';
+            
+            element.innerHTML = `
+                <strong>${status}</strong><br>
+                One-off Revenue: ${result.formatted.oneOff}<br>
+                Monthly MRR: ${result.formatted.monthly}<br>
+                <strong>Total Deal Value: ${result.formatted.total}</strong> (Expected: £${test.expected.toLocaleString('en-GB')})<br>
+                Annual Value: ${result.formatted.annual}<br>
+                <em>Calculation: (${result.monthlyMrr} × 3) + ${result.oneOffRevenue} = ${result.totalDealValue}</em>
+            `;
+            
+            element.style.backgroundColor = passed ? '#d4edda' : '#f8d7da';
+            element.style.borderColor = passed ? '#c3e6cb' : '#f5c6cb';
+        });
+
+        console.log('Revenue Split Tests Complete');
+    </script>
+</body>
+</html>

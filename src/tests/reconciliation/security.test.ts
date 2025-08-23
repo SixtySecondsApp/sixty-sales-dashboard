@@ -567,7 +567,7 @@ describe('Security Testing', () => {
         'abc-def-ghi',
         '00000000-0000-0000-0000-000000000000z', // Too long
         '00000000-0000-0000-0000', // Too short
-        ''; DROP TABLE activities; --'
+        '\'; DROP TABLE activities; --'
       ];
 
       for (const invalidUUID of invalidUUIDs) {

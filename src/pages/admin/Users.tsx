@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { useViewMode } from '@/contexts/ViewModeContext';
 import {
   Users as UsersIcon,
   Shield,
@@ -46,6 +47,7 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<User | null | { isNew?: boolean; editingTargets?: boolean }>(null);
   const [modalTargets, setModalTargets] = useState<Target[]>([]);
   const { users, updateUser, impersonateUser, deleteUser } = useUsers();
+  const { startViewMode } = useViewMode();
   const navigate = useNavigate();
 
   const filteredUsers = useMemo(() => {
@@ -120,15 +122,17 @@ export default function Users() {
     }
   };
 
-  const handleImpersonate = async (userId: string) => {
-    try {
-      await impersonateUser(userId);
-      toast.success('Impersonation started');
-      navigate('/');
-    } catch (error) {
-      toast.error('Failed to impersonate user');
-      logger.error('[Impersonation]', error);
-    }
+  const handleViewAs = (user: User) => {
+    // Use the new View As mode instead of impersonation
+    startViewMode({
+      id: user.id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      full_name: user.full_name
+    });
+    toast.success(`Now viewing as ${user.email}`);
+    navigate('/');
   };
 
   const handleExport = () => {
@@ -371,8 +375,9 @@ export default function Users() {
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleImpersonate(user.id)}
+                          onClick={() => handleViewAs(user)}
                           className="p-2 hover:bg-violet-500/20 rounded-lg transition-colors"
+                          title="View as this user"
                         >
                           <UserCheck className="w-4 h-4 text-violet-500" />
                         </button>

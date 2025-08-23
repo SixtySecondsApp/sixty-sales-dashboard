@@ -4,6 +4,7 @@ import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { fetchWithRetry, apiCall } from '@/lib/utils/apiUtils';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
+import { useViewMode } from '@/contexts/ViewModeContext';
 
 // Security: Sanitize error messages to prevent sensitive data exposure
 function sanitizeErrorMessage(error: any): string {
@@ -107,10 +108,14 @@ export interface DealStage {
 }
 
 export function useDeals(ownerId?: string) {
+  const { isViewMode, viewedUser } = useViewMode();
   const [deals, setDeals] = useState<DealWithRelationships[]>([]);
   const [stages, setStages] = useState<DealStage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use viewed user ID if in view mode
+  const effectiveOwnerId = isViewMode && viewedUser ? viewedUser.id : ownerId;
 
   // Fetch deals from API
   const fetchDeals = useCallback(async () => {
@@ -118,7 +123,7 @@ export function useDeals(ownerId?: string) {
       setIsLoading(true);
       setError(null);
       
-      logger.log('🔄 Starting deals fetch for owner:', ownerId || 'ALL');
+      logger.log('🔄 Starting deals fetch for owner:', effectiveOwnerId || 'ALL', isViewMode ? '(View Mode)' : '');
       
       // Check authentication first
       const { data: { session } } = await supabase.auth.getSession();
@@ -134,9 +139,9 @@ export function useDeals(ownerId?: string) {
             .from('deals')
             .select('*');
           
-          // Only filter by owner if ownerId is provided
-          if (ownerId) {
-            query = query.eq('owner_id', ownerId);
+          // Only filter by owner if effectiveOwnerId is provided
+          if (effectiveOwnerId) {
+            query = query.eq('owner_id', effectiveOwnerId);
           }
           
           const result = await query.order('created_at', { ascending: false });
@@ -181,9 +186,9 @@ export function useDeals(ownerId?: string) {
           .from('deals')
           .select('*');
         
-        // Only filter by owner if ownerId is provided
-        if (ownerId) {
-          query = query.eq('owner_id', ownerId);
+        // Only filter by owner if effectiveOwnerId is provided
+        if (effectiveOwnerId) {
+          query = query.eq('owner_id', effectiveOwnerId);
         }
         
         const result = await query.order('created_at', { ascending: false });
@@ -199,8 +204,8 @@ export function useDeals(ownerId?: string) {
             .from('deals')
             .select('*');
           
-          if (ownerId) {
-            adminQuery = adminQuery.eq('owner_id', ownerId);
+          if (effectiveOwnerId) {
+            adminQuery = adminQuery.eq('owner_id', effectiveOwnerId);
           }
           
           const adminResult = await adminQuery.order('created_at', { ascending: false });
@@ -241,7 +246,7 @@ export function useDeals(ownerId?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [ownerId]);
+  }, [effectiveOwnerId]);
 
   // Fetch stages from API
   const fetchStages = useCallback(async () => {
@@ -279,7 +284,7 @@ export function useDeals(ownerId?: string) {
   useEffect(() => {
     fetchStages();
     fetchDeals(); // Always fetch deals - let the query logic handle filtering
-  }, [ownerId, fetchDeals, fetchStages]);
+  }, [effectiveOwnerId, fetchDeals, fetchStages]);
 
   // Group deals by stage for pipeline display
   const dealsByStage = deals.reduce((acc, deal) => {

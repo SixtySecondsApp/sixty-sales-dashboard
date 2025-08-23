@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { IdentifierType } from '@/components/IdentifierField';
 import logger from '@/lib/utils/logger';
+import { useViewMode } from '@/contexts/ViewModeContext';
 
 export interface Activity {
   id: string;
@@ -37,9 +38,12 @@ export interface Activity {
   };
 }
 
-async function fetchActivities(dateRange?: { start: Date; end: Date }) {
+async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUserId?: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+
+  // Use viewed user ID if in view mode, otherwise use current user
+  const targetUserId = viewedUserId || user.id;
 
   let query = (supabase as any)
     .from('activities')
@@ -55,7 +59,7 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }) {
         stage_id
       )
     `)
-    .eq('user_id', user.id);
+    .eq('user_id', targetUserId);
 
   // Apply date range filter if provided
   if (dateRange) {
@@ -354,11 +358,12 @@ async function deleteActivity(id: string) {
 }
 
 export function useActivities(dateRange?: { start: Date; end: Date }) {
+  const { isViewMode, viewedUser } = useViewMode();
   const queryClient = useQueryClient();
 
   // Set up real-time subscription for live updates (only once)
   useEffect(() => {
-    if (dateRange) return; // Only set up subscription for the main activities hook
+    if (dateRange || isViewMode) return; // Only set up subscription for the main activities hook and not in view mode
     
     async function setupSubscription() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -389,7 +394,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
     }
 
     setupSubscription();
-  }, [queryClient, dateRange]);
+  }, [queryClient, dateRange, isViewMode]);
 
   // Create unique query key based on date range
   const queryKey = dateRange 
@@ -397,8 +402,8 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
     : ['activities'];
 
   const { data: activities = [], isLoading } = useQuery({
-    queryKey,
-    queryFn: () => fetchActivities(dateRange),
+    queryKey: isViewMode && viewedUser ? [...queryKey, 'view', viewedUser.id] : queryKey,
+    queryFn: () => fetchActivities(dateRange, isViewMode ? viewedUser?.id : undefined),
   });
 
   // Add activity mutation with error handling

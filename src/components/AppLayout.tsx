@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useCycle } from 'framer-motion';
 import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -99,7 +100,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
-      {/* Impersonation Banner */}
+      {/* View Mode Banner */}
+      <ViewModeBanner />
+      
+      {/* Legacy Impersonation Banner (will be removed once View As is fully working) */}
       {isImpersonating && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500/10 backdrop-blur-sm text-center py-1 px-2 text-amber-400 text-xs font-medium border-b border-amber-500/20">
           <span className="flex items-center justify-center gap-1">

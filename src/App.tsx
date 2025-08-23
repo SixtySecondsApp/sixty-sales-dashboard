@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/lib/config';
 import PerformanceMonitor from '@/lib/utils/performanceMonitor';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
+import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
@@ -149,10 +150,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <IntelligentPreloader />
-        <ProtectedRoute>
-          <Suspense fallback={<RouteLoader />}>
-            <Routes>
+        <ViewModeProvider>
+          <IntelligentPreloader />
+          <ProtectedRoute>
+            <Suspense fallback={<RouteLoader />}>
+              <Routes>
               <Route path="/auth/login" element={<Login />} />
               <Route path="/auth/signup" element={<Signup />} />
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />
@@ -186,6 +188,7 @@ function App() {
         </ProtectedRoute>
         <Toaster />
         <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
+      </ViewModeProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

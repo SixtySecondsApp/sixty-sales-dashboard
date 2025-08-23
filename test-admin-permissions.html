@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Permissions Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-case { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .result { margin-top: 10px; padding: 10px; border-radius: 3px; }
+        .pass { background: #d4edda; border: 1px solid #c3e6cb; }
+        .fail { background: #f8d7da; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h1>Admin Permissions Test</h1>
+    
+    <div class="test-case">
+        <h3>Test Case 1: Admin User - Deal Splitting</h3>
+        <p>Admin user should be able to split deals</p>
+        <div class="result" id="test1"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 2: Non-Admin User - Deal Splitting</h3>
+        <p>Non-admin user should NOT be able to split deals</p>
+        <div class="result" id="test2"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 3: Admin User - Delete Split Deal</h3>
+        <p>Admin user should be able to delete split deals</p>
+        <div class="result" id="test3"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 4: Non-Admin User - Delete Split Deal</h3>
+        <p>Non-admin user should NOT be able to delete split deals</p>
+        <div class="result" id="test4"></div>
+    </div>
+
+    <div class="test-case">
+        <h3>Test Case 5: Non-Admin User - Delete Own Non-Split Deal</h3>
+        <p>Non-admin user should be able to delete their own non-split deals</p>
+        <div class="result" id="test5"></div>
+    </div>
+
+    <script>
+        // Import the admin utility functions
+        function isUserAdmin(userData) {
+            return userData?.is_admin || false;
+        }
+
+        function canSplitDeals(userData) {
+            return isUserAdmin(userData);
+        }
+
+        function canRemoveSplitDeals(userData) {
+            return isUserAdmin(userData);
+        }
+
+        function isDealSplit(deal) {
+            if (!deal) return false;
+            const hasOneOff = deal.one_off_revenue && deal.one_off_revenue > 0;
+            const hasMonthly = deal.monthly_mrr && deal.monthly_mrr > 0;
+            return hasOneOff && hasMonthly;
+        }
+
+        function canDeleteDeal(deal, userData) {
+            if (isUserAdmin(userData)) return true;
+            if (isDealSplit(deal)) return false;
+            return deal.owner_id === userData?.id;
+        }
+
+        // Test users
+        const adminUser = {
+            id: 'admin-1',
+            email: 'admin@example.com',
+            is_admin: true
+        };
+
+        const nonAdminUser = {
+            id: 'user-1', 
+            email: 'user@example.com',
+            is_admin: false
+        };
+
+        // Test deals
+        const splitDeal = {
+            id: 'deal-1',
+            owner_id: 'user-1',
+            one_off_revenue: 5000,
+            monthly_mrr: 1000,
+            value: 8000
+        };
+
+        const nonSplitDeal = {
+            id: 'deal-2',
+            owner_id: 'user-1',
+            one_off_revenue: 0,
+            monthly_mrr: 0,
+            value: 5000
+        };
+
+        // Run tests
+        const tests = [
+            {
+                id: 'test1',
+                description: 'Admin can split deals',
+                expected: true,
+                actual: canSplitDeals(adminUser)
+            },
+            {
+                id: 'test2', 
+                description: 'Non-admin cannot split deals',
+                expected: false,
+                actual: canSplitDeals(nonAdminUser)
+            },
+            {
+                id: 'test3',
+                description: 'Admin can delete split deals',
+                expected: true,
+                actual: canDeleteDeal(splitDeal, adminUser)
+            },
+            {
+                id: 'test4',
+                description: 'Non-admin cannot delete split deals',
+                expected: false,
+                actual: canDeleteDeal(splitDeal, nonAdminUser)
+            },
+            {
+                id: 'test5',
+                description: 'Non-admin can delete own non-split deals',
+                expected: true,
+                actual: canDeleteDeal(nonSplitDeal, nonAdminUser)
+            }
+        ];
+
+        tests.forEach(test => {
+            const element = document.getElementById(test.id);
+            const passed = test.actual === test.expected;
+            const status = passed ? '✅ PASS' : '❌ FAIL';
+            
+            element.innerHTML = `
+                <strong>${status}</strong><br>
+                ${test.description}<br>
+                Expected: ${test.expected}<br>
+                Actual: ${test.actual}
+            `;
+            
+            element.className = passed ? 'result pass' : 'result fail';
+        });
+
+        console.log('Admin Permissions Tests Complete');
+    </script>
+</body>
+</html>

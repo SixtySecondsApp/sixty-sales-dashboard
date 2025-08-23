@@ -353,7 +353,7 @@ describe('Phase 2 Reconciliation Engine Testing', () => {
             resolve(mockApiResponse(mockBatchResult));
           }, 100); // Simulate processing time
         })
-      ));
+      );
 
       const response = await fetch('/api/reconcile/execute', {
         method: 'POST',
