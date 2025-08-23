@@ -184,9 +184,8 @@ export function ContactSearchModal({
         email: newContactForm.email,
         phone: newContactForm.phone || null,
         title: newContactForm.job_title || null,  // Map job_title to title for API
-        company: newContactForm.company || null,
-        owner_id: userData?.id || '',
-        is_primary: false
+        owner_id: userData?.id || ''
+        // Removed is_primary and company_name as they don't exist in the database
       };
 
       const newContact = await createContact(contactData);

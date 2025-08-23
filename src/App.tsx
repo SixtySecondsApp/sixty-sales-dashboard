@@ -12,6 +12,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
+import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -96,6 +97,20 @@ function App() {
     
     return cleanup;
   }, [addCleanup]);
+
+  // Run database migrations on app start
+  useEffect(() => {
+    const runMigrations = async () => {
+      try {
+        await removeSignedAndPaidStage();
+        logger.log('✅ Database migrations completed successfully');
+      } catch (error) {
+        logger.error('❌ Database migration failed:', error);
+      }
+    };
+    
+    runMigrations();
+  }, []); // Run only once on app start
 
   // Initialize performance monitoring
   useEffect(() => {

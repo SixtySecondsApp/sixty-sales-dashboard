@@ -40,7 +40,6 @@ const getStageBadgeClass = (stageName: string, stageColor: string) => {
     'opportunity': 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20',
     'verbal': 'bg-orange-500/15 text-orange-400 border border-orange-500/20',
     'signed': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
-    'signed & paid': 'bg-green-500/15 text-green-400 border border-green-500/20',
     'lost': 'bg-red-500/15 text-red-400 border border-red-500/20',
     // Keep old names for backward compatibility
     'closed won': 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',

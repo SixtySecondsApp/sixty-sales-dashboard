@@ -18,30 +18,78 @@ export class ApiContactService {
     ownerId?: string;
   }) {
     try {
-      const params = new URLSearchParams();
+      // Always use direct Supabase queries for contacts (Edge Function seems to be having issues)
+      logger.log('📋 Fetching contacts directly from Supabase');
       
-      if (options?.search) params.append('search', options.search);
-      if (options?.companyId) params.append('companyId', options.companyId);
-      if (options?.includeCompany) params.append('includeCompany', 'true');
-      if (options?.limit) params.append('limit', options.limit.toString());
-      if (options?.ownerId) params.append('ownerId', options.ownerId);
+      let query = supabase
+        .from('contacts')
+        .select('*', { count: 'exact' });
 
-      const headers = await getSupabaseHeaders();
-      const response = await fetch(`${API_BASE_URL}/contacts?${params}`, {
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Apply search filter (only search on columns that exist in the database)
+      if (options?.search) {
+        const searchTerm = options.search.trim();
+        query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
       }
-      
-      const result = await response.json();
-      
-      if (result.error) {
-        throw new Error(result.error);
+
+      // Apply other filters
+      if (options?.companyId) {
+        query = query.eq('company_id', options.companyId);
       }
-      
-      return result.data as Contact[];
+      if (options?.ownerId) {
+        query = query.eq('owner_id', options.ownerId);
+      }
+
+      // Apply limit
+      if (options?.limit) {
+        query = query.limit(options.limit);
+      } else {
+        query = query.limit(50); // Default limit
+      }
+
+      // Order by created_at
+      query = query.order('created_at', { ascending: false });
+
+      const { data: contacts, error, count } = await query;
+
+      if (error) {
+        logger.error('Error fetching contacts from Supabase:', error);
+        throw error;
+      }
+
+      // Process contacts to add computed fields
+      let processedContacts = (contacts || []).map(contact => ({
+        ...contact,
+        // Generate full_name since it doesn't exist in the database
+        full_name: (contact.first_name && contact.last_name 
+          ? `${contact.first_name} ${contact.last_name}` 
+          : contact.first_name || contact.last_name || '')
+      }));
+
+      // If includeCompany is true, fetch companies for all contacts
+      let enrichedContacts = processedContacts;
+      if (options?.includeCompany && processedContacts.length > 0) {
+        const companyIds = [...new Set(processedContacts
+          .filter(c => c.company_id)
+          .map(c => c.company_id))];
+        
+        if (companyIds.length > 0) {
+          const { data: companies, error: companiesError } = await supabase
+            .from('companies')
+            .select('*')
+            .in('id', companyIds);
+          
+          if (!companiesError && companies) {
+            const companiesMap = new Map(companies.map(c => [c.id, c]));
+            enrichedContacts = processedContacts.map(contact => ({
+              ...contact,
+              company: contact.company_id ? companiesMap.get(contact.company_id) : undefined
+            }));
+          }
+        }
+      }
+
+      logger.log(`✅ Fetched ${enrichedContacts.length} contacts`);
+      return enrichedContacts as Contact[];
     } catch (error) {
       logger.error('Error fetching contacts:', error);
       throw error;
@@ -127,15 +175,14 @@ export class ApiContactService {
         email: contact.email,
         first_name: contact.first_name,
         last_name: contact.last_name,
-        full_name: contact.full_name || 
-          (contact.first_name && contact.last_name 
+        // Generate full_name since it doesn't exist in the database
+        full_name: (contact.first_name && contact.last_name 
             ? `${contact.first_name} ${contact.last_name}` 
             : contact.first_name || contact.last_name || ''),
         phone: contact.phone,
         title: contact.title,
-        company_name: contact.company_name,
         company_id: contact.company_id,
-        is_primary: contact.is_primary || false,
+        // company_name and is_primary don't exist in the database
         linkedin_url: contact.linkedin_url,
         notes: contact.notes,
         owner_id: contact.owner_id,
@@ -176,27 +223,22 @@ export class ApiContactService {
    */
   static async createContact(contactData: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'full_name'>) {
     try {
-      const headers = await getSupabaseHeaders();
-      const response = await fetch(`${API_BASE_URL}/contacts`, {
-        method: 'POST',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(contactData),
-      });
+      // Use direct Supabase query for creating contacts
+      logger.log('📋 Creating contact directly via Supabase');
+      
+      const { data: contact, error } = await supabase
+        .from('contacts')
+        .insert(contactData)
+        .select()
+        .single();
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        logger.error('Error creating contact in Supabase:', error);
+        throw error;
       }
 
-      const result = await response.json();
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      return result.data as Contact;
+      logger.log('✅ Contact created successfully:', contact);
+      return contact as Contact;
     } catch (error) {
       logger.error('Error creating contact:', error);
       throw error;
@@ -208,27 +250,23 @@ export class ApiContactService {
    */
   static async updateContact(id: string, updates: Partial<Contact>) {
     try {
-      const headers = await getSupabaseHeaders();
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${id}`, {
-        method: 'PATCH',
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      });
+      // Use direct Supabase query for updating contacts
+      logger.log('📋 Updating contact directly via Supabase');
+      
+      const { data: contact, error } = await supabase
+        .from('contacts')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        logger.error('Error updating contact in Supabase:', error);
+        throw error;
       }
 
-      const result = await response.json();
-      
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      
-      return result.data as Contact;
+      logger.log('✅ Contact updated successfully:', contact);
+      return contact as Contact;
     } catch (error) {
       logger.error('Error updating contact:', error);
       throw error;
@@ -240,16 +278,20 @@ export class ApiContactService {
    */
   static async deleteContact(id: string) {
     try {
-      const headers = await getSupabaseHeaders();
-      const response = await fetch(`${API_BASE_URL}/contacts?id=${id}`, {
-        method: 'DELETE',
-        headers
-      });
+      // Use direct Supabase query for deleting contacts
+      logger.log('📋 Deleting contact directly via Supabase');
+      
+      const { error } = await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        logger.error('Error deleting contact in Supabase:', error);
+        throw error;
       }
 
+      logger.log('✅ Contact deleted successfully');
       return true;
     } catch (error) {
       logger.error('Error deleting contact:', error);

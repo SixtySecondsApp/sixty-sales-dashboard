@@ -211,7 +211,7 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
 
   // Check if deal can be converted to subscription (is in Won/Closed/Signed stage)
   const canConvertToSubscription = useMemo(() => {
-    const wonStageNames = ['closed', 'won', 'closed/won', 'closed-won', 'signed', 'signed & paid'];
+    const wonStageNames = ['closed', 'won', 'closed/won', 'closed-won', 'signed'];
     const currentStageName = stageName?.toLowerCase() || '';
     const stageId = deal.stage_id?.toLowerCase() || '';
     

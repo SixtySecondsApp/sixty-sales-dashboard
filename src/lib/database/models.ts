@@ -38,12 +38,14 @@ export interface Contact {
   company_id?: string;
   first_name?: string;
   last_name?: string;
-  full_name?: string; // Generated column
+  full_name?: string; // Generated column (doesn't exist in DB, computed in app)
   email: string;
   phone?: string;
   title?: string; // Job title
+  company_name?: string; // Optional - doesn't exist in DB, may be computed from company relation
   linkedin_url?: string;
-  is_primary: boolean;
+  is_primary?: boolean; // Optional as it doesn't exist in current DB schema
+  notes?: string; // Notes field
   owner_id?: string;
   created_at: string;
   updated_at: string;

@@ -43,7 +43,6 @@ const StageOption = forwardRef<HTMLDivElement, StageOptionProps>(({
         return 'border-yellow-500/30 bg-yellow-500/10 shadow-yellow-500/10';
       case 'closed':
       case 'signed':
-      case 'signed & paid':
       case 'lost':
         return 'border-emerald-500/30 bg-emerald-500/10 shadow-emerald-500/10';
       default:

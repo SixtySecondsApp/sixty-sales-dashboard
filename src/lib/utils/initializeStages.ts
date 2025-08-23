@@ -53,8 +53,7 @@ export async function initializeDefaultStages() {
       { name: 'Proposal', description: 'Proposal sent', color: '#EAB308', order_position: 40, default_probability: 50 },
       { name: 'Verbal', description: 'Verbal commitment', color: '#F97316', order_position: 45, default_probability: 75 },
       { name: 'Signed', description: 'Deal signed', color: '#10B981', order_position: 50, default_probability: 100 },
-      { name: 'Signed & Paid', description: 'Deal signed and payment received', color: '#059669', order_position: 60, default_probability: 100 },
-      { name: 'Lost', description: 'Deal lost', color: '#EF4444', order_position: 70, default_probability: 0 }
+      { name: 'Lost', description: 'Deal lost', color: '#EF4444', order_position: 60, default_probability: 0 }
     ];
     
     const { data: newStages, error: insertError } = await (supabase as any)

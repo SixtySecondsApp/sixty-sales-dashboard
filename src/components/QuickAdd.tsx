@@ -365,7 +365,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (action.id === 'deal' || action.id === 'proposal' || action.id === 'sale') {
+                      if (action.id === 'deal' || action.id === 'proposal' || action.id === 'sale' || action.id === 'meeting') {
                         setShowDealWizard(true);
                         setSelectedAction(action.id);
                       } else {
@@ -941,23 +941,24 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           {/* Deal Wizard Modal */}
           <DealWizard
             isOpen={showDealWizard}
-            actionType={selectedAction as 'deal' | 'proposal' | 'sale'}
+            actionType={selectedAction as 'deal' | 'proposal' | 'sale' | 'meeting'}
             onClose={() => {
               setShowDealWizard(false);
-              // Reset to the initial selection screen
               setSelectedAction(null);
+              // Close the entire QuickAdd modal
+              onClose();
             }}
             onDealCreated={(deal) => {
               setShowDealWizard(false);
               
-              // For 'deal' or 'proposal' action, reset and close properly
-              if (selectedAction === 'deal' || selectedAction === 'proposal') {
+              // For 'deal', 'proposal', or 'sale' action, reset and close properly
+              if (selectedAction === 'deal' || selectedAction === 'proposal' || selectedAction === 'sale' || selectedAction === 'meeting') {
                 // Reset everything back to initial state
                 handleClose();
                 // Don't show duplicate success toast - DealWizard already shows one
               } else {
                 // Update the deal selector with the new deal if we're in a deal-related action
-                if (selectedAction === 'sale' || selectedAction === 'meeting') {
+                if (selectedAction === 'meeting') {
                   setFormData(prev => ({
                     ...prev,
                     deal_id: deal.id,

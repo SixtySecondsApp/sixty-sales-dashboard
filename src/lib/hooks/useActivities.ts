@@ -164,20 +164,35 @@ async function createSale(sale: {
   if (!profile) throw new Error('User profile not found');
 
   let finalDealId = sale.deal_id;
+  let shouldUpdateExistingDeal = false;
 
-  // Auto-create deal if not provided
-  if (!finalDealId) {
+  // If deal_id is provided, update that deal to "Signed" stage
+  if (finalDealId) {
+    shouldUpdateExistingDeal = true;
+  } else {
+    // Auto-create deal if not provided
     try {
-      // Get "Closed Won" stage or create if doesn't exist
+      // Get the "Signed" stage specifically (not "Signed and Paid")
       const { data: stages } = await supabase
         .from('deal_stages')
         .select('id, name')
-        .or('name.ilike.%closed%,name.ilike.%won%,name.ilike.%signed%')
+        .eq('name', 'Signed')
         .limit(1);
 
       let closedStageId = stages?.[0]?.id;
 
-      // If no closed stage found, get the last stage
+      // If no "Signed" stage found exactly, try to find "Closed Won" or similar
+      if (!closedStageId) {
+        const { data: alternativeStages } = await supabase
+          .from('deal_stages')
+          .select('id, name')
+          .or('name.ilike.%closed won%,name.ilike.%won%')
+          .limit(1);
+        
+        closedStageId = alternativeStages?.[0]?.id;
+      }
+
+      // If still no closed stage found, get the last stage
       if (!closedStageId) {
         const { data: lastStage } = await supabase
           .from('deal_stages')
@@ -219,6 +234,43 @@ async function createSale(sale: {
     } catch (error) {
       logger.warn('Failed to auto-create deal for sale:', error);
       // Continue without deal linkage
+    }
+  }
+
+  // If we have an existing deal to update, update it to "Signed" stage
+  if (shouldUpdateExistingDeal && finalDealId) {
+    try {
+      // Get the "Signed" stage
+      const { data: signedStage } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'Signed')
+        .single();
+
+      if (signedStage) {
+        // Update the deal to "Signed" stage and update revenue fields
+        const { error: updateError } = await supabase
+          .from('deals')
+          .update({
+            stage_id: signedStage.id,
+            probability: 100,
+            expected_close_date: sale.date || new Date().toISOString(),
+            // Update revenue fields based on sale type
+            one_off_revenue: sale.saleType === 'one-off' ? sale.amount : null,
+            monthly_mrr: sale.saleType === 'subscription' ? sale.amount : null,
+            annual_value: sale.saleType === 'lifetime' ? sale.amount : null,
+            value: sale.amount
+          })
+          .eq('id', finalDealId);
+
+        if (updateError) {
+          logger.warn('Failed to update deal stage to Signed:', updateError);
+        } else {
+          logger.log(`Updated deal ${finalDealId} to Signed stage`);
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to update deal to Signed stage:', error);
     }
   }
 

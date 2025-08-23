@@ -96,10 +96,18 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   
   // Get the stages first
   const {
-    stages,
+    stages: allStages,
     isLoading: isLoadingStages,
     error: stagesError
   } = useDealStages();
+  
+  // Filter out "Signed & Paid" stage from the pipeline display
+  const stages = useMemo(() => {
+    return allStages.filter(stage => 
+      stage.name !== 'Signed & Paid' && 
+      stage.name !== 'Signed and Paid'
+    );
+  }, [allStages]);
   
   // Get deals with owner filtering
   const { 

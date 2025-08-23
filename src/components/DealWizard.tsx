@@ -16,6 +16,7 @@ import { useActivities } from '@/lib/hooks/useActivities';
 import { ContactSearchModal } from './ContactSearchModal';
 import { cn } from '@/lib/utils';
 import { initializeDefaultStages } from '@/lib/utils/initializeStages';
+import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 
@@ -23,7 +24,7 @@ interface DealWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onDealCreated?: (deal: any) => void;
-  actionType?: 'deal' | 'proposal' | 'sale';
+  actionType?: 'deal' | 'proposal' | 'sale' | 'meeting';
   initialData?: {
     clientName?: string;
     contactEmail?: string;
@@ -56,6 +57,13 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
   
   // Debug log stages data
   useEffect(() => {
+    logger.log('🎯 DealWizard stages state:', { 
+      stages, 
+      stagesLength: stages?.length,
+      isNull: stages === null,
+      isUndefined: stages === undefined,
+      isEmpty: stages?.length === 0
+    });
     if (stages && stages.length > 0) {
       logger.log('🎯 DealWizard received stages:', stages);
       logger.log('🎯 First stage details:', { 
@@ -67,7 +75,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
     }
   }, [stages]);
   const { contacts, createContact, findContactByEmail, autoCreateFromEmail } = useContacts();
-  const { addActivityAsync } = useActivities();
+  const { addActivityAsync, addSale } = useActivities();
 
   // Get default stage for new deals
   const defaultStage = stages?.find(stage => 
@@ -96,21 +104,21 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
   const [isLoading, setIsLoading] = useState(false);
   const [showContactSearch, setShowContactSearch] = useState(false);
   const [hasOpenedContactSearch, setHasOpenedContactSearch] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   // Automatically open contact search when modal first opens
   useEffect(() => {
     if (isOpen && !wizard.selectedContact && !hasOpenedContactSearch) {
-      // Small delay to ensure smooth transition
-      const timer = setTimeout(() => {
-        setShowContactSearch(true);
-        setHasOpenedContactSearch(true);
-      }, 100);
-      return () => clearTimeout(timer);
+      // Open immediately without delay
+      setShowContactSearch(true);
+      setHasOpenedContactSearch(true);
+      setInitialLoad(false);
     }
-    // Reset the flag when modal closes
+    // Reset the flags when modal closes
     if (!isOpen) {
       setHasOpenedContactSearch(false);
       setShowContactSearch(false);
+      setInitialLoad(true);
     }
   }, [isOpen, wizard.selectedContact, hasOpenedContactSearch]);
 
@@ -123,8 +131,16 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         if (success) {
           logger.log('✅ Default stages created, refetching...');
           // Refetch stages instead of reloading page
-          refetchStages();
+          if (refetchStages) {
+            refetchStages();
+          } else {
+            logger.error('❌ refetchStages function not available');
+          }
+        } else {
+          logger.error('❌ Failed to initialize default stages');
         }
+      }).catch(error => {
+        logger.error('❌ Error initializing stages:', error);
       });
     } else if (isOpen && stages && stages.length > 0) {
       // Check if any stages are missing names
@@ -134,25 +150,95 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         initializeDefaultStages().then(success => {
           if (success) {
             logger.log('✅ Stages reinitialized, refetching...');
-            refetchStages();
+            if (refetchStages) {
+              refetchStages();
+            } else {
+              logger.error('❌ refetchStages function not available');
+            }
           }
+        }).catch(error => {
+          logger.error('❌ Error reinitializing stages:', error);
         });
+      } else {
+        // Run migration to remove "Signed & Paid" stage (disabled for now to prevent issues)
+        // const hasSignedAndPaid = stages.some(s => s.name === 'Signed & Paid');
+        // if (hasSignedAndPaid) {
+        //   logger.log('🔄 Found "Signed & Paid" stage, running migration...');
+        //   removeSignedAndPaidStage().then(success => {
+        //     if (success) {
+        //       logger.log('✅ Migration completed, refetching stages...');
+        //       refetchStages();
+        //     }
+        //   });
+        // }
+        logger.log('✅ Stages are valid, no migration needed');
       }
     }
     
-    if (stages && stages.length > 0 && !wizard.dealData.stage_id) {
-      const defaultStageId = defaultStage?.id || stages[0]?.id;
-      if (defaultStageId) {
+    if (stages && stages.length > 0 && (!wizard.dealData.stage_id || wizard.dealData.stage_id === '')) {
+      let selectedStageId;
+      
+      // For sales, use "Signed" stage
+      if (actionType === 'sale') {
+        const signedStage = stages.find(s => s.name === 'Signed');
+        selectedStageId = signedStage?.id;
+        logger.log('🎯 Sale action - Signed stage:', { signedStage, selectedStageId });
+      }
+      // For meetings, use "SQL" stage
+      else if (actionType === 'meeting') {
+        const sqlStage = stages.find(s => s.name === 'SQL' || s.name === 'sql');
+        selectedStageId = sqlStage?.id;
+        logger.log('🎯 Meeting action - SQL stage:', { sqlStage, selectedStageId, stages: stages.map(s => s.name) });
+      }
+      
+      // Fallback to default stage
+      if (!selectedStageId) {
+        selectedStageId = defaultStage?.id || stages[0]?.id;
+        logger.log('⚠️ Using fallback stage:', { defaultStage: defaultStage?.name, selectedStageId });
+      }
+      
+      if (selectedStageId) {
         setWizard(prev => ({
           ...prev,
           dealData: {
             ...prev.dealData,
-            stage_id: defaultStageId
+            stage_id: selectedStageId
           }
         }));
       }
     }
-  }, [stages, defaultStage, wizard.dealData.stage_id, isOpen, refetchStages]);
+  }, [stages, defaultStage, wizard.dealData.stage_id, isOpen, refetchStages, actionType]);
+
+  // Set the initial stage when the modal opens based on actionType
+  useEffect(() => {
+    if (isOpen && stages && stages.length > 0) {
+      let initialStageId;
+      
+      // For meetings, immediately set SQL stage
+      if (actionType === 'meeting') {
+        const sqlStage = stages.find(s => s.name === 'SQL' || s.name === 'sql');
+        initialStageId = sqlStage?.id;
+        logger.log('🎯 Setting initial SQL stage for meeting:', { sqlStage, initialStageId });
+      }
+      // For sales, immediately set Signed stage
+      else if (actionType === 'sale') {
+        const signedStage = stages.find(s => s.name === 'Signed');
+        initialStageId = signedStage?.id;
+        logger.log('🎯 Setting initial Signed stage for sale:', { signedStage, initialStageId });
+      }
+      
+      // Only update if we found the appropriate stage and it's different from current
+      if (initialStageId && wizard.dealData.stage_id !== initialStageId) {
+        setWizard(prev => ({
+          ...prev,
+          dealData: {
+            ...prev.dealData,
+            stage_id: initialStageId
+          }
+        }));
+      }
+    }
+  }, [isOpen, actionType, stages]); // Note: not including wizard.dealData.stage_id to avoid infinite loop
 
   const handleClose = () => {
     // Reset all state
@@ -253,6 +339,28 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
     try {
       setIsLoading(true);
 
+      // Set stage based on action type
+      let stageId;
+      if (actionType === 'sale') {
+        const signedStage = stages?.find(s => s.name === 'Signed');
+        if (signedStage) {
+          stageId = signedStage.id;
+        } else {
+          // Fallback to default stage if Signed not found
+          stageId = wizard.dealData.stage_id || defaultStage?.id;
+        }
+      } else if (actionType === 'meeting') {
+        const sqlStage = stages?.find(s => s.name === 'SQL' || s.name === 'sql');
+        if (sqlStage) {
+          stageId = sqlStage.id;
+        } else {
+          // Fallback to default stage if SQL not found
+          stageId = wizard.dealData.stage_id || defaultStage?.id;
+        }
+      } else {
+        stageId = wizard.dealData.stage_id || defaultStage?.id;
+      }
+
       const dealData = {
         name: wizard.dealData.name,
         company: wizard.dealData.company,
@@ -264,11 +372,17 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         contact_phone: wizard.selectedContact.phone || wizard.dealData.contact_phone,
         value: wizard.dealData.value,
         description: wizard.dealData.description,
-        stage_id: wizard.dealData.stage_id || defaultStage?.id,
+        stage_id: stageId,
         owner_id: userData?.id || '',
         expected_close_date: wizard.dealData.expected_close_date || null,
-        probability: defaultStage?.default_probability || 10,
-        status: 'active'
+        probability: actionType === 'sale' ? 100 : (defaultStage?.default_probability || 10),
+        status: 'active',
+        // For sales, set the revenue fields based on the sale type
+        ...(actionType === 'sale' && {
+          one_off_revenue: wizard.dealData.value, // For sales via DealWizard, treat as one-off
+          monthly_mrr: null,
+          annual_value: null
+        })
       };
 
       logger.log('📝 Creating deal with data:', dealData);
@@ -279,8 +393,8 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         // Deal created successfully
         logger.log('✅ Deal created successfully with ID:', newDeal.id);
         
-        // Only create a proposal activity if this was opened from "Add Proposal"
-        if (actionType === 'proposal') {
+        // Create an activity for deal creation, proposal, or sale
+        if (actionType === 'deal' || actionType === 'proposal' || actionType === 'sale') {
           try {
             // IMPORTANT: Wait for database transaction to fully commit
             // This is critical to avoid foreign key constraint violations
@@ -339,54 +453,53 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
               return; // Skip activity creation entirely
             }
             
-            // Now create the proposal activity - deal has been verified
-            logger.log('📝 Creating proposal activity for verified deal...');
-            
-            try {
-              await addActivityAsync({
-                type: 'proposal',
-                client_name: wizard.dealData.company || wizard.dealData.name,
-                details: `Proposal sent: ${wizard.dealData.name}`,
-                amount: wizard.dealData.value,
-                priority: 'high',
-                date: new Date().toISOString(),
-                status: 'completed',
-                deal_id: newDeal.id,
-                contactIdentifier: wizard.selectedContact?.email,
-                contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
-              });
-              logger.log('✅ Proposal activity created successfully for deal:', newDeal.id);
-            } catch (activityCreateError: any) {
-              logger.error('[Activities]', activityCreateError);
+            // Now create the activity - deal has been verified
+            // For sales, we create a sale activity instead
+            if (actionType === 'sale') {
+              logger.log('💰 Creating sale activity for verified deal...');
               
-              if (activityCreateError?.code === '23503' || activityCreateError?.message?.includes('foreign key')) {
-                logger.error('🚨 Foreign key constraint still failing after verification and delays');
-                
-                // Try one more time with a longer delay
-                logger.log('🔄 Final retry attempt for activity creation...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                try {
-                  await addActivityAsync({
-                    type: 'proposal',
-                    client_name: wizard.dealData.company || wizard.dealData.name,
-                    details: `Proposal sent: ${wizard.dealData.name}`,
-                    amount: wizard.dealData.value,
-                    priority: 'high',
-                    date: new Date().toISOString(),
-                    status: 'completed',
-                    deal_id: newDeal.id,
-                    contactIdentifier: wizard.selectedContact?.email,
-                    contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
-                  });
-                  logger.log('✅ Proposal activity created on final retry!');
-                } catch (finalError) {
-                  logger.error('❌ Final retry also failed:', finalError);
-                  toast.warning('Deal created successfully. Proposal activity will be added shortly.');
-                }
-              } else {
-                // Non-foreign key error
-                logger.error('Activity creation failed with non-FK error:', activityCreateError);
+              try {
+                await addSale({
+                  client_name: wizard.dealData.company || wizard.dealData.name,
+                  amount: wizard.dealData.value,
+                  details: `Sale closed: ${wizard.dealData.name}`,
+                  saleType: 'one-off', // Default to one-off for now
+                  date: new Date().toISOString(),
+                  deal_id: newDeal.id,
+                  contactIdentifier: wizard.selectedContact?.email,
+                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
+                });
+                logger.log('✅ Sale activity created successfully for deal:', newDeal.id);
+              } catch (error) {
+                logger.error('❌ Failed to create sale activity:', error);
+                // Continue anyway - deal was created successfully
+              }
+            } else {
+              // Original logic for deal and proposal
+              const activityType = actionType === 'proposal' ? 'proposal' : 'meeting';
+              const activityDetails = actionType === 'proposal' 
+                ? `Proposal sent: ${wizard.dealData.name}`
+                : `New deal created: ${wizard.dealData.name}`;
+              
+              logger.log(`📝 Creating ${activityType} activity for verified deal...`);
+              
+              try {
+                await addActivityAsync({
+                  type: activityType as 'proposal' | 'meeting',
+                  client_name: wizard.dealData.company || wizard.dealData.name,
+                  details: activityDetails,
+                  amount: wizard.dealData.value,
+                  priority: 'high',
+                  date: new Date().toISOString(),
+                  status: 'completed',
+                  deal_id: newDeal.id,
+                  contactIdentifier: wizard.selectedContact?.email,
+                  contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown'
+                });
+                logger.log(`✅ ${activityType} activity created successfully for deal:`, newDeal.id);
+              } catch (error) {
+                logger.error(`❌ Failed to create ${activityType} activity:`, error);
+                // Continue anyway - deal was created successfully
               }
             }
           } catch (outerError) {
@@ -401,6 +514,8 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         // Show appropriate success message based on action type
         if (actionType === 'proposal') {
           toast.success('Deal and proposal created successfully!');
+        } else if (actionType === 'sale') {
+          toast.success('Sale recorded successfully! 🎉');
         } else {
           toast.success('Deal created successfully!');
         }
@@ -454,11 +569,17 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-white">
-                    {actionType === 'proposal' ? 'Create Deal & Proposal' : 'Create New Deal'}
+                    {actionType === 'proposal' ? 'Create Deal & Proposal' : 
+                     actionType === 'meeting' ? 'Create Meeting & Deal' :
+                     'Create New Deal'}
                   </h2>
                   <p className="text-sm text-gray-400">
                     {wizard.step === 'new-deal' && (wizard.selectedContact ? 'Fill in deal details' : 'Select a contact to continue')}
-                    {wizard.step === 'success' && (actionType === 'proposal' ? 'Deal and proposal created successfully!' : 'Deal created successfully!')}
+                    {wizard.step === 'success' && (
+                      actionType === 'proposal' ? 'Deal and proposal created successfully!' : 
+                      actionType === 'meeting' ? 'Meeting and deal created successfully!' :
+                      'Deal created successfully!'
+                    )}
                   </p>
                 </div>
               </div>
@@ -496,7 +617,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
             <div className="p-6">
               <AnimatePresence mode="wait">
                 {/* New Deal Flow */}
-                {wizard.step === 'new-deal' && (
+                {wizard.step === 'new-deal' && !(!wizard.selectedContact && initialLoad) && (
                   <motion.div
                     key="new-deal"
                     initial={{ opacity: 0, x: 20 }}
@@ -613,14 +734,16 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                                 {!wizard.dealData.stage_id && (
                                   <option value="">Select a stage</option>
                                 )}
-                                {stages.map(stage => {
-                                  logger.log('🔍 Rendering stage:', { id: stage.id, name: stage.name, hasName: !!stage.name });
-                                  return (
-                                    <option key={stage.id} value={stage.id}>
-                                      {stage.name || `Stage ${stage.id}`}
-                                    </option>
-                                  );
-                                })}
+                                {stages
+                                  .filter(stage => stage.name !== 'Signed & Paid') // Filter out legacy stage
+                                  .map(stage => {
+                                    logger.log('🔍 Rendering stage:', { id: stage.id, name: stage.name, hasName: !!stage.name });
+                                    return (
+                                      <option key={stage.id} value={stage.id}>
+                                        {stage.name || `Stage ${stage.id}`}
+                                      </option>
+                                    );
+                                  })}
                               </>
                             )}
                           </select>
@@ -648,7 +771,9 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                             ) : (
                               <>
                                 <CheckCircle className="w-5 h-5" />
-                                {actionType === 'proposal' ? 'Create Deal & Proposal' : 'Create Deal'}
+                                {actionType === 'proposal' ? 'Create Deal & Proposal' : 
+                                 actionType === 'sale' ? 'Create Sale' : 
+                                 actionType === 'meeting' ? 'Add Meeting' : 'Create Deal'}
                               </>
                             )}
                           </button>
@@ -672,10 +797,17 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                       <CheckCircle className="w-8 h-8 text-emerald-400" />
                     </div>
                     <h3 className="text-xl font-semibold text-white mb-2">
-                      Deal Created Successfully!
+                      {actionType === 'sale' ? 'Sale Recorded Successfully!' : 
+                       actionType === 'proposal' ? 'Deal & Proposal Created!' : 
+                       actionType === 'meeting' ? 'Meeting & Deal Created!' :
+                       'Deal Created Successfully!'}
                     </h3>
                     <p className="text-gray-400">
-                      Your new deal has been added to the pipeline with the selected contact.
+                      {actionType === 'sale' ? 
+                       'Your sale has been recorded and the deal marked as signed.' : 
+                       actionType === 'meeting' ?
+                       'Your meeting has been logged and the deal moved to SQL stage.' :
+                       'Your new deal has been added to the pipeline with the selected contact.'}
                     </p>
                   </motion.div>
                 )}
@@ -686,7 +818,10 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
           {/* Contact Search Modal */}
           <ContactSearchModal
             isOpen={showContactSearch}
-            onClose={() => setShowContactSearch(false)}
+            onClose={() => {
+              setShowContactSearch(false);
+              // Don't close the entire wizard, just the contact search
+            }}
             onContactSelect={handleContactSelect}
             prefilledEmail={wizard.dealData.contact_email}
             prefilledName={wizard.dealData.contact_name}
