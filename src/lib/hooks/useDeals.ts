@@ -5,6 +5,7 @@ import { fetchWithRetry, apiCall } from '@/lib/utils/apiUtils';
 import { supabase, supabaseAdmin } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { useViewMode } from '@/contexts/ViewModeContext';
+import { handlePipelineStageTransition } from '@/lib/utils/pipelineActivityCreator';
 
 // Security: Sanitize error messages to prevent sensitive data exposure
 function sanitizeErrorMessage(error: any): string {
@@ -559,6 +560,11 @@ export function useDeals(ownerId?: string) {
 
   const moveDealToStage = async (dealId: string, stageId: string) => {
     try {
+      // Get the deal and stage information for activity creation
+      const deal = deals.find(d => d.id === dealId);
+      const fromStage = deal && deal.stage_id ? stages.find(s => s.id === deal.stage_id) || null : null;
+      const toStage = stages.find(s => s.id === stageId);
+      
       // Try Edge Function first
       try {
         const result = await apiCall(
@@ -573,12 +579,28 @@ export function useDeals(ownerId?: string) {
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
+        // Create activity for the stage transition if we have the necessary data
+        if (deal && toStage) {
+          await handlePipelineStageTransition(
+            {
+              id: deal.id,
+              name: deal.name,
+              company: deal.company,
+              value: deal.value,
+              owner_id: deal.owner_id,
+              contact_email: deal.contact_email,
+            },
+            fromStage,
+            toStage
+          );
+        }
+
         await fetchDeals(); // Refresh data
         return true;
       } catch (edgeFunctionError) {
         
         // Fallback to direct Supabase client
-        const { data: deal, error } = await (supabase as any)
+        const { data: updatedDeal, error } = await (supabase as any)
           .from('deals')
           .update({ 
             stage_id: stageId,
@@ -589,6 +611,22 @@ export function useDeals(ownerId?: string) {
           .single();
         
         if (error) throw error;
+        
+        // Create activity for the stage transition if we have the necessary data
+        if (deal && toStage) {
+          await handlePipelineStageTransition(
+            {
+              id: deal.id,
+              name: deal.name,
+              company: deal.company,
+              value: deal.value,
+              owner_id: deal.owner_id,
+              contact_email: deal.contact_email,
+            },
+            fromStage,
+            toStage
+          );
+        }
         
         await fetchDeals(); // Refresh data
         return true;

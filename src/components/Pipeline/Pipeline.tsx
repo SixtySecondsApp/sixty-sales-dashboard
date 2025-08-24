@@ -33,6 +33,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
 import logger from '@/lib/utils/logger';
+import { handlePipelineStageTransition } from '@/lib/utils/pipelineActivityCreator';
 
 
 
@@ -406,6 +407,51 @@ function PipelineContent() {
         .eq('id', activeId)
         .select();
       if (error) throw error;
+
+      // Find the deal object and stage objects for activity creation
+      const movedDeal = Object.values(localDealsByStage)
+        .flat()
+        .find(deal => deal.id === activeId);
+      
+      logger.log('🎬 Pipeline drag completed:', {
+        dealId: activeId,
+        fromStage: fromStage,
+        toStage: toStage,
+        dealFound: !!movedDeal,
+        dealName: movedDeal?.name || movedDeal?.company || 'Unknown'
+      });
+      
+      if (movedDeal) {
+        const fromStageObj = stages.find(s => s.id === fromStage) || null;
+        const toStageObj = stages.find(s => s.id === toStage);
+        
+        logger.log('📍 Stage objects:', {
+          fromStageName: fromStageObj?.name || 'null',
+          toStageName: toStageObj?.name || 'null'
+        });
+        
+        if (toStageObj) {
+          // Create activity for the stage transition
+          const activityCreated = await handlePipelineStageTransition(
+            {
+              id: movedDeal.id,
+              name: movedDeal.name,
+              company: movedDeal.company,
+              value: movedDeal.value,
+              owner_id: movedDeal.owner_id,
+              contact_email: movedDeal.contact_email,
+            },
+            fromStageObj,
+            toStageObj
+          );
+          
+          logger.log(`🎯 Activity creation result: ${activityCreated ? 'SUCCESS' : 'FAILED'}`);
+        } else {
+          logger.warn('❌ Could not find target stage object');
+        }
+      } else {
+        logger.warn('❌ Could not find moved deal in localDealsByStage');
+      }
 
       // Check if moved to Signed - show closing modal and celebrate
       const signedStage = stages.find(
