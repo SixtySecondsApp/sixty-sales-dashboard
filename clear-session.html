@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Session and Restore Account</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0ea968;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+        }
+        .success {
+            color: #10b981;
+        }
+        .error {
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>Session Recovery Tool</h1>
+    <p>This tool will help you restore your original account and clear any impersonation/view mode sessions.</p>
+    
+    <div class="status" id="status">Ready to clear sessions...</div>
+    
+    <button onclick="clearAllSessions()">Clear All Sessions</button>
+    <button onclick="clearLocalStorage()">Clear Local Storage</button>
+    <button onclick="clearSessionStorage()">Clear Session Storage</button>
+    <button onclick="logoutAndReload()">Logout and Reload</button>
+    
+    <h2>Manual Steps:</h2>
+    <ol>
+        <li>Click "Clear All Sessions" button above</li>
+        <li>Close all browser tabs with the application</li>
+        <li>Clear browser cookies for localhost:5175</li>
+        <li>Open a new incognito/private window</li>
+        <li>Navigate to <a href="http://localhost:5175/auth/login" target="_blank">http://localhost:5175/auth/login</a></li>
+        <li>Login with your original credentials</li>
+    </ol>
+    
+    <script>
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = 'status ' + (isError ? 'error' : 'success');
+        }
+        
+        function clearAllSessions() {
+            try {
+                // Clear all possible session keys
+                const keysToRemove = [
+                    'supabase.auth.token',
+                    'sb-localhost-auth-token',
+                    'sb-edninhoxdybpusvgvwir-auth-token',
+                    'impersonation_data',
+                    'original_user',
+                    'viewMode',
+                    'audit_context',
+                    'session_id'
+                ];
+                
+                // Clear from localStorage
+                keysToRemove.forEach(key => {
+                    localStorage.removeItem(key);
+                    // Also try with different prefixes
+                    localStorage.removeItem(`sb-${key}`);
+                });
+                
+                // Clear all localStorage items that might be auth-related
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    const key = localStorage.key(i);
+                    if (key && (key.includes('auth') || key.includes('session') || 
+                        key.includes('imperson') || key.includes('view') || 
+                        key.includes('supabase') || key.includes('sb-'))) {
+                        localStorage.removeItem(key);
+                    }
+                }
+                
+                // Clear from sessionStorage
+                keysToRemove.forEach(key => {
+                    sessionStorage.removeItem(key);
+                    sessionStorage.removeItem(`sb-${key}`);
+                });
+                
+                // Clear all sessionStorage items
+                for (let i = sessionStorage.length - 1; i >= 0; i--) {
+                    const key = sessionStorage.key(i);
+                    if (key && (key.includes('auth') || key.includes('session') || 
+                        key.includes('imperson') || key.includes('view') || 
+                        key.includes('supabase') || key.includes('sb-'))) {
+                        sessionStorage.removeItem(key);
+                    }
+                }
+                
+                // Clear cookies
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                
+                updateStatus('✅ All sessions cleared successfully! Please close this tab and login again.');
+            } catch (error) {
+                updateStatus('❌ Error clearing sessions: ' + error.message, true);
+            }
+        }
+        
+        function clearLocalStorage() {
+            try {
+                localStorage.clear();
+                updateStatus('✅ Local storage cleared!');
+            } catch (error) {
+                updateStatus('❌ Error clearing local storage: ' + error.message, true);
+            }
+        }
+        
+        function clearSessionStorage() {
+            try {
+                sessionStorage.clear();
+                updateStatus('✅ Session storage cleared!');
+            } catch (error) {
+                updateStatus('❌ Error clearing session storage: ' + error.message, true);
+            }
+        }
+        
+        function logoutAndReload() {
+            clearAllSessions();
+            setTimeout(() => {
+                window.location.href = 'http://localhost:5175/auth/login';
+            }, 1000);
+        }
+        
+        // Show current storage status
+        window.onload = function() {
+            const authKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('auth') || key.includes('supabase'))) {
+                    authKeys.push(key);
+                }
+            }
+            
+            if (authKeys.length > 0) {
+                updateStatus('Found ' + authKeys.length + ' auth-related items in storage: ' + authKeys.join(', '));
+            } else {
+                updateStatus('No auth-related items found in storage.');
+            }
+        };
+    </script>
+</body>
+</html>

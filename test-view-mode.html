@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test View Mode</title>
+</head>
+<body>
+    <h1>Testing View Mode Context</h1>
+    <script>
+        // Test if the app loads at all
+        fetch('http://localhost:5175/')
+            .then(res => res.text())
+            .then(html => {
+                console.log('App HTML loaded:', html.substring(0, 200));
+            })
+            .catch(err => console.error('Error loading app:', err));
+
+        // Try to check the app state
+        setTimeout(() => {
+            console.log('Checking app state...');
+        }, 2000);
+    </script>
+    <iframe src="http://localhost:5175/" width="100%" height="600"></iframe>
+</body>
+</html>

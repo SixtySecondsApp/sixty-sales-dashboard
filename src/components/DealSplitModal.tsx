@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { useDealSplits } from '@/lib/hooks/useDealSplits';
 import { useUsers } from '@/lib/hooks/useUsers';
+import { useUser } from '@/lib/hooks/useUser';
 import { Deal, DealSplitWithUser } from '@/lib/database/models';
 import { toast } from 'sonner';
 
@@ -60,6 +61,7 @@ export default function DealSplitModal({ open, onOpenChange, deal }: DealSplitMo
   });
 
   const { users } = useUsers();
+  const { userData } = useUser();
   const { 
     splits, 
     isLoading, 
@@ -135,6 +137,12 @@ export default function DealSplitModal({ open, onOpenChange, deal }: DealSplitMo
   };
 
   const handleDeleteSplit = async (splitId: string) => {
+    // Only allow admins to delete splits
+    if (!userData?.is_admin) {
+      toast.error('Only administrators can remove deal splits');
+      return;
+    }
+    
     if (window.confirm('Are you sure you want to remove this split?')) {
       await deleteSplit(splitId);
     }
@@ -204,9 +212,16 @@ export default function DealSplitModal({ open, onOpenChange, deal }: DealSplitMo
           {splits.length > 0 && (
             <Card className="bg-gray-900/50 border-gray-800">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-gray-200">
-                  <Users className="w-4 h-4" />
-                  Current Splits ({splits.length})
+                <CardTitle className="flex items-center justify-between text-gray-200">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Current Splits ({splits.length})
+                  </div>
+                  {!userData?.is_admin && (
+                    <span className="text-xs text-gray-500 font-normal">
+                      Only admins can remove splits
+                    </span>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -279,14 +294,17 @@ export default function DealSplitModal({ open, onOpenChange, deal }: DealSplitMo
                           >
                             <Edit className="w-3 h-3" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteSplit(split.id)}
-                            className="h-8 w-8 p-0 hover:bg-red-900 text-red-400"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                          {userData?.is_admin && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteSplit(split.id)}
+                              className="h-8 w-8 p-0 hover:bg-red-900 text-red-400"
+                              title="Admin only: Remove split"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>

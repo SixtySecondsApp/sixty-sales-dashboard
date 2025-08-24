@@ -36,6 +36,10 @@ export interface Activity {
     annual_value?: number;
     stage_id: string;
   };
+  // Split activity fields
+  is_split?: boolean;
+  original_activity_id?: string;
+  split_percentage?: number;
 }
 
 async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUserId?: string) {
