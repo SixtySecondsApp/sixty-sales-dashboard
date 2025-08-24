@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import type { Database } from '@/lib/database.types';
 import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
+import { ViewModeContext } from '@/contexts/ViewModeContext';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -184,6 +185,14 @@ export function useUser() {
   const [error, setError] = useState<Error | null>(null);
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [originalUserData, setOriginalUserData] = useState<UserProfile | null>(null);
+  
+  // Try to get View Mode context - but make it optional
+  let viewModeContext = null;
+  try {
+    viewModeContext = useContext(ViewModeContext);
+  } catch (e) {
+    // Context not available, that's ok
+  }
 
   useEffect(() => {
     // Check if we're in an impersonation session
@@ -215,7 +224,7 @@ export function useUser() {
         // Get the current user session from Supabase with timeout
         const sessionPromise = supabase.auth.getSession();
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+          setTimeout(() => reject(new Error('Session fetch timeout')), 10000) // Increased to 10 seconds
         );
         
         const { data: { session }, error: sessionError } = await Promise.race([
@@ -326,25 +335,9 @@ export function useUser() {
         }
         setError(err);
         
-        // Fall back to mock user in case of errors
-        if (!userData) {
-          setUserData({
-            id: 'mock-user-id',
-            email: 'demo@example.com',
-            first_name: 'Demo',
-            last_name: 'User',
-            full_name: 'Demo User',
-            avatar_url: null,
-            role: 'Senior',
-            department: 'Sales',
-            stage: 'Senior',
-            is_admin: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            username: null,
-            website: null
-          } as UserProfile);
-        }
+        // Don't fall back to demo user - this was causing the issue
+        // User should re-authenticate if there's a problem
+        setUserData(null);
       } finally {
         setIsLoading(false);
         isUserFetching = false;
@@ -407,14 +400,40 @@ export function useUser() {
     }
   };
 
+  // If we're in view mode, we need to fetch and return the viewed user's data instead
+  const [viewedUserData, setViewedUserData] = useState<UserProfile | null>(null);
+  
+  useEffect(() => {
+    if (viewModeContext?.isViewMode && viewModeContext?.viewedUser) {
+      // Fetch the viewed user's full profile data
+      const fetchViewedUser = async () => {
+        const { data, error } = await (supabase as any)
+          .from('profiles')
+          .select('*')
+          .eq('id', viewModeContext.viewedUser.id)
+          .single();
+        
+        if (data && !error) {
+          setViewedUserData(data);
+        }
+      };
+      
+      fetchViewedUser();
+    } else {
+      setViewedUserData(null);
+    }
+  }, [viewModeContext?.isViewMode, viewModeContext?.viewedUser?.id]);
+
   return {
-    userData,
+    userData: viewModeContext?.isViewMode && viewedUserData ? viewedUserData : userData,
     originalUserData,
     isLoading,
     error,
     signOut,
     isAuthenticated: !!userData,
     isImpersonating,
-    stopImpersonating: handleStopImpersonation
+    stopImpersonating: handleStopImpersonation,
+    isViewMode: viewModeContext?.isViewMode || false,
+    actualUser: userData // Always the actual logged-in user
   };
 }

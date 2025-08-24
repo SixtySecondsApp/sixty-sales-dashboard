@@ -45,6 +45,13 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUse
   // Use viewed user ID if in view mode, otherwise use current user
   const targetUserId = viewedUserId || user.id;
 
+  logger.log('[fetchActivities] Debug:', {
+    viewedUserId,
+    targetUserId,
+    currentUserId: user.id,
+    isViewMode: !!viewedUserId
+  });
+
   let query = (supabase as any)
     .from('activities')
     .select(`
@@ -58,8 +65,40 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUse
         annual_value,
         stage_id
       )
-    `)
-    .eq('user_id', targetUserId);
+    `);
+
+  // When in view mode, we need to be more flexible with the filtering
+  // Activities might be linked via user_id OR via sales_rep name
+  if (viewedUserId) {
+    // In view mode, get the user's profile to get their name for sales_rep matching
+    const { data: profileData } = await (supabase as any)
+      .from('profiles')
+      .select('first_name, last_name, full_name')
+      .eq('id', viewedUserId)
+      .single();
+    
+    logger.log('[fetchActivities] View Mode profile data:', profileData);
+    
+    if (profileData) {
+      const salesRepName = profileData.full_name || 
+        `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+      
+      logger.log('[fetchActivities] Searching for activities with:', {
+        user_id: targetUserId,
+        sales_rep: salesRepName
+      });
+      
+      // Filter by either user_id OR sales_rep name
+      query = query.or(`user_id.eq.${targetUserId},sales_rep.eq.${salesRepName}`);
+    } else {
+      // Fallback to just user_id
+      logger.log('[fetchActivities] No profile found, using user_id only:', targetUserId);
+      query = query.eq('user_id', targetUserId);
+    }
+  } else {
+    // Normal mode - just filter by current user's ID
+    query = query.eq('user_id', targetUserId);
+  }
 
   // Apply date range filter if provided
   if (dateRange) {
@@ -72,9 +111,24 @@ async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUse
 
   const { data, error } = await query;
 
-  if (error) throw error;
+  if (error) {
+    logger.error('[fetchActivities] Query error:', error);
+    throw error;
+  }
 
-  return data?.filter(activity => activity.user_id === user.id) || [];
+  logger.log('[fetchActivities] Raw data count:', data?.length || 0);
+  
+  // CRITICAL FIX: Don't filter by current user when in view mode!
+  // When viewing as another user, we want THEIR activities, not ours
+  if (viewedUserId) {
+    // In view mode, return all the data from the query (already filtered)
+    logger.log('[fetchActivities] View Mode - returning viewed user activities');
+    return data || [];
+  } else {
+    // In normal mode, ensure we only see our own activities (extra safety)
+    logger.log('[fetchActivities] Normal Mode - filtering by current user');
+    return data?.filter(activity => activity.user_id === user.id) || [];
+  }
 }
 
 // Helper to process activity if ready
@@ -404,6 +458,8 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
   const { data: activities = [], isLoading } = useQuery({
     queryKey: isViewMode && viewedUser ? [...queryKey, 'view', viewedUser.id] : queryKey,
     queryFn: () => fetchActivities(dateRange, isViewMode ? viewedUser?.id : undefined),
+    // Ensure cache is not shared between view modes
+    staleTime: isViewMode ? 0 : 5 * 60 * 1000,
   });
 
   // Add activity mutation with error handling

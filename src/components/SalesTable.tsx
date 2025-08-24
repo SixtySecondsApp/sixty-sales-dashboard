@@ -74,10 +74,56 @@ export function SalesTable() {
   const [activityToDelete, setActivityToDelete] = useState<string | null>(null);
   const { filters, setFilters, resetFilters } = useActivityFilters();
   
+  // Initialize date range from filters if available (e.g., when navigating from dashboard)
+  const initializeDateRange = () => {
+    // Check if we have a date range in filters (e.g., from dashboard navigation)
+    if (filters.dateRange) {
+      const now = new Date();
+      const filterStart = new Date(filters.dateRange.start);
+      const filterEnd = new Date(filters.dateRange.end);
+      
+      logger.log('[SalesTable] Initializing with filter date range:', {
+        start: format(filterStart, 'yyyy-MM-dd'),
+        end: format(filterEnd, 'yyyy-MM-dd')
+      });
+      
+      // Check if it's a custom range or matches a preset
+      if (
+        startOfDay(filterStart).getTime() === startOfDay(now).getTime() &&
+        endOfDay(filterEnd).getTime() === endOfDay(now).getTime()
+      ) {
+        return { type: 'today' as DateRangePreset, custom: null };
+      } else if (
+        startOfWeek(filterStart).getTime() === startOfWeek(now).getTime() &&
+        endOfWeek(filterEnd).getTime() === endOfWeek(now).getTime()
+      ) {
+        return { type: 'thisWeek' as DateRangePreset, custom: null };
+      } else if (
+        startOfMonth(filterStart).getTime() === startOfMonth(now).getTime() &&
+        endOfMonth(filterEnd).getTime() === endOfMonth(now).getTime()
+      ) {
+        return { type: 'thisMonth' as DateRangePreset, custom: null };
+      } else {
+        // It's a custom range (including previous months from dashboard)
+        logger.log('[SalesTable] Setting custom date range for previous month or other period');
+        return { 
+          type: 'custom' as DateRangePreset, 
+          custom: { start: filterStart, end: filterEnd }
+        };
+      }
+    }
+    
+    // Default to this month if no filters set
+    logger.log('[SalesTable] No filter date range found, defaulting to this month');
+    return { type: 'thisMonth' as DateRangePreset, custom: null };
+  };
+  
+  const initialDateRange = initializeDateRange();
+  
   // State for date filtering
-  const [selectedRangeType, setSelectedRangeType] = useState<DateRangePreset>('thisMonth');
+  const [selectedRangeType, setSelectedRangeType] = useState<DateRangePreset>(initialDateRange.type);
   // State for custom date range
-  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(null);
+  const [customDateRange, setCustomDateRange] = useState<DateRange | null>(initialDateRange.custom);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // State for upload modal
   const [showFilters, setShowFilters] = useState(false); // State for filters panel
   const [showSubscriptionStats, setShowSubscriptionStats] = useState(false); // State for subscription cards visibility

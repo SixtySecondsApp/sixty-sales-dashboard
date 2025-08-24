@@ -99,18 +99,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
-      {/* View Mode Banner */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
+      {/* View Mode Banner at the top */}
       <ViewModeBanner />
       
-      {/* Legacy Impersonation Banner (will be removed once View As is fully working) */}
-      {isImpersonating && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500/10 backdrop-blur-sm text-center py-1 px-2 text-amber-400 text-xs font-medium border-b border-amber-500/20">
-          <span className="flex items-center justify-center gap-1">
-            <UserX className="w-3 h-3" /> You are impersonating {userData?.first_name} {userData?.last_name}
-          </span>
-        </div>
-      )}
+      {/* Main app content */}
+      <div className="flex">
+        {/* Legacy Impersonation Banner (will be removed once View As is fully working) */}
+        {isImpersonating && (
+          <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500/10 backdrop-blur-sm text-center py-1 px-2 text-amber-400 text-xs font-medium border-b border-amber-500/20">
+            <span className="flex items-center justify-center gap-1">
+              <UserX className="w-3 h-3" /> You are impersonating {userData?.first_name} {userData?.last_name}
+            </span>
+          </div>
+        )}
       
       <div className={cn(
         "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-gray-950/50 backdrop-blur-sm border-b border-gray-800/50 lg:hidden",
@@ -498,6 +500,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
       </main>
+    </div>
     </div>
   );
 }

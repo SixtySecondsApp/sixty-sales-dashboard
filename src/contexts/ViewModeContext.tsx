@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ViewModeUser {
   id: string;
@@ -15,18 +16,27 @@ interface ViewModeContextType {
   exitViewMode: () => void;
 }
 
-const ViewModeContext = createContext<ViewModeContextType | undefined>(undefined);
+export const ViewModeContext = createContext<ViewModeContextType | undefined>(undefined);
 
 export function ViewModeProvider({ children }: { children: ReactNode }) {
   const [viewedUser, setViewedUser] = useState<ViewModeUser | null>(null);
+  const queryClient = useQueryClient();
 
   const startViewMode = (user: ViewModeUser) => {
+    // Clear cache when entering view mode to prevent data mixing
+    queryClient.invalidateQueries({ queryKey: ['activities'] });
+    queryClient.invalidateQueries({ queryKey: ['deals'] });
+    
     setViewedUser(user);
     // Store in sessionStorage to persist across page refreshes
     sessionStorage.setItem('viewMode', JSON.stringify(user));
   };
 
   const exitViewMode = () => {
+    // Clear cache when exiting view mode to prevent data mixing
+    queryClient.invalidateQueries({ queryKey: ['activities'] });
+    queryClient.invalidateQueries({ queryKey: ['deals'] });
+    
     setViewedUser(null);
     sessionStorage.removeItem('viewMode');
   };
