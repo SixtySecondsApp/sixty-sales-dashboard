@@ -133,24 +133,30 @@ class WebVitalsOptimizer {
   }
 
   private preloadCriticalResources(): void {
-    const criticalResources = [
-      { href: '/assets/main.css', as: 'style' },
-      { href: '/assets/vendor-react.js', as: 'script' },
-      { href: '/manifest.json', as: 'manifest' }
-    ];
+    // Only preload in production where these files actually exist
+    if (import.meta.env.PROD) {
+      const criticalResources = [
+        { href: '/assets/index.css', as: 'style' },
+        { href: '/assets/index.js', as: 'script' }
+      ];
 
-    criticalResources.forEach(resource => {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.href = resource.href;
-      link.as = resource.as;
-      if (resource.as === 'style') {
-        link.onload = () => {
-          (link as any).rel = 'stylesheet';
-        };
-      }
-      document.head.appendChild(link);
-    });
+      criticalResources.forEach(resource => {
+        // Check if resource exists before preloading
+        const existingLink = document.querySelector(`link[href="${resource.href}"]`);
+        if (!existingLink) {
+          const link = document.createElement('link');
+          link.rel = 'preload';
+          link.href = resource.href;
+          link.as = resource.as;
+          if (resource.as === 'style') {
+            link.onload = () => {
+              (link as any).rel = 'stylesheet';
+            };
+          }
+          document.head.appendChild(link);
+        }
+      });
+    }
   }
 
   private optimizeImages(): void {
