@@ -97,13 +97,30 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       logger.log(`All activities for deal ${splitData.deal_id}:`, allActivities);
       
       // Find the original activity (not a split one)
+      // First try to find an activity that's explicitly not a split
       let { data: originalActivity, error: activityError } = await supabase
         .from('activities')
         .select('*')
         .eq('deal_id', splitData.deal_id)
         .eq('type', 'sale')
-        .or('is_split.is.null,is_split.eq.false')
+        .neq('is_split', true)
         .single();
+      
+      // If that fails, try finding one where is_split is null
+      if (activityError) {
+        const { data: nullSplitActivity } = await supabase
+          .from('activities')
+          .select('*')
+          .eq('deal_id', splitData.deal_id)
+          .eq('type', 'sale')
+          .is('is_split', null)
+          .single();
+        
+        if (nullSplitActivity) {
+          originalActivity = nullSplitActivity;
+          activityError = null;
+        }
+      }
       
       let activityWasJustCreated = false;
 
@@ -173,6 +190,15 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       }
 
       if (originalActivity) {
+        // Get the deal value to calculate correct amounts
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('value')
+          .eq('id', splitData.deal_id)
+          .single();
+        
+        const dealValue = deal?.value || originalActivity.amount || 0;
+        
         // Get the user profile for the split recipient
         const { data: userProfile } = await supabase
           .from('profiles')
@@ -181,15 +207,18 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
           .single();
 
         if (userProfile) {
-          // Calculate the split amount based on percentage
-          const splitAmount = (originalActivity.amount || 0) * (splitData.percentage / 100);
+          // Calculate the split amount based on the deal value and percentage
+          const splitAmount = dealValue * (splitData.percentage / 100);
+          
+          // Get the base details without any percentage notation
+          const baseDetails = originalActivity.details?.replace(/ \(\d+% retained after split\)/, '').replace(/ \(\d+% split\)/, '') || 'Sale';
           
           // Create a new activity for the split recipient
           const splitActivity = {
             user_id: splitData.user_id,
             type: 'sale',
             client_name: originalActivity.client_name,
-            details: `${originalActivity.details || 'Sale'} (${splitData.percentage}% split)`,
+            details: `${baseDetails} (${splitData.percentage}% split)`,
             amount: splitAmount,
             priority: originalActivity.priority || 'high',
             sales_rep: `${userProfile.first_name} ${userProfile.last_name}`,
@@ -220,10 +249,9 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
             if (!activityWasJustCreated) {
               // Calculate the remaining percentage for the original owner
               const remainingPercentage = 100 - totalExisting - splitData.percentage;
-              const remainingAmount = (originalActivity.amount || 0) * (remainingPercentage / 100);
+              const remainingAmount = dealValue * (remainingPercentage / 100);
               
               // Update the original activity's amount and details to reflect the split
-              const baseDetails = originalActivity.details?.replace(/ \(\d+% retained after split\)/, '') || 'Sale';
               const updatedDetails = `${baseDetails} (${remainingPercentage}% retained after split)`;
               await supabase
                 .from('activities')
