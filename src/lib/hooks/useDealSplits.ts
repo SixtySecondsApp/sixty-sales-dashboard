@@ -86,14 +86,91 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
       }
 
       // Now, check if there's a related activity for this deal and create a split activity
+      // First, let's check what activities exist for this deal
+      logger.log(`Looking for activities for deal ${splitData.deal_id}`);
+      
+      const { data: allActivities } = await supabase
+        .from('activities')
+        .select('*')
+        .eq('deal_id', splitData.deal_id);
+      
+      logger.log(`All activities for deal ${splitData.deal_id}:`, allActivities);
+      
       // Find the original activity (not a split one)
-      const { data: originalActivity } = await supabase
+      let { data: originalActivity, error: activityError } = await supabase
         .from('activities')
         .select('*')
         .eq('deal_id', splitData.deal_id)
         .eq('type', 'sale')
         .or('is_split.is.null,is_split.eq.false')
         .single();
+      
+      let activityWasJustCreated = false;
+
+      if (activityError) {
+        logger.warn(`No sale activity found for deal ${splitData.deal_id}. This deal may not have been created as a sale yet.`, activityError);
+        
+        // If there's no sale activity, we need to create one first for the deal owner
+        logger.log(`Creating initial sale activity for deal ${splitData.deal_id}`);
+        
+        // Get the deal details to create the activity
+        const { data: deal } = await supabase
+          .from('deals')
+          .select('*')
+          .eq('id', splitData.deal_id)
+          .single();
+        
+        if (deal) {
+          // Get the owner's profile
+          const { data: ownerProfile } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', deal.owner_id)
+            .single();
+          
+          if (ownerProfile) {
+            // Calculate the owner's amount after this split
+            const ownerPercentage = 100 - totalExisting - splitData.percentage;
+            const ownerAmount = (deal.value || 0) * (ownerPercentage / 100);
+            
+            // Create the initial sale activity for the owner
+            const initialActivity = {
+              user_id: deal.owner_id,
+              type: 'sale',
+              client_name: deal.company || deal.name,
+              details: `${deal.name || 'Sale'} (${ownerPercentage}% retained after split)`,
+              amount: ownerAmount,
+              priority: 'high',
+              sales_rep: `${ownerProfile.first_name} ${ownerProfile.last_name}`,
+              date: deal.created_at,
+              status: 'completed',
+              quantity: 1,
+              contact_identifier: deal.contact_email,
+              contact_identifier_type: deal.contact_email ? 'email' : 'unknown',
+              deal_id: splitData.deal_id,
+              is_split: false,
+              split_percentage: ownerPercentage
+            };
+            
+            const { data: createdActivity, error: createError } = await supabase
+              .from('activities')
+              .insert([initialActivity])
+              .select()
+              .single();
+            
+            if (createError) {
+              logger.error('Failed to create initial sale activity:', createError);
+            } else {
+              logger.log(`Created initial sale activity for owner with ${ownerPercentage}%`);
+              // Use this as the original activity
+              originalActivity = createdActivity;
+              activityWasJustCreated = true;
+            }
+          }
+        }
+      } else {
+        logger.log(`Found original activity for deal ${splitData.deal_id}:`, originalActivity);
+      }
 
       if (originalActivity) {
         // Get the user profile for the split recipient
@@ -138,22 +215,27 @@ export function useDealSplits(options: UseDealSplitsOptions = {}) {
           } else {
             logger.log(`Created split activity for user ${splitData.user_id} (${splitData.percentage}%)`);
             
-            // Calculate the remaining percentage for the original owner
-            const remainingPercentage = 100 - totalExisting - splitData.percentage;
-            const remainingAmount = (originalActivity.amount || 0) * (remainingPercentage / 100);
-            
-            // Update the original activity's amount and details to reflect the split
-            const updatedDetails = `${originalActivity.details || 'Sale'} (${remainingPercentage}% retained after split)`;
-            await supabase
-              .from('activities')
-              .update({ 
-                details: updatedDetails,
-                amount: remainingAmount,
-                split_percentage: remainingPercentage
-              })
-              .eq('id', originalActivity.id);
+            // Only update the original activity if it wasn't just created
+            // (If we just created it, it already has the correct split percentage)
+            if (!activityWasJustCreated) {
+              // Calculate the remaining percentage for the original owner
+              const remainingPercentage = 100 - totalExisting - splitData.percentage;
+              const remainingAmount = (originalActivity.amount || 0) * (remainingPercentage / 100);
               
-            logger.log(`Updated original activity to ${remainingPercentage}% (${remainingAmount})`);
+              // Update the original activity's amount and details to reflect the split
+              const baseDetails = originalActivity.details?.replace(/ \(\d+% retained after split\)/, '') || 'Sale';
+              const updatedDetails = `${baseDetails} (${remainingPercentage}% retained after split)`;
+              await supabase
+                .from('activities')
+                .update({ 
+                  details: updatedDetails,
+                  amount: remainingAmount,
+                  split_percentage: remainingPercentage
+                })
+                .eq('id', originalActivity.id);
+                
+              logger.log(`Updated original activity to ${remainingPercentage}% (${remainingAmount})`);
+            }
           }
         }
       }
