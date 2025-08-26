@@ -18,7 +18,8 @@ import {
   Phone,
   TrendingUp,
   Eye,
-  BarChart3
+  BarChart3,
+  Edit2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OwnerFilter } from '@/components/OwnerFilter';
@@ -35,6 +36,8 @@ import { useUser } from '@/lib/hooks/useUser';
 import { useAggregatedClients, AggregatedClient, ClientStatus } from '@/lib/hooks/useClients';
 import { useOwners } from '@/lib/hooks/useOwners';
 import { ClientStatusModal } from './ClientStatusModal';
+import { EditDealRevenueModal } from './EditDealRevenueModal';
+import { EditClientModal } from './EditClientModal';
 import { navigateToCompanyProfile } from '@/lib/utils/companyNavigation';
 import { format } from 'date-fns';
 import logger from '@/lib/utils/logger';
@@ -60,6 +63,26 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
     dealId?: string;
   } | null>(null);
   const [viewingClient, setViewingClient] = useState<AggregatedClient | null>(null);
+  const [editingDeal, setEditingDeal] = useState<{
+    id: string;
+    name: string;
+    monthly_mrr?: number | null;
+    one_off_revenue?: number | null;
+    annual_value?: number | null;
+  } | null>(null);
+  const [selectingDealForClient, setSelectingDealForClient] = useState<AggregatedClient | null>(null);
+  const [editingClient, setEditingClient] = useState<{
+    id: string;
+    name: string;
+    currentStatus: ClientStatus;
+    deals: Array<{
+      id: string;
+      name: string;
+      monthly_mrr?: number | null;
+      one_off_revenue?: number | null;
+      annual_value?: number | null;
+    }>;
+  } | null>(null);
   
   // Filter state - owner filtering now handled by hook, keep other filters
   const [filters, setFilters] = useState({
@@ -185,6 +208,36 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
       currentStatus: client.status,
       dealId: client.deals[0]?.id // Use first deal ID if available
     });
+  }, []);
+
+  const handleEditClientComprehensive = useCallback((client: AggregatedClient) => {
+    if (client.deals && client.deals.length > 0) {
+      setEditingClient({
+        id: client.id,
+        name: client.client_name,
+        currentStatus: client.status,
+        deals: client.deals.map(deal => ({
+          id: deal.id,
+          name: deal.name,
+          monthly_mrr: deal.monthly_mrr,
+          one_off_revenue: deal.one_off_revenue,
+          annual_value: deal.annual_value,
+        }))
+      });
+    } else {
+      toast.error('No deals found for this client');
+    }
+  }, []);
+
+  const handleSelectDealForEditing = useCallback((deal: any) => {
+    setEditingDeal({
+      id: deal.id,
+      name: deal.name,
+      monthly_mrr: deal.monthly_mrr,
+      one_off_revenue: deal.one_off_revenue,
+      annual_value: deal.annual_value,
+    });
+    setSelectingDealForClient(null);
   }, []);
 
   const handleSaveClientStatus = async (newStatus: ClientStatus, additionalData?: {
@@ -584,16 +637,17 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                           <Eye className="w-4 h-4" />
                         </motion.button>
                         
-                        {/* Edit Client Status */}
+                        {/* Edit Client */}
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
-                          onClick={() => handleEditClientStatus(client)}
-                          className="p-2 hover:bg-emerald-500/20 rounded-lg transition-colors text-gray-400 hover:text-emerald-500"
-                          title="Manage client status"
+                          onClick={() => handleEditClientComprehensive(client)}
+                          className="p-2 hover:bg-[#37bd7e]/20 rounded-lg transition-colors text-gray-400 hover:text-[#37bd7e]"
+                          title="Edit client revenue, status, and details"
                         >
-                          <Users className="w-4 h-4" />
+                          <Edit2 className="w-4 h-4" />
                         </motion.button>
+
                       </div>
                     </td>
                   </motion.tr>
@@ -692,6 +746,97 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Deal Revenue Modal */}
+      <EditDealRevenueModal
+        isOpen={!!editingDeal}
+        onClose={() => setEditingDeal(null)}
+        dealId={editingDeal?.id || null}
+        dealName={editingDeal?.name || ''}
+        currentMRR={editingDeal?.monthly_mrr}
+        currentOneOff={editingDeal?.one_off_revenue}
+        currentAnnualValue={editingDeal?.annual_value}
+        onSave={async () => {
+          // Refresh aggregated clients data when a deal is updated
+          await refreshAggregatedClients();
+          setEditingDeal(null);
+          toast.success('Deal revenue updated successfully');
+        }}
+      />
+
+      {/* Edit Client Modal (Unified Revenue & Status) */}
+      <EditClientModal
+        isOpen={!!editingClient}
+        onClose={() => setEditingClient(null)}
+        clientData={editingClient}
+        onSave={async () => {
+          // Refresh aggregated clients data when client is updated
+          await refreshAggregatedClients();
+          setEditingClient(null);
+          toast.success('Client updated successfully');
+        }}
+      />
+
+      {/* Deal Selection Modal for Multi-Deal Clients */}
+      <Dialog open={!!selectingDealForClient} onOpenChange={() => setSelectingDealForClient(null)}>
+        <DialogContent className="max-w-2xl bg-gray-900 border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Select Deal to Edit - {selectingDealForClient?.client_name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectingDealForClient && (
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              <p className="text-sm text-gray-400">
+                This client has multiple deals. Select which deal you'd like to edit:
+              </p>
+              
+              <div className="space-y-3">
+                {selectingDealForClient.deals.map((deal) => (
+                  <div
+                    key={deal.id}
+                    className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 cursor-pointer hover:bg-gray-800/70 transition-colors"
+                    onClick={() => handleSelectDealForEditing(deal)}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <div className="font-medium text-white">{deal.name}</div>
+                        <div className="text-sm text-gray-400">
+                          {deal.deal_type === 'subscription' ? 'Subscription' : 'One-off'} • 
+                          Signed: {format(new Date(deal.signed_date), 'MMM d, yyyy')}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-white">{formatCurrency(deal.value)}</div>
+                        <div className="text-sm text-gray-400">Total Value</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-700/50">
+                      <div>
+                        <div className="text-sm text-blue-400">{formatCurrency(deal.one_off_revenue || 0)}</div>
+                        <div className="text-xs text-gray-400">One-off</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-emerald-400">
+                          {formatCurrency(deal.monthly_mrr || 0)}
+                          {(deal.monthly_mrr || 0) > 0 && <span className="text-xs">/mo</span>}
+                        </div>
+                        <div className="text-xs text-gray-400">Monthly MRR</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-purple-400">{formatCurrency(deal.annual_value || 0)}</div>
+                        <div className="text-xs text-gray-400">Annual Value</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -751,7 +751,8 @@ export function useMRR(ownerId?: string) {
         
         // Calculate MRR summary using deal-based revenue
         const totalClients = clientsWithDeals?.length || 0;
-        const activeClients = clientsWithDeals?.filter(c => c.status === 'active') || [];
+        // Active clients: Any client with one-off payments OR active subscriptions (all statuses except 'churned')
+        const activeClients = clientsWithDeals?.filter(c => c.status !== 'churned') || [];
         const churnedClients = clientsWithDeals?.filter(c => c.status === 'churned') || [];
         const pausedClients = clientsWithDeals?.filter(c => c.status === 'paused') || [];
         
@@ -812,7 +813,8 @@ export function useMRR(ownerId?: string) {
       
       // Calculate MRR summary
       const totalClients = clientsData?.length || 0;
-      const activeClients = clientsData?.filter(c => c.status === 'active') || [];
+      // Active clients: Any client with one-off payments OR active subscriptions (all statuses except 'churned')
+      const activeClients = clientsData?.filter(c => c.status !== 'churned') || [];
       const churnedClients = clientsData?.filter(c => c.status === 'churned') || [];
       const pausedClients = clientsData?.filter(c => c.status === 'paused') || [];
       
@@ -906,12 +908,15 @@ export function useMRR(ownerId?: string) {
           const ownerData = ownerMRRMap.get(ownerId);
           ownerData.total_clients++;
           
-          if (client.status === 'active') {
+          // Active clients: Any status except 'churned'
+          if (client.status !== 'churned') {
             ownerData.active_clients++;
             const amount = parseFloat(client.subscription_amount || 0);
             ownerData.total_mrr += amount;
             ownerData.amounts.push(amount);
-          } else if (client.status === 'churned') {
+          }
+          
+          if (client.status === 'churned') {
             ownerData.churned_clients++;
           } else if (client.status === 'paused') {
             ownerData.paused_clients++;
@@ -980,12 +985,15 @@ export function useMRR(ownerId?: string) {
         const ownerData = ownerMRRMap.get(ownerId);
         ownerData.total_clients++;
         
-        if (client.status === 'active') {
+        // Active clients: Any status except 'churned'
+        if (client.status !== 'churned') {
           ownerData.active_clients++;
           const amount = parseFloat(client.subscription_amount || 0);
           ownerData.total_mrr += amount;
           ownerData.amounts.push(amount);
-        } else if (client.status === 'churned') {
+        }
+        
+        if (client.status === 'churned') {
           ownerData.churned_clients++;
         } else if (client.status === 'paused') {
           ownerData.paused_clients++;
