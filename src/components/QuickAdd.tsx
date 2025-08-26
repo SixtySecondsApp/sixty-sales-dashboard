@@ -12,6 +12,7 @@ import { DealSelector } from './DealSelector';
 import { DealWizard } from './DealWizard';
 import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface QuickAddProps {
   isOpen: boolean;
@@ -171,11 +172,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       return;
     }
     
-    // Require deal for sales and proposals
-    if ((selectedAction === 'sale' || selectedAction === 'proposal') && !formData.deal_id) {
-      toast.error(`Please select or create a deal for this ${selectedAction}`);
-      return;
-    }
+    // Note: Deals will be auto-created for sales and proposals if not selected
     
     // For non-outbound, require identifier
     if (selectedAction !== 'outbound') {
@@ -257,6 +254,74 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         logger.log('✅ Sale created successfully');
       } else if (selectedAction) {
         logger.log(`📝 Creating ${selectedAction} activity...`);
+        
+        // Store the final deal ID to use for activity creation
+        let finalDealId = formData.deal_id;
+        
+        // For meetings and proposals without a deal, create a deal first
+        if ((selectedAction === 'meeting' || selectedAction === 'proposal') && !finalDealId) {
+          logger.log(`🎯 No deal selected for ${selectedAction} - creating new deal automatically...`);
+          
+          try {
+            // Determine the appropriate stage based on action type
+            let stageName = 'SQL';
+            let probability = 20;
+            let dealValue = 0;
+            
+            if (selectedAction === 'proposal') {
+              stageName = 'Opportunity';
+              probability = 30;
+              // For proposals, use the amount as the deal value
+              const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+              const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+              if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
+                dealValue = (monthly * 3) + oneOff; // LTV calculation
+              } else {
+                dealValue = parseFloat(formData.amount || '0') || 0;
+              }
+            }
+            
+            // Get the appropriate stage
+            const { data: stages } = await supabase
+              .from('deal_stages')
+              .select('id')
+              .eq('name', stageName)
+              .single();
+            
+            const stageId = stages?.id;
+            
+            if (stageId && userData?.id) {
+              // Create a new deal (only if we have a user ID)
+              const { data: newDeal, error: dealError } = await supabase
+                .from('deals')
+                .insert({
+                  name: `${formData.client_name || selectedAction} - ${formData.details || selectedAction}`,
+                  company: formData.client_name || 'Unknown',
+                  value: dealValue,
+                  stage_id: stageId,
+                  owner_id: userData.id, // Now guaranteed to exist
+                  probability: probability,
+                  status: 'active',
+                  expected_close_date: addDays(new Date(), 30).toISOString(),
+                  contact_email: formData.contactIdentifierType === 'email' ? formData.contactIdentifier : undefined
+                })
+                .select()
+                .single();
+              
+              if (!dealError && newDeal) {
+                finalDealId = newDeal.id;  // Use the local variable
+                logger.log(`✅ Created deal ${newDeal.id} for ${selectedAction}`);
+                toast.success(`📊 Deal created and linked to ${selectedAction}`);
+              } else {
+                logger.warn(`Failed to create deal for ${selectedAction}:`, dealError);
+              }
+            }
+          } catch (error) {
+            logger.error(`Error creating deal for ${selectedAction}:`, error);
+            // Continue anyway - we can still create the activity without a deal
+          }
+        }
+        
         // For admin revenue splits, calculate proposal amount based on primary type
         let proposalAmount;
         if (selectedAction === 'proposal') {
@@ -272,18 +337,19 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           }
         }
 
+        logger.log(`📝 About to create ${selectedAction} activity with deal_id: ${finalDealId}`);
         await addActivity({
           type: selectedAction as 'meeting' | 'proposal',
           client_name: formData.client_name || 'Unknown',
           details: formData.details,
           amount: selectedAction === 'proposal' ? proposalAmount : undefined,
           date: selectedDate.toISOString(),
-          deal_id: formData.deal_id,
+          deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
           contactIdentifier: formData.contactIdentifier,
           contactIdentifierType: formData.contactIdentifierType,
           status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
         });
-        logger.log(`✅ ${selectedAction} activity created successfully`);
+        logger.log(`✅ ${selectedAction} activity created successfully with deal_id: ${finalDealId}`);
       }
       
       toast.success(`✅ ${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`);
@@ -775,12 +841,12 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </div>
                 )}
 
-                {/* Deal Selector - Required for sales and proposals, optional for meetings */}
+                {/* Deal Selector - Always optional, auto-creates if not selected */}
                 {(selectedAction === 'sale' || selectedAction === 'meeting' || selectedAction === 'proposal') && (
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-400/90 flex items-center">
                       Pipeline Deal
-                      {(selectedAction === 'sale' || selectedAction === 'proposal') && <span className="text-red-500 ml-1">*</span>}
+                      <span className="text-xs text-gray-500 ml-2">(optional - will auto-create if empty)</span>
                     </label>
                     <DealSelector
                       selectedDealId={formData.deal_id}
@@ -794,21 +860,16 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         });
                       }}
                       clientName={formData.client_name}
-                      required={selectedAction === 'sale' || selectedAction === 'proposal'}
-                      placeholder={
-                        selectedAction === 'sale' 
-                          ? 'Required: Select or create a deal...'
-                          : selectedAction === 'proposal'
-                          ? 'Required: Select or create a deal...'
-                          : 'Optional: Link to a deal...'
-                      }
+                      required={false}
+                      placeholder='Optional: Select existing deal or leave empty to auto-create...'
                     />
-                    {(selectedAction === 'sale' || selectedAction === 'proposal') && !formData.deal_id && (
-                      <p className="text-xs text-gray-500 mt-1">
+                    {!formData.deal_id && (
+                      <p className="text-xs text-emerald-500/70 mt-1">
                         {selectedAction === 'sale' 
-                          ? 'Link this sale to a pipeline deal for accurate tracking'
-                          : 'Link this proposal to a pipeline deal for accurate tracking'
-                        }
+                          ? '✨ A new deal will be created in Signed stage'
+                          : selectedAction === 'proposal'
+                          ? '✨ A new deal will be created in Opportunity stage'
+                          : '✨ A new deal will be created in SQL stage'}
                       </p>
                     )}
                   </div>
