@@ -210,52 +210,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             : {})
         });
         logger.log('✅ Outbound activity created successfully');
-      } else if (selectedAction === 'sale') {
-        logger.log('💰 Creating sale activity...');
-        
-        // For admin revenue splits, pass the individual amounts
-        const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
-        const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-        
-        // If admin has split the revenue, use the individual amounts
-        // Otherwise, use the basic sale amount for the sale type
-        let saleAmount = 0;
-        let revenueData: any = {};
-        
-        if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
-          // Admin revenue split: pass individual amounts
-          if (formData.saleType === 'one-off') {
-            saleAmount = oneOff;
-            revenueData.oneOffRevenue = oneOff;
-            if (monthly > 0) {
-              revenueData.monthlyMrr = monthly;
-            }
-          } else if (formData.saleType === 'subscription') {
-            saleAmount = monthly;
-            revenueData.monthlyMrr = monthly;
-            if (oneOff > 0) {
-              revenueData.oneOffRevenue = oneOff;
-            }
-          }
-        } else {
-          // Regular sale: use the single amount for the sale type
-          saleAmount = parseFloat(formData.amount || '0') || 0;
-        }
-        
-        const saleData = {
-          client_name: formData.client_name,
-          amount: saleAmount,
-          details: formData.details || `${formData.saleType} Sale`,
-          saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
-          date: selectedDate.toISOString(),
-          deal_id: formData.deal_id,
-          contactIdentifier: formData.contactIdentifier,
-          contactIdentifierType: formData.contactIdentifierType,
-          ...revenueData
-        };
-        logger.log('💰 Sale data:', saleData);
-        await addSale(saleData);
-        logger.log('✅ Sale created successfully');
       } else if (selectedAction) {
         logger.log(`📝 Creating ${selectedAction} activity...`);
         
@@ -461,24 +415,12 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               stageName = 'Opportunity';
               probability = 30;
               // For proposals, use the amount as the deal value
-              const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
-              const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-              if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
-                dealValue = (monthly * 3) + oneOff; // LTV calculation
-              } else {
-                dealValue = parseFloat(formData.amount || '0') || 0;
-              }
+              dealValue = parseFloat(formData.amount || '0') || 0;
             } else if (selectedAction === 'sale') {
               stageName = 'Signed';
               probability = 100;
               // For sales, use the actual sale amount
-              const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
-              const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-              if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
-                dealValue = (monthly * 3) + oneOff; // LTV calculation
-              } else {
-                dealValue = parseFloat(formData.amount || '0') || 0;
-              }
+              dealValue = parseFloat(formData.amount || '0') || 0;
             }
             
             // Get the appropriate stage
@@ -495,15 +437,16 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               const { data: newDeal, error: dealError } = await supabase
                 .from('deals')
                 .insert({
-                  name: `${formData.client_name || selectedAction} - ${formData.details || selectedAction}`,
-                  company: formData.client_name || 'Unknown',
+                  name: `${formData.client_name || formData.contact_name || selectedAction} - ${formData.details || selectedAction}`,
+                  company: formData.client_name || formData.company || 'Unknown',
                   value: dealValue,
                   stage_id: stageId,
                   owner_id: userData.id, // Now guaranteed to exist
                   probability: probability,
                   status: 'active',
                   expected_close_date: addDays(new Date(), 30).toISOString(),
-                  contact_email: formData.contactIdentifierType === 'email' ? formData.contactIdentifier : undefined
+                  contact_email: formData.contactIdentifier,
+                  contact_name: formData.contact_name || formData.client_name
                 })
                 .select()
                 .single();
@@ -522,34 +465,45 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           }
         }
         
-        // For admin revenue splits, calculate proposal amount based on primary type
+        // For proposals, use the amount field
         let proposalAmount;
         if (selectedAction === 'proposal') {
-          const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
-          const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
-          
-          if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
-            // For proposals, show the total deal value (LTV) since it's a proposed value
-            proposalAmount = (monthly * 3) + oneOff;
-          } else {
-            // Regular proposal: use the basic amount
-            proposalAmount = parseFloat(formData.amount || '0') || 0;
-          }
+          proposalAmount = parseFloat(formData.amount || '0') || 0;
         }
 
-        logger.log(`📝 About to create ${selectedAction} activity with deal_id: ${finalDealId}`);
-        await addActivity({
-          type: selectedAction as 'meeting' | 'proposal',
-          client_name: formData.client_name || 'Unknown',
-          details: formData.details,
-          amount: selectedAction === 'proposal' ? proposalAmount : undefined,
-          date: selectedDate.toISOString(),
-          deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
-          contactIdentifier: formData.contactIdentifier,
-          contactIdentifierType: formData.contactIdentifierType,
-          status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
-        });
-        logger.log(`✅ ${selectedAction} activity created successfully with deal_id: ${finalDealId}`);
+        // Create the appropriate activity or sale
+        if (selectedAction === 'sale') {
+          logger.log(`💰 Creating sale with deal_id: ${finalDealId}`);
+          const saleAmount = parseFloat(formData.amount || '0') || 0;
+          
+          await addSale({
+            client_name: formData.client_name || 'Unknown',
+            amount: saleAmount,
+            details: formData.details || `${formData.saleType} Sale`,
+            saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
+            date: selectedDate.toISOString(),
+            deal_id: finalDealId,
+            contactIdentifier: formData.contactIdentifier,
+            contactIdentifierType: formData.contactIdentifierType || 'email',
+            contact_name: formData.contact_name
+          });
+          logger.log(`✅ Sale created successfully with deal_id: ${finalDealId}`);
+        } else {
+          logger.log(`📝 About to create ${selectedAction} activity with deal_id: ${finalDealId}`);
+          await addActivity({
+            type: selectedAction as 'meeting' | 'proposal',
+            client_name: formData.client_name || 'Unknown',
+            details: formData.details,
+            amount: selectedAction === 'proposal' ? proposalAmount : undefined,
+            date: selectedDate.toISOString(),
+            deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
+            contactIdentifier: formData.contactIdentifier,
+            contactIdentifierType: formData.contactIdentifierType || 'email',
+            contact_name: formData.contact_name,
+            status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
+          });
+          logger.log(`✅ ${selectedAction} activity created successfully with deal_id: ${finalDealId}`);
+        }
       }
       
       toast.success(`✅ ${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`);
@@ -1076,42 +1030,95 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </div>
                 )}
 
-                {/* Contact Identifier Field - added to all activity types */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-400/90 flex items-center">
-                    Email Address
-                    {selectedAction !== 'outbound' && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-                  <IdentifierField
-                    value={formData.contactIdentifier}
-                    onChange={(value, type) => 
-                      setFormData({
-                        ...formData, 
-                        contactIdentifier: value || '', 
-                        contactIdentifierType: type
-                      })
-                    }
-                    required={selectedAction !== 'outbound'}
-                    placeholder={selectedAction !== 'outbound' ? 'Required: Enter email address' : 'Optional: Enter email address'}
-                    label=""
-                  />
-                </div>
+                {/* Simplified Contact Field - Name and Email */}
+                {selectedAction !== 'outbound' && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-400/90">
+                        Contact Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Enter contact name"
+                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                        value={formData.contact_name || ''}
+                        onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-400/90 flex items-center">
+                        Email Address
+                        <span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="contact@example.com"
+                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                        value={formData.contactIdentifier || ''}
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          contactIdentifier: e.target.value, 
+                          contactIdentifierType: 'email'
+                        })}
+                      />
+                    </div>
+                  </>
+                )}
                 
-                {selectedAction === 'sale' && <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-400/90">
-                    Sale Type
-                  </label>
-                  <select
-                    required
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
-                    value={formData.saleType}
-                    onChange={(e) => setFormData({...formData, saleType: e.target.value})}
-                  >
-                    <option value="one-off">One-off</option>
-                    <option value="subscription">Subscription</option>
-                    <option value="lifetime">Lifetime</option>
-                  </select>
-                </div>}
+                {/* Sale Type and Amount for Sales */}
+                {selectedAction === 'sale' && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-400/90">
+                        Sale Type
+                      </label>
+                      <select
+                        required
+                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
+                        value={formData.saleType}
+                        onChange={(e) => setFormData({...formData, saleType: e.target.value})}
+                      >
+                        <option value="one-off">One-off</option>
+                        <option value="subscription">Subscription</option>
+                        <option value="lifetime">Lifetime</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-400/90">
+                        Sale Amount (£) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        placeholder="Enter sale amount"
+                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                        value={formData.amount || ''}
+                        onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                      />
+                    </div>
+                  </>
+                )}
+                
+                {/* Proposal Amount */}
+                {selectedAction === 'proposal' && (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-400/90">
+                      Proposal Amount (£)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter proposal value"
+                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                      value={formData.amount || ''}
+                      onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                    />
+                  </div>
+                )}
 
                 {selectedAction === 'outbound' && (
                   <>
@@ -1200,77 +1207,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </>
                 )}
 
-                {/* Admin-Only Revenue Split Section */}
-                {(selectedAction === 'sale' || selectedAction === 'proposal') && canSplitDeals(userData) && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <PoundSterling className="w-4 h-4 text-emerald-400" />
-                      <span className="text-sm font-semibold text-emerald-400">Revenue Split (Admin Only)</span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        One-off Revenue (£)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.oneOffRevenue || ''}
-                        onChange={(e) => setFormData({...formData, oneOffRevenue: e.target.value})}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Monthly Recurring Revenue (£)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.monthlyMrr || ''}
-                        onChange={(e) => setFormData({...formData, monthlyMrr: e.target.value})}
-                      />
-                    </div>
-                    
-                    {(formData.oneOffRevenue || formData.monthlyMrr) && (
-                      <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                        <div className="text-sm text-emerald-400">
-                          <span className="font-medium">Total Deal Value: </span>
-                          £{(
-                            (parseFloat(formData.oneOffRevenue || '0') || 0) + 
-                            ((parseFloat(formData.monthlyMrr || '0') || 0) * 3)
-                          ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </div>
-                        {formData.monthlyMrr && parseFloat(formData.monthlyMrr) > 0 && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            Annual Value: £{(
-                              (parseFloat(formData.oneOffRevenue || '0') || 0) + 
-                              ((parseFloat(formData.monthlyMrr || '0') || 0) * 12)
-                            ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* Non-Admin Warning for Sales and Proposals */}
-                {(selectedAction === 'sale' || selectedAction === 'proposal') && !canSplitDeals(userData) && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                    <div className="text-sm text-amber-400">
-                      <span className="font-medium">⚠️ Revenue Split Unavailable</span>
-                      <div className="text-xs text-gray-400 mt-1">
-                        Only administrators can create sales/proposals with revenue split. Use the amount field above for simple deals.
-                      </div>
-                    </div>
-                  </div>
-                )}
+                {/* Remove admin-only revenue split from QuickAdd - keep it simple */}
 
                 <div className="flex gap-3 pt-4">
                   <button
