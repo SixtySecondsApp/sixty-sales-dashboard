@@ -965,12 +965,13 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                      selectedAction === 'sale' ? 'Sale Date' : 'Date'}
                   </label>
                   
-                  {/* Quick Date Options */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
+                  {/* Quick Date Options - Better for backdating */}
+                  <div className="grid grid-cols-4 gap-2 mb-3">
                     {[
                       { label: 'Today', date: new Date() },
-                      { label: 'Tomorrow', date: addDays(new Date(), 1) },
-                      { label: 'Next Week', date: addWeeks(new Date(), 1) }
+                      { label: 'Yesterday', date: addDays(new Date(), -1) },
+                      { label: 'Last Week', date: addWeeks(new Date(), -1) },
+                      { label: 'Last Month', date: addDays(new Date(), -30) }
                     ].map((option) => (
                       <button
                         key={option.label}
