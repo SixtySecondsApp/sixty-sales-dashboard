@@ -346,8 +346,109 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           }
         }
         
-        // For meetings and proposals without a deal, create a deal first
-        if ((selectedAction === 'meeting' || selectedAction === 'proposal') && !finalDealId) {
+        // For sales, check if there's an existing deal in Opportunity OR SQL stage for this client
+        if (selectedAction === 'sale' && !finalDealId && formData.client_name) {
+          // Look for existing deals in Opportunity stage first
+          const opportunityStageId = '8be6a854-e7d0-41b5-9057-03b2213e7697'; // Opportunity stage ID
+          const sqlStageId = '603b5020-aafc-4646-9195-9f041a9a3f14'; // SQL stage ID
+          
+          let existingDealsForClient = deals.filter(
+            d => d.stage_id === opportunityStageId && 
+            d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
+          );
+          
+          // If no deals in Opportunity, check SQL stage (meetings)
+          if (existingDealsForClient.length === 0) {
+            existingDealsForClient = deals.filter(
+              d => d.stage_id === sqlStageId && 
+              d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
+            );
+          }
+          
+          if (existingDealsForClient.length > 0) {
+            // Found an existing deal - ask user if they want to progress it
+            const dealToProgress = existingDealsForClient[0]; // Take the first matching deal
+            const isInSQL = dealToProgress.stage_id === sqlStageId;
+            const currentStage = isInSQL ? 'SQL' : 'Opportunity';
+            
+            const shouldProgress = await new Promise<boolean>((resolve) => {
+              // Create a modal to ask the user
+              const modal = document.createElement('div');
+              modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4';
+              modal.innerHTML = `
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-md w-full">
+                  <h3 class="text-lg font-semibold text-white mb-3">Existing Deal Found</h3>
+                  <p class="text-gray-300 mb-4">
+                    Found an existing deal "<strong>${dealToProgress.name}</strong>" in ${currentStage} stage for ${formData.client_name}.
+                  </p>
+                  <p class="text-gray-400 text-sm mb-6">
+                    Would you like to ${isInSQL ? 'fast-track this deal directly to Signed' : 'close this deal as won'} (move to Signed stage), or create a new deal?
+                  </p>
+                  <div class="flex gap-3">
+                    <button id="progress-deal" class="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium">
+                      ${isInSQL ? 'Fast-Track to Signed' : 'Close Existing Deal'}
+                    </button>
+                    <button id="create-new" class="flex-1 py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium">
+                      Create New Deal
+                    </button>
+                  </div>
+                </div>
+              `;
+              
+              document.body.appendChild(modal);
+              
+              const progressBtn = modal.querySelector('#progress-deal');
+              const createNewBtn = modal.querySelector('#create-new');
+              
+              progressBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                resolve(true);
+              });
+              
+              createNewBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                resolve(false);
+              });
+            });
+            
+            if (shouldProgress) {
+              // Progress the existing deal to Signed stage
+              const signedStageId = '207a94db-abd8-43d8-ba21-411be66183d2'; // Signed stage ID
+              
+              try {
+                await moveDealToStage(dealToProgress.id, signedStageId);
+                finalDealId = dealToProgress.id;
+                
+                // Update the deal value with the actual sale amount
+                const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+                const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+                let dealValue = 0;
+                
+                if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
+                  dealValue = (monthly * 3) + oneOff; // LTV calculation
+                } else {
+                  dealValue = parseFloat(formData.amount || '0') || 0;
+                }
+                
+                if (dealValue > 0) {
+                  await supabase
+                    .from('deals')
+                    .update({ value: dealValue })
+                    .eq('id', dealToProgress.id);
+                }
+                
+                toast.success(`🎉 Closed "${dealToProgress.name}" as won!`);
+                logger.log(`✅ Progressed existing deal ${dealToProgress.id} to Signed stage`);
+              } catch (error) {
+                logger.error('Error progressing deal to Signed:', error);
+                // Fall back to creating a new deal
+              }
+            }
+          }
+        }
+        
+        // For meetings, proposals, and sales without a deal, create a deal first
+        if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !finalDealId) {
           logger.log(`🎯 No deal selected for ${selectedAction} - creating new deal automatically...`);
           
           try {
@@ -360,6 +461,17 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               stageName = 'Opportunity';
               probability = 30;
               // For proposals, use the amount as the deal value
+              const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+              const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+              if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
+                dealValue = (monthly * 3) + oneOff; // LTV calculation
+              } else {
+                dealValue = parseFloat(formData.amount || '0') || 0;
+              }
+            } else if (selectedAction === 'sale') {
+              stageName = 'Signed';
+              probability = 100;
+              // For sales, use the actual sale amount
               const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
               const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
               if (canSplitDeals(userData) && (oneOff > 0 || monthly > 0)) {
