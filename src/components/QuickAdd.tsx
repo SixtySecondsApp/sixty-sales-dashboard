@@ -7,6 +7,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, addHours, setHours, setMinutes, startOfWeek, addWeeks } from 'date-fns';
 import { useUser } from '@/lib/hooks/useUser';
 import { toast } from 'sonner';
+import { useDeals } from '@/lib/hooks/useDeals';
 import { IdentifierField, IdentifierType } from './IdentifierField';
 import { DealSelector } from './DealSelector';
 import { DealWizard } from './DealWizard';
@@ -21,10 +22,13 @@ interface QuickAddProps {
 
 export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const { userData } = useUser();
+  const { deals, moveDealToStage } = useDeals();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showDealWizard, setShowDealWizard] = useState(false);
+  const [existingDeal, setExistingDeal] = useState<any>(null);
+  const [showDealChoice, setShowDealChoice] = useState(false);
   const [formData, setFormData] = useState({
     type: 'outbound',
     client_name: '',
@@ -257,6 +261,90 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         
         // Store the final deal ID to use for activity creation
         let finalDealId = formData.deal_id;
+        
+        // For proposals, check if there's an existing deal in SQL stage for this client
+        if (selectedAction === 'proposal' && !finalDealId && formData.client_name) {
+          // Look for existing deals in SQL stage for this client
+          const sqlStageId = '603b5020-aafc-4646-9195-9f041a9a3f14'; // SQL stage ID
+          const existingDealsForClient = deals.filter(
+            d => d.stage_id === sqlStageId && 
+            d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
+          );
+          
+          if (existingDealsForClient.length > 0) {
+            // Found an existing deal - ask user if they want to progress it
+            const dealToProgress = existingDealsForClient[0]; // Take the first matching deal
+            
+            const shouldProgress = await new Promise<boolean>((resolve) => {
+              // Create a modal to ask the user
+              const modal = document.createElement('div');
+              modal.className = 'fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4';
+              modal.innerHTML = `
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 max-w-md w-full">
+                  <h3 class="text-lg font-semibold text-white mb-3">Existing Deal Found</h3>
+                  <p class="text-gray-300 mb-4">
+                    Found an existing deal "<strong>${dealToProgress.name}</strong>" in SQL stage for ${formData.client_name}.
+                  </p>
+                  <p class="text-gray-400 text-sm mb-6">
+                    Would you like to progress this deal to Opportunity stage, or create a new deal?
+                  </p>
+                  <div class="flex gap-3">
+                    <button id="progress-deal" class="flex-1 py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-medium">
+                      Progress Existing Deal
+                    </button>
+                    <button id="create-new" class="flex-1 py-2 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium">
+                      Create New Deal
+                    </button>
+                  </div>
+                </div>
+              `;
+              
+              document.body.appendChild(modal);
+              
+              const progressBtn = modal.querySelector('#progress-deal');
+              const createNewBtn = modal.querySelector('#create-new');
+              
+              progressBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                resolve(true);
+              });
+              
+              createNewBtn?.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                resolve(false);
+              });
+            });
+            
+            if (shouldProgress) {
+              // Progress the existing deal to Opportunity stage
+              const opportunityStageId = '8be6a854-e7d0-41b5-9057-03b2213e7697'; // Opportunity stage ID (corrected)
+              
+              try {
+                await moveDealToStage(dealToProgress.id, opportunityStageId);
+                finalDealId = dealToProgress.id;
+                
+                // Update the deal value if admin has provided revenue split
+                if (canSplitDeals(userData)) {
+                  const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+                  const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+                  if (oneOff > 0 || monthly > 0) {
+                    const newValue = (monthly * 3) + oneOff; // LTV calculation
+                    await supabase
+                      .from('deals')
+                      .update({ value: newValue })
+                      .eq('id', dealToProgress.id);
+                  }
+                }
+                
+                toast.success(`📈 Progressed "${dealToProgress.name}" to Opportunity stage`);
+                logger.log(`✅ Progressed existing deal ${dealToProgress.id} to Opportunity stage`);
+              } catch (error) {
+                logger.error('Error progressing deal:', error);
+                // Fall back to creating a new deal
+              }
+            }
+          }
+        }
         
         // For meetings and proposals without a deal, create a deal first
         if ((selectedAction === 'meeting' || selectedAction === 'proposal') && !finalDealId) {
