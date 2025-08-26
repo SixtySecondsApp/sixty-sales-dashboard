@@ -661,7 +661,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (action.id === 'deal' || action.id === 'proposal' || action.id === 'sale' || action.id === 'meeting') {
+                      if (action.id === 'deal') {
                         setShowDealWizard(true);
                         setSelectedAction(action.id);
                       } else {

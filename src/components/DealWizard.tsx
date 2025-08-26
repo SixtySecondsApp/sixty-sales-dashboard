@@ -6,8 +6,10 @@ import {
   Building2, 
   CheckCircle,
   X,
-  PoundSterling
+  PoundSterling,
+  Calendar
 } from 'lucide-react';
+import { format, addDays, addWeeks } from 'date-fns';
 import { toast } from 'sonner';
 import { useUser } from '@/lib/hooks/useUser';
 import { useDeals } from '@/lib/hooks/useDeals';
@@ -49,6 +51,7 @@ interface WizardState {
     description: string;
     stage_id: string;
     expected_close_date: string;
+    deal_date: string;  // Add the deal date field
     contact_name: string;
     contact_email: string;
     contact_phone: string;
@@ -103,6 +106,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
       description: '',
       stage_id: '', // Start with empty string, will be set when stages load
       expected_close_date: '',
+      deal_date: format(new Date(), 'yyyy-MM-dd'),  // Default to today
       contact_name: '',
       contact_email: initialData?.contactEmail || '',
       contact_phone: '',
@@ -265,6 +269,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
         description: '',
         stage_id: '', // Reset to empty, will be set by useEffect when reopened
         expected_close_date: '',
+        deal_date: format(new Date(), 'yyyy-MM-dd'),  // Reset to today
         contact_name: '',
         contact_email: initialData?.contactEmail || '',
         contact_phone: '',
@@ -481,7 +486,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                   amount: totalAmount,
                   details: `Sale closed: ${wizard.dealData.name}`,
                   saleType: wizard.dealData.saleType as 'one-off' | 'subscription' | 'lifetime',
-                  date: new Date().toISOString(),
+                  date: new Date(wizard.dealData.deal_date).toISOString(),  // Use the selected deal date
                   deal_id: newDeal.id,
                   contactIdentifier: wizard.selectedContact?.email,
                   contactIdentifierType: wizard.selectedContact?.email ? 'email' : 'unknown',
@@ -512,7 +517,7 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                   details: activityDetails,
                   amount: proposalAmount || wizard.dealData.value,
                   priority: 'high',
-                  date: new Date().toISOString(),
+                  date: new Date(wizard.dealData.deal_date).toISOString(),  // Use the selected deal date
                   status: 'completed',
                   deal_id: newDeal.id,
                   contactIdentifier: wizard.selectedContact?.email,
@@ -731,6 +736,67 @@ export function DealWizard({ isOpen, onClose, onDealCreated, actionType = 'deal'
                             }))}
                             className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
                             required
+                          />
+                        </div>
+
+                        {/* Date Selector */}
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-violet-400" />
+                            Deal Date (for backdating activities)
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setWizard(prev => ({
+                                ...prev,
+                                dealData: { ...prev.dealData, deal_date: format(new Date(), 'yyyy-MM-dd') }
+                              }))}
+                              className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                                wizard.dealData.deal_date === format(new Date(), 'yyyy-MM-dd')
+                                  ? 'bg-violet-500/20 border-violet-500 text-violet-400'
+                                  : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                              }`}
+                            >
+                              Today
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWizard(prev => ({
+                                ...prev,
+                                dealData: { ...prev.dealData, deal_date: format(addDays(new Date(), -1), 'yyyy-MM-dd') }
+                              }))}
+                              className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                                wizard.dealData.deal_date === format(addDays(new Date(), -1), 'yyyy-MM-dd')
+                                  ? 'bg-violet-500/20 border-violet-500 text-violet-400'
+                                  : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                              }`}
+                            >
+                              Yesterday
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWizard(prev => ({
+                                ...prev,
+                                dealData: { ...prev.dealData, deal_date: format(addWeeks(new Date(), -1), 'yyyy-MM-dd') }
+                              }))}
+                              className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                                wizard.dealData.deal_date === format(addWeeks(new Date(), -1), 'yyyy-MM-dd')
+                                  ? 'bg-violet-500/20 border-violet-500 text-violet-400'
+                                  : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                              }`}
+                            >
+                              Last Week
+                            </button>
+                          </div>
+                          <input
+                            type="date"
+                            value={wizard.dealData.deal_date}
+                            onChange={(e) => setWizard(prev => ({
+                              ...prev,
+                              dealData: { ...prev.dealData, deal_date: e.target.value }
+                            }))}
+                            className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
                           />
                         </div>
 
