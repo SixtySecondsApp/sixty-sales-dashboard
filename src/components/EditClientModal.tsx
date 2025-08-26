@@ -50,7 +50,7 @@ interface EditClientModalProps {
       one_off_revenue?: number | null;
       annual_value?: number | null;
     }>;
-  };
+  } | null;
   onSave?: () => void;
 }
 
@@ -71,7 +71,7 @@ export function EditClientModal({
 
   // Status form data
   const [statusData, setStatusData] = useState({
-    status: clientData.currentStatus,
+    status: clientData?.currentStatus || 'active' as ClientStatus,
     noticeDate: new Date().toISOString().split('T')[0],
     finalBillingDate: '',
     churnReason: '',
@@ -101,7 +101,7 @@ export function EditClientModal({
   // Update revenue data when selected deal changes
   const handleDealSelection = (dealId: string) => {
     setSelectedDealId(dealId);
-    const deal = clientData.deals.find(d => d.id === dealId);
+    const deal = clientData?.deals?.find(d => d.id === dealId);
     if (deal) {
       setRevenueData({
         monthly_mrr: safeParseFinancial(deal.monthly_mrr || 0, 0, { fieldName: 'selected_mrr', allowZero: true }),
@@ -293,6 +293,11 @@ export function EditClientModal({
       maximumFractionDigits: 0
     }).format(value);
   };
+
+  // Guard clause: Don't render if clientData is null
+  if (!clientData) {
+    return null;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
