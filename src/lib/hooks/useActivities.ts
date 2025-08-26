@@ -20,7 +20,7 @@ export interface Activity {
   user_id: string;
   sales_rep: string;
   avatar_url?: string | null;
-  status: 'completed' | 'pending' | 'cancelled' | 'no_show';
+  status: 'completed' | 'pending' | 'cancelled' | 'no_show' | 'discovery';
   details: string;
   priority: 'high' | 'medium' | 'low';
   quantity?: number;

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, X, Phone, FileText, Users, PoundSterling, CheckSquare, Calendar, Clock, Target, Flag, Zap, Timer, Coffee, ArrowRight } from 'lucide-react';
+import { Plus, X, Phone, FileText, Users, PoundSterling, CheckSquare, Calendar, Clock, Target, Flag, Zap, Timer, Coffee, ArrowRight, Mail, Building2, UserPlus, Search, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActivities } from '@/lib/hooks/useActivities';
 import { useTasks } from '@/lib/hooks/useTasks';
+import { useContacts } from '@/lib/hooks/useContacts';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, addHours, setHours, setMinutes, startOfWeek, addWeeks } from 'date-fns';
 import { useUser } from '@/lib/hooks/useUser';
@@ -11,9 +12,13 @@ import { useDeals } from '@/lib/hooks/useDeals';
 import { IdentifierField, IdentifierType } from './IdentifierField';
 import { DealSelector } from './DealSelector';
 import { DealWizard } from './DealWizard';
+import { ContactSearchModal } from './ContactSearchModal';
+import { useCompanies } from '@/lib/hooks/useCompanies';
+import type { Company } from '@/lib/database/models';
 import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
 import { supabase } from '@/lib/supabase/clientV2';
+import { cn } from '@/lib/utils';
 
 interface QuickAddProps {
   isOpen: boolean;
@@ -23,12 +28,15 @@ interface QuickAddProps {
 export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const { userData } = useUser();
   const { deals, moveDealToStage } = useDeals();
+  const { contacts, createContact, findContactByEmail } = useContacts();
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [showDealWizard, setShowDealWizard] = useState(false);
   const [existingDeal, setExistingDeal] = useState<any>(null);
   const [showDealChoice, setShowDealChoice] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [showContactSearch, setShowContactSearch] = useState(false);
   const [formData, setFormData] = useState({
     type: 'outbound',
     client_name: '',
@@ -50,14 +58,20 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     due_date: '',
     contact_name: '',
     company: '',
+    company_website: '',
     // Deal linking
     deal_id: null as string | null,
     selectedDeal: null as any
   });
 
-  // Reset selectedAction when modal is closed
+  // Reset selectedAction and contact when modal is closed
   const handleClose = () => {
     setSelectedAction(null);
+    setSelectedContact(null);
+    setShowContactSearch(false);
+    setSelectedDate(new Date());
+    setShowCalendar(false);
+    setShowDealWizard(false);
     setFormData({
       type: 'outbound',
       client_name: '',
@@ -78,7 +92,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       due_date: '',
       contact_name: '',
       company: '',
+      company_website: '',
       deal_id: null,
+      deal_name: '',
       selectedDeal: null
     });
     onClose();
@@ -170,16 +186,57 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       }
     }
     
+    // Validation for meeting/proposal/sale - require contact
+    if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !selectedContact) {
+      toast.error('Please select a contact first');
+      return;
+    }
+    
+    // Validation for meeting/proposal/sale - require company
+    if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale')) {
+      if (!formData.client_name || formData.client_name.trim() === '') {
+        toast.error('Please enter a company name');
+        return;
+      }
+    }
+    
     // Existing validation for other actions
     if (selectedAction === 'meeting' && !formData.details) {
       toast.error('Please select a meeting type');
       return;
     }
     
-    // Note: Deals will be auto-created for sales and proposals if not selected
+    // For unified flow (meeting/proposal/sale), use selected contact
+    if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && selectedContact) {
+      // Use selected contact info (if not already set)
+      if (!formData.contactIdentifier) {
+        formData.contactIdentifier = selectedContact.email;
+        formData.contactIdentifierType = 'email';
+      }
+      if (!formData.contact_name) {
+        // Properly construct contact name with null checks
+        formData.contact_name = selectedContact.full_name || 
+                                (selectedContact.first_name || selectedContact.last_name ? 
+                                 `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                                 selectedContact.email);
+      }
+      // Set company info from contact if not already set
+      if (!formData.client_name && selectedContact.company) {
+        formData.client_name = selectedContact.company;
+      }
+      
+      // Debug logging to verify data
+      logger.log('📝 Contact data for submission:', {
+        contact_name: formData.contact_name,
+        client_name: formData.client_name,
+        company_website: formData.company_website,
+        contactIdentifier: formData.contactIdentifier,
+        selectedContact: selectedContact
+      });
+    }
     
-    // For non-outbound, require identifier
-    if (selectedAction !== 'outbound') {
+    // For other non-outbound actions, require identifier
+    if (selectedAction !== 'outbound' && selectedAction !== 'meeting' && selectedAction !== 'proposal' && selectedAction !== 'sale') {
       if (!formData.contactIdentifier) {
         toast.error('Please provide a contact identifier (email, phone number, or LinkedIn URL)');
         return;
@@ -419,8 +476,10 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             } else if (selectedAction === 'sale') {
               stageName = 'Signed';
               probability = 100;
-              // For sales, use the actual sale amount
-              dealValue = parseFloat(formData.amount || '0') || 0;
+              // For sales, calculate LTV from subscription and one-off amounts
+              const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+              const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+              dealValue = (monthly * 3) + oneOff; // LTV calculation
             }
             
             // Get the appropriate stage
@@ -437,8 +496,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               const { data: newDeal, error: dealError } = await supabase
                 .from('deals')
                 .insert({
-                  name: `${formData.client_name || formData.contact_name || selectedAction} - ${formData.details || selectedAction}`,
-                  company: formData.client_name || formData.company || 'Unknown',
+                  name: `${formData.client_name} - ${formData.details || selectedAction}`,
+                  company: formData.client_name,
+                  company_website: formData.company_website || null,
                   value: dealValue,
                   stage_id: stageId,
                   owner_id: userData.id, // Now guaranteed to exist
@@ -474,18 +534,24 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         // Create the appropriate activity or sale
         if (selectedAction === 'sale') {
           logger.log(`💰 Creating sale with deal_id: ${finalDealId}`);
-          const saleAmount = parseFloat(formData.amount || '0') || 0;
+          // Calculate total sale amount from subscription and one-off
+          const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
+          const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+          const saleAmount = (monthly * 3) + oneOff; // LTV calculation
           
           await addSale({
-            client_name: formData.client_name || 'Unknown',
+            client_name: formData.client_name || formData.contact_name || 'Unknown',
             amount: saleAmount,
-            details: formData.details || `${formData.saleType} Sale`,
-            saleType: formData.saleType as 'one-off' | 'subscription' | 'lifetime',
+            details: formData.details || (monthly > 0 && oneOff > 0 ? 'Subscription + One-off Sale' : monthly > 0 ? 'Subscription Sale' : 'One-off Sale'),
+            saleType: monthly > 0 ? 'subscription' : 'one-off',
             date: selectedDate.toISOString(),
             deal_id: finalDealId,
             contactIdentifier: formData.contactIdentifier,
             contactIdentifierType: formData.contactIdentifierType || 'email',
-            contact_name: formData.contact_name
+            contact_name: formData.contact_name,
+            // Pass the split values for proper recording
+            oneOffRevenue: oneOff,
+            monthlyMrr: monthly
           });
           logger.log(`✅ Sale created successfully with deal_id: ${finalDealId}`);
         } else {
@@ -584,7 +650,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               </button>
             </div>
 
-            {!selectedAction ? (
+            {showContactSearch ? null : !selectedAction ? (
               <motion.div 
                 className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4"
                 variants={{
@@ -616,8 +682,13 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                       e.preventDefault();
                       e.stopPropagation();
                       if (action.id === 'deal') {
-                        setShowDealWizard(true);
+                        // For Deal, open ContactSearchModal directly
                         setSelectedAction(action.id);
+                        setShowContactSearch(true);
+                      } else if (action.id === 'meeting' || action.id === 'proposal' || action.id === 'sale') {
+                        // For Meeting, Proposal, Sale - set action and open ContactSearchModal
+                        setSelectedAction(action.id);
+                        setShowContactSearch(true);
                       } else {
                         setSelectedAction(action.id);
                       }
@@ -902,66 +973,99 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </button>
                 </div>
               </motion.form>
-            ) : (
-              <motion.form
+            ) : (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && selectedContact ? (
+              // Show activity form only after contact is selected
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                onSubmit={handleSubmit}
                 className="space-y-6"
               >
-                {/* Enhanced Date Selection Section */}
-                <div className="space-y-3">
-                  <label className="block text-base font-semibold text-white flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-[#37bd7e]" />
-                    {selectedAction === 'meeting' ? 'Meeting Date' : 
-                     selectedAction === 'proposal' ? 'Proposal Date' : 
-                     selectedAction === 'sale' ? 'Sale Date' : 'Date'}
-                  </label>
-                  
-                  {/* Quick Date Options - Better for backdating */}
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    {[
-                      { label: 'Today', date: new Date() },
-                      { label: 'Yesterday', date: addDays(new Date(), -1) },
-                      { label: 'Last Week', date: addWeeks(new Date(), -1) },
-                      { label: 'Last Month', date: addDays(new Date(), -30) }
-                    ].map((option) => (
-                      <button
-                        key={option.label}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDate(option.date);
-                          setShowCalendar(false);
-                        }}
-                        className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
-                          format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
-                            ? 'bg-[#37bd7e]/20 border-[#37bd7e] text-[#37bd7e]'
-                            : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Compact Header with contact info */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAction(null)}
+                          className="p-1.5 hover:bg-gray-800/50 rounded-lg transition-colors"
+                        >
+                          <ArrowRight className="w-4 h-4 text-gray-400 rotate-180" />
+                        </button>
+                        <div>
+                          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                            {selectedAction === 'meeting' && <><Users className="w-5 h-5 text-violet-500" /> Add Meeting</>}
+                            {selectedAction === 'proposal' && <><FileText className="w-5 h-5 text-orange-500" /> Add Proposal</>}
+                            {selectedAction === 'sale' && <><PoundSterling className="w-5 h-5 text-emerald-500" /> Add Sale</>}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-gray-400">for</span>
+                            <span className="text-sm text-[#37bd7e] font-medium">
+                              {selectedContact.full_name || 
+                               (selectedContact.first_name || selectedContact.last_name ? 
+                                `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                                selectedContact.email)}
+                            </span>
+                            {selectedContact.company && (
+                              <span className="text-sm text-gray-500">• {selectedContact.company}</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedContact(null);
+                                setShowContactSearch(true);
+                              }}
+                              className="text-xs text-gray-400 hover:text-[#37bd7e] ml-2"
+                            >
+                              Change
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                {/* Compact Date Selection */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-400">
+                      {selectedAction === 'meeting' ? 'Meeting Date' : 
+                       selectedAction === 'proposal' ? 'Proposal Date' : 
+                       selectedAction === 'sale' ? 'Sale Date' : 'Date'}
+                    </label>
+                    <div className="flex gap-2">
+                      {[
+                        { label: 'Today', date: new Date() },
+                        { label: 'Yesterday', date: addDays(new Date(), -1) },
+                        { label: 'Last Week', date: addWeeks(new Date(), -1) }
+                      ].map((option) => (
+                        <button
+                          key={option.label}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(option.date);
+                            setShowCalendar(false);
+                          }}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
+                            format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
+                              ? 'bg-[#37bd7e]/20 border-[#37bd7e] text-[#37bd7e]'
+                              : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <button
                     type="button"
                     onClick={() => setShowCalendar(!showCalendar)}
-                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl px-4 py-3.5 text-white text-left hover:bg-gray-700/50 transition-all flex items-center justify-between group"
+                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl px-3 py-2.5 text-white text-left hover:bg-gray-700/50 transition-all flex items-center justify-between group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-[#37bd7e]/10 rounded-lg flex items-center justify-center">
-                        <Calendar className="w-5 h-5 text-[#37bd7e]" />
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</div>
-                        <div className="text-gray-400 text-sm">Click to change</div>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-[#37bd7e]" />
+                      <span className="text-sm">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
                     </div>
-                    <div className={`transition-transform ${showCalendar ? 'rotate-180' : ''}`}>
-                      <Calendar className="w-4 h-4 text-gray-400 group-hover:text-white" />
-                    </div>
+                    <span className="text-xs text-gray-400">Change</span>
                   </button>
                   
                   {showCalendar && (
@@ -981,220 +1085,34 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   )}
                 </div>
 
-                {(selectedAction === 'sale' || selectedAction === 'meeting' || selectedAction === 'proposal') && (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-400/90">
-                      {selectedAction === 'sale' ? 'Client Name' : 'Prospect Name'}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                      value={formData.client_name}
-                      onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-                    />
-                  </div>
-                )}
-
-                {/* Deal Selector - Always optional, auto-creates if not selected */}
-                {(selectedAction === 'sale' || selectedAction === 'meeting' || selectedAction === 'proposal') && (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-400/90 flex items-center">
-                      Pipeline Deal
-                      <span className="text-xs text-gray-500 ml-2">(optional - will auto-create if empty)</span>
-                    </label>
-                    <DealSelector
-                      selectedDealId={formData.deal_id}
-                      onDealSelect={(dealId, dealInfo) => {
-                        setFormData({
-                          ...formData, 
-                          deal_id: dealId,
-                          selectedDeal: dealInfo,
-                          // Auto-populate client name from deal if available
-                          client_name: dealInfo?.company || formData.client_name
-                        });
-                      }}
-                      clientName={formData.client_name}
-                      required={false}
-                      placeholder='Optional: Select existing deal or leave empty to auto-create...'
-                    />
-                    {!formData.deal_id && (
-                      <p className="text-xs text-emerald-500/70 mt-1">
-                        {selectedAction === 'sale' 
-                          ? '✨ A new deal will be created in Signed stage'
-                          : selectedAction === 'proposal'
-                          ? '✨ A new deal will be created in Opportunity stage'
-                          : '✨ A new deal will be created in SQL stage'}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Simplified Contact Field - Name and Email */}
-                {selectedAction !== 'outbound' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Contact Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter contact name"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.contact_name || ''}
-                        onChange={(e) => setFormData({...formData, contact_name: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90 flex items-center">
-                        Email Address
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="contact@example.com"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.contactIdentifier || ''}
-                        onChange={(e) => setFormData({
-                          ...formData, 
-                          contactIdentifier: e.target.value, 
-                          contactIdentifierType: 'email'
-                        })}
-                      />
-                    </div>
-                  </>
-                )}
-                
-                {/* Sale Type and Amount for Sales */}
-                {selectedAction === 'sale' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Sale Type
-                      </label>
-                      <select
-                        required
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
-                        value={formData.saleType}
-                        onChange={(e) => setFormData({...formData, saleType: e.target.value})}
-                      >
-                        <option value="one-off">One-off</option>
-                        <option value="subscription">Subscription</option>
-                        <option value="lifetime">Lifetime</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Sale Amount (£) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        required
-                        placeholder="Enter sale amount"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.amount || ''}
-                        onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                      />
-                    </div>
-                  </>
-                )}
-                
-                {/* Proposal Amount */}
-                {selectedAction === 'proposal' && (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-400/90">
-                      Proposal Amount (£)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="Enter proposal value"
-                      className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                      value={formData.amount || ''}
-                      onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                    />
-                  </div>
-                )}
-
-                {selectedAction === 'outbound' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Outreach Type
-                      </label>
-                      <select
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
-                        value={formData.outboundType}
-                        onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
-                      >
-                        <option value="Call">Call</option>
-                        <option value="Client Call">Client Call</option>
-                        <option value="Email">Email</option>
-                        <option value="LinkedIn">LinkedIn</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Contact Name (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.client_name}
-                        onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-                        placeholder="Leave blank if unknown"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Quantity
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="50"
-                        required
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
-                        value={formData.outboundCount}
-                        onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
-                      />
-                    </div>
-                  </>
-                )}
-
+                {/* Meeting-specific fields - Compact */}
                 {selectedAction === 'meeting' && (
-                  <>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
-                        Meeting Type <span className="text-red-500">*</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-400">
+                        Type <span className="text-red-500">*</span>
                       </label>
                       <select
                         required
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
+                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
                         value={formData.details}
                         onChange={(e) => setFormData({...formData, details: e.target.value})}
                       >
-                        <option value="">Select meeting type</option>
+                        <option value="">Select type</option>
                         <option value="Discovery">Discovery</option>
                         <option value="Demo">Demo</option>
                         <option value="Follow-up">Follow-up</option>
-                        <option value="Proposal">Proposal</option>
+                        <option value="Proposal">Proposal Review</option>
                         <option value="Client Call">Client Call</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-400/90">
+                    <div className="space-y-1">
+                      <label className="block text-xs font-medium text-gray-400">
                         Status
                       </label>
                       <select
-                        required
-                        className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white/90 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors"
+                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
                         value={formData.status}
                         onChange={(e) => setFormData({...formData, status: e.target.value})}
                       >
@@ -1203,29 +1121,152 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         <option value="cancelled">Cancelled</option>
                         <option value="no_show">No Show</option>
                       </select>
-                    </div> 
-                  </>
+                    </div>
+                  </div>
                 )}
 
-                {/* Remove admin-only revenue split from QuickAdd - keep it simple */}
+                {/* Proposal-specific fields - Compact */}
+                {selectedAction === 'proposal' && (
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-400">
+                      Proposal Value (£)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Enter proposal value"
+                      className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 transition-colors"
+                      value={formData.amount || ''}
+                      onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                    />
+                  </div>
+                )}
 
-                <div className="flex gap-3 pt-4">
+                {/* Sale-specific fields - Compact with both inputs */}
+                {selectedAction === 'sale' && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-gray-400">
+                          Monthly Subscription (£)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                          value={formData.monthlyMrr || ''}
+                          onChange={(e) => setFormData({...formData, monthlyMrr: e.target.value})}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-gray-400">
+                          One-off Amount (£)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                          value={formData.oneOffRevenue || ''}
+                          onChange={(e) => setFormData({...formData, oneOffRevenue: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    {(formData.monthlyMrr || formData.oneOffRevenue) && (
+                      <div className="px-2 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                        <p className="text-xs text-emerald-400">
+                          Deal Value: £{((parseFloat(formData.monthlyMrr || '0') * 3) + parseFloat(formData.oneOffRevenue || '0')).toFixed(2)}
+                          {formData.monthlyMrr && <span className="text-emerald-300/60 text-xs"> (3mo LTV)</span>}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Company Information - Required */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-400">
+                      Company Name <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Acme Inc."
+                      className={`w-full bg-gray-800/50 border ${!formData.client_name && selectedAction ? 'border-amber-500/50' : 'border-gray-600/50'} rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors`}
+                      value={formData.client_name || ''}
+                      onChange={(e) => setFormData({...formData, client_name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-400">
+                      Website
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://acme.com"
+                      className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
+                      value={formData.company_website || ''}
+                      onChange={(e) => setFormData({...formData, company_website: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                {/* Deal Information - Optional */}
+                <details className="group">
+                  <summary className="cursor-pointer list-none flex items-center justify-between p-3 bg-gray-800/30 rounded-xl hover:bg-gray-800/50 transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-4 h-4 text-purple-500" />
+                      <span className="text-sm font-medium text-gray-300">Deal Details</span>
+                      <span className="text-xs text-gray-500">(Optional)</span>
+                    </div>
+                    <div className="text-xs text-purple-400">
+                      {selectedAction === 'sale' ? 'Signed stage' : selectedAction === 'proposal' ? 'Opportunity stage' : 'SQL stage'}
+                    </div>
+                  </summary>
+                  <div className="mt-2 space-y-2 p-3">
+                    <input
+                      type="text"
+                      placeholder={`Deal name (auto-generated if empty)`}
+                      className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
+                      value={formData.deal_name || ''}
+                      onChange={(e) => setFormData({...formData, deal_name: e.target.value})}
+                    />
+                  </div>
+                </details>
+                {/* Notes - Compact */}
+                <div className="space-y-1">
+                  <textarea
+                    rows={2}
+                    placeholder="Additional notes (optional)..."
+                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-[#37bd7e]/20 focus:border-[#37bd7e]/50 transition-colors resize-none"
+                    value={formData.description || ''}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setSelectedAction(null)}
-                    className="flex-1 py-3 px-4 bg-gray-800/30 text-gray-300 rounded-xl hover:bg-gray-700/50 transition-colors font-medium"
+                    className="flex-1 py-2.5 px-4 bg-gray-800/30 text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors text-sm font-medium"
                   >
-                    Back
+                    Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-[#37bd7e] to-[#2da76c] text-white rounded-xl hover:from-[#2da76c] hover:to-[#228b57] transition-all font-medium shadow-lg"
+                    className="flex-1 py-2.5 px-4 bg-gradient-to-r from-[#37bd7e] to-[#2da76c] text-white rounded-lg hover:from-[#2da76c] hover:to-[#228b57] transition-all text-sm font-medium shadow-lg"
                   >
-                    Add {selectedAction === 'sale' ? 'Sale' : selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
+                    Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
                   </button>
                 </div>
-              </motion.form>
-            )}
+              </form>
+              </motion.div>
+            ) : null}
           </motion.div>
           
           {/* Deal Wizard Modal */}
@@ -1235,6 +1276,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             onClose={() => {
               setShowDealWizard(false);
               setSelectedAction(null);
+              setSelectedContact(null);
               // Close the entire QuickAdd modal
               onClose();
             }}
@@ -1259,16 +1301,68 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               }
             }}
             initialData={{
-              clientName: formData.client_name,
-              contactEmail: formData.contactIdentifier,
+              clientName: formData.client_name || selectedContact?.company,
+              contactEmail: selectedContact?.email || formData.contactIdentifier,
+              contactName: selectedContact ? 
+                           (selectedContact.full_name || 
+                            (selectedContact.first_name || selectedContact.last_name ? 
+                             `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                             selectedContact.email)) : 
+                           formData.contact_name,
               dealValue: parseFloat(formData.amount) || 0,
               oneOffRevenue: parseFloat(formData.oneOffRevenue || '0') || 0,
               monthlyMrr: parseFloat(formData.monthlyMrr || '0') || 0,
-              saleType: formData.saleType
+              saleType: formData.saleType,
+              companyWebsite: formData.company_website
             }}
           />
         </motion.div>
       )}
+
+      {/* Contact Search Modal */}
+      {showContactSearch && (
+        <ContactSearchModal
+          isOpen={showContactSearch}
+          onClose={() => {
+            setShowContactSearch(false);
+            // Don't reset selectedAction here - let the contact selection handle it
+          }}
+          onContactSelect={(contact) => {
+            // Pre-populate form data with contact info first
+            const contactName = contact.full_name || 
+                              (contact.first_name || contact.last_name ? 
+                               `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : 
+                               contact.email);
+            
+            setFormData(prev => ({
+              ...prev,
+              contact_name: contactName,
+              contactIdentifier: contact.email,
+              contactIdentifierType: 'email',
+              client_name: contact.company || prev.client_name
+            }));
+            
+            // If contact doesn't have a company, show a helpful message
+            if (!contact.company && !contact.company_id) {
+              toast.info('Please add company information for this contact.');
+            }
+            
+            // Set the contact
+            setSelectedContact(contact);
+            
+            // Close the modal after setting everything
+            setShowContactSearch(false);
+            
+            // For Deal action, open DealWizard with the selected contact
+            if (selectedAction === 'deal') {
+              setTimeout(() => {
+                setShowDealWizard(true);
+              }, 100);
+            }
+          }}
+        />
+      )}
+
     </AnimatePresence>
   );
 }
