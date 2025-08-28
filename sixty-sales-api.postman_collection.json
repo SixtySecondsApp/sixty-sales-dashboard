@@ -1,0 +1,1865 @@
+{
+  "info": {
+    "name": "Sixty Sales CRM API",
+    "description": "Complete REST API collection for the Sixty Sales Dashboard CRM system.\n\n## Authentication\nAll requests require an API key via the `X-API-Key` header.\n\n## Base URL\n`https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1`\n\n## Features\n- Complete CRUD operations for all entities\n- Filtering, pagination, and search\n- Rate limiting and error handling\n- Business rule validation\n- Webhook integration for meetings\n\nGenerated: {{$timestamp}}",
+    "_postman_id": "sixty-sales-crm-api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Set dynamic variables",
+          "pm.globals.set('timestamp', Date.now());",
+          "pm.globals.set('random_email', 'test-' + Date.now() + '@example.com');",
+          "pm.globals.set('random_name', 'Test-' + Date.now());",
+          "",
+          "// Check if API key is set",
+          "if (!pm.environment.get('api_key') && !pm.globals.get('api_key')) {",
+          "    console.warn('API key not set. Please set api_key in environment or globals.');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script for all requests",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has correct Content-Type', function () {",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "});",
+          "",
+          "// Check for rate limit headers",
+          "if (pm.response.headers.has('X-RateLimit-Limit')) {",
+          "    pm.test('Rate limit headers present', function () {",
+          "        pm.expect(pm.response.headers.get('X-RateLimit-Limit')).to.exist;",
+          "        pm.expect(pm.response.headers.get('X-RateLimit-Remaining')).to.exist;",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "your_api_key_here",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "API Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Health check endpoint to verify API connectivity"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Health check returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contacts",
+      "item": [
+        {
+          "name": "List Contacts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of records to return (max 1000)"
+                },
+                {
+                  "key": "offset", 
+                  "value": "0",
+                  "description": "Number of records to skip"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Text search across name and email fields",
+                  "disabled": true
+                },
+                {
+                  "key": "company_id",
+                  "value": "",
+                  "description": "Filter by company ID",
+                  "disabled": true
+                },
+                {
+                  "key": "is_primary",
+                  "value": "",
+                  "description": "Filter by primary contact status (true/false)",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "created_at",
+                  "description": "Field to sort by",
+                  "disabled": true
+                },
+                {
+                  "key": "order",
+                  "value": "desc",
+                  "description": "Sort order (asc/desc)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve a list of contacts with optional filtering and pagination"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has data array', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Response has count', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('count');",
+                  "    pm.expect(responseJson.count).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Contact",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"{{random_name}}\",\n  \"last_name\": \"Contact\",\n  \"email\": \"{{random_email}}\",\n  \"phone\": \"+1-555-0123\",\n  \"title\": \"CEO\",\n  \"linkedin_url\": \"https://linkedin.com/in/testcontact\",\n  \"is_primary\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts"]
+            },
+            "description": "Create a new contact record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains created contact', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('first_name');",
+                  "    pm.expect(responseJson.data).to.have.property('email');",
+                  "    ",
+                  "    // Save contact ID for other requests",
+                  "    pm.globals.set('created_contact_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Contact by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts/{{created_contact_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts", "{{created_contact_id}}"]
+            },
+            "description": "Retrieve a specific contact by ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains contact details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data.id).to.equal(pm.globals.get('created_contact_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Contact",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"Contact\",\n  \"title\": \"CTO\",\n  \"phone\": \"+1-555-9999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts/{{created_contact_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts", "{{created_contact_id}}"]
+            },
+            "description": "Update an existing contact"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Contact was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.first_name).to.equal('Updated');",
+                  "    pm.expect(responseJson.data.title).to.equal('CTO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Contact",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts/{{created_contact_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts", "{{created_contact_id}}"]
+            },
+            "description": "Delete a contact record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Clear the contact ID",
+                  "pm.globals.unset('created_contact_id');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Contact management endpoints for managing customer and prospect contact information."
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-companies?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-companies"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "industry",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve a list of companies"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has data array', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Company",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{random_name}} Corp\",\n  \"website\": \"https://{{random_name}}.com\",\n  \"industry\": \"Technology\",\n  \"size\": \"50-100\",\n  \"description\": \"A test company for API testing\",\n  \"linkedin_url\": \"https://linkedin.com/company/{{random_name}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-companies",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-companies"]
+            },
+            "description": "Create a new company record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains created company', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('name');",
+                  "    ",
+                  "    // Save company ID for other requests",
+                  "    pm.globals.set('created_company_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Company by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-companies/{{created_company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-companies", "{{created_company_id}}"]
+            },
+            "description": "Retrieve a specific company by ID with related data"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains company details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('contact_count');",
+                  "    pm.expect(responseJson.data).to.have.property('deal_count');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Company",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Corp\",\n  \"industry\": \"Software\",\n  \"size\": \"100-500\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-companies/{{created_company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-companies", "{{created_company_id}}"]
+            },
+            "description": "Update an existing company"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Company was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.name).to.equal('Updated Corp');",
+                  "    pm.expect(responseJson.data.industry).to.equal('Software');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Company",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-companies/{{created_company_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-companies", "{{created_company_id}}"]
+            },
+            "description": "Delete a company record (only if no related contacts or deals)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 400/409', function () {",
+                  "    // 200 for successful deletion, 400/409 if has related data",
+                  "    pm.expect([200, 400, 409]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.globals.unset('created_company_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Company management endpoints for managing company records and relationships."
+    },
+    {
+      "name": "Deals",
+      "item": [
+        {
+          "name": "List Deals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-deals?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-deals"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "stage_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "owner_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "priority",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "min_value",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "max_value",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Retrieve a list of sales opportunities"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains deals with financial calculations', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    ",
+                  "    if (responseJson.data.length > 0) {",
+                  "        const deal = responseJson.data[0];",
+                  "        pm.expect(deal).to.have.property('ltv');",
+                  "        pm.expect(deal).to.have.property('annual_value');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Deal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{random_name}} Enterprise Deal\",\n  \"company\": \"{{random_name}} Corp\",\n  \"value\": 50000,\n  \"one_off_revenue\": 10000,\n  \"monthly_mrr\": 2000,\n  \"stage_id\": \"00000000-0000-0000-0000-000000000001\",\n  \"expected_close_date\": \"2025-03-01\",\n  \"probability\": 75,\n  \"priority\": \"high\",\n  \"lead_source\": \"referral\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-deals",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-deals"]
+            },
+            "description": "Create a new sales deal/opportunity"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains deal with financial calculations', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('ltv');",
+                  "    pm.expect(responseJson.data).to.have.property('annual_value');",
+                  "    ",
+                  "    // Save deal ID for other requests",
+                  "    pm.globals.set('created_deal_id', responseJson.data.id);",
+                  "    ",
+                  "    // Verify LTV calculation (MRR × 3 + One-off)",
+                  "    const expectedLTV = (2000 * 3) + 10000; // 16000",
+                  "    pm.expect(responseJson.data.ltv).to.equal(expectedLTV);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Deal by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-deals/{{created_deal_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-deals", "{{created_deal_id}}"]
+            },
+            "description": "Retrieve a specific deal by ID with stage and owner information"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains deal details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('stage_name');",
+                  "    pm.expect(responseJson.data).to.have.property('days_in_stage');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Deal",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Enterprise Deal\",\n  \"value\": 75000,\n  \"probability\": 85,\n  \"priority\": \"urgent\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-deals/{{created_deal_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-deals", "{{created_deal_id}}"]
+            },
+            "description": "Update an existing deal (subject to permission rules)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Deal was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.value).to.equal(75000);",
+                  "    pm.expect(responseJson.data.probability).to.equal(85);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Deal",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-deals/{{created_deal_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-deals", "{{created_deal_id}}"]
+            },
+            "description": "Delete a deal (subject to permission rules - admins only for split deals)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 403', function () {",
+                  "    // 200 for successful deletion, 403 for permission denied",
+                  "    pm.expect([200, 403]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.globals.unset('created_deal_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Deal management endpoints for sales opportunities and pipeline management."
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-tasks?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-tasks"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "todo, in_progress, completed, cancelled"
+                },
+                {
+                  "key": "priority",
+                  "value": "",
+                  "disabled": true,
+                  "description": "low, medium, high, urgent"
+                },
+                {
+                  "key": "assigned_to",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "deal_id",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "overdue",
+                  "value": "",
+                  "disabled": true,
+                  "description": "true to show only overdue tasks"
+                }
+              ]
+            },
+            "description": "Retrieve a list of tasks and to-do items"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains tasks with metadata', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    ",
+                  "    if (responseJson.data.length > 0) {",
+                  "        const task = responseJson.data[0];",
+                  "        pm.expect(task).to.have.property('is_overdue');",
+                  "        pm.expect(task).to.have.property('days_until_due');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Follow up with {{random_name}}\",\n  \"description\": \"Send follow-up email and schedule next meeting\",\n  \"status\": \"todo\",\n  \"priority\": \"high\",\n  \"due_date\": \"2025-02-15T10:00:00Z\",\n  \"assigned_to\": \"00000000-0000-0000-0000-000000000002\",\n  \"deal_id\": \"{{created_deal_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-tasks",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-tasks"]
+            },
+            "description": "Create a new task or to-do item"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains created task', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('title');",
+                  "    pm.expect(responseJson.data).to.have.property('status');",
+                  "    ",
+                  "    // Save task ID for other requests",
+                  "    pm.globals.set('created_task_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Task by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-tasks/{{created_task_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-tasks", "{{created_task_id}}"]
+            },
+            "description": "Retrieve a specific task by ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains task details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data.id).to.equal(pm.globals.get('created_task_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Follow up Task\",\n  \"status\": \"in_progress\",\n  \"priority\": \"urgent\",\n  \"description\": \"Updated task description\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-tasks/{{created_task_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-tasks", "{{created_task_id}}"]
+            },
+            "description": "Update an existing task"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Task was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.status).to.equal('in_progress');",
+                  "    pm.expect(responseJson.data.priority).to.equal('urgent');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-tasks/{{created_task_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-tasks", "{{created_task_id}}"]
+            },
+            "description": "Delete a task (subject to permission rules)"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 403', function () {",
+                  "    // 200 for successful deletion, 403 for permission denied",
+                  "    pm.expect([200, 403]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    pm.globals.unset('created_task_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Task management endpoints for tasks and to-do items."
+    },
+    {
+      "name": "Meetings",
+      "item": [
+        {
+          "name": "List Meetings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-meetings?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-meetings"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "meeting_type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "discovery, demo, proposal, negotiation, onboarding, check_in, other"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "scheduled, in_progress, completed, cancelled, no_show"
+                },
+                {
+                  "key": "upcoming",
+                  "value": "",
+                  "disabled": true,
+                  "description": "true to show upcoming meetings"
+                },
+                {
+                  "key": "today",
+                  "value": "",
+                  "disabled": true,
+                  "description": "true to show today's meetings"
+                }
+              ]
+            },
+            "description": "Retrieve a list of meetings and appointments"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains meetings with metadata', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    ",
+                  "    if (responseJson.data.length > 0) {",
+                  "        const meeting = responseJson.data[0];",
+                  "        pm.expect(meeting).to.have.property('attendee_count');",
+                  "        pm.expect(meeting).to.have.property('is_upcoming');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Meeting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"{{random_name}} Product Demo\",\n  \"description\": \"Demo of key product features and Q&A\",\n  \"meeting_type\": \"demo\",\n  \"status\": \"scheduled\",\n  \"start_time\": \"2025-02-15T14:00:00Z\",\n  \"end_time\": \"2025-02-15T15:00:00Z\",\n  \"duration_minutes\": 60,\n  \"attendees\": [\"client@example.com\", \"sales@ourcompany.com\"],\n  \"location\": \"Zoom\",\n  \"meeting_url\": \"https://zoom.us/j/123456789\",\n  \"deal_id\": \"{{created_deal_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-meetings",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-meetings"]
+            },
+            "description": "Create a new meeting or appointment"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains created meeting', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('title');",
+                  "    pm.expect(responseJson.data).to.have.property('meeting_type');",
+                  "    ",
+                  "    // Save meeting ID for other requests",
+                  "    pm.globals.set('created_meeting_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Meeting by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-meetings/{{created_meeting_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-meetings", "{{created_meeting_id}}"]
+            },
+            "description": "Retrieve a specific meeting by ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains meeting details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data.id).to.equal(pm.globals.get('created_meeting_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Meeting",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Product Demo\",\n  \"status\": \"in_progress\",\n  \"meeting_type\": \"proposal\",\n  \"description\": \"Updated demo with proposal discussion\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-meetings/{{created_meeting_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-meetings", "{{created_meeting_id}}"]
+            },
+            "description": "Update an existing meeting"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Meeting was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.status).to.equal('in_progress');",
+                  "    pm.expect(responseJson.data.meeting_type).to.equal('proposal');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Meeting",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-meetings/{{created_meeting_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-meetings", "{{created_meeting_id}}"]
+            },
+            "description": "Delete a meeting record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.globals.unset('created_meeting_id');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Meeting management endpoints for meetings and appointments."
+    },
+    {
+      "name": "Activities",
+      "item": [
+        {
+          "name": "List Activities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true,
+                  "description": "call, email, meeting, task, proposal, sale, note, other"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "completed, pending, cancelled"
+                },
+                {
+                  "key": "outcome",
+                  "value": "",
+                  "disabled": true,
+                  "description": "positive, neutral, negative"
+                },
+                {
+                  "key": "this_week",
+                  "value": "",
+                  "disabled": true,
+                  "description": "true for this week's activities"
+                },
+                {
+                  "key": "this_month",
+                  "value": "",
+                  "disabled": true,
+                  "description": "true for this month's activities"
+                }
+              ]
+            },
+            "description": "Retrieve a list of sales activities and interactions"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains activities with metadata', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('data');",
+                  "    ",
+                  "    if (responseJson.data.length > 0) {",
+                  "        const activity = responseJson.data[0];",
+                  "        pm.expect(activity).to.have.property('days_ago');",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"call\",\n  \"subject\": \"{{random_name}} Discovery Call\",\n  \"details\": \"Initial discovery call to understand client requirements\",\n  \"amount\": 0,\n  \"date\": \"2025-01-26T10:00:00Z\",\n  \"status\": \"completed\",\n  \"outcome\": \"positive\",\n  \"deal_id\": \"{{created_deal_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities"]
+            },
+            "description": "Create a new sales activity record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains created activity', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('type');",
+                  "    pm.expect(responseJson.data).to.have.property('subject');",
+                  "    ",
+                  "    // Save activity ID for other requests",
+                  "    pm.globals.set('created_activity_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Sale Activity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"sale\",\n  \"subject\": \"{{random_name}} Sale Closed\",\n  \"details\": \"Successfully closed deal with revenue amount\",\n  \"amount\": 5000,\n  \"date\": \"2025-01-26T15:00:00Z\",\n  \"status\": \"completed\",\n  \"outcome\": \"positive\",\n  \"deal_id\": \"{{created_deal_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities"]
+            },
+            "description": "Create a sale activity with revenue amount"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response contains sale activity with amount', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('type', 'sale');",
+                  "    pm.expect(responseJson.data).to.have.property('amount', 5000);",
+                  "    ",
+                  "    // Save sale activity ID for cleanup",
+                  "    pm.globals.set('created_sale_activity_id', responseJson.data.id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Activity by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities/{{created_activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities", "{{created_activity_id}}"]
+            },
+            "description": "Retrieve a specific activity by ID"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response contains activity details', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data.id).to.equal(pm.globals.get('created_activity_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Activity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Updated Discovery Call\",\n  \"type\": \"meeting\",\n  \"outcome\": \"neutral\",\n  \"details\": \"Updated activity details after follow-up\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities/{{created_activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities", "{{created_activity_id}}"]
+            },
+            "description": "Update an existing activity"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Activity was updated', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson.data.type).to.equal('meeting');",
+                  "    pm.expect(responseJson.data.outcome).to.equal('neutral');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Activity",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities/{{created_activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities", "{{created_activity_id}}"]
+            },
+            "description": "Delete an activity record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.globals.unset('created_activity_id');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Sale Activity",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-activities/{{created_sale_activity_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-activities", "{{created_sale_activity_id}}"]
+            },
+            "description": "Clean up the sale activity record"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.globals.unset('created_sale_activity_id');"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Activity management endpoints for tracking sales activities and interactions."
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Meeting Summary Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"summary\",\n  \"shareId\": \"test-{{$timestamp}}\",\n  \"recording\": {\n    \"recording_url\": \"https://fathom.video/calls/test123\",\n    \"recording_share_url\": \"https://fathom.video/share/test-{{$timestamp}}\",\n    \"recording_duration_in_minutes\": 30\n  },\n  \"meeting\": {\n    \"scheduled_start_time\": \"{{$isoTimestamp}}\",\n    \"scheduled_end_time\": \"2025-01-26T11:00:00Z\",\n    \"title\": \"API Test Meeting - {{random_name}}\",\n    \"invitees\": [\n      {\n        \"name\": \"Test User\",\n        \"email\": \"test@example.com\"\n      },\n      {\n        \"name\": \"API Tester\",\n        \"email\": \"api@example.com\"\n      }\n    ]\n  },\n  \"fathom_user\": {\n    \"name\": \"API Tester\",\n    \"email\": \"api@example.com\",\n    \"team\": \"Sales\"\n  },\n  \"ai_summary\": \"This was a productive API testing session. Key points discussed include endpoint validation, authentication testing, and comprehensive CRUD operations. All tests passed successfully.\",\n  \"sentiment_score\": 0.8,\n  \"coach_rating\": 90,\n  \"coach_summary\": \"Excellent API testing approach with comprehensive coverage\",\n  \"talk_time_rep_pct\": 60,\n  \"talk_time_customer_pct\": 40,\n  \"talk_time_judgement\": \"good\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/meetings-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["meetings-webhook"]
+            },
+            "description": "Test the meeting summary webhook that creates meeting records from external meeting platforms"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Webhook response contains success', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('success', true);",
+                  "    ",
+                  "    if (responseJson.meetingId) {",
+                  "        pm.globals.set('webhook_meeting_id', responseJson.meetingId);",
+                  "    }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Set the share ID for this test",
+                  "pm.globals.set('test_share_id', 'test-' + Date.now());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meeting Action Items Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"action_items\",\n  \"shareId\": \"{{test_share_id}}\",\n  \"action_item\": {\n    \"description\": \"Complete API testing documentation\",\n    \"completed\": false,\n    \"ai_generated\": true,\n    \"recording_timestamp\": \"00:15:30\",\n    \"recording_playback_url\": \"https://fathom.video/share/{{test_share_id}}?timestamp=930\"\n  },\n  \"assignee\": {\n    \"name\": \"API Tester\",\n    \"email\": \"api@example.com\",\n    \"team\": \"QA\"\n  },\n  \"deadline_days\": 3,\n  \"priority\": \"high\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/meetings-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["meetings-webhook"]
+            },
+            "description": "Test the action items webhook that adds action items to existing meetings"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Action item webhook response contains success', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('success', true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meeting Transcript Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"transcript\",\n  \"shareId\": \"{{test_share_id}}\",\n  \"transcript_url\": \"https://docs.google.com/document/d/example-transcript-{{$timestamp}}/edit\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/meetings-webhook",
+              "host": ["{{base_url}}"],
+              "path": ["meetings-webhook"]
+            },
+            "description": "Test the transcript webhook that adds transcript links to meetings"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Transcript webhook response contains success', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('success', true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Webhook endpoints for integrating with external systems like meeting platforms."
+    },
+    {
+      "name": "Error Testing",
+      "item": [
+        {
+          "name": "Unauthorized Request (No API Key)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts"]
+            },
+            "description": "Test authentication error without API key"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid API Key",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "invalid_api_key_12345"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts"]
+            },
+            "description": "Test authentication error with invalid API key"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 401', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Not Found Error",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts/00000000-0000-0000-0000-000000000000",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts", "00000000-0000-0000-0000-000000000000"]
+            },
+            "description": "Test 404 error for non-existent resource"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 404', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validation Error",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"last_name\": \"Incomplete Contact\",\n  \"email\": \"invalid-email-format\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api-v1-contacts",
+              "host": ["{{base_url}}"],
+              "path": ["api-v1-contacts"]
+            },
+            "description": "Test validation error with invalid data"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains validation error', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(responseJson).to.have.property('error');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Error handling and validation test cases."
+    }
+  ]
+}
