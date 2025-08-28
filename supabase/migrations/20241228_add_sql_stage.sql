@@ -4,7 +4,7 @@
 -- First, ensure deal_stages table exists with proper structure
 CREATE TABLE IF NOT EXISTS deal_stages (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
   description TEXT,
   color TEXT DEFAULT '#6B7280',
   order_position INTEGER NOT NULL,
@@ -13,20 +13,95 @@ CREATE TABLE IF NOT EXISTS deal_stages (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Add unique constraint on name if it doesn't exist
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'deal_stages_name_key' 
+    AND conrelid = 'deal_stages'::regclass
+  ) THEN
+    ALTER TABLE deal_stages ADD CONSTRAINT deal_stages_name_key UNIQUE (name);
+  END IF;
+END $$;
+
 -- Update stages with simplified progression (SQL as starting point)
-INSERT INTO deal_stages (name, description, color, order_position, default_probability)
-VALUES 
-  ('SQL', 'Sales Qualified Lead - initial qualified prospect', '#10B981', 1, 25),
-  ('Opportunity', 'Proposal sent - formal proposal submitted', '#8B5CF6', 2, 60),
-  ('Negotiation', 'Terms being negotiated', '#F59E0B', 3, 75),
-  ('Signed', 'Deal closed, contract signed', '#10B981', 4, 100),
-  ('Delivered', 'Product/service delivered', '#059669', 5, 100)
-ON CONFLICT (name) DO UPDATE SET
-  description = EXCLUDED.description,
-  color = EXCLUDED.color,
-  order_position = EXCLUDED.order_position,
-  default_probability = EXCLUDED.default_probability,
-  updated_at = NOW();
+-- Use a different approach that doesn't require ON CONFLICT
+DO $$
+BEGIN
+  -- Update or insert SQL stage
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'SQL') THEN
+    UPDATE deal_stages SET 
+      description = 'Sales Qualified Lead - initial qualified prospect',
+      color = '#10B981',
+      order_position = 1,
+      default_probability = 25,
+      updated_at = NOW()
+    WHERE name = 'SQL';
+  ELSE
+    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
+    VALUES ('SQL', 'Sales Qualified Lead - initial qualified prospect', '#10B981', 1, 25);
+  END IF;
+
+  -- Update or insert Opportunity stage
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Opportunity') THEN
+    UPDATE deal_stages SET 
+      description = 'Proposal sent - formal proposal submitted',
+      color = '#8B5CF6',
+      order_position = 2,
+      default_probability = 60,
+      updated_at = NOW()
+    WHERE name = 'Opportunity';
+  ELSE
+    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
+    VALUES ('Opportunity', 'Proposal sent - formal proposal submitted', '#8B5CF6', 2, 60);
+  END IF;
+
+  -- Update or insert Negotiation stage
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Negotiation') THEN
+    UPDATE deal_stages SET 
+      description = 'Terms being negotiated',
+      color = '#F59E0B',
+      order_position = 3,
+      default_probability = 75,
+      updated_at = NOW()
+    WHERE name = 'Negotiation';
+  ELSE
+    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
+    VALUES ('Negotiation', 'Terms being negotiated', '#F59E0B', 3, 75);
+  END IF;
+
+  -- Update or insert Signed stage
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Signed') THEN
+    UPDATE deal_stages SET 
+      description = 'Deal closed, contract signed',
+      color = '#10B981',
+      order_position = 4,
+      default_probability = 100,
+      updated_at = NOW()
+    WHERE name = 'Signed';
+  ELSE
+    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
+    VALUES ('Signed', 'Deal closed, contract signed', '#10B981', 4, 100);
+  END IF;
+
+  -- Update or insert Delivered stage
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Delivered') THEN
+    UPDATE deal_stages SET 
+      description = 'Product/service delivered',
+      color = '#059669',
+      order_position = 5,
+      default_probability = 100,
+      updated_at = NOW()
+    WHERE name = 'Delivered';
+  ELSE
+    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
+    VALUES ('Delivered', 'Product/service delivered', '#059669', 5, 100);
+  END IF;
+END $$;
+
+-- Add a comment field to track this migration (if it doesn't exist)
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS stage_migration_notes TEXT;
 
 -- Remove deprecated stages (Lead and Meetings Scheduled) if they exist
 -- First migrate any deals in these stages to SQL
@@ -40,13 +115,9 @@ WHERE stage_id IN (
 -- Now remove the deprecated stages
 DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled');
 
--- Update any existing deals that are in "Opportunity" stage to reflect new meaning
--- Add a comment field to track this migration
-ALTER TABLE deals ADD COLUMN IF NOT EXISTS stage_migration_notes TEXT;
-
 UPDATE deals 
 SET stage_migration_notes = 'Pre-migration: Was in Opportunity stage before SQL stage was added'
-WHERE stage = 'Opportunity' 
+WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Opportunity')
   AND stage_migration_notes IS NULL;
 
 -- Create smart task templates table for automated follow-ups
@@ -65,22 +136,55 @@ CREATE TABLE IF NOT EXISTS smart_task_templates (
   UNIQUE(trigger_activity_type, task_title)
 );
 
--- Add RLS policies for smart task templates (admin only)
+-- Add RLS policies for smart task templates
 ALTER TABLE smart_task_templates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admins can manage smart task templates" ON smart_task_templates
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM user_profiles
-      WHERE user_profiles.id = auth.uid()
-      AND user_profiles.is_admin = true
-    )
-  );
+-- Check if user_profiles table exists before creating admin policy
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_profiles') THEN
+    -- Create admin policy if user_profiles exists
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE tablename = 'smart_task_templates' 
+      AND policyname = 'Admins can manage smart task templates'
+    ) THEN
+      CREATE POLICY "Admins can manage smart task templates" ON smart_task_templates
+        FOR ALL USING (
+          EXISTS (
+            SELECT 1 FROM user_profiles
+            WHERE user_profiles.id = auth.uid()
+            AND user_profiles.is_admin = true
+          )
+        );
+    END IF;
+  ELSE
+    -- Fallback: Allow all authenticated users to manage templates if user_profiles doesn't exist
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_policies 
+      WHERE tablename = 'smart_task_templates' 
+      AND policyname = 'Authenticated users can manage smart task templates'
+    ) THEN
+      CREATE POLICY "Authenticated users can manage smart task templates" ON smart_task_templates
+        FOR ALL USING (auth.uid() IS NOT NULL);
+    END IF;
+  END IF;
+END $$;
 
-CREATE POLICY "All authenticated users can view active templates" ON smart_task_templates
-  FOR SELECT USING (
-    is_active = true AND auth.uid() IS NOT NULL
-  );
+-- Create view policy for all authenticated users
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'smart_task_templates' 
+    AND policyname = 'All authenticated users can view active templates'
+  ) THEN
+    CREATE POLICY "All authenticated users can view active templates" ON smart_task_templates
+      FOR SELECT USING (
+        is_active = true AND auth.uid() IS NOT NULL
+      );
+  END IF;
+END $$;
 
 -- Insert default smart task templates
 INSERT INTO smart_task_templates (trigger_activity_type, task_title, task_description, days_after_trigger, task_type, priority)
@@ -142,5 +246,5 @@ CREATE TRIGGER trigger_create_smart_tasks
 
 -- Add index for better performance
 CREATE INDEX IF NOT EXISTS idx_smart_task_templates_trigger ON smart_task_templates(trigger_activity_type) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage);
+CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage_id);
 CREATE INDEX IF NOT EXISTS idx_activities_type_deal ON activities(type, deal_id);

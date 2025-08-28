@@ -19,6 +19,7 @@ interface Stage {
 
 /**
  * Determines what type of activity should be created based on stage transition
+ * NOTE: Opportunity stage transitions are handled separately with proposal confirmation modal
  */
 export function getActivityTypeForStageTransition(
   fromStage: Stage | null,
@@ -36,8 +37,10 @@ export function getActivityTypeForStageTransition(
     return 'meeting';
   }
   
+  // IMPORTANT: Opportunity stage transitions are handled by the proposal confirmation modal
+  // Don't auto-create proposal activities here
   if (toStageName.includes('opportunity')) {
-    return 'proposal';
+    return null; // Changed from 'proposal' to null
   }
   
   if (toStageName.includes('signed') && !toStageName.includes('paid')) {

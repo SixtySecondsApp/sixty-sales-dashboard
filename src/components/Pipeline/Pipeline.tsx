@@ -602,34 +602,68 @@ function PipelineContent() {
       const toStageObj = stages.find(s => s.id === toStage);
       
       if (toStageObj) {
-        await handlePipelineStageTransition(
-          {
-            id: deal.id,
-            name: deal.name,
-            company: deal.company,
-            value: deal.value,
-            owner_id: deal.owner_id,
-            contact_email: deal.contact_email,
-          },
-          fromStageObj,
-          toStageObj
-        );
+        // Only create stage transition activity if it's NOT moving to Opportunity
+        // (since Opportunity transition is handled specially with the proposal confirmation)
+        const opportunityStage = stages.find(s => s.name.toLowerCase() === 'opportunity');
+        const isMovingToOpportunity = toStage === opportunityStage?.id;
         
-        // If proposal was sent, create a proposal activity
-        if (sentProposal) {
-          const proposalActivity = {
-            type: 'proposal',
-            deal_id: dealId,
-            owner_id: deal.owner_id,
-            description: notes || 'Proposal sent to client',
-            created_at: new Date().toISOString(),
-          };
-          
-          await supabase
-            .from('activities')
-            .insert(proposalActivity);
-          
-          toast.success('📄 Proposal activity logged and follow-up task created!');
+        if (!isMovingToOpportunity) {
+          // Normal stage transition - create activity automatically
+          await handlePipelineStageTransition(
+            {
+              id: deal.id,
+              name: deal.name,
+              company: deal.company,
+              value: deal.value,
+              owner_id: deal.owner_id,
+              contact_email: deal.contact_email,
+            },
+            fromStageObj,
+            toStageObj
+          );
+        } else if (sentProposal) {
+          // Moving to Opportunity AND user confirmed proposal was sent - create proposal activity
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && user.id === deal.owner_id) {
+            // Get user profile for sales_rep name
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('first_name, last_name')
+              .eq('id', user.id)
+              .single();
+            
+            const salesRepName = profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : '';
+            
+            const proposalActivity = {
+              user_id: user.id,
+              type: 'proposal',
+              client_name: deal.company || deal.name || 'Unknown Client',
+              details: notes || `Proposal sent for ${deal.name || deal.company || 'deal'}`,
+              amount: deal.value || 0,
+              priority: 'high',
+              sales_rep: salesRepName,
+              date: new Date().toISOString(),
+              status: 'completed',
+              quantity: 1,
+              deal_id: dealId,
+              contact_identifier: deal.contact_email || null,
+              contact_identifier_type: deal.contact_email ? 'email' : null,
+            };
+            
+            const { error } = await supabase
+              .from('activities')
+              .insert(proposalActivity);
+            
+            if (!error) {
+              toast.success('📄 Proposal activity logged and follow-up task created!');
+            } else {
+              logger.error('Failed to create proposal activity:', error);
+            }
+          }
+        } else {
+          // Moving to Opportunity but NO proposal sent - just log the stage change
+          logger.log('📁 Deal moved to Opportunity stage for proposal preparation');
+          toast.info('📁 Deal moved to Opportunity stage for proposal preparation');
         }
       }
       
