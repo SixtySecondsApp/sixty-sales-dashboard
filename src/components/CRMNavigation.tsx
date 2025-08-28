@@ -5,7 +5,8 @@ import {
   Building2, 
   Users, 
   Heart, 
-  Plus
+  Plus,
+  Video
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,12 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
       label: 'Deals', 
       href: '/pipeline',
       description: 'Sales opportunities and pipeline'
+    },
+    { 
+      icon: Video, 
+      label: 'Meetings', 
+      href: '/meetings',
+      description: 'Call recordings and analytics'
     }
   ];
 
@@ -42,6 +49,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
     if (location.pathname.includes('/companies')) return 'Companies';
     if (location.pathname.includes('/contacts')) return 'Contacts';
     if (location.pathname.includes('/deals') || location.pathname.includes('/pipeline')) return 'Deals';
+    if (location.pathname.includes('/meetings')) return 'Meetings';
     return 'CRM';
   };
 

@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Session & Auth Debugger</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1 { color: #60a5fa; }
+        h2 { color: #94a3b8; margin-top: 30px; }
+        button { 
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { 
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        .status { 
+            padding: 15px; 
+            margin: 20px 0; 
+            border-radius: 8px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        .success { 
+            background: #065f46;
+            border-color: #10b981;
+        }
+        .error { 
+            background: #7f1d1d;
+            border-color: #ef4444;
+        }
+        .warning { 
+            background: #78350f;
+            border-color: #f59e0b;
+        }
+        .info {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+        }
+        pre { 
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #334155;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        input { 
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .token-display {
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+            background: #0f172a;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .copy-btn {
+            background: #059669;
+            padding: 5px 10px;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .copy-btn:hover {
+            background: #047857;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Session & Authentication Debugger</h1>
+    
+    <div class="status info">
+        <strong>Purpose:</strong> This tool helps diagnose authentication and session issues with Supabase
+    </div>
+
+    <h2>Configuration</h2>
+    <div>
+        <label>Supabase URL:</label>
+        <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+        
+        <label>Supabase Anon Key:</label>
+        <input type="text" id="supabaseAnonKey" placeholder="your-anon-key">
+    </div>
+
+    <button onclick="loadFromEnv()">Load from Environment</button>
+    <button onclick="checkAuth()">Check Authentication</button>
+    <button onclick="refreshSession()">Refresh Session</button>
+    <button onclick="testApiKeyCreation()">Test API Key Creation</button>
+    <button onclick="clearAll()">Clear All</button>
+
+    <div class="grid">
+        <div class="card">
+            <h3>🔑 Session Info</h3>
+            <div id="sessionInfo">
+                <p>No session loaded yet</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>📊 LocalStorage Data</h3>
+            <div id="localStorageInfo">
+                <p>Scanning...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3>🧪 Test Results</h3>
+        <div id="testResults">
+            <p>No tests run yet</p>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3>🛠️ Debug Console</h3>
+        <pre id="debugConsole">Ready for debugging...</pre>
+    </div>
+
+    <script type="module">
+        let supabase = null;
+        
+        function log(message, type = 'info') {
+            const console = document.getElementById('debugConsole');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                'info': '#94a3b8',
+                'success': '#10b981',
+                'error': '#ef4444',
+                'warning': '#f59e0b'
+            }[type] || '#94a3b8';
+            
+            console.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        window.loadFromEnv = async function() {
+            try {
+                log('Loading configuration from environment...');
+                
+                // Try to get from localStorage
+                const keys = Object.keys(localStorage);
+                let supabaseUrl = '';
+                let supabaseKey = '';
+                
+                // Look for Supabase configuration
+                keys.forEach(key => {
+                    if (key.includes('supabase') || key.includes('sb-')) {
+                        log(`Found key: ${key}`, 'info');
+                    }
+                });
+                
+                // Try common patterns
+                const urlPatterns = ['VITE_SUPABASE_URL', 'SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'];
+                const keyPatterns = ['VITE_SUPABASE_ANON_KEY', 'SUPABASE_ANON_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'];
+                
+                // Check if running in development
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    // For local development, you might need to manually set these
+                    log('Running in development mode', 'warning');
+                    log('Please enter your Supabase credentials manually', 'warning');
+                }
+                
+                document.getElementById('supabaseUrl').value = supabaseUrl || '';
+                document.getElementById('supabaseAnonKey').value = supabaseKey || '';
+                
+                if (!supabaseUrl || !supabaseKey) {
+                    log('Could not auto-detect credentials. Please enter them manually.', 'warning');
+                } else {
+                    log('Configuration loaded!', 'success');
+                }
+                
+            } catch (error) {
+                log('Error loading configuration: ' + error.message, 'error');
+            }
+        };
+
+        window.checkAuth = async function() {
+            try {
+                const url = document.getElementById('supabaseUrl').value;
+                const key = document.getElementById('supabaseAnonKey').value;
+                
+                if (!url || !key) {
+                    log('Please enter Supabase URL and Anon Key', 'error');
+                    return;
+                }
+                
+                log('Initializing Supabase client...', 'info');
+                
+                // Import Supabase client
+                const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+                
+                supabase = createClient(url, key);
+                log('Supabase client initialized', 'success');
+                
+                // Check current session
+                log('Checking current session...', 'info');
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    log('Session error: ' + error.message, 'error');
+                    updateSessionInfo(null);
+                } else if (session) {
+                    log('Active session found!', 'success');
+                    updateSessionInfo(session);
+                    
+                    // Check if token is expired
+                    const exp = session.expires_at;
+                    const now = Math.floor(Date.now() / 1000);
+                    if (exp && exp < now) {
+                        log('Session token is expired!', 'warning');
+                    } else if (exp) {
+                        const minutesLeft = Math.floor((exp - now) / 60);
+                        log(`Session expires in ${minutesLeft} minutes`, 'info');
+                    }
+                } else {
+                    log('No active session found', 'warning');
+                    updateSessionInfo(null);
+                }
+                
+                // Check localStorage for auth data
+                checkLocalStorage();
+                
+            } catch (error) {
+                log('Error checking auth: ' + error.message, 'error');
+            }
+        };
+
+        window.refreshSession = async function() {
+            if (!supabase) {
+                log('Please check authentication first', 'error');
+                return;
+            }
+            
+            try {
+                log('Refreshing session...', 'info');
+                const { data: { session }, error } = await supabase.auth.refreshSession();
+                
+                if (error) {
+                    log('Error refreshing session: ' + error.message, 'error');
+                } else if (session) {
+                    log('Session refreshed successfully!', 'success');
+                    updateSessionInfo(session);
+                } else {
+                    log('No session to refresh', 'warning');
+                }
+            } catch (error) {
+                log('Error: ' + error.message, 'error');
+            }
+        };
+
+        window.testApiKeyCreation = async function() {
+            if (!supabase) {
+                log('Please check authentication first', 'error');
+                return;
+            }
+            
+            try {
+                log('Testing API key creation...', 'info');
+                
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    log('No active session. Please log in first.', 'error');
+                    return;
+                }
+                
+                const url = document.getElementById('supabaseUrl').value;
+                const response = await fetch(`${url}/functions/v1/create-api-key`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'apikey': document.getElementById('supabaseAnonKey').value
+                    },
+                    body: JSON.stringify({
+                        name: `Test Key ${new Date().toISOString()}`,
+                        permissions: ['deals:read', 'deals:write'],
+                        rate_limit: 1000
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ API Key created successfully!', 'success');
+                    log('Key ID: ' + data.id, 'success');
+                    log('Key Preview: ' + data.key_preview, 'success');
+                    
+                    document.getElementById('testResults').innerHTML = `
+                        <div class="status success">
+                            <strong>Success!</strong> API Key created
+                            <div class="token-display">
+                                Key: ${data.api_key || 'Hidden for security'}
+                                <button class="copy-btn" onclick="navigator.clipboard.writeText('${data.api_key || ''}')">Copy</button>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    log(`❌ Error ${response.status}: ${data.error || data.message}`, 'error');
+                    document.getElementById('testResults').innerHTML = `
+                        <div class="status error">
+                            <strong>Error ${response.status}:</strong> ${data.error || data.message}
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                log('Network error: ' + error.message, 'error');
+            }
+        };
+
+        function updateSessionInfo(session) {
+            const div = document.getElementById('sessionInfo');
+            if (session) {
+                div.innerHTML = `
+                    <div class="status success">Session Active</div>
+                    <p><strong>User ID:</strong> ${session.user?.id || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${session.user?.email || 'N/A'}</p>
+                    <p><strong>Provider:</strong> ${session.user?.app_metadata?.provider || 'N/A'}</p>
+                    <p><strong>Expires At:</strong> ${new Date(session.expires_at * 1000).toLocaleString()}</p>
+                    <details>
+                        <summary>Access Token (click to expand)</summary>
+                        <div class="token-display">${session.access_token}</div>
+                    </details>
+                `;
+            } else {
+                div.innerHTML = `
+                    <div class="status error">No Active Session</div>
+                    <p>Please log into your application first.</p>
+                `;
+            }
+        }
+
+        function checkLocalStorage() {
+            const div = document.getElementById('localStorageInfo');
+            let html = '<h4>Auth-related entries:</h4>';
+            let foundAuth = false;
+            
+            for (let key in localStorage) {
+                if (key.includes('supabase') || key.includes('sb-') || key.includes('auth')) {
+                    foundAuth = true;
+                    const value = localStorage.getItem(key);
+                    let displayValue = value;
+                    
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (parsed.access_token) {
+                            displayValue = `{...access_token: "${parsed.access_token.substring(0, 20)}..."}`;
+                        } else {
+                            displayValue = JSON.stringify(parsed, null, 2).substring(0, 100) + '...';
+                        }
+                    } catch (e) {
+                        displayValue = value.length > 50 ? value.substring(0, 50) + '...' : value;
+                    }
+                    
+                    html += `<p><strong>${key}:</strong><br><span style="font-size: 12px; color: #64748b;">${displayValue}</span></p>`;
+                }
+            }
+            
+            if (!foundAuth) {
+                html += '<p style="color: #f59e0b;">No auth data found in localStorage</p>';
+            }
+            
+            div.innerHTML = html;
+        }
+
+        window.clearAll = function() {
+            document.getElementById('debugConsole').innerHTML = 'Console cleared.\n';
+            document.getElementById('sessionInfo').innerHTML = '<p>No session loaded yet</p>';
+            document.getElementById('testResults').innerHTML = '<p>No tests run yet</p>';
+            log('All cleared', 'info');
+        };
+
+        // Auto-check on load
+        window.addEventListener('DOMContentLoaded', () => {
+            checkLocalStorage();
+            loadFromEnv();
+        });
+    </script>
+</body>
+</html>

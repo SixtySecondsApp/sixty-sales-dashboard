@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Auth</title>
+</head>
+<body>
+    <h1>Testing Edge Function Auth</h1>
+    <button onclick="testAuth()">Test Authentication</button>
+    <div id="results"></div>
+
+    <script>
+        async function testAuth() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const response = await fetch('https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/api-v1-contacts', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8',
+                        'X-API-Key': 'sk_test_api_key_for_suite_12345',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const text = await response.text();
+                results.innerHTML = `
+                    <h3>Results:</h3>
+                    <p><strong>Status:</strong> ${response.status}</p>
+                    <p><strong>Response:</strong></p>
+                    <pre>${text}</pre>
+                `;
+            } catch (error) {
+                results.innerHTML = `<p><strong>Error:</strong> ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

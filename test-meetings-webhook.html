@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Meetings Webhook Integration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-8">Meetings Webhook Test</h1>
+    
+    <div class="space-y-6">
+      <!-- Summary Test -->
+      <div class="bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">1. Test AI Summary Webhook</h2>
+        <button onclick="testSummaryWebhook()" 
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+          Send Summary Payload
+        </button>
+        <div id="summary-result" class="mt-4 text-sm"></div>
+      </div>
+
+      <!-- Action Items Test -->
+      <div class="bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">2. Test Action Items Webhook</h2>
+        <button onclick="testActionItemsWebhook()" 
+                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">
+          Send Action Items Payload
+        </button>
+        <div id="action-result" class="mt-4 text-sm"></div>
+      </div>
+
+      <!-- Transcript Test -->
+      <div class="bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">3. Test Transcript Webhook</h2>
+        <button onclick="testTranscriptWebhook()" 
+                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">
+          Send Transcript Payload
+        </button>
+        <div id="transcript-result" class="mt-4 text-sm"></div>
+      </div>
+
+      <!-- Check Meeting -->
+      <div class="bg-gray-800 rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">4. Check Meeting in Database</h2>
+        <button onclick="checkMeeting()" 
+                class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded">
+          Check Meeting
+        </button>
+        <div id="check-result" class="mt-4 text-sm"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WEBHOOK_URL = 'http://localhost:54321/functions/v1/meetings-webhook';
+    const SHARE_ID = 'hQzHeu38iRs4z9jLKXReEYaLrUqqGwxg'; // Example share ID
+    
+    async function testSummaryWebhook() {
+      const payload = {
+        topic: 'summary',
+        shareId: SHARE_ID,
+        recording: {
+          recording_url: 'https://fathom.video/calls/389818293',
+          recording_share_url: `https://fathom.video/share/${SHARE_ID}`,
+          recording_duration_in_minutes: 22
+        },
+        meeting: {
+          scheduled_start_time: '2025-08-26T17:00:00Z',
+          scheduled_end_time: '2025-08-26T17:22:00Z',
+          title: 'Test Meeting - 60 Seconds Demo',
+          has_external_invitees: true,
+          external_domains: 1,
+          invitees: [
+            { name: 'Phil O\'Brien', email: 'phil@sixtyseconds.video' },
+            { name: 'Loren S', email: 'loren@allegrosoft.com' }
+          ]
+        },
+        fathom_user: {
+          name: 'Phil O\'Brien',
+          email: 'phil@sixtyseconds.video',
+          team: 'Sales'
+        },
+        ai_summary: 'Successfully uploading and processing company data. Enriching with LinkedIn info. Clear next steps include fixing data table view, connecting export, and scheduling a demo.'
+      };
+      
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        document.getElementById('summary-result').innerHTML = 
+          `<pre class="bg-gray-900 p-2 rounded">${JSON.stringify(result, null, 2)}</pre>`;
+      } catch (error) {
+        document.getElementById('summary-result').innerHTML = 
+          `<div class="text-red-400">Error: ${error.message}</div>`;
+      }
+    }
+    
+    async function testActionItemsWebhook() {
+      const payload = {
+        topic: 'action_items',
+        shareId: SHARE_ID,
+        action_item: {
+          description: 'Send supporting content and examples',
+          completed: false,
+          ai_generated: true,
+          recording_timestamp: '00:21:23',
+          recording_playback_url: `https://fathom.video/share/${SHARE_ID}?timestamp=1283`
+        },
+        assignee: {
+          name: 'Phil O\'Brien',
+          email: 'phil@sixtyseconds.video',
+          team: 'Sales'
+        },
+        deadline_days: 3
+      };
+      
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        document.getElementById('action-result').innerHTML = 
+          `<pre class="bg-gray-900 p-2 rounded">${JSON.stringify(result, null, 2)}</pre>`;
+      } catch (error) {
+        document.getElementById('action-result').innerHTML = 
+          `<div class="text-red-400">Error: ${error.message}</div>`;
+      }
+    }
+    
+    async function testTranscriptWebhook() {
+      const payload = {
+        topic: 'transcript',
+        shareId: SHARE_ID,
+        transcript_url: 'https://docs.google.com/document/d/1CiAMJMZscDRNjoDAvlL299SCoF3QPFoxZJDdf_drKb8/edit'
+      };
+      
+      try {
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        document.getElementById('transcript-result').innerHTML = 
+          `<pre class="bg-gray-900 p-2 rounded">${JSON.stringify(result, null, 2)}</pre>`;
+      } catch (error) {
+        document.getElementById('transcript-result').innerHTML = 
+          `<div class="text-red-400">Error: ${error.message}</div>`;
+      }
+    }
+    
+    async function checkMeeting() {
+      // This would need to query your Supabase database
+      // For now, just provide instructions
+      document.getElementById('check-result').innerHTML = 
+        `<div class="text-green-400">
+          To check if the meeting was created:<br>
+          1. Go to your app at http://localhost:5173/meetings<br>
+          2. Or query Supabase directly:<br>
+          <code class="bg-gray-900 p-1 rounded">
+            select * from meetings where fathom_recording_id = '${SHARE_ID}'
+          </code>
+        </div>`;
+    }
+  </script>
+</body>
+</html>

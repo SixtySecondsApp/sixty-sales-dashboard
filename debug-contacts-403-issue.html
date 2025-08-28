@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Contacts 403 Issue - Production</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #0a0a0a; 
+            color: #e0e0e0; 
+        }
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+        }
+        h1, h2 { 
+            color: #10b981; 
+            border-bottom: 2px solid #10b981; 
+            padding-bottom: 10px; 
+        }
+        .test-section { 
+            margin: 20px 0; 
+            padding: 20px; 
+            border: 1px solid #374151; 
+            border-radius: 8px; 
+            background-color: #111827;
+        }
+        .success { 
+            background-color: #064e3b; 
+            border-color: #10b981; 
+        }
+        .error { 
+            background-color: #7f1d1d; 
+            border-color: #ef4444; 
+        }
+        .warning { 
+            background-color: #78350f; 
+            border-color: #f59e0b; 
+        }
+        button { 
+            background-color: #10b981; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin: 8px; 
+            font-weight: 500;
+        }
+        button:hover { 
+            background-color: #059669; 
+        }
+        button:disabled {
+            background-color: #4b5563;
+            cursor: not-allowed;
+        }
+        pre { 
+            background-color: #1f2937; 
+            padding: 15px; 
+            border-radius: 6px; 
+            overflow-x: auto; 
+            white-space: pre-wrap; 
+            border-left: 4px solid #10b981;
+            font-size: 13px;
+        }
+        .result { 
+            margin-top: 15px; 
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #10b981; }
+        .status-error { background-color: #ef4444; }
+        .status-warning { background-color: #f59e0b; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        .highlight {
+            background-color: #1f2937;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Contacts 403 Forbidden Error (Production Supabase)</h1>
+        <p>This debug tool will investigate the exact cause of the 403 error when creating contacts via the QuickAdd form.</p>
+        
+        <div class="grid">
+            <div class="test-section">
+                <h2>📊 Current Status</h2>
+                <div id="statusOverview">
+                    <p>Click "Run Full Diagnostic" to start comprehensive testing</p>
+                </div>
+                <button onclick="runFullDiagnostic()">Run Full Diagnostic</button>
+            </div>
+
+            <div class="test-section">
+                <h2>🔑 Authentication State</h2>
+                <button onclick="checkAuthentication()">Check Auth Status</button>
+                <button onclick="attemptSignIn()">Sign In Test User</button>
+                <div id="authResult" class="result"></div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>🌐 Environment & Configuration</h2>
+            <button onclick="checkEnvironment()">Validate Environment</button>
+            <div id="envResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>📋 Database Connection & Permissions</h2>
+            <button onclick="testDatabaseAccess()">Test Database Access</button>
+            <button onclick="testRLSPolicies()">Check RLS Policies</button>
+            <div id="dbResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>👤 Contact Creation Tests</h2>
+            <button onclick="testContactCreation()">Test Contact Creation</button>
+            <button onclick="testWithDifferentUser()">Test Different User Context</button>
+            <div id="contactResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 Network Request Analysis</h2>
+            <button onclick="analyzeNetworkRequests()">Analyze Network Requests</button>
+            <div id="networkResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>🛠️ Manual Fix Attempts</h2>
+            <button onclick="attemptManualFix()">Try Manual Fix</button>
+            <button onclick="clearAuthAndRetry()">Clear Auth & Retry</button>
+            <div id="fixResult" class="result"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Use production Supabase credentials from the .env.local file
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            }
+        });
+
+        const testResults = {};
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const statusClass = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            const statusIcon = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            
+            element.innerHTML = `<div class="test-section ${statusClass}">
+                <h3>${statusIcon} ${type.charAt(0).toUpperCase() + type.slice(1)}</h3>
+                <pre>${typeof message === 'object' ? JSON.stringify(message, null, 2) : message}</pre>
+            </div>`;
+            
+            testResults[elementId] = { type, message };
+            console.log(`[${elementId}]`, message);
+        }
+
+        async function runFullDiagnostic() {
+            const startTime = Date.now();
+            document.getElementById('statusOverview').innerHTML = '<p>🔄 Running comprehensive diagnostic...</p>';
+            
+            try {
+                await checkEnvironment();
+                await delay(500);
+                await checkAuthentication();
+                await delay(500);
+                await testDatabaseAccess();
+                await delay(500);
+                await testContactCreation();
+                await delay(500);
+                await analyzeNetworkRequests();
+                
+                const duration = Date.now() - startTime;
+                updateStatusOverview(duration);
+            } catch (error) {
+                log('statusOverview', `Diagnostic failed: ${error.message}`, 'error');
+            }
+        }
+
+        function updateStatusOverview(duration) {
+            const results = Object.values(testResults);
+            const successCount = results.filter(r => r.type === 'success').length;
+            const errorCount = results.filter(r => r.type === 'error').length;
+            const warningCount = results.filter(r => r.type === 'warning').length;
+            
+            document.getElementById('statusOverview').innerHTML = `
+                <div class="test-section ${errorCount > 0 ? 'error' : successCount > 0 ? 'success' : 'warning'}">
+                    <h3>📈 Diagnostic Summary</h3>
+                    <p><span class="status-indicator status-success"></span>Passed: ${successCount}</p>
+                    <p><span class="status-indicator status-warning"></span>Warnings: ${warningCount}</p>
+                    <p><span class="status-indicator status-error"></span>Errors: ${errorCount}</p>
+                    <p>⏱️ Completed in ${duration}ms</p>
+                    ${errorCount > 0 ? '<p><strong>❌ 403 Forbidden Issue Identified - Check individual test results</strong></p>' : ''}
+                </div>
+            `;
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function checkEnvironment() {
+            try {
+                const env = {
+                    projectUrl: supabaseUrl,
+                    hasAnonKey: !!supabaseKey,
+                    keyLength: supabaseKey.length,
+                    keyFormat: supabaseKey.startsWith('eyJ') ? 'Valid JWT format' : 'Invalid format',
+                    currentTime: new Date().toISOString(),
+                    userAgent: navigator.userAgent,
+                    origin: window.location.origin,
+                    localStorage: {
+                        available: typeof Storage !== 'undefined',
+                        supabaseKeys: Object.keys(localStorage).filter(k => k.includes('supabase'))
+                    }
+                };
+                
+                log('envResult', env, 'success');
+            } catch (error) {
+                log('envResult', { error: error.message, stack: error.stack }, 'error');
+            }
+        }
+
+        async function checkAuthentication() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                
+                const authInfo = {
+                    isAuthenticated: !!session,
+                    sessionExists: !!session,
+                    userId: session?.user?.id || 'Not authenticated',
+                    email: session?.user?.email || 'Not authenticated',
+                    userMetadata: session?.user?.user_metadata || {},
+                    accessToken: {
+                        present: !!session?.access_token,
+                        length: session?.access_token?.length || 0,
+                        expires: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'N/A'
+                    },
+                    refreshToken: {
+                        present: !!session?.refresh_token,
+                        length: session?.refresh_token?.length || 0
+                    }
+                };
+                
+                if (!session) {
+                    log('authResult', { ...authInfo, recommendation: 'User needs to sign in to test contact creation' }, 'warning');
+                } else {
+                    // Test if user has a profile
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single();
+                    
+                    authInfo.profile = {
+                        exists: !!profile && !profileError,
+                        data: profile,
+                        error: profileError?.message
+                    };
+                    
+                    log('authResult', authInfo, 'success');
+                }
+                
+                return !!session;
+            } catch (error) {
+                log('authResult', { error: error.message, code: error.code, details: error.details }, 'error');
+                return false;
+            }
+        }
+
+        async function testDatabaseAccess() {
+            try {
+                // Test read access to contacts table
+                const { data: contacts, error: readError, count } = await supabase
+                    .from('contacts')
+                    .select('*', { count: 'exact' })
+                    .limit(5);
+                
+                const dbInfo = {
+                    readAccess: !readError,
+                    contactCount: count,
+                    sampleContacts: contacts?.length || 0,
+                    readError: readError?.message || 'None',
+                };
+
+                // Test if contacts table structure is correct
+                if (contacts && contacts.length > 0) {
+                    const sampleContact = contacts[0];
+                    dbInfo.tableStructure = {
+                        hasRequiredFields: {
+                            id: 'id' in sampleContact,
+                            email: 'email' in sampleContact,
+                            first_name: 'first_name' in sampleContact,
+                            last_name: 'last_name' in sampleContact,
+                            owner_id: 'owner_id' in sampleContact
+                        },
+                        allFields: Object.keys(sampleContact)
+                    };
+                }
+
+                // Test profiles table access (needed for owner_id)
+                const { data: profiles, error: profilesError } = await supabase
+                    .from('profiles')
+                    .select('id, email, first_name')
+                    .limit(1);
+                
+                dbInfo.profilesAccess = {
+                    canRead: !profilesError,
+                    hasProfiles: !!profiles?.length,
+                    error: profilesError?.message || 'None'
+                };
+
+                log('dbResult', dbInfo, readError ? 'error' : 'success');
+            } catch (error) {
+                log('dbResult', { 
+                    error: error.message, 
+                    code: error.code, 
+                    details: error.details,
+                    hint: error.hint 
+                }, 'error');
+            }
+        }
+
+        async function testRLSPolicies() {
+            try {
+                // Check if RLS is enabled on contacts table
+                const { data, error } = await supabase
+                    .from('information_schema.tables')
+                    .select('*')
+                    .eq('table_name', 'contacts')
+                    .single();
+
+                if (error) throw error;
+
+                log('dbResult', { 
+                    rlsInfo: 'RLS check completed',
+                    tableExists: !!data,
+                    note: 'RLS policies might be preventing contact creation'
+                }, 'warning');
+            } catch (error) {
+                log('dbResult', { 
+                    rlsError: error.message,
+                    note: 'Could not check RLS policies directly'
+                }, 'warning');
+            }
+        }
+
+        async function testContactCreation() {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session?.user?.id) {
+                    throw new Error('No authenticated user - cannot test contact creation');
+                }
+
+                const testContact = {
+                    email: `test-debug-${Date.now()}@example.com`,
+                    first_name: 'Debug',
+                    last_name: 'Test',
+                    owner_id: session.user.id,
+                    phone: '+1234567890',
+                    title: 'Test Manager',
+                    is_primary: false
+                };
+
+                console.log('Attempting to create contact:', testContact);
+
+                const { data, error } = await supabase
+                    .from('contacts')
+                    .insert(testContact)
+                    .select()
+                    .single();
+
+                if (error) {
+                    // This is where we'll catch the 403 error
+                    log('contactResult', {
+                        success: false,
+                        error: {
+                            message: error.message,
+                            code: error.code,
+                            details: error.details,
+                            hint: error.hint
+                        },
+                        testContact: testContact,
+                        diagnosis: error.code === '42501' ? 'Permission denied - likely RLS policy issue' :
+                                  error.code === 'PGRST301' ? 'Row level security violation' :
+                                  error.message.includes('403') ? '403 Forbidden - Authentication/Authorization issue' :
+                                  'Unknown error type'
+                    }, 'error');
+                    return;
+                }
+
+                // Clean up - delete the test contact
+                if (data?.id) {
+                    await supabase.from('contacts').delete().eq('id', data.id);
+                }
+
+                log('contactResult', {
+                    success: true,
+                    contactCreated: data,
+                    note: 'Contact creation successful - 403 error not reproduced'
+                }, 'success');
+            } catch (error) {
+                log('contactResult', {
+                    success: false,
+                    error: error.message,
+                    stack: error.stack,
+                    diagnosis: 'Contact creation failed at JavaScript level'
+                }, 'error');
+            }
+        }
+
+        async function analyzeNetworkRequests() {
+            try {
+                // Intercept fetch requests to analyze the actual network traffic
+                const originalFetch = window.fetch;
+                const requestLog = [];
+                
+                window.fetch = function(...args) {
+                    const [url, options] = args;
+                    requestLog.push({
+                        url: url,
+                        method: options?.method || 'GET',
+                        headers: options?.headers,
+                        body: options?.body,
+                        timestamp: Date.now()
+                    });
+                    return originalFetch.apply(this, args);
+                };
+
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (session?.user?.id) {
+                    // Try to create a contact to capture the network request
+                    try {
+                        await supabase
+                            .from('contacts')
+                            .insert({
+                                email: `network-test-${Date.now()}@example.com`,
+                                first_name: 'Network',
+                                last_name: 'Test',
+                                owner_id: session.user.id
+                            })
+                            .select()
+                            .single();
+                    } catch (e) {
+                        // Expected to potentially fail, we just want to capture the request
+                    }
+                }
+
+                // Restore original fetch
+                window.fetch = originalFetch;
+
+                log('networkResult', {
+                    requestsCaptured: requestLog.length,
+                    requests: requestLog.map(req => ({
+                        url: req.url,
+                        method: req.method,
+                        hasAuthHeader: req.headers && 'Authorization' in (req.headers || {}),
+                        hasApiKeyHeader: req.headers && 'apikey' in (req.headers || {}),
+                        contentType: req.headers && req.headers['Content-Type']
+                    })),
+                    analysis: 'Check if requests have proper Authorization headers'
+                }, requestLog.length > 0 ? 'success' : 'warning');
+            } catch (error) {
+                log('networkResult', { error: error.message }, 'error');
+            }
+        }
+
+        async function attemptSignIn() {
+            try {
+                // Try to sign in with a test user
+                const testEmail = 'andrew.bryce@sixtyseconds.video';
+                
+                log('authResult', { 
+                    message: 'Attempting sign in...',
+                    testEmail: testEmail,
+                    note: 'This will try to sign in with the main user account'
+                }, 'warning');
+
+                // For demo purposes, we'll just check if magic link can be sent
+                const { data, error } = await supabase.auth.signInWithOtp({
+                    email: testEmail,
+                    options: {
+                        shouldCreateUser: false
+                    }
+                });
+
+                if (error) throw error;
+
+                log('authResult', {
+                    magicLinkSent: true,
+                    message: 'Check email for magic link to sign in',
+                    data: data
+                }, 'success');
+            } catch (error) {
+                log('authResult', {
+                    signInFailed: true,
+                    error: error.message,
+                    code: error.code
+                }, 'error');
+            }
+        }
+
+        async function testWithDifferentUser() {
+            try {
+                // Test with a hardcoded user ID that exists in the system
+                const testUserId = 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Andrew's user ID from the code
+
+                const testContact = {
+                    email: `different-user-test-${Date.now()}@example.com`,
+                    first_name: 'Different',
+                    last_name: 'User',
+                    owner_id: testUserId,
+                    is_primary: false
+                };
+
+                const { data, error } = await supabase
+                    .from('contacts')
+                    .insert(testContact)
+                    .select()
+                    .single();
+
+                if (error) {
+                    log('contactResult', {
+                        testWithDifferentUser: false,
+                        error: error.message,
+                        code: error.code,
+                        testUserId: testUserId,
+                        diagnosis: 'Same error with different user - confirms issue is not user-specific'
+                    }, 'error');
+                    return;
+                }
+
+                // Clean up
+                if (data?.id) {
+                    await supabase.from('contacts').delete().eq('id', data.id);
+                }
+
+                log('contactResult', {
+                    testWithDifferentUser: true,
+                    success: 'Contact creation works with different user ID',
+                    contactCreated: data
+                }, 'success');
+            } catch (error) {
+                log('contactResult', {
+                    testWithDifferentUser: false,
+                    error: error.message
+                }, 'error');
+            }
+        }
+
+        async function attemptManualFix() {
+            try {
+                log('fixResult', { message: 'Attempting manual fixes...' }, 'warning');
+                
+                // 1. Try to refresh the session
+                const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+                
+                let fixResults = {
+                    sessionRefresh: {
+                        success: !refreshError,
+                        error: refreshError?.message || 'None'
+                    }
+                };
+
+                // 2. Check if user profile exists and create if missing
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user?.id) {
+                    const { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .single();
+
+                    if (!profile && profileError?.code === 'PGRST116') {
+                        // Profile doesn't exist, try to create it
+                        const { data: newProfile, error: createError } = await supabase
+                            .from('profiles')
+                            .insert({
+                                id: session.user.id,
+                                email: session.user.email,
+                                first_name: session.user.user_metadata?.first_name || 'User',
+                                last_name: session.user.user_metadata?.last_name || '',
+                                role: 'Junior',
+                                department: 'Sales'
+                            })
+                            .select()
+                            .single();
+
+                        fixResults.profileCreation = {
+                            attempted: true,
+                            success: !createError,
+                            error: createError?.message || 'Profile created successfully'
+                        };
+                    }
+                }
+
+                // 3. Try contact creation again after fixes
+                if (session?.user?.id) {
+                    const { data, error } = await supabase
+                        .from('contacts')
+                        .insert({
+                            email: `manual-fix-test-${Date.now()}@example.com`,
+                            first_name: 'Manual',
+                            last_name: 'Fix',
+                            owner_id: session.user.id
+                        })
+                        .select()
+                        .single();
+
+                    if (data?.id) {
+                        await supabase.from('contacts').delete().eq('id', data.id);
+                    }
+
+                    fixResults.contactCreationAfterFix = {
+                        success: !error,
+                        error: error?.message || 'Contact creation successful after manual fixes'
+                    };
+                }
+
+                log('fixResult', fixResults, 'success');
+            } catch (error) {
+                log('fixResult', {
+                    manualFixFailed: true,
+                    error: error.message
+                }, 'error');
+            }
+        }
+
+        async function clearAuthAndRetry() {
+            try {
+                // Clear all auth data and retry
+                await supabase.auth.signOut();
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Wait a moment
+                await delay(1000);
+                
+                log('fixResult', {
+                    authCleared: true,
+                    message: 'Auth data cleared. Please refresh page and sign in again to test.',
+                    nextSteps: [
+                        '1. Refresh the page',
+                        '2. Sign in with your account', 
+                        '3. Run the diagnostic again'
+                    ]
+                }, 'warning');
+            } catch (error) {
+                log('fixResult', {
+                    clearAuthFailed: true,
+                    error: error.message
+                }, 'error');
+            }
+        }
+
+        // Auto-run basic checks on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                console.log('🚀 Debug tool loaded with production Supabase credentials');
+                document.getElementById('statusOverview').innerHTML = '<p>✅ Debug tool loaded. Ready to diagnose 403 Forbidden error.</p>';
+            }, 500);
+        });
+    </script>
+</body>
+</html>

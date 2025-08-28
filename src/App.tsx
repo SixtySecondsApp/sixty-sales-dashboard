@@ -14,11 +14,12 @@ import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimizati
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
 import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import logger from '@/lib/utils/logger';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
-import logger from '@/lib/utils/logger';
 
 // Heavy routes - lazy load to reduce initial bundle size
 const ActivityLog = lazy(() => import('@/pages/ActivityLog'));
@@ -43,6 +44,9 @@ const TasksPage = lazy(() => import('@/pages/TasksPage'));
 const Roadmap = lazy(() => import('@/pages/Roadmap'));
 const Clients = lazy(() => import('@/pages/Clients'));
 const TestFallback = lazy(() => import('@/pages/TestFallback'));
+const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
+const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
 
 // CRM routes - heavy components, lazy load
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
@@ -148,49 +152,59 @@ function App() {
   }, [measurePerformance, performanceMetrics, addCleanup]);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ViewModeProvider>
-          <IntelligentPreloader />
-          <ProtectedRoute>
-            <Suspense fallback={<RouteLoader />}>
-              <Routes>
-              <Route path="/auth/login" element={<Login />} />
-              <Route path="/auth/signup" element={<Signup />} />
-              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-              <Route path="/auth/reset-password" element={<ResetPassword />} />
-              <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
-              <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
-              <Route path="/heatmap" element={<AppLayout><Heatmap /></AppLayout>} />
-              <Route path="/funnel" element={<AppLayout><SalesFunnel /></AppLayout>} />
-              <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
-              <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
-              <Route path="/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
-              <Route path="/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-              <Route path="/crm/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
-              <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-              <Route path="/crm/contacts" element={<AppLayout><ContactsTable /></AppLayout>} />
-              <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
-              <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
-              <Route path="/payments" element={<Navigate to="/clients" replace />} />
-              <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
-              <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
-              <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-              <Route path="/activity-processing" element={<AppLayout><ActivityProcessingPage /></AppLayout>} />
-              <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
-              <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
-              <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
-              <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
-              <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
-              <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
-            </Routes>
-          </Suspense>
-        </ProtectedRoute>
-        <Toaster />
-        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
-      </ViewModeProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary 
+      onError={(error, errorInfo) => {
+        logger.error('Application Error Boundary caught error:', error, errorInfo);
+        // You could send this to your error reporting service here
+      }}
+    >
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ViewModeProvider>
+            <IntelligentPreloader />
+            <ProtectedRoute>
+              <Suspense fallback={<RouteLoader />}>
+                <Routes>
+                <Route path="/auth/login" element={<Login />} />
+                <Route path="/auth/signup" element={<Signup />} />
+                <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
+                <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+                <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
+                <Route path="/heatmap" element={<AppLayout><Heatmap /></AppLayout>} />
+                <Route path="/funnel" element={<AppLayout><SalesFunnel /></AppLayout>} />
+                <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
+                <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
+                <Route path="/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
+                <Route path="/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
+                <Route path="/crm/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
+                <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
+                <Route path="/crm/contacts" element={<AppLayout><ContactsTable /></AppLayout>} />
+                <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
+                <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
+                <Route path="/payments" element={<Navigate to="/clients" replace />} />
+                <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
+                <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
+                <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+                <Route path="/activity-processing" element={<AppLayout><ActivityProcessingPage /></AppLayout>} />
+                <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
+                <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
+                <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
+                <Route path="/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
+                <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
+                <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
+                <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
+                <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
+              </Routes>
+            </Suspense>
+          </ProtectedRoute>
+          <Toaster />
+          <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
+        </ViewModeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

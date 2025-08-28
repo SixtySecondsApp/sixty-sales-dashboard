@@ -29,39 +29,40 @@ export default defineConfig({
     // Allow Vite to use any available port
     strictPort: false,
     host: true, // Listen on all addresses
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-        secure: false,
-        ws: true,
-        // Add timeout and retry logic
-        timeout: 30000,
-        proxyTimeout: 30000,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, req, res) => {
-            console.log('proxy error', err);
-            // Send a proper error response instead of hanging
-            if (res && !res.headersSent) {
-              res.writeHead(502, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ 
-                error: 'Backend server unavailable', 
-                message: 'Please ensure the backend server is running on port 8000',
-                details: err.message 
-              }));
-            }
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-            // Add keep-alive to prevent connection drops
-            proxyReq.setHeader('Connection', 'keep-alive');
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-          });
-        },
-      },
-    },
+    // Commented out proxy to allow API test suite to work with Supabase Edge Functions
+    // proxy: {
+    //   '/api': {
+    //     target: 'http://127.0.0.1:8000',
+    //     changeOrigin: true,
+    //     secure: false,
+    //     ws: true,
+    //     // Add timeout and retry logic
+    //     timeout: 30000,
+    //     proxyTimeout: 30000,
+    //     configure: (proxy, _options) => {
+    //       proxy.on('error', (err, req, res) => {
+    //         console.log('proxy error', err);
+    //         // Send a proper error response instead of hanging
+    //         if (res && !res.headersSent) {
+    //           res.writeHead(502, { 'Content-Type': 'application/json' });
+    //           res.end(JSON.stringify({ 
+    //             error: 'Backend server unavailable', 
+    //             message: 'Please ensure the backend server is running on port 8000',
+    //             details: err.message 
+    //           }));
+    //         }
+    //       });
+    //       proxy.on('proxyReq', (proxyReq, req, _res) => {
+    //         console.log('Sending Request to the Target:', req.method, req.url);
+    //         // Add keep-alive to prevent connection drops
+    //         proxyReq.setHeader('Connection', 'keep-alive');
+    //       });
+    //       proxy.on('proxyRes', (proxyRes, req, _res) => {
+    //         console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+    //       });
+    //     },
+    //   },
+    // },
   },
   build: {
     // Performance-optimized chunking strategy
@@ -106,6 +107,34 @@ export default defineConfig({
           'vendor-utils': ['date-fns', 'clsx', 'class-variance-authority'],
           'vendor-parsing': ['papaparse'],
           'vendor-icons': ['lucide-react'],
+        },
+        
+        // Generate consistent file names to avoid 404s
+        entryFileNames: (chunkInfo) => {
+          const facadeModuleId = chunkInfo.facadeModuleId
+            ? chunkInfo.facadeModuleId.split('/').pop().replace(/\.[jt]sx?$/, '')
+            : 'unknown';
+          return `js/${facadeModuleId}-[hash].js`;
+        },
+        
+        chunkFileNames: (chunkInfo) => {
+          return `js/[name]-[hash].js`;
+        },
+        
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.');
+          let extType = info[info.length - 1];
+          
+          // Handle different asset types
+          if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(extType)) {
+            extType = 'images';
+          } else if (/woff2?|eot|ttf|otf/i.test(extType)) {
+            extType = 'fonts';
+          } else if (/css/i.test(extType)) {
+            extType = 'css';
+          }
+          
+          return `${extType}/[name]-[hash].[ext]`;
         }
       },
     },
@@ -123,8 +152,11 @@ export default defineConfig({
     assetsDir: 'assets',
     assetsInlineLimit: 4096, // 4KB limit for inlining
     
-    // Copy service worker
+    // Copy service worker and ensure proper asset handling
     copyPublicDir: true,
+    
+    // Ensure assets are properly resolved
+    emptyOutDir: true,
   },
   // Enhanced dependency optimization
   optimizeDeps: {

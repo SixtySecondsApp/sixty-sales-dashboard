@@ -27,7 +27,9 @@ import {
   Building2,
   Shield,
   Map,
-  DollarSign
+  DollarSign,
+  Video,
+  Code2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -69,6 +71,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
+    { icon: Video, label: 'Meetings', href: '/meetings' },
     { 
       icon: Building2, 
       label: 'CRM', 
@@ -83,6 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: FileText, label: 'Activity Log', href: '/activity' },
     { icon: MailWarning, label: 'Activity Processing', href: '/activity-processing' },
     { icon: LineChart, label: 'Sales Funnel', href: '/funnel' },
+    { icon: Code2, label: 'API Testing', href: '/api-testing' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
     ...(userData?.is_admin ? [
       { 

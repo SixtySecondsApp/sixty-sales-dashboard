@@ -64,7 +64,14 @@ export function ClientStatusModal({
       label: 'Active',
       icon: CheckCircle,
       color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
-      description: 'Subscription is active and billing'
+      description: 'One-off payment received, service active'
+    },
+    {
+      value: 'subscribed',
+      label: 'Subscribed',
+      icon: CheckCircle,
+      color: 'border-green-500/50 bg-green-500/10 text-green-400',
+      description: 'Monthly subscription active and billing'
     },
     {
       value: 'paused',

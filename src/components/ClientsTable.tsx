@@ -16,7 +16,8 @@ import {
   CheckCircle,
   PauseCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  UserCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -91,10 +92,18 @@ export function ClientsTable({ className }: ClientsTableProps) {
     switch (status) {
       case 'active':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'subscribed':
+        return 'text-green-400 bg-green-500/10 border-green-500/20';
+      case 'signed':
+        return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      case 'deposit_paid':
+        return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20';
       case 'churned':
         return 'text-red-400 bg-red-500/10 border-red-500/20';
       case 'paused':
         return 'text-orange-400 bg-orange-500/10 border-orange-500/20';
+      case 'notice_given':
+        return 'text-red-400 bg-red-500/10 border-red-500/20';
       default:
         return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
     }
@@ -104,10 +113,18 @@ export function ClientsTable({ className }: ClientsTableProps) {
     switch (status) {
       case 'active':
         return CheckCircle;
+      case 'subscribed':
+        return CheckCircle;
+      case 'signed':
+        return UserCheck;
+      case 'deposit_paid':
+        return DollarSign;
       case 'churned':
         return XCircle;
       case 'paused':
         return PauseCircle;
+      case 'notice_given':
+        return AlertCircle;
       default:
         return AlertCircle;
     }

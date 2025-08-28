@@ -127,6 +127,8 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
     switch (status) {
       case 'active':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'subscribed':
+        return 'text-green-400 bg-green-500/10 border-green-500/20';
       case 'signed':
         return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
       case 'deposit_paid':
@@ -145,6 +147,8 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
   const getClientStatusIcon = useCallback((status: ClientStatus) => {
     switch (status) {
       case 'active':
+        return CheckCircle;
+      case 'subscribed':
         return CheckCircle;
       case 'signed':
         return UserCheck;
@@ -165,6 +169,8 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
     switch (status) {
       case 'active':
         return 'Active';
+      case 'subscribed':
+        return 'Subscribed';
       case 'signed':
         return 'Signed';
       case 'deposit_paid':
@@ -264,7 +270,8 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
     const totalClients = filteredClients.length;
     const totalValue = filteredClients.reduce((sum, client) => sum + client.total_lifetime_value, 0);
     const totalMRR = filteredClients.reduce((sum, client) => sum + client.total_monthly_mrr, 0);
-    const activeClients = filteredClients.filter(c => c.status === 'active').length;
+    // Active clients includes both 'active' (one-off) and 'subscribed' (recurring) statuses
+    const activeClients = filteredClients.filter(c => c.status === 'active' || c.status === 'subscribed').length;
     const subscriptionClients = filteredClients.filter(c => c.active_subscriptions > 0).length;
     const churnedClients = filteredClients.filter(c => c.status === 'churned').length;
     const totalChurnAmount = filteredClients.reduce((sum, client) => sum + (client.total_churn_amount || 0), 0);

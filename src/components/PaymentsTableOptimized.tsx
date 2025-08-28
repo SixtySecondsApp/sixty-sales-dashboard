@@ -129,6 +129,8 @@ const PaymentRow = memo(({ index, style, data }: {
     switch (status) {
       case 'active':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      case 'subscribed':
+        return 'text-green-400 bg-green-500/10 border-green-500/20';
       case 'signed':
         return 'text-blue-400 bg-blue-500/10 border-blue-500/20';
       case 'deposit_paid':
@@ -147,6 +149,8 @@ const PaymentRow = memo(({ index, style, data }: {
   const getClientStatusIcon = (status: string) => {
     switch (status) {
       case 'active':
+        return CheckCircle;
+      case 'subscribed':
         return CheckCircle;
       case 'signed':
         return UserCheck;
@@ -167,6 +171,8 @@ const PaymentRow = memo(({ index, style, data }: {
     switch (status) {
       case 'active':
         return 'Active';
+      case 'subscribed':
+        return 'Subscribed';
       case 'signed':
         return 'Signed';
       case 'deposit_paid':

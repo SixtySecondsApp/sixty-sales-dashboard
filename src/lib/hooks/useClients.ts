@@ -751,8 +751,11 @@ export function useMRR(ownerId?: string) {
         
         // Calculate MRR summary using deal-based revenue
         const totalClients = clientsWithDeals?.length || 0;
-        // Active clients: Any client with one-off payments OR active subscriptions (all statuses except 'churned')
-        const activeClients = clientsWithDeals?.filter(c => c.status !== 'churned') || [];
+        // Active clients: Both 'active' (one-off) and 'subscribed' (recurring) statuses, plus other non-churned statuses
+        const activeClients = clientsWithDeals?.filter(c => 
+          c.status === 'active' || c.status === 'subscribed' || 
+          (c.status !== 'churned' && c.status !== 'paused' && c.status !== 'notice_given')
+        ) || [];
         const churnedClients = clientsWithDeals?.filter(c => c.status === 'churned') || [];
         const pausedClients = clientsWithDeals?.filter(c => c.status === 'paused') || [];
         

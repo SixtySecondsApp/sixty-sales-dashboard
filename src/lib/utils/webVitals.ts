@@ -133,27 +133,24 @@ class WebVitalsOptimizer {
   }
 
   private preloadCriticalResources(): void {
-    // Only preload in production where these files actually exist
+    // Dynamically discover and preload critical resources
     if (import.meta.env.PROD) {
-      const criticalResources = [
-        { href: '/assets/index.css', as: 'style' },
-        { href: '/assets/index.js', as: 'script' }
-      ];
-
-      criticalResources.forEach(resource => {
-        // Check if resource exists before preloading
-        const existingLink = document.querySelector(`link[href="${resource.href}"]`);
-        if (!existingLink) {
-          const link = document.createElement('link');
-          link.rel = 'preload';
-          link.href = resource.href;
-          link.as = resource.as;
-          if (resource.as === 'style') {
-            link.onload = () => {
-              (link as any).rel = 'stylesheet';
-            };
-          }
-          document.head.appendChild(link);
+      // Look for existing CSS and JS resources in the document
+      const existingStylesheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'));
+      const existingScripts = Array.from(document.querySelectorAll('script[src]'));
+      
+      // Preload key stylesheets that aren't already preloaded
+      existingStylesheets.forEach(stylesheet => {
+        const href = stylesheet.getAttribute('href');
+        if (href && !document.querySelector(`link[rel="preload"][href="${href}"]`)) {
+          const preloadLink = document.createElement('link');
+          preloadLink.rel = 'preload';
+          preloadLink.href = href;
+          preloadLink.as = 'style';
+          preloadLink.onload = () => {
+            preloadLink.onload = null;
+          };
+          document.head.appendChild(preloadLink);
         }
       });
     }
@@ -331,13 +328,36 @@ class WebVitalsOptimizer {
   }
 
   private optimizeFontLoading(): void {
-    // Use font-display: swap for better CLS
+    // Optimize font loading with proper preload and swap strategy
+    const fontPreloadLink = document.createElement('link');
+    fontPreloadLink.rel = 'preload';
+    fontPreloadLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+    fontPreloadLink.as = 'style';
+    fontPreloadLink.onload = () => {
+      // Convert to stylesheet once loaded
+      fontPreloadLink.onload = null;
+      fontPreloadLink.rel = 'stylesheet';
+    };
+    
+    // Fallback for browsers that don't support onload
+    setTimeout(() => {
+      if (fontPreloadLink.rel !== 'stylesheet') {
+        fontPreloadLink.rel = 'stylesheet';
+      }
+    }, 100);
+    
+    document.head.appendChild(fontPreloadLink);
+    
+    // Add font-display optimization
     const style = document.createElement('style');
     style.textContent = `
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-      
       * {
         font-display: swap;
+      }
+      
+      /* Fallback font stack matching Inter */
+      body {
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       }
     `;
     document.head.appendChild(style);

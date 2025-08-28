@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Direct API Test</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #1a1a1a; 
+            color: #00ff00; 
+            padding: 20px; 
+            line-height: 1.6;
+        }
+        .result { 
+            background: #333; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-left: 4px solid #00ff00;
+            white-space: pre-wrap;
+        }
+        .error { border-left-color: #ff4444; color: #ff8888; }
+        .success { border-left-color: #44ff44; color: #88ff88; }
+        button {
+            background: #444;
+            color: #fff;
+            border: 1px solid #666;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Direct API Test with New Key</h1>
+    
+    <p><strong>New API Key:</strong> sk_7c452587fbad4ad0adfbb8798e3c92b5</p>
+    <p><strong>Rate Limit:</strong> 10,000</p>
+    <p><strong>Permissions:</strong> All modules (contacts, companies, deals, tasks, meetings, activities)</p>
+    
+    <button onclick="testContacts()">Test Contacts</button>
+    <button onclick="testCompanies()">Test Companies</button>
+    <button onclick="testDeals()">Test Deals</button>
+    <button onclick="testTasks()">Test Tasks</button>
+    <button onclick="testMeetings()">Test Meetings</button>
+    <button onclick="testActivities()">Test Activities</button>
+    <button onclick="testAll()">Test All Endpoints</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_KEY = 'sk_7c452587fbad4ad0adfbb8798e3c92b5';
+        const BASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1';
+        
+        function log(message, isError = false) {
+            const div = document.createElement('div');
+            div.className = `result ${isError ? 'error' : 'success'}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            document.getElementById('results').appendChild(div);
+            document.getElementById('results').scrollTop = document.getElementById('results').scrollHeight;
+        }
+        
+        async function testEndpoint(endpoint) {
+            try {
+                log(`Testing ${endpoint}...`);
+                
+                const response = await fetch(`${BASE_URL}/api-v1-${endpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': API_KEY,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log(`✅ ${endpoint}: SUCCESS (${response.status})\nData: ${JSON.stringify(data, null, 2)}`);
+                } else {
+                    log(`❌ ${endpoint}: FAILED (${response.status})\nError: ${JSON.stringify(data, null, 2)}`, true);
+                }
+            } catch (error) {
+                log(`❌ ${endpoint}: NETWORK ERROR\n${error.message}`, true);
+            }
+        }
+        
+        function testContacts() { testEndpoint('contacts'); }
+        function testCompanies() { testEndpoint('companies'); }
+        function testDeals() { testEndpoint('deals'); }
+        function testTasks() { testEndpoint('tasks'); }
+        function testMeetings() { testEndpoint('meetings'); }
+        function testActivities() { testEndpoint('activities'); }
+        
+        async function testAll() {
+            log('🚀 Testing all endpoints with new API key...');
+            const endpoints = ['contacts', 'companies', 'deals', 'tasks', 'meetings', 'activities'];
+            
+            for (const endpoint of endpoints) {
+                await testEndpoint(endpoint);
+                // Small delay between tests
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            log('✨ All tests completed!');
+        }
+        
+        // Auto-test when page loads
+        window.onload = () => {
+            log('Page loaded. Click "Test All Endpoints" to run comprehensive test.');
+        };
+    </script>
+</body>
+</html>

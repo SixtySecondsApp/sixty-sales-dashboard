@@ -160,7 +160,21 @@ export const authUtils = {
     if (!error) return 'An unknown error occurred';
     
     const message = error.message || error.error_description || 'Authentication failed';
+    const status = error.status || error.statusCode || 0;
     
+    // Handle specific HTTP status codes
+    if (status === 403) {
+      return 'Access denied. You may not have permission to access this resource. Please check your account status or contact support.';
+    }
+    
+    if (status === 401) {
+      return 'Authentication required. Please sign in to continue.';
+    }
+    
+    if (status === 429) {
+      return 'Too many requests. Please wait a moment and try again.';
+    }
+
     // Common error message improvements
     const errorMappings: Record<string, string> = {
       'Invalid login credentials': 'Invalid email or password. Please check your credentials and try again.',
@@ -169,9 +183,83 @@ export const authUtils = {
       'User already registered': 'An account with this email already exists. Try signing in instead.',
       'Invalid email address': 'Please enter a valid email address.',
       'signups not allowed': 'New registrations are currently disabled. Please contact support.',
+      'JWT expired': 'Your session has expired. Please sign in again.',
+      'JWT malformed': 'Authentication error. Please sign in again.',
+      'permission denied': 'You do not have permission to perform this action.',
+      'insufficient_privilege': 'Insufficient privileges for this operation.',
+      'row-level security violation': 'Access denied. You can only access your own data.',
     };
 
     return errorMappings[message] || message;
+  },
+
+  /**
+   * Check if an error is an authentication/authorization error
+   */
+  isAuthError: (error: any): boolean => {
+    if (!error) return false;
+    
+    const status = error.status || error.statusCode || 0;
+    const message = (error.message || '').toLowerCase();
+    
+    return (
+      status === 401 || 
+      status === 403 ||
+      message.includes('jwt') ||
+      message.includes('unauthorized') ||
+      message.includes('forbidden') ||
+      message.includes('permission') ||
+      message.includes('row-level security')
+    );
+  },
+
+  /**
+   * Handle authentication errors with appropriate user feedback
+   */
+  handleAuthError: (error: any, context?: string): void => {
+    logger.error(`Authentication error${context ? ` in ${context}` : ''}:`, error);
+    
+    const isAuth = authUtils.isAuthError(error);
+    const userMessage = authUtils.formatAuthError(error);
+    
+    if (isAuth) {
+      // For auth errors, provide specific guidance
+      logger.warn('Authentication/Authorization error detected:', {
+        error: error.message,
+        status: error.status,
+        context
+      });
+    }
+    
+    // The calling code should display userMessage to the user
+    return;
+  },
+
+  /**
+   * Refresh the current session and retry operation
+   */
+  refreshAndRetry: async <T>(operation: () => Promise<T>): Promise<T> => {
+    try {
+      // First try to refresh the session
+      const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+      
+      if (refreshError) {
+        logger.error('Session refresh failed:', refreshError);
+        throw refreshError;
+      }
+      
+      if (!session) {
+        throw new Error('No valid session after refresh');
+      }
+      
+      logger.log('Session refreshed successfully, retrying operation');
+      
+      // Retry the original operation
+      return await operation();
+    } catch (error) {
+      logger.error('Refresh and retry failed:', error);
+      throw error;
+    }
   },
 
   /**
@@ -193,6 +281,58 @@ export const authUtils = {
       });
     } catch {
       // Silently fail if localStorage is not available
+    }
+  },
+
+  /**
+   * Check current session health and provide diagnostics
+   */
+  diagnoseSession: async (): Promise<{
+    isValid: boolean;
+    session: Session | null;
+    user: User | null;
+    issues: string[];
+  }> => {
+    const issues: string[] = [];
+    
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        issues.push(`Session error: ${error.message}`);
+        return { isValid: false, session: null, user: null, issues };
+      }
+      
+      if (!session) {
+        issues.push('No active session found');
+        return { isValid: false, session: null, user: null, issues };
+      }
+      
+      if (!session.access_token) {
+        issues.push('Session missing access token');
+      }
+      
+      if (!session.user) {
+        issues.push('Session missing user data');
+      }
+      
+      // Check if session is expired
+      const now = Date.now() / 1000;
+      if (session.expires_at && session.expires_at < now) {
+        issues.push('Session has expired');
+      }
+      
+      const isValid = issues.length === 0;
+      
+      return {
+        isValid,
+        session,
+        user: session.user || null,
+        issues
+      };
+    } catch (error) {
+      issues.push(`Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return { isValid: false, session: null, user: null, issues };
     }
   }
 }; 

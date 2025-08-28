@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Contacts 403 Error</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #1a1a1a; color: #e0e0e0; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1, h2 { color: #4CAF50; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #333; border-radius: 5px; }
+        .success { background-color: #2d5a2d; border-color: #4CAF50; }
+        .error { background-color: #5a2d2d; border-color: #f44336; }
+        .warning { background-color: #5a5a2d; border-color: #ff9800; }
+        button { 
+            background-color: #4CAF50; color: white; padding: 10px 20px; 
+            border: none; border-radius: 4px; cursor: pointer; margin: 5px; 
+        }
+        button:hover { background-color: #45a049; }
+        pre { background-color: #2a2a2a; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
+        .result { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Debug Contacts 403 Forbidden Error</h1>
+        
+        <div class="test-section">
+            <h2>1. Environment Variables Check</h2>
+            <button onclick="checkEnvironment()">Check Environment</button>
+            <div id="envResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>2. Supabase Client Connection</h2>
+            <button onclick="testSupabaseConnection()">Test Connection</button>
+            <div id="connectionResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>3. Authentication Status</h2>
+            <button onclick="checkAuthentication()">Check Auth</button>
+            <div id="authResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>4. Direct Contacts Table Access</h2>
+            <button onclick="testDirectContactsAccess()">Test Direct Access</button>
+            <div id="directAccessResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>5. Create Contact Test</h2>
+            <button onclick="testCreateContact()">Test Contact Creation</button>
+            <div id="createContactResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>6. RLS Policies Check</h2>
+            <button onclick="checkRLSPolicies()">Check RLS Policies</button>
+            <div id="rlsResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>7. User Profile Check</h2>
+            <button onclick="checkUserProfile()">Check User Profile</button>
+            <div id="profileResult" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>8. Network Request Debug</h2>
+            <button onclick="debugNetworkRequest()">Debug Network</button>
+            <div id="networkResult" class="result"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Initialize Supabase client
+        const supabaseUrl = 'https://djksekfndbhvbjnwcjqk.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqa3Nla2ZuZGJodmJqbndjanFrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDY4NzUwOTUsImV4cCI6MjAyMjQ1MTA5NX0.Yai-TQtPNnHe6B3mSF1r2K0yHKZXCFg1q-NZC6lhKqc';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true
+            }
+        });
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            element.innerHTML = `<div class="test-section ${className}"><pre>${JSON.stringify(message, null, 2)}</pre></div>`;
+            console.log(message);
+        }
+
+        async function checkEnvironment() {
+            try {
+                const env = {
+                    supabaseUrl: supabaseUrl,
+                    hasSupabaseKey: !!supabaseKey,
+                    keyLength: supabaseKey ? supabaseKey.length : 0,
+                    keyPrefix: supabaseKey ? supabaseKey.substring(0, 20) + '...' : 'N/A',
+                    userAgent: navigator.userAgent,
+                    origin: window.location.origin
+                };
+                log('envResult', env, 'success');
+            } catch (error) {
+                log('envResult', { error: error.message }, 'error');
+            }
+        }
+
+        async function testSupabaseConnection() {
+            try {
+                const { data, error } = await supabase.from('profiles').select('count').limit(1);
+                if (error) throw error;
+                log('connectionResult', { status: 'Connected', testQuery: 'profiles table accessible' }, 'success');
+            } catch (error) {
+                log('connectionResult', { error: error.message, code: error.code, details: error.details }, 'error');
+            }
+        }
+
+        async function checkAuthentication() {
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                
+                const authInfo = {
+                    isAuthenticated: !!session,
+                    userId: session?.user?.id || 'N/A',
+                    email: session?.user?.email || 'N/A',
+                    role: session?.user?.role || 'N/A',
+                    accessToken: session?.access_token ? 'Present (length: ' + session.access_token.length + ')' : 'Missing',
+                    refreshToken: session?.refresh_token ? 'Present' : 'Missing',
+                    expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'N/A'
+                };
+                
+                log('authResult', authInfo, session ? 'success' : 'warning');
+            } catch (error) {
+                log('authResult', { error: error.message }, 'error');
+            }
+        }
+
+        async function testDirectContactsAccess() {
+            try {
+                const { data, error, count } = await supabase
+                    .from('contacts')
+                    .select('*', { count: 'exact' })
+                    .limit(1);
+                
+                if (error) throw error;
+                
+                log('directAccessResult', {
+                    status: 'Success',
+                    contactCount: count,
+                    sampleContact: data?.[0] || 'No contacts found'
+                }, 'success');
+            } catch (error) {
+                log('directAccessResult', {
+                    error: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint
+                }, 'error');
+            }
+        }
+
+        async function testCreateContact() {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session?.user?.id) {
+                    throw new Error('No authenticated user found');
+                }
+
+                const testContact = {
+                    email: 'test-' + Date.now() + '@example.com',
+                    first_name: 'Test',
+                    last_name: 'User',
+                    owner_id: session.user.id,
+                    is_primary: false
+                };
+
+                const { data, error } = await supabase
+                    .from('contacts')
+                    .insert(testContact)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Clean up - delete the test contact
+                await supabase.from('contacts').delete().eq('id', data.id);
+
+                log('createContactResult', {
+                    status: 'Success',
+                    contactCreated: data,
+                    note: 'Test contact created and deleted successfully'
+                }, 'success');
+            } catch (error) {
+                log('createContactResult', {
+                    error: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint
+                }, 'error');
+            }
+        }
+
+        async function checkRLSPolicies() {
+            try {
+                const { data, error } = await supabase
+                    .rpc('get_table_policies', { table_name: 'contacts' })
+                    .single();
+
+                if (error && error.code !== '42883') { // Function doesn't exist
+                    throw error;
+                }
+
+                if (error && error.code === '42883') {
+                    // RPC function doesn't exist, try alternative approach
+                    const { data: altData, error: altError } = await supabase
+                        .from('pg_policies')
+                        .select('*')
+                        .eq('tablename', 'contacts');
+
+                    log('rlsResult', {
+                        note: 'RLS policies check via pg_policies',
+                        policies: altData || [],
+                        alternativeError: altError?.message || 'None'
+                    }, 'warning');
+                    return;
+                }
+
+                log('rlsResult', {
+                    policies: data || 'No RLS function available',
+                    note: 'If empty, RLS might not be enabled on contacts table'
+                }, 'success');
+            } catch (error) {
+                log('rlsResult', {
+                    error: error.message,
+                    note: 'This is normal if RLS functions are not available'
+                }, 'warning');
+            }
+        }
+
+        async function checkUserProfile() {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session?.user?.id) {
+                    throw new Error('No authenticated user');
+                }
+
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .single();
+
+                if (error) throw error;
+
+                log('profileResult', {
+                    profile: profile,
+                    hasRequiredFields: {
+                        id: !!profile.id,
+                        email: !!profile.email,
+                        first_name: !!profile.first_name
+                    }
+                }, 'success');
+            } catch (error) {
+                log('profileResult', {
+                    error: error.message,
+                    code: error.code
+                }, 'error');
+            }
+        }
+
+        async function debugNetworkRequest() {
+            try {
+                // Create a test contact using the exact same method as QuickAdd
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (!session) {
+                    throw new Error('No session found');
+                }
+
+                console.log('Session details:', {
+                    userId: session.user.id,
+                    email: session.user.email,
+                    accessToken: session.access_token ? 'present' : 'missing',
+                    refreshToken: session.refresh_token ? 'present' : 'missing'
+                });
+
+                const contactData = {
+                    email: 'network-test-' + Date.now() + '@example.com',
+                    first_name: 'Network',
+                    last_name: 'Test',
+                    owner_id: session.user.id,
+                    is_primary: false
+                };
+
+                // Monitor the actual request
+                const originalFetch = window.fetch;
+                let requestDetails = null;
+                
+                window.fetch = function(...args) {
+                    requestDetails = {
+                        url: args[0],
+                        options: args[1],
+                        headers: args[1]?.headers,
+                        method: args[1]?.method || 'GET'
+                    };
+                    return originalFetch.apply(this, args);
+                };
+
+                const { data, error } = await supabase
+                    .from('contacts')
+                    .insert(contactData)
+                    .select()
+                    .single();
+
+                // Restore original fetch
+                window.fetch = originalFetch;
+
+                if (error) throw error;
+
+                // Clean up
+                if (data?.id) {
+                    await supabase.from('contacts').delete().eq('id', data.id);
+                }
+
+                log('networkResult', {
+                    status: 'Success',
+                    requestDetails: requestDetails,
+                    response: data,
+                    note: 'Network request completed successfully'
+                }, 'success');
+            } catch (error) {
+                log('networkResult', {
+                    error: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint,
+                    stack: error.stack
+                }, 'error');
+            }
+        }
+
+        // Auto-run basic checks on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkEnvironment();
+                setTimeout(() => testSupabaseConnection(), 1000);
+                setTimeout(() => checkAuthentication(), 2000);
+            }, 500);
+        });
+    </script>
+</body>
+</html>

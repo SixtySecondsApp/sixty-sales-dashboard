@@ -130,7 +130,14 @@ export function EditClientModal({
       label: 'Active',
       icon: CheckCircle,
       color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400',
-      description: 'Subscription is active and billing'
+      description: 'One-off payment received, service active'
+    },
+    {
+      value: 'subscribed',
+      label: 'Subscribed',
+      icon: CheckCircle,
+      color: 'border-green-500/50 bg-green-500/10 text-green-400',
+      description: 'Monthly subscription active and billing'
     },
     {
       value: 'paused',
@@ -237,21 +244,38 @@ export function EditClientModal({
         throw dealError;
       }
 
-      // Update client status if it has changed and we have the additional data needed
-      if (statusData.status !== clientData.currentStatus) {
+      // AUTOMATIC STATUS UPDATE: Determine if client status should change based on revenue type
+      let automaticStatusUpdate: ClientStatus | null = null;
+      
+      // If deal now has monthly MRR and client is 'signed' or 'active', update to 'subscribed'
+      if (mrrValidation.value > 0) {
+        if (clientData.currentStatus === 'signed' || clientData.currentStatus === 'active') {
+          automaticStatusUpdate = 'subscribed';
+        }
+      } 
+      // If deal has only one-off revenue and client is 'signed', update to 'active'
+      else if (revenueValidation.value > 0 && clientData.currentStatus === 'signed') {
+        automaticStatusUpdate = 'active';
+      }
+
+      // Update client status if it has changed manually OR needs automatic update
+      const finalStatus = statusData.status !== clientData.currentStatus ? statusData.status : automaticStatusUpdate;
+      
+      if (finalStatus && finalStatus !== clientData.currentStatus) {
         const clientUpdates: any = {
-          status: statusData.status,
+          status: finalStatus,
           updated_at: new Date().toISOString()
         };
 
         // Add churn-related fields if needed
-        if (needsChurnDates) {
+        const needsChurnFields = finalStatus === 'notice_given' || finalStatus === 'churned';
+        if (needsChurnFields) {
           clientUpdates.notice_given_date = statusData.noticeDate;
           clientUpdates.final_billing_date = statusData.finalBillingDate;
           if (statusData.churnReason) {
             clientUpdates.churn_reason = statusData.churnReason;
           }
-          if (statusData.status === 'churned') {
+          if (finalStatus === 'churned') {
             clientUpdates.churn_date = new Date().toISOString();
           }
         }

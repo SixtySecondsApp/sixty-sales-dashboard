@@ -74,3 +74,42 @@ export const canDeleteDeal = (
   // Non-admins can delete deals they own (if not split)
   return deal.owner_id === userData?.id;
 };
+
+/**
+ * Check if a user can manage contacts (create, update, delete)
+ */
+export const canManageContacts = (userData: UserProfile | null | undefined): boolean => {
+  // All authenticated users can manage their own contacts
+  // Admins can manage all contacts
+  return !!userData?.id;
+};
+
+/**
+ * Check if a user can manage a specific contact
+ */
+export const canManageContact = (
+  contact: any,
+  userData: UserProfile | null | undefined
+): boolean => {
+  if (!userData?.id) return false;
+  
+  // Admins can manage any contact
+  if (isUserAdmin(userData)) return true;
+  
+  // Users can manage contacts they own
+  return contact.owner_id === userData.id;
+};
+
+/**
+ * Check if a user can create contacts for other users (admin feature)
+ */
+export const canCreateContactsForOthers = (userData: UserProfile | null | undefined): boolean => {
+  return isUserAdmin(userData);
+};
+
+/**
+ * Get admin override message for permissions
+ */
+export const getAdminOverrideMessage = (action: string): string => {
+  return `${action} requires admin privileges or ownership permissions. Contact your administrator if you believe this is an error.`;
+};

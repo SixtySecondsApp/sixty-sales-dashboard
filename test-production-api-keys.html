@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Production API Keys</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1 { color: #60a5fa; }
+        button { 
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { 
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        .status { 
+            padding: 15px; 
+            margin: 20px 0; 
+            border-radius: 8px;
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+        .success { 
+            background: #065f46;
+            border-color: #10b981;
+        }
+        .error { 
+            background: #7f1d1d;
+            border-color: #ef4444;
+        }
+        .warning { 
+            background: #78350f;
+            border-color: #f59e0b;
+        }
+        pre { 
+            background: #1e293b;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #334155;
+        }
+        input { 
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        .info {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔑 Production API Keys Test</h1>
+    
+    <div class="info">
+        <strong>Prerequisites:</strong>
+        <ol>
+            <li>Run the SQL script in Supabase Dashboard > SQL Editor</li>
+            <li>Ensure you're logged into the application</li>
+            <li>Have your Supabase URL and Anon Key ready</li>
+        </ol>
+    </div>
+
+    <div>
+        <label>Supabase URL:</label>
+        <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+        
+        <label>Supabase Anon Key:</label>
+        <input type="text" id="supabaseKey" placeholder="your-anon-key">
+        
+        <label>Your Auth Token (from localStorage):</label>
+        <input type="text" id="authToken" placeholder="Will be auto-filled if available">
+    </div>
+
+    <button id="testBtn" onclick="runTest()">Test API Key Creation</button>
+    <button onclick="clearResults()">Clear Results</button>
+    <button onclick="getAuthToken()">Get Auth Token</button>
+    
+    <div id="status"></div>
+    <pre id="result"></pre>
+
+    <script type="module">
+        // Try to auto-fill from environment
+        window.addEventListener('DOMContentLoaded', () => {
+            // Try to get values from parent window if embedded
+            try {
+                const url = localStorage.getItem('supabase.url');
+                const key = localStorage.getItem('supabase.auth.token');
+                
+                if (url) document.getElementById('supabaseUrl').value = url;
+                
+                // Try to get auth token from localStorage
+                const authData = localStorage.getItem('sb-auth-token');
+                if (authData) {
+                    const parsed = JSON.parse(authData);
+                    document.getElementById('authToken').value = parsed.access_token || '';
+                }
+            } catch (e) {
+                console.log('Could not auto-fill values:', e);
+            }
+        });
+
+        window.getAuthToken = function() {
+            try {
+                // Look for Supabase auth token in localStorage
+                for (let key in localStorage) {
+                    if (key.includes('supabase.auth.token') || key.includes('sb-') && key.includes('auth-token')) {
+                        const value = localStorage.getItem(key);
+                        const parsed = JSON.parse(value);
+                        if (parsed.access_token) {
+                            document.getElementById('authToken').value = parsed.access_token;
+                            showStatus('Found auth token!', 'success');
+                            return;
+                        }
+                    }
+                }
+                showStatus('No auth token found. Please log in first.', 'warning');
+            } catch (e) {
+                showStatus('Error getting auth token: ' + e.message, 'error');
+            }
+        };
+
+        window.runTest = async function() {
+            const btn = document.getElementById('testBtn');
+            btn.disabled = true;
+            
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            const token = document.getElementById('authToken').value;
+            
+            if (!url || !key || !token) {
+                showStatus('Please fill in all fields', 'error');
+                btn.disabled = false;
+                return;
+            }
+            
+            try {
+                showStatus('Testing API key creation...', '');
+                
+                const response = await fetch(`${url}/functions/v1/create-api-key`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'apikey': key
+                    },
+                    body: JSON.stringify({
+                        name: `Test Key ${new Date().toISOString()}`,
+                        permissions: ['deals:read', 'deals:write'],
+                        rate_limit: 1000
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('✅ Success! API key created', 'success');
+                    showResult({
+                        status: 'SUCCESS',
+                        apiKey: data.api_key,
+                        preview: data.key_preview,
+                        id: data.id,
+                        permissions: data.permissions
+                    });
+                } else {
+                    showStatus(`❌ Error ${response.status}: ${data.error || data.message}`, 'error');
+                    showResult(data);
+                }
+            } catch (error) {
+                showStatus('❌ Network error: ' + error.message, 'error');
+                showResult({ error: error.message });
+            } finally {
+                btn.disabled = false;
+            }
+        };
+        
+        window.showStatus = function(message, type) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + type;
+            status.textContent = message;
+        };
+        
+        window.showResult = function(data) {
+            document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+        };
+        
+        window.clearResults = function() {
+            document.getElementById('status').textContent = '';
+            document.getElementById('status').className = '';
+            document.getElementById('result').textContent = '';
+        };
+    </script>
+</body>
+</html>

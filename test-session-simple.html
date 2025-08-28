@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Supabase Session Tester</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px; 
+            margin: 50px auto; 
+            padding: 20px;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        h1 { color: #60a5fa; }
+        .step {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .step h2 {
+            color: #94a3b8;
+            margin-top: 0;
+        }
+        button { 
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            width: 100%;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { 
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        .status { 
+            padding: 15px; 
+            margin: 20px 0; 
+            border-radius: 8px;
+            border: 1px solid;
+        }
+        .success { 
+            background: #065f46;
+            border-color: #10b981;
+        }
+        .error { 
+            background: #7f1d1d;
+            border-color: #ef4444;
+        }
+        .warning { 
+            background: #78350f;
+            border-color: #f59e0b;
+        }
+        .info {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+        }
+        pre { 
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #334155;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        input { 
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .hidden {
+            display: none;
+        }
+        .result-box {
+            background: #0f172a;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            margin-top: 15px;
+        }
+        .copy-btn {
+            background: #059669;
+            padding: 6px 12px;
+            font-size: 14px;
+            width: auto;
+            display: inline-block;
+        }
+        .copy-btn:hover {
+            background: #047857;
+        }
+        #logs {
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .log-entry {
+            padding: 2px 0;
+        }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .log-warning { color: #f59e0b; }
+        .log-info { color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <h1>🔐 Supabase Session Tester</h1>
+    
+    <div class="step">
+        <h2>Step 1: Enter Your Supabase Credentials</h2>
+        <p style="color: #64748b;">Get these from your .env file or Supabase Dashboard</p>
+        
+        <label>Supabase URL (from VITE_SUPABASE_URL):</label>
+        <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+        
+        <label>Supabase Anon Key (from VITE_SUPABASE_ANON_KEY):</label>
+        <input type="text" id="supabaseKey" placeholder="eyJ... (your anon key)">
+        
+        <button id="initBtn" onclick="initializeSupabase()">Initialize Supabase Client</button>
+    </div>
+
+    <div id="step2" class="step hidden">
+        <h2>Step 2: Check Your Session</h2>
+        <div id="sessionStatus"></div>
+        <button id="checkBtn" onclick="checkSession()">Check Current Session</button>
+        <button id="refreshBtn" onclick="refreshSession()">Refresh Session</button>
+        <button id="getTokenBtn" onclick="getAuthToken()">Get Auth Token from App</button>
+    </div>
+
+    <div id="step3" class="step hidden">
+        <h2>Step 3: Test API Key Creation</h2>
+        <div id="tokenDisplay"></div>
+        <button id="testBtn" onclick="testApiKey()">Test Create API Key</button>
+        <div id="testResult"></div>
+    </div>
+
+    <div class="step">
+        <h2>Debug Logs</h2>
+        <div id="logs" class="result-box"></div>
+    </div>
+
+    <script type="module">
+        let supabase = null;
+        let currentSession = null;
+        
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = `log-${type}`;
+            logs.innerHTML += `<div class="log-entry ${className}">[${timestamp}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        window.initializeSupabase = async function() {
+            const url = document.getElementById('supabaseUrl').value.trim();
+            const key = document.getElementById('supabaseKey').value.trim();
+            
+            if (!url || !key) {
+                log('❌ Please enter both URL and Anon Key', 'error');
+                alert('Please enter both Supabase URL and Anon Key');
+                return;
+            }
+            
+            try {
+                log('Initializing Supabase client...', 'info');
+                
+                // Import Supabase
+                const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+                
+                // Create client
+                supabase = createClient(url, key);
+                
+                log('✅ Supabase client initialized successfully!', 'success');
+                
+                // Show next step
+                document.getElementById('step2').classList.remove('hidden');
+                document.getElementById('initBtn').textContent = '✅ Initialized - Click to Reinitialize';
+                
+                // Auto-check session
+                await checkSession();
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                alert('Failed to initialize Supabase. Check your credentials.');
+            }
+        };
+
+        window.checkSession = async function() {
+            if (!supabase) {
+                log('❌ Initialize Supabase first', 'error');
+                return;
+            }
+            
+            try {
+                log('Checking session...', 'info');
+                
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    log(`❌ Session error: ${error.message}`, 'error');
+                    document.getElementById('sessionStatus').innerHTML = `
+                        <div class="status error">
+                            <strong>Error:</strong> ${error.message}
+                        </div>
+                    `;
+                    return;
+                }
+                
+                if (session) {
+                    currentSession = session;
+                    log('✅ Active session found!', 'success');
+                    log(`User ID: ${session.user.id}`, 'info');
+                    log(`Email: ${session.user.email}`, 'info');
+                    
+                    // Check expiration
+                    const exp = session.expires_at;
+                    const now = Math.floor(Date.now() / 1000);
+                    const minutesLeft = Math.floor((exp - now) / 60);
+                    
+                    if (minutesLeft < 0) {
+                        log('⚠️ Session is expired!', 'warning');
+                    } else {
+                        log(`Session expires in ${minutesLeft} minutes`, 'info');
+                    }
+                    
+                    document.getElementById('sessionStatus').innerHTML = `
+                        <div class="status success">
+                            <strong>✅ Session Active</strong>
+                            <p>User: ${session.user.email}</p>
+                            <p>Expires in: ${minutesLeft} minutes</p>
+                        </div>
+                    `;
+                    
+                    // Show step 3
+                    document.getElementById('step3').classList.remove('hidden');
+                    document.getElementById('tokenDisplay').innerHTML = `
+                        <div class="result-box">
+                            <strong>Access Token (for API calls):</strong>
+                            <pre style="word-break: break-all;">${session.access_token}</pre>
+                            <button class="copy-btn" onclick="navigator.clipboard.writeText('${session.access_token}')">Copy Token</button>
+                        </div>
+                    `;
+                    
+                } else {
+                    log('⚠️ No active session found', 'warning');
+                    log('You need to log into your app first', 'warning');
+                    document.getElementById('sessionStatus').innerHTML = `
+                        <div class="status warning">
+                            <strong>No Active Session</strong>
+                            <p>Please log into your application first, then come back here.</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                log(`❌ Error checking session: ${error.message}`, 'error');
+            }
+        };
+
+        window.refreshSession = async function() {
+            if (!supabase) {
+                log('❌ Initialize Supabase first', 'error');
+                return;
+            }
+            
+            try {
+                log('Refreshing session...', 'info');
+                const { data: { session }, error } = await supabase.auth.refreshSession();
+                
+                if (error) {
+                    log(`❌ Refresh error: ${error.message}`, 'error');
+                } else if (session) {
+                    currentSession = session;
+                    log('✅ Session refreshed successfully!', 'success');
+                    await checkSession();
+                } else {
+                    log('⚠️ No session to refresh', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        };
+
+        window.getAuthToken = function() {
+            log('Searching localStorage for auth tokens...', 'info');
+            let found = false;
+            
+            for (let key in localStorage) {
+                if (key.includes('supabase.auth.token') || (key.includes('sb-') && key.includes('auth-token'))) {
+                    try {
+                        const value = JSON.parse(localStorage.getItem(key));
+                        if (value.access_token) {
+                            log(`✅ Found token in: ${key}`, 'success');
+                            currentSession = { access_token: value.access_token };
+                            document.getElementById('tokenDisplay').innerHTML = `
+                                <div class="result-box">
+                                    <strong>Access Token (from localStorage):</strong>
+                                    <pre style="word-break: break-all;">${value.access_token}</pre>
+                                    <button class="copy-btn" onclick="navigator.clipboard.writeText('${value.access_token}')">Copy Token</button>
+                                </div>
+                            `;
+                            document.getElementById('step3').classList.remove('hidden');
+                            found = true;
+                            break;
+                        }
+                    } catch (e) {
+                        // Not JSON or doesn't have token
+                    }
+                }
+            }
+            
+            if (!found) {
+                log('⚠️ No auth token found in localStorage', 'warning');
+                log('Make sure you are logged into your app', 'warning');
+            }
+        };
+
+        window.testApiKey = async function() {
+            if (!currentSession || !currentSession.access_token) {
+                log('❌ No session token available', 'error');
+                alert('Please check your session first');
+                return;
+            }
+            
+            const url = document.getElementById('supabaseUrl').value;
+            const key = document.getElementById('supabaseKey').value;
+            
+            try {
+                log('Testing API key creation...', 'info');
+                
+                const response = await fetch(`${url}/functions/v1/create-api-key`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentSession.access_token}`,
+                        'apikey': key
+                    },
+                    body: JSON.stringify({
+                        name: `Test Key ${new Date().toISOString()}`,
+                        permissions: ['deals:read', 'deals:write'],
+                        rate_limit: 1000
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ API Key created successfully!', 'success');
+                    log(`Key ID: ${data.id}`, 'success');
+                    log(`Key Preview: ${data.key_preview}`, 'success');
+                    
+                    document.getElementById('testResult').innerHTML = `
+                        <div class="status success" style="margin-top: 15px;">
+                            <strong>✅ Success!</strong>
+                            <p>API Key created successfully</p>
+                            <p>Key: ${data.api_key}</p>
+                            <button class="copy-btn" onclick="navigator.clipboard.writeText('${data.api_key}')">Copy API Key</button>
+                        </div>
+                    `;
+                } else {
+                    log(`❌ Error ${response.status}: ${data.error || data.message}`, 'error');
+                    document.getElementById('testResult').innerHTML = `
+                        <div class="status error" style="margin-top: 15px;">
+                            <strong>Error ${response.status}</strong>
+                            <p>${data.error || data.message}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                log(`❌ Network error: ${error.message}`, 'error');
+                document.getElementById('testResult').innerHTML = `
+                    <div class="status error" style="margin-top: 15px;">
+                        <strong>Network Error</strong>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        };
+
+        // Add enter key support
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('supabaseKey').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    initializeSupabase();
+                }
+            });
+            
+            log('Ready. Enter your Supabase credentials to begin.', 'info');
+        });
+    </script>
+</body>
+</html>

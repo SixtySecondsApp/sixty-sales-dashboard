@@ -357,7 +357,7 @@ export interface Database {
       }
     }
     Enums: {
-      client_status: 'active' | 'churned' | 'paused'
+      client_status: 'active' | 'subscribed' | 'signed' | 'deposit_paid' | 'churned' | 'paused' | 'notice_given'
     }
     CompositeTypes: {
       [_ in never]: never

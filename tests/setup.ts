@@ -1,60 +1,13 @@
-import '@testing-library/jest-dom';
-import { expect, vi, beforeAll, afterEach } from 'vitest';
+import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import * as matchers from '@testing-library/jest-dom/matchers';
 
-// Mock Framer Motion to avoid animation issues in tests
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: 'div',
-    button: 'button',
-    tr: 'tr',
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
-}));
+// extends Vitest's expect method with methods from react-testing-library
+expect.extend(matchers);
 
-// Mock Lucide React icons
-vi.mock('lucide-react', () => ({
-  Edit2: () => 'Edit2Icon',
-  Trash2: () => 'Trash2Icon',
-  ArrowUpRight: () => 'ArrowUpRightIcon',
-  Users: () => 'UsersIcon',
-  PoundSterling: () => 'PoundSterlingIcon',
-  LinkIcon: () => 'LinkIcon',
-  TrendingUp: () => 'TrendingUpIcon',
-  BarChart: () => 'BarChartIcon',
-  Phone: () => 'PhoneIcon',
-  FileText: () => 'FileTextIcon',
-  UploadCloud: () => 'UploadCloudIcon',
-  Filter: () => 'FilterIcon',
-  X: () => 'XIcon',
-  Search: () => 'SearchIcon',
-  Download: () => 'DownloadIcon',
-  XCircle: () => 'XCircleIcon',
-}));
-
-// Mock toast notifications
-vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
-  },
-}));
-
-// Mock window APIs that might not be available in test environment
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
+// runs a cleanup after each test case (e.g. clearing jsdom)
+afterEach(() => {
+  cleanup();
 });
 
 // Mock ResizeObserver
@@ -71,46 +24,45 @@ global.IntersectionObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }));
 
-// Mock performance API for performance tests
-Object.defineProperty(global, 'performance', {
+// Mock matchMedia
+Object.defineProperty(window, 'matchMedia', {
   writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
+// Mock window.location
+Object.defineProperty(window, 'location', {
   value: {
-    now: vi.fn(() => Date.now()),
-    mark: vi.fn(),
-    measure: vi.fn(),
-    getEntriesByName: vi.fn(() => []),
-    getEntriesByType: vi.fn(() => []),
-    clearMarks: vi.fn(),
-    clearMeasures: vi.fn(),
-    memory: {
-      usedJSHeapSize: 1000000,
-      totalJSHeapSize: 2000000,
-      jsHeapSizeLimit: 4000000,
-    },
+    href: 'http://localhost:3000',
+    origin: 'http://localhost:3000',
+    pathname: '/',
+    search: '',
+    hash: '',
+    assign: vi.fn(),
+    replace: vi.fn(),
+    reload: vi.fn(),
   },
+  writable: true,
 });
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
+// Mock console methods to reduce noise in tests
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  // Suppress specific React warnings in tests
+  if (
+    args[0]?.includes('Warning: ReactDOM.render is no longer supported') ||
+    args[0]?.includes('Warning: validateDOMNesting')
+  ) {
+    return;
+  }
+  originalConsoleError(...args);
 };
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
-
-// Setup before all tests
-beforeAll(() => {
-  console.log('🧪 Test environment initialized');
-});
-
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-  localStorageMock.clear();
-});
-
-export {};

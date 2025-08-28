@@ -1,8 +1,9 @@
 import type { Contact } from '@/lib/database/models';
 import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
-import { supabase } from '@/lib/supabase/clientV2';
+import { supabase, authUtils } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
+import { toast } from 'sonner';
 
 export class ApiContactService {
   
@@ -53,6 +54,25 @@ export class ApiContactService {
 
       if (error) {
         logger.error('Error fetching contacts from Supabase:', error);
+        
+        // Handle authentication/authorization errors specifically
+        if (authUtils.isAuthError(error)) {
+          const userMessage = authUtils.formatAuthError(error);
+          logger.warn('Authentication error in contacts fetch:', userMessage);
+          
+          // Show user-friendly error message
+          toast.error(userMessage);
+          
+          // If it's a session issue, try to diagnose
+          if (error.message?.includes('JWT') || error.code === 'PGRST301') {
+            const diagnosis = await authUtils.diagnoseSession();
+            if (!diagnosis.isValid) {
+              logger.warn('Session diagnosis:', diagnosis);
+              toast.error('Session expired. Please refresh the page and sign in again.');
+            }
+          }
+        }
+        
         throw error;
       }
 
@@ -234,6 +254,21 @@ export class ApiContactService {
 
       if (error) {
         logger.error('Error creating contact in Supabase:', error);
+        
+        // Handle authentication/authorization errors
+        if (authUtils.isAuthError(error)) {
+          const userMessage = authUtils.formatAuthError(error);
+          logger.warn('Authentication error in contact creation:', userMessage);
+          toast.error(`Failed to create contact: ${userMessage}`);
+          
+          // Additional guidance for permission errors
+          if (error.message?.includes('permission') || error.message?.includes('row-level security')) {
+            toast.error('You may not have permission to create contacts. Please check with your administrator.', {
+              duration: 6000
+            });
+          }
+        }
+        
         throw error;
       }
 

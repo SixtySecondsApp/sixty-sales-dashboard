@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test API Key Creation</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .error { color: red; background: #ffe6e6; }
+        .success { color: green; background: #e6ffe6; }
+        .info { color: blue; background: #e6f3ff; }
+        button { padding: 10px 20px; margin: 10px 0; }
+        pre { background: #f5f5f5; padding: 10px; border-radius: 3px; overflow-x: auto; }
+        input, select { padding: 5px; margin: 5px; }
+        .form-group { margin: 10px 0; }
+        label { display: block; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>API Key Creation Diagnostics</h1>
+    
+    <div class="section">
+        <h2>1. Authentication Status</h2>
+        <button onclick="checkAuth()">Check Authentication</button>
+        <div id="authStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>2. Database Connection Test</h2>
+        <button onclick="testDatabaseConnection()">Test Database</button>
+        <div id="dbStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>3. Edge Function Test</h2>
+        <button onclick="testEdgeFunction()">Test Edge Function</button>
+        <div id="edgeFunctionStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>4. Create API Key</h2>
+        <div class="form-group">
+            <label for="keyName">Key Name:</label>
+            <input type="text" id="keyName" value="Test Key" />
+        </div>
+        <div class="form-group">
+            <label for="permissions">Permissions:</label>
+            <select id="permissions" multiple>
+                <option value="deals:read" selected>deals:read</option>
+                <option value="deals:write">deals:write</option>
+                <option value="contacts:read">contacts:read</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="rateLimit">Rate Limit:</label>
+            <select id="rateLimit">
+                <option value="100">100/hour</option>
+                <option value="500" selected>500/hour</option>
+                <option value="1000">1000/hour</option>
+            </select>
+        </div>
+        <button onclick="createApiKey()">Create API Key</button>
+        <div id="createKeyStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>5. Debug Information</h2>
+        <button onclick="gatherDebugInfo()">Gather Debug Info</button>
+        <div id="debugInfo"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        async function checkAuth() {
+            const authStatus = document.getElementById('authStatus');
+            authStatus.innerHTML = '';
+            
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    log('authStatus', `Authentication error: ${error.message}`, 'error');
+                    return false;
+                }
+                
+                if (!session) {
+                    log('authStatus', 'No active session. Please login first.', 'error');
+                    log('authStatus', 'Attempting anonymous auth test...', 'info');
+                    
+                    // Try to check if we can at least connect
+                    const { data, error: testError } = await supabase.from('profiles').select('id').limit(1);
+                    
+                    if (testError) {
+                        log('authStatus', `Database connection test failed: ${testError.message}`, 'error');
+                    } else {
+                        log('authStatus', 'Database connection OK, but authentication required', 'info');
+                    }
+                    return false;
+                }
+                
+                log('authStatus', `Authenticated as: ${session.user.email}`, 'success');
+                log('authStatus', `User ID: ${session.user.id}`, 'info');
+                log('authStatus', `Token expires: ${new Date(session.expires_at * 1000).toLocaleString()}`, 'info');
+                return true;
+            } catch (error) {
+                log('authStatus', `Unexpected error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testDatabaseConnection() {
+            const dbStatus = document.getElementById('dbStatus');
+            dbStatus.innerHTML = '';
+            
+            try {
+                // Test 1: Check if api_keys table exists
+                log('dbStatus', 'Testing api_keys table structure...', 'info');
+                
+                const { data, error } = await supabase
+                    .from('api_keys')
+                    .select('*')
+                    .limit(1);
+                
+                if (error) {
+                    if (error.code === '42P01') {
+                        log('dbStatus', 'ERROR: api_keys table does not exist', 'error');
+                        log('dbStatus', 'This is likely the root cause of API key creation failures', 'error');
+                    } else if (error.code === 'PGRST116') {
+                        log('dbStatus', 'ERROR: RLS policy denying access or table structure mismatch', 'error');
+                    } else {
+                        log('dbStatus', `Database error: ${error.message} (code: ${error.code})`, 'error');
+                    }
+                    return false;
+                }
+                
+                log('dbStatus', 'SUCCESS: api_keys table exists and is accessible', 'success');
+                log('dbStatus', `Found ${data.length} existing keys`, 'info');
+                return true;
+                
+            } catch (error) {
+                log('dbStatus', `Unexpected database error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function testEdgeFunction() {
+            const edgeFunctionStatus = document.getElementById('edgeFunctionStatus');
+            edgeFunctionStatus.innerHTML = '';
+            
+            try {
+                log('edgeFunctionStatus', 'Testing Edge Function availability...', 'info');
+                
+                // First check if we're authenticated
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session) {
+                    log('edgeFunctionStatus', 'ERROR: No authentication session for Edge Function test', 'error');
+                    return false;
+                }
+                
+                // Test the Edge Function with minimal payload
+                const { data, error } = await supabase.functions.invoke('create-api-key', {
+                    body: {
+                        name: 'Test Key',
+                        permissions: ['deals:read'],
+                        rate_limit: 500
+                    }
+                });
+                
+                if (error) {
+                    log('edgeFunctionStatus', `Edge Function error: ${error.message}`, 'error');
+                    if (error.context) {
+                        log('edgeFunctionStatus', `Error context: ${JSON.stringify(error.context, null, 2)}`, 'error');
+                    }
+                    return false;
+                }
+                
+                log('edgeFunctionStatus', 'SUCCESS: Edge Function responded', 'success');
+                log('edgeFunctionStatus', `Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                return true;
+                
+            } catch (error) {
+                log('edgeFunctionStatus', `Unexpected Edge Function error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function createApiKey() {
+            const createKeyStatus = document.getElementById('createKeyStatus');
+            createKeyStatus.innerHTML = '';
+            
+            try {
+                const name = document.getElementById('keyName').value;
+                const permissionSelect = document.getElementById('permissions');
+                const permissions = Array.from(permissionSelect.selectedOptions).map(option => option.value);
+                const rateLimit = parseInt(document.getElementById('rateLimit').value);
+                
+                log('createKeyStatus', 'Creating API key with the following parameters:', 'info');
+                log('createKeyStatus', `Name: ${name}`, 'info');
+                log('createKeyStatus', `Permissions: ${permissions.join(', ')}`, 'info');
+                log('createKeyStatus', `Rate Limit: ${rateLimit}`, 'info');
+                
+                const { data, error } = await supabase.functions.invoke('create-api-key', {
+                    body: {
+                        name,
+                        permissions,
+                        rate_limit: rateLimit,
+                        expires_in_days: 90
+                    }
+                });
+                
+                if (error) {
+                    log('createKeyStatus', `FAILED: ${error.message}`, 'error');
+                    if (error.context) {
+                        log('createKeyStatus', `Error details: ${JSON.stringify(error.context, null, 2)}`, 'error');
+                    }
+                    return;
+                }
+                
+                log('createKeyStatus', 'SUCCESS: API key created!', 'success');
+                log('createKeyStatus', `API Key: ${data.api_key}`, 'success');
+                log('createKeyStatus', `Key Data: ${JSON.stringify(data.key_data, null, 2)}`, 'info');
+                
+            } catch (error) {
+                log('createKeyStatus', `Unexpected error: ${error.message}`, 'error');
+            }
+        }
+
+        async function gatherDebugInfo() {
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = '';
+            
+            log('debugInfo', '=== DEBUG INFORMATION ===', 'info');
+            
+            // Environment info
+            log('debugInfo', `Supabase URL: ${SUPABASE_URL}`, 'info');
+            log('debugInfo', `User Agent: ${navigator.userAgent}`, 'info');
+            log('debugInfo', `Timestamp: ${new Date().toISOString()}`, 'info');
+            
+            // Auth info
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                    log('debugInfo', `User ID: ${session.user.id}`, 'info');
+                    log('debugInfo', `Token present: Yes`, 'info');
+                } else {
+                    log('debugInfo', `Auth Status: Not authenticated`, 'info');
+                }
+            } catch (e) {
+                log('debugInfo', `Auth check failed: ${e.message}`, 'error');
+            }
+            
+            // Database schema check
+            try {
+                const { data, error } = await supabase.rpc('exec_sql', { 
+                    sql: `
+                        SELECT column_name, data_type, is_nullable
+                        FROM information_schema.columns
+                        WHERE table_name = 'api_keys'
+                        ORDER BY ordinal_position;
+                    `
+                });
+                
+                if (error) {
+                    log('debugInfo', `Schema check failed: ${error.message}`, 'error');
+                } else {
+                    log('debugInfo', 'API Keys table schema:', 'info');
+                    log('debugInfo', `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+                }
+            } catch (e) {
+                log('debugInfo', `Schema check error: ${e.message}`, 'error');
+            }
+        }
+
+        // Run initial checks on page load
+        window.onload = function() {
+            log('authStatus', 'Page loaded. Ready for testing.', 'info');
+        };
+    </script>
+</body>
+</html>
