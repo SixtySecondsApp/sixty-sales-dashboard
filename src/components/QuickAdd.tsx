@@ -723,6 +723,10 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const selectedTaskType = taskTypes.find(t => t.value === formData.task_type);
   const selectedPriority = priorities.find(p => p.value === formData.priority);
 
+  // Mobile drag handlers for swipe to dismiss
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -736,51 +740,76 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         >
           <motion.div
             initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
+            animate={{ y: isDragging ? dragY : 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
             transition={{
               type: 'spring',
-              damping: 30,
-              stiffness: 300,
+              damping: isDragging ? 0 : 30,
+              stiffness: isDragging ? 0 : 300,
               mass: 0.8
             }}
-            className="relative bg-gray-900/95 border border-gray-800/50 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 w-full sm:max-w-2xl backdrop-blur-xl sm:m-4 max-h-[90vh] overflow-y-auto"
+            // Mobile-optimized sizing and positioning
+            className="relative bg-gray-900/95 border border-gray-800/50 rounded-t-2xl sm:rounded-2xl p-4 sm:p-6 w-full sm:max-w-lg backdrop-blur-xl sm:m-4 max-h-[92vh] sm:max-h-[85vh] overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
+            // Touch drag handlers for mobile swipe-to-dismiss
+            onPanStart={() => setIsDragging(true)}
+            onPan={(_, info) => {
+              if (info.offset.y > 0) {
+                setDragY(Math.min(info.offset.y, 300));
+              }
+            }}
+            onPanEnd={(_, info) => {
+              setIsDragging(false);
+              if (info.offset.y > 150 || info.velocity.y > 500) {
+                handleClose();
+              } else {
+                setDragY(0);
+              }
+            }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={{ top: 0, bottom: 0.3 }}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 via-gray-900/70 to-gray-900/30 rounded-3xl -z-10" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] rounded-3xl -z-10" />
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 via-gray-900/70 to-gray-900/30 rounded-2xl -z-10" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] rounded-2xl -z-10" />
             
+            {/* Mobile drag indicator */}
             <motion.div 
-              className="w-12 h-1 rounded-full bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden"
-              initial={{ width: '2rem' }}
-              animate={{ width: '3rem' }}
-              transition={{
-                type: 'spring',
-                stiffness: 400,
-                damping: 30,
-                repeat: Infinity,
-                repeatType: 'reverse'
-              }}
+              className="w-10 h-1 rounded-full bg-gray-600 mx-auto mb-4 sm:hidden cursor-grab active:cursor-grabbing"
+              whileTap={{ scale: 1.2 }}
+              drag="y"
+              onDragStart={() => setIsDragging(true)}
             />
             
-            <div className="flex justify-between items-center mb-6 sm:mb-8">
-              <h2 className="text-xl font-semibold text-white/90 tracking-wide">Quick Add</h2>
+            {/* Header with touch-friendly close button */}
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-white/90 tracking-wide">Quick Add</h2>
+              {/* Touch-friendly close button (44x44px minimum) */}
               <button
                 type="button"
                 onClick={handleClose}
-                className="p-2 hover:bg-gray-800/50 rounded-xl transition-colors"
+                className="p-3 hover:bg-gray-800/50 rounded-xl transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
 
+            {/* Scrollable content area */}
+            <div className="flex-1 overflow-y-auto overscroll-contain"
+                 style={{ 
+                   WebkitOverflowScrolling: 'touch',
+                   scrollbarWidth: 'thin',
+                   scrollbarColor: '#374151 transparent'
+                 }}
+            >
+
             {showContactSearch ? null : !selectedAction ? (
               <motion.div 
-                className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4"
+                className="grid grid-cols-2 gap-4 px-2"
                 variants={{
                   show: {
                     transition: {
-                      staggerChildren: 0.1
+                      staggerChildren: 0.08
                     }
                   }
                 }}
@@ -792,16 +821,16 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     key={action.id}
                     type="button"
                     variants={{
-                      hidden: { y: 20, opacity: 0 },
-                      show: { y: 0, opacity: 1 }
+                      hidden: { y: 15, opacity: 0, scale: 0.95 },
+                      show: { y: 0, opacity: 1, scale: 1 }
                     }}
                     transition={{
                       type: 'spring',
-                      stiffness: 400,
-                      damping: 30
+                      stiffness: 350,
+                      damping: 25
                     }}
                     whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileTap={{ scale: 0.96 }}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -817,62 +846,53 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         setSelectedAction(action.id);
                       }
                     }}
-                    className={`flex flex-col items-center justify-center p-4 sm:p-6 rounded-xl ${
-                      action.color === 'blue'
-                        ? 'bg-blue-400/5'
-                        : action.color === 'orange'
-                          ? 'bg-orange-500/10'
-                          : action.color === 'indigo'
-                            ? 'bg-indigo-500/10'
-                            : action.color === 'purple'
-                              ? 'bg-purple-500/10'
-                              : `bg-${action.color}-500/10`
-                    } border ${
-                      action.color === 'blue'
-                        ? 'border-blue-500/10'
-                        : action.color === 'orange'
-                          ? 'border-orange-500/20'
-                          : action.color === 'indigo'
-                            ? 'border-indigo-500/20'
-                            : action.color === 'purple'
-                              ? 'border-purple-500/20'
-                              : `border-${action.color}-500/20`
-                    } hover:bg-${action.color}-500/20 transition-all duration-300 group backdrop-blur-sm`}
+                    // Touch-friendly minimum size and improved mobile styling
+                    className={cn(
+                      "flex flex-col items-center justify-center rounded-xl border backdrop-blur-sm transition-all duration-300 group touch-manipulation",
+                      // Mobile-optimized padding and sizing
+                      "p-5 min-h-[80px] sm:p-6 sm:min-h-[100px]",
+                      // Improved touch target size
+                      "active:scale-95 active:bg-opacity-80",
+                      // Color-specific backgrounds
+                      {
+                        'bg-blue-400/8 border-blue-500/20 hover:bg-blue-500/15': action.color === 'blue',
+                        'bg-orange-500/12 border-orange-500/25 hover:bg-orange-500/20': action.color === 'orange',
+                        'bg-indigo-500/12 border-indigo-500/25 hover:bg-indigo-500/20': action.color === 'indigo',
+                        'bg-purple-500/12 border-purple-500/25 hover:bg-purple-500/20': action.color === 'purple',
+                        'bg-emerald-500/12 border-emerald-500/25 hover:bg-emerald-500/20': action.color === 'emerald',
+                        'bg-violet-500/12 border-violet-500/25 hover:bg-violet-500/20': action.color === 'violet',
+                      }
+                    )}
                   >
-                    <div className={`p-3 rounded-xl ${
-                      action.color === 'blue'
-                        ? 'bg-blue-400/5'
-                        : action.color === 'orange'
-                          ? 'bg-orange-500/10'
-                          : action.color === 'indigo'
-                            ? 'bg-indigo-500/10'
-                            : action.color === 'purple'
-                              ? 'bg-purple-500/10'
-                              : `bg-${action.color}-500/10`
-                    } transition-all duration-300 group-hover:scale-110 group-hover:bg-${action.color}-500/20 ring-1 ${
-                      action.color === 'blue'
-                        ? 'ring-blue-500/50 group-hover:ring-blue-500/60'
-                        : action.color === 'orange'
-                          ? 'ring-orange-500/30 group-hover:ring-orange-500/50'
-                          : action.color === 'indigo'
-                            ? 'ring-indigo-500/30 group-hover:ring-indigo-500/50'
-                            : action.color === 'purple'
-                              ? 'ring-purple-500/30 group-hover:ring-purple-500/50'
-                              : `ring-${action.color}-500/30 group-hover:ring-${action.color}-500/50`
-                    } backdrop-blur-sm mb-3`}>
-                      <action.icon className={`w-6 h-6 ${
-                        action.color === 'blue'
-                          ? 'text-blue-500'
-                          : action.color === 'orange'
-                            ? 'text-orange-500'
-                            : action.color === 'indigo'
-                              ? 'text-indigo-500'
-                              : action.color === 'purple'
-                                ? 'text-purple-500'
-                                : `text-${action.color}-500`
-                      }`} />
+                    {/* Icon container with better mobile sizing */}
+                    <div className={cn(
+                      "rounded-xl transition-all duration-300 group-hover:scale-105 ring-1 backdrop-blur-sm mb-2 sm:mb-3",
+                      "p-2.5 sm:p-3",
+                      {
+                        'bg-blue-400/10 ring-blue-500/40 group-hover:ring-blue-500/60': action.color === 'blue',
+                        'bg-orange-500/12 ring-orange-500/35 group-hover:ring-orange-500/55': action.color === 'orange',
+                        'bg-indigo-500/12 ring-indigo-500/35 group-hover:ring-indigo-500/55': action.color === 'indigo',
+                        'bg-purple-500/12 ring-purple-500/35 group-hover:ring-purple-500/55': action.color === 'purple',
+                        'bg-emerald-500/12 ring-emerald-500/35 group-hover:ring-emerald-500/55': action.color === 'emerald',
+                        'bg-violet-500/12 ring-violet-500/35 group-hover:ring-violet-500/55': action.color === 'violet',
+                      }
+                    )}>
+                      <action.icon className={cn(
+                        "w-5 h-5 sm:w-6 sm:h-6",
+                        {
+                          'text-blue-500': action.color === 'blue',
+                          'text-orange-500': action.color === 'orange',
+                          'text-indigo-500': action.color === 'indigo',
+                          'text-purple-500': action.color === 'purple',
+                          'text-emerald-500': action.color === 'emerald',
+                          'text-violet-500': action.color === 'violet',
+                        }
+                      )} />
                     </div>
-                    <span className="text-sm font-medium text-white/90">{action.label}</span>
+                    {/* Mobile-friendly text size */}
+                    <span className="text-xs sm:text-sm font-medium text-white/90 text-center leading-tight">
+                      {action.label}
+                    </span>
                   </motion.button>
                 ))}
               </motion.div>
@@ -880,36 +900,37 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               // Don't show any form when DealWizard is active
               null
             ) : selectedAction === 'task' ? (
-              // Amazing Task Creation Form
+              // Mobile-optimized Task Creation Form
               <motion.form
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
+                exit={{ opacity: 0, y: -15 }}
                 onSubmit={handleSubmit}
-                className="space-y-6"
+                className="space-y-4 sm:space-y-6 px-1"
               >
-                {/* Header with back button */}
-                <div className="flex items-center gap-3 mb-6">
+                {/* Mobile-friendly header with back button */}
+                <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                  {/* Touch-friendly back button */}
                   <button
                     type="button"
                     onClick={() => setSelectedAction(null)}
-                    className="p-2 hover:bg-gray-800/50 rounded-xl transition-colors"
+                    className="p-2.5 hover:bg-gray-800/50 rounded-xl transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
                   >
                     <ArrowRight className="w-5 h-5 text-gray-400 rotate-180" />
                   </button>
-                  <div>
-                    <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-                      <CheckSquare className="w-6 h-6 text-indigo-500" />
-                      Create New Task
+                  <div className="flex-1">
+                    <h3 className="text-lg sm:text-xl font-semibold text-white flex items-center gap-2">
+                      <CheckSquare className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
+                      Create Task
                     </h3>
-                    <p className="text-gray-400 text-sm">Set up your task quickly and efficiently</p>
+                    <p className="text-gray-400 text-xs sm:text-sm">Quick task creation</p>
                   </div>
                 </div>
 
-                {/* Task Title */}
-                <div className="space-y-3">
-                  <label className="text-lg font-semibold text-white flex items-center gap-2">
-                    <Target className="w-5 h-5 text-indigo-400" />
+                {/* Mobile-optimized Task Title */}
+                <div className="space-y-2 sm:space-y-3">
+                  <label className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+                    <Target className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400" />
                     What needs to be done? *
                   </label>
                   <input
@@ -918,90 +939,104 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                     placeholder="e.g., Call John about the proposal"
                     className={cn(
-                      "w-full bg-gray-800/50 border text-white text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all",
+                      "w-full bg-gray-800/50 border text-white rounded-xl placeholder:text-gray-400 transition-all touch-manipulation",
+                      // Mobile-optimized sizing
+                      "text-base sm:text-lg p-3 sm:p-4",
+                      // Better focus states for mobile
+                      "focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none",
                       validationErrors.title 
                         ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
                         : "border-gray-600/50"
                     )}
                     required
+                    autoComplete="off"
+                    autoCapitalize="sentences"
                   />
                   {validationErrors.title && (
-                    <p className="text-red-400 text-sm mt-1 flex items-center gap-1">
+                    <p className="text-red-400 text-xs sm:text-sm mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
                       {validationErrors.title}
                     </p>
                   )}
                 </div>
 
-                {/* Task Type & Priority Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Task Type */}
-                  <div className="space-y-3">
-                    <label className="text-base font-medium text-white flex items-center gap-2">
+                {/* Mobile-optimized Task Type & Priority */}
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Task Type - Mobile-first layout */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-sm sm:text-base font-medium text-white flex items-center gap-2">
                       <Zap className="w-4 h-4 text-yellow-400" />
                       Task Type
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Mobile: Stack in single column, Desktop: Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {taskTypes.slice(0, 4).map((type) => (
                         <button
                           key={type.value}
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, task_type: type.value as any }))}
-                          className={`p-3 rounded-xl border transition-all ${
+                          className={cn(
+                            "rounded-xl border transition-all touch-manipulation min-h-[48px]",
+                            "p-3 sm:p-3 active:scale-95",
                             formData.task_type === type.value
-                              ? `${type.color} border-current`
+                              ? `${type.color} border-current ring-2 ring-current ring-opacity-30`
                               : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
-                          }`}
+                          )}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{type.icon}</span>
-                            <span className="text-xs font-medium">{type.label}</span>
+                          <div className="flex items-center gap-3 justify-start">
+                            <span className="text-base sm:text-lg">{type.icon}</span>
+                            <span className="text-sm sm:text-xs font-medium">{type.label}</span>
                           </div>
                         </button>
                       ))}
                     </div>
+                    {/* Remaining types in a compact row */}
                     <div className="grid grid-cols-3 gap-2">
                       {taskTypes.slice(4).map((type) => (
                         <button
                           key={type.value}
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, task_type: type.value as any }))}
-                          className={`p-3 rounded-xl border transition-all ${
+                          className={cn(
+                            "rounded-lg border transition-all touch-manipulation min-h-[44px]",
+                            "p-2 active:scale-95",
                             formData.task_type === type.value
-                              ? `${type.color} border-current`
+                              ? `${type.color} border-current ring-1 ring-current ring-opacity-30`
                               : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
-                          }`}
+                          )}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{type.icon}</span>
-                            <span className="text-xs font-medium">{type.label}</span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm">{type.icon}</span>
+                            <span className="text-xs font-medium text-center leading-none">{type.label}</span>
                           </div>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Priority */}
-                  <div className="space-y-3">
-                    <label className="text-base font-medium text-white flex items-center gap-2">
+                  {/* Priority - Mobile-optimized */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-sm sm:text-base font-medium text-white flex items-center gap-2">
                       <Flag className="w-4 h-4 text-red-400" />
                       Priority Level
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                       {priorities.map((priority) => (
                         <button
                           key={priority.value}
                           type="button"
                           onClick={() => setFormData(prev => ({ ...prev, priority: priority.value as any }))}
-                          className={`p-3 rounded-xl border transition-all ${
+                          className={cn(
+                            "rounded-xl border transition-all touch-manipulation min-h-[48px]",
+                            "p-3 active:scale-95",
                             formData.priority === priority.value
                               ? `${priority.color} ${priority.ringColor} ring-2`
                               : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
-                          }`}
+                          )}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 justify-center sm:justify-start">
                             <span className="text-base">{priority.icon}</span>
-                            <span className="text-xs font-medium">{priority.label}</span>
+                            <span className="text-sm font-medium">{priority.label}</span>
                           </div>
                         </button>
                       ))}
@@ -1009,105 +1044,137 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </div>
                 </div>
 
-                {/* Due Date Section */}
-                <div className="space-y-4">
-                  <label className="text-base font-medium text-white flex items-center gap-2">
+                {/* Mobile-optimized Due Date Section */}
+                <div className="space-y-3 sm:space-y-4">
+                  <label className="text-sm sm:text-base font-medium text-white flex items-center gap-2">
                     <Clock className="w-4 h-4 text-green-400" />
                     When is this due?
                   </label>
                   
-                  {/* Smart Quick Date Buttons */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Mobile-friendly Quick Date Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {getSmartQuickDates().map((quick) => (
                       <button
                         key={quick.label}
                         type="button"
                         onClick={() => handleQuickDate(quick.value)}
-                        className={`p-3 rounded-xl border transition-all group ${
+                        className={cn(
+                          "rounded-xl border transition-all group touch-manipulation min-h-[52px]",
+                          "p-3 active:scale-95",
                           formData.due_date === quick.value
-                            ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
+                            ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300 ring-2 ring-indigo-500/30'
                             : 'bg-gray-800/30 border-gray-600/30 text-gray-300 hover:bg-gray-700/50'
-                        }`}
+                        )}
                       >
                         <div className="flex items-center gap-3">
-                          <span className="text-lg">{quick.icon}</span>
-                          <div className="text-left">
-                            <div className="text-sm font-medium">{quick.label}</div>
-                            <div className="text-xs opacity-70">{quick.description}</div>
+                          <span className="text-base sm:text-lg flex-shrink-0">{quick.icon}</span>
+                          <div className="text-left flex-1 min-w-0">
+                            <div className="text-sm sm:text-sm font-medium truncate">{quick.label}</div>
+                            <div className="text-xs opacity-70 truncate">{quick.description}</div>
                           </div>
                         </div>
                       </button>
                     ))}
                   </div>
                   
-                  {/* Custom Date Input */}
+                  {/* Mobile-friendly Custom Date Input */}
                   <div className="space-y-2">
-                    <label className="text-sm text-gray-400">Or set a custom date & time</label>
+                    <label className="text-xs sm:text-sm text-gray-400">Or set a custom date & time</label>
                     <input
                       type="datetime-local"
                       value={formData.due_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                      className="w-full bg-gray-800/50 border border-gray-600/50 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      className={cn(
+                        "w-full bg-gray-800/50 border border-gray-600/50 text-white rounded-xl transition-all touch-manipulation",
+                        "text-base p-3 sm:p-3",
+                        "focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none",
+                        // iOS Safari specific fixes
+                        "[&::-webkit-datetime-edit]:text-white [&::-webkit-calendar-picker-indicator]:opacity-70"
+                      )}
                     />
                   </div>
                 </div>
 
-                {/* Description */}
-                <div className="space-y-3">
-                  <label className="text-base font-medium text-white">
+                {/* Mobile-optimized Description */}
+                <div className="space-y-2 sm:space-y-3">
+                  <label className="text-sm sm:text-base font-medium text-white">
                     Additional Details (Optional)
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Any additional context or notes..."
-                    rows={3}
-                    className="w-full bg-gray-800/50 border border-gray-600/50 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all resize-none"
+                    rows={2}
+                    className={cn(
+                      "w-full bg-gray-800/50 border border-gray-600/50 text-white rounded-xl placeholder:text-gray-400 transition-all resize-none touch-manipulation",
+                      "text-base p-3",
+                      "focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    )}
+                    autoCapitalize="sentences"
+                    autoComplete="off"
                   />
                 </div>
 
-                {/* Contact & Company Info */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400">Contact Name</label>
-                    <input
-                      type="text"
-                      value={formData.contact_name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contact_name: e.target.value }))}
-                      placeholder="John Smith"
-                      className="w-full bg-gray-800/30 border border-gray-600/30 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400">Company Website</label>
-                    <input
-                      type="text"
-                      value={formData.company_website}
-                      onChange={(e) => {
-                        let website = e.target.value.trim();
-                        
-                        // Auto-add www. if user enters a domain without it
-                        if (website && !website.startsWith('www.') && !website.startsWith('http')) {
-                          // Check if it looks like a domain (has a dot and no spaces)
-                          if (website.includes('.') && !website.includes(' ')) {
-                            website = `www.${website}`;
+                {/* Mobile-friendly Contact & Company Info */}
+                <div className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-gray-400">Contact Name</label>
+                      <input
+                        type="text"
+                        value={formData.contact_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, contact_name: e.target.value }))}
+                        placeholder="John Smith"
+                        className={cn(
+                          "w-full bg-gray-800/30 border border-gray-600/30 text-white rounded-xl placeholder:text-gray-400 transition-all touch-manipulation",
+                          "text-base p-3",
+                          "focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                        )}
+                        autoCapitalize="words"
+                        autoComplete="name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-gray-400">Company Website</label>
+                      <input
+                        type="text"
+                        value={formData.company_website}
+                        onChange={(e) => {
+                          let website = e.target.value.trim();
+                          
+                          // Auto-add www. if user enters a domain without it
+                          if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                            // Check if it looks like a domain (has a dot and no spaces)
+                            if (website.includes('.') && !website.includes(' ')) {
+                              website = `www.${website}`;
+                            }
                           }
-                        }
-                        
-                        setFormData(prev => ({ ...prev, company_website: website }));
-                      }}
-                      placeholder="www.company.com"
-                      className="w-full bg-gray-800/30 border border-gray-600/30 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
-                    />
+                          
+                          setFormData(prev => ({ ...prev, company_website: website }));
+                        }}
+                        placeholder="www.company.com"
+                        className={cn(
+                          "w-full bg-gray-800/30 border border-gray-600/30 text-white rounded-xl placeholder:text-gray-400 transition-all touch-manipulation",
+                          "text-base p-3",
+                          "focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                        )}
+                        autoCapitalize="none"
+                        autoComplete="url"
+                        inputMode="url"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Submit Button */}
-                <div className="flex gap-3 pt-4">
+                {/* Mobile-optimized Submit Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 sm:pt-6">
                   <button
                     type="button"
                     onClick={() => setSelectedAction(null)}
-                    className="flex-1 py-3 px-4 bg-gray-800/50 border border-gray-600/50 text-gray-300 rounded-xl hover:bg-gray-700/50 transition-all font-medium"
+                    className={cn(
+                      "py-3 px-4 bg-gray-800/50 border border-gray-600/50 text-gray-300 rounded-xl transition-all font-medium touch-manipulation",
+                      "sm:flex-1 min-h-[48px] active:scale-95 hover:bg-gray-700/50"
+                    )}
                   >
                     Cancel
                   </button>
@@ -1115,68 +1182,70 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     type="submit"
                     disabled={isSubmitting}
                     className={cn(
-                      "flex-1 py-3 px-4 text-white rounded-xl transition-all font-medium shadow-lg flex items-center justify-center gap-2",
+                      "py-3 px-4 text-white rounded-xl transition-all font-medium shadow-lg flex items-center justify-center gap-2 touch-manipulation",
+                      "sm:flex-1 min-h-[48px] active:scale-95 disabled:active:scale-100",
                       submitStatus === 'success' 
                         ? "bg-green-600 hover:bg-green-700 shadow-green-500/25"
                         : isSubmitting
-                          ? "bg-gray-600 cursor-not-allowed"
+                          ? "bg-gray-600 cursor-not-allowed opacity-75"
                           : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-indigo-500/25"
                     )}
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Creating...
+                        <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
+                        <span className="text-sm sm:text-base">Creating...</span>
                       </>
                     ) : submitStatus === 'success' ? (
                       <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Created!
+                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-sm sm:text-base">Created!</span>
                       </>
                     ) : (
                       <>
-                        <CheckSquare className="w-5 h-5" />
-                        Create Task
+                        <CheckSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+                        <span className="text-sm sm:text-base">Create Task</span>
                       </>
                     )}
                   </button>
                 </div>
               </motion.form>
             ) : (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && selectedContact ? (
-              // Show activity form only after contact is selected
+              // Mobile-optimized activity form after contact selection
               <motion.div
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
+                exit={{ opacity: 0, y: -15 }}
+                className="space-y-4 sm:space-y-6 px-1"
               >
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Compact Header with contact info */}
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                    {/* Mobile-friendly Header with contact info */}
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1">
+                        {/* Touch-friendly back button */}
                         <button
                           type="button"
                           onClick={() => setSelectedAction(null)}
-                          className="p-1.5 hover:bg-gray-800/50 rounded-lg transition-colors"
+                          className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors touch-manipulation min-w-[40px] min-h-[40px] flex items-center justify-center"
                         >
                           <ArrowRight className="w-4 h-4 text-gray-400 rotate-180" />
                         </button>
-                        <div>
-                          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                            {selectedAction === 'meeting' && <><Users className="w-5 h-5 text-violet-500" /> Add Meeting</>}
-                            {selectedAction === 'proposal' && <><FileText className="w-5 h-5 text-orange-500" /> Add Proposal</>}
-                            {selectedAction === 'sale' && <><PoundSterling className="w-5 h-5 text-emerald-500" /> Add Sale</>}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+                            {selectedAction === 'meeting' && <><Users className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500" /> Add Meeting</>}
+                            {selectedAction === 'proposal' && <><FileText className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" /> Add Proposal</>}
+                            {selectedAction === 'sale' && <><PoundSterling className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" /> Add Sale</>}
                           </h3>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm text-gray-400">for</span>
-                            <span className="text-sm text-[#37bd7e] font-medium">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            <span className="text-xs sm:text-sm text-gray-400">for</span>
+                            <span className="text-xs sm:text-sm text-[#37bd7e] font-medium truncate">
                               {selectedContact.full_name || 
                                (selectedContact.first_name || selectedContact.last_name ? 
                                 `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
                                 selectedContact.email)}
                             </span>
                             {selectedContact.company && (
-                              <span className="text-sm text-gray-500">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
+                              <span className="text-xs sm:text-sm text-gray-500 truncate">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
                             )}
                             <button
                               type="button"
@@ -1184,7 +1253,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                                 setSelectedContact(null);
                                 setShowContactSearch(true);
                               }}
-                              className="text-xs text-gray-400 hover:text-[#37bd7e] ml-2"
+                              className="text-xs text-gray-400 hover:text-[#37bd7e] touch-manipulation px-1 py-0.5 rounded"
                             >
                               Change
                             </button>
@@ -1192,15 +1261,16 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                         </div>
                       </div>
                     </div>
-                {/* Compact Date Selection */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-400">
+                {/* Mobile-optimized Date Selection */}
+                <div className="space-y-2 sm:space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="text-xs sm:text-sm font-medium text-gray-400">
                       {selectedAction === 'meeting' ? 'Meeting Date' : 
                        selectedAction === 'proposal' ? 'Proposal Date' : 
                        selectedAction === 'sale' ? 'Sale Date' : 'Date'}
                     </label>
-                    <div className="flex gap-2">
+                    {/* Mobile-friendly quick date buttons */}
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
                       {[
                         { label: 'Today', date: new Date() },
                         { label: 'Yesterday', date: addDays(new Date(), -1) },
@@ -1213,11 +1283,12 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                             setSelectedDate(option.date);
                             setShowCalendar(false);
                           }}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
+                          className={cn(
+                            "px-2 py-1 text-xs font-medium rounded-lg border transition-all touch-manipulation min-h-[32px]",
                             format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
                               ? 'bg-[#37bd7e]/20 border-[#37bd7e] text-[#37bd7e]'
-                              : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
-                          }`}
+                              : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50 active:scale-95'
+                          )}
                         >
                           {option.label}
                         </button>
@@ -1225,20 +1296,35 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     </div>
                   </div>
 
+                  {/* Touch-friendly date display button */}
                   <button
                     type="button"
                     onClick={() => setShowCalendar(!showCalendar)}
-                    className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl px-3 py-2.5 text-white text-left hover:bg-gray-700/50 transition-all flex items-center justify-between group"
+                    className={cn(
+                      "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white text-left transition-all flex items-center justify-between group touch-manipulation",
+                      "px-3 py-3 min-h-[48px] hover:bg-gray-700/50 active:scale-[0.99]"
+                    )}
                   >
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-[#37bd7e]" />
-                      <span className="text-sm">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
+                      <Calendar className="w-4 h-4 text-[#37bd7e] flex-shrink-0" />
+                      <span className="text-sm sm:text-base truncate">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
                     </div>
-                    <span className="text-xs text-gray-400">Change</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">Change</span>
                   </button>
                   
+                  {/* Mobile-friendly calendar overlay */}
                   {showCalendar && (
-                    <div className="absolute left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-4 z-20 shadow-xl">
+                    <div className="fixed inset-4 sm:absolute sm:left-0 sm:right-0 sm:inset-auto sm:mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-4 z-30 shadow-2xl">
+                      <div className="flex justify-between items-center mb-4 sm:hidden">
+                        <h4 className="text-white font-medium">Select Date</h4>
+                        <button
+                          type="button"
+                          onClick={() => setShowCalendar(false)}
+                          className="p-2 hover:bg-gray-800/50 rounded-lg"
+                        >
+                          <X className="w-4 h-4 text-gray-400" />
+                        </button>
+                      </div>
                       <CalendarComponent
                         mode="single"
                         selected={selectedDate}
@@ -1254,50 +1340,60 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   )}
                 </div>
 
-                {/* Meeting-specific fields - Compact */}
+                {/* Mobile-optimized Meeting fields */}
                 {selectedAction === 'meeting' && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-400">
-                        Type <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        required
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
-                        value={formData.details}
-                        onChange={(e) => setFormData({...formData, details: e.target.value})}
-                      >
-                        <option value="">Select type</option>
-                        <option value="Discovery">Discovery</option>
-                        <option value="Demo">Demo</option>
-                        <option value="Follow-up">Follow-up</option>
-                        <option value="Proposal">Proposal Review</option>
-                        <option value="Client Call">Client Call</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-xs font-medium text-gray-400">
-                        Status
-                      </label>
-                      <select
-                        className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
-                        value={formData.status}
-                        onChange={(e) => setFormData({...formData, status: e.target.value})}
-                      >
-                        <option value="completed">Completed</option>
-                        <option value="pending">Scheduled</option>
-                        <option value="cancelled">Cancelled</option>
-                        <option value="no_show">No Show</option>
-                      </select>
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-400">
+                          Meeting Type <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          className={cn(
+                            "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                            "px-3 py-3 text-base min-h-[48px]",
+                            "focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 focus:outline-none"
+                          )}
+                          value={formData.details}
+                          onChange={(e) => setFormData({...formData, details: e.target.value})}
+                        >
+                          <option value="">Select meeting type</option>
+                          <option value="Discovery">Discovery Call</option>
+                          <option value="Demo">Product Demo</option>
+                          <option value="Follow-up">Follow-up</option>
+                          <option value="Proposal">Proposal Review</option>
+                          <option value="Client Call">Client Call</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-400">
+                          Status
+                        </label>
+                        <select
+                          className={cn(
+                            "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                            "px-3 py-3 text-base min-h-[48px]",
+                            "focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 focus:outline-none"
+                          )}
+                          value={formData.status}
+                          onChange={(e) => setFormData({...formData, status: e.target.value})}
+                        >
+                          <option value="completed">Completed</option>
+                          <option value="pending">Scheduled</option>
+                          <option value="cancelled">Cancelled</option>
+                          <option value="no_show">No Show</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Proposal-specific fields - Compact */}
+                {/* Mobile-optimized Proposal fields */}
                 {selectedAction === 'proposal' && (
-                  <div className="space-y-1">
-                    <label className="block text-xs font-medium text-gray-400">
+                  <div className="space-y-2">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-400">
                       Proposal Value (£)
                     </label>
                     <input
@@ -1305,19 +1401,24 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                       min="0"
                       step="0.01"
                       placeholder="Enter proposal value"
-                      className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 transition-colors"
+                      className={cn(
+                        "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                        "px-3 py-3 text-base min-h-[48px]",
+                        "focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 focus:outline-none"
+                      )}
                       value={formData.amount || ''}
                       onChange={(e) => setFormData({...formData, amount: e.target.value})}
+                      inputMode="decimal"
                     />
                   </div>
                 )}
 
-                {/* Sale-specific fields - Compact with both inputs */}
+                {/* Mobile-optimized Sale fields */}
                 {selectedAction === 'sale' && (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-gray-400">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-400">
                           Monthly Subscription (£)
                         </label>
                         <input
@@ -1325,13 +1426,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           min="0"
                           step="0.01"
                           placeholder="0.00"
-                          className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                          className={cn(
+                            "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                            "px-3 py-3 text-base min-h-[48px]",
+                            "focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 focus:outline-none"
+                          )}
                           value={formData.monthlyMrr || ''}
                           onChange={(e) => setFormData({...formData, monthlyMrr: e.target.value})}
+                          inputMode="decimal"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="block text-xs font-medium text-gray-400">
+                      <div className="space-y-2">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-400">
                           One-off Amount (£)
                         </label>
                         <input
@@ -1339,74 +1445,93 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                           min="0"
                           step="0.01"
                           placeholder="0.00"
-                          className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                          className={cn(
+                            "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                            "px-3 py-3 text-base min-h-[48px]",
+                            "focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 focus:outline-none"
+                          )}
                           value={formData.oneOffRevenue || ''}
                           onChange={(e) => setFormData({...formData, oneOffRevenue: e.target.value})}
+                          inputMode="decimal"
                         />
                       </div>
                     </div>
+                    {/* Deal value calculation display */}
                     {(formData.monthlyMrr || formData.oneOffRevenue) && (
-                      <div className="px-2 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                        <p className="text-xs text-emerald-400">
+                      <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <p className="text-sm text-emerald-400 font-medium">
                           Deal Value: £{((parseFloat(formData.monthlyMrr || '0') * 3) + parseFloat(formData.oneOffRevenue || '0')).toFixed(2)}
-                          {formData.monthlyMrr && <span className="text-emerald-300/60 text-xs"> (3mo LTV)</span>}
+                          {formData.monthlyMrr && <span className="text-emerald-300/60 text-xs ml-1">(3mo LTV)</span>}
                         </p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Company Information - Required */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-400">
-                      Company Name <span className="text-gray-500 text-xs">(or use website below)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Acme Inc."
-                      className={cn(
-                        "w-full bg-gray-800/50 border rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors",
-                        validationErrors.client_name 
-                          ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
-                          : !formData.client_name && selectedAction
-                            ? 'border-amber-500/50' 
-                            : 'border-gray-600/50'
+                {/* Mobile-optimized Company Information */}
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-gray-400">
+                        Company Name <span className="text-gray-500 text-xs">(or website below)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Acme Inc."
+                        className={cn(
+                          "w-full bg-gray-800/50 border rounded-xl text-white transition-all touch-manipulation",
+                          "px-3 py-3 text-base min-h-[48px]",
+                          "focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 focus:outline-none",
+                          validationErrors.client_name 
+                            ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
+                            : !formData.client_name && selectedAction
+                              ? 'border-amber-500/50' 
+                              : 'border-gray-600/50'
+                        )}
+                        value={formData.client_name || ''}
+                        onChange={(e) => setFormData({...formData, client_name: e.target.value})}
+                        required
+                        autoCapitalize="words"
+                        autoComplete="organization"
+                      />
+                      {validationErrors.client_name && (
+                        <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" />
+                          {validationErrors.client_name}
+                        </p>
                       )}
-                      value={formData.client_name || ''}
-                      onChange={(e) => setFormData({...formData, client_name: e.target.value})}
-                      required
-                    />
-                    {validationErrors.client_name && (
-                      <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3" />
-                        {validationErrors.client_name}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-400">
-                      Website
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="www.acme.com"
-                      className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
-                      value={formData.company_website || ''}
-                      onChange={(e) => {
-                        let website = e.target.value.trim();
-                        
-                        // Auto-add www. if user enters a domain without it
-                        if (website && !website.startsWith('www.') && !website.startsWith('http')) {
-                          // Check if it looks like a domain (has a dot and no spaces)
-                          if (website.includes('.') && !website.includes(' ')) {
-                            website = `www.${website}`;
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs sm:text-sm font-medium text-gray-400">
+                        Website
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="www.acme.com"
+                        className={cn(
+                          "w-full bg-gray-800/50 border border-gray-600/50 rounded-xl text-white transition-all touch-manipulation",
+                          "px-3 py-3 text-base min-h-[48px]",
+                          "focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 focus:outline-none"
+                        )}
+                        value={formData.company_website || ''}
+                        onChange={(e) => {
+                          let website = e.target.value.trim();
+                          
+                          // Auto-add www. if user enters a domain without it
+                          if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                            // Check if it looks like a domain (has a dot and no spaces)
+                            if (website.includes('.') && !website.includes(' ')) {
+                              website = `www.${website}`;
+                            }
                           }
-                        }
-                        
-                        setFormData({...formData, company_website: website});
-                      }}
-                    />
+                          
+                          setFormData({...formData, company_website: website});
+                        }}
+                        autoCapitalize="none"
+                        autoComplete="url"
+                        inputMode="url"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1443,11 +1568,15 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   />
                 </div>
 
-                <div className="flex gap-3 pt-2">
+                {/* Mobile-optimized Submit Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <button
                     type="button"
                     onClick={() => setSelectedAction(null)}
-                    className="flex-1 py-2.5 px-4 bg-gray-800/30 text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors text-sm font-medium"
+                    className={cn(
+                      "py-3 px-4 bg-gray-800/30 text-gray-300 rounded-xl transition-all font-medium touch-manipulation",
+                      "sm:flex-1 min-h-[48px] active:scale-95 hover:bg-gray-700/50"
+                    )}
                   >
                     Cancel
                   </button>
@@ -1455,27 +1584,30 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     type="submit"
                     disabled={isSubmitting}
                     className={cn(
-                      "flex-1 py-2.5 px-4 text-white rounded-lg transition-all text-sm font-medium shadow-lg flex items-center justify-center gap-2",
+                      "py-3 px-4 text-white rounded-xl transition-all font-medium shadow-lg flex items-center justify-center gap-2 touch-manipulation",
+                      "sm:flex-1 min-h-[48px] active:scale-95 disabled:active:scale-100",
                       submitStatus === 'success' 
                         ? "bg-green-600 hover:bg-green-700"
                         : isSubmitting
-                          ? "bg-gray-600 cursor-not-allowed"
+                          ? "bg-gray-600 cursor-not-allowed opacity-75"
                           : "bg-gradient-to-r from-[#37bd7e] to-[#2da76c] hover:from-[#2da76c] hover:to-[#228b57]"
                     )}
                   >
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Creating...
+                        <span className="text-sm sm:text-base">Creating...</span>
                       </>
                     ) : submitStatus === 'success' ? (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        Created!
+                        <span className="text-sm sm:text-base">Created!</span>
                       </>
                     ) : (
                       <>
-                        Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
+                        <span className="text-sm sm:text-base">
+                          Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
+                        </span>
                       </>
                     )}
                   </button>
@@ -1483,6 +1615,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               </form>
               </motion.div>
             ) : null}
+            </div>
           </motion.div>
           
           {/* Deal Wizard Modal */}

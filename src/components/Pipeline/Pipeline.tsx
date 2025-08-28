@@ -27,6 +27,7 @@ import { OwnerFilter } from '@/components/OwnerFilter';
 import EditDealModal from '@/components/EditDealModal';
 import DealClosingModal from '@/components/DealClosingModal';
 import { ConvertDealModal } from '@/components/ConvertDealModal';
+import { ProposalConfirmationModal } from '@/components/ProposalConfirmationModal';
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -147,6 +148,16 @@ function PipelineContent() {
   // State for the ConvertDealModal
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [convertingDeal, setConvertingDeal] = useState<any>(null);
+  
+  // Proposal confirmation modal state
+  const [proposalModalOpen, setProposalModalOpen] = useState(false);
+  const [pendingDealMove, setPendingDealMove] = useState<{
+    dealId: string;
+    fromStage: string;
+    toStage: string;
+    deal: any;
+    toIndex?: number;
+  } | null>(null);
 
   // Update local state when the context data changes
   useEffect(() => {
@@ -360,6 +371,48 @@ function PipelineContent() {
       lastValidOverStageRef.current = null;
       return;
     }
+    
+    // Check if moving to Opportunity stage (which now means Proposal)
+    const opportunityStage = stages.find(
+      stage => stage.name.toLowerCase() === 'opportunity'
+    );
+    
+    // Find the deal being moved
+    const movedDealForCheck = Object.values(localDealsByStage)
+      .flat()
+      .find((deal: any) => deal.id === activeId);
+    
+    if (opportunityStage && toStage === opportunityStage.id && movedDealForCheck) {
+      // Store the move details for after confirmation
+      let toIndex = draggedOverIndex;
+      if (over) {
+        const overId = String(over.id);
+        toIndex = localDealsByStage[toStage].findIndex((d: any) => d.id === overId);
+        if (toIndex === -1 || overId === toStage) {
+          toIndex = localDealsByStage[toStage].length;
+        }
+      } else if (toIndex == null) {
+        toIndex = localDealsByStage[toStage].length;
+      }
+      
+      setPendingDealMove({
+        dealId: activeId,
+        fromStage,
+        toStage,
+        deal: movedDealForCheck,
+        toIndex
+      });
+      setProposalModalOpen(true);
+      
+      // Cleanup drag state
+      setDraggedId(null);
+      setDraggedFromStage(null);
+      setDraggedOverStage(null);
+      setDraggedOverIndex(null);
+      setActiveDeal(null);
+      lastValidOverStageRef.current = null;
+      return;
+    }
 
     // Find the deal and its new index
     let toIndex = draggedOverIndex;
@@ -497,6 +550,99 @@ function PipelineContent() {
   const handleConvertToSubscription = (deal: any) => {
     setConvertingDeal(deal);
     setIsConvertModalOpen(true);
+  };
+  
+  // Handle proposal confirmation
+  const handleProposalConfirmation = async (sentProposal: boolean, notes?: string) => {
+    setProposalModalOpen(false);
+    
+    if (!pendingDealMove) {
+      return;
+    }
+    
+    const { dealId, fromStage, toStage, deal, toIndex } = pendingDealMove;
+    
+    // Update localDealsByStage for final state
+    setLocalDealsByStage(prev => {
+      // Remove from old stage
+      const fromDeals = [...prev[fromStage]];
+      const dealIdx = fromDeals.findIndex((d: any) => d.id === dealId);
+      if (dealIdx === -1) return prev;
+      const [movedDeal] = fromDeals.splice(dealIdx, 1);
+
+      // Insert into new stage
+      const toDeals = [...prev[toStage]];
+      // Remove if already present (shouldn't happen, but for safety)
+      const existingIdx = toDeals.findIndex((d: any) => d.id === dealId);
+      if (existingIdx !== -1) toDeals.splice(existingIdx, 1);
+      toDeals.splice(toIndex || toDeals.length, 0, { ...movedDeal, stage_id: toStage });
+
+      return {
+        ...prev,
+        [fromStage]: fromDeals,
+        [toStage]: toDeals,
+      };
+    });
+    
+    // Persist to DB
+    try {
+      const updatePayload = {
+        stage_id: toStage,
+        stage_changed_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
+        .from('deals')
+        .update(updatePayload)
+        .eq('id', dealId)
+        .select();
+      if (error) throw error;
+      
+      // Create activity for stage transition
+      const fromStageObj = stages.find(s => s.id === fromStage) || null;
+      const toStageObj = stages.find(s => s.id === toStage);
+      
+      if (toStageObj) {
+        await handlePipelineStageTransition(
+          {
+            id: deal.id,
+            name: deal.name,
+            company: deal.company,
+            value: deal.value,
+            owner_id: deal.owner_id,
+            contact_email: deal.contact_email,
+          },
+          fromStageObj,
+          toStageObj
+        );
+        
+        // If proposal was sent, create a proposal activity
+        if (sentProposal) {
+          const proposalActivity = {
+            type: 'proposal',
+            deal_id: dealId,
+            owner_id: deal.owner_id,
+            description: notes || 'Proposal sent to client',
+            created_at: new Date().toISOString(),
+          };
+          
+          await supabase
+            .from('activities')
+            .insert(proposalActivity);
+          
+          toast.success('📄 Proposal activity logged and follow-up task created!');
+        }
+      }
+      
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 100);
+    } catch (err) {
+      toast.error('Failed to move deal. Please try again.');
+      logger.error('Error moving deal to Opportunity:', err);
+    }
+    
+    // Clear pending move
+    setPendingDealMove(null);
   };
 
   const handleDealClosure = async (firstBillingDate: string | null) => {
@@ -670,6 +816,17 @@ function PipelineContent() {
           // Refresh deals after successful conversion
           refreshDeals();
         }}
+      />
+      
+      <ProposalConfirmationModal
+        isOpen={proposalModalOpen}
+        onClose={() => {
+          setProposalModalOpen(false);
+          setPendingDealMove(null);
+        }}
+        onConfirm={handleProposalConfirmation}
+        dealName={pendingDealMove?.deal?.name || pendingDealMove?.deal?.company || 'Deal'}
+        clientName={pendingDealMove?.deal?.company}
       />
     </>
   );

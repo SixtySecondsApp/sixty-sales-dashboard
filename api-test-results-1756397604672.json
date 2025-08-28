@@ -1,0 +1,56 @@
+{
+  "total": 10,
+  "passed": 0,
+  "failed": 10,
+  "errors": [
+    {
+      "test": "API Key Authentication",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Companies API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Contacts API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Deals API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Tasks API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Meetings API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Activities API",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Error Handling",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Pagination",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    },
+    {
+      "test": "Rate Limiting",
+      "error": "getaddrinfo ENOTFOUND your-project.supabase.co"
+    }
+  ],
+  "summary": {},
+  "timestamp": "2025-08-28T16:13:24.672Z",
+  "config": {
+    "BASE_URL": "https://your-project.supabase.co",
+    "API_KEY": "sk_test_key_here",
+    "VERBOSE": false,
+    "TIMEOUT": 10000,
+    "MAX_RETRIES": 3
+  }
+}

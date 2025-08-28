@@ -29,7 +29,8 @@ import {
   Map,
   DollarSign,
   Video,
-  Code2
+  Code2,
+  Zap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -96,7 +97,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         subItems: [
           { icon: UsersIcon, label: 'Users', href: '/admin/users' },
           { icon: PanelLeft, label: 'Pipeline Settings', href: '/admin/pipeline-settings' },
-          { icon: Shield, label: 'Audit Logs', href: '/admin/audit-logs' }
+          { icon: Shield, label: 'Audit Logs', href: '/admin/audit-logs' },
+          { icon: Zap, label: 'Smart Tasks', href: '/admin/smart-tasks' }
         ]
       }
     ] : []),

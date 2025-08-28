@@ -31,6 +31,7 @@ const Profile = lazy(() => import('@/pages/Profile'));
 const Users = lazy(() => import('@/pages/admin/Users'));
 const PipelineSettings = lazy(() => import('@/pages/admin/PipelineSettings'));
 const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
+const SmartTasksAdmin = lazy(() => import('@/pages/SmartTasksAdmin'));
 
 // Auth routes - lazy load except login
 const Signup = lazy(() => import('@/pages/auth/signup'));
@@ -195,6 +196,7 @@ function App() {
                 <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
                 <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
                 <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
+                <Route path="/admin/smart-tasks" element={<AppLayout><SmartTasksAdmin /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
               </Routes>
             </Suspense>

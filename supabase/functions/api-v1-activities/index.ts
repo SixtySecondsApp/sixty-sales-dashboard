@@ -420,6 +420,7 @@ async function handleCreateActivity(client: any, body: any, userId: string) {
     const activityData = {
       ...body,
       user_id: userId,
+      owner_id: userId,
       status: body.status || 'completed' // Default to completed
     }
 

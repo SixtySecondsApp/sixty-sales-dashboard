@@ -347,7 +347,8 @@ async function handleCreateMeeting(client: any, body: any, userId: string) {
       owner_email: body.owner_email,
       team_name: body.team_name,
       summary: body.summary,
-      owner_user_id: userId
+      owner_user_id: userId,
+      created_by: userId
     }
 
     const { data: meeting, error } = await client
