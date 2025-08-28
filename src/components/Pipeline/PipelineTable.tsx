@@ -321,7 +321,7 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-gray-800 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-none">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-800 bg-gray-900/50">

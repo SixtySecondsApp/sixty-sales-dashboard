@@ -442,7 +442,7 @@ export function PipelineHeader({
       </div>
 
       {/* Quick Filters Bar */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
+      <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2">
         {quickFilters.map((filter) => {
           const Icon = filter.icon;
           const isActive = filterOptions.quickFilter === filter.id || (filter.id === 'all' && !filterOptions.quickFilter);
@@ -671,7 +671,7 @@ export function PipelineHeader({
                       {/* Stages */}
                       <div>
                         <label className="text-sm font-medium text-white mb-2 block">Stages</label>
-                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                        <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-none">
                           {stages?.slice(0, 4).map((stage) => (
                             <label key={stage.id} className="flex items-center gap-2 text-xs cursor-pointer">
                               <input
@@ -812,7 +812,7 @@ export function PipelineHeader({
                     {/* Lead Source Channels */}
                     <div>
                       <label className="text-sm font-medium text-white mb-3 block">Lead Source Channel</label>
-                      <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                      <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto scrollbar-none">
                         {leadSourceChannels.map((channel) => (
                           <label key={channel} className="flex items-center gap-2 text-sm cursor-pointer">
                             <input

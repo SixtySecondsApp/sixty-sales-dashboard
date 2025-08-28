@@ -53,7 +53,7 @@ function Modal({ isOpen, onClose, children }: ModalProps) {
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto"
+        className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto scrollbar-none"
         onClick={e => e.stopPropagation()}
       >
         {children}
@@ -76,7 +76,7 @@ function PipelineSkeleton() {
           <div className="h-10 bg-gray-800 rounded-lg w-64" />
         </div>
       </div>
-      <div className="flex gap-4 overflow-x-auto pb-6">
+      <div className="flex gap-4 overflow-x-auto scrollbar-none pb-6">
         {[1, 2, 3, 4, 5].map(i => (
           <div
             key={i}

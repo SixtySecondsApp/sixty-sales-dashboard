@@ -7,22 +7,35 @@ This document details the workflow enhancements implemented to improve the sales
 
 ### New Sales Pipeline Flow
 ```
-SQL → Opportunity → Negotiation → Signed → Delivered
+SQL → Opportunity → Verbal → Signed
 ```
+
+### Simplified Pipeline Structure
+- **Removed Stages**: Lead, Meetings Scheduled, Negotiation, Delivered, Signed & Paid
+- **Final 4 Stages**: Streamlined pipeline for clearer progression tracking
+
+### Stage Definitions
+1. **SQL (Sales Qualified Lead)**: Initial qualified prospect, validated interest
+2. **Opportunity**: Formal proposal has been sent to the client
+3. **Verbal**: Verbal agreement reached with the client
+4. **Signed**: Deal closed, contract signed
 
 ### Key Changes
 - **SQL as Starting Point**: SQL (Sales Qualified Lead) is now the initial stage for all deals
 - **Opportunity = Proposal**: The Opportunity stage now specifically means a formal proposal has been sent
+- **Verbal Before Signed**: Verbal agreement stage moved before final signing
 - **Proposal Confirmation Modal**: When dragging a deal to Opportunity, users are prompted:
   - "Have you sent a proposal?"
-  - If YES: Creates proposal activity and logs it
-  - If NO: Deal moves to Opportunity for proposal preparation
+  - If YES: Creates proposal activity and logs it with follow-up task
+  - If NO: Deal moves to Opportunity for proposal preparation (no activity created)
 
 ### Database Migration
 ```sql
--- New SQL stage with proper ordering
-INSERT INTO deal_stages (name, description, color, order_position, default_probability)
-VALUES ('SQL', 'Sales Qualified Lead - validated interest', '#10B981', 3, 40);
+-- Simplified stages with proper ordering and colors
+SQL:         order_position: 1, color: '#10B981' (green),  probability: 25%
+Opportunity: order_position: 2, color: '#8B5CF6' (purple), probability: 60%
+Verbal:      order_position: 3, color: '#F59E0B' (orange), probability: 80%
+Signed:      order_position: 4, color: '#10B981' (green),  probability: 100%
 ```
 
 ## 2. Smart Tasks System
@@ -44,7 +57,6 @@ Automated follow-up task generation based on activity triggers to ensure consist
 | Outbound | Follow up on outreach | 5 | Medium |
 | Demo | Demo follow-up | 1 | High |
 | Signed | Begin onboarding | 0 | Urgent |
-| Negotiation | Check negotiation progress | 2 | High |
 
 ### Admin Management
 - **Location**: `/admin/smart-tasks`
@@ -130,7 +142,39 @@ CREATE TABLE smart_task_templates (
 - **Input Modes**: Appropriate keyboards for different input types
 - **Progressive Enhancement**: Desktop features gracefully degrade
 
-## 5. Component Architecture
+## 5. Activity Creation Flow
+
+### Pipeline Stage Transitions
+When moving deals between stages, different activities are created automatically:
+
+1. **Moving to SQL**: Creates "meeting" activity
+2. **Moving to Opportunity**: 
+   - Shows proposal confirmation modal
+   - If user confirms proposal sent: Creates "proposal" activity
+   - If user says no proposal sent: No activity created
+3. **Moving to Verbal**: No activity created (stage transition only)
+4. **Moving to Signed**: Creates "sale" activity with deal value
+
+### Proposal Activity Flow
+```mermaid
+graph TD
+    A[Drag Deal to Opportunity] --> B{Proposal Modal Opens}
+    B --> C[User Clicks Yes]
+    B --> D[User Clicks No]
+    C --> E[Create Proposal Activity]
+    E --> F[Generate Smart Task]
+    F --> G[Deal Moved to Opportunity]
+    D --> H[No Activity Created]
+    H --> G
+```
+
+### Smart Task Generation
+When activities are created, smart tasks are automatically generated:
+- Proposal activity → "Follow up on proposal" task (3 days later)
+- Meeting activity → "Send meeting follow-up" task (1 day later)
+- Sale activity → "Begin onboarding" task (same day)
+
+## 6. Component Architecture
 
 ### New Components Created
 1. **ProposalConfirmationModal** (`/src/components/ProposalConfirmationModal.tsx`)
@@ -170,7 +214,7 @@ CREATE TABLE smart_task_templates (
 - Admin permission checks
 
 ### E2E Tests
-- Complete sales workflow from Lead to Signed
+- Complete sales workflow from SQL to Signed
 - Mobile QuickAdd interaction
 - Admin smart task management
 - Proposal confirmation flow
