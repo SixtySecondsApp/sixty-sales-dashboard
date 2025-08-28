@@ -72,35 +72,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
-    { icon: Video, label: 'Meetings', href: '/meetings' },
-    { 
-      icon: Building2, 
-      label: 'CRM', 
-      href: '/companies',
-      subItems: [
-        { icon: Building2, label: 'Companies', href: '/crm/companies' },
-        { icon: UsersIcon, label: 'Contacts', href: '/crm/contacts' }
-      ]
-    },
+    { icon: Building2, label: 'CRM', href: '/crm' },
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
-    { icon: Activity, label: 'Heatmap', href: '/heatmap' },
-    { icon: FileText, label: 'Activity Log', href: '/activity' },
-    { icon: MailWarning, label: 'Activity Processing', href: '/activity-processing' },
-    { icon: LineChart, label: 'Sales Funnel', href: '/funnel' },
-    { icon: Code2, label: 'API Testing', href: '/api-testing' },
+    { icon: FileText, label: 'Activity', href: '/activity' },
+    { icon: LineChart, label: 'Insights', href: '/insights' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
     ...(userData?.is_admin ? [
-      { 
-        icon: UserCog, 
-        label: 'Admin', 
-        href: '/admin/users',
-        subItems: [
-          { icon: UsersIcon, label: 'Users', href: '/admin/users' },
-          { icon: PanelLeft, label: 'Pipeline Settings', href: '/admin/pipeline-settings' },
-          { icon: Shield, label: 'Audit Logs', href: '/admin/audit-logs' },
-          { icon: Zap, label: 'Smart Tasks', href: '/admin/smart-tasks' }
-        ]
-      }
+      { icon: UserCog, label: 'Admin', href: '/admin' }
     ] : []),
   ];
 

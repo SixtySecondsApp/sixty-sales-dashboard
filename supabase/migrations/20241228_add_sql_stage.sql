@@ -26,7 +26,7 @@ BEGIN
 END $$;
 
 -- Update stages with simplified progression (SQL as starting point)
--- Use a different approach that doesn't require ON CONFLICT
+-- SQL → Opportunity → Verbal → Signed
 DO $$
 BEGIN
   -- Update or insert SQL stage
@@ -57,18 +57,18 @@ BEGIN
     VALUES ('Opportunity', 'Proposal sent - formal proposal submitted', '#8B5CF6', 2, 60);
   END IF;
 
-  -- Update or insert Negotiation stage
-  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Negotiation') THEN
+  -- Update or insert Verbal stage (moved before Signed)
+  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Verbal') THEN
     UPDATE deal_stages SET 
-      description = 'Terms being negotiated',
+      description = 'Verbal agreement reached',
       color = '#F59E0B',
       order_position = 3,
-      default_probability = 75,
+      default_probability = 80,
       updated_at = NOW()
-    WHERE name = 'Negotiation';
+    WHERE name = 'Verbal';
   ELSE
     INSERT INTO deal_stages (name, description, color, order_position, default_probability)
-    VALUES ('Negotiation', 'Terms being negotiated', '#F59E0B', 3, 75);
+    VALUES ('Verbal', 'Verbal agreement reached', '#F59E0B', 3, 80);
   END IF;
 
   -- Update or insert Signed stage
@@ -85,19 +85,20 @@ BEGIN
     VALUES ('Signed', 'Deal closed, contract signed', '#10B981', 4, 100);
   END IF;
 
-  -- Update or insert Delivered stage
-  IF EXISTS (SELECT 1 FROM deal_stages WHERE name = 'Delivered') THEN
-    UPDATE deal_stages SET 
-      description = 'Product/service delivered',
-      color = '#059669',
-      order_position = 5,
-      default_probability = 100,
-      updated_at = NOW()
-    WHERE name = 'Delivered';
-  ELSE
-    INSERT INTO deal_stages (name, description, color, order_position, default_probability)
-    VALUES ('Delivered', 'Product/service delivered', '#059669', 5, 100);
-  END IF;
+  -- Remove Negotiation and Delivered stages if they exist
+  -- First migrate any deals in these stages
+  UPDATE deals 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Verbal'),
+      stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Negotiation to Verbal'
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Negotiation');
+  
+  UPDATE deals 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed'),
+      stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Delivered to Signed'
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Delivered');
+  
+  -- Now delete the stages
+  DELETE FROM deal_stages WHERE name IN ('Negotiation', 'Delivered');
 END $$;
 
 -- Add a comment field to track this migration (if it doesn't exist)
@@ -113,7 +114,7 @@ WHERE stage_id IN (
 );
 
 -- Now remove the deprecated stages
-DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled');
+DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled', 'Negotiation', 'Delivered');
 
 UPDATE deals 
 SET stage_migration_notes = 'Pre-migration: Was in Opportunity stage before SQL stage was added'
@@ -193,9 +194,11 @@ VALUES
   ('meeting', 'Send meeting follow-up', 'Send thank you email and next steps from the meeting', 1, 'follow_up', 'medium'),
   ('outbound', 'Follow up on outreach', 'Check if prospect received initial outreach and gauge interest', 5, 'follow_up', 'medium'),
   ('demo', 'Demo follow-up', 'Send demo recording and schedule next steps discussion', 1, 'follow_up', 'high'),
-  ('signed', 'Begin onboarding', 'Initiate client onboarding process and send welcome materials', 0, 'onboarding', 'urgent'),
-  ('negotiation', 'Check negotiation progress', 'Follow up on outstanding negotiation points', 2, 'follow_up', 'high')
+  ('signed', 'Begin onboarding', 'Initiate client onboarding process and send welcome materials', 0, 'onboarding', 'urgent')
 ON CONFLICT (trigger_activity_type, task_title) DO NOTHING;
+
+-- Remove negotiation smart task template if it exists
+DELETE FROM smart_task_templates WHERE trigger_activity_type = 'negotiation';
 
 -- Create function to auto-generate tasks from templates
 CREATE OR REPLACE FUNCTION create_smart_tasks()

@@ -50,6 +50,9 @@ const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
 
 // CRM routes - heavy components, lazy load
+const CRM = lazy(() => import('@/pages/CRM'));
+const Admin = lazy(() => import('@/pages/Admin'));
+const Insights = lazy(() => import('@/pages/Insights'));
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
 const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
 const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
@@ -172,31 +175,40 @@ function App() {
                 <Route path="/auth/reset-password" element={<ResetPassword />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
-                <Route path="/heatmap" element={<AppLayout><Heatmap /></AppLayout>} />
-                <Route path="/funnel" element={<AppLayout><SalesFunnel /></AppLayout>} />
+                <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
+                <Route path="/crm" element={<AppLayout><CRM /></AppLayout>} />
+                <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
-                <Route path="/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
+                
+                {/* Legacy routes for backward compatibility */}
+                <Route path="/heatmap" element={<Navigate to="/insights" replace />} />
+                <Route path="/funnel" element={<Navigate to="/insights" replace />} />
+                <Route path="/activity-processing" element={<Navigate to="/activity" replace />} />
+                <Route path="/api-testing" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin/pipeline-settings" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin/smart-tasks" element={<Navigate to="/admin" replace />} />
+                <Route path="/companies" element={<Navigate to="/crm" replace />} />
+                <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
+                <Route path="/crm/contacts" element={<Navigate to="/crm" replace />} />
+                
+                {/* Individual record routes */}
                 <Route path="/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-                <Route path="/crm/companies" element={<AppLayout><CompaniesTable /></AppLayout>} />
                 <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-                <Route path="/crm/contacts" element={<AppLayout><ContactsTable /></AppLayout>} />
                 <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
                 <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
+                
+                {/* Other routes */}
                 <Route path="/payments" element={<Navigate to="/clients" replace />} />
                 <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-                <Route path="/activity-processing" element={<AppLayout><ActivityProcessingPage /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
-                <Route path="/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
-                <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
-                <Route path="/admin/pipeline-settings" element={<AppLayout><PipelineSettings /></AppLayout>} />
-                <Route path="/admin/audit-logs" element={<AppLayout><AuditLogs /></AppLayout>} />
-                <Route path="/admin/smart-tasks" element={<AppLayout><SmartTasksAdmin /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
               </Routes>
             </Suspense>

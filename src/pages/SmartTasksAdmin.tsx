@@ -18,7 +18,7 @@ import {
   Flag
 } from 'lucide-react';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
-import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 interface SmartTaskTemplate {
   id?: string;
