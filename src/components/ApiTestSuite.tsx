@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Play, 
@@ -9,7 +9,8 @@ import {
   FileText,
   Download,
   RotateCcw,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,8 +38,38 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
   const [results, setResults] = useState<TestResult[]>([]);
   const [progress, setProgress] = useState(0);
   const [createdIds, setCreatedIds] = useState<Record<string, string>>({});
+  const cleanupDataRef = useRef<Record<string, string>>({});
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup any remaining test data when component unmounts
+      const remainingData = cleanupDataRef.current;
+      if (Object.keys(remainingData).length > 0) {
+        console.log('🧹 Component unmounting - cleaning up remaining test data...', remainingData);
+        
+        // Perform cleanup without waiting (fire and forget)
+        Object.entries(remainingData).forEach(async ([entity, id]) => {
+          if (id && apiKey) {
+            try {
+              await fetch(`${SUPABASE_URL}/functions/v1/api-v1-${entity}/${id}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'X-API-Key': apiKey,
+                },
+              });
+              console.log(`🧹 Cleaned up ${entity}: ${id.substring(0, 8)}... on unmount`);
+            } catch (error) {
+              console.warn(`⚠️ Failed to cleanup ${entity} on unmount:`, error);
+            }
+          }
+        });
+      }
+    };
+  }, [apiKey, SUPABASE_URL]);
 
   // Test data generators
   const generateTestData = (entity: string) => {
@@ -160,6 +191,36 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
     }
   };
 
+  // Cleanup function to delete any remaining test data
+  const cleanupTestData = async (testIds: Record<string, string>) => {
+    const cleanupResults: string[] = [];
+    
+    for (const [entity, id] of Object.entries(testIds)) {
+      if (id) {
+        try {
+          const endpoint = `${SUPABASE_URL}/functions/v1/api-v1-${entity}/${id}`;
+          const response = await fetch(endpoint, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'X-API-Key': apiKey || '',
+            },
+          });
+
+          if (response.ok) {
+            cleanupResults.push(`✅ Cleaned up ${entity}: ${id.substring(0, 8)}...`);
+          } else {
+            cleanupResults.push(`⚠️ Failed to cleanup ${entity}: ${id.substring(0, 8)}...`);
+          }
+        } catch (error) {
+          cleanupResults.push(`❌ Error cleaning ${entity}: ${error}`);
+        }
+      }
+    }
+    
+    return cleanupResults;
+  };
+
   const runCompleteTestSuite = async () => {
     if (!apiKey) {
       toast.error('Please generate an API key first');
@@ -173,8 +234,8 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
 
     const totalTests = entities.length * 5; // list, create, get, update, delete
     let completedTests = 0;
-
     const allResults: TestResult[] = [];
+    const testDataToCleanup: Record<string, string> = {};
 
     for (const entity of entities) {
       // Test 1: List all records
@@ -195,6 +256,8 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
       if (createResult.status === 'success' && createResult.data?.data?.id) {
         const newId = createResult.data.data.id;
         setCreatedIds(prev => ({ ...prev, [entity]: newId }));
+        testDataToCleanup[entity] = newId; // Track for cleanup
+        cleanupDataRef.current[entity] = newId; // Also track in ref for unmount cleanup
         
         completedTests++;
         setProgress((completedTests / totalTests) * 100);
@@ -223,6 +286,12 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
         setResults([...allResults]);
         completedTests++;
         setProgress((completedTests / totalTests) * 100);
+        
+        // If delete was successful, remove from cleanup lists
+        if (deleteResult.status === 'success') {
+          delete testDataToCleanup[entity];
+          delete cleanupDataRef.current[entity];
+        }
       } else {
         // Skip remaining tests if create failed
         completedTests += 3;
@@ -240,15 +309,49 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
+    // Final cleanup: Delete any remaining test data
+    const remainingCleanup = Object.keys(testDataToCleanup);
+    if (remainingCleanup.length > 0) {
+      console.log('🧹 Performing final cleanup for remaining test data...', testDataToCleanup);
+      
+      // Add cleanup status to results
+      allResults.push({
+        entity: 'cleanup',
+        operation: 'cleanup',
+        status: 'running',
+        message: `Cleaning up ${remainingCleanup.length} remaining test records...`
+      });
+      setResults([...allResults]);
+      
+      const cleanupResults = await cleanupTestData(testDataToCleanup);
+      
+      // Update cleanup result
+      allResults[allResults.length - 1] = {
+        entity: 'cleanup',
+        operation: 'cleanup',
+        status: 'success',
+        message: `Cleanup completed: ${cleanupResults.join(', ')}`,
+        data: { cleanupResults }
+      };
+      setResults([...allResults]);
+      
+      if (cleanupResults.length > 0) {
+        toast.info(`🧹 Cleaned up ${cleanupResults.filter(r => r.includes('✅')).length} test records`);
+      }
+      
+      // Clear the cleanup ref since we've finished cleanup
+      cleanupDataRef.current = {};
+    }
+
     setIsRunning(false);
     
     const successCount = allResults.filter(r => r.status === 'success').length;
     const failedCount = allResults.filter(r => r.status === 'failed').length;
     
     if (failedCount === 0) {
-      toast.success(`All ${totalTests} tests passed successfully!`);
+      toast.success(`All ${totalTests} tests passed successfully! ${remainingCleanup.length > 0 ? '(Test data cleaned up)' : ''}`);
     } else {
-      toast.warning(`${successCount} tests passed, ${failedCount} tests failed`);
+      toast.warning(`${successCount} tests passed, ${failedCount} tests failed ${remainingCleanup.length > 0 ? '(Test data cleaned up)' : ''}`);
     }
   };
 
@@ -278,6 +381,32 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
     setResults([]);
     setProgress(0);
     setCreatedIds({});
+    cleanupDataRef.current = {}; // Also clear cleanup data
+  };
+
+  const manualCleanup = async () => {
+    const currentCleanupData = { ...cleanupDataRef.current };
+    if (Object.keys(currentCleanupData).length === 0) {
+      toast.info('No test data to clean up');
+      return;
+    }
+
+    try {
+      const cleanupResults = await cleanupTestData(currentCleanupData);
+      cleanupDataRef.current = {}; // Clear after cleanup
+      
+      const successCount = cleanupResults.filter(r => r.includes('✅')).length;
+      if (successCount > 0) {
+        toast.success(`🧹 Manually cleaned up ${successCount} test records`);
+      } else {
+        toast.warning('⚠️ Some cleanup operations may have failed');
+      }
+      
+      console.log('Manual cleanup results:', cleanupResults);
+    } catch (error) {
+      toast.error('Failed to perform manual cleanup');
+      console.error('Manual cleanup error:', error);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -304,6 +433,8 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
         return 'bg-amber-500/20 text-amber-400';
       case 'delete':
         return 'bg-red-500/20 text-red-400';
+      case 'cleanup':
+        return 'bg-purple-500/20 text-purple-400';
       default:
         return 'bg-gray-500/20 text-gray-400';
     }
@@ -372,6 +503,19 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
           >
             <Download className="h-4 w-4 mr-2" />
             Download Report
+          </Button>
+        )}
+
+        {Object.keys(cleanupDataRef.current).length > 0 && (
+          <Button
+            variant="outline"
+            onClick={manualCleanup}
+            disabled={isRunning}
+            className="bg-red-800/50 hover:bg-red-700/50 border-red-700/50 text-red-300 hover:text-red-200"
+            title={`Clean up ${Object.keys(cleanupDataRef.current).length} test records`}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Cleanup ({Object.keys(cleanupDataRef.current).length})
           </Button>
         )}
       </div>
