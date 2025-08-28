@@ -27,10 +27,13 @@ Current version: `v1`
 ### Available Resources
 - **Contacts** - Manage individual contacts and their information
 - **Companies** - Manage company records and relationships
-- **Deals** - Handle sales opportunities and pipeline management
-- **Tasks** - Track activities and to-do items
-- **Meetings** - Meeting management and recordings
-- **Activities** - Log sales activities and interactions
+- **Deals** - Handle sales opportunities and pipeline management with 4-stage progression
+- **Tasks** - Track activities and to-do items with smart task generation
+- **Meetings** - Meeting management and recordings with Fathom integration
+- **Activities** - Log sales activities and interactions with pipeline integration
+- **Smart Task Templates** - Admin-managed templates for automated task generation (Admin-only)
+- **Deal Stages** - Enhanced 4-stage pipeline: SQL → Opportunity → Verbal → Signed
+- **API Keys** - Secure authentication with granular permissions
 
 ### Content Type
 All API requests should use `application/json` content type.
@@ -64,7 +67,17 @@ API keys support granular permissions:
 - **read** - Read access to resources
 - **write** - Create and update resources  
 - **delete** - Delete resources
-- **admin** - Administrative access to all data
+- **admin** - Administrative access to all data including smart task templates
+
+#### Resource-Specific Permissions
+
+- **contacts:read/write/delete** - Contact management permissions
+- **companies:read/write/delete** - Company management permissions
+- **deals:read/write/delete** - Deal and pipeline management permissions
+- **tasks:read/write/delete** - Task management permissions
+- **activities:read/write/delete** - Activity logging permissions
+- **meetings:read/write/delete** - Meeting management permissions
+- **smart_templates:read/write/delete** - Smart task template management (Admin-only)
 
 ### Security Notes
 
@@ -443,13 +456,16 @@ GET /api-v1-deals
       "title": "Acme Corp - Software License",
       "description": "Annual software license renewal",
       "value": 50000,
-      "stage": "proposal",
+      "stage": "opportunity",
       "priority": "high",
       "expected_close_date": "2025-02-15",
       "probability": 75,
       "deal_size": "large",
       "lead_source": "website",
       "next_steps": "Follow up on technical requirements",
+      "stage_id": "456e7890-e12f-34g5-h678-901234567890",
+      "stage_name": "Opportunity",
+      "stage_color": "#8B5CF6",
       "company_id": "456e7890-e12f-34g5-h678-901234567890",
       "primary_contact_id": "123e4567-e89b-12d3-a456-426614174000",
       "owner_id": "789e0123-e45g-67h8-i901-234567890123",
@@ -481,7 +497,7 @@ POST /api-v1-deals
   "title": "Acme Corp - Software License",
   "description": "Annual software license renewal",
   "value": 50000,
-  "stage": "opportunity",
+  "stage": "sql",
   "priority": "high",
   "expected_close_date": "2025-02-15",
   "probability": 75,
@@ -678,6 +694,8 @@ GET /api-v1-activities
 - `date_to` - Activities before date
 - `deal_id` - Filter by related deal
 - `contact_id` - Filter by related contact
+- `outcome` - Filter by activity outcome (positive, negative, neutral)
+- `owner_id` - Filter by activity owner
 
 **Response:**
 ```json
@@ -695,6 +713,8 @@ GET /api-v1-activities
       "contact_id": "123e4567-e89b-12d3-a456-426614174000",
       "company_id": "456e7890-e12f-34g5-h678-901234567890",
       "owner_id": "789e0123-e45g-67h8-i901-234567890123",
+      "smart_tasks_generated": true,
+      "pipeline_stage_triggered": "opportunity",
       "created_at": "2025-01-15T14:00:00Z",
       "updated_at": "2025-01-15T14:00:00Z"
     }
@@ -737,6 +757,19 @@ POST /api-v1-activities
 - `description`
 - `date`
 
+**Enhanced Activity Types:**
+- `call` - Phone calls and meetings
+- `email` - Email communications
+- `meeting` - In-person or virtual meetings
+- `proposal` - Proposals sent (triggers Opportunity stage with confirmation modal)
+- `demo` - Product demonstrations
+- `outbound` - Outbound sales activities
+- `signed` - Deal signing activities (triggers smart task generation)
+- `follow_up` - Follow-up activities
+
+**Smart Task Integration:**
+Activities with `deal_id` automatically trigger smart task creation based on active templates. Tasks are generated asynchronously based on the activity type.
+
 #### Update Activity
 ```http
 PUT /api-v1-activities/{id}
@@ -746,6 +779,170 @@ PUT /api-v1-activities/{id}
 ```http
 DELETE /api-v1-activities/{id}
 ```
+
+### Smart Task Templates
+
+Admin-only endpoints for managing automated task generation templates.
+
+#### List Smart Task Templates
+```http
+GET /api/smart-task-templates
+```
+
+**Required Permission:** `admin` or `smart_templates:read`
+
+**Query Parameters:**
+- Standard pagination parameters
+- `trigger_activity_type` - Filter by activity type trigger
+- `is_active` - Filter by active status (true/false)
+- `task_type` - Filter by task type (follow_up, onboarding, etc.)
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "trigger_activity_type": "proposal",
+      "task_title": "Follow up on proposal",
+      "task_description": "Check if the client has reviewed the proposal and answer any questions",
+      "days_after_trigger": 3,
+      "task_type": "follow_up",
+      "priority": "high",
+      "is_active": true,
+      "created_by": "789e0123-e45g-67h8-i901-234567890123",
+      "created_at": "2025-01-01T10:00:00Z",
+      "updated_at": "2025-01-01T10:00:00Z"
+    }
+  ],
+  "error": null,
+  "count": 1,
+  "pagination": { ... }
+}
+```
+
+#### Get Active Smart Task Templates
+```http
+GET /api/smart-task-templates/active
+```
+
+**Required Permission:** Any authenticated user
+
+**Response:** Returns only active templates used for task generation.
+
+#### Create Smart Task Template
+```http
+POST /api/smart-task-templates
+```
+
+**Required Permission:** `admin` or `smart_templates:write`
+
+**Request Body:**
+```json
+{
+  "trigger_activity_type": "proposal",
+  "task_title": "Follow up on proposal",
+  "task_description": "Check if the client has reviewed the proposal",
+  "days_after_trigger": 3,
+  "task_type": "follow_up",
+  "priority": "high",
+  "is_active": true
+}
+```
+
+**Required Fields:**
+- `trigger_activity_type`
+- `task_title`
+- `days_after_trigger`
+- `task_type`
+
+**Activity Type Triggers:**
+- `proposal` - When proposals are sent
+- `meeting` - After meetings are completed
+- `outbound` - After outbound activities
+- `demo` - After product demonstrations
+- `signed` - When deals are signed (onboarding)
+- `call` - After phone calls
+- `email` - After email activities
+- `follow_up` - After follow-up activities
+
+**Task Types:**
+- `follow_up` - Standard follow-up tasks
+- `onboarding` - Client onboarding tasks
+- `nurture` - Lead nurturing tasks
+- `admin` - Administrative tasks
+
+**Priority Levels:**
+- `low` - Low priority
+- `medium` - Medium priority (default)
+- `high` - High priority
+- `urgent` - Urgent priority
+
+#### Update Smart Task Template
+```http
+PUT /api/smart-task-templates/{id}
+```
+
+**Required Permission:** `admin` or `smart_templates:write`
+
+**Request Body:** Same as create, all fields optional except validation requirements.
+
+#### Delete Smart Task Template
+```http
+DELETE /api/smart-task-templates/{id}
+```
+
+**Required Permission:** `admin` or `smart_templates:delete`
+
+### Enhanced Pipeline Stages
+
+The system now uses a streamlined 4-stage pipeline progression.
+
+#### Current Pipeline Stages
+
+1. **SQL (Sales Qualified Lead)**
+   - Color: `#10B981` (Green)
+   - Default Probability: 25%
+   - Description: "Sales Qualified Lead - initial qualified prospect"
+   - Triggers: Meeting activity creation
+
+2. **Opportunity (Proposal)**
+   - Color: `#8B5CF6` (Purple)
+   - Default Probability: 60%
+   - Description: "Proposal sent - formal proposal submitted"
+   - Triggers: Proposal confirmation modal
+   - Special Behavior: Requires user confirmation before creating proposal activity
+
+3. **Verbal**
+   - Color: `#F59E0B` (Amber)
+   - Default Probability: 80%
+   - Description: "Verbal agreement reached"
+   - Triggers: No automatic activity creation
+
+4. **Signed**
+   - Color: `#10B981` (Green)
+   - Default Probability: 100%
+   - Description: "Deal closed, contract signed"
+   - Triggers: Sale activity and onboarding task generation
+
+#### Stage Transition Rules
+
+**Automatic Activity Creation:**
+- Moving to **SQL**: Creates "meeting" activity
+- Moving to **Opportunity**: Triggers proposal confirmation modal
+- Moving to **Signed**: Creates "sale" activity
+- **Verbal** and **Lost**: No automatic activities
+
+**Permission Validation:**
+- Only deal owners can trigger stage transitions
+- Admin users can override stage restrictions
+- Stage transitions are logged for audit purposes
+
+**Smart Task Generation:**
+- Triggered by activity creation, not stage transitions
+- Based on activity type, not target stage
+- Uses active smart task templates
+- Automatic task assignment to deal owner
 
 ## Code Examples
 
@@ -975,6 +1172,11 @@ The dashboard includes a built-in API testing interface accessible at `/api-test
 | `INVALID_ID_FORMAT` | UUID format is invalid | Ensure ID is a valid UUID |
 | `RESOURCE_NOT_FOUND` | Requested resource not found | Verify the resource ID exists |
 | `METHOD_NOT_ALLOWED` | HTTP method not supported | Use the correct HTTP method |
+| `ADMIN_REQUIRED` | Admin privileges required | Request admin access for your API key |
+| `DEAL_OWNER_REQUIRED` | Must be deal owner | Only deal owners can modify their deals |
+| `TEMPLATE_CONFLICT` | Smart task template conflict | Template with same trigger and title exists |
+| `STAGE_TRANSITION_ERROR` | Invalid stage transition | Check pipeline stage progression rules |
+| `SMART_TASK_GENERATION_FAILED` | Task generation failed | Review template configuration and try again |
 
 ### Common Error Scenarios
 
@@ -1006,6 +1208,48 @@ The dashboard includes a built-in API testing interface accessible at `/api-test
   "data": null,
   "error": "Contact not found",
   "code": "CONTACT_NOT_FOUND"
+}
+```
+
+#### Pipeline Stage Transition Error
+```json
+{
+  "data": null,
+  "error": "Invalid stage transition from SQL to Signed",
+  "code": "STAGE_TRANSITION_ERROR",
+  "details": {
+    "current_stage": "SQL",
+    "target_stage": "Signed",
+    "valid_transitions": ["Opportunity"]
+  }
+}
+```
+
+#### Admin Permission Required
+```json
+{
+  "data": null,
+  "error": "Admin privileges required for smart task template management",
+  "code": "ADMIN_REQUIRED",
+  "details": {
+    "required_permission": "smart_templates:write",
+    "user_permissions": ["contacts:read", "deals:write"]
+  }
+}
+```
+
+#### Smart Task Generation Error
+```json
+{
+  "data": null,
+  "error": "Failed to generate smart tasks from activity",
+  "code": "SMART_TASK_GENERATION_FAILED",
+  "details": {
+    "activity_id": "123e4567-e89b-12d3-a456-426614174000",
+    "activity_type": "proposal",
+    "templates_matched": 2,
+    "tasks_created": 0
+  }
 }
 ```
 
@@ -1221,6 +1465,230 @@ async function bulkCreateContacts(contacts: ContactData[]) {
 }
 ```
 
+### Pipeline Integration Examples
+
+#### Moving Deal Through Pipeline with Activity Creation
+```javascript
+// 1. Move deal from SQL to Opportunity with proposal confirmation
+async function moveToOpportunity(dealId, confirmProposal = false) {
+  // First, get the current deal and stage information
+  const deal = await client.getDeal(dealId)
+  const opportunityStage = await getStageByName('Opportunity')
+  
+  // Update deal stage
+  const updatedDeal = await client.updateDeal(dealId, {
+    stage_id: opportunityStage.id,
+    probability: 60 // Default for Opportunity stage
+  })
+  
+  // Create proposal activity if confirmed (triggers smart tasks)
+  if (confirmProposal) {
+    const proposalActivity = await client.createActivity({
+      activity_type: 'proposal',
+      description: `Proposal sent for ${deal.data.title}`,
+      date: new Date().toISOString(),
+      deal_id: dealId,
+      outcome: 'positive',
+      notes: 'Formal proposal submitted following discovery meeting'
+    })
+    
+    console.log('Proposal activity created, smart tasks will be generated automatically')
+  }
+  
+  return updatedDeal
+}
+
+// 2. Complete deal signing with automatic onboarding
+async function signDeal(dealId, contractValue) {
+  const signedStage = await getStageByName('Signed')
+  
+  // Update deal to signed stage
+  const deal = await client.updateDeal(dealId, {
+    stage_id: signedStage.id,
+    probability: 100,
+    value: contractValue
+  })
+  
+  // Create sale activity (triggers onboarding tasks)
+  const saleActivity = await client.createActivity({
+    activity_type: 'signed',
+    description: `${deal.data.title} - Deal Closed Won`,
+    date: new Date().toISOString(),
+    deal_id: dealId,
+    amount: contractValue,
+    outcome: 'positive',
+    notes: 'Contract signed, proceeding with onboarding'
+  })
+  
+  console.log('Sale activity created, onboarding tasks generated automatically')
+  return { deal, activity: saleActivity }
+}
+```
+
+#### Smart Task Template Management
+```javascript
+// Admin function to set up smart task templates
+async function setupSmartTaskTemplates() {
+  const templates = [
+    {
+      trigger_activity_type: 'proposal',
+      task_title: 'Follow up on proposal',
+      task_description: 'Check if client has reviewed proposal and schedule follow-up call',
+      days_after_trigger: 3,
+      task_type: 'follow_up',
+      priority: 'high'
+    },
+    {
+      trigger_activity_type: 'demo', 
+      task_title: 'Send demo recording',
+      task_description: 'Send demo recording and additional resources',
+      days_after_trigger: 1,
+      task_type: 'follow_up',
+      priority: 'medium'
+    },
+    {
+      trigger_activity_type: 'signed',
+      task_title: 'Begin client onboarding',
+      task_description: 'Initiate onboarding process and send welcome materials',
+      days_after_trigger: 0,
+      task_type: 'onboarding',
+      priority: 'urgent'
+    }
+  ]
+  
+  const results = []
+  for (const template of templates) {
+    try {
+      const result = await client.createSmartTaskTemplate(template)
+      results.push(result)
+    } catch (error) {
+      console.error(`Failed to create template for ${template.trigger_activity_type}:`, error)
+    }
+  }
+  
+  return results
+}
+
+// Get templates for activity type
+async function getTemplatesForActivity(activityType) {
+  return await client.getSmartTaskTemplates({
+    trigger_activity_type: activityType,
+    is_active: true
+  })
+}
+```
+
+### Business Logic Implementation
+
+#### Pipeline Progression Rules
+```javascript
+class PipelineManager {
+  static VALID_TRANSITIONS = {
+    'SQL': ['Opportunity', 'Lost'],
+    'Opportunity': ['Verbal', 'Lost'], 
+    'Verbal': ['Signed', 'Lost'],
+    'Signed': [] // Terminal state
+  }
+  
+  static validateTransition(currentStage, targetStage) {
+    const validTargets = this.VALID_TRANSITIONS[currentStage] || []
+    return validTargets.includes(targetStage)
+  }
+  
+  static async moveStage(dealId, targetStageName, options = {}) {
+    // Get current deal
+    const deal = await client.getDeal(dealId)
+    const currentStage = deal.data.stage_name
+    
+    // Validate transition
+    if (!this.validateTransition(currentStage, targetStageName)) {
+      throw new Error(`Invalid transition from ${currentStage} to ${targetStageName}`)
+    }
+    
+    // Handle special cases
+    if (targetStageName === 'Opportunity' && !options.proposalConfirmed) {
+      // Trigger proposal confirmation modal in UI
+      return { requiresProposalConfirmation: true }
+    }
+    
+    // Get target stage
+    const targetStage = await this.getStageByName(targetStageName)
+    
+    // Update deal
+    const updatedDeal = await client.updateDeal(dealId, {
+      stage_id: targetStage.id,
+      probability: targetStage.default_probability
+    })
+    
+    // Create appropriate activity
+    await this.createStageActivity(deal.data, targetStage)
+    
+    return updatedDeal
+  }
+  
+  static async createStageActivity(deal, stage) {
+    const activityMap = {
+      'SQL': { type: 'meeting', description: 'Initial meeting scheduled' },
+      'Signed': { type: 'signed', description: 'Deal closed and contract signed' }
+    }
+    
+    const activity = activityMap[stage.name]
+    if (activity) {
+      return await client.createActivity({
+        activity_type: activity.type,
+        description: activity.description,
+        date: new Date().toISOString(),
+        deal_id: deal.id,
+        outcome: 'positive'
+      })
+    }
+  }
+}
+```
+
+#### Task Generation Workflow
+```javascript
+// Simulate the backend smart task generation
+class SmartTaskGenerator {
+  static async generateTasksForActivity(activity) {
+    // Get active templates for this activity type
+    const templates = await client.getSmartTaskTemplates({
+      trigger_activity_type: activity.activity_type,
+      is_active: true
+    })
+    
+    const generatedTasks = []
+    
+    for (const template of templates.data) {
+      // Calculate due date
+      const dueDate = new Date(activity.date)
+      dueDate.setDate(dueDate.getDate() + template.days_after_trigger)
+      
+      // Create task
+      const taskData = {
+        title: template.task_title,
+        description: `${template.task_description}\n\nAuto-generated from ${activity.activity_type} activity on ${new Date(activity.date).toDateString()}`,
+        due_date: dueDate.toISOString(),
+        task_type: template.task_type,
+        priority: template.priority,
+        deal_id: activity.deal_id,
+        assignee_id: activity.owner_id,
+        status: 'pending'
+      }
+      
+      try {
+        const task = await client.createTask(taskData)
+        generatedTasks.push(task)
+      } catch (error) {
+        console.error(`Failed to create task from template ${template.id}:`, error)
+      }
+    }
+    
+    return generatedTasks
+  }
+}
+```
+
 ### Error Handling Best Practices
 
 #### Comprehensive Error Handling
@@ -1302,6 +1770,87 @@ function validateContactData(contact: any): string[] {
 }
 ```
 
+### Troubleshooting Common Issues
+
+#### React Error #31 Resolution
+If you encounter React Error #31 in API responses, this indicates an invalid hook usage pattern. The API has been updated to handle this by:
+
+```javascript
+// Correct: Use API calls outside of render cycles
+async function handleCreateActivity() {
+  try {
+    const activity = await client.createActivity(activityData)
+    // Handle success
+  } catch (error) {
+    // Handle error without triggering React Error #31
+  }
+}
+
+// Incorrect: Calling APIs during render
+function ActivityComponent({ dealId }) {
+  // This can cause React Error #31
+  const activity = client.createActivity({ deal_id: dealId })
+  return <div>Activity</div>
+}
+```
+
+#### Smart Task Generation Debugging
+```javascript
+// Debug why tasks aren't being generated
+async function debugTaskGeneration(activityId) {
+  const activity = await client.getActivity(activityId)
+  console.log('Activity details:', activity.data)
+  
+  // Check for matching templates
+  const templates = await client.getSmartTaskTemplates({
+    trigger_activity_type: activity.data.activity_type,
+    is_active: true
+  })
+  
+  console.log(`Found ${templates.data.length} matching templates`)
+  
+  // Check if deal_id is present (required for task generation)
+  if (!activity.data.deal_id) {
+    console.warn('No deal_id found - tasks only generated for deal-related activities')
+  }
+  
+  // Check existing tasks for this deal and activity type
+  const existingTasks = await client.getTasks({
+    deal_id: activity.data.deal_id,
+    search: templates.data.map(t => t.task_title).join(' OR ')
+  })
+  
+  console.log(`Found ${existingTasks.data.length} existing similar tasks`)
+}
+```
+
+#### Pipeline Stage Transition Issues
+```javascript
+// Troubleshoot stage transition failures
+async function troubleshootStageTransition(dealId, targetStage) {
+  const deal = await client.getDeal(dealId)
+  const currentStage = deal.data.stage_name
+  
+  console.log(`Current stage: ${currentStage}, Target: ${targetStage}`)
+  
+  // Check valid transitions
+  const validTransitions = PipelineManager.VALID_TRANSITIONS[currentStage] || []
+  if (!validTransitions.includes(targetStage)) {
+    console.error(`Invalid transition. Valid targets: ${validTransitions.join(', ')}`)
+    return false
+  }
+  
+  // Check ownership
+  const { data: { user } } = await supabase.auth.getUser()
+  if (deal.data.owner_id !== user.id) {
+    console.error('Only deal owners can change stage transitions')
+    return false
+  }
+  
+  return true
+}
+```
+
 ### Security Considerations
 
 1. **API Key Management**
@@ -1322,15 +1871,93 @@ function validateContactData(contact: any): string[] {
    - Handle rate limit errors gracefully
    - Use exponential backoff for retries
 
+4. **Row Level Security (RLS)**
+   - All API endpoints respect Supabase RLS policies
+   - Users can only access their own data unless admin
+   - Deal ownership is strictly enforced for modifications
+   - Smart task templates require admin privileges
+
+5. **Activity and Task Security**
+   - Only deal owners can create activities for their deals
+   - Smart task generation respects ownership boundaries
+   - Admin users can override security restrictions for support
+   - All security events are logged for audit purposes
+
+---
+
+## Integration Patterns
+
+### QuickAdd Integration
+The QuickAdd component integrates seamlessly with the API for rapid data entry:
+
+```javascript
+// Example: Creating proposal with automatic task generation
+const quickAddProposal = async (proposalData) => {
+  // 1. Create or get deal
+  const deal = await client.createDeal({
+    title: proposalData.dealTitle,
+    value: proposalData.amount,
+    stage: 'sql',
+    company_id: proposalData.companyId
+  })
+  
+  // 2. Move to opportunity stage (triggers modal)
+  await PipelineManager.moveStage(deal.data.id, 'Opportunity', {
+    proposalConfirmed: true
+  })
+  
+  // 3. Create proposal activity (triggers smart tasks)
+  const activity = await client.createActivity({
+    activity_type: 'proposal',
+    description: proposalData.description,
+    date: new Date().toISOString(),
+    deal_id: deal.data.id,
+    amount: proposalData.amount
+  })
+  
+  return { deal, activity }
+}
+```
+
+### Webhook Integration
+Integrate with external systems using webhook patterns:
+
+```javascript
+// Example: External CRM sync
+const syncWithExternalCRM = async (dealId) => {
+  const deal = await client.getDeal(dealId)
+  const activities = await client.getActivities({ deal_id: dealId })
+  const tasks = await client.getTasks({ deal_id: dealId })
+  
+  // Send to external system
+  await externalCRM.sync({
+    deal: deal.data,
+    activities: activities.data,
+    tasks: tasks.data
+  })
+}
+```
+
 ---
 
 ## Support
 
 For API support and questions:
-- Review this documentation
-- Use the built-in API testing interface
-- Check the error reference for common issues
+- Review this documentation for comprehensive guides
+- Use the built-in API testing interface at `/api-testing`
+- Check the error reference for common issues and solutions
+- Review troubleshooting section for pipeline and smart task issues
 - Contact support for complex integration questions
+
+### Recent Updates
+- **Enhanced 4-Stage Pipeline**: SQL → Opportunity → Verbal → Signed
+- **Smart Task Templates**: Admin-managed automated task generation
+- **Proposal Confirmation System**: User confirmation for Opportunity stage moves
+- **Improved Error Handling**: Better error messages and recovery patterns
+- **Pipeline Activity Integration**: Automatic activity creation for stage transitions
+- **Enhanced Security**: Improved RLS policies and admin permission validation
 
 **API Version:** v1  
 **Last Updated:** January 2025
+**Pipeline Version:** 4-Stage (SQL-Opportunity-Verbal-Signed)
+**Smart Tasks:** Enabled with Template System
