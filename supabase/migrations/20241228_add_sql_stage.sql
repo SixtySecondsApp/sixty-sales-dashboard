@@ -105,7 +105,23 @@ BEGIN
       stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Signed & Paid to Signed'
   WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed & Paid');
   
-  -- Now delete the deprecated stages
+  -- Update deal_stage_history to point to new stages before deleting old ones
+  -- Migrate Negotiation history to Verbal
+  UPDATE deal_stage_history 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Verbal')
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Negotiation');
+  
+  -- Migrate Delivered history to Signed
+  UPDATE deal_stage_history 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed')
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Delivered');
+  
+  -- Migrate "Signed & Paid" history to Signed
+  UPDATE deal_stage_history 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed')
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed & Paid');
+  
+  -- Now delete the deprecated stages (safe after updating references)
   DELETE FROM deal_stages WHERE name IN ('Negotiation', 'Delivered', 'Signed & Paid');
 END $$;
 
@@ -121,7 +137,14 @@ WHERE stage_id IN (
   SELECT id FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled')
 );
 
--- Now remove all the deprecated stages
+-- Update deal_stage_history for Lead and Meetings Scheduled stages
+UPDATE deal_stage_history 
+SET stage_id = (SELECT id FROM deal_stages WHERE name = 'SQL')
+WHERE stage_id IN (
+  SELECT id FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled')
+);
+
+-- Now remove all the deprecated stages (safe after updating all references)
 DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled', 'Negotiation', 'Delivered', 'Signed & Paid');
 
 UPDATE deals 
