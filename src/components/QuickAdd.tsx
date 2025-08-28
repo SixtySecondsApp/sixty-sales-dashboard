@@ -331,7 +331,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       }
       // Set company info from contact if not already set
       if (!formData.client_name && selectedContact.company) {
-        formData.client_name = selectedContact.company;
+        formData.client_name = typeof selectedContact.company === 'string' 
+          ? selectedContact.company 
+          : (selectedContact.company as any)?.name || '';
       }
       
       // Debug logging to verify data
@@ -1174,7 +1176,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                                 selectedContact.email)}
                             </span>
                             {selectedContact.company && (
-                              <span className="text-sm text-gray-500">• {selectedContact.company}</span>
+                              <span className="text-sm text-gray-500">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
                             )}
                             <button
                               type="button"

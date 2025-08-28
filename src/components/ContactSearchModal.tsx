@@ -350,7 +350,7 @@ export function ContactSearchModal({
           company_website: newContactForm.company_website,
           company_name: company?.name,
           company_id: company?.id,
-          company: company, // Full company object for relationships
+          company: company?.name || '', // Pass just the company name string, not the object to avoid React render errors
           _form_website: newContactForm.company_website // Temporary field for passing website info
         };
         handleContactSelect(enrichedContact);
