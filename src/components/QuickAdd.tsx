@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, X, Phone, FileText, Users, PoundSterling, CheckSquare, Calendar, Clock, Target, Flag, Zap, Timer, Coffee, ArrowRight, Mail, Building2, UserPlus, Search, Briefcase } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { Plus, X, Phone, FileText, Users, PoundSterling, CheckSquare, Calendar, Clock, Target, Flag, Zap, Timer, Coffee, ArrowRight, Mail, Building2, UserPlus, Search, Briefcase, Loader2, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActivities } from '@/lib/hooks/useActivities';
 import { useTasks } from '@/lib/hooks/useTasks';
@@ -17,7 +17,7 @@ import { useCompanies } from '@/lib/hooks/useCompanies';
 import type { Company } from '@/lib/database/models';
 import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
-import { supabase } from '@/lib/supabase/clientV2';
+import { supabase, authUtils } from '@/lib/supabase/clientV2';
 import { cn } from '@/lib/utils';
 
 interface QuickAddProps {
@@ -37,6 +37,9 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const [showDealChoice, setShowDealChoice] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showContactSearch, setShowContactSearch] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [formData, setFormData] = useState({
     type: 'outbound',
     client_name: '',
@@ -57,12 +60,103 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     priority: 'medium' as const,
     due_date: '',
     contact_name: '',
-    company: '',
     company_website: '',
     // Deal linking
     deal_id: null as string | null,
     selectedDeal: null as any
   });
+
+  // Validation function
+  const validateForm = useCallback(() => {
+    const errors: Record<string, string> = {};
+    
+    if (selectedAction === 'task') {
+      if (!formData.title.trim()) {
+        errors.title = 'Task title is required';
+      }
+    }
+    
+    if (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') {
+      if (!selectedContact) {
+        errors.contact = 'Please select a contact';
+      }
+      // Company name is required only if no website is provided
+      if (!formData.client_name?.trim() && !formData.company_website?.trim()) {
+        errors.client_name = 'Either company name or website is required';
+      }
+      if (selectedAction === 'meeting' && !formData.details) {
+        errors.details = 'Meeting type is required';
+      }
+    }
+    
+    if (selectedAction !== 'outbound' && selectedAction !== 'meeting' && selectedAction !== 'proposal' && selectedAction !== 'sale' && selectedAction !== 'task') {
+      if (!formData.contactIdentifier) {
+        errors.contactIdentifier = 'Contact identifier is required';
+      }
+      if (formData.contactIdentifierType === 'unknown') {
+        errors.contactIdentifier = 'Please enter a valid email, phone number, or LinkedIn URL';
+      }
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }, [selectedAction, formData, selectedContact]);
+
+  // Enhanced error handling with user-friendly messages
+  const handleError = useCallback((error: any, actionType: string) => {
+    logger.error(`Error in QuickAdd submission (${actionType}):`, error);
+    
+    setSubmitStatus('error');
+    setIsSubmitting(false);
+    
+    // Handle authentication/authorization errors with specific guidance
+    if (authUtils.isAuthError(error)) {
+      const userMessage = authUtils.formatAuthError(error);
+      toast.error(userMessage, { 
+        duration: 6000,
+        icon: <AlertCircle className="w-4 h-4" />,
+      });
+      
+      // Provide specific guidance for contact/deal creation issues
+      if (error.message?.includes('contacts') || error.message?.includes('permission')) {
+        toast.error('Contact creation failed due to permissions. You may need to sign in again or contact support.', {
+          duration: 8000,
+          icon: <Info className="w-4 h-4" />,
+          action: {
+            label: 'Refresh Page',
+            onClick: () => window.location.reload()
+          }
+        });
+      }
+      
+      // If session appears to be invalid, offer to diagnose
+      if (error.message?.includes('JWT') || error.message?.includes('session')) {
+        authUtils.diagnoseSession().then(diagnosis => {
+          if (!diagnosis.isValid) {
+            logger.warn('Session diagnosis in QuickAdd:', diagnosis);
+            toast.error(`Session issue detected: ${diagnosis.issues.join(', ')}. Please sign in again.`, {
+              duration: 10000,
+              icon: <AlertCircle className="w-4 h-4" />,
+              action: {
+                label: 'Sign Out',
+                onClick: () => {
+                  authUtils.clearAuthStorage();
+                  window.location.href = '/auth';
+                }
+              }
+            });
+          }
+        });
+      }
+    } else {
+      // Generic error handling with better user experience
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error(`Failed to create ${actionType}: ${errorMessage}`, {
+        duration: 5000,
+        icon: <AlertCircle className="w-4 h-4" />,
+      });
+    }
+  }, []);
 
   // Reset selectedAction and contact when modal is closed
   const handleClose = () => {
@@ -91,7 +185,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       priority: 'medium',
       due_date: '',
       contact_name: '',
-      company: '',
       company_website: '',
       deal_id: null,
       deal_name: '',
@@ -155,14 +248,20 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Clear previous errors
+    setValidationErrors({});
+    setSubmitStatus('idle');
+    
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setSubmitStatus('idle');
 
     if (selectedAction === 'task') {
-      // Validate task fields
-      if (!formData.title.trim()) {
-        toast.error('Please enter a task title');
-        return;
-      }
-
       try {
         const taskData = {
           title: formData.title,
@@ -172,16 +271,25 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           due_date: formData.due_date || undefined,
           assigned_to: userData?.id || '',
           contact_name: formData.contact_name || undefined,
-          company: formData.company || undefined,
+          company_website: formData.company_website || undefined,
         };
 
         await createTask(taskData);
-        toast.success('🎉 Task created successfully!');
-        handleClose();
+        
+        setSubmitStatus('success');
+        setIsSubmitting(false);
+        toast.success('Task created successfully!', {
+          icon: <CheckCircle2 className="w-4 h-4" />,
+        });
+        
+        // Small delay to show success state
+        setTimeout(() => {
+          handleClose();
+        }, 1000);
+        
         return;
       } catch (error) {
-        logger.error('Error creating task:', error);
-        toast.error('Failed to create task. Please try again.');
+        handleError(error, 'task');
         return;
       }
     }
@@ -192,10 +300,11 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       return;
     }
     
-    // Validation for meeting/proposal/sale - require company
+    // Validation for meeting/proposal/sale - require company name OR website
     if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale')) {
-      if (!formData.client_name || formData.client_name.trim() === '') {
-        toast.error('Please enter a company name');
+      if ((!formData.client_name || formData.client_name.trim() === '') && 
+          (!formData.company_website || formData.company_website.trim() === '')) {
+        toast.error('Please enter either a company name or website');
         return;
       }
     }
@@ -492,12 +601,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             const stageId = stages?.id;
             
             if (stageId && userData?.id) {
+              // Determine company name - use provided name or extract from website
+              const companyName = formData.client_name || 
+                                (formData.company_website ? 
+                                 formData.company_website.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0] : 
+                                 'Unknown Company');
+              
               // Create a new deal (only if we have a user ID)
               const { data: newDeal, error: dealError } = await supabase
                 .from('deals')
                 .insert({
-                  name: `${formData.client_name} - ${formData.details || selectedAction}`,
-                  company: formData.client_name,
+                  name: `${companyName} - ${formData.details || selectedAction}`,
+                  company: companyName,
                   company_website: formData.company_website || null,
                   value: dealValue,
                   stage_id: stageId,
@@ -506,7 +621,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   status: 'active',
                   expected_close_date: addDays(new Date(), 30).toISOString(),
                   contact_email: formData.contactIdentifier,
-                  contact_name: formData.contact_name || formData.client_name
+                  contact_name: formData.contact_name || companyName
                 })
                 .select()
                 .single();
@@ -572,10 +687,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         }
       }
       
-      toast.success(`✅ ${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`);
-      handleClose();
+      setSubmitStatus('success');
+      setIsSubmitting(false);
+      toast.success(`${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`, {
+        icon: <CheckCircle2 className="w-4 h-4" />,
+      });
+      
+      // Small delay to show success state
+      setTimeout(() => {
+        handleClose();
+      }, 1000);
     } catch (error) {
-      toast.error('Failed to add activity');
+      handleError(error, selectedAction || 'item');
     }
   };
 
@@ -639,7 +762,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
             />
             
             <div className="flex justify-between items-center mb-6 sm:mb-8">
-              <div className="w-12 h-1 rounded-full bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden" />
               <h2 className="text-xl font-semibold text-white/90 tracking-wide">Quick Add</h2>
               <button
                 type="button"
@@ -793,9 +915,20 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     value={formData.title}
                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                     placeholder="e.g., Call John about the proposal"
-                    className="w-full bg-gray-800/50 border border-gray-600/50 text-white text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
+                    className={cn(
+                      "w-full bg-gray-800/50 border text-white text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all",
+                      validationErrors.title 
+                        ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
+                        : "border-gray-600/50"
+                    )}
                     required
                   />
+                  {validationErrors.title && (
+                    <p className="text-red-400 text-sm mt-1 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {validationErrors.title}
+                    </p>
+                  )}
                 </div>
 
                 {/* Task Type & Priority Row */}
@@ -944,12 +1077,24 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400">Company</label>
+                    <label className="text-sm font-medium text-gray-400">Company Website</label>
                     <input
                       type="text"
-                      value={formData.company}
-                      onChange={(e) => setFormData(prev => ({ ...prev, company: e.target.value }))}
-                      placeholder="Acme Corp"
+                      value={formData.company_website}
+                      onChange={(e) => {
+                        let website = e.target.value.trim();
+                        
+                        // Auto-add www. if user enters a domain without it
+                        if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                          // Check if it looks like a domain (has a dot and no spaces)
+                          if (website.includes('.') && !website.includes(' ')) {
+                            website = `www.${website}`;
+                          }
+                        }
+                        
+                        setFormData(prev => ({ ...prev, company_website: website }));
+                      }}
+                      placeholder="www.company.com"
                       className="w-full bg-gray-800/30 border border-gray-600/30 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
                     />
                   </div>
@@ -966,10 +1111,32 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl hover:from-indigo-600 hover:to-purple-700 transition-all font-medium shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                    disabled={isSubmitting}
+                    className={cn(
+                      "flex-1 py-3 px-4 text-white rounded-xl transition-all font-medium shadow-lg flex items-center justify-center gap-2",
+                      submitStatus === 'success' 
+                        ? "bg-green-600 hover:bg-green-700 shadow-green-500/25"
+                        : isSubmitting
+                          ? "bg-gray-600 cursor-not-allowed"
+                          : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-indigo-500/25"
+                    )}
                   >
-                    <CheckSquare className="w-5 h-5" />
-                    Create Task
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Creating...
+                      </>
+                    ) : submitStatus === 'success' ? (
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        Created!
+                      </>
+                    ) : (
+                      <>
+                        <CheckSquare className="w-5 h-5" />
+                        Create Task
+                      </>
+                    )}
                   </button>
                 </div>
               </motion.form>
@@ -1191,27 +1358,52 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-400">
-                      Company Name <span className="text-red-400">*</span>
+                      Company Name <span className="text-gray-500 text-xs">(or use website below)</span>
                     </label>
                     <input
                       type="text"
                       placeholder="Acme Inc."
-                      className={`w-full bg-gray-800/50 border ${!formData.client_name && selectedAction ? 'border-amber-500/50' : 'border-gray-600/50'} rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors`}
+                      className={cn(
+                        "w-full bg-gray-800/50 border rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors",
+                        validationErrors.client_name 
+                          ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
+                          : !formData.client_name && selectedAction
+                            ? 'border-amber-500/50' 
+                            : 'border-gray-600/50'
+                      )}
                       value={formData.client_name || ''}
                       onChange={(e) => setFormData({...formData, client_name: e.target.value})}
                       required
                     />
+                    {validationErrors.client_name && (
+                      <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {validationErrors.client_name}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-400">
                       Website
                     </label>
                     <input
-                      type="url"
-                      placeholder="https://acme.com"
+                      type="text"
+                      placeholder="www.acme.com"
                       className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
                       value={formData.company_website || ''}
-                      onChange={(e) => setFormData({...formData, company_website: e.target.value})}
+                      onChange={(e) => {
+                        let website = e.target.value.trim();
+                        
+                        // Auto-add www. if user enters a domain without it
+                        if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                          // Check if it looks like a domain (has a dot and no spaces)
+                          if (website.includes('.') && !website.includes(' ')) {
+                            website = `www.${website}`;
+                          }
+                        }
+                        
+                        setFormData({...formData, company_website: website});
+                      }}
                     />
                   </div>
                 </div>
@@ -1259,9 +1451,31 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 py-2.5 px-4 bg-gradient-to-r from-[#37bd7e] to-[#2da76c] text-white rounded-lg hover:from-[#2da76c] hover:to-[#228b57] transition-all text-sm font-medium shadow-lg"
+                    disabled={isSubmitting}
+                    className={cn(
+                      "flex-1 py-2.5 px-4 text-white rounded-lg transition-all text-sm font-medium shadow-lg flex items-center justify-center gap-2",
+                      submitStatus === 'success' 
+                        ? "bg-green-600 hover:bg-green-700"
+                        : isSubmitting
+                          ? "bg-gray-600 cursor-not-allowed"
+                          : "bg-gradient-to-r from-[#37bd7e] to-[#2da76c] hover:from-[#2da76c] hover:to-[#228b57]"
+                    )}
                   >
-                    Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : submitStatus === 'success' ? (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Created!
+                      </>
+                    ) : (
+                      <>
+                        Create {selectedAction === 'sale' ? 'Sale' : selectedAction === 'meeting' ? 'Meeting' : 'Proposal'}
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1334,18 +1548,51 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                                `${contact.first_name || ''} ${contact.last_name || ''}`.trim() : 
                                contact.email);
             
+            // Extract company name from email domain if no company is set
+            let companyName = '';
+            let websiteUrl = '';
+            
+            // Check if contact has website info from form (newly created contact)
+            if (contact._form_website || contact.company_website) {
+              websiteUrl = contact._form_website || contact.company_website;
+              // Extract company name from website if not provided
+              if (!companyName && websiteUrl) {
+                const cleanUrl = websiteUrl.replace(/^(https?:\/\/)?(www\.)?/, '');
+                const domain = cleanUrl.split('.')[0];
+                companyName = domain.charAt(0).toUpperCase() + domain.slice(1);
+              }
+            }
+            
+            // Check if contact has company information
+            if (contact.company || contact.company_name) {
+              companyName = contact.company || contact.company_name;
+            } else if (contact.companies?.name) {
+              companyName = contact.companies.name;
+              if (!websiteUrl) {
+                websiteUrl = contact.companies.website || '';
+              }
+            } else if (!companyName) {
+              // Extract from email domain if available and no other info
+              const domain = contact.email?.split('@')[1];
+              if (domain && !['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com'].includes(domain.toLowerCase())) {
+                const domainParts = domain.split('.');
+                if (domainParts.length >= 2) {
+                  companyName = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
+                  if (!websiteUrl) {
+                    websiteUrl = `www.${domain}`;
+                  }
+                }
+              }
+            }
+            
             setFormData(prev => ({
               ...prev,
               contact_name: contactName,
               contactIdentifier: contact.email,
               contactIdentifierType: 'email',
-              client_name: contact.company || prev.client_name
+              client_name: companyName || prev.client_name,
+              company_website: websiteUrl || prev.company_website
             }));
-            
-            // If contact doesn't have a company, show a helpful message
-            if (!contact.company && !contact.company_id) {
-              toast.info('Please add company information for this contact.');
-            }
             
             // Set the contact
             setSelectedContact(contact);

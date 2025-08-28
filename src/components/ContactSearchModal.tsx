@@ -14,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
+import { useCompanies } from '@/lib/hooks/useCompanies';
 import { cn } from '@/lib/utils';
 import logger from '@/lib/utils/logger';
 
@@ -30,7 +31,7 @@ interface NewContactForm {
   last_name: string;
   email: string;
   phone: string;
-  company: string;
+  company_website: string;
   job_title: string;
 }
 
@@ -43,6 +44,7 @@ export function ContactSearchModal({
 }: ContactSearchModalProps) {
   const { userData } = useUser();
   const { contacts, isLoading, searchContacts, createContact, findContactByEmail, fetchContacts } = useContacts();
+  const { createCompany, companies } = useCompanies();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -56,9 +58,103 @@ export function ContactSearchModal({
     last_name: '',
     email: prefilledEmail,
     phone: '',
-    company: '',
+    company_website: '',
     job_title: ''
   });
+
+  // List of personal email domains to exclude from website pre-population
+  const personalEmailDomains = [
+    'gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com',
+    'aol.com', 'live.com', 'msn.com', 'yahoo.co.uk', 'googlemail.com',
+    'me.com', 'mac.com', 'protonmail.com', 'tutanota.com'
+  ];
+
+  // Extract website from email domain
+  const extractWebsiteFromEmail = (email: string): string => {
+    if (!email || !email.includes('@')) return '';
+    
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (!domain) return '';
+    
+    // Don't pre-populate for personal email domains
+    if (personalEmailDomains.includes(domain)) return '';
+    
+    return `www.${domain}`;
+  };
+
+  // Extract first and last name from email username
+  const extractNamesFromEmail = (email: string): { firstName: string; lastName: string } => {
+    if (!email || !email.includes('@')) return { firstName: '', lastName: '' };
+    
+    const username = email.split('@')[0];
+    if (!username) return { firstName: '', lastName: '' };
+    
+    // Helper function to capitalize first letter
+    const capitalize = (str: string): string => {
+      return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+    };
+    
+    // Remove common prefixes and suffixes
+    const cleanedUsername = username
+      .replace(/^(mr|mrs|ms|dr|prof)\.?/i, '') // Remove titles
+      .replace(/\d+$/, '') // Remove trailing numbers
+      .replace(/[_-]+$/, ''); // Remove trailing separators
+    
+    // Pattern 1: first.last or first_last
+    if (cleanedUsername.includes('.') || cleanedUsername.includes('_')) {
+      const separator = cleanedUsername.includes('.') ? '.' : '_';
+      const parts = cleanedUsername.split(separator);
+      
+      if (parts.length >= 2 && parts[0].length > 0 && parts[1].length > 0) {
+        return {
+          firstName: capitalize(parts[0]),
+          lastName: capitalize(parts.slice(1).join(' ')) // Join remaining parts as last name
+        };
+      }
+    }
+    
+    // Pattern 2: firstName + LastName (camelCase)
+    const camelCaseMatch = cleanedUsername.match(/^([a-z]+)([A-Z][a-z]+)$/);
+    if (camelCaseMatch) {
+      return {
+        firstName: capitalize(camelCaseMatch[1]),
+        lastName: capitalize(camelCaseMatch[2])
+      };
+    }
+    
+    // Pattern 3: firstlast (all lowercase, try to split common names)
+    // Only do this for longer usernames to avoid false positives
+    if (cleanedUsername.length > 6 && /^[a-z]+$/.test(cleanedUsername)) {
+      // Common first names to look for (simplified list)
+      const commonFirstNames = [
+        'andrew', 'john', 'jane', 'michael', 'sarah', 'david', 'mary', 'chris', 'alex', 'sam',
+        'james', 'emma', 'robert', 'lisa', 'william', 'jessica', 'thomas', 'ashley', 'daniel',
+        'emily', 'matthew', 'amanda', 'mark', 'melissa', 'paul', 'jennifer', 'kevin', 'nicole'
+      ];
+      
+      for (const firstName of commonFirstNames) {
+        if (cleanedUsername.startsWith(firstName) && cleanedUsername.length > firstName.length) {
+          const remainingPart = cleanedUsername.slice(firstName.length);
+          if (remainingPart.length > 1) { // Ensure there's something left for last name
+            return {
+              firstName: capitalize(firstName),
+              lastName: capitalize(remainingPart)
+            };
+          }
+        }
+      }
+    }
+    
+    // Pattern 4: Just use the whole username as first name if it's reasonable length
+    if (cleanedUsername.length >= 2 && cleanedUsername.length <= 15 && /^[a-zA-Z]+$/.test(cleanedUsername)) {
+      return {
+        firstName: capitalize(cleanedUsername),
+        lastName: ''
+      };
+    }
+    
+    return { firstName: '', lastName: '' };
+  };
 
   // Parse prefilled name into first/last name
   useEffect(() => {
@@ -80,12 +176,19 @@ export function ContactSearchModal({
     if (isOpen) {
       setSearchQuery(prefilledEmail || '');
       setShowCreateForm(false);
+      const suggestedWebsite = prefilledEmail ? extractWebsiteFromEmail(prefilledEmail) : '';
+      const extractedNames = prefilledEmail ? extractNamesFromEmail(prefilledEmail) : { firstName: '', lastName: '' };
+      
+      // Use prefilled name if available, otherwise use extracted names from email
+      const firstName = prefilledName ? prefilledName.split(' ')[0] || '' : extractedNames.firstName;
+      const lastName = prefilledName ? prefilledName.split(' ').slice(1).join(' ') : extractedNames.lastName;
+      
       setNewContactForm({
-        first_name: prefilledName ? prefilledName.split(' ')[0] || '' : '',
-        last_name: prefilledName ? prefilledName.split(' ').slice(1).join(' ') : '',
+        first_name: firstName,
+        last_name: lastName,
         email: prefilledEmail,
         phone: '',
-        company: '',
+        company_website: suggestedWebsite,
         job_title: ''
       });
       
@@ -162,6 +265,45 @@ export function ContactSearchModal({
     onClose();
   };
 
+  // Helper function to auto-create company from website
+  const autoCreateCompany = async (website: string, email: string): Promise<any | null> => {
+    if (!website || !userData?.id) return null;
+
+    try {
+      // Extract domain from website
+      const domain = website.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+      
+      // Extract company name from domain (remove .com, .co.uk, etc.)
+      const domainParts = domain.split('.');
+      const companyName = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
+
+      // Check if company already exists with this domain
+      const existingCompany = companies?.find(company => 
+        company.domain?.toLowerCase() === domain.toLowerCase() ||
+        company.website?.toLowerCase().includes(domain.toLowerCase())
+      );
+
+      if (existingCompany) {
+        return existingCompany;
+      }
+
+      // Create new company
+      const companyData = {
+        name: companyName,
+        domain: domain,
+        website: website,
+        owner_id: userData.id
+      };
+
+      const newCompany = await createCompany(companyData);
+      logger.log('Auto-created company:', newCompany);
+      return newCompany;
+    } catch (error) {
+      logger.error('Error auto-creating company:', error);
+      return null;
+    }
+  };
+
   const handleCreateContact = async () => {
     if (!newContactForm.email || !newContactForm.first_name) {
       toast.error('Email and first name are required');
@@ -178,21 +320,40 @@ export function ContactSearchModal({
         return;
       }
 
+      // Auto-create company if website is provided
+      let company = null;
+      if (newContactForm.company_website) {
+        company = await autoCreateCompany(newContactForm.company_website, newContactForm.email);
+      }
+
       const contactData = {
         first_name: newContactForm.first_name,
         last_name: newContactForm.last_name,
         email: newContactForm.email,
         phone: newContactForm.phone || null,
         title: newContactForm.job_title || null,  // Map job_title to title for API
+        company_id: company?.id || null, // Link to auto-created company
         owner_id: userData?.id || ''
-        // Removed is_primary and company_name as they don't exist in the database
       };
 
       const newContact = await createContact(contactData);
       
       if (newContact) {
-        toast.success('Contact created successfully!');
-        handleContactSelect(newContact);
+        const successMessage = company 
+          ? `Contact and company "${company.name}" created successfully!`
+          : 'Contact created successfully!';
+        toast.success(successMessage);
+        
+        // Attach the website and company information to the contact object
+        const enrichedContact = {
+          ...newContact,
+          company_website: newContactForm.company_website,
+          company_name: company?.name,
+          company_id: company?.id,
+          company: company, // Full company object for relationships
+          _form_website: newContactForm.company_website // Temporary field for passing website info
+        };
+        handleContactSelect(enrichedContact);
       }
     } catch (error) {
       logger.error('Error creating contact:', error);
@@ -413,10 +574,27 @@ export function ContactSearchModal({
                           type="email"
                           placeholder="Email Address *"
                           value={newContactForm.email}
-                          onChange={(e) => setNewContactForm(prev => ({
-                            ...prev,
-                            email: e.target.value
-                          }))}
+                          onChange={(e) => {
+                            const newEmail = e.target.value;
+                            const suggestedWebsite = extractWebsiteFromEmail(newEmail);
+                            const extractedNames = extractNamesFromEmail(newEmail);
+                            
+                            setNewContactForm(prev => ({
+                              ...prev,
+                              email: newEmail,
+                              // Only update website if it's currently empty or was auto-populated
+                              company_website: (!prev.company_website || prev.company_website.startsWith('www.')) 
+                                ? suggestedWebsite 
+                                : prev.company_website,
+                              // Only update names if they're currently empty (don't overwrite user input)
+                              first_name: (!prev.first_name && extractedNames.firstName) 
+                                ? extractedNames.firstName 
+                                : prev.first_name,
+                              last_name: (!prev.last_name && extractedNames.lastName) 
+                                ? extractedNames.lastName 
+                                : prev.last_name
+                            }));
+                          }}
                           className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                           required
                         />
@@ -434,12 +612,24 @@ export function ContactSearchModal({
 
                         <input
                           type="text"
-                          placeholder="Company Name"
-                          value={newContactForm.company}
-                          onChange={(e) => setNewContactForm(prev => ({
-                            ...prev,
-                            company: e.target.value
-                          }))}
+                          placeholder="Company Website (e.g., www.company.com)"
+                          value={newContactForm.company_website}
+                          onChange={(e) => {
+                            let website = e.target.value.trim();
+                            
+                            // Auto-add www. if user enters a domain without it
+                            if (website && !website.startsWith('www.') && !website.startsWith('http')) {
+                              // Check if it looks like a domain (has a dot and no spaces)
+                              if (website.includes('.') && !website.includes(' ')) {
+                                website = `www.${website}`;
+                              }
+                            }
+                            
+                            setNewContactForm(prev => ({
+                              ...prev,
+                              company_website: website
+                            }));
+                          }}
                           className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                         />
 
