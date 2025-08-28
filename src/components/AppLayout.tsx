@@ -30,7 +30,8 @@ import {
   DollarSign,
   Video,
   Code2,
-  Zap
+  Zap,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -77,6 +78,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
+    { icon: History, label: 'Releases', href: '/releases' },
     ...(userData?.is_admin ? [
       { icon: UserCog, label: 'Admin', href: '/admin' }
     ] : []),

@@ -43,6 +43,7 @@ const PipelinePage = lazy(() => import('@/pages/PipelinePage').then(module => ({
 const ActivityProcessingPage = lazy(() => import('@/pages/ActivityProcessingPage'));
 const TasksPage = lazy(() => import('@/pages/TasksPage'));
 const Roadmap = lazy(() => import('@/pages/Roadmap'));
+const Releases = lazy(() => import('@/pages/Releases'));
 const Clients = lazy(() => import('@/pages/Clients'));
 const TestFallback = lazy(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
@@ -207,6 +208,7 @@ function App() {
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
+                <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
                 <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />

@@ -1,5 +1,5 @@
 import { executeQuery, executeQueryWithRetry, handleCORS, apiResponse, executeBatchQueries } from './_db.js';
-import { createCacheKey, getFromCache, setCache, invalidateCachePattern } from './utils/cache.js';
+import { createCacheKey, getFromCache, setCache, invalidateCachePattern } from '../lib/api-utils/cache.js';
 
 export default async function handler(request, response) {
   const requestStartTime = Date.now();

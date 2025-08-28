@@ -1,5 +1,5 @@
 import { executeQuery, handleCORS, apiResponse } from './_db.js';
-import { createCacheKey, getFromCache, setCache } from './utils/cache.js';
+import { createCacheKey, getFromCache, setCache } from '../lib/api-utils/cache.js';
 
 export default async function handler(request, response) {
   // Handle CORS preflight

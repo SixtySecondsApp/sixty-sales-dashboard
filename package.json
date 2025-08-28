@@ -1,7 +1,7 @@
 {
   "name": "sixty-sales-dashboard",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.7-releases-page",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -45,7 +45,10 @@
     "test:memory:coverage": "vitest run tests/memory --coverage",
     "playwright": "playwright test",
     "playwright:ui": "playwright test --ui",
-    "playwright:report": "playwright show-report"
+    "playwright:report": "playwright show-report",
+    "version:update": "node scripts/update-version.js",
+    "release:add": "node scripts/add-release.js",
+    "release:build": "node scripts/build-release.js"
   },
   "dependencies": {
     "@apollo/server": "^5.0.0",

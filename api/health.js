@@ -1,5 +1,5 @@
 import { executeQuery, handleCORS, apiResponse, getPoolStats } from './_db.js';
-import { getCacheStats } from './utils/cache.js';
+import { getCacheStats } from '../lib/api-utils/cache.js';
 
 export default async function handler(request, response) {
   const requestStartTime = Date.now();

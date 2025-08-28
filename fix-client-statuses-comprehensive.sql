@@ -143,3 +143,4 @@ COMMIT;
 -- JOIN deals d ON c.deal_id = d.id 
 -- WHERE (d.monthly_mrr IS NULL OR d.monthly_mrr = 0) AND d.one_off_revenue > 0;
 
+
