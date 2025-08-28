@@ -1,5 +1,6 @@
 -- Update stage progression to use SQL as starting point
--- SQL → Opportunity (Proposal) → Negotiation → Signed → Delivered
+-- SQL → Opportunity (Proposal) → Verbal → Signed
+-- Removes deprecated stages: Lead, Meetings Scheduled, Negotiation, Delivered, Signed & Paid
 
 -- First, ensure deal_stages table exists with proper structure
 CREATE TABLE IF NOT EXISTS deal_stages (
@@ -85,20 +86,27 @@ BEGIN
     VALUES ('Signed', 'Deal closed, contract signed', '#10B981', 4, 100);
   END IF;
 
-  -- Remove Negotiation and Delivered stages if they exist
-  -- First migrate any deals in these stages
+  -- Migrate deals from deprecated stages
+  -- First migrate any deals in Negotiation to Verbal
   UPDATE deals 
   SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Verbal'),
       stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Negotiation to Verbal'
   WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Negotiation');
   
+  -- Migrate deals from Delivered to Signed
   UPDATE deals 
   SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed'),
       stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Delivered to Signed'
   WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Delivered');
   
-  -- Now delete the stages
-  DELETE FROM deal_stages WHERE name IN ('Negotiation', 'Delivered');
+  -- Migrate deals from "Signed & Paid" to Signed
+  UPDATE deals 
+  SET stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed'),
+      stage_migration_notes = COALESCE(stage_migration_notes, '') || ' | Migrated from Signed & Paid to Signed'
+  WHERE stage_id = (SELECT id FROM deal_stages WHERE name = 'Signed & Paid');
+  
+  -- Now delete the deprecated stages
+  DELETE FROM deal_stages WHERE name IN ('Negotiation', 'Delivered', 'Signed & Paid');
 END $$;
 
 -- Add a comment field to track this migration (if it doesn't exist)
@@ -113,8 +121,8 @@ WHERE stage_id IN (
   SELECT id FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled')
 );
 
--- Now remove the deprecated stages
-DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled', 'Negotiation', 'Delivered');
+-- Now remove all the deprecated stages
+DELETE FROM deal_stages WHERE name IN ('Lead', 'Meetings Scheduled', 'Negotiation', 'Delivered', 'Signed & Paid');
 
 UPDATE deals 
 SET stage_migration_notes = 'Pre-migration: Was in Opportunity stage before SQL stage was added'
