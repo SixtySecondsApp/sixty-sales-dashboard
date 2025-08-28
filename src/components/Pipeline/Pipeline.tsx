@@ -382,6 +382,17 @@ function PipelineContent() {
       .flat()
       .find((deal: any) => deal.id === activeId);
     
+    // Debug logging
+    logger.log('🎯 Checking Opportunity stage move:', {
+      opportunityStageFound: !!opportunityStage,
+      opportunityStageName: opportunityStage?.name,
+      opportunityStageId: opportunityStage?.id,
+      toStage,
+      isMovingToOpportunity: opportunityStage && toStage === opportunityStage.id,
+      dealFound: !!movedDealForCheck,
+      dealName: movedDealForCheck?.name || movedDealForCheck?.company
+    });
+    
     if (opportunityStage && toStage === opportunityStage.id && movedDealForCheck) {
       // Store the move details for after confirmation
       let toIndex = draggedOverIndex;
@@ -554,9 +565,18 @@ function PipelineContent() {
   
   // Handle proposal confirmation
   const handleProposalConfirmation = async (sentProposal: boolean, notes?: string) => {
+    logger.log('📄 Proposal confirmation handler called:', {
+      sentProposal,
+      hasNotes: !!notes,
+      pendingDealMove: !!pendingDealMove,
+      dealId: pendingDealMove?.dealId,
+      dealName: pendingDealMove?.deal?.name || pendingDealMove?.deal?.company
+    });
+    
     setProposalModalOpen(false);
     
     if (!pendingDealMove) {
+      logger.warn('❌ No pending deal move found');
       return;
     }
     
@@ -623,7 +643,9 @@ function PipelineContent() {
           );
         } else if (sentProposal) {
           // Moving to Opportunity AND user confirmed proposal was sent - create proposal activity
+          logger.log('✅ User confirmed proposal was sent, creating activity...');
           const { data: { user } } = await supabase.auth.getUser();
+          logger.log('👤 Current user:', user?.id, 'Deal owner:', deal.owner_id);
           if (user && user.id === deal.owner_id) {
             // Get user profile for sales_rep name
             const { data: profile } = await supabase
@@ -650,14 +672,16 @@ function PipelineContent() {
               contact_identifier_type: deal.contact_email ? 'email' : null,
             };
             
+            logger.log('📝 Creating proposal activity:', proposalActivity);
             const { error } = await supabase
               .from('activities')
               .insert(proposalActivity);
             
             if (!error) {
+              logger.log('✅ Proposal activity created successfully!');
               toast.success('📄 Proposal activity logged and follow-up task created!');
             } else {
-              logger.error('Failed to create proposal activity:', error);
+              logger.error('❌ Failed to create proposal activity:', error);
             }
           }
         } else {
@@ -761,11 +785,13 @@ function PipelineContent() {
               interval: 10,
             }}
           >
-            <div className="grid gap-3 pb-6 overflow-x-auto" style={{
+            <div className="grid gap-3 pb-6 overflow-x-auto scrollbar-none" style={{
               gridTemplateColumns: stages.length <= 4 
                 ? `repeat(${stages.length}, minmax(280px, 1fr))`
                 : `repeat(${stages.length}, minmax(280px, 350px))`,
-              maxWidth: '100%'
+              maxWidth: '100%',
+              scrollbarWidth: 'none', /* Firefox */
+              msOverflowStyle: 'none', /* IE and Edge */
             }}>
               {stages.map(stage => (
                 <PipelineColumn
