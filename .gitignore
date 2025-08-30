@@ -84,6 +84,8 @@ audit/
 enterprise-reports/
 security-analysis/
 performance-reports/
+*AUDIT_REPORT*.md
+*AUDIT_FINDINGS*.md
 
 # Temporary and backup folders
 tmp/
