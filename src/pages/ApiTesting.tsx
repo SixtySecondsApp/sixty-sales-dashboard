@@ -159,7 +159,7 @@ const ApiTesting: React.FC = () => {
     // Check for stored API key from localStorage
     const storedApiKey = localStorage.getItem('selectedApiKey') || sessionStorage.getItem('currentApiKey');
     if (storedApiKey && !currentApiKey) {
-      console.log('🔑 Loading stored API key:', storedApiKey);
+      // Loading stored API key
       setCurrentApiKey(storedApiKey);
     }
   }, []);
@@ -168,7 +168,7 @@ const ApiTesting: React.FC = () => {
   useEffect(() => {
     const handleApiKeySelected = (event: any) => {
       if (event.detail?.apiKey) {
-        console.log('🎯 API key selected via event:', event.detail.apiKey);
+        // API key selected via event
         setCurrentApiKey(event.detail.apiKey);
       }
     };

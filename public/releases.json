@@ -1,5 +1,15 @@
 [
   {
+    "buildId": "build-2025-08-29T08-26-52-v1.0.9-navigation-cache-fix",
+    "date": "2025-08-29T08:26:51.589Z",
+    "notes": "🔄 Cache Fix - Navigation update with Releases menu item now properly cached and visible. Force refresh to clear browser cache and see new navigation"
+  },
+  {
+    "buildId": "build-2025-08-29T08-24-24-v1.0.8-production-releases",
+    "date": "2025-08-29T08:24:24.408Z",
+    "notes": "🚀 Production Release - Dedicated Releases page now live on custom domain with complete version management, search, filtering, and automated update notifications"
+  },
+  {
     "buildId": "build-2025-08-28T22-39-40-v1.0.7-staging-releases",
     "date": "2025-08-28T22:39:24.971Z",
     "notes": "📱 New Releases page feature - Dedicated version management with enhanced release history, search, filtering, and clean roadmap separation. Ready for staging deployment"

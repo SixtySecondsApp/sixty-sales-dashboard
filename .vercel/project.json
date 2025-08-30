@@ -1,16 +1,1 @@
-{
-  "projectId": "prj_ilu84uODnhXDMpJfBdzKZhYNl6Td",
-  "orgId": "team_b4ILv6eLuUzqmkZAifB8UrY7",
-  "projectName": "sales-dashboard-bolt-vite",
-  "settings": {
-    "createdAt": 1749028882054,
-    "framework": "vite",
-    "devCommand": null,
-    "installCommand": null,
-    "buildCommand": null,
-    "outputDirectory": null,
-    "rootDirectory": null,
-    "directoryListing": false,
-    "nodeVersion": "22.x"
-  }
-}
+{"projectId":"prj_beP0vQlpW7wX15H2CqYQf9W6HGin","orgId":"team_KtZ9lwnVgww8ibhhOIJKYDcp","projectName":"sixty-sales-dashboard"}

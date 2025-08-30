@@ -97,7 +97,7 @@ Timestamp: ${new Date().toISOString()}
     
     navigator.clipboard.writeText(errorDetails).then(() => {
       // Could show a toast here but we want to avoid dependencies in error boundary
-      console.log('Error details copied to clipboard');
+      // Error details copied to clipboard
     });
   };
 
