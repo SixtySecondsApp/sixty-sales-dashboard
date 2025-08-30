@@ -77,3 +77,42 @@ node_modules.nosync/
 *.env
 !.env.example
 !.env.sample
+
+# Enterprise audit reports and sensitive analysis
+audit/
+**/audit/
+enterprise-reports/
+security-analysis/
+performance-reports/
+*AUDIT_REPORT*.md
+*AUDIT_FINDINGS*.md
+
+# Temporary and backup folders
+tmp/
+temp/
+backup/
+backups/
+**/tmp/
+**/temp/
+
+# Build analysis and reports
+build-analyzer/
+bundle-reports/
+lighthouse-reports/
+
+# Database dumps and exports
+*.sql.backup
+*.dump
+database-exports/
+*.db.backup
+
+# Memory and performance profiling
+memory-profiles/
+performance-profiles/
+*.heapsnapshot
+*.cpuprofile
+
+# Local development utilities
+local-scripts/
+dev-utils/
+**/local-only/

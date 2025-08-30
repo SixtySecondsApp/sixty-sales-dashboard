@@ -110,22 +110,38 @@ export class CompanyService {
   }
 
   /**
-   * Create a new company
+   * Create a new company with improved error handling and fallback
    */
   static async createCompany(companyData: Omit<Company, 'id' | 'created_at' | 'updated_at'>) {
     try {
+      // Validate required data
+      if (!companyData.name || !companyData.owner_id) {
+        throw new Error('Company name and owner_id are required');
+      }
+
       // Ensure domain is lowercase
       if (companyData.domain) {
         companyData.domain = companyData.domain.toLowerCase();
       }
 
+      logger.log('🏢 Attempting to create company:', companyData.name);
+
       // Try API endpoint first
       try {
+        const { supabase } = await import('@/lib/supabase/clientV2');
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         const response = await fetch(`${API_BASE_URL}/companies`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify(companyData),
         });
 
@@ -133,9 +149,11 @@ export class CompanyService {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        return await response.json() as Company;
+        const result = await response.json();
+        logger.log('✅ Company created via API:', result.data?.name || result.name);
+        return result.data || result;
       } catch (apiError) {
-        logger.log('⚠️ Company API call failed, falling back to Supabase:', apiError);
+        logger.warn('⚠️ Company API call failed, falling back to Supabase:', apiError);
         
         // Fallback to direct Supabase client
         const { supabase } = await import('@/lib/supabase/clientV2');
@@ -150,11 +168,11 @@ export class CompanyService {
           throw error;
         }
         
-        logger.log('✅ Company created via Supabase fallback:', company);
+        logger.log('✅ Company created via Supabase fallback:', company?.name);
         return company;
       }
     } catch (error) {
-      logger.error('Error creating company:', error);
+      logger.error('🏢 Error creating company:', companyData.name, error);
       throw error;
     }
   }
@@ -209,7 +227,7 @@ export class CompanyService {
   }
 
   /**
-   * Auto-create company from email domain
+   * Auto-create company from email domain with improved error handling
    */
   static async autoCreateCompanyFromEmail(
     email: string, 
@@ -218,22 +236,41 @@ export class CompanyService {
   ): Promise<Company | null> {
     try {
       const domain = this.extractDomainFromEmail(email);
-      if (!domain) return null;
+      if (!domain) {
+        logger.log('🏢 No domain extracted from email - likely personal email:', email);
+        return null;
+      }
+
+      logger.log('🏢 Checking for existing company with domain:', domain);
 
       // Check if company already exists
       const existing = await this.findCompanyByDomain(domain);
-      if (existing) return existing;
+      if (existing) {
+        logger.log('🏢 Found existing company:', existing.name);
+        return existing;
+      }
 
       // Create new company
       const companyName = suggestedName || this.suggestCompanyNameFromDomain(domain);
       
-      return await this.createCompany({
+      logger.log('🏢 Creating new company:', { name: companyName, domain });
+      
+      const newCompany = await this.createCompany({
         name: companyName,
         domain,
         owner_id: owner_id || 'dev-user-123' // Provide default for development
       });
+
+      if (newCompany) {
+        logger.log('🏢 Company created successfully:', newCompany.name);
+      } else {
+        logger.warn('🏢 Company creation returned null');
+      }
+      
+      return newCompany;
     } catch (error) {
-      logger.error('Error auto-creating company:', error);
+      logger.error('🏢 Error auto-creating company from email:', email, error);
+      // Don't throw error - just return null to allow contact creation without company
       return null;
     }
   }

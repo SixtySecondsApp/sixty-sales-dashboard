@@ -92,10 +92,6 @@ async function handleCompaniesList(supabaseClient: any, url: URL) {
         owner_id,
         created_at,
         updated_at
-        ${includeStats ? `,
-        contacts:contacts(count),
-        deals:deals(count, value)
-        ` : ''}
       `)
       .range(offset, offset + limit - 1)
       .order('created_at', { ascending: false })
@@ -134,12 +130,41 @@ async function handleCompaniesList(supabaseClient: any, url: URL) {
     // Process stats if requested
     let processedCompanies = companies
     if (includeStats && companies) {
-      processedCompanies = companies.map((company: any) => ({
-        ...company,
-        contactCount: company.contacts?.[0]?.count || 0,
-        dealsCount: company.deals?.length || 0,
-        dealsValue: company.deals?.reduce((sum: number, deal: any) => sum + (deal.value || 0), 0) || 0
-      }))
+      // Get stats for each company separately to avoid complex join issues
+      const companiesWithStats = await Promise.all(
+        companies.map(async (company: any) => {
+          try {
+            // Get contact count
+            const { count: contactCount } = await supabaseClient
+              .from('contacts')
+              .select('*', { count: 'exact', head: true })
+              .eq('company_id', company.id)
+            
+            // Get deals count and value
+            const { data: deals } = await supabaseClient
+              .from('deals')
+              .select('value')
+              .eq('company_id', company.id)
+            
+            return {
+              ...company,
+              contactCount: contactCount || 0,
+              dealsCount: deals?.length || 0,
+              dealsValue: deals?.reduce((sum: number, deal: any) => sum + (Number(deal.value) || 0), 0) || 0
+            }
+          } catch (statError) {
+            console.warn(`Error getting stats for company ${company.id}:`, statError)
+            // Return company without stats if there's an error
+            return {
+              ...company,
+              contactCount: 0,
+              dealsCount: 0,
+              dealsValue: 0
+            }
+          }
+        })
+      )
+      processedCompanies = companiesWithStats
     }
 
     return new Response(JSON.stringify({
@@ -167,11 +192,7 @@ async function handleSingleCompany(supabaseClient: any, companyId: string) {
   try {
     const { data: company, error } = await supabaseClient
       .from('companies')
-      .select(`
-        *,
-        contacts:contacts(count),
-        deals:deals(count, value)
-      `)
+      .select('*')
       .eq('id', companyId)
       .single()
 
@@ -186,12 +207,37 @@ async function handleSingleCompany(supabaseClient: any, companyId: string) {
       })
     }
 
-    // Process stats
-    const processedCompany = {
-      ...company,
-      contactCount: company.contacts?.[0]?.count || 0,
-      dealsCount: company.deals?.length || 0,
-      dealsValue: company.deals?.reduce((sum: number, deal: any) => sum + (deal.value || 0), 0) || 0
+    // Get stats separately to avoid join issues
+    let processedCompany
+    try {
+      // Get contact count
+      const { count: contactCount } = await supabaseClient
+        .from('contacts')
+        .select('*', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+      
+      // Get deals count and value
+      const { data: deals } = await supabaseClient
+        .from('deals')
+        .select('value')
+        .eq('company_id', companyId)
+
+      // Process stats
+      processedCompany = {
+        ...company,
+        contactCount: contactCount || 0,
+        dealsCount: deals?.length || 0,
+        dealsValue: deals?.reduce((sum: number, deal: any) => sum + (Number(deal.value) || 0), 0) || 0
+      }
+    } catch (statError) {
+      console.warn(`Error getting stats for company ${companyId}:`, statError)
+      // Return company without stats if there's an error
+      processedCompany = {
+        ...company,
+        contactCount: 0,
+        dealsCount: 0,
+        dealsValue: 0
+      }
     }
 
     return new Response(JSON.stringify({

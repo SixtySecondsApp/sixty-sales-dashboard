@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   // useReactTable, // Unused
   // getCoreRowModel, // Unused
@@ -73,6 +73,14 @@ export function SalesTable() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState<string | null>(null);
   const { filters, setFilters, resetFilters } = useActivityFilters();
+  
+  // Multi-select functionality
+  const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [bulkEditDialogOpen, setBulkEditDialogOpen] = useState(false);
+  const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
+  const [bulkEditData, setBulkEditData] = useState<Partial<Activity>>({});
+  const [isSelectModeActive, setIsSelectModeActive] = useState(false);
   
   // Initialize date range from filters if available (e.g., when navigating from dashboard)
   const initializeDateRange = () => {
@@ -434,6 +442,132 @@ export function SalesTable() {
     }
   };
 
+  // Multi-select handlers - using useCallback for stability
+  const handleSelectActivity = useCallback((activityId: string, checked: boolean) => {
+    setSelectedActivities(prev => {
+      const newSelected = new Set(prev);
+      if (checked) {
+        newSelected.add(activityId);
+        logger.log('[SelectActivity] Added:', activityId, 'Total selected:', newSelected.size + 1);
+      } else {
+        newSelected.delete(activityId);
+        logger.log('[SelectActivity] Removed:', activityId, 'Total selected:', newSelected.size - 1);
+      }
+      return newSelected;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(filteredActivities.map(activity => activity.id));
+      setSelectedActivities(allIds);
+      setIsSelectAllChecked(true);
+    } else {
+      setSelectedActivities(new Set());
+      setIsSelectAllChecked(false);
+    }
+  }, [filteredActivities]);
+
+  // Update select all checkbox state when selections change
+  useEffect(() => {
+    setIsSelectAllChecked(
+      selectedActivities.size > 0 && 
+      selectedActivities.size === filteredActivities.length && 
+      filteredActivities.length > 0
+    );
+  }, [selectedActivities.size, filteredActivities.length]);
+
+  const handleBulkDelete = async () => {
+    try {
+      const selectedIds = Array.from(selectedActivities);
+      
+      // Validation: Check if we have selected activities
+      if (selectedIds.length === 0) {
+        toast.error('No activities selected for deletion');
+        return;
+      }
+      
+      logger.log('[BulkDelete] Selected IDs:', selectedIds);
+      logger.log('[BulkDelete] Selected count:', selectedIds.length);
+      
+      // Debug: Show which activities are selected
+      const selectedActivityDetails = filteredActivities.filter(activity => 
+        selectedIds.includes(activity.id)
+      );
+      logger.log('[BulkDelete] Selected activities:', selectedActivityDetails.map(a => ({
+        id: a.id,
+        type: a.type,
+        client_name: a.client_name,
+        details: a.details
+      })));
+      
+      // Validation: Ensure all selected IDs exist in current filtered activities
+      const existingIds = new Set(filteredActivities.map(a => a.id));
+      const validIds = selectedIds.filter(id => existingIds.has(id));
+      
+      if (validIds.length !== selectedIds.length) {
+        logger.warn('[BulkDelete] Some selected IDs not found in current activities:', 
+          selectedIds.filter(id => !existingIds.has(id)));
+      }
+      
+      logger.log('[BulkDelete] Valid IDs to delete:', validIds);
+      
+      // Delete activities sequentially to avoid race conditions
+      for (const id of validIds) {
+        try {
+          await removeActivity(id);
+          logger.log('[BulkDelete] Successfully deleted:', id);
+        } catch (error) {
+          logger.error('[BulkDelete] Failed to delete:', id, error);
+          throw error; // Stop on first failure
+        }
+      }
+      
+      toast.success(`Successfully deleted ${validIds.length} activities`);
+      setSelectedActivities(new Set());
+      setIsSelectAllChecked(false);
+      setBulkDeleteDialogOpen(false);
+    } catch (error) {
+      logger.error('Error during bulk delete:', error);
+      toast.error('Failed to delete some activities. Please try again.');
+      // Don't clear selections on error so user can retry
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    try {
+      const editPromises = Array.from(selectedActivities).map(id => 
+        updateActivity({ id, updates: bulkEditData })
+      );
+      await Promise.all(editPromises);
+      
+      toast.success(`Successfully updated ${selectedActivities.size} activities`);
+      setSelectedActivities(new Set());
+      setIsSelectAllChecked(false);
+      setBulkEditDialogOpen(false);
+      setBulkEditData({});
+    } catch (error) {
+      logger.error('Error during bulk edit:', error);
+      toast.error('Failed to update some activities. Please try again.');
+    }
+  };
+
+  // Toggle select mode
+  const toggleSelectMode = () => {
+    setIsSelectModeActive(!isSelectModeActive);
+    // Clear selections when turning off select mode
+    if (isSelectModeActive) {
+      setSelectedActivities(new Set());
+      setIsSelectAllChecked(false);
+    }
+  };
+
+  // Clear selections when filters change
+  useEffect(() => {
+    setSelectedActivities(new Set());
+    setIsSelectAllChecked(false);
+  }, [filters]);
+
   const getActivityIcon = (type: Activity['type']) => {
     switch (type) {
       case 'sale':
@@ -474,6 +608,42 @@ export function SalesTable() {
 
   const columns = useMemo(
     () => [
+      // Only show select column when in select mode
+      ...(isSelectModeActive ? [{
+        id: 'select',
+        header: ({ table }: any) => (
+          <div className="flex items-center justify-center">
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <input
+                type="checkbox"
+                checked={isSelectAllChecked}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                className="w-5 h-5 text-violet-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-violet-500 focus:ring-2 focus:ring-offset-0 transition-all duration-200 hover:border-violet-500/60 checked:bg-violet-500 checked:border-violet-500 cursor-pointer"
+              />
+            </motion.div>
+          </div>
+        ),
+        cell: ({ row }: any) => (
+          <div className="flex items-center justify-center">
+            <motion.div 
+              whileHover={{ scale: 1.1 }} 
+              whileTap={{ scale: 0.9 }}
+              animate={{
+                opacity: selectedActivities.has(row.original.id) ? 1 : 0.7
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedActivities.has(row.original.id)}
+                onChange={(e) => handleSelectActivity(row.original.id, e.target.checked)}
+                className="w-5 h-5 text-violet-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-violet-500 focus:ring-2 focus:ring-offset-0 transition-all duration-200 hover:border-violet-500/60 checked:bg-violet-500 checked:border-violet-500 cursor-pointer"
+              />
+            </motion.div>
+          </div>
+        ),
+        size: 50,
+        enableSorting: false,
+      }] : []),
       {
         accessorKey: 'sales_rep',
         header: 'Sales Rep',
@@ -692,7 +862,7 @@ export function SalesTable() {
         },
       },
     ],
-    [editingActivity]
+    [editingActivity, selectedActivities, isSelectAllChecked, handleSelectActivity, handleSelectAll, isSelectModeActive]
   );
 
   // Enhanced StatCard component with better visual hierarchy
@@ -841,6 +1011,37 @@ export function SalesTable() {
                 {showSubscriptionStats ? 'Hide' : 'Show'} Subscription Stats
               </Button>
               
+              {/* Select Mode Toggle */}
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Button
+                  onClick={toggleSelectMode}
+                  variant="outline"
+                  size="sm"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                    isSelectModeActive 
+                      ? 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 border-violet-500/40 text-violet-300 hover:from-violet-500/30 hover:to-purple-500/30 shadow-lg shadow-violet-500/20 ring-2 ring-violet-500/30' 
+                      : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white hover:border-gray-600 hover:shadow-md'
+                  }`}
+                >
+                  <motion.div
+                    animate={{ rotate: isSelectModeActive ? 180 : 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    {isSelectModeActive ? (
+                      <XCircle className="w-4 h-4" />
+                    ) : (
+                      <Filter className="w-4 h-4" />
+                    )}
+                  </motion.div>
+                  <span className="font-semibold">
+                    {isSelectModeActive ? 'Exit Select Mode' : 'Select'}
+                  </span>
+                </Button>
+              </motion.div>
+
               <Button
                 onClick={handleExportCSV}
                 variant="outline"
@@ -851,6 +1052,64 @@ export function SalesTable() {
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV ({filteredActivities.length})
               </Button>
+
+              {/* Bulk Actions - Only show when select mode is active and activities are selected */}
+              <AnimatePresence>
+                {isSelectModeActive && selectedActivities.size > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="flex items-center gap-3 ml-4 pl-4 border-l-2 border-gradient-to-b from-violet-500/40 to-purple-500/40"
+                  >
+                    <motion.div 
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-violet-500/15 to-purple-500/15 border border-violet-500/25 rounded-full backdrop-blur-sm"
+                      animate={{ 
+                        boxShadow: [
+                          '0 0 0 0 rgba(139, 92, 246, 0.3)',
+                          '0 0 0 4px rgba(139, 92, 246, 0.1)',
+                          '0 0 0 0 rgba(139, 92, 246, 0.3)'
+                        ]
+                      }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    >
+                      <motion.div 
+                        className="w-2 h-2 bg-violet-400 rounded-full"
+                        animate={{ scale: [1, 1.3, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                      <span className="text-sm font-semibold text-violet-300">
+                        {selectedActivities.size} selected
+                      </span>
+                    </motion.div>
+                    
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        onClick={() => setBulkEditDialogOpen(true)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/25 text-blue-400 hover:from-blue-500/20 hover:to-cyan-500/20 hover:text-blue-300 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20 hover:border-blue-400/40"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        <span className="font-medium">Edit</span>
+                      </Button>
+                    </motion.div>
+                    
+                    <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                      <Button
+                        onClick={() => setBulkDeleteDialogOpen(true)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-rose-500/10 border-red-500/25 text-red-400 hover:from-red-500/20 hover:to-rose-500/20 hover:text-red-300 transition-all duration-300 hover:shadow-xl hover:shadow-red-500/20 hover:border-red-400/40"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span className="font-medium">Delete</span>
+                      </Button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               
               {/* Main Date Filter */}
               <DateFilter
@@ -1170,7 +1429,11 @@ export function SalesTable() {
                         className="px-2 py-2 text-left text-xs font-medium text-gray-400 whitespace-nowrap"
                         style={{ width: (column as any).size ? `${(column as any).size}px` : 'auto' }}
                       >
-                        {(column as any).header ? (column as any).header.toString() : ''}
+                        {(column as any).header ? 
+                          typeof (column as any).header === 'function' ? 
+                            (column as any).header({ table: null }) : 
+                            (column as any).header 
+                          : ''}
                       </th>
                     ))}
                   </tr>
@@ -1185,7 +1448,11 @@ export function SalesTable() {
                         duration: 0.2,
                         delay: index * 0.02
                       }}
-                      className="relative border-b border-gray-800/50 hover:bg-gray-800/20 cursor-pointer"
+                      className={`relative border-b transition-all duration-300 cursor-pointer ${
+                        selectedActivities.has(activity.id) && isSelectModeActive
+                          ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
+                          : 'border-gray-800/50 hover:bg-gray-800/20 hover:border-gray-700/60'
+                      }`}
                     >
                       {columns.map(column => {
                         const cellContextMock = {
@@ -1248,6 +1515,131 @@ export function SalesTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Delete Selected Activities</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-gray-400">
+              Are you sure you want to delete <strong>{selectedActivities.size}</strong> selected activities? This action cannot be undone.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              className="bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBulkDelete}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              Delete {selectedActivities.size} Activities
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
+        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit Activities</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <p className="text-gray-400 mb-4">
+              Editing <strong>{selectedActivities.size}</strong> selected activities. Only fill in the fields you want to change.
+            </p>
+            
+            {/* Status */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Status</label>
+              <select
+                value={bulkEditData.status || ''}
+                onChange={(e) => setBulkEditData(prev => ({ ...prev, status: e.target.value as Activity['status'] || undefined }))}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Don't change status</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+              </select>
+            </div>
+
+            {/* Priority */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Priority</label>
+              <select
+                value={bulkEditData.priority || ''}
+                onChange={(e) => setBulkEditData(prev => ({ ...prev, priority: e.target.value as Activity['priority'] || undefined }))}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Don't change priority</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            {/* Sales Rep */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Sales Rep</label>
+              <select
+                value={bulkEditData.sales_rep || ''}
+                onChange={(e) => setBulkEditData(prev => ({ ...prev, sales_rep: e.target.value || undefined }))}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Don't change sales rep</option>
+                {Array.from(new Set(activities.map(a => a.sales_rep).filter(Boolean))).sort().map((rep: string) => (
+                  <option key={rep} value={rep}>{rep}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300">Details (will replace existing details)</label>
+              <textarea
+                value={bulkEditData.details || ''}
+                onChange={(e) => setBulkEditData(prev => ({ ...prev, details: e.target.value || undefined }))}
+                placeholder="Leave empty to keep existing details"
+                rows={3}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setBulkEditDialogOpen(false);
+                setBulkEditData({});
+              }}
+              className="bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBulkEdit}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              disabled={Object.keys(bulkEditData).length === 0 || Object.values(bulkEditData).every(v => !v)}
+            >
+              Update {selectedActivities.size} Activities
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {userData?.is_admin && (
          <ActivityUploadModal 
             open={isUploadModalOpen} 

@@ -16,6 +16,7 @@ import { webVitalsOptimizer } from '@/lib/utils/webVitals';
 import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import logger from '@/lib/utils/logger';
+import { StateProvider } from '@/lib/communication/StateManagement';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -166,6 +167,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ViewModeProvider>
+            <StateProvider>
             <IntelligentPreloader />
             <ProtectedRoute>
               <Suspense fallback={<RouteLoader />}>
@@ -217,7 +219,8 @@ function App() {
           </ProtectedRoute>
           <Toaster />
           <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
-        </ViewModeProvider>
+            </StateProvider>
+          </ViewModeProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

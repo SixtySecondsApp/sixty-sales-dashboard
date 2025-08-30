@@ -33,6 +33,7 @@ import { useContacts } from '@/lib/hooks/useContacts';
 import { useCompanies } from '@/lib/hooks/useCompanies';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useActivities } from '@/lib/hooks/useActivities';
+import { cleanupAllTestData, cleanupTestDataByIds, getTestDataCounts } from '@/lib/utils/testCleanup';
 
 interface TestResult {
   function: string;
@@ -219,20 +220,38 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
 
   // Function to perform cleanup operations
   const performCleanupOperation = async (entityType: string, id: string) => {
+    let result: any;
     switch (entityType) {
       case 'contact':
-        return await deleteContact(id);
+        result = await deleteContact(id);
+        break;
       case 'company':
-        return await deleteCompany(id);
+        result = await deleteCompany(id);
+        break;
       case 'deal':
-        return await deleteDeal(id);
+        result = await deleteDeal(id);
+        break;
       case 'task':
-        return await deleteTask(id);
+        // deleteTask doesn't return boolean, it throws on error or completes successfully
+        await deleteTask(id);
+        result = true;
+        break;
       case 'activity':
-        return await deleteActivity(id);
+        // Use direct delete function instead of mutation for cleanup
+        const { error } = await supabase.from('activities').delete().eq('id', id);
+        if (error) throw error;
+        result = true;
+        break;
       default:
         throw new Error(`Unknown entity type: ${entityType}`);
     }
+    
+    // Check if cleanup actually succeeded
+    if (result === false) {
+      throw new Error(`Cleanup operation for ${entityType} ${id} returned false - deletion failed`);
+    }
+    
+    return result;
   };
 
   // Get pipeline stages for testing stage transitions
@@ -262,7 +281,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'contact':
           if (operation === 'create') result = await createContact(data);
           else if (operation === 'update') result = await updateContact(id!, data);
-          else if (operation === 'delete') result = await deleteContact(id!);
+          else if (operation === 'delete') {
+            result = await deleteContact(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           else if (operation === 'bulk_create') {
             const contacts = [data, { ...data, email: `bulk_${Date.now()}@example.com` }];
             result = await Promise.all(contacts.map(c => createContact(c)));
@@ -272,7 +297,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'company':
           if (operation === 'create') result = await createCompany(data);
           else if (operation === 'update') result = await updateCompany(id!, data);
-          else if (operation === 'delete') result = await deleteCompany(id!);
+          else if (operation === 'delete') {
+            result = await deleteCompany(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           break;
           
         case 'deal':
@@ -285,7 +316,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
             result = await createDeal(data);
           }
           else if (operation === 'update') result = await updateDeal(id!, data);
-          else if (operation === 'delete') result = await deleteDeal(id!);
+          else if (operation === 'delete') {
+            result = await deleteDeal(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           else if (operation === 'move_stage') {
             const stages = await getPipelineStages();
             if (stages.length > 1) {
@@ -298,7 +335,11 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'task':
           if (operation === 'create') result = await createTask(data);
           else if (operation === 'update') result = await updateTask(id!, data);
-          else if (operation === 'delete') result = await deleteTask(id!);
+          else if (operation === 'delete') {
+            // deleteTask doesn't return boolean, it throws on error or completes successfully
+            await deleteTask(id!);
+            result = true;
+          }
           break;
           
         case 'meeting':
@@ -604,24 +645,88 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     }
   };
 
-  // Cleanup function
+  // Enhanced cleanup function using the new utility
   const cleanupTestData = async (testIds: Record<string, string[]>) => {
-    const cleanupResults: string[] = [];
-    
-    for (const [entityType, ids] of Object.entries(testIds)) {
-      for (const id of ids) {
-        if (id) {
-          try {
-            await performCleanupOperation(entityType, id);
-            cleanupResults.push(`✅ Cleaned up ${entityType}: ${id.substring(0, 8)}...`);
-          } catch (error) {
-            cleanupResults.push(`⚠️ Failed to cleanup ${entityType}: ${id.substring(0, 8)}...`);
-          }
+    try {
+      // Use the comprehensive cleanup utility
+      const result = await cleanupTestDataByIds(testIds);
+      
+      const cleanupResults: string[] = [];
+      
+      // Format results for display
+      Object.entries(result.deletedCounts).forEach(([entityType, count]) => {
+        if (count > 0) {
+          cleanupResults.push(`✅ Cleaned up ${count} ${entityType}`);
         }
+      });
+      
+      // Add error messages
+      result.errors.forEach(error => {
+        cleanupResults.push(`⚠️ Failed to cleanup ${error.table}: ${error.error}`);
+      });
+      
+      if (cleanupResults.length === 0) {
+        cleanupResults.push('✅ No cleanup needed - all items already cleaned');
       }
+      
+      return cleanupResults;
+    } catch (error) {
+      return [`❌ Cleanup failed: ${(error as Error).message}`];
     }
+  };
+
+  // Comprehensive test data cleanup function
+  const performCompleteCleanup = async (): Promise<TestResult> => {
+    const startTime = Date.now();
     
-    return cleanupResults;
+    try {
+      // Get current test data counts
+      const counts = await getTestDataCounts();
+      const totalItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      
+      if (totalItems === 0) {
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'success',
+          message: '✅ Database already clean - no test data found',
+          duration: Date.now() - startTime
+        };
+      }
+      
+      // Perform comprehensive cleanup
+      const result = await cleanupAllTestData();
+      
+      if (result.success) {
+        const deletedTotal = Object.values(result.deletedCounts).reduce((sum, count) => sum + count, 0);
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'success',
+          message: `✅ Cleaned up ${deletedTotal} test items: ${Object.entries(result.deletedCounts).map(([k,v]) => `${v} ${k}`).join(', ')}`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      } else {
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'failed',
+          message: `⚠️ Cleanup had ${result.errors.length} errors: ${result.errors.map(e => e.error).join('; ')}`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+    } catch (error) {
+      return {
+        function: 'cleanup',
+        operation: 'complete_cleanup',
+        status: 'failed',
+        message: `❌ Cleanup failed: ${(error as Error).message}`,
+        duration: Date.now() - startTime,
+        error
+      };
+    }
   };
 
   // Main test suite runner
@@ -640,10 +745,22 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     const operations = ['create', 'update', 'delete'];
     const specialTests = ['bulk_create', 'move_stage', 'performance', 'company_linking', 'integrity', 'error_handling'];
     
-    const totalTests = (functionTypes.length * operations.length) + specialTests.length;
+    const totalTests = (functionTypes.length * operations.length) + specialTests.length + 1; // +1 for initial cleanup
     let completedTests = 0;
     const allResults: TestResult[] = [];
     const testDataToCleanup: Record<string, string[]> = {};
+
+    // **STEP 1: Quick Pre-Test Check (Less Aggressive)**
+    console.log('🔍 Checking for existing test data...');
+    const counts = await getTestDataCounts();
+    const totalTestItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
+    
+    if (totalTestItems > 0) {
+      toast.info(`🔍 Found ${totalTestItems} existing test records - they'll be cleaned only if current tests fail`);
+      console.log('📊 Existing test data:', counts);
+    } else {
+      toast.success('✅ Database is clean - ready for fresh tests');
+    }
 
     // Initialize cleanup tracking
     functionTypes.forEach(type => {
@@ -1005,6 +1122,31 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
             Download Report
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          onClick={async () => {
+            setIsRunning(true);
+            try {
+              const cleanupResult = await performCompleteCleanup();
+              if (cleanupResult.status === 'success') {
+                toast.success(`🧹 ${cleanupResult.message}`);
+                cleanupDataRef.current = {}; // Clear tracking
+              } else {
+                toast.error(`❌ Cleanup failed: ${cleanupResult.message}`);
+              }
+            } catch (error) {
+              toast.error(`❌ Cleanup error: ${(error as Error).message}`);
+            } finally {
+              setIsRunning(false);
+            }
+          }}
+          disabled={isRunning}
+          className="bg-orange-800/50 hover:bg-orange-700/50 border-orange-700/50 text-orange-300"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Clean All Test Data
+        </Button>
 
         {totalCleanupItems > 0 && (
           <Button

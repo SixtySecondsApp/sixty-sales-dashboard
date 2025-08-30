@@ -55,7 +55,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
         logger.log('🔄 Trying direct Supabase queries for companies');
         
         try {
-          // Build companies query
+          // Build companies query - simplified to avoid complex joins
           let query = supabase
             .from('companies')
             .select('*')
@@ -73,13 +73,54 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
             throw companiesError;
           }
 
-          // Transform to match expected format
-          const companies = (companiesData || []).map(company => ({
+          // Get stats separately if requested to avoid complex join issues
+          let companies = (companiesData || []).map(company => ({
             ...company,
-            contactCount: 0, // TODO: Get from contacts table if needed
-            dealsCount: 0, // TODO: Get from deals table if needed
-            dealsValue: 0 // TODO: Get from deals table if needed
+            contactCount: 0,
+            dealsCount: 0,
+            dealsValue: 0
           }));
+
+          if (options.includeStats && companiesData?.length > 0) {
+            try {
+              // Get stats for companies separately to avoid join issues
+              companies = await Promise.all(
+                companiesData.map(async (company) => {
+                  try {
+                    // Get contact count
+                    const { count: contactCount } = await supabase
+                      .from('contacts')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('company_id', company.id);
+
+                    // Get deals data
+                    const { data: deals } = await supabase
+                      .from('deals')
+                      .select('value')
+                      .eq('company_id', company.id);
+
+                    return {
+                      ...company,
+                      contactCount: contactCount || 0,
+                      dealsCount: deals?.length || 0,
+                      dealsValue: deals?.reduce((sum: number, deal: any) => sum + (Number(deal.value) || 0), 0) || 0
+                    };
+                  } catch (statError) {
+                    logger.warn(`⚠️ Stats error for company ${company.id}:`, statError);
+                    return {
+                      ...company,
+                      contactCount: 0,
+                      dealsCount: 0,
+                      dealsValue: 0
+                    };
+                  }
+                })
+              );
+            } catch (statsError) {
+              logger.warn('⚠️ Error getting company stats:', statsError);
+              // Continue with companies without stats
+            }
+          }
 
           logger.log('📊 Companies loaded from table:', companies.map(c => ({ id: c.id, name: c.name })));
           setCompanies(companies);
