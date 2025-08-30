@@ -2,18 +2,50 @@ import type { Database } from '@/lib/database.types';
 
 type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
+// Support both database profile format and Supabase auth user format
+type AuthUser = {
+  id: string;
+  email?: string;
+  is_admin?: boolean;
+  role?: string;
+  user_metadata?: {
+    role?: string;
+    [key: string]: any;
+  };
+};
+
+type UserData = UserProfile | AuthUser | null | undefined;
+
 /**
  * Check if a user has admin privileges
+ * Supports both database profile format and Supabase auth user format
  */
-export const isUserAdmin = (userData: UserProfile | null | undefined): boolean => {
-  return userData?.is_admin || false;
+export const isUserAdmin = (userData: UserData): boolean => {
+  if (!userData) return false;
+  
+  // Check direct is_admin flag
+  if (userData.is_admin === true) return true;
+  
+  // Check role field in database profile
+  if ('role' in userData && userData.role) {
+    const role = userData.role.toLowerCase();
+    if (role === 'admin' || role === 'super_admin') return true;
+  }
+  
+  // Check user_metadata.role for Supabase auth format
+  if ('user_metadata' in userData && userData.user_metadata?.role) {
+    const role = userData.user_metadata.role.toLowerCase();
+    if (role === 'admin' || role === 'super_admin') return true;
+  }
+  
+  return false;
 };
 
 /**
  * Check if a user can split deals
  * Currently only admins can split deals
  */
-export const canSplitDeals = (userData: UserProfile | null | undefined): boolean => {
+export const canSplitDeals = (userData: UserData): boolean => {
   return isUserAdmin(userData);
 };
 
@@ -21,7 +53,7 @@ export const canSplitDeals = (userData: UserProfile | null | undefined): boolean
  * Check if a user can remove split deals
  * Non-admins cannot remove split deals once they've been created
  */
-export const canRemoveSplitDeals = (userData: UserProfile | null | undefined): boolean => {
+export const canRemoveSplitDeals = (userData: UserData): boolean => {
   return isUserAdmin(userData);
 };
 
@@ -43,7 +75,7 @@ export const isDealSplit = (deal: any): boolean => {
  */
 export const canEditDeal = (
   deal: any, 
-  userData: UserProfile | null | undefined
+  userData: UserData
 ): boolean => {
   // Admins can edit any deal
   if (isUserAdmin(userData)) return true;
@@ -63,7 +95,7 @@ export const canEditDeal = (
  */
 export const canDeleteDeal = (
   deal: any, 
-  userData: UserProfile | null | undefined
+  userData: UserData
 ): boolean => {
   // Admins can delete any deal
   if (isUserAdmin(userData)) return true;
@@ -78,7 +110,7 @@ export const canDeleteDeal = (
 /**
  * Check if a user can manage contacts (create, update, delete)
  */
-export const canManageContacts = (userData: UserProfile | null | undefined): boolean => {
+export const canManageContacts = (userData: UserData): boolean => {
   // All authenticated users can manage their own contacts
   // Admins can manage all contacts
   return !!userData?.id;
@@ -89,7 +121,7 @@ export const canManageContacts = (userData: UserProfile | null | undefined): boo
  */
 export const canManageContact = (
   contact: any,
-  userData: UserProfile | null | undefined
+  userData: UserData
 ): boolean => {
   if (!userData?.id) return false;
   
@@ -103,7 +135,7 @@ export const canManageContact = (
 /**
  * Check if a user can create contacts for other users (admin feature)
  */
-export const canCreateContactsForOthers = (userData: UserProfile | null | undefined): boolean => {
+export const canCreateContactsForOthers = (userData: UserData): boolean => {
   return isUserAdmin(userData);
 };
 

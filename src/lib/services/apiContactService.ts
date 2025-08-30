@@ -1,4 +1,4 @@
-import type { Contact } from '@/lib/database/models';
+import type { Contact, Company } from '@/lib/database/models';
 import { API_BASE_URL, DISABLE_EDGE_FUNCTIONS } from '@/lib/config';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
@@ -7,6 +7,59 @@ import { toast } from 'sonner';
 
 export class ApiContactService {
   
+  /**
+   * Auto-create company from website URL
+   */
+  private static async autoCreateCompanyFromWebsite(website: string, email: string, owner_id: string): Promise<Company | null> {
+    if (!website || !owner_id) return null;
+
+    try {
+      // Extract domain from website
+      const domain = website.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].toLowerCase();
+      
+      // Extract company name from domain (remove .com, .co.uk, etc.)
+      const domainParts = domain.split('.');
+      const companyName = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
+
+      // Check if company already exists with this domain
+      const { data: existingCompanies, error: searchError } = await supabase
+        .from('companies')
+        .select('*')
+        .or(`domain.ilike.%${domain}%,website.ilike.%${domain}%`)
+        .limit(1);
+
+      if (!searchError && existingCompanies && existingCompanies.length > 0) {
+        logger.log('Found existing company for domain:', domain);
+        return existingCompanies[0] as Company;
+      }
+
+      // Create new company
+      const companyData = {
+        name: companyName,
+        domain: domain,
+        website: website,
+        owner_id: owner_id
+      };
+
+      const { data: newCompany, error: createError } = await supabase
+        .from('companies')
+        .insert(companyData)
+        .select()
+        .single();
+
+      if (createError) {
+        logger.error('Error creating company:', createError);
+        return null;
+      }
+
+      logger.log('Auto-created company:', newCompany);
+      return newCompany as Company;
+    } catch (error) {
+      logger.error('Error auto-creating company:', error);
+      return null;
+    }
+  }
+
   /**
    * Get all contacts with optional search and filters
    */
@@ -241,14 +294,35 @@ export class ApiContactService {
   /**
    * Create a new contact
    */
-  static async createContact(contactData: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'full_name'>) {
+  static async createContact(contactData: Omit<Contact, 'id' | 'created_at' | 'updated_at' | 'full_name'> & { company_website?: string }) {
     try {
       // Use direct Supabase query for creating contacts
       logger.log('📋 Creating contact directly via Supabase');
       
+      // Auto-create company if website is provided and no company_id is set
+      let finalContactData = { ...contactData };
+      
+      if (contactData.company_website && !contactData.company_id && contactData.owner_id) {
+        logger.log('🏢 Auto-creating company from website:', contactData.company_website);
+        const company = await this.autoCreateCompanyFromWebsite(
+          contactData.company_website, 
+          contactData.email, 
+          contactData.owner_id
+        );
+        
+        if (company) {
+          finalContactData.company_id = company.id;
+          logger.log('✅ Linked contact to company:', company.name);
+          toast.success(`Contact linked to company "${company.name}"`);
+        }
+      }
+      
+      // Remove company_website from the data sent to the database (it's not a database field)
+      const { company_website, ...dbContactData } = finalContactData;
+      
       const { data: contact, error } = await supabase
         .from('contacts')
-        .insert(contactData)
+        .insert(dbContactData)
         .select()
         .single();
 

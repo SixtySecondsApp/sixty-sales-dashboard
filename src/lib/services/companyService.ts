@@ -119,19 +119,40 @@ export class CompanyService {
         companyData.domain = companyData.domain.toLowerCase();
       }
 
-      const response = await fetch(`${API_BASE_URL}/companies`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(companyData),
-      });
+      // Try API endpoint first
+      try {
+        const response = await fetch(`${API_BASE_URL}/companies`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(companyData),
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json() as Company;
+      } catch (apiError) {
+        logger.log('⚠️ Company API call failed, falling back to Supabase:', apiError);
+        
+        // Fallback to direct Supabase client
+        const { supabase } = await import('@/lib/supabase/clientV2');
+        const { data: company, error } = await supabase
+          .from('companies')
+          .insert(companyData)
+          .select()
+          .single();
+        
+        if (error) {
+          logger.error('❌ Supabase fallback also failed:', error);
+          throw error;
+        }
+        
+        logger.log('✅ Company created via Supabase fallback:', company);
+        return company;
       }
-
-      return await response.json() as Company;
     } catch (error) {
       logger.error('Error creating company:', error);
       throw error;

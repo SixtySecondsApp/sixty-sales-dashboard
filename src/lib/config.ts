@@ -1,8 +1,16 @@
 import logger from '@/lib/utils/logger';
 
 // Environment detection and configuration
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const isProduction = window.location.hostname.includes('vercel.app') || !isLocalhost;
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+const isLocalhost = isBrowser 
+  ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  : (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test');
+
+const isProduction = isBrowser
+  ? window.location.hostname.includes('vercel.app') || !isLocalhost
+  : process.env.NODE_ENV === 'production';
 
 // Get Supabase URL from environment variables
 const getSupabaseUrl = () => {
@@ -47,7 +55,7 @@ export const config = {
 };
 
 // Helper to log configuration in development
-if (config.debug) {
+if (config.debug && isBrowser) {
   logger.log('🔧 Configuration:', {
     hostname: window.location.hostname,
     isLocalhost: config.isLocalhost,

@@ -5,12 +5,14 @@ import PipelineSettings from '@/pages/admin/PipelineSettings';
 import AuditLogs from '@/pages/admin/AuditLogs';
 import SmartTasksAdmin from '@/pages/SmartTasksAdmin';
 import ApiTesting from '@/pages/ApiTesting';
+import FunctionTesting from '@/pages/admin/FunctionTesting';
 import { 
   UsersIcon, 
   PanelLeft, 
   Shield, 
   Zap, 
-  Code2 
+  Code2,
+  Target
 } from 'lucide-react';
 
 export default function Admin() {
@@ -66,6 +68,13 @@ export default function Admin() {
                 <Code2 className="w-4 h-4" />
                 API Testing
               </TabsTrigger>
+              <TabsTrigger 
+                value="function-testing" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <Target className="w-4 h-4" />
+                Function Testing
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="users" className="space-y-0">
@@ -86,6 +95,10 @@ export default function Admin() {
 
             <TabsContent value="api-testing" className="space-y-0">
               <ApiTesting />
+            </TabsContent>
+
+            <TabsContent value="function-testing" className="space-y-0">
+              <FunctionTesting />
             </TabsContent>
           </Tabs>
         </div>

@@ -433,8 +433,8 @@ ${this.generateRecommendations(summary)}
   }
 }
 
-// CLI execution
-if (require.main === module) {
+// CLI execution - ES module compatibility
+if (import.meta.url === `file://${process.argv[1]}`) {
   const runner = new MemoryTestRunner();
   
   runner.runAllTests()

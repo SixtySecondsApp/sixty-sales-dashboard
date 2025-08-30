@@ -66,9 +66,18 @@ vi.mock('@/lib/utils/logger', () => ({
 
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
-    form: ({ children, ...props }: any) => <form {...props}>{children}</form>
+    div: ({ children, ...props }: any) => {
+      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
+      return <div {...domProps}>{children}</div>;
+    },
+    button: ({ children, ...props }: any) => {
+      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
+      return <button {...domProps}>{children}</button>;
+    },
+    form: ({ children, ...props }: any) => {
+      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
+      return <form {...domProps}>{children}</form>;
+    }
   },
   AnimatePresence: ({ children }: any) => children
 }));
