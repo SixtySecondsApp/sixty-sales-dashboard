@@ -4,6 +4,7 @@ import { Building2, CheckCircle, X } from 'lucide-react';
 import { useUser } from '@/lib/hooks/useUser';
 import { ContactSearchModal } from '../ContactSearchModal';
 import { cn } from '@/lib/utils';
+import { DealTypeStep } from './DealTypeStep';
 import { ContactSelectionStep } from './ContactSelectionStep';
 import { DealFormStep } from './DealFormStep';
 import { SuccessStep } from './SuccessStep';
@@ -42,9 +43,19 @@ export function DealWizard({
     onClose();
   };
 
+  const handleNextStep = () => {
+    if (wizard.step === 'deal-type') {
+      setWizard({ ...wizard, step: 'contact-selection' });
+    } else if (wizard.step === 'contact-selection') {
+      setWizard({ ...wizard, step: 'deal-form' });
+    }
+  };
+
   const onContactSelectWrapper = (contact: any) => {
     handleContactSelect(contact, wizard, setWizard);
     setShowContactSearch(false);
+    // Auto advance to deal form step
+    setWizard(prev => ({ ...prev, step: 'deal-form' }));
   };
 
   const onCreateDealWrapper = async () => {
@@ -90,7 +101,9 @@ export function DealWizard({
                      'Create New Deal'}
                   </h2>
                   <p className="text-sm text-gray-400">
-                    {wizard.step === 'new-deal' && (wizard.selectedContact ? 'Fill in deal details' : 'Select a contact to continue')}
+                    {wizard.step === 'deal-type' && 'Choose the type of deal you\'re creating'}
+                    {wizard.step === 'contact-selection' && 'Select a contact to continue'}
+                    {wizard.step === 'deal-form' && 'Fill in deal details'}
                     {wizard.step === 'success' && (
                       actionType === 'proposal' ? 'Deal and proposal created successfully!' : 
                       actionType === 'meeting' ? 'Meeting and deal created successfully!' :
@@ -110,16 +123,33 @@ export function DealWizard({
             {/* Step Progress */}
             <div className="px-6 py-4 border-b border-gray-800/30">
               <div className="flex items-center gap-2">
+                {/* Step 1: Deal Type */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                  "bg-violet-500 text-white" // Always active since we start at new-deal
+                  wizard.step === 'deal-type' ? "bg-violet-500 text-white" : 
+                  wizard.dealType ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
                 )}>
                   1
                 </div>
                 <div className={cn(
                   "flex-1 h-px transition-colors",
+                  wizard.dealType ? "bg-violet-500" : "bg-gray-700"
+                )} />
+                
+                {/* Step 2: Contact & Deal Form */}
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                  wizard.step === 'contact-selection' || wizard.step === 'deal-form' ? "bg-violet-500 text-white" : 
+                  wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
+                )}>
+                  2
+                </div>
+                <div className={cn(
+                  "flex-1 h-px transition-colors",
                   wizard.step === 'success' ? "bg-violet-500" : "bg-gray-700"
                 )} />
+                
+                {/* Step 3: Success */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
                   wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
@@ -132,14 +162,29 @@ export function DealWizard({
             {/* Step Content */}
             <div className="p-6">
               <AnimatePresence mode="wait">
-                {/* New Deal Flow */}
-                {wizard.step === 'new-deal' && !(!wizard.selectedContact && initialLoad) && (
+                {/* Step 1: Deal Type Selection */}
+                {wizard.step === 'deal-type' && (
                   <motion.div
-                    key="new-deal"
+                    key="deal-type"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
+                  >
+                    <DealTypeStep
+                      wizard={wizard}
+                      onWizardChange={setWizard}
+                      onNext={handleNextStep}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Step 2: Contact Selection */}
+                {wizard.step === 'contact-selection' && (
+                  <motion.div
+                    key="contact-selection"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
                   >
                     <ContactSelectionStep
                       wizard={wizard}
@@ -148,24 +193,39 @@ export function DealWizard({
                       onContactSelect={onContactSelectWrapper}
                       onWizardChange={setWizard}
                     />
-
-                    {wizard.selectedContact && (
-                      <DealFormStep
-                        wizard={wizard}
-                        actionType={actionType}
-                        stages={stages}
-                        userData={userData}
-                        isLoading={isLoading}
-                        onWizardChange={setWizard}
-                        onCreateDeal={onCreateDealWrapper}
-                      />
-                    )}
                   </motion.div>
                 )}
 
-                {/* Success Step */}
+                {/* Step 3: Deal Form */}
+                {wizard.step === 'deal-form' && (
+                  <motion.div
+                    key="deal-form"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <DealFormStep
+                      wizard={wizard}
+                      actionType={actionType}
+                      stages={stages}
+                      userData={userData}
+                      isLoading={isLoading}
+                      onWizardChange={setWizard}
+                      onCreateDeal={onCreateDealWrapper}
+                    />
+                  </motion.div>
+                )}
+
+                {/* Step 4: Success */}
                 {wizard.step === 'success' && (
-                  <SuccessStep actionType={actionType} />
+                  <motion.div
+                    key="success"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                  >
+                    <SuccessStep actionType={actionType} />
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>

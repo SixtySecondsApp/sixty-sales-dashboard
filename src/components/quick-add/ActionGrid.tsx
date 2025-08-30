@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Target, CheckSquare, PoundSterling, Phone, Users, FileText } from 'lucide-react';
+import { Map, CheckSquare, PoundSterling, Phone, Users, FileText } from 'lucide-react';
 import type { QuickAction } from './types';
 
 interface ActionGridProps {
@@ -7,12 +7,12 @@ interface ActionGridProps {
 }
 
 const quickActions: QuickAction[] = [
-  { id: 'deal', icon: Target, label: 'Create Deal', color: 'purple' },
-  { id: 'task', icon: CheckSquare, label: 'Add Task', color: 'indigo' },
-  { id: 'sale', icon: PoundSterling, label: 'Add Sale', color: 'emerald' },
   { id: 'outbound', icon: Phone, label: 'Add Outbound', color: 'blue' },
   { id: 'meeting', icon: Users, label: 'Add Meeting', color: 'violet' },
   { id: 'proposal', icon: FileText, label: 'Add Proposal', color: 'orange' },
+  { id: 'sale', icon: PoundSterling, label: 'Add Sale', color: 'emerald' },
+  { id: 'task', icon: CheckSquare, label: 'Add Task', color: 'indigo' },
+  { id: 'roadmap', icon: Map, label: 'Add Roadmap', color: 'purple' },
 ];
 
 export function ActionGrid({ onActionSelect }: ActionGridProps) {

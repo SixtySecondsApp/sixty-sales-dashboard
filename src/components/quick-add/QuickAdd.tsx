@@ -11,9 +11,8 @@ import { useTasks } from '@/lib/hooks/useTasks';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
 import { useDeals } from '@/lib/hooks/useDeals';
+import { useRoadmap } from '@/lib/hooks/useRoadmap';
 import { ContactSearchModal } from '@/components/ContactSearchModal';
-import { DealWizard } from '@/components/DealWizard';
-import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
 
@@ -46,7 +45,8 @@ import {
 
 import { ActionGrid } from './ActionGrid';
 import { TaskForm } from './TaskForm';
-import { ActivityForms } from './ActivityForms';
+import { ActivityForms, OutboundForm } from './ActivityForms';
+import { RoadmapForm } from './RoadmapForm';
 import { useFormState } from './hooks/useFormState';
 import { useQuickAddValidation } from './hooks/useQuickAddValidation';
 import type { QuickAddFormData } from './types';
@@ -62,6 +62,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
   const { contacts, createContact, findContactByEmail } = useContacts();
   const { addActivity, addSale } = useActivities();
   const { createTask } = useTasks();
+  const { createSuggestion } = useRoadmap();
   const { validateForm } = useQuickAddValidation();
   
   // Original form state for backward compatibility
@@ -137,7 +138,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
   const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [showDealWizard, setShowDealWizard] = useState(false);
   const [existingDeal, setExistingDeal] = useState<any>(null);
   const [showDealChoice, setShowDealChoice] = useState(false);
   const [selectedContact, setSelectedContact] = useState<any>(null);
@@ -256,19 +256,20 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     setSelectedContact(null);
     setShowContactSearch(false);
     setSelectedDate(new Date());
-    setShowDealWizard(false);
     resetForm();
     onClose();
   };
 
   const handleActionSelect = (actionId: string) => {
-    if (actionId === 'deal') {
+    if (actionId === 'meeting' || actionId === 'proposal' || actionId === 'sale') {
       setSelectedAction(actionId);
       setShowContactSearch(true);
-    } else if (actionId === 'meeting' || actionId === 'proposal' || actionId === 'sale') {
+    } else if (actionId === 'outbound') {
+      // Outbound can work with or without contacts
       setSelectedAction(actionId);
-      setShowContactSearch(true);
+      // Don't automatically show contact search for outbound
     } else {
+      // Task, roadmap, and other actions don't need contact search
       setSelectedAction(actionId);
     }
   };
@@ -335,6 +336,35 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
         return;
       }
     }
+
+    if (selectedAction === 'roadmap') {
+      try {
+        const roadmapData = {
+          title: formData.title,
+          description: formData.description,
+          type: formData.roadmap_type,
+          priority: formData.priority || 'medium'
+        };
+
+        await createSuggestion(roadmapData);
+        
+        setSubmitStatus('success');
+        setIsSubmitting(false);
+        toast.success('Roadmap suggestion submitted successfully!', {
+          icon: <CheckCircle2 className="w-4 h-4" />,
+        });
+        
+        // Small delay to show success state
+        setTimeout(() => {
+          handleClose();
+        }, 1000);
+        
+        return;
+      } catch (error) {
+        handleError(error, 'roadmap');
+        return;
+      }
+    }
     
     // Validation for meeting/proposal/sale - require contact
     if ((selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && !selectedContact) {
@@ -355,6 +385,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     if (selectedAction === 'meeting' && !formData.details) {
       toast.error('Please select a meeting type');
       return;
+    }
+    
+    // Outbound validation
+    if (selectedAction === 'outbound') {
+      if (!formData.outboundType) {
+        toast.error('Please select an outbound activity type');
+        return;
+      }
+      if (!formData.outboundCount || parseInt(formData.outboundCount) < 1) {
+        toast.error('Please enter a valid quantity');
+        return;
+      }
     }
     
     // For unified flow (meeting/proposal/sale), use selected contact
@@ -385,24 +427,38 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
     try {
       if (selectedAction === 'outbound') {
-        logger.log('📤 Creating outbound activity...');
-        // Always add the activity, but only pass identifier fields if present
+        const activityCount = parseInt(formData.outboundCount) || 1;
+        logger.log(`📤 Creating outbound activity with quantity: ${activityCount}...`);
+        
+        // Build comprehensive details that shows the quantity
+        const outboundDetails = [
+          `${activityCount} ${formData.outboundType}${activityCount > 1 ? 's' : ''}`,
+          formData.details
+        ].filter(Boolean).join(' - ');
+
         await addActivity({
           type: 'outbound',
-          client_name: formData.client_name || 'Unknown',
-          details: formData.outboundType,
-          quantity: parseInt(formData.outboundCount) || 1,
+          client_name: formData.client_name || (selectedContact ? 
+            `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() || selectedContact.email :
+            'Bulk Outbound Session'),
+          details: outboundDetails,
+          outbound_type: formData.outboundType,
+          quantity: activityCount, // Use 'quantity' field that Dashboard expects for stats
           date: selectedDate.toISOString(),
           deal_id: formData.deal_id,
-          // Only include identifier fields if present
-          ...(formData.contactIdentifier
+          // Only include identifier fields if contact is selected
+          ...(selectedContact
             ? {
-                contactIdentifier: formData.contactIdentifier,
-                contactIdentifierType: formData.contactIdentifierType
+                contactIdentifier: selectedContact.email,
+                contactIdentifierType: 'email' as const,
+                contact_name: selectedContact.full_name || 
+                             `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() ||
+                             selectedContact.email
               }
             : {})
         });
-        logger.log('✅ Outbound activity created successfully');
+        
+        logger.log(`✅ Outbound activity created with quantity: ${activityCount}`);
       } else if (selectedAction) {
         logger.log(`📝 Creating ${selectedAction} activity...`);
         
@@ -716,7 +772,17 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
       
       setSubmitStatus('success');
       setIsSubmitting(false);
-      toast.success(`${selectedAction === 'outbound' ? 'Outbound' : selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`, {
+      
+      // Create appropriate success message
+      let successMessage = '';
+      if (selectedAction === 'outbound') {
+        const activityCount = parseInt(formData.outboundCount) || 1;
+        successMessage = `${activityCount} ${formData.outboundType}${activityCount > 1 ? 's' : ''} added successfully!`;
+      } else {
+        successMessage = `${selectedAction === 'sale' ? 'Sale' : selectedAction} added successfully!`;
+      }
+      
+      toast.success(successMessage, {
         icon: <CheckCircle2 className="w-4 h-4" />,
       });
       
@@ -783,7 +849,7 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
               <ActionGrid onActionSelect={handleActionSelect} />
             )}
 
-            {!showContactSearch && !showDealWizard && selectedAction === 'task' && (
+            {!showContactSearch && selectedAction === 'task' && (
               <TaskForm
                 formData={formData}
                 setFormData={setFormData}
@@ -794,8 +860,19 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 onBack={() => setSelectedAction(null)}
               />
             )}
+            {!showContactSearch && selectedAction === 'roadmap' && (
+              <RoadmapForm
+                formData={formData}
+                setFormData={setFormData}
+                validationErrors={validationErrors}
+                isSubmitting={isSubmitting}
+                submitStatus={submitStatus}
+                onSubmit={handleSubmit}
+                onBack={() => setSelectedAction(null)}
+              />
+            )}
 
-            {!showContactSearch && !showDealWizard && 
+            {!showContactSearch && 
              (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') && 
              selectedContact && (
               <ActivityForms
@@ -816,49 +893,26 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 }}
               />
             )}
+
+            {/* Outbound Form - Works with or without contacts */}
+            {!showContactSearch && selectedAction === 'outbound' && (
+              <OutboundForm
+                formData={formData}
+                setFormData={setFormData}
+                validationErrors={validationErrors}
+                isSubmitting={isSubmitting}
+                submitStatus={submitStatus}
+                onSubmit={handleSubmit}
+                onBack={() => setSelectedAction(null)}
+                onAddContact={() => setShowContactSearch(true)}
+                selectedContact={selectedContact}
+                onChangeContact={() => {
+                  setSelectedContact(null);
+                  setShowContactSearch(true);
+                }}
+              />
+            )}
           </motion.div>
-          
-          {/* Deal Wizard Modal */}
-          <DealWizard
-            isOpen={showDealWizard}
-            actionType={selectedAction as 'deal' | 'proposal' | 'sale' | 'meeting'}
-            onClose={() => {
-              setShowDealWizard(false);
-              setSelectedAction(null);
-              setSelectedContact(null);
-              onClose();
-            }}
-            onDealCreated={(deal) => {
-              setShowDealWizard(false);
-              
-              if (selectedAction === 'deal' || selectedAction === 'proposal' || selectedAction === 'sale' || selectedAction === 'meeting') {
-                handleClose();
-              } else {
-                if (selectedAction === 'meeting') {
-                  updateFormData({
-                    deal_id: deal.id,
-                    selectedDeal: deal,
-                    client_name: deal.company || formData.client_name
-                  });
-                }
-              }
-            }}
-            initialData={{
-              clientName: formData.client_name || selectedContact?.company,
-              contactEmail: selectedContact?.email || formData.contactIdentifier,
-              contactName: selectedContact ? 
-                           (selectedContact.full_name || 
-                            (selectedContact.first_name || selectedContact.last_name ? 
-                             `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
-                             selectedContact.email)) : 
-                           formData.contact_name,
-              dealValue: parseFloat(formData.amount) || 0,
-              oneOffRevenue: parseFloat(formData.oneOffRevenue || '0') || 0,
-              monthlyMrr: parseFloat(formData.monthlyMrr || '0') || 0,
-              saleType: formData.saleType,
-              companyWebsite: formData.company_website
-            }}
-          />
 
           {/* Contact Search Modal */}
           {showContactSearch && (
@@ -917,13 +971,6 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
                 
                 setSelectedContact(contact);
                 setShowContactSearch(false);
-                
-                // For Deal action, open DealWizard with the selected contact
-                if (selectedAction === 'deal') {
-                  setTimeout(() => {
-                    setShowDealWizard(true);
-                  }, 100);
-                }
               }}
             />
           )}

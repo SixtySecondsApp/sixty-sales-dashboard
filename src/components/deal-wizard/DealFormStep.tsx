@@ -1,8 +1,69 @@
 import React from 'react';
-import { Building2, CheckCircle, PoundSterling } from 'lucide-react';
-import { DealFormStepProps } from './types';
+import { Building2, CheckCircle, PoundSterling, Calendar, FileText } from 'lucide-react';
+import { DealFormStepProps, DealType, DealTypeConfig } from './types';
 import { canSplitDeals } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
+
+// Deal type configurations (same as in DealTypeStep)
+const dealTypeConfigs: DealTypeConfig[] = [
+  {
+    id: 'subscription',
+    title: 'Subscription',
+    description: 'Recurring monthly or yearly payments',
+    icon: 'Repeat',
+    fields: {
+      monthlyMrr: true,
+      oneOffRevenue: true,
+    },
+    defaultSaleType: 'subscription'
+  },
+  {
+    id: 'one-off',
+    title: 'One-off Sale',
+    description: 'Single payment for product or service',
+    icon: 'CreditCard',
+    fields: {
+      value: true,
+    },
+    defaultSaleType: 'one-off'
+  },
+  {
+    id: 'project',
+    title: 'Project-based',
+    description: 'Fixed scope project with milestones',
+    icon: 'Briefcase',
+    fields: {
+      value: true,
+      projectScope: true,
+      duration: true,
+      milestones: true,
+    },
+    defaultSaleType: 'one-off'
+  },
+  {
+    id: 'retainer',
+    title: 'Retainer',
+    description: 'Ongoing monthly service agreement',
+    icon: 'Calendar',
+    fields: {
+      monthlyMrr: true,
+      retainerDetails: true,
+    },
+    defaultSaleType: 'subscription'
+  },
+  {
+    id: 'custom',
+    title: 'Custom Deal',
+    description: 'Flexible deal structure',
+    icon: 'Settings',
+    fields: {
+      value: true,
+      oneOffRevenue: true,
+      monthlyMrr: true,
+    },
+    defaultSaleType: 'one-off'
+  }
+];
 
 export function DealFormStep({ 
   wizard, 
@@ -13,6 +74,9 @@ export function DealFormStep({
   onWizardChange, 
   onCreateDeal 
 }: DealFormStepProps) {
+  // Get the current deal type configuration
+  const dealTypeConfig = wizard.dealType ? dealTypeConfigs.find(config => config.id === wizard.dealType) : null;
+
   const handleInputChange = (field: string, value: any) => {
     onWizardChange({
       ...wizard,

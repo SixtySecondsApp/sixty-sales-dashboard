@@ -25,6 +25,9 @@ export interface QuickAddFormData {
   deal_id: string | null;
   deal_name: string;
   selectedDeal: any;
+  // Roadmap specific fields
+  roadmap_type: 'feature' | 'bug' | 'improvement' | 'other';
+  roadmap_priority: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export interface TaskType {

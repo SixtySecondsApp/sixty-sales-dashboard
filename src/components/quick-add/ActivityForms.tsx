@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Users, FileText, PoundSterling, Calendar, Loader2, CheckCircle2, AlertCircle, Briefcase } from 'lucide-react';
+import { ArrowRight, Users, FileText, PoundSterling, Calendar, Loader2, CheckCircle2, AlertCircle, Briefcase, Phone, UserPlus, Hash } from 'lucide-react';
 import { format, addDays, addWeeks } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import type { QuickAddFormData, ValidationErrors } from './types';
 
 interface ActivityFormsProps {
-  selectedAction: 'meeting' | 'proposal' | 'sale';
+  selectedAction: 'meeting' | 'proposal' | 'sale' | 'outbound';
   selectedContact: any;
   selectedDate: Date;
   setSelectedDate: (date: Date) => void;
@@ -42,6 +42,7 @@ export function ActivityForms({
       case 'meeting': return <Users className="w-5 h-5 text-violet-500" />;
       case 'proposal': return <FileText className="w-5 h-5 text-orange-500" />;
       case 'sale': return <PoundSterling className="w-5 h-5 text-emerald-500" />;
+      case 'outbound': return <Phone className="w-5 h-5 text-blue-500" />;
     }
   };
 
@@ -50,6 +51,7 @@ export function ActivityForms({
       case 'meeting': return 'Add Meeting';
       case 'proposal': return 'Add Proposal';
       case 'sale': return 'Add Sale';
+      case 'outbound': return 'Add Outbound';
     }
   };
 
@@ -58,6 +60,7 @@ export function ActivityForms({
       case 'meeting': return 'Meeting Date';
       case 'proposal': return 'Proposal Date';
       case 'sale': return 'Sale Date';
+      case 'outbound': return 'Outbound Date';
       default: return 'Date';
     }
   };
@@ -275,6 +278,56 @@ export function ActivityForms({
           </div>
         )}
 
+        {/* Outbound-specific fields */}
+        {selectedAction === 'outbound' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-400">
+                  Outbound Type
+                </label>
+                <select
+                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                  value={formData.outboundType || 'Call'}
+                  onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
+                >
+                  <option value="Call">Call</option>
+                  <option value="Email">Email</option>
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="SMS">SMS</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-400">
+                  Attempt #
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  placeholder="1"
+                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                  value={formData.outboundCount || '1'}
+                  onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-gray-400">
+                Outbound Details
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Cold outreach, follow-up call, etc..."
+                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
+                value={formData.details || ''}
+                onChange={(e) => setFormData({...formData, details: e.target.value})}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Company Information - Required */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -400,6 +453,210 @@ export function ActivityForms({
             )}
           </button>
         </div>
+      </form>
+    </motion.div>
+  );
+}
+
+interface OutboundFormProps {
+  formData: QuickAddFormData;
+  setFormData: (data: QuickAddFormData) => void;
+  validationErrors: ValidationErrors;
+  isSubmitting: boolean;
+  submitStatus: 'idle' | 'success' | 'error';
+  onSubmit: (e: React.FormEvent) => Promise<void>;
+  onBack: () => void;
+  onAddContact: () => void;
+  selectedContact: any;
+  onChangeContact: () => void;
+}
+
+export function OutboundForm({
+  formData,
+  setFormData,
+  validationErrors,
+  isSubmitting,
+  submitStatus,
+  onSubmit,
+  onBack,
+  onAddContact,
+  selectedContact,
+  onChangeContact
+}: OutboundFormProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      className="space-y-6"
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Phone className="w-5 h-5 text-blue-500" />
+            <h3 className="text-lg font-semibold text-white">Log Outbound Activity</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-gray-400 hover:text-white transition-colors p-2"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+          </button>
+        </div>
+
+        {/* Contact Selection (Optional) */}
+        <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-sm font-medium text-gray-400">Contact (Optional)</label>
+            {selectedContact && (
+              <button
+                type="button"
+                onClick={onChangeContact}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                Change Contact
+              </button>
+            )}
+          </div>
+          
+          {selectedContact ? (
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-violet-500/20 rounded-full flex items-center justify-center">
+                <Users className="w-4 h-4 text-violet-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-white">
+                  {selectedContact.full_name || 
+                   (selectedContact.first_name || selectedContact.last_name ? 
+                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                    selectedContact.email)}
+                </p>
+                <p className="text-xs text-gray-400">{selectedContact.email}</p>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onAddContact}
+              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add Contact (Optional)
+            </button>
+          )}
+        </div>
+
+        {/* Outbound Activity Details */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-gray-400">
+              Activity Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              required
+              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+              value={formData.outboundType || 'Call'}
+              onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
+            >
+              <option value="Call">Cold Calls</option>
+              <option value="Email">Cold Emails</option>
+              <option value="LinkedIn">LinkedIn Messages</option>
+              <option value="SMS">SMS Messages</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-gray-400">
+              Quantity <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="number"
+                required
+                min="1"
+                max="500"
+                placeholder="50"
+                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg pl-10 pr-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                value={formData.outboundCount || ''}
+                onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Details */}
+        <div className="space-y-1">
+          <label className="block text-xs font-medium text-gray-400">
+            Session Notes
+          </label>
+          <textarea
+            rows={3}
+            placeholder="e.g., '50 cold calls to tech companies in London. 5 callbacks scheduled, 12 answered calls, good response rate'"
+            className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
+            value={formData.details || ''}
+            onChange={(e) => setFormData({...formData, details: e.target.value})}
+          />
+        </div>
+
+        {/* Company/Client Name (if no contact selected) */}
+        {!selectedContact && (
+          <div className="space-y-1">
+            <label className="block text-xs font-medium text-gray-400">
+              Target Company/Client <span className="text-gray-500 text-xs">(optional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g., 'Tech startups in London' or 'Acme Inc.'"
+              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+              value={formData.client_name || ''}
+              onChange={(e) => setFormData({...formData, client_name: e.target.value})}
+            />
+          </div>
+        )}
+
+        {/* Submit Button */}
+        <motion.button
+          type="submit"
+          disabled={isSubmitting}
+          whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-colors",
+            isSubmitting
+              ? "bg-blue-500/30 text-blue-300 cursor-not-allowed"
+              : submitStatus === 'success'
+              ? "bg-emerald-600 text-white"
+              : submitStatus === 'error'
+              ? "bg-red-600 text-white"
+              : "bg-blue-600 hover:bg-blue-700 text-white"
+          )}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Logging Activity...
+            </>
+          ) : submitStatus === 'success' ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              Activity Logged!
+            </>
+          ) : submitStatus === 'error' ? (
+            <>
+              <AlertCircle className="w-4 h-4" />
+              Try Again
+            </>
+          ) : (
+            <>
+              <Phone className="w-4 h-4" />
+              Log {formData.outboundCount || 1} {formData.outboundType || 'Activities'}
+            </>
+          )}
+        </motion.button>
       </form>
     </motion.div>
   );

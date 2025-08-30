@@ -700,6 +700,11 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Sales Activity Chart */}
+      <div className="mb-8">
+        <SalesActivityChart selectedMonth={selectedMonth} />
+      </div>
+
       {/* MRR Subscription Statistics */}
       <div className="mb-8">
         <div className="mb-4">
@@ -712,11 +717,6 @@ export default function Dashboard() {
             navigate('/subscriptions');
           }}
         />
-      </div>
-
-      {/* Sales Activity Chart */}
-      <div className="mb-8">
-        <SalesActivityChart selectedMonth={selectedMonth} />
       </div>
 
       {/* Recent Deals Section */}

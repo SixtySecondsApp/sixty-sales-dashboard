@@ -220,20 +220,38 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
 
   // Function to perform cleanup operations
   const performCleanupOperation = async (entityType: string, id: string) => {
+    let result: any;
     switch (entityType) {
       case 'contact':
-        return await deleteContact(id);
+        result = await deleteContact(id);
+        break;
       case 'company':
-        return await deleteCompany(id);
+        result = await deleteCompany(id);
+        break;
       case 'deal':
-        return await deleteDeal(id);
+        result = await deleteDeal(id);
+        break;
       case 'task':
-        return await deleteTask(id);
+        // deleteTask doesn't return boolean, it throws on error or completes successfully
+        await deleteTask(id);
+        result = true;
+        break;
       case 'activity':
-        return await deleteActivity(id);
+        // Use direct delete function instead of mutation for cleanup
+        const { error } = await supabase.from('activities').delete().eq('id', id);
+        if (error) throw error;
+        result = true;
+        break;
       default:
         throw new Error(`Unknown entity type: ${entityType}`);
     }
+    
+    // Check if cleanup actually succeeded
+    if (result === false) {
+      throw new Error(`Cleanup operation for ${entityType} ${id} returned false - deletion failed`);
+    }
+    
+    return result;
   };
 
   // Get pipeline stages for testing stage transitions
@@ -263,7 +281,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'contact':
           if (operation === 'create') result = await createContact(data);
           else if (operation === 'update') result = await updateContact(id!, data);
-          else if (operation === 'delete') result = await deleteContact(id!);
+          else if (operation === 'delete') {
+            result = await deleteContact(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           else if (operation === 'bulk_create') {
             const contacts = [data, { ...data, email: `bulk_${Date.now()}@example.com` }];
             result = await Promise.all(contacts.map(c => createContact(c)));
@@ -273,7 +297,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'company':
           if (operation === 'create') result = await createCompany(data);
           else if (operation === 'update') result = await updateCompany(id!, data);
-          else if (operation === 'delete') result = await deleteCompany(id!);
+          else if (operation === 'delete') {
+            result = await deleteCompany(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           break;
           
         case 'deal':
@@ -286,7 +316,13 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
             result = await createDeal(data);
           }
           else if (operation === 'update') result = await updateDeal(id!, data);
-          else if (operation === 'delete') result = await deleteDeal(id!);
+          else if (operation === 'delete') {
+            result = await deleteDeal(id!);
+            // Check if delete actually succeeded
+            if (result === false) {
+              throw new Error('Delete operation returned false - deletion failed');
+            }
+          }
           else if (operation === 'move_stage') {
             const stages = await getPipelineStages();
             if (stages.length > 1) {
@@ -299,7 +335,11 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         case 'task':
           if (operation === 'create') result = await createTask(data);
           else if (operation === 'update') result = await updateTask(id!, data);
-          else if (operation === 'delete') result = await deleteTask(id!);
+          else if (operation === 'delete') {
+            // deleteTask doesn't return boolean, it throws on error or completes successfully
+            await deleteTask(id!);
+            result = true;
+          }
           break;
           
         case 'meeting':
@@ -710,20 +750,16 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     const allResults: TestResult[] = [];
     const testDataToCleanup: Record<string, string[]> = {};
 
-    // **STEP 1: Initial Comprehensive Cleanup**
-    console.log('🧹 Starting with comprehensive test data cleanup...');
-    setResults([{ function: 'cleanup', operation: 'initial_cleanup', status: 'running', message: 'Cleaning up any existing test data...' }]);
+    // **STEP 1: Quick Pre-Test Check (Less Aggressive)**
+    console.log('🔍 Checking for existing test data...');
+    const counts = await getTestDataCounts();
+    const totalTestItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
     
-    const initialCleanupResult = await performCompleteCleanup();
-    allResults.push(initialCleanupResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
-
-    if (initialCleanupResult.status === 'success') {
-      toast.success('🧹 Database cleaned - starting fresh tests');
+    if (totalTestItems > 0) {
+      toast.info(`🔍 Found ${totalTestItems} existing test records - they'll be cleaned only if current tests fail`);
+      console.log('📊 Existing test data:', counts);
     } else {
-      toast.warning('⚠️ Initial cleanup had some issues - continuing with tests');
+      toast.success('✅ Database is clean - ready for fresh tests');
     }
 
     // Initialize cleanup tracking

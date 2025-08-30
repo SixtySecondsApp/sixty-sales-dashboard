@@ -47,8 +47,8 @@ export function useDealWizardState({ isOpen, actionType, initialData }: UseDealW
   ) || stages?.[0];
 
   const [wizard, setWizard] = useState<WizardState>({
-    step: 'new-deal',  // Skip directly to new-deal step
-    dealType: 'new',   // Automatically set to new deal
+    step: 'deal-type',  // Start with deal type selection
+    dealType: null,     // Let user select deal type
     selectedContact: null,
     selectedDeal: null,
     dealData: {
@@ -72,9 +72,9 @@ export function useDealWizardState({ isOpen, actionType, initialData }: UseDealW
   const [hasOpenedContactSearch, setHasOpenedContactSearch] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
 
-  // Automatically open contact search when modal first opens
+  // Automatically open contact search when reaching contact selection step
   useEffect(() => {
-    if (isOpen && !wizard.selectedContact && !hasOpenedContactSearch) {
+    if (isOpen && wizard.step === 'contact-selection' && !wizard.selectedContact && !hasOpenedContactSearch) {
       // Open immediately without delay
       setShowContactSearch(true);
       setHasOpenedContactSearch(true);
@@ -86,7 +86,7 @@ export function useDealWizardState({ isOpen, actionType, initialData }: UseDealW
       setShowContactSearch(false);
       setInitialLoad(true);
     }
-  }, [isOpen, wizard.selectedContact, hasOpenedContactSearch]);
+  }, [isOpen, wizard.step, wizard.selectedContact, hasOpenedContactSearch]);
 
   // Set default stage when stages load
   useEffect(() => {
@@ -198,8 +198,8 @@ export function useDealWizardState({ isOpen, actionType, initialData }: UseDealW
   const resetWizard = () => {
     // Reset all state
     setWizard({
-      step: 'new-deal',  // Reset to new-deal step
-      dealType: 'new',   // Reset to new deal type
+      step: 'deal-type',  // Reset to deal type selection step
+      dealType: null,     // Reset to no deal type selected
       selectedContact: null,
       selectedDeal: null,
       dealData: {

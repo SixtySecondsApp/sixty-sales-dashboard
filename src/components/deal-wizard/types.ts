@@ -14,8 +14,8 @@ export interface DealWizardProps {
 }
 
 export interface WizardState {
-  step: 'new-deal' | 'success';
-  dealType: 'new';
+  step: 'deal-type' | 'contact-selection' | 'deal-form' | 'success';
+  dealType: DealType | null;
   selectedContact: any | null;
   selectedDeal: any | null;
   dealData: {
@@ -32,6 +32,36 @@ export interface WizardState {
     monthlyMrr: number;
     saleType: string;
   };
+}
+
+export type DealType = 
+  | 'subscription'    // Monthly recurring revenue
+  | 'one-off'        // Single payment
+  | 'project'        // Fixed scope project
+  | 'retainer'       // Ongoing monthly service
+  | 'custom';        // Custom deal structure
+
+export interface DealTypeConfig {
+  id: DealType;
+  title: string;
+  description: string;
+  icon: string;
+  fields: {
+    value?: boolean;
+    oneOffRevenue?: boolean;
+    monthlyMrr?: boolean;
+    projectScope?: boolean;
+    duration?: boolean;
+    milestones?: boolean;
+    retainerDetails?: boolean;
+  };
+  defaultSaleType?: string;
+}
+
+export interface DealTypeStepProps {
+  wizard: WizardState;
+  onWizardChange: (wizard: WizardState) => void;
+  onNext: () => void;
 }
 
 export interface ContactSelectionStepProps {

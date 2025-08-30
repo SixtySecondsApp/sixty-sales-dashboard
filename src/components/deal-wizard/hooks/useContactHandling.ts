@@ -8,17 +8,38 @@ export function useContactHandling() {
   const { contacts, createContact, findContactByEmail, autoCreateFromEmail } = useContacts();
 
   const handleContactSelect = (contact: any, wizard: WizardState, setWizard: (wizard: WizardState) => void) => {
+    const contactName = contact.full_name || `${contact.first_name} ${contact.last_name}`.trim();
+    const companyName = contact.company?.name || '';
+    
+    // Generate a meaningful deal name based on available information
+    let dealName = wizard.dealData.name;
+    if (companyName) {
+      dealName = `${companyName} Opportunity`;
+    } else if (contactName) {
+      dealName = `${contactName} Opportunity`;
+    } else {
+      dealName = 'New Opportunity';
+    }
+    
     setWizard({
       ...wizard,
       selectedContact: contact,
       dealData: {
         ...wizard.dealData,
-        contact_name: contact.full_name || `${contact.first_name} ${contact.last_name}`.trim(),
+        contact_name: contactName,
         contact_email: contact.email,
         contact_phone: contact.phone || '',
-        company: contact.company?.name || wizard.dealData.company,
-        name: contact.company?.name ? `${contact.company.name} Opportunity` : wizard.dealData.name
+        company: companyName || '',
+        name: dealName
       }
+    });
+    
+    // Log contact selection for debugging
+    logger.log('📞 Contact selected:', {
+      name: contactName,
+      email: contact.email,
+      hasCompany: !!contact.company,
+      companyName: contact.company?.name
     });
   };
 

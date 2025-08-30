@@ -15,6 +15,18 @@ export const useQuickAddValidation = () => {
       }
     }
     
+    if (selectedAction === 'roadmap') {
+      if (!formData.title.trim()) {
+        errors.title = 'Title is required';
+      }
+      if (!formData.description.trim()) {
+        errors.description = 'Description is required';
+      }
+      if (!formData.roadmap_type) {
+        errors.roadmap_type = 'Request type is required';
+      }
+    }
+    
     if (selectedAction === 'meeting' || selectedAction === 'proposal' || selectedAction === 'sale') {
       if (!selectedContact) {
         errors.contact = 'Please select a contact';
@@ -28,7 +40,7 @@ export const useQuickAddValidation = () => {
       }
     }
     
-    if (selectedAction !== 'outbound' && selectedAction !== 'meeting' && selectedAction !== 'proposal' && selectedAction !== 'sale' && selectedAction !== 'task') {
+    if (selectedAction !== 'outbound' && selectedAction !== 'meeting' && selectedAction !== 'proposal' && selectedAction !== 'sale' && selectedAction !== 'task' && selectedAction !== 'roadmap') {
       if (!formData.contactIdentifier) {
         errors.contactIdentifier = 'Contact identifier is required';
       }

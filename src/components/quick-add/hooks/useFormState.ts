@@ -25,7 +25,10 @@ const initialFormData: QuickAddFormData = {
   // Deal linking
   deal_id: null,
   deal_name: '',
-  selectedDeal: null
+  selectedDeal: null,
+  // Roadmap specific fields
+  roadmap_type: 'feature',
+  roadmap_priority: 'medium'
 };
 
 export const useFormState = () => {
