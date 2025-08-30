@@ -33,6 +33,7 @@ import { useContacts } from '@/lib/hooks/useContacts';
 import { useCompanies } from '@/lib/hooks/useCompanies';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useActivities } from '@/lib/hooks/useActivities';
+import { cleanupAllTestData, cleanupTestDataByIds, getTestDataCounts } from '@/lib/utils/testCleanup';
 
 interface TestResult {
   function: string;
@@ -604,24 +605,88 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     }
   };
 
-  // Cleanup function
+  // Enhanced cleanup function using the new utility
   const cleanupTestData = async (testIds: Record<string, string[]>) => {
-    const cleanupResults: string[] = [];
-    
-    for (const [entityType, ids] of Object.entries(testIds)) {
-      for (const id of ids) {
-        if (id) {
-          try {
-            await performCleanupOperation(entityType, id);
-            cleanupResults.push(`✅ Cleaned up ${entityType}: ${id.substring(0, 8)}...`);
-          } catch (error) {
-            cleanupResults.push(`⚠️ Failed to cleanup ${entityType}: ${id.substring(0, 8)}...`);
-          }
+    try {
+      // Use the comprehensive cleanup utility
+      const result = await cleanupTestDataByIds(testIds);
+      
+      const cleanupResults: string[] = [];
+      
+      // Format results for display
+      Object.entries(result.deletedCounts).forEach(([entityType, count]) => {
+        if (count > 0) {
+          cleanupResults.push(`✅ Cleaned up ${count} ${entityType}`);
         }
+      });
+      
+      // Add error messages
+      result.errors.forEach(error => {
+        cleanupResults.push(`⚠️ Failed to cleanup ${error.table}: ${error.error}`);
+      });
+      
+      if (cleanupResults.length === 0) {
+        cleanupResults.push('✅ No cleanup needed - all items already cleaned');
       }
+      
+      return cleanupResults;
+    } catch (error) {
+      return [`❌ Cleanup failed: ${(error as Error).message}`];
     }
+  };
+
+  // Comprehensive test data cleanup function
+  const performCompleteCleanup = async (): Promise<TestResult> => {
+    const startTime = Date.now();
     
-    return cleanupResults;
+    try {
+      // Get current test data counts
+      const counts = await getTestDataCounts();
+      const totalItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
+      
+      if (totalItems === 0) {
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'success',
+          message: '✅ Database already clean - no test data found',
+          duration: Date.now() - startTime
+        };
+      }
+      
+      // Perform comprehensive cleanup
+      const result = await cleanupAllTestData();
+      
+      if (result.success) {
+        const deletedTotal = Object.values(result.deletedCounts).reduce((sum, count) => sum + count, 0);
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'success',
+          message: `✅ Cleaned up ${deletedTotal} test items: ${Object.entries(result.deletedCounts).map(([k,v]) => `${v} ${k}`).join(', ')}`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      } else {
+        return {
+          function: 'cleanup',
+          operation: 'complete_cleanup',
+          status: 'failed',
+          message: `⚠️ Cleanup had ${result.errors.length} errors: ${result.errors.map(e => e.error).join('; ')}`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+    } catch (error) {
+      return {
+        function: 'cleanup',
+        operation: 'complete_cleanup',
+        status: 'failed',
+        message: `❌ Cleanup failed: ${(error as Error).message}`,
+        duration: Date.now() - startTime,
+        error
+      };
+    }
   };
 
   // Main test suite runner
@@ -640,10 +705,26 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     const operations = ['create', 'update', 'delete'];
     const specialTests = ['bulk_create', 'move_stage', 'performance', 'company_linking', 'integrity', 'error_handling'];
     
-    const totalTests = (functionTypes.length * operations.length) + specialTests.length;
+    const totalTests = (functionTypes.length * operations.length) + specialTests.length + 1; // +1 for initial cleanup
     let completedTests = 0;
     const allResults: TestResult[] = [];
     const testDataToCleanup: Record<string, string[]> = {};
+
+    // **STEP 1: Initial Comprehensive Cleanup**
+    console.log('🧹 Starting with comprehensive test data cleanup...');
+    setResults([{ function: 'cleanup', operation: 'initial_cleanup', status: 'running', message: 'Cleaning up any existing test data...' }]);
+    
+    const initialCleanupResult = await performCompleteCleanup();
+    allResults.push(initialCleanupResult);
+    setResults([...allResults]);
+    completedTests++;
+    setProgress((completedTests / totalTests) * 100);
+
+    if (initialCleanupResult.status === 'success') {
+      toast.success('🧹 Database cleaned - starting fresh tests');
+    } else {
+      toast.warning('⚠️ Initial cleanup had some issues - continuing with tests');
+    }
 
     // Initialize cleanup tracking
     functionTypes.forEach(type => {
@@ -1005,6 +1086,31 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
             Download Report
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          onClick={async () => {
+            setIsRunning(true);
+            try {
+              const cleanupResult = await performCompleteCleanup();
+              if (cleanupResult.status === 'success') {
+                toast.success(`🧹 ${cleanupResult.message}`);
+                cleanupDataRef.current = {}; // Clear tracking
+              } else {
+                toast.error(`❌ Cleanup failed: ${cleanupResult.message}`);
+              }
+            } catch (error) {
+              toast.error(`❌ Cleanup error: ${(error as Error).message}`);
+            } finally {
+              setIsRunning(false);
+            }
+          }}
+          disabled={isRunning}
+          className="bg-orange-800/50 hover:bg-orange-700/50 border-orange-700/50 text-orange-300"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Clean All Test Data
+        </Button>
 
         {totalCleanupItems > 0 && (
           <Button
