@@ -62,7 +62,7 @@ export function RoadmapProvider({ children }: { children: React.ReactNode }) {
   // Move suggestion to a different status
   const moveSuggestionToStatus = async (suggestionId: string, statusId: string) => {
     // Skip refetch during drag operations to prevent UI refresh
-    await updateSuggestion(suggestionId, { status: statusId }, true);
+    await updateSuggestion(suggestionId, { status: statusId as RoadmapSuggestion['status'] }, true);
   };
 
   const value: RoadmapContextType = {

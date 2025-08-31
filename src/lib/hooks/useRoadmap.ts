@@ -398,27 +398,32 @@ export function useRoadmap() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    // Temporarily disable real-time subscription to prevent refresh issues
-    // TODO: Implement a better solution that tracks user actions
+    // Real-time subscription with debouncing to prevent excessive updates
+    let timeoutId: NodeJS.Timeout;
+    const debouncedRefresh = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        fetchSuggestions(true);
+      }, 500); // 500ms debounce
+    };
     
-    // const channel = supabase
-    //   .channel('roadmap_suggestions_changes')
-    //   .on(
-    //     'postgres_changes',
-    //     {
-    //       event: '*',
-    //       schema: 'public',
-    //       table: 'roadmap_suggestions',
-    //     },
-    //     (payload) => {
-    //       fetchSuggestions(true);
-    //     }
-    //   )
-    //   .subscribe();
+    const channel = supabase
+      .channel('roadmap_suggestions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'roadmap_suggestions',
+        },
+        debouncedRefresh
+      )
+      .subscribe();
 
-    // return () => {
-    //   supabase.removeChannel(channel);
-    // };
+    return () => {
+      clearTimeout(timeoutId);
+      supabase.removeChannel(channel);
+    };
   }, [session?.user?.id]);
 
   return {

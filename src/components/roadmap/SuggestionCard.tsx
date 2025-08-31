@@ -120,11 +120,22 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
       {...attributes}
       {...listeners}
       onClick={() => isDragging ? null : onClick(suggestion)}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !isDragging) {
+          e.preventDefault();
+          onClick(suggestion);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Roadmap suggestion: ${suggestion.title}. Priority: ${suggestion.priority}. Status: ${suggestion.status}. ${suggestion.votes_count} votes.`}
+      aria-describedby={`suggestion-${suggestion.id}-description`}
       className={`
         bg-gray-800/50 rounded-xl p-4 hover:bg-gray-800/70
         transition-all border border-gray-800/80
         hover:border-gray-700 shadow-sm hover:shadow-md group
-        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : 'cursor-grab'}
+        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : 'cursor-grab hover:cursor-pointer'}
         relative overflow-hidden
       `}
       style={style}
@@ -188,7 +199,10 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
         </div>
 
         {/* Description preview */}
-        <p className="text-sm text-gray-400 mb-3 line-clamp-2">
+        <p 
+          id={`suggestion-${suggestion.id}-description`}
+          className="text-sm text-gray-400 mb-3 line-clamp-2"
+        >
           {suggestion.description}
         </p>
 

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   DndContext,
@@ -24,18 +23,37 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { RoadmapProvider, useRoadmapContext } from '@/lib/contexts/RoadmapContext';
-import { RoadmapHeader } from './RoadmapHeader';
+import { RoadmapHeader, type RoadmapFilters } from './RoadmapHeader';
 import { RoadmapColumn } from './RoadmapColumn';
 import { SuggestionCard } from './SuggestionCard';
 import { SuggestionForm } from './SuggestionForm';
 import { RoadmapTable } from './RoadmapTable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
 import logger from '@/lib/utils/logger';
+
+// TypeScript interfaces for component state
+interface DragState {
+  draggedId: string | null;
+  draggedFromStatus: string | null;
+  draggedOverStatus: string | null;
+  draggedOverIndex: number | null;
+}
+
+interface RoadmapKanbanState {
+  localSuggestionsByStatus: Record<string, RoadmapSuggestion[]>;
+  dragState: DragState;
+}
+
+export interface RoadmapKanbanHandle {
+  openSuggestionForm: () => void;
+  openSuggestionModal: (suggestion: RoadmapSuggestion) => void;
+}
 
 
 
@@ -116,12 +134,18 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   } = useRoadmapContext();
 
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
-  const [localSuggestionsByStatus, setLocalSuggestionsByStatus] = useState<Record<string, any[]>>({});
+  const [localSuggestionsByStatus, setLocalSuggestionsByStatus] = useState<Record<string, RoadmapSuggestion[]>>({});
   const [showSuggestionForm, setShowSuggestionForm] = useState(false);
-  const [selectedSuggestion, setSelectedSuggestion] = useState<any>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<RoadmapSuggestion | null>(null);
   const [initialStatusId, setInitialStatusId] = useState<string | null>(null);
-  const [activeSuggestion, setActiveSuggestion] = useState<any>(null);
+  const [activeSuggestion, setActiveSuggestion] = useState<RoadmapSuggestion | null>(null);
   const [sortBy, setSortBy] = useState<'votes' | 'date' | 'priority' | 'none'>('none');
+  const [filters, setFilters] = useState<RoadmapFilters>({
+    search: '',
+    type: [],
+    priority: [],
+    assignee: []
+  });
 
   // DnD state
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -138,41 +162,109 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   // Expose methods to parent component
   React.useImperativeHandle(ref, () => ({
     openSuggestionForm: () => handleAddSuggestionClick(null),
-    openSuggestionModal: (suggestion: any) => {
+    openSuggestionModal: (suggestion: RoadmapSuggestion) => {
       setSelectedSuggestion(suggestion);
       setIsEditModalOpen(true);
     }
   }), []);
 
-  // Update local state when the context data changes
-  useEffect(() => {
-    setLocalSuggestionsByStatus(structuredClone(contextSuggestionsByStatus));
-  }, [contextSuggestionsByStatus]);
-
-  // Apply sorting to the local state
-  useEffect(() => {
-    if (sortBy === 'none') {
-      setLocalSuggestionsByStatus(contextSuggestionsByStatus);
-      return;
-    }
-    const sortedSuggestions = { ...localSuggestionsByStatus };
-    Object.keys(sortedSuggestions).forEach(statusId => {
-      sortedSuggestions[statusId] = [...sortedSuggestions[statusId]].sort((a, b) => {
-        switch (sortBy) {
-          case 'votes':
-            return b.votes_count - a.votes_count;
-          case 'date':
-            return new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime();
-          case 'priority':
-            const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-            return priorityOrder[a.priority] - priorityOrder[b.priority];
-          default:
-            return 0;
+  // Update local state when the context data changes (with performance optimization)
+  const updateLocalSuggestions = useCallback((newSuggestions: Record<string, RoadmapSuggestion[]>) => {
+    setLocalSuggestionsByStatus(prev => {
+      // Efficient shallow comparison to prevent unnecessary re-renders
+      const statusIds = Object.keys(newSuggestions);
+      const prevStatusIds = Object.keys(prev);
+      
+      // Quick checks for obvious changes
+      if (statusIds.length !== prevStatusIds.length) {
+        return { ...newSuggestions };
+      }
+      
+      // Check if any status has different suggestion count or ids
+      for (const statusId of statusIds) {
+        const prevSuggestions = prev[statusId] || [];
+        const newSuggestionsList = newSuggestions[statusId] || [];
+        
+        if (prevSuggestions.length !== newSuggestionsList.length) {
+          return { ...newSuggestions };
         }
-      });
+        
+        // Check if suggestion IDs changed (most common change)
+        for (let i = 0; i < newSuggestionsList.length; i++) {
+          if (prevSuggestions[i]?.id !== newSuggestionsList[i]?.id) {
+            return { ...newSuggestions };
+          }
+        }
+      }
+      
+      return prev; // No changes detected
     });
-    setLocalSuggestionsByStatus(sortedSuggestions);
-  }, [sortBy, contextSuggestionsByStatus]);
+  }, []);
+
+  useEffect(() => {
+    updateLocalSuggestions(contextSuggestionsByStatus);
+  }, [contextSuggestionsByStatus, updateLocalSuggestions]);
+
+  // Apply filtering and sorting to the local state
+  useEffect(() => {
+    let filteredSuggestions = { ...contextSuggestionsByStatus };
+
+    // Apply filters
+    const hasActiveFilters = filters.search.trim() !== '' || 
+                            filters.type.length > 0 || 
+                            filters.priority.length > 0;
+
+    if (hasActiveFilters) {
+      Object.keys(filteredSuggestions).forEach(statusId => {
+        filteredSuggestions[statusId] = filteredSuggestions[statusId].filter(suggestion => {
+          // Search filter
+          if (filters.search.trim()) {
+            const searchTerm = filters.search.toLowerCase();
+            const matchesSearch = 
+              suggestion.title.toLowerCase().includes(searchTerm) ||
+              suggestion.description.toLowerCase().includes(searchTerm) ||
+              suggestion.submitted_by_profile?.full_name?.toLowerCase().includes(searchTerm) ||
+              suggestion.assigned_to_profile?.full_name?.toLowerCase().includes(searchTerm);
+            
+            if (!matchesSearch) return false;
+          }
+
+          // Type filter
+          if (filters.type.length > 0 && !filters.type.includes(suggestion.type)) {
+            return false;
+          }
+
+          // Priority filter
+          if (filters.priority.length > 0 && !filters.priority.includes(suggestion.priority)) {
+            return false;
+          }
+
+          return true;
+        });
+      });
+    }
+
+    // Apply sorting
+    if (sortBy !== 'none') {
+      Object.keys(filteredSuggestions).forEach(statusId => {
+        filteredSuggestions[statusId] = [...filteredSuggestions[statusId]].sort((a, b) => {
+          switch (sortBy) {
+            case 'votes':
+              return b.votes_count - a.votes_count;
+            case 'date':
+              return new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime();
+            case 'priority':
+              const priorityOrder: Record<RoadmapSuggestion['priority'], number> = { critical: 0, high: 1, medium: 2, low: 3 };
+              return (priorityOrder[a.priority] || 999) - (priorityOrder[b.priority] || 999);
+            default:
+              return 0;
+          }
+        });
+      });
+    }
+
+    setLocalSuggestionsByStatus(filteredSuggestions);
+  }, [contextSuggestionsByStatus, sortBy, filters]);
 
   useEffect(() => {
     return () => {
@@ -268,34 +360,27 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
 
 
-  // Find the statusId for a given suggestionId or statusId
-  const findStatusForId = (id: string): string | undefined => {
+  // Find the statusId for a given suggestionId or statusId (memoized for performance)
+  const findStatusForId = useCallback((id: string): string | undefined => {
     // Check if it's a status ID directly
     if (statuses.some(s => s.id === id)) {
-      logger.log(`Found status ID directly: ${id}`);
       return id;
     }
     // Check if it's in the local suggestions mapping
     if (id in localSuggestionsByStatus) {
-      logger.log(`Found in localSuggestionsByStatus: ${id}`);
       return id;
     }
     // Otherwise find which status contains this suggestion
     const foundStatus = Object.keys(localSuggestionsByStatus).find(statusId =>
       localSuggestionsByStatus[statusId].some(suggestion => suggestion.id === id)
     );
-    if (foundStatus) {
-      logger.log(`Found suggestion ${id} in status ${foundStatus}`);
-    } else {
-      logger.log(`Could not find status for ID: ${id}`);
-    }
     return foundStatus;
-  };
+  }, [localSuggestionsByStatus, statuses]);
 
   // --- DND HANDLERS ---
 
-  // On drag start, set the draggedId and fromStatus, and set activeSuggestion for overlay
-  const handleDragStart = (event: DragStartEvent) => {
+  // On drag start, set the draggedId and fromStatus, and set activeSuggestion for overlay (memoized)
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     const { active } = event;
     const id = String(active.id);
     setDraggedId(id);
@@ -316,7 +401,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
     setActiveSuggestion(suggestion);
     // Disable sorting during drag
     if (sortBy !== 'none') setSortBy('none');
-  };
+  }, [findStatusForId, localSuggestionsByStatus, sortBy]);
 
   // On drag over, update the localSuggestionsByStatus for visual feedback
   const handleDragOver = (event: DragOverEvent) => {
@@ -380,7 +465,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       const toSuggestions = [...prev[toStatus]];
       // Prevent duplicate
       if (!toSuggestions.some(s => s.id === activeId)) {
-        toSuggestions.splice(toIndex, 0, { ...suggestion, status: toStatus });
+        toSuggestions.splice(toIndex, 0, { ...suggestion, status: toStatus as RoadmapSuggestion['status'] });
       }
 
       return {
@@ -484,6 +569,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       // The real-time subscription will handle updates automatically
     } catch (err) {
       // Rollback UI on error
+      logger.error('Failed to move suggestion:', err);
       toast.error('Failed to move suggestion. Please try again.');
       setLocalSuggestionsByStatus(contextSuggestionsByStatus);
     }
@@ -510,6 +596,7 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
       
       toast.success('Suggestion deleted');
     } catch (error) {
+      logger.error('Failed to delete suggestion:', error);
       toast.error('Failed to delete suggestion');
     }
   };
@@ -535,6 +622,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
         onViewChange={setView}
         sortBy={sortBy}
         onSortChange={setSortBy}
+        filters={filters}
+        onFiltersChange={setFilters}
       />
 
       {view === 'kanban' ? (
@@ -619,11 +708,6 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   );
 });
 RoadmapContent.displayName = 'RoadmapContent';
-
-export interface RoadmapKanbanHandle {
-  openSuggestionForm: () => void;
-  openSuggestionModal?: (suggestion: any) => void;
-}
 
 export const RoadmapKanban = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
   return (
