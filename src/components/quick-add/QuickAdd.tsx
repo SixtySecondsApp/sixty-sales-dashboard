@@ -16,6 +16,7 @@ import { ContactSearchModal } from '@/components/ContactSearchModal';
 import logger from '@/lib/utils/logger';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
 import { sanitizeCrmForm, sanitizeNumber } from '@/lib/utils/inputSanitizer';
+import { canSplitDeals } from '@/lib/utils/adminUtils';
 
 // New decoupling imports
 import { 
