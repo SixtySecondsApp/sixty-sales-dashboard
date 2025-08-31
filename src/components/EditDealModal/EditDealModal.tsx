@@ -451,7 +451,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent 
             ref={dialogContentRef}
-            className="max-w-[800px] max-h-[85vh] p-0 bg-gray-950 border border-gray-800 rounded-xl flex flex-col"
+            className="max-w-[95vw] w-[95vw] max-h-[90vh] p-0 bg-gray-950 border border-gray-800 rounded-xl flex flex-col"
             onKeyDown={(e) => {
               handleKeyDown(e);
               handleTabKeyNavigation(e);
