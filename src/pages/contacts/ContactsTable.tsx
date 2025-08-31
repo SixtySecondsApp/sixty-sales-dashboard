@@ -13,7 +13,10 @@ import {
   Download,
   ArrowUpDown,
   Star,
-  StarOff
+  StarOff,
+  CheckSquare,
+  Square,
+  X
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,6 +47,7 @@ import { API_BASE_URL } from '@/lib/config';
 import { supabase } from '@/lib/supabase/clientV2';
 import { getSupabaseHeaders } from '@/lib/utils/apiUtils';
 import logger from '@/lib/utils/logger';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Contact {
   id: string;
@@ -97,6 +101,12 @@ export default function ContactsTable() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
+  
+  // Multi-select functionality
+  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [isSelectAllChecked, setIsSelectAllChecked] = useState(false);
+  const [isSelectModeActive, setIsSelectModeActive] = useState(false);
 
   // Update search term when URL params change
   useEffect(() => {
@@ -292,6 +302,69 @@ export default function ContactsTable() {
     navigate(`/crm/contacts/${contactId}`);
   };
 
+  // Multi-select handlers
+  const handleSelectContact = (contactId: string, isSelected: boolean) => {
+    const newSelected = new Set(selectedContacts);
+    if (isSelected) {
+      newSelected.add(contactId);
+    } else {
+      newSelected.delete(contactId);
+    }
+    setSelectedContacts(newSelected);
+  };
+
+  const handleSelectAll = (isSelected: boolean, filteredContacts: Contact[]) => {
+    if (isSelected) {
+      const allIds = new Set(filteredContacts.map(contact => contact.id));
+      setSelectedContacts(allIds);
+    } else {
+      setSelectedContacts(new Set());
+    }
+    setIsSelectAllChecked(isSelected);
+  };
+
+  const toggleSelectMode = () => {
+    setIsSelectModeActive(!isSelectModeActive);
+    if (isSelectModeActive) {
+      setSelectedContacts(new Set());
+      setIsSelectAllChecked(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const selectedIds = Array.from(selectedContacts);
+      
+      if (selectedIds.length === 0) {
+        toast.error('No contacts selected');
+        return;
+      }
+
+      // Delete each contact
+      const deletePromises = selectedIds.map(async (id) => {
+        const { error } = await supabase
+          .from('contacts')
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+      });
+
+      await Promise.all(deletePromises);
+
+      // Remove deleted contacts from state
+      setContacts(prev => prev.filter(contact => !selectedIds.includes(contact.id)));
+      setSelectedContacts(new Set());
+      setIsSelectAllChecked(false);
+      setBulkDeleteDialogOpen(false);
+      
+      toast.success(`Successfully deleted ${selectedIds.length} contacts`);
+    } catch (error) {
+      console.error('Error deleting contacts:', error);
+      toast.error('Failed to delete selected contacts');
+    }
+  };
+
   // Filter and sort contacts
   const filteredAndSortedContacts = useMemo(() => {
     let filtered = contacts.filter(contact => {
@@ -332,6 +405,15 @@ export default function ContactsTable() {
 
     return filtered;
   }, [contacts, companyFilter, primaryFilter, sortField, sortDirection]);
+
+  // Update select all checkbox state
+  useEffect(() => {
+    setIsSelectAllChecked(
+      selectedContacts.size > 0 && 
+      selectedContacts.size === filteredAndSortedContacts.length && 
+      filteredAndSortedContacts.length > 0
+    );
+  }, [selectedContacts.size, filteredAndSortedContacts.length]);
 
   // Get unique values for filters
   const uniqueCompanies = [...new Set(contacts
@@ -536,6 +618,15 @@ export default function ContactsTable() {
               Export
             </Button>
             <Button 
+              onClick={toggleSelectMode}
+              variant={isSelectModeActive ? "default" : "outline"}
+              className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : ""} 
+              size="sm"
+            >
+              {isSelectModeActive ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
+              {isSelectModeActive ? 'Exit Select' : 'Select Mode'}
+            </Button>
+            <Button 
               onClick={handleAddContact}
               className="bg-green-600 hover:bg-green-700 text-white" 
               size="sm"
@@ -547,11 +638,72 @@ export default function ContactsTable() {
         </div>
       </div>
 
+      {/* Bulk Actions - Only show when select mode is active and contacts are selected */}
+      <AnimatePresence>
+        {isSelectModeActive && selectedContacts.size > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, x: -20, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -20, scale: 0.95 }}
+            transition={{ 
+              duration: 0.2,
+              ease: [0.23, 1, 0.32, 1]
+            }}
+            className="bg-gradient-to-r from-violet-600/10 via-purple-600/10 to-violet-600/10 backdrop-blur-xl border border-violet-500/20 rounded-xl p-4 shadow-2xl shadow-violet-500/10"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 border border-violet-500/30">
+                  <CheckSquare className="w-4 h-4 text-violet-400" />
+                </div>
+                <span className="text-sm font-medium text-white">
+                  {selectedContacts.size} selected
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => setBulkDeleteDialogOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 text-red-400 hover:text-red-300"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected
+                </Button>
+                <Button 
+                  onClick={() => {
+                    setSelectedContacts(new Set());
+                    setIsSelectAllChecked(false);
+                  }}
+                  variant="ghost" 
+                  size="sm"
+                  className="text-gray-400 hover:text-white hover:bg-gray-800/50"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Table */}
       <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-gray-800 hover:bg-gray-800/50">
+              {/* Select All Checkbox - Only show when in select mode */}
+              {isSelectModeActive && (
+                <TableHead className="w-12 text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={isSelectAllChecked}
+                    onChange={(e) => handleSelectAll(e.target.checked, filteredAndSortedContacts)}
+                    className="w-5 h-5 text-violet-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-violet-500 focus:ring-2 focus:ring-offset-0 transition-all duration-200 hover:border-violet-500/60 checked:bg-violet-500 checked:border-violet-500 cursor-pointer"
+                  />
+                </TableHead>
+              )}
               <TableHead 
                 className="text-gray-300 cursor-pointer hover:text-white"
                 onClick={() => handleSort('full_name')}
@@ -600,9 +752,33 @@ export default function ContactsTable() {
             {filteredAndSortedContacts.map((contact) => (
               <TableRow 
                 key={contact.id} 
-                className="border-gray-800 hover:bg-gray-800/50 cursor-pointer"
+                className={`border-gray-800 hover:bg-gray-800/50 cursor-pointer ${
+                  selectedContacts.has(contact.id) && isSelectModeActive
+                    ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
+                    : ''
+                }`}
                 onClick={(e) => handleContactClick(contact.id, e)}
               >
+                {/* Select Checkbox - Only show when in select mode */}
+                {isSelectModeActive && (
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        scale: selectedContacts.has(contact.id) ? [1, 1.1, 1] : 1,
+                        opacity: selectedContacts.has(contact.id) ? 1 : 0.7
+                      }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedContacts.has(contact.id)}
+                        onChange={(e) => handleSelectContact(contact.id, e.target.checked)}
+                        className="w-5 h-5 text-violet-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-violet-500 focus:ring-2 focus:ring-offset-0 transition-all duration-200 hover:border-violet-500/60 checked:bg-violet-500 checked:border-violet-500 cursor-pointer"
+                      />
+                    </motion.div>
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex items-center gap-3">
                     {contact.is_primary && (
@@ -790,6 +966,33 @@ export default function ContactsTable() {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Open Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-400">Delete Selected Contacts</DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Are you sure you want to delete <strong>{selectedContacts.size}</strong> selected contacts? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Delete {selectedContacts.size} Contacts
             </Button>
           </DialogFooter>
         </DialogContent>

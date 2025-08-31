@@ -7,4 +7,14 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
+}
+
+// Service Worker window extensions
+declare global {
+  interface Window {
+    swRegistration?: ServiceWorkerRegistration;
+    clearSWCache?: () => void;
+    clearApiCache?: () => void;
+    detectAndResolveCacheConflicts?: () => void;
+  }
 } 

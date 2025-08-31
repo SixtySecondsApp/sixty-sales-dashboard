@@ -13,10 +13,11 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
-import { removeSignedAndPaidStage } from '@/lib/utils/migrateStages';
+// Removed legacy migration import - stages are now handled via database migrations
 import ErrorBoundary from '@/components/ErrorBoundary';
 import logger from '@/lib/utils/logger';
 import { StateProvider } from '@/lib/communication/StateManagement';
+import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -109,19 +110,8 @@ function App() {
     return cleanup;
   }, [addCleanup]);
 
-  // Run database migrations on app start
-  useEffect(() => {
-    const runMigrations = async () => {
-      try {
-        await removeSignedAndPaidStage();
-        logger.log('✅ Database migrations completed successfully');
-      } catch (error) {
-        logger.error('❌ Database migration failed:', error);
-      }
-    };
-    
-    runMigrations();
-  }, []); // Run only once on app start
+  // Database migrations are now handled via Supabase migrations
+  // Legacy runtime migrations have been removed to prevent API errors
 
   // Initialize performance monitoring
   useEffect(() => {
@@ -132,6 +122,11 @@ function App() {
     
     // Initialize Web Vitals optimization
     webVitalsOptimizer.initializeMonitoring(process.env.NODE_ENV === 'production');
+    
+    // Make service worker utilities globally available
+    if (typeof window !== 'undefined') {
+      window.detectAndResolveCacheConflicts = detectAndResolveCacheConflicts;
+    }
     
     // Enhanced performance logging with optimization metrics
     if (process.env.NODE_ENV === 'development') {

@@ -191,7 +191,12 @@ export function useClients(ownerId?: string) {
         setIsLoading(false);
         return;
       } catch (edgeFunctionError) {
-        logger.warn('⚠️ Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+        // Check if this is a known missing endpoint
+        if (edgeFunctionError.message?.includes('Endpoint not available')) {
+          logger.log('📋 Clients endpoint not available yet - skipping Edge Functions');
+        } else {
+          logger.warn('⚠️ Edge Function failed, falling back to direct Supabase client:', edgeFunctionError);
+        }
         
         // Fallback to direct Supabase client
         let clientsData, supabaseError;
@@ -209,6 +214,13 @@ export function useClients(ownerId?: string) {
           supabaseError = result.error;
           
           if (supabaseError) {
+            // Check if clients table doesn't exist
+            if (supabaseError.message?.includes('relation "clients" does not exist')) {
+              logger.log('📋 Clients table does not exist yet - returning empty data');
+              setClients([]);
+              setIsLoading(false);
+              return;
+            }
             logger.error('❌ Basic Supabase query failed:', supabaseError);
           } else {
             logger.log(`✅ Basic Supabase query successful: ${clientsData?.length || 0} clients found`);
@@ -234,6 +246,13 @@ export function useClients(ownerId?: string) {
             const serviceError = result.error;
               
             if (serviceError) {
+              // Check if clients table doesn't exist
+              if (serviceError.message?.includes('relation "clients" does not exist')) {
+                logger.log('📋 Clients table does not exist yet - returning empty data');
+                setClients([]);
+                setIsLoading(false);
+                return;
+              }
               logger.error('❌ Service key fallback failed:', serviceError);
               throw serviceError;
             }
@@ -241,6 +260,13 @@ export function useClients(ownerId?: string) {
             logger.log(`✅ Service key fallback successful: ${clientsData?.length || 0} clients found`);
             
           } catch (serviceError) {
+            // Check if clients table doesn't exist
+            if (serviceError.message?.includes('relation "clients" does not exist')) {
+              logger.log('📋 Clients table does not exist yet - returning empty data');
+              setClients([]);
+              setIsLoading(false);
+              return;
+            }
             logger.error('❌ All fallbacks failed:', serviceError);
             throw serviceError;
           }

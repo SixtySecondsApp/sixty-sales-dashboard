@@ -6,12 +6,12 @@ import { format, addDays, addWeeks } from 'date-fns';
 import { CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 // Original imports for backward compatibility
-import { useActivities } from '@/lib/hooks/useActivities';
+import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
-import { useDeals } from '@/lib/hooks/useDeals';
-import { useRoadmap } from '@/lib/hooks/useRoadmap';
+import { useDealsActions } from '@/lib/hooks/useDealsActions';
+import { useRoadmapActions } from '@/lib/hooks/useRoadmapActions';
 import { ContactSearchModal } from '@/components/ContactSearchModal';
 import logger from '@/lib/utils/logger';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
@@ -60,11 +60,11 @@ interface QuickAddProps {
 
 function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
   const { userData } = useUser();
-  const { deals, moveDealToStage } = useDeals();
+  const { findDealsByClient, moveDealToStage } = useDealsActions();
   const { contacts, createContact, findContactByEmail } = useContacts();
-  const { addActivity, addSale } = useActivities();
+  const { addActivity, addSale } = useActivitiesActions();
   const { createTask } = useTasks();
-  const { createSuggestion } = useRoadmap();
+  const { createSuggestion } = useRoadmapActions();
   const { validateForm } = useQuickAddValidation();
   
   // Original form state for backward compatibility
@@ -118,7 +118,8 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
     }
   });
 
-  useComponentMediator('quick-add', componentRef.current, {
+  // Only register component when it's actually open to prevent thrashing
+  useComponentMediator('quick-add', isOpen ? componentRef.current : null, {
     type: 'form',
     capabilities: ['form', 'modal', 'business-logic'],
     dependencies: ['deals', 'contacts', 'activities', 'tasks']
@@ -477,10 +478,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
         if (selectedAction === 'proposal' && !finalDealId && formData.client_name) {
           // Look for existing deals in SQL stage for this client
           const sqlStageId = '603b5020-aafc-4646-9195-9f041a9a3f14'; // SQL stage ID
-          const existingDealsForClient = deals.filter(
-            d => d.stage_id === sqlStageId && 
-            d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
-          );
+          const existingDealsForClient = await findDealsByClient(formData.client_name, sqlStageId);
           
           if (existingDealsForClient.length > 0) {
             // Found an existing deal - ask user if they want to progress it
@@ -563,17 +561,11 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           const opportunityStageId = '8be6a854-e7d0-41b5-9057-03b2213e7697'; // Opportunity stage ID
           const sqlStageId = '603b5020-aafc-4646-9195-9f041a9a3f14'; // SQL stage ID
           
-          let existingDealsForClient = deals.filter(
-            d => d.stage_id === opportunityStageId && 
-            d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
-          );
+          let existingDealsForClient = await findDealsByClient(formData.client_name, opportunityStageId);
           
           // If no deals in Opportunity, check SQL stage (meetings)
           if (existingDealsForClient.length === 0) {
-            existingDealsForClient = deals.filter(
-              d => d.stage_id === sqlStageId && 
-              d.company?.toLowerCase().includes(formData.client_name.toLowerCase())
-            );
+            existingDealsForClient = await findDealsByClient(formData.client_name, sqlStageId);
           }
           
           if (existingDealsForClient.length > 0) {

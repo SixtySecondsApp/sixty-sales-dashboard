@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { motion } from 'framer-motion';
 import { Calendar, ChevronDown } from 'lucide-react';
-import { useActivities } from '@/lib/hooks/useActivities';
+import { useDashboardActivities } from '@/lib/hooks/useLazyActivities';
 import { useUser } from '@/lib/hooks/useUser';
 
 interface SalesActivityChartProps {
@@ -23,7 +23,7 @@ interface SalesActivityChartProps {
 const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   const [timeframe, setTimeframe] = useState('daily');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const { activities } = useActivities();
+  const { activities } = useDashboardActivities(selectedMonth, true);
   const { userData } = useUser();
 
   // Charts now using direct imports for stability
