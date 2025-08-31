@@ -892,7 +892,7 @@ function PipelineContent() {
   );
 }
 
-export function Pipeline() {
+function PipelineComponent() {
   return (
     <PipelineProvider>
       <div className="max-w-full w-full min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -905,3 +905,5 @@ export function Pipeline() {
     </PipelineProvider>
   );
 }
+
+export const Pipeline = React.memo(PipelineComponent);

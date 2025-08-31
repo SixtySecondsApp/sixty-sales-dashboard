@@ -25,6 +25,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  
+  // Handle CommonJS/ESM compatibility issues
+  define: {
+    // Fix recharts lodash import issues
+    global: 'globalThis',
+  },
   server: {
     // Allow Vite to use any available port
     strictPort: false,
@@ -81,8 +87,7 @@ export default defineConfig({
           // Supabase - keep separate to avoid duplication
           'vendor-supabase': ['@supabase/supabase-js'],
           
-          // Charts - lazy loaded, heavy library
-          'vendor-charts': ['recharts'],
+          // Charts removed from vendor chunk - now dynamically imported
           
           // UI components - split into logical groups
           'ui-radix-core': [
@@ -176,8 +181,11 @@ export default defineConfig({
       // Supabase for API calls
       '@supabase/supabase-js',
       
-      // Fix lodash imports for recharts
+      // Charts - need to pre-bundle to fix lodash ESM issues
       'recharts',
+      
+      // Lodash utilities required by recharts
+      'lodash',
       'lodash/get',
       'lodash/isEqual',
       'lodash/isNil',
@@ -186,7 +194,10 @@ export default defineConfig({
       'lodash/isArray',
       'lodash/upperFirst',
       'lodash/sortBy',
-      'lodash/uniqueId'
+      'lodash/uniqueId',
+      'lodash/isNaN',
+      'lodash/isString',
+      'lodash/isNumber'
     ],
     exclude: [
       // Don't pre-bundle heavy/rarely used libs

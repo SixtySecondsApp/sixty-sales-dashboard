@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ import { useRoadmap } from '@/lib/hooks/useRoadmap';
 import { ContactSearchModal } from '@/components/ContactSearchModal';
 import logger from '@/lib/utils/logger';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
+import { sanitizeCrmForm, sanitizeNumber } from '@/lib/utils/inputSanitizer';
 
 // New decoupling imports
 import { 
@@ -56,7 +57,7 @@ interface QuickAddProps {
   onClose: () => void;
 }
 
-export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
+function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
   const { userData } = useUser();
   const { deals, moveDealToStage } = useDeals();
   const { contacts, createContact, findContactByEmail } = useContacts();
@@ -293,15 +294,18 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
     if (selectedAction === 'task') {
       try {
+        // Sanitize task data for security
+        const sanitizedFormData = sanitizeCrmForm(formData, 'activityForm');
+        
         const taskData = {
-          title: formData.title,
-          description: formData.description,
-          task_type: formData.task_type,
-          priority: formData.priority,
-          due_date: formData.due_date || undefined,
+          title: sanitizedFormData.title,
+          description: sanitizedFormData.description,
+          task_type: sanitizedFormData.task_type,
+          priority: sanitizedFormData.priority,
+          due_date: formData.due_date || undefined, // Date field - no sanitization needed
           assigned_to: userData?.id || '',
-          contact_name: formData.contact_name || undefined,
-          company_website: formData.company_website || undefined,
+          contact_name: sanitizedFormData.contact_name || undefined,
+          company_website: formData.company_website || undefined, // Will be URL sanitized if needed
         };
 
         // Try decoupled approach first, fallback to original
@@ -339,11 +343,14 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
 
     if (selectedAction === 'roadmap') {
       try {
+        // Sanitize roadmap data for security
+        const sanitizedFormData = sanitizeCrmForm(formData, 'activityForm');
+        
         const roadmapData = {
-          title: formData.title,
-          description: formData.description,
-          type: formData.roadmap_type,
-          priority: formData.priority || 'medium'
+          title: sanitizedFormData.title,
+          description: sanitizedFormData.description,
+          type: sanitizedFormData.roadmap_type,
+          priority: sanitizedFormData.priority || 'medium'
         };
 
         await createSuggestion(roadmapData);
@@ -729,24 +736,27 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           proposalAmount = parseFloat(formData.amount || '0') || 0;
         }
 
+        // Sanitize form data for security
+        const sanitizedFormData = sanitizeCrmForm(formData, 'activityForm');
+        
         // Create the appropriate activity or sale
         if (selectedAction === 'sale') {
           logger.log(`💰 Creating sale with deal_id: ${finalDealId}`);
-          // Calculate total sale amount from subscription and one-off
-          const oneOff = parseFloat(formData.oneOffRevenue || '0') || 0;
-          const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
+          // Calculate total sale amount from subscription and one-off with sanitized numeric inputs
+          const oneOff = sanitizeNumber(formData.oneOffRevenue, { min: 0, decimals: 2 }) || 0;
+          const monthly = sanitizeNumber(formData.monthlyMrr, { min: 0, decimals: 2 }) || 0;
           const saleAmount = (monthly * 3) + oneOff; // LTV calculation
           
           await addSale({
-            client_name: formData.client_name || formData.contact_name || 'Unknown',
+            client_name: sanitizedFormData.client_name || sanitizedFormData.contact_name || 'Unknown',
             amount: saleAmount,
-            details: formData.details || (monthly > 0 && oneOff > 0 ? 'Subscription + One-off Sale' : monthly > 0 ? 'Subscription Sale' : 'One-off Sale'),
+            details: sanitizedFormData.details || (monthly > 0 && oneOff > 0 ? 'Subscription + One-off Sale' : monthly > 0 ? 'Subscription Sale' : 'One-off Sale'),
             saleType: monthly > 0 ? 'subscription' : 'one-off',
             date: selectedDate.toISOString(),
             deal_id: finalDealId,
-            contactIdentifier: formData.contactIdentifier,
+            contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
-            contact_name: formData.contact_name,
+            contact_name: sanitizedFormData.contact_name,
             // Pass the split values for proper recording
             oneOffRevenue: oneOff,
             monthlyMrr: monthly
@@ -754,16 +764,19 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
           logger.log(`✅ Sale created successfully with deal_id: ${finalDealId}`);
         } else {
           logger.log(`📝 About to create ${selectedAction} activity with deal_id: ${finalDealId}`);
+          const sanitizedProposalAmount = selectedAction === 'proposal' ? 
+            sanitizeNumber(formData.amount, { min: 0, decimals: 2 }) : undefined;
+            
           await addActivity({
             type: selectedAction as 'meeting' | 'proposal',
-            client_name: formData.client_name || 'Unknown',
-            details: formData.details,
-            amount: selectedAction === 'proposal' ? proposalAmount : undefined,
+            client_name: sanitizedFormData.client_name || 'Unknown',
+            details: sanitizedFormData.details,
+            amount: sanitizedProposalAmount,
             date: selectedDate.toISOString(),
             deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
-            contactIdentifier: formData.contactIdentifier,
+            contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
-            contact_name: formData.contact_name,
+            contact_name: sanitizedFormData.contact_name,
             status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
           });
           logger.log(`✅ ${selectedAction} activity created successfully with deal_id: ${finalDealId}`);
@@ -979,3 +992,5 @@ export function QuickAdd({ isOpen, onClose }: QuickAddProps) {
     </AnimatePresence>
   );
 }
+
+export const QuickAdd = React.memo(QuickAddComponent);

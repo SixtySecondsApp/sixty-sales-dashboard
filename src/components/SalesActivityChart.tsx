@@ -26,6 +26,8 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   const { activities } = useActivities();
   const { userData } = useUser();
 
+  // Charts now using direct imports for stability
+
   const chartData = useMemo(() => {
     if (timeframe === 'daily') {
       // Get all days in the selected month
@@ -205,108 +207,108 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
         </div>
       </div>
       <div className="h-[400px]">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height={400}>
           <ComposedChart
-            data={chartData}
-            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          data={chartData}
+          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        >
+          <defs>
+            <linearGradient id="outboundGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.2}/>
+            </linearGradient>
+            <linearGradient id="meetingsGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.2}/>
+            </linearGradient>
+            <linearGradient id="proposalsGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.2}/>
+            </linearGradient>
+            <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#10B981" stopOpacity={0.2}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="rgba(255,255,255,0.1)"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="name"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+            dy={10}
+            scale="band"
+            padding={{ left: 10, right: 10 }}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+            dx={-10}
+            scale="log"
+            domain={[0.1, 'auto']}
+            allowDataOverflow={false}
+            tickFormatter={(value) => value <= 0.1 ? 0 : Math.round(value)}
           >
-            <defs>
-              <linearGradient id="outboundGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.2}/>
-              </linearGradient>
-              <linearGradient id="meetingsGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.2}/>
-              </linearGradient>
-              <linearGradient id="proposalsGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.2}/>
-              </linearGradient>
-              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-                <stop offset="95%" stopColor="#10B981" stopOpacity={0.2}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="rgba(255,255,255,0.1)"
-              vertical={false}
+            <Label
+              value="Count (log scale)"
+              angle={-90}
+              position="insideLeft"
+              style={{ fill: '#9CA3AF', fontSize: 12 }}
             />
-            <XAxis
-              dataKey="name"
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#9CA3AF', fontSize: 12 }}
-              dy={10}
-              scale="band"
-              padding={{ left: 10, right: 10 }}
-            />
-            <YAxis
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#9CA3AF', fontSize: 12 }}
-              dx={-10}
-              scale="log"
-              domain={[0.1, 'auto']}
-              allowDataOverflow={false}
-              tickFormatter={(value) => value <= 0.1 ? 0 : Math.round(value)}
-            >
-              <Label
-                value="Count (log scale)"
-                angle={-90}
-                position="insideLeft"
-                style={{ fill: '#9CA3AF', fontSize: 12 }}
-              />
-            </YAxis>
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              verticalAlign="top"
-              height={36}
-              iconType="circle"
-              iconSize={8}
-              wrapperStyle={{
-                paddingTop: '1rem',
-                color: '#9CA3AF',
-                fontSize: '12px'
-              }}
-            />
-            <Bar
-              dataKey="Outbound"
-              fill="url(#outboundGradient)"
-              maxBarSize={40}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationBegin={0}
-              minPointSize={2}
-            />
-            <Bar
-              dataKey="Meetings"
-              fill="url(#meetingsGradient)"
-              maxBarSize={40}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationBegin={200}
-              minPointSize={2}
-            />
-            <Bar
-              dataKey="Proposals"
-              fill="url(#proposalsGradient)"
-              maxBarSize={40}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationBegin={400}
-              minPointSize={2}
-            />
-            <Bar
-              dataKey="Sales"
-              fill="url(#salesGradient)"
-              maxBarSize={40}
-              isAnimationActive={true}
-              animationDuration={1000}
-              animationBegin={600}
-              minPointSize={2}
-            />
+          </YAxis>
+          <Tooltip content={<CustomTooltip />} />
+          <Legend
+            verticalAlign="top"
+            height={36}
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{
+              paddingTop: '1rem',
+              color: '#9CA3AF',
+              fontSize: '12px'
+            }}
+          />
+          <Bar
+            dataKey="Outbound"
+            fill="url(#outboundGradient)"
+            maxBarSize={40}
+            isAnimationActive={true}
+            animationDuration={1000}
+            animationBegin={0}
+            minPointSize={2}
+          />
+          <Bar
+            dataKey="Meetings"
+            fill="url(#meetingsGradient)"
+            maxBarSize={40}
+            isAnimationActive={true}
+            animationDuration={1000}
+            animationBegin={200}
+            minPointSize={2}
+          />
+          <Bar
+            dataKey="Proposals"
+            fill="url(#proposalsGradient)"
+            maxBarSize={40}
+            isAnimationActive={true}
+            animationDuration={1000}
+            animationBegin={400}
+            minPointSize={2}
+          />
+          <Bar
+            dataKey="Sales"
+            fill="url(#salesGradient)"
+            maxBarSize={40}
+            isAnimationActive={true}
+            animationDuration={1000}
+            animationBegin={600}
+            minPointSize={2}
+          />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { rateLimitMiddleware, RATE_LIMIT_CONFIGS } from '../_shared/rateLimiter.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +42,18 @@ serve(async (req) => {
         }
       }
     )
+
+    // Apply rate limiting for activity creation (audit recommendation)
+    const rateLimitResponse = await rateLimitMiddleware(
+      supabaseAdmin,
+      req,
+      'add-activity',
+      RATE_LIMIT_CONFIGS.standard
+    );
+    
+    if (rateLimitResponse) {
+      return rateLimitResponse; // Rate limit exceeded
+    }
 
     // Get the JWT token
     const token = authHeader.replace('Bearer ', '')

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -35,7 +35,7 @@ interface PipelineTableProps {
   onDeleteDeal: (id: string) => void;
 }
 
-export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps) {
+function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProps) {
   const { userData } = useUser();
   const [sorting, setSorting] = useState([]);
   const { deals, stages, searchTerm, filterOptions, deleteDeal } = usePipeline();
@@ -72,39 +72,39 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
     });
   }, [deals, searchTerm, filterOptions]);
 
-  const handleRowClick = (id: string) => {
+  const handleRowClick = useCallback((id: string) => {
     setExpandedRow(expandedRow === id ? null : id);
-  };
+  }, [expandedRow]);
 
-  const handleDeleteClick = (id: string) => {
+  const handleDeleteClick = useCallback((id: string) => {
     setDealToDelete(id);
     setDeleteDialogOpen(true);
-  };
+  }, []);
 
-  const confirmDelete = async () => {
+  const confirmDelete = useCallback(async () => {
     if (dealToDelete) {
       await deleteDeal(dealToDelete);
       setDeleteDialogOpen(false);
       setDealToDelete(null);
       onDeleteDeal(dealToDelete);
     }
-  };
+  }, [dealToDelete, deleteDeal, onDeleteDeal]);
 
-  const getStage = (stageId: string) => {
+  const getStage = useCallback((stageId: string) => {
     return stages.find(s => s.id === stageId);
-  };
+  }, [stages]);
 
-  const getStageColor = (stageId: string) => {
+  const getStageColor = useCallback((stageId: string) => {
     const stage = getStage(stageId);
     return stage?.color || 'gray';
-  };
+  }, [getStage]);
 
-  const getStageName = (stageId: string) => {
+  const getStageName = useCallback((stageId: string) => {
     const stage = getStage(stageId);
     return stage?.name || 'Unknown';
-  };
+  }, [getStage]);
 
-  const getActivityIcon = (type) => {
+  const getActivityIcon = useCallback((type: string) => {
     switch (type) {
       case 'sale':
         return PoundSterling;
@@ -117,15 +117,15 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
       default:
         return FileText;
     }
-  };
+  }, []);
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = useCallback((value: number) => {
     return new Intl.NumberFormat('en-GB', {
       style: 'currency',
       currency: 'GBP',
       maximumFractionDigits: 0
     }).format(value);
-  };
+  }, []);
 
   const columns = useMemo(
     () => [
@@ -303,7 +303,7 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
         },
       },
     ],
-    [stages, userData]
+    [stages, userData, handleRowClick, formatCurrency, getStageName, getStageColor, getStage, onDealClick, handleDeleteClick]
   );
 
   const table = useReactTable({
@@ -425,4 +425,6 @@ export function PipelineTable({ onDealClick, onDeleteDeal }: PipelineTableProps)
       </Dialog>
     </div>
   );
-} 
+}
+
+export const PipelineTable = React.memo(PipelineTableComponent);
