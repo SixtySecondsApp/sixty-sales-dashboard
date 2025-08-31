@@ -3,10 +3,8 @@ dist/
 build/
 coverage/
 archive/
-components/
-config/
-scripts/
-hooks/
+# Legacy/archived components in root directory
+/components/
 *.min.js
 *.min.css
 .env*

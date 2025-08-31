@@ -13,6 +13,8 @@ interface CacheEntry {
   data: any;
   timestamp: number;
   etag: string;
+  ttl: number; // Time to live in milliseconds
+  staleWhileRevalidate?: number; // Serve stale data while refreshing
   headers?: Record<string, string>;
 }
 
@@ -26,7 +28,7 @@ interface CacheOptions {
 
 class EdgeFunctionCache {
   private cache = new Map<string, CacheEntry>();
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+  public readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
   private readonly MAX_CACHE_SIZE = 1000; // Prevent memory leaks
 
   generateCacheKey(req: Request, customKey?: string): string {
@@ -59,16 +61,39 @@ class EdgeFunctionCache {
     return this.hashString(content);
   }
 
-  get(key: string): CacheEntry | null {
+  get(key: string, options: CacheOptions = {}): CacheEntry | null {
+    // Honor skipCache option
+    if (options.skipCache) {
+      return null;
+    }
+
     const entry = this.cache.get(key);
     if (!entry) return null;
 
     const now = Date.now();
     const age = now - entry.timestamp;
     
-    // Return fresh data
-    if (age < this.DEFAULT_TTL) {
+    // Check vary headers if specified
+    if (options.varyHeaders && entry.headers) {
+      // Simple header matching - in real implementation would compare actual request headers
+      const hasVaryMismatch = options.varyHeaders.some(header => 
+        entry.headers?.[header] !== undefined && 
+        entry.headers[header] !== this.getCurrentHeaderValue(header)
+      );
+      if (hasVaryMismatch) {
+        return null;
+      }
+    }
+    
+    // Return fresh data using stored TTL
+    if (age < entry.ttl) {
       return entry;
+    }
+
+    // Check stale-while-revalidate
+    if (entry.staleWhileRevalidate && age < (entry.ttl + entry.staleWhileRevalidate)) {
+      // Return stale data but mark for revalidation
+      return { ...entry, stale: true } as CacheEntry & { stale: boolean };
     }
 
     // Clean up expired entry
@@ -76,7 +101,17 @@ class EdgeFunctionCache {
     return null;
   }
 
+  private getCurrentHeaderValue(headerName: string): string | undefined {
+    // Placeholder - in real implementation would get from current request
+    return undefined;
+  }
+
   set(key: string, data: any, options: CacheOptions = {}): void {
+    // Don't store if skipCache is set
+    if (options.skipCache) {
+      return;
+    }
+
     // Prevent cache from growing too large
     if (this.cache.size >= this.MAX_CACHE_SIZE) {
       const oldestKey = this.cache.keys().next().value;
@@ -87,6 +122,8 @@ class EdgeFunctionCache {
       data,
       timestamp: Date.now(),
       etag: this.generateETag(data),
+      ttl: options.ttl ?? this.DEFAULT_TTL, // Use provided TTL or default
+      staleWhileRevalidate: options.staleWhileRevalidate,
       headers: options.varyHeaders ? this.extractHeaders(data, options.varyHeaders) : undefined
     };
 
@@ -131,29 +168,43 @@ export async function cacheMiddleware(
   const cacheKey = cache.generateCacheKey(req, options.cacheKey);
   
   // Check for cached response
-  const cachedEntry = cache.get(cacheKey);
+  const cachedEntry = cache.get(cacheKey, options);
   
   // Handle conditional requests (ETag)
   const ifNoneMatch = req.headers.get('If-None-Match');
   if (cachedEntry && ifNoneMatch === cachedEntry.etag) {
+    const maxAge = Math.floor(cachedEntry.ttl / 1000);
+    const staleWhileRevalidate = cachedEntry.staleWhileRevalidate 
+      ? `, stale-while-revalidate=${Math.floor(cachedEntry.staleWhileRevalidate / 1000)}` 
+      : '';
+    
     return new Response(null, {
       status: 304,
       headers: {
         'ETag': cachedEntry.etag,
-        'Cache-Control': `max-age=${Math.floor((options.ttl || cache.DEFAULT_TTL) / 1000)}`
+        'Cache-Control': `max-age=${maxAge}${staleWhileRevalidate}`
       }
     });
   }
 
   // Return cached response if available
   if (cachedEntry) {
+    const maxAge = Math.floor(cachedEntry.ttl / 1000);
+    const staleWhileRevalidate = cachedEntry.staleWhileRevalidate 
+      ? `, stale-while-revalidate=${Math.floor(cachedEntry.staleWhileRevalidate / 1000)}` 
+      : '';
+    
+    // Check if entry is stale
+    const isStale = (cachedEntry as any).stale;
+    const cacheStatus = isStale ? 'STALE' : 'HIT';
+    
     const response = new Response(JSON.stringify(cachedEntry.data), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
         'ETag': cachedEntry.etag,
-        'Cache-Control': `max-age=${Math.floor((options.ttl || cache.DEFAULT_TTL) / 1000)}`,
-        'X-Cache': 'HIT',
+        'Cache-Control': `max-age=${maxAge}${staleWhileRevalidate}`,
+        'X-Cache': cacheStatus,
         'X-Cache-Age': Math.floor((Date.now() - cachedEntry.timestamp) / 1000).toString()
       }
     });
@@ -171,13 +222,19 @@ export async function cacheMiddleware(
       
       const etag = cache.generateETag(responseData);
       
+      const ttl = options.ttl ?? cache.DEFAULT_TTL;
+      const maxAge = Math.floor(ttl / 1000);
+      const staleWhileRevalidate = options.staleWhileRevalidate 
+        ? `, stale-while-revalidate=${Math.floor(options.staleWhileRevalidate / 1000)}` 
+        : '';
+      
       // Return response with cache headers
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
           'ETag': etag,
-          'Cache-Control': `max-age=${Math.floor((options.ttl || cache.DEFAULT_TTL) / 1000)}`,
+          'Cache-Control': `max-age=${maxAge}${staleWhileRevalidate}`,
           'X-Cache': 'MISS'
         }
       });
