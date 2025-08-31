@@ -1,10 +1,11 @@
 // Cached dashboard metrics with progressive loading and comparison calculations
 // Avoids recomputation until user activities change
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDate, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useProgressiveDashboardData } from './useLazyActivities';
+import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 
 interface DashboardMetrics {
@@ -154,7 +155,67 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
   // Invalidate cache when activities change
   const invalidateMetrics = () => {
     queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+    queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
   };
+
+  // Set up real-time subscription for activity updates
+  useEffect(() => {
+    if (!enabled) return;
+
+    const setupRealtimeSubscription = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Subscribe to activities table changes for the current user
+        const channel = supabase
+          .channel('dashboard-activities-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+              schema: 'public',
+              table: 'activities',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              logger.log('🔄 Real-time activity update received:', payload);
+              
+              // Invalidate queries to trigger refetch
+              invalidateMetrics();
+              
+              // Log the type of change for debugging
+              if (payload.eventType === 'INSERT') {
+                logger.log('✅ New activity added:', payload.new);
+              } else if (payload.eventType === 'UPDATE') {
+                logger.log('📝 Activity updated:', payload.new);
+              } else if (payload.eventType === 'DELETE') {
+                logger.log('🗑️ Activity deleted:', payload.old);
+              }
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              logger.log('✅ Dashboard real-time subscription active');
+            }
+          });
+
+        // Cleanup subscription on unmount
+        return () => {
+          logger.log('🔌 Cleaning up dashboard real-time subscription');
+          channel.unsubscribe();
+        };
+      } catch (error) {
+        logger.error('Failed to set up real-time subscription:', error);
+      }
+    };
+
+    const cleanupPromise = setupRealtimeSubscription();
+    
+    return () => {
+      cleanupPromise.then(cleanup => cleanup?.());
+    };
+  }, [enabled, queryClient]);
 
   return {
     // Metrics data

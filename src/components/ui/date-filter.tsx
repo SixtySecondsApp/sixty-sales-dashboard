@@ -165,7 +165,7 @@ export function DateFilter({
             variant="outline"
             size="sm"
             className={`
-              h-9 px-3 min-w-[140px] justify-between font-medium transition-all
+              h-8 px-3 min-w-[140px] justify-between font-medium transition-all text-xs
               ${hasActiveFilter 
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/70' 
                 : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-600'

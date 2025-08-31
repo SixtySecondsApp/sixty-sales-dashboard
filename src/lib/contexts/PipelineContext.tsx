@@ -81,18 +81,21 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   // Get current user to use as default owner
   const { userData } = useUser();
   
-  // Use current user's ID as default owner if available
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(userData?.id);
+  // Initialize with undefined, will be set once userData loads
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | undefined>(undefined);
+  const [hasInitialized, setHasInitialized] = useState(false);
   
   // Add a refresh timestamp to force re-calculations when needed
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
   
-  // Update selectedOwnerId when user data loads
+  // Set selectedOwnerId to current user when userData loads
   useEffect(() => {
-    if (userData?.id && selectedOwnerId === undefined) {
+    if (userData?.id && !hasInitialized) {
+      console.log('[PipelineContext] Initializing to My Items:', userData.id);
       setSelectedOwnerId(userData.id);
+      setHasInitialized(true);
     }
-  }, [userData?.id, selectedOwnerId]);
+  }, [userData?.id, hasInitialized]);
   
   // Get the stages first
   const {

@@ -54,6 +54,7 @@ const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
 
 // CRM routes - heavy components, lazy load
 const CRM = lazy(() => import('@/pages/CRM'));
+const ElegantCRM = lazy(() => import('@/pages/ElegantCRM'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const Insights = lazy(() => import('@/pages/Insights'));
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
@@ -61,6 +62,8 @@ const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
 const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
 const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
 const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
+
+// Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
 // Loading component for better UX during code splitting
 const RouteLoader = () => (
@@ -174,10 +177,15 @@ function App() {
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
-                <Route path="/crm" element={<AppLayout><CRM /></AppLayout>} />
+                <Route path="/crm" element={<AppLayout><ElegantCRM /></AppLayout>} />
+                <Route path="/crm/elegant" element={<Navigate to="/crm" replace />} />
                 <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
+                
+                {/* Redirect to CRM with appropriate tab */}
+                <Route path="/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
+                <Route path="/companies" element={<Navigate to="/crm?tab=companies" replace />} />
                 
                 {/* Legacy routes for backward compatibility */}
                 <Route path="/heatmap" element={<Navigate to="/insights" replace />} />
@@ -188,9 +196,8 @@ function App() {
                 <Route path="/admin/pipeline-settings" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin/smart-tasks" element={<Navigate to="/admin" replace />} />
-                <Route path="/companies" element={<Navigate to="/crm" replace />} />
                 <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
-                <Route path="/crm/contacts" element={<Navigate to="/crm" replace />} />
+                <Route path="/crm/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
                 
                 {/* Individual record routes */}
                 <Route path="/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />

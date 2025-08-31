@@ -34,7 +34,7 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
       {/* Breadcrumb Navigation */}
       <nav className="breadcrumb-nav">
         <button 
-          onClick={() => navigate('/crm/contacts')}
+          onClick={() => navigate('/crm?tab=contacts')}
           className="breadcrumb-item flex items-center gap-1"
         >
           <ArrowLeft className="w-4 h-4" />

@@ -224,28 +224,28 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
     <div id="details-section" role="tabpanel" aria-labelledby="tab-details">
       <SectionHeading icon={<FileText className="w-4 h-4" />} title="Basic Information" />
       
-      {/* Horizontal layout for key fields */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <FormField
-          id="dealName"
-          label="Deal Name"
-          required
-          error={errors?.name?.message as string}
-        >
-          <InputWithIcon
-            id="name"
-            icon={<FileText className="w-4 h-4" />}
-            placeholder="Enter deal name"
-            aria-required="true"
-            aria-invalid={!!errors?.name}
-            aria-describedby={errors?.name ? "name-error" : undefined}
-            {...register("name", { required: "Deal name is required." })}
-          />
-          {errors?.name && (
-            <ErrorMessage id="name-error">{errors.name.message as string}</ErrorMessage>
-          )}
-        </FormField>
-        
+      <FormField
+        id="dealName"
+        label="Deal Name"
+        required
+        error={errors?.name?.message as string}
+        className="mb-4"
+      >
+                <InputWithIcon
+          id="name"
+          icon={<FileText className="w-4 h-4" />}
+          placeholder="Enter deal name"
+          aria-required="true"
+          aria-invalid={!!errors?.name}
+          aria-describedby={errors?.name ? "name-error" : undefined}
+          {...register("name", { required: "Deal name is required." })}
+        />
+        {errors?.name && (
+          <ErrorMessage id="name-error">{errors.name.message as string}</ErrorMessage>
+        )}
+      </FormField>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <FormField
           id="company"
           label="Company"
@@ -309,7 +309,7 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
                     type="text"
                     value={contactSearchQuery}
                     onChange={(e) => handleContactSearch(e.target.value)}
-                    placeholder="Search contacts..."
+                    placeholder="Search contacts by name, email, or company..."
                     className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-10 pr-3 
                       text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
                       focus:border-violet-500 transition-colors"
@@ -379,35 +379,42 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
         </FormField>
       </div>
       
-      {/* Contact Details - Inline when contact is mapped */}
+      {/* Quick Contact Edit Section - Show when contact is mapped */}
       {watch('contactName') && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <FormField
-            id="contactEmail"
-            label="Email Address"
-          >
-            <InputWithIcon 
-              id="contactEmail"
-              icon={<Mail className="w-4 h-4" />}
-              type="email"
-              placeholder="contact@company.com"
-              {...register("contactEmail")}
-            />
-          </FormField>
+        <>
+          <SectionHeading 
+            icon={<User className="w-4 h-4" />} 
+            title="Contact Details" 
+          />
           
-          <FormField
-            id="contactPhone"
-            label="Phone Number"
-          >
-            <InputWithIcon 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <FormField
+              id="contactEmail"
+              label="Email Address"
+            >
+              <InputWithIcon 
+                id="contactEmail"
+                icon={<Mail className="w-4 h-4" />}
+                type="email"
+                placeholder="contact@company.com"
+                {...register("contactEmail")}
+              />
+            </FormField>
+            
+            <FormField
               id="contactPhone"
-              icon={<Phone className="w-4 h-4" />}
-              type="tel"
-              placeholder="+44 20 1234 5678"
-              {...register("contactPhone")}
-            />
-          </FormField>
-        </div>
+              label="Phone Number"
+            >
+              <InputWithIcon 
+                id="contactPhone"
+                icon={<Phone className="w-4 h-4" />}
+                type="tel"
+                placeholder="+44 20 1234 5678"
+                {...register("contactPhone")}
+              />
+            </FormField>
+          </div>
+        </>
       )}
       
       {/* Lead Source Section */}
@@ -478,16 +485,39 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
         title="Deal Timeline & Value" 
       />
       
-      {/* Horizontal layout for timeline and revenue */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-        {/* Date Picker Column */}
-        <div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
+        {/* Left Column: Expected Close Date */}
+        <div className="space-y-4">
           <FormField
             id="closeDate"
             label="Expected Close Date"
             error={errors?.closeDate?.message as string}
           >
             <div className="space-y-3">
+              {/* Smart Quick Date Buttons */}
+              <div className="grid grid-cols-2 gap-2">
+                {getSmartQuickDates().map((quick) => (
+                  <button
+                    key={quick.label}
+                    type="button"
+                    onClick={() => handleQuickDate(quick.value)}
+                    className={`p-3 rounded-lg border transition-all duration-200 group text-left hover:scale-[1.02] ${
+                      watch('closeDate') === quick.value
+                        ? 'bg-violet-500/20 border-violet-500/50 text-violet-300 shadow-lg shadow-violet-500/10'
+                        : 'bg-gray-800/30 border-gray-600/30 text-gray-300 hover:bg-gray-700/50 hover:border-gray-500/50 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm group-hover:scale-110 transition-transform duration-200">{quick.icon}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium truncate">{quick.label}</div>
+                        <div className="text-xs opacity-70 truncate">{quick.description}</div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              
               {/* Custom Date Picker */}
               <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
@@ -499,7 +529,7 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
                       flex items-center gap-3 text-left hover:shadow-lg hover:scale-[1.01] group"
                   >
                     <Calendar className="w-4 h-4 text-gray-400 group-hover:text-violet-400 transition-colors duration-200 flex-shrink-0" />
-                    <span className={`transition-colors duration-200 text-sm ${selectedDate ? 'text-white' : 'text-gray-500 group-hover:text-gray-400'}`}>
+                    <span className={`transition-colors duration-200 ${selectedDate ? 'text-white' : 'text-gray-500 group-hover:text-gray-400'}`}>
                       {formatDateDisplay(selectedDate)}
                     </span>
                   </button>
@@ -581,10 +611,8 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
               <ErrorMessage id="closeDate-error">{errors.closeDate.message as string}</ErrorMessage>
             )}
           </FormField>
-        </div>
-
-        {/* First Billing Date Column */}
-        <div>
+          
+          {/* First Billing Date */}
           <FormField
             id="firstBillingDate"
             label="First Billing Date"
@@ -603,133 +631,141 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
             {errors?.firstBillingDate && (
               <ErrorMessage id="firstBillingDate-error">{errors.firstBillingDate.message as string}</ErrorMessage>
             )}
+            
+            <div className="mt-1 text-xs text-gray-500">
+              When should billing/invoicing begin for this deal? (Optional)
+            </div>
           </FormField>
         </div>
 
-        {/* One-off Revenue Column */}
-        <div>
-          <FormField
-            id="oneOffRevenue"
-            label="One-off Revenue (£)"
-            error={errors?.oneOffRevenue?.message as string}
-          >
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                £
-              </div>
-              <input
+        {/* Right Column: Revenue & Priority Stack */}
+        <div className="space-y-6">
+          {/* Deal Revenue Section */}
+          <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <PoundSterling className="w-4 h-4 text-emerald-400" />
+              <h4 className="text-sm font-medium text-gray-300">Deal Revenue</h4>
+            </div>
+            
+            <div className="space-y-4">
+              <FormField
                 id="oneOffRevenue"
-                type="number"
-                placeholder="0"
-                min="0"
-                step="0.01"
-                aria-invalid={!!errors?.oneOffRevenue}
-                aria-describedby={errors?.oneOffRevenue ? "oneOffRevenue-error" : undefined}
-                className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-8 pr-3 
-                  text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
-                  focus:border-violet-500 transition-colors"
-                {...register("oneOffRevenue", { 
-                  valueAsNumber: true,
-                  min: { value: 0, message: "Value must be non-negative." } 
-                })}
-              />
-            </div>
-            {errors?.oneOffRevenue && (
-              <ErrorMessage id="oneOffRevenue-error">{errors.oneOffRevenue.message as string}</ErrorMessage>
-            )}
-          </FormField>
-        </div>
-
-        {/* Monthly MRR Column */}
-        <div>
-          <FormField
-            id="monthlyMrr"
-            label="Monthly MRR (£)"
-            error={errors?.monthlyMrr?.message as string}
-          >
-            <div className="relative">
-              <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
-                £
-              </div>
-              <input
-                id="monthlyMrr"
-                type="number"
-                placeholder="0"
-                min="0"
-                step="0.01"
-                aria-invalid={!!errors?.monthlyMrr}
-                aria-describedby={errors?.monthlyMrr ? "monthlyMrr-error" : undefined}
-                className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-8 pr-3 
-                  text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
-                  focus:border-violet-500 transition-colors"
-                {...register("monthlyMrr", { 
-                  valueAsNumber: true,
-                  min: { value: 0, message: "Value must be non-negative." } 
-                })}
-              />
-            </div>
-            {errors?.monthlyMrr && (
-              <ErrorMessage id="monthlyMrr-error">{errors.monthlyMrr.message as string}</ErrorMessage>
-            )}
-          </FormField>
-        </div>
-      </div>
-
-      {/* Total Deal Value Display and Priority in horizontal layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Total Deal Value */}
-        {(watch('oneOffRevenue') || watch('monthlyMrr')) && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-            <div className="text-sm text-emerald-400">
-              <span className="font-medium">Total Deal Value: </span>
-              £{(
-                (parseFloat(watch('oneOffRevenue') as string) || 0) + 
-                ((parseFloat(watch('monthlyMrr') as string) || 0) * 3)
-              ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </div>
-            {watch('monthlyMrr') && parseFloat(watch('monthlyMrr') as string) > 0 && (
-              <div className="text-xs text-gray-400 mt-1">
-                Annual Value: £{(
-                  (parseFloat(watch('oneOffRevenue') as string) || 0) + 
-                  ((parseFloat(watch('monthlyMrr') as string) || 0) * 12)
-                ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Deal Priority Section */}
-        <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Star className="w-4 h-4 text-yellow-400" />
-            <h4 className="text-sm font-medium text-gray-300">Deal Priority</h4>
-          </div>
-          
-          <input type="hidden" {...register("priority")} />
-          
-          <div className="grid grid-cols-2 gap-2">
-            {priorityOptions.map((priority) => (
-              <button
-                key={priority.value}
-                type="button"
-                onClick={() => setValue('priority', priority.value, { shouldValidate: true })}
-                className={`p-3 rounded-xl border transition-all ${
-                  watch('priority') === priority.value
-                    ? `${priority.color} ${priority.ringColor} ring-2`
-                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
-                }`}
+                label="One-off Revenue (£)"
+                error={errors?.oneOffRevenue?.message as string}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{priority.icon}</span>
-                  <span className="text-xs font-medium">{priority.label}</span>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    £
+                  </div>
+                  <input
+                    id="oneOffRevenue"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                    aria-invalid={!!errors?.oneOffRevenue}
+                    aria-describedby={errors?.oneOffRevenue ? "oneOffRevenue-error" : undefined}
+                    className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-8 pr-3 
+                      text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
+                      focus:border-violet-500 transition-colors"
+                    {...register("oneOffRevenue", { 
+                      valueAsNumber: true,
+                      min: { value: 0, message: "Value must be non-negative." } 
+                    })}
+                  />
                 </div>
-              </button>
-            ))}
+                {errors?.oneOffRevenue && (
+                  <ErrorMessage id="oneOffRevenue-error">{errors.oneOffRevenue.message as string}</ErrorMessage>
+                )}
+              </FormField>
+              
+              <FormField
+                id="monthlyMrr"
+                label="Monthly Recurring Revenue (£)"
+                error={errors?.monthlyMrr?.message as string}
+              >
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                    £
+                  </div>
+                  <input
+                    id="monthlyMrr"
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    step="0.01"
+                    aria-invalid={!!errors?.monthlyMrr}
+                    aria-describedby={errors?.monthlyMrr ? "monthlyMrr-error" : undefined}
+                    className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-8 pr-3 
+                      text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
+                      focus:border-violet-500 transition-colors"
+                    {...register("monthlyMrr", { 
+                      valueAsNumber: true,
+                      min: { value: 0, message: "Value must be non-negative." } 
+                    })}
+                  />
+                </div>
+                {errors?.monthlyMrr && (
+                  <ErrorMessage id="monthlyMrr-error">{errors.monthlyMrr.message as string}</ErrorMessage>
+                )}
+              </FormField>
+
+              {/* Total Deal Value Display */}
+              {(watch('oneOffRevenue') || watch('monthlyMrr')) && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                  <div className="text-sm text-emerald-400">
+                    <span className="font-medium">Total Deal Value: </span>
+                    £{(
+                      (parseFloat(watch('oneOffRevenue') as string) || 0) + 
+                      ((parseFloat(watch('monthlyMrr') as string) || 0) * 3)
+                    ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                  {watch('monthlyMrr') && parseFloat(watch('monthlyMrr') as string) > 0 && (
+                    <div className="text-xs text-gray-400 mt-1">
+                      Annual Value: £{(
+                        (parseFloat(watch('oneOffRevenue') as string) || 0) + 
+                        ((parseFloat(watch('monthlyMrr') as string) || 0) * 12)
+                      ).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          
-          {errors?.priority && (
-            <ErrorMessage id="priority-error">{errors.priority.message as string}</ErrorMessage>
-          )}
+
+          {/* Deal Priority Section */}
+          <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Star className="w-4 h-4 text-yellow-400" />
+              <h4 className="text-sm font-medium text-gray-300">Deal Priority</h4>
+            </div>
+            
+            <input type="hidden" {...register("priority")} />
+            
+            <div className="grid grid-cols-2 gap-2">
+              {priorityOptions.map((priority) => (
+                <button
+                  key={priority.value}
+                  type="button"
+                  onClick={() => setValue('priority', priority.value, { shouldValidate: true })}
+                  className={`p-3 rounded-xl border transition-all ${
+                    watch('priority') === priority.value
+                      ? `${priority.color} ${priority.ringColor} ring-2`
+                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{priority.icon}</span>
+                    <span className="text-xs font-medium">{priority.label}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            {errors?.priority && (
+              <ErrorMessage id="priority-error">{errors.priority.message as string}</ErrorMessage>
+            )}
+          </div>
         </div>
       </div>
       
@@ -748,7 +784,7 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
           id="notes"
           icon={<AlignLeft className="w-4 h-4" />}
           placeholder="Add description or notes about this deal..."
-          rows={3}
+          rows={4}
           defaultValue={getValues('notes')}
           {...register("notes")}
         />

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ContactProfileSkeleton } from '@/components/ui/contact-skeleton';
 import { ContactHeader } from './components/ContactHeader';
 import { ContactTabs } from './components/ContactTabs';
 import { ContactSidebar } from './components/ContactSidebar';
@@ -18,6 +20,7 @@ const ContactRecord: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [childComponentsReady, setChildComponentsReady] = useState(false);
 
   useEffect(() => {
     const fetchContact = async () => {
@@ -41,10 +44,15 @@ const ContactRecord: React.FC = () => {
         
         logger.log('Contact data received:', contactData);
         setContact(contactData);
+        
+        // Add a small delay to allow child components to initialize
+        setTimeout(() => {
+          setChildComponentsReady(true);
+          setLoading(false);
+        }, 300);
       } catch (err) {
         logger.error('Error fetching contact:', err);
         setError(err instanceof Error ? err.message : 'Failed to load contact');
-      } finally {
         setLoading(false);
       }
     };
@@ -52,15 +60,9 @@ const ContactRecord: React.FC = () => {
     fetchContact();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
-          <p className="text-sm text-gray-400">Loading contact...</p>
-        </div>
-      </div>
-    );
+  // Show skeleton loader until both contact data and child components are ready
+  if (loading || !childComponentsReady) {
+    return <ContactProfileSkeleton />;
   }
 
   if (error) {
@@ -75,7 +77,7 @@ const ContactRecord: React.FC = () => {
           </Alert>
           <div className="mt-4">
             <button 
-              onClick={() => navigate('/crm/contacts')}
+              onClick={() => navigate('/crm?tab=contacts')}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               ← Back to Contacts
@@ -98,7 +100,7 @@ const ContactRecord: React.FC = () => {
           </Alert>
           <div className="mt-4">
             <button 
-              onClick={() => navigate('/crm/contacts')}
+              onClick={() => navigate('/crm?tab=contacts')}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               ← Back to Contacts
@@ -110,39 +112,65 @@ const ContactRecord: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen text-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Contact Header */}
-        <ContactHeader contact={contact} />
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={contact?.id || 'loading'}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.3 }}
+        className="min-h-screen text-gray-100"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Contact Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <ContactHeader contact={contact} />
+          </motion.div>
 
-        {/* Navigation Tabs */}
-        <ContactTabs 
-          activeTab={activeTab} 
-          onTabChange={setActiveTab} 
-        />
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Sidebar */}
-          <div className="lg:col-span-3">
-            <ContactSidebar contact={contact} />
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-6">
-            <ContactMainContent 
-              contact={contact} 
+          {/* Navigation Tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <ContactTabs 
               activeTab={activeTab} 
+              onTabChange={setActiveTab} 
             />
-          </div>
+          </motion.div>
 
-          {/* Right Panel */}
-          <div className="lg:col-span-3">
-            <ContactRightPanel contact={contact} />
-          </div>
+          {/* Main Content Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+          >
+            {/* Left Sidebar */}
+            <div className="lg:col-span-3">
+              <ContactSidebar contact={contact} />
+            </div>
+
+            {/* Main Content */}
+            <div className="lg:col-span-6">
+              <ContactMainContent 
+                contact={contact} 
+                activeTab={activeTab} 
+              />
+            </div>
+
+            {/* Right Panel */}
+            <div className="lg:col-span-3">
+              <ContactRightPanel contact={contact} />
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

@@ -85,24 +85,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     return 'from-red-500/20 to-pink-500/20 border-red-500/30 text-red-400';
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        {/* Loading skeleton */}
-        <div className="section-card animate-pulse">
-          <div className="h-6 bg-gray-700 rounded w-32 mb-4"></div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-gray-700 rounded-full"></div>
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-700 rounded w-24"></div>
-              <div className="h-3 bg-gray-700 rounded w-20"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // Component always renders - no loading skeleton needed since parent handles loading
   return (
     <div className="space-y-6">
       {/* Lead Owner Card */}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download, Info, ArrowUpDown, Grid3X3, List } from 'lucide-react';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
-import { OwnerFilter } from '@/components/OwnerFilter';
+import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
 import { DateFilter } from '@/components/ui/date-filter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
@@ -349,14 +349,18 @@ export function PipelineHeader({
           />
 
           {/* Owner Filter */}
-          <OwnerFilter 
+          <OwnerFilterV3 
             selectedOwnerId={selectedOwnerId}
             onOwnerChange={onOwnerChange}
+            compact={true}
+            showQuickFilters={false}
+            defaultToCurrentUser={true}
+            className="min-w-[140px]"
           />
 
           {/* Sort Controls */}
           <Select value={sortBy} onValueChange={onSortChange}>
-            <SelectTrigger className="w-40 bg-gray-800/50 border-gray-700 text-white hover:bg-gray-700/50 focus:border-emerald-500 transition-colors">
+            <SelectTrigger className="h-8 w-40 bg-gray-800/50 border-gray-700 text-white text-xs px-3 py-1.5 hover:bg-gray-700/50 focus:border-emerald-500 transition-colors">
               <ArrowUpDown className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -599,9 +603,11 @@ export function PipelineHeader({
                         <Users className="w-4 h-4 text-purple-400" />
                         Sales Rep
                       </label>
-                      <OwnerFilter
+                      <OwnerFilterV2
                         selectedOwnerId={selectedOwnerId}
                         onOwnerChange={onOwnerChange}
+                        defaultToCurrentUser={true}
+                        showQuickFilters={false}
                         className="w-full"
                       />
                     </div>

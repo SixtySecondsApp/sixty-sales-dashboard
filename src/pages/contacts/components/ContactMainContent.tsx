@@ -160,25 +160,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
             </button>
           </div>
 
-          {loading ? (
-            <div className="space-y-3">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="p-4 rounded-lg bg-gray-800/50 border border-gray-700/50 animate-pulse">
-                  <div className="flex items-start gap-4">
-                    <div className="h-5 w-5 rounded bg-gray-700/80 shrink-0 mt-1"></div>
-                    <div className="flex-grow space-y-3">
-                        <div className="h-4 bg-gray-700/80 rounded w-3/4"></div>
-                        <div className="h-3 bg-gray-700/60 rounded w-full"></div>
-                        <div className="flex justify-between items-center">
-                            <div className="h-3 bg-gray-700/60 rounded w-1/3"></div>
-                            <div className="h-3 bg-gray-700/60 rounded w-1/4"></div>
-                        </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : tasks && tasks.length > 0 ? (
+          {tasks && tasks.length > 0 ? (
             <div className="space-y-3">
               {tasks.map((task) => (
                 <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-800/70`}>
@@ -455,15 +437,8 @@ function TasksTabContent({
         </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-24 bg-gray-700 rounded animate-pulse"></div>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filteredTasks.length > 0 ? (
+      <div className="space-y-3">
+        {filteredTasks.length > 0 ? (
             filteredTasks.map((task) => (
               <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-800/70`}>
                 <div className="flex items-start justify-between mb-3">
@@ -558,7 +533,6 @@ function TasksTabContent({
             </div>
           )}
         </div>
-      )}
     </div>
   );
 } 

@@ -160,38 +160,44 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
         }
       }
 
-      // Fallback to API endpoints for edge functions
-      let url = `${API_BASE_URL}/companies?includeStats=true`;
-      logger.log('🔄 Fetching companies from URL:', url);
-      const params = new URLSearchParams();
+      // Use direct Supabase query instead of edge functions (which are failing with 500)
+      logger.log('🔄 Fetching companies directly from Supabase');
       
+      let query = supabase
+        .from('companies')
+        .select('*', { count: 'exact' });
+
+      // Apply search filter
       if (options.search) {
-        params.append('search', options.search);
-      }
-      
-      if (params.toString()) {
-        url += `&${params.toString()}`;
+        const searchTerm = options.search.trim();
+        query = query.or(`name.ilike.%${searchTerm}%,domain.ilike.%${searchTerm}%,industry.ilike.%${searchTerm}%`);
       }
 
-      // Get auth headers for Supabase Edge Functions
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      // Apply owner filter
+      if (userData?.id) {
+        query = query.eq('owner_id', userData.id);
+      }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
+      // Order by updated_at
+      query = query.order('updated_at', { ascending: false });
+
+      const { data: companies, error, count } = await query;
+
+      if (error) {
+        logger.error('Error fetching companies from Supabase:', error);
+        throw error;
       }
-      
-      const response = await fetch(url, { headers });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      setCompanies(result.data || []);
-      setTotalCount(result.data?.length || 0);
+
+      // Process companies (for now without stats since edge function is broken)
+      const processedCompanies = (companies || []).map(company => ({
+        ...company,
+        contactCount: 0, // TODO: Add proper contact count query
+        dealsCount: 0,   // TODO: Add proper deals count query  
+        dealsValue: 0    // TODO: Add proper deals value query
+      }));
+
+      setCompanies(processedCompanies);
+      setTotalCount(count || 0);
     } catch (err) {
       logger.error('Error fetching companies, using mock data fallback:', err);
       

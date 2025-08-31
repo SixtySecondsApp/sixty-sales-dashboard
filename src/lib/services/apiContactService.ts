@@ -129,6 +129,17 @@ export class ApiContactService {
         throw error;
       }
 
+      // Debug log raw data from database
+      logger.log(`📊 Raw contacts from DB: ${contacts?.length || 0} total`);
+      if (contacts && contacts.length > 0) {
+        logger.log('First 3 contacts:', contacts.slice(0, 3).map(c => ({
+          id: c.id?.substring(0, 8),
+          name: `${c.first_name} ${c.last_name}`,
+          email: c.email,
+          company: c.company_name
+        })));
+      }
+
       // Process contacts to add computed fields
       let processedContacts = (contacts || []).map(contact => ({
         ...contact,

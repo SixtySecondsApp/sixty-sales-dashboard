@@ -118,22 +118,7 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        {/* Loading skeleton */}
-        <div className="section-card animate-pulse">
-          <div className="h-6 bg-gray-700 rounded w-32 mb-4"></div>
-          <div className="space-y-3">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-20 bg-gray-700 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // Component always renders - no loading skeleton needed since parent handles loading
   return (
     <div className="space-y-6">
       {/* Active Deals */}
