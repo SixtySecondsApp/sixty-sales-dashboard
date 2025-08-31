@@ -85,14 +85,16 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     }
   }, []);
 
-  // Cache key for metrics (invalidates when activities change)
+  // Cache key for metrics - includes timestamp to ensure invalidation works
   const cacheKey = [
     'dashboard-metrics', 
     selectedMonth.getFullYear(), 
     selectedMonth.getMonth(),
-    currentMonth.activities?.length || 0,
-    previousMonth.activities?.length || 0,
-    currentDayOfMonth
+    currentMonth.activities?.length ?? 'loading',
+    previousMonth.activities?.length ?? 'loading',
+    currentDayOfMonth,
+    // Add a timestamp component that changes when activities change
+    currentMonth.activities ? JSON.stringify(currentMonth.activities.map(a => a.id)).slice(0, 20) : 'no-data'
   ];
 
   // Cached calculations - only recomputes when activities change
@@ -144,7 +146,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
         totalTrends,
       };
     },
-    enabled: Boolean(enabled && !isInitialLoad),
+    enabled: Boolean(enabled && currentMonth.activities !== undefined),
     staleTime: 5 * 60 * 1000, // 5 minutes - only recalculate if data actually changes
     cacheTime: 30 * 60 * 1000, // 30 minutes
   });

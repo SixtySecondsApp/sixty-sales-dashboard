@@ -442,6 +442,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
             queryClient.invalidateQueries({ queryKey: ['activities'] });
             queryClient.invalidateQueries({ queryKey: ['salesData'] });
             queryClient.invalidateQueries({ queryKey: ['targets'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
           }
         )
         .subscribe();
@@ -474,6 +475,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
       queryClient.invalidateQueries({ queryKey: ['salesData'] });
       queryClient.invalidateQueries({ queryKey: ['targets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
       toast.success('Activity added successfully');
     },
     onError: (error: Error) => {
@@ -489,6 +491,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
       queryClient.invalidateQueries({ queryKey: ['salesData'] });
       queryClient.invalidateQueries({ queryKey: ['targets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
       toast.success('Sale added successfully! 🎉');
       ConfettiService.celebrate();
     },
@@ -505,6 +508,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
       queryClient.invalidateQueries({ queryKey: ['salesData'] });
       queryClient.invalidateQueries({ queryKey: ['targets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
       toast.success('Activity updated successfully');
     },
     onError: (error: Error) => {
@@ -519,6 +523,7 @@ export function useActivities(dateRange?: { start: Date; end: Date }) {
       queryClient.invalidateQueries({ queryKey: ['activities'] });
       queryClient.invalidateQueries({ queryKey: ['salesData'] });
       queryClient.invalidateQueries({ queryKey: ['targets'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
       toast.success('Activity deleted successfully');
     },
     onError: (error: Error) => {

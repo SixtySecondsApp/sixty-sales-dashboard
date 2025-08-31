@@ -72,6 +72,7 @@ export function useDealsActions() {
     // Invalidate relevant queries to trigger refresh where needed
     queryClient.invalidateQueries({ queryKey: ['deals'] });
     queryClient.invalidateQueries({ queryKey: ['activities'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
   };
 
   return {

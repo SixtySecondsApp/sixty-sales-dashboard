@@ -26,6 +26,7 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
     // Clear cache when entering view mode to prevent data mixing
     queryClient.invalidateQueries({ queryKey: ['activities'] });
     queryClient.invalidateQueries({ queryKey: ['deals'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     
     setViewedUser(user);
     // Store in sessionStorage to persist across page refreshes
@@ -36,6 +37,7 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
     // Clear cache when exiting view mode to prevent data mixing
     queryClient.invalidateQueries({ queryKey: ['activities'] });
     queryClient.invalidateQueries({ queryKey: ['deals'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     
     setViewedUser(null);
     sessionStorage.removeItem('viewMode');

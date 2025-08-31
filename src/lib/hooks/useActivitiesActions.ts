@@ -33,16 +33,27 @@ export function useActivitiesActions() {
 
     if (!profile) throw new Error('User profile not found');
 
+    // Create the insert data with only database-compatible fields
+    const insertData = {
+      type: activity.type,
+      client_name: activity.client_name,
+      details: activity.details,
+      amount: activity.amount,
+      priority: activity.priority || 'medium',
+      date: activity.date || new Date().toISOString(),
+      quantity: activity.quantity,
+      status: activity.status || 'completed',
+      deal_id: activity.deal_id,
+      user_id: user.id,
+      sales_rep: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+      // Map camelCase to snake_case for database
+      contact_identifier: activity.contactIdentifier,
+      contact_identifier_type: activity.contactIdentifierType,
+    };
+    
     const { data, error } = await supabase
       .from('activities')
-      .insert({
-        ...activity,
-        user_id: user.id,
-        sales_rep: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-        date: activity.date || new Date().toISOString(),
-        status: activity.status || 'completed',
-        priority: activity.priority || 'medium',
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -53,6 +64,7 @@ export function useActivitiesActions() {
     // Invalidate queries to trigger refresh where needed
     queryClient.invalidateQueries({ queryKey: ['activities'] });
     queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
 
     return data;
   };

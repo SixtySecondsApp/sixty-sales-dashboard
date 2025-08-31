@@ -451,7 +451,6 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
             `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() || selectedContact.email :
             'Bulk Outbound Session'),
           details: outboundDetails,
-          outbound_type: formData.outboundType,
           quantity: activityCount, // Use 'quantity' field that Dashboard expects for stats
           date: selectedDate.toISOString(),
           deal_id: formData.deal_id,

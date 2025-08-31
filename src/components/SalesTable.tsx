@@ -835,7 +835,7 @@ export function SalesTable() {
                     <Edit2 className="w-4 h-4 text-gray-400 hover:text-[#37bd7e]" />
                   </motion.button>
                 </DialogTrigger>
-                <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl">
+                <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-[95vw] w-[95vw] max-h-[90vh] overflow-y-auto">
                   {editingActivity && editingActivity.id === activity.id && (
                     <EditActivityForm 
                       activity={editingActivity}

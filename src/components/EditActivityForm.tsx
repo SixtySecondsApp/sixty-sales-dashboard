@@ -190,50 +190,65 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
       <DialogHeader>
         <DialogTitle>Edit Activity</DialogTitle>
       </DialogHeader>
-      <div className="space-y-4 py-4">
-        {/* Client Name Input */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-400">Client Name</label>
-          <input
-            type="text"
-            name="client_name"
-            value={formData.client_name || ''}
-            onChange={handleFormChange}
-            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-          />
-        </div>
-        {/* Details Input */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-400">Details</label>
-          <input
-            type="text"
-            name="details"
-            value={formData.details || ''}
-            onChange={handleFormChange}
-            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-          />
-        </div>
-        {/* Amount Input (Conditional) */}
-        {formData.amount !== undefined && formData.amount !== null && (
+      <div className="space-y-6 py-4">
+        {/* Top Row: Basic Fields in horizontal grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {/* Client Name Input */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-400">Amount</label>
+            <label className="text-sm font-medium text-gray-400">Client Name</label>
             <input
-              type="text" 
-              inputMode="decimal"
-              pattern="[0-9]*[.,]?[0-9]*"
-              step="0.01"
-              name="amount"
-              value={formData.amount ?? ''}
-              onChange={handleAmountChange}
+              type="text"
+              name="client_name"
+              value={formData.client_name || ''}
+              onChange={handleFormChange}
               className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
             />
           </div>
-        )}
-        {/* Status Select */}
+          {/* Details Input */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-400">Details</label>
+            <input
+              type="text"
+              name="details"
+              value={formData.details || ''}
+              onChange={handleFormChange}
+              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+            />
+          </div>
+          {/* Amount Input (Conditional) */}
+          {formData.amount !== undefined && formData.amount !== null && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-400">Amount</label>
+              <input
+                type="text" 
+                inputMode="decimal"
+                pattern="[0-9]*[.,]?[0-9]*"
+                step="0.01"
+                name="amount"
+                value={formData.amount ?? ''}
+                onChange={handleAmountChange}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+              />
+            </div>
+          )}
+          {/* Company Website Field */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-400">Company Website</label>
+            <input
+              type="url"
+              placeholder="https://company.com"
+              name="company_website"
+              value={formData.company_website || ''}
+              onChange={handleFormChange}
+              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+            />
+          </div>
+        </div>
+        {/* Status Select - Horizontal layout */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-400">Status</label>
           
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
             {[
               { value: 'completed', label: 'Completed', icon: '✅', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
               { value: 'pending', label: 'Scheduled', icon: '📅', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
@@ -247,31 +262,19 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
                 key={status.value}
                 type="button"
                 onClick={() => setFormData(prevData => ({ ...prevData, status: status.value as 'completed' | 'pending' | 'cancelled' | 'no_show' | 'discovery' }))}
-                className={`p-3 rounded-xl border transition-all ${
+                className={`p-2 rounded-xl border transition-all ${
                   formData.status === status.value
                     ? `${status.color} ring-2 ring-opacity-50`
                     : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-base">{status.icon}</span>
-                  <span className="text-sm font-medium">{status.label}</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-sm">{status.icon}</span>
+                  <span className="text-xs font-medium">{status.label}</span>
                 </div>
               </button>
             ))}
           </div>
-        </div>
-        {/* Company Website Field */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-400">Company Website</label>
-          <input
-            type="url"
-            placeholder="https://company.com"
-            name="company_website"
-            value={formData.company_website || ''}
-            onChange={handleFormChange}
-            className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-          />
         </div>
 
         {/* Activity Type-Specific Fields */}
@@ -343,9 +346,9 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
           </div>
         )}
 
-        {/* Contact Identifier Inputs (Conditional) */}
+        {/* Contact Identifier Inputs - Horizontal (Conditional) */}
         {formData.type !== 'outbound' && (
-          <>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-400">Contact Identifier</label>
               <input
@@ -354,7 +357,7 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
                 name="contactIdentifier"
                 value={formData.contactIdentifier || ''}
                 onChange={handleFormChange}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent mb-2"
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
               />
             </div>
             <div className="space-y-2">
@@ -368,7 +371,7 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
                 className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
               />
             </div>
-          </>
+          </div>
         )}
       </div>
       <DialogFooter>
