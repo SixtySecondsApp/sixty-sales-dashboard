@@ -166,8 +166,8 @@ export const loadCriticalResources = async () => {
   // Prefetch DNS for API endpoints
   prefetchDNS('https://api.supabase.co');
   
-  // Preload critical fonts
-  preloadFont('/fonts/inter-var.woff2', 'woff2');
+  // Note: Inter font is loaded via Google Fonts in index.html
+  // No local font preloading needed as we use the Google Fonts CSS
   
   // Preload critical CSS if using external stylesheets
   if (document.querySelector('link[href*="tailwind"]')) {

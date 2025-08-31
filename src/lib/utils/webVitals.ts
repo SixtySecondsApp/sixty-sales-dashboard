@@ -12,6 +12,8 @@
 import React from 'react';
 import { onCLS, onFCP, onLCP, onTTFB } from 'web-vitals';
 import logger from '@/lib/utils/logger';
+import { supabase } from '@/lib/supabase/clientV2';
+import { ServiceWorkerManager } from '@/lib/utils/serviceWorkerUtils';
 
 // Thresholds for Core Web Vitals
 export const WEB_VITALS_THRESHOLDS = {
@@ -367,7 +369,7 @@ class WebVitalsOptimizer {
     return WEB_VITALS_THRESHOLDS[metricName as keyof typeof WEB_VITALS_THRESHOLDS];
   }
 
-  private sendToAnalytics(metric: WebVitalMetric): void {
+  private async sendToAnalytics(metric: WebVitalMetric): Promise<void> {
     // Send to analytics service
     if (typeof gtag !== 'undefined') {
       (window as any).gtag('event', metric.name, {
@@ -378,19 +380,27 @@ class WebVitalsOptimizer {
       });
     }
 
-    // Send to custom analytics
-    fetch('/api/analytics/web-vitals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...metric,
-        timestamp: Date.now(),
-        url: window.location.href,
-        userAgent: navigator.userAgent
-      })
-    }).catch(() => {
-      // Ignore analytics failures
-    });
+    // Send to custom analytics via Supabase Edge Function
+    try {
+      await supabase.functions.invoke('analytics-web-vitals', {
+        body: {
+          ...metric,
+          timestamp: Date.now(),
+          url: window.location.href,
+          userAgent: navigator.userAgent
+        }
+      });
+      
+      // Reset error tracking on successful request
+      ServiceWorkerManager.resetApiErrorTracking();
+      
+    } catch (error) {
+      // Track API errors for cache conflict detection
+      ServiceWorkerManager.trackApiError();
+      
+      // Log but don't fail - analytics shouldn't block performance
+      logger.warn('Failed to send web vitals to analytics:', error);
+    }
   }
 
   // Get current metrics report

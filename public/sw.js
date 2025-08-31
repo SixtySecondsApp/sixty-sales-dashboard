@@ -3,7 +3,7 @@
  * Provides offline support and caching for production
  */
 
-const CACHE_NAME = 'sixty-sales-v1';
+const CACHE_NAME = 'sixty-sales-v2-audit-optimized';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -80,8 +80,15 @@ self.addEventListener('fetch', event => {
     return;
   }
   
-  // Skip API requests (let them go through normally)
-  if (url.pathname.startsWith('/api/')) {
+  // Skip API requests and Supabase functions (let them go through normally)
+  if (url.pathname.startsWith('/api/') || 
+      url.pathname.startsWith('/functions/') ||
+      url.pathname.includes('/functions/v1/') ||
+      url.hostname !== self.location.hostname ||
+      url.pathname.includes('/auth') ||
+      url.pathname.includes('/rest/v1/') ||
+      url.searchParams.has('timestamp') ||
+      request.headers.get('Authorization')) {
     return;
   }
   
@@ -103,14 +110,20 @@ self.addEventListener('fetch', event => {
             return response;
           }
           
-          // Clone the response
-          const responseToCache = response.clone();
+          // Only cache static assets, not dynamic content
+          const isStatic = url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
+          const isHTML = url.pathname === '/' || url.pathname.endsWith('.html') || !url.pathname.includes('.');
           
-          // Cache the response for future use
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(request, responseToCache);
-            });
+          if (isStatic || isHTML) {
+            // Clone the response
+            const responseToCache = response.clone();
+            
+            // Cache the response for future use
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(request, responseToCache);
+              });
+          }
           
           return response;
         });
@@ -139,6 +152,23 @@ self.addEventListener('message', event => {
       names.forEach(name => caches.delete(name));
     });
     event.ports[0].postMessage({ type: 'CACHE_CLEARED' });
+  }
+  
+  if (event.data && event.data.type === 'CLEAR_API_CACHE') {
+    // Clear only dynamic/API related cached entries
+    caches.open(CACHE_NAME).then(cache => {
+      cache.keys().then(requests => {
+        requests.forEach(request => {
+          const url = new URL(request.url);
+          if (url.pathname.includes('/api/') || 
+              url.pathname.includes('/functions/') ||
+              url.searchParams.has('timestamp')) {
+            cache.delete(request);
+          }
+        });
+      });
+    });
+    event.ports[0].postMessage({ type: 'API_CACHE_CLEARED' });
   }
 });
 

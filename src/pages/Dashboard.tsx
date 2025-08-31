@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
 import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { useNavigate } from 'react-router-dom';
-import { useActivities } from '@/lib/hooks/useActivities';
+import { useRecentDeals } from '@/lib/hooks/useLazyActivities';
+import { useDashboardMetrics } from '@/lib/hooks/useDashboardMetrics';
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, isAfter, isBefore, getDate } from 'date-fns';
 import {
   PoundSterling,
@@ -18,9 +19,9 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
-import SalesActivityChart from '@/components/SalesActivityChart';
+import { LazySalesActivityChart } from '@/components/LazySalesActivityChart';
 import ReactDOM from 'react-dom';
-import { SubscriptionStats } from '@/components/SubscriptionStats';
+import { LazySubscriptionStats } from '@/components/LazySubscriptionStats';
 import logger from '@/lib/utils/logger';
 
 interface MetricCardProps {
@@ -35,6 +36,8 @@ interface MetricCardProps {
     end: Date;
   };
   previousMonthTotal?: number;
+  isLoadingComparisons?: boolean;
+  hasComparisons?: boolean;
 }
 
 interface TooltipProps {
@@ -85,7 +88,7 @@ const Tooltip = ({ show, content, position }: TooltipProps) => {
   );
 };
 
-const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal }: MetricCardProps) => {
+const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal, isLoadingComparisons, hasComparisons }: MetricCardProps) => {
   const navigate = useNavigate();
   const { setFilters } = useActivityFilters();
   const [showTrendTooltip, setShowTrendTooltip] = useState(false);
@@ -207,38 +210,66 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
           {/* Arrow for same time in previous month comparison */}
           <div 
             ref={trendRef}
-            className={`p-2 rounded-lg ${getTrendBg(trend)} backdrop-blur-sm relative transition-all duration-300 hover:scale-105 shadow-lg`}
+            className={`p-2 rounded-lg ${isLoadingComparisons ? 'bg-gray-500/10 border-gray-500/30' : getTrendBg(trend)} backdrop-blur-sm relative transition-all duration-300 hover:scale-105 shadow-lg`}
             onMouseEnter={handleTrendMouseEnter}
             onMouseLeave={() => setShowTrendTooltip(false)}
           >
             <div className="flex items-center gap-1.5">
-              {trend >= 0 ? (
-                <TrendingUp className={`w-4 h-4 ${getArrowClass(trend)}`} />
+              {isLoadingComparisons ? (
+                <>
+                  <div className="w-4 h-4 animate-pulse bg-gray-400 rounded-full"></div>
+                  <span className="text-xs font-semibold text-gray-400">--%</span>
+                </>
+              ) : !hasComparisons ? (
+                <>
+                  <div className="w-4 h-4 text-gray-400">-</div>
+                  <span className="text-xs font-semibold text-gray-400">--%</span>
+                </>
               ) : (
-                <TrendingDown className={`w-4 h-4 ${getArrowClass(trend)}`} />
+                <>
+                  {trend >= 0 ? (
+                    <TrendingUp className={`w-4 h-4 ${getArrowClass(trend)}`} />
+                  ) : (
+                    <TrendingDown className={`w-4 h-4 ${getArrowClass(trend)}`} />
+                  )}
+                  <span className={`text-xs font-semibold ${getArrowClass(trend)}`}>
+                    {trend >= 0 ? '+' : ''}{trend}%
+                  </span>
+                </>
               )}
-              <span className={`text-xs font-semibold ${getArrowClass(trend)}`}>
-                {trend >= 0 ? '+' : ''}{trend}%
-              </span>
             </div>
           </div>
           
           {/* Arrow for total previous month comparison */}
           <div 
             ref={totalRef}
-            className={`p-2 rounded-lg ${getTrendBg(totalTrend)} backdrop-blur-sm relative transition-all duration-300 hover:scale-105 shadow-lg`}
+            className={`p-2 rounded-lg ${isLoadingComparisons ? 'bg-gray-500/10 border-gray-500/30' : getTrendBg(totalTrend)} backdrop-blur-sm relative transition-all duration-300 hover:scale-105 shadow-lg`}
             onMouseEnter={handleTotalMouseEnter}
             onMouseLeave={() => setShowTotalTooltip(false)}
           >
             <div className="flex items-center gap-1.5">
-              {totalTrend >= 0 ? (
-                <ArrowUp className={`w-4 h-4 ${getArrowClass(totalTrend)}`} />
+              {isLoadingComparisons ? (
+                <>
+                  <div className="w-4 h-4 animate-pulse bg-gray-400 rounded-full"></div>
+                  <span className="text-xs font-semibold text-gray-400">--%</span>
+                </>
+              ) : !hasComparisons ? (
+                <>
+                  <div className="w-4 h-4 text-gray-400">-</div>
+                  <span className="text-xs font-semibold text-gray-400">--%</span>
+                </>
               ) : (
-                <ArrowDown className={`w-4 h-4 ${getArrowClass(totalTrend)}`} />
+                <>
+                  {totalTrend >= 0 ? (
+                    <ArrowUp className={`w-4 h-4 ${getArrowClass(totalTrend)}`} />
+                  ) : (
+                    <ArrowDown className={`w-4 h-4 ${getArrowClass(totalTrend)}`} />
+                  )}
+                  <span className={`text-xs font-semibold ${getArrowClass(totalTrend)}`}>
+                    {totalTrend >= 0 ? '+' : ''}{totalTrend}%
+                  </span>
+                </>
               )}
-              <span className={`text-xs font-semibold ${getArrowClass(totalTrend)}`}>
-                {totalTrend >= 0 ? '+' : ''}{totalTrend}%
-              </span>
             </div>
           </div>
           
@@ -420,181 +451,46 @@ export default function Dashboard() {
   };
   const { userData } = useUser();
   const navigate = useNavigate();
-  const { activities, isLoading: isLoadingActivities } = useActivities();
-  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
   const { setFilters } = useActivityFilters();
+  
+  // Progressive dashboard metrics with caching
+  const {
+    metrics,
+    trends,
+    totalTrends,
+    previousMonthTotals,
+    isInitialLoad,
+    isLoadingComparisons,
+    hasComparisons,
+    currentMonthActivities
+  } = useDashboardMetrics(selectedMonth, showContent);
+  
+  // Lazy load recent deals only when user scrolls to that section
+  const [loadRecentDeals, setLoadRecentDeals] = useState(false);
+  const { activities: recentDeals, isLoading: isLoadingDeals } = useRecentDeals(loadRecentDeals);
+  
+  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
 
   const selectedMonthRange = useMemo(() => ({
     start: startOfMonth(selectedMonth),
     end: endOfMonth(selectedMonth),
   }), [selectedMonth]);
 
-  // Get the current day of month for comparing with the same day in previous month
-  const currentDayOfMonth = useMemo(() => {
-    try {
-      return getDate(new Date());
-    } catch (error) {
-      logger.error('Error getting current day of month:', error);
-      return 1; // Fallback to 1st of month
-    }
-  }, []);
+  // All metrics are now handled by useDashboardMetrics hook with caching
 
-  // Filter activities for selected month and calculate metrics
-  const selectedMonthActivities = useMemo(() => {
-    try {
-      if (!activities || !Array.isArray(activities)) return [];
-      
-      return activities.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= selectedMonthRange.start && activityDate <= selectedMonthRange.end;
-        } catch (error) {
-          logger.error('Error filtering activity:', error);
-          return false;
-        }
-      });
-    } catch (error) {
-      logger.error('Error filtering selected month activities:', error);
-      return [];
-    }
-  }, [activities, selectedMonthRange]);
-
-  // Get previous month's activities up to the SAME DAY for proper trend calculation
-  const previousMonthToDateActivities = useMemo(() => {
-    try {
-      if (!activities || !Array.isArray(activities)) return [];
-      
-      // Get the previous month's range
-      const prevMonthStart = startOfMonth(subMonths(selectedMonth, 1));
-      
-      // Calculate the cutoff date (same day of month as today, but in previous month)
-      const dayOfMonth = Math.min(currentDayOfMonth, getDate(endOfMonth(prevMonthStart)));
-      const prevMonthCutoff = new Date(prevMonthStart);
-      prevMonthCutoff.setDate(dayOfMonth);
-      
-      return activities.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return activityDate >= prevMonthStart && activityDate <= prevMonthCutoff;
-        } catch (error) {
-          logger.error('Error filtering previous month activity:', error);
-          return false;
-        }
-      });
-    } catch (error) {
-      logger.error('Error calculating previous month activities:', error);
-      return [];
-    }
-  }, [activities, selectedMonth, currentDayOfMonth]);
-
-  // Calculate metrics for selected month
-  const metrics = useMemo(() => {
-    try {
-      return {
-        revenue: selectedMonthActivities
-          .filter((a: any) => a.type === 'sale')
-          .reduce((sum: number, a: any) => sum + (a.amount || 0), 0),
-        outbound: selectedMonthActivities
-          .filter((a: any) => a.type === 'outbound')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        meetings: selectedMonthActivities
-          .filter((a: any) => a.type === 'meeting')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0),
-        proposals: selectedMonthActivities
-          .filter((a: any) => a.type === 'proposal')
-          .reduce((sum: number, a: any) => sum + (a.quantity || 1), 0)
-      };
-    } catch (error) {
-      logger.error('Error calculating metrics:', error);
-      return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
-    }
-  }, [selectedMonthActivities]);
-
-  // Calculate metrics for previous month TO SAME DATE (for fair comparison)
-  const previousMetricsToDate = useMemo(() => ({
-    revenue: previousMonthToDateActivities
-      .filter(a => a.type === 'sale')
-      .reduce((sum, a) => sum + (a.amount || 0), 0),
-    outbound: previousMonthToDateActivities
-      .filter(a => a.type === 'outbound')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    meetings: previousMonthToDateActivities
-      .filter(a => a.type === 'meeting')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0),
-    proposals: previousMonthToDateActivities
-      .filter(a => a.type === 'proposal')
-      .reduce((sum, a) => sum + (a.quantity || 1), 0)
-  }), [previousMonthToDateActivities]);
-
-  // Calculate previous month's complete total metrics (for the entire previous month)
-  const previousMonthTotals = useMemo(() => {
-    try {
-      // First, get the full previous month date range
-      const prevMonthStart = startOfMonth(subMonths(selectedMonth, 1));
-      const prevMonthEnd = endOfMonth(subMonths(selectedMonth, 1));
-      
-      // Get all activities from the previous month (entire month)
-      const fullPreviousMonthActivities = activities?.filter(activity => {
-        try {
-          if (!activity?.date) return false;
-          const activityDate = new Date(activity.date);
-          if (isNaN(activityDate.getTime())) return false;
-          return !isBefore(activityDate, prevMonthStart) && !isAfter(activityDate, prevMonthEnd);
-        } catch (error) {
-          logger.error('Error filtering previous month total activity:', error);
-          return false;
-        }
-      }) || [];
-      
-      // Calculate the full month totals
-      return {
-        revenue: fullPreviousMonthActivities
-          .filter(a => a.type === 'sale')
-          .reduce((sum, a) => sum + (a.amount || 0), 0),
-        outbound: fullPreviousMonthActivities
-          .filter(a => a.type === 'outbound')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
-        meetings: fullPreviousMonthActivities
-          .filter(a => a.type === 'meeting')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0),
-        proposals: fullPreviousMonthActivities
-          .filter(a => a.type === 'proposal')
-          .reduce((sum, a) => sum + (a.quantity || 1), 0)
-      };
-    } catch (error) {
-      logger.error('Error calculating previous month totals:', error);
-      return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
-    }
-  }, [activities, selectedMonth]);
-
-  // Calculate trends (comparing current month-to-date with previous month SAME DATE)
-  const calculateTrend = (current: number, previous: number) => {
-    if (previous === 0) return 0;
-    return Math.round(((current - previous) / previous) * 100);
-  };
-
-  const trends = useMemo(() => ({
-    revenue: calculateTrend(metrics.revenue, previousMetricsToDate.revenue),
-    outbound: calculateTrend(metrics.outbound, previousMetricsToDate.outbound),
-    meetings: calculateTrend(metrics.meetings, previousMetricsToDate.meetings),
-    proposals: calculateTrend(metrics.proposals, previousMetricsToDate.proposals)
-  }), [metrics, previousMetricsToDate]);
-
-  // Filter deals based on search query
-  const filteredDeals = useMemo(() => 
-    selectedMonthActivities.filter(activity => 
+  // Filter deals based on search query - use recent deals if loaded, otherwise current month activities
+  const filteredDeals = useMemo(() => {
+    const dealsToFilter = loadRecentDeals ? recentDeals : currentMonthActivities.filter(a => a.type === 'sale');
+    return dealsToFilter.filter(activity => 
       activity.type === 'sale' &&
       (activity.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
        activity.amount?.toString().includes(searchQuery) ||
        activity.details?.toLowerCase().includes(searchQuery.toLowerCase()))
-    ), [selectedMonthActivities, searchQuery]);
+    );
+  }, [recentDeals, currentMonthActivities, searchQuery, loadRecentDeals]);
 
   // Check if any data is loading
-  const isAnyLoading = isLoadingActivities || isLoadingSales || !userData;
+  const isAnyLoading = isInitialLoad || isLoadingSales || !userData;
 
   // Use effect to handle stable loading state
   useEffect(() => {
@@ -610,6 +506,28 @@ export default function Dashboard() {
       }
     };
   }, [isAnyLoading]);
+
+  // Intersection observer for lazy loading recent deals
+  const recentDealsRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (!recentDealsRef.current || loadRecentDeals) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          setLoadRecentDeals(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    );
+
+    observer.observe(recentDealsRef.current);
+    
+    return () => observer.disconnect();
+  }, [loadRecentDeals, showContent]);
 
   // Early return for loading state
   if (!showContent) {
@@ -667,6 +585,8 @@ export default function Dashboard() {
           type="sale"
           dateRange={selectedMonthRange}
           previousMonthTotal={previousMonthTotals.revenue}
+          isLoadingComparisons={isLoadingComparisons}
+          hasComparisons={hasComparisons}
         />
         <MetricCard
           title="Outbound"
@@ -677,6 +597,8 @@ export default function Dashboard() {
           type="outbound"
           dateRange={selectedMonthRange}
           previousMonthTotal={previousMonthTotals.outbound}
+          isLoadingComparisons={isLoadingComparisons}
+          hasComparisons={hasComparisons}
         />
         <MetricCard
           title="Meetings"
@@ -687,6 +609,8 @@ export default function Dashboard() {
           type="meeting"
           dateRange={selectedMonthRange}
           previousMonthTotal={previousMonthTotals.meetings}
+          isLoadingComparisons={isLoadingComparisons}
+          hasComparisons={hasComparisons}
         />
         <MetricCard
           title="Proposals"
@@ -697,12 +621,14 @@ export default function Dashboard() {
           type="proposal"
           dateRange={selectedMonthRange}
           previousMonthTotal={previousMonthTotals.proposals}
+          isLoadingComparisons={isLoadingComparisons}
+          hasComparisons={hasComparisons}
         />
       </div>
 
       {/* Sales Activity Chart */}
       <div className="mb-8">
-        <SalesActivityChart selectedMonth={selectedMonth} />
+        <LazySalesActivityChart selectedMonth={selectedMonth} />
       </div>
 
       {/* MRR Subscription Statistics */}
@@ -711,7 +637,7 @@ export default function Dashboard() {
           <h2 className="text-xl font-semibold text-white">Subscription Revenue</h2>
           <p className="text-sm text-gray-400">Track your monthly recurring revenue and client metrics</p>
         </div>
-        <SubscriptionStats 
+        <LazySubscriptionStats 
           onClick={(cardTitle) => {
             // Navigate to subscriptions page when clicking on MRR cards
             navigate('/subscriptions');
@@ -720,7 +646,7 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Deals Section */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50 mb-8">
+      <div ref={recentDealsRef} className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50 mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
           <h2 className="text-xl font-semibold text-white">Recent Deals</h2>
           <div className="relative w-full sm:w-64">
@@ -734,7 +660,18 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="space-y-3">
-          {filteredDeals.map((deal) => (
+          {!loadRecentDeals ? (
+            // Show loading placeholder when recent deals haven't been loaded yet
+            <div className="text-center py-8">
+              <div className="text-gray-500">Loading recent deals...</div>
+            </div>
+          ) : isLoadingDeals ? (
+            // Show loading state while fetching
+            <div className="text-center py-8">
+              <div className="text-gray-500">Fetching deals...</div>
+            </div>
+          ) : (
+            filteredDeals.map((deal) => (
             <motion.div
               key={deal.id}
               initial={{ opacity: 0, y: 10 }}
@@ -794,9 +731,9 @@ export default function Dashboard() {
                 </div>
               </div>
             </motion.div>
-          ))}
+          )))}
           
-          {filteredDeals.length === 0 && (
+          {loadRecentDeals && filteredDeals.length === 0 && (
             <div className="text-center py-8">
               <div className="text-gray-400">No matching deals found</div>
               {searchQuery && (

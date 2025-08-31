@@ -109,8 +109,19 @@ export async function fetchWithRetry(
         throw error;
       }
       
-      // Handle connection errors
+      // Handle connection errors - but fail fast for known missing endpoints
       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        // Check if this is a known endpoint that might not exist yet
+        const knownOptionalEndpoints = ['/clients', '/payments', '/subscriptions'];
+        const isOptionalEndpoint = knownOptionalEndpoints.some(endpoint => 
+          url.includes(endpoint) || url.endsWith(endpoint)
+        );
+        
+        if (isOptionalEndpoint) {
+          logger.warn(`⚠️ Optional endpoint not available (${url}), failing fast instead of retrying`);
+          throw new Error(`Endpoint not available: ${url.split('/').pop()}`);
+        }
+        
         logger.warn(`API request failed (attempt ${attempt + 1}/${config.maxRetries! + 1}), retrying in ${config.retryDelay! * Math.pow(2, attempt)}ms:`, error.message);
         
         if (attempt < config.maxRetries!) {

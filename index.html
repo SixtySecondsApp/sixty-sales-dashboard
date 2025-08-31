@@ -71,14 +71,25 @@
             .then((registration) => {
               console.log('SW registered: ', registration);
               
+              // Store registration for cache management
+              window.swRegistration = registration;
+              
               // Handle service worker updates
               registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed') {
                     if (navigator.serviceWorker.controller) {
-                      // New update available
-                      console.log('New version available, please refresh');
+                      // New update available - clear caches to prevent conflicts
+                      console.log('New version available, clearing caches and refreshing');
+                      if (window.swRegistration && window.swRegistration.active) {
+                        const messageChannel = new MessageChannel();
+                        window.swRegistration.active.postMessage(
+                          { type: 'CLEAR_CACHE' }, 
+                          [messageChannel.port2]
+                        );
+                        setTimeout(() => window.location.reload(), 1000);
+                      }
                     } else {
                       // Content is cached for offline use
                       console.log('Content is cached for offline use');
@@ -86,11 +97,39 @@
                   }
                 });
               });
+              
+              // Detect and resolve cache conflicts on load
+              setTimeout(() => {
+                if (window.detectAndResolveCacheConflicts) {
+                  window.detectAndResolveCacheConflicts();
+                }
+              }, 2000);
             })
             .catch((registrationError) => {
               console.log('SW registration failed: ', registrationError);
             });
         });
+        
+        // Add global cache management functions for debugging
+        window.clearSWCache = () => {
+          if (window.swRegistration && window.swRegistration.active) {
+            const messageChannel = new MessageChannel();
+            window.swRegistration.active.postMessage(
+              { type: 'CLEAR_CACHE' }, 
+              [messageChannel.port2]
+            );
+          }
+        };
+        
+        window.clearApiCache = () => {
+          if (window.swRegistration && window.swRegistration.active) {
+            const messageChannel = new MessageChannel();
+            window.swRegistration.active.postMessage(
+              { type: 'CLEAR_API_CACHE' }, 
+              [messageChannel.port2]
+            );
+          }
+        };
       }
     </script>
     
