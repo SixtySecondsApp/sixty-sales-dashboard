@@ -44,6 +44,14 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 
   // Apply date range filter if provided
   if (config.dateRange) {
+    // Log the date range being queried
+    logger.log('[fetchLimitedActivities] Date range filter:', {
+      start: config.dateRange.start.toISOString(),
+      end: config.dateRange.end.toISOString(),
+      startFormatted: config.dateRange.start.toLocaleDateString(),
+      endFormatted: config.dateRange.end.toLocaleDateString()
+    });
+    
     query = query
       .gte('date', config.dateRange.start.toISOString())
       .lte('date', config.dateRange.end.toISOString());
@@ -66,6 +74,21 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
   if (error) {
     logger.error('[fetchLimitedActivities] Query error:', error);
     throw error;
+  }
+
+  // Log sales activities specifically for debugging
+  if (data && data.length > 0) {
+    const salesActivities = data.filter((a: any) => a.type === 'sale');
+    if (salesActivities.length > 0) {
+      logger.log('[fetchLimitedActivities] Sales activities found:', {
+        count: salesActivities.length,
+        sales: salesActivities.map((s: any) => ({
+          date: s.date,
+          amount: s.amount,
+          client: s.client_name
+        }))
+      });
+    }
   }
 
   logger.log(`[fetchLimitedActivities] Loaded ${data?.length || 0} activities`);

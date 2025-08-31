@@ -181,17 +181,26 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
             (payload) => {
               logger.log('🔄 Real-time activity update received:', payload);
               
-              // Invalidate queries to trigger refetch
-              invalidateMetrics();
-              
               // Log the type of change for debugging
               if (payload.eventType === 'INSERT') {
-                logger.log('✅ New activity added:', payload.new);
+                logger.log('✅ New activity added:', {
+                  type: payload.new?.type,
+                  date: payload.new?.date,
+                  amount: payload.new?.amount,
+                  client: payload.new?.client_name
+                });
               } else if (payload.eventType === 'UPDATE') {
                 logger.log('📝 Activity updated:', payload.new);
               } else if (payload.eventType === 'DELETE') {
                 logger.log('🗑️ Activity deleted:', payload.old);
               }
+              
+              // Invalidate queries to trigger refetch
+              // Use setTimeout to ensure the database has processed the change
+              setTimeout(() => {
+                invalidateMetrics();
+                logger.log('🔄 Invalidated metrics cache after real-time update');
+              }, 100);
             }
           )
           .subscribe((status) => {
