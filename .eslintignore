@@ -1,0 +1,19 @@
+node_modules/
+dist/
+build/
+coverage/
+archive/
+# Legacy/archived components in root directory
+/components/
+*.min.js
+*.min.css
+.env*
+public/
+.next/
+.vercel/
+**/*.d.ts
+*.test.ts
+*.test.tsx
+**/test-*
+**/*.config.ts
+playwright.config.*.ts

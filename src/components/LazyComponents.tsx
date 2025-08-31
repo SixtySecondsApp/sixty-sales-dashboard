@@ -208,10 +208,11 @@ export const LazyPipeline = createLazyComponent(
   { loader: () => <ComponentLoader height="600px" />, preloadDelay: 1500 }
 );
 
-export const LazyChartComponents = createLazyComponent(
-  () => import('@/components/ChartLoader'),
-  { loader: () => <ChartLoader />, preloadDelay: 1000 }
-);
+// Chart components now use direct imports for stability
+// export const LazyChartComponents = createLazyComponent(
+//   () => import('@/components/ChartLoader'),
+//   { loader: () => <ChartLoader />, preloadDelay: 1000 }
+// );
 
 // Modal and Dialog Components
 export const LazyModal = createLazyComponent(
@@ -273,7 +274,7 @@ export const IntelligentPreloader: React.FC = () => {
   React.useEffect(() => {
     // Preload on user interaction (hover, focus, etc.)
     const preloadOnInteraction = () => {
-      LazyChartComponents.preload?.();
+      // LazyChartComponents.preload?.(); // Removed for stability
       LazyMotionDiv.preload?.();
     };
 
