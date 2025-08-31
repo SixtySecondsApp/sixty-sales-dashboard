@@ -451,7 +451,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent 
             ref={dialogContentRef}
-            className="max-w-[700px] p-0 overflow-hidden bg-gray-950 border border-gray-800 rounded-xl"
+            className="max-w-[800px] max-h-[85vh] p-0 bg-gray-950 border border-gray-800 rounded-xl flex flex-col"
             onKeyDown={(e) => {
               handleKeyDown(e);
               handleTabKeyNavigation(e);
@@ -507,14 +507,14 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
               />
             </div>
             
-            <div className="max-h-[60vh] overflow-y-auto p-6" role="region" aria-live="polite" id={`${activeTab}-section`}>
+            <div className="flex-1 overflow-y-auto p-6 min-h-0" role="region" aria-live="polite" id={`${activeTab}-section`}>
               {activeTab === 'details' && <DealDetailsSection initialFocusRef={initialFocusRef} />}
               {activeTab === 'stage' && <PipelineStageSection onStageChange={handleStageChange} currentStage={currentStage} />}
               {activeTab === 'source' && <LeadSourceSection />}
               {activeTab === 'activity' && <ActivitySection dealId={deal.id} />}
             </div>
             
-            <DialogFooter className="p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between">
+            <DialogFooter className="flex-shrink-0 p-4 border-t border-gray-800 bg-gray-950 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <button
                   ref={deleteButtonRef}
