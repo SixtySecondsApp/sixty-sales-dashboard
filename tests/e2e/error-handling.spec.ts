@@ -73,7 +73,7 @@ test.describe('Error Handling and Edge Cases', () => {
       const pageContent = await page.textContent('body');
       
       // Should not show browser error pages
-      expect(pageContent).not.toContain('This site can't be reached');
+      expect(pageContent).not.toContain('This site can\'t be reached');
       expect(pageContent).not.toContain('404');
     });
 

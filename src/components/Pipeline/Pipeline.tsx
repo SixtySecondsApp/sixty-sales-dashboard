@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect, useRef } from 'react';
 import {
   DndContext,
@@ -47,14 +46,43 @@ interface ModalProps {
 function Modal({ isOpen, onClose, children }: ModalProps) {
   if (!isOpen) return null;
 
+  const handleBackdropInteraction = (e: React.MouseEvent) => {
+    // Only close if the click target is the backdrop itself, not during drag operations
+    if (e.target === e.currentTarget && e.type === 'click') {
+      onClose();
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          e.currentTarget.dataset.mouseStartX = e.clientX.toString();
+          e.currentTarget.dataset.mouseStartY = e.clientY.toString();
+        }
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          const startX = parseInt(e.currentTarget.dataset.mouseStartX || '0');
+          const startY = parseInt(e.currentTarget.dataset.mouseStartY || '0');
+          const deltaX = Math.abs(e.clientX - startX);
+          const deltaY = Math.abs(e.clientY - startY);
+          
+          // Only close if it was a true click (movement < 5px) not a drag
+          if (deltaX < 5 && deltaY < 5) {
+            onClose();
+          }
+        }
+      }}
+      onDragStart={e => e.preventDefault()}
     >
       <div
         className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto scrollbar-none"
         onClick={e => e.stopPropagation()}
+        onMouseDown={e => e.stopPropagation()}
+        onMouseUp={e => e.stopPropagation()}
+        onDragStart={e => e.stopPropagation()}
       >
         {children}
       </div>
@@ -138,8 +166,6 @@ function PipelineContent() {
   // Keep a ref to the last valid over stage for drop fallback
   const lastValidOverStageRef = useRef<string | null>(null);
 
-  // State for the complex EditDealModal
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // State for the DealClosingModal
   const [isDealClosingModalOpen, setIsDealClosingModalOpen] = useState(false);
@@ -217,7 +243,7 @@ function PipelineContent() {
   const handleDealClick = (deal: any) => {
     const foundDeal = deals.find(d => d.id === deal.id);
     setSelectedDeal(foundDeal);
-    setIsEditModalOpen(true);
+    setShowDealForm(true);
     setInitialStageId(null);
   };
 
@@ -234,7 +260,6 @@ function PipelineContent() {
 
     if (success) {
       setShowDealForm(false);
-      setIsEditModalOpen(false);
       
       // Force a refresh of the deals data to update pipeline totals immediately
       logger.log('🔄 Deal saved successfully, refreshing deals data...');
@@ -830,23 +855,20 @@ function PipelineContent() {
         />
       )}
 
-      <EditDealModal
-        key={selectedDeal?.id}
-        open={isEditModalOpen}
-        setOpen={setIsEditModalOpen}
-        deal={selectedDeal}
-        onSave={handleSaveDeal}
-        onDelete={handleDeleteDeal}
-      />
 
       <Modal
-        isOpen={showDealForm && !isEditModalOpen} // Ensure only one modal opens
-        onClose={() => setShowDealForm(false)}
+        isOpen={showDealForm}
+        onClose={() => {
+          setShowDealForm(false);
+          setSelectedDeal(null);
+          setInitialStageId(null);
+        }}
       >
         <DealForm
           key={initialStageId || 'new-deal'} // Add key for reset
           deal={selectedDeal}
           onSave={handleSaveDeal}
+          onDelete={deleteDeal}
           onCancel={() => {
             setShowDealForm(false);
             setSelectedDeal(null);

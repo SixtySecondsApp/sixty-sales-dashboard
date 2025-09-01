@@ -165,9 +165,9 @@ export function DealsView({
   const filteredAndSortedDeals = useMemo(() => {
     let filtered = deals.filter(deal => {
       const matchesStage = stageFilter === 'all' || deal.stage_id === stageFilter;
-      const matchesOwner = !selectedOwnerId || deal.owner_id === selectedOwnerId;
+      // Owner filtering is already handled by useDeals hook, no need to filter again here
       
-      return matchesStage && matchesOwner;
+      return matchesStage;
     });
 
     // Apply local instant filtering for better UX during typing
@@ -204,7 +204,7 @@ export function DealsView({
     });
 
     return filtered;
-  }, [deals, searchQuery, stageFilter, selectedOwnerId, sortField, sortDirection]);
+  }, [deals, searchQuery, stageFilter, sortField, sortDirection]);
 
   // Update select all checkbox state
   useEffect(() => {

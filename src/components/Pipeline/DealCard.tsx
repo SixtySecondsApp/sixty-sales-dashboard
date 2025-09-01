@@ -224,13 +224,17 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
     <div
       ref={setNodeRef}
       {...attributes}
-      {...listeners}
-      onClick={() => isDragging ? null : onClick(deal)}
+      data-testid={`deal-card-${deal.id}`}
+      onClick={(e) => {
+        // Don't trigger click during dragging or if it's a button/link click
+        if (isDragging || (e.target as HTMLElement).closest('button, a, [data-drag-handle]')) return;
+        onClick(deal);
+      }}
       className={`
         bg-gray-800/50 rounded-xl p-4 hover:bg-gray-800/70
         transition-all border border-gray-800/80
-        hover:border-gray-700 shadow-sm hover:shadow-md group
-        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : 'cursor-grab'}
+        hover:border-gray-700 shadow-sm hover:shadow-md group cursor-pointer
+        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : ''}
         relative overflow-hidden
       `}
       style={style}
@@ -271,31 +275,45 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
             </div>
           </div>
 
-          <div className="ml-3 flex-shrink-0 text-right">
-            {splitInfo.hasSplits ? (
-              <div className="space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <PieChart className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-emerald-400 font-semibold text-base">
-                    {new Intl.NumberFormat('en-GB', {
-                      style: 'currency',
-                      currency: 'GBP',
-                      maximumFractionDigits: 0
-                    }).format(splitInfo.userSplitAmount)}
-                  </span>
+          <div className="ml-3 flex-shrink-0 text-right flex items-start gap-2">
+            <div>
+              {splitInfo.hasSplits ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <PieChart className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-emerald-400 font-semibold text-base">
+                      {new Intl.NumberFormat('en-GB', {
+                        style: 'currency',
+                        currency: 'GBP',
+                        maximumFractionDigits: 0
+                      }).format(splitInfo.userSplitAmount)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {splitInfo.userSplitPercentage}% of {formattedValue}
+                  </div>
+                  <div className="text-xs text-blue-400">
+                    Split with {splitInfo.totalSplits} other{splitInfo.totalSplits === 1 ? '' : 's'}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-400">
-                  {splitInfo.userSplitPercentage}% of {formattedValue}
+              ) : (
+                <div className="text-emerald-400 font-semibold text-lg">
+                  {formattedValue}
                 </div>
-                <div className="text-xs text-blue-400">
-                  Split with {splitInfo.totalSplits} other{splitInfo.totalSplits === 1 ? '' : 's'}
-                </div>
-              </div>
-            ) : (
-              <div className="text-emerald-400 font-semibold text-lg">
-                {formattedValue}
-              </div>
-            )}
+              )}
+            </div>
+            
+            {/* Drag Handle */}
+            <div 
+              {...listeners}
+              data-drag-handle
+              className="mt-1 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-700/50 opacity-60 hover:opacity-100 transition-opacity"
+              title="Drag to move"
+            >
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mb-1"></div>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mb-1"></div>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+            </div>
           </div>
         </div>
 

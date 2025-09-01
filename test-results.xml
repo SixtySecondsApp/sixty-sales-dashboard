@@ -1,0 +1,35 @@
+<testsuites id="" name="" tests="1" failures="0" skipped="0" errors="0" time="13.564618000000001">
+<testsuite name="pipeline.spec.ts" timestamp="2025-09-01T18:47:41.885Z" hostname="chromium" tests="1" failures="0" skipped="0" time="6.073" errors="0">
+<testcase name="Pipeline and Deal Management › should load pipeline stages and deals" classname="pipeline.spec.ts" time="6.073">
+<system-out>
+<![CDATA[Created new page, attempting login...
+Attempting to navigate to login page: http://localhost:5173/auth/login
+Navigation to login page initiated.
+Waiting briefly after navigation...
+Waiting for email input using selector: input[type="email"], input[placeholder="sarah@example.com"]
+Email input is visible. Filling email...
+Waiting for password input using selector: input[type="password"]
+Password input is visible. Filling password...
+Waiting for submit button using selector: button:has-text("Sign in"), button[type="submit"]
+Submit button is enabled. Clicking...
+Waiting for navigation after login...
+Continuing to pipeline despite login navigation timeout...
+Login function completed successfully.
+Post-login URL: http://localhost:5173/
+Navigating to pipeline URL: http://localhost:5173/pipeline
+Current URL after navigation: http://localhost:5173/pipeline
+Page network idle achieved
+Page URL: http://localhost:5173/pipeline
+Page title: Pipeline Tracker | Sales Dashboard
+Found elements: [33m11[39m
+Headers found: [ [32m'SQL'[39m, [32m'Opportunity'[39m, [32m'Verbal'[39m, [32m'Signed'[39m, [32m'Lost'[39m ]
+Pipeline columns found: [33m5[39m
+]]>
+</system-out>
+<system-err>
+<![CDATA[Navigation after login failed or timed out.
+]]>
+</system-err>
+</testcase>
+</testsuite>
+</testsuites>
