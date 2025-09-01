@@ -494,25 +494,28 @@ export default function Dashboard() {
   // Check if any data is loading
   const isAnyLoading = isInitialLoad || isLoadingSales || !userData;
 
-  // Log when month changes for debugging
+  // Only log month changes in development
   useEffect(() => {
-    logger.log('📅 Month changed to:', format(selectedMonth, 'MMMM yyyy'));
+    if (process.env.NODE_ENV === 'development') {
+      logger.log('📅 Month changed to:', format(selectedMonth, 'MMMM yyyy'));
+    }
   }, [selectedMonth]);
 
-  // Use effect to handle stable loading state
+  // Use effect to handle initial loading state only
   useEffect(() => {
     let timeout: number;
+    // Only set showContent on initial load, not when data changes
     if (!isAnyLoading && !showContent) {
       timeout = window.setTimeout(() => {
         setShowContent(true);
-      }, 500);
+      }, 300);
     }
     return () => {
       if (timeout) {
         window.clearTimeout(timeout);
       }
     };
-  }, [isAnyLoading]);
+  }, [isAnyLoading, showContent]); // Added showContent to deps to prevent re-running
 
   // Intersection observer for lazy loading recent deals
   const recentDealsRef = useRef<HTMLDivElement>(null);

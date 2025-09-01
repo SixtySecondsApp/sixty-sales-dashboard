@@ -100,10 +100,11 @@ export function useLazyActivities(config: LazyActivitiesConfig = { enabled: fals
     queryKey: ['activities-lazy', config],
     queryFn: () => fetchLimitedActivities(config),
     enabled: config.enabled,
-    staleTime: 30 * 1000, // 30 seconds - refetch more frequently for dashboard accuracy
-    cacheTime: 60 * 1000, // 1 minute - keep cache shorter for fresher data
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchOnMount: true, // Always refetch when component mounts
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive refetching
+    cacheTime: 10 * 60 * 1000, // 10 minutes - keep data in cache longer
+    refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker
+    refetchOnMount: false, // Don't refetch on mount if we have cached data
+    keepPreviousData: true, // Keep showing old data while fetching new data
   });
 
   return {

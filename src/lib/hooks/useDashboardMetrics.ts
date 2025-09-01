@@ -186,10 +186,11 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
       };
     },
     enabled: Boolean(enabled && currentMonth.activities !== undefined),
-    staleTime: 30 * 1000, // 30 seconds - recalculate more frequently
-    cacheTime: 60 * 1000, // 1 minute - keep cache shorter for fresher data
-    refetchOnWindowFocus: true, // Refetch when window regains focus
-    refetchOnMount: true, // Always refetch when component mounts
+    staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive recalculation
+    cacheTime: 10 * 60 * 1000, // 10 minutes - keep cache longer
+    refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker
+    refetchOnMount: false, // Don't refetch on mount if we have cached data
+    keepPreviousData: true, // Keep showing old data while calculating new data
   });
 
   // Invalidate cache when activities change
