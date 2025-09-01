@@ -233,14 +233,14 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
       date: formData.date
     };
 
-    // Add enhanced form fields only if they have values or are explicitly set
-    if (formData.outboundType) {
-      updates.outbound_type = formData.outboundType;
+    // Add enhanced form fields based on activity type
+    if (formData.type === 'outbound') {
+      updates.outbound_type = formData.outboundType || 'email'; // Default to email if not set
     }
-    if (formData.proposalDate) {
+    if (formData.type === 'proposal' && formData.proposalDate) {
       updates.proposal_date = formData.proposalDate;
     }
-    if (formData.saleDate) {
+    if (formData.type === 'sale' && formData.saleDate) {
       updates.sale_date = formData.saleDate;
     }
     // Always include boolean fields for meetings
