@@ -1269,11 +1269,11 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       if (stageError || !sqlStage) throw new Error('Could not find SQL stage');
       
-      // Create a deal with initial value
+      // Create a deal with initial value (using one_off_revenue since value is calculated)
       const dealData = {
         name: `Value Update Deal ${timestamp}`,
         company: `Test Company ${timestamp}`,
-        value: 25000,
+        one_off_revenue: 25000, // This will auto-calculate value field via trigger
         stage_id: sqlStage.id,
         owner_id: userData!.id
       };
@@ -1290,15 +1290,16 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
       cleanupDataRef.current.deal.push(deal.id);
       
-      // Update the deal value
-      const newValue = 35000;
+      // Update the deal revenue (which will auto-calculate value via trigger)
+      const newOneOffRevenue = 35000;
+      const expectedValue = 35000; // Since monthly_mrr will be 0, value = 35000 + (0 * 3) = 35000
       
-      console.log(`🔧 Updating deal ${deal.id} value from ${deal.value} to ${newValue}`);
+      console.log(`🔧 Updating deal ${deal.id} one_off_revenue from ${deal.one_off_revenue} to ${newOneOffRevenue}, expected value: ${expectedValue}`);
       
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update({ 
-          value: newValue,
+          one_off_revenue: newOneOffRevenue,
           updated_at: new Date().toISOString()
         })
         .eq('id', deal.id)
@@ -1332,15 +1333,15 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       const finalValue = refetchedDeal.value;
       
       // Verify the update
-      if (finalValue !== newValue) {
-        throw new Error(`Value update failed: expected ${newValue}, got ${finalValue}. Original: ${deal.value}, Immediate update: ${updatedDeal.value}, Refetched: ${finalValue}`);
+      if (finalValue !== expectedValue) {
+        throw new Error(`Value update failed: expected ${expectedValue}, got ${finalValue}. Original: ${deal.value}, Immediate update: ${updatedDeal.value}, Refetched: ${finalValue}`);
       }
       
       return {
         function: 'pipeline',
         operation: 'update_deal_value',
         status: 'success',
-        message: `Updated deal value from £${deal.value.toLocaleString()} to £${finalValue.toLocaleString()}`,
+        message: `Updated deal one-off revenue from £${deal.one_off_revenue?.toLocaleString() || 0} to £${newOneOffRevenue.toLocaleString()}, auto-calculated value: £${finalValue.toLocaleString()}`,
         duration: Date.now() - startTime,
         data: { originalDeal: deal, updatedDeal: refetchedDeal }
       };
@@ -1451,7 +1452,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       const dealData = {
         name: `Basic Deal ${timestamp}`,
         company: `Basic Company ${timestamp}`,
-        value: 30000,
+        one_off_revenue: 30000, // This will auto-calculate value field via trigger
         stage_id: sqlStage.id,
         owner_id: userData!.id
       };
@@ -1468,17 +1469,20 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
       cleanupDataRef.current.deal.push(deal.id);
       
-      // Update all possible fields
+      // Update all possible fields (use revenue fields since value is auto-calculated)
       const comprehensiveUpdate = {
         name: `Updated Deal ${timestamp}`,
         company: `Updated Company ${timestamp}`,
-        value: 45000,
+        one_off_revenue: 35000,    // This will auto-calculate to value = 35000 + (1500 * 3) = 39500
+        monthly_mrr: 1500,
         stage_id: opportunityStage.id,
         probability: 75,
         expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now, date only
         updated_at: new Date().toISOString(),
         stage_changed_at: new Date().toISOString()
       };
+      
+      const expectedCalculatedValue = 35000 + (1500 * 3); // 39500
       
       console.log(`🔧 Updating all fields for deal ${deal.id}`, comprehensiveUpdate);
       
@@ -1515,7 +1519,9 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       // Verify multiple updates using refetched data
       const verifications = [
         { field: 'name', expected: comprehensiveUpdate.name, actual: refetchedDeal.name },
-        { field: 'value', expected: comprehensiveUpdate.value, actual: refetchedDeal.value },
+        { field: 'value', expected: expectedCalculatedValue, actual: refetchedDeal.value },
+        { field: 'one_off_revenue', expected: comprehensiveUpdate.one_off_revenue, actual: refetchedDeal.one_off_revenue },
+        { field: 'monthly_mrr', expected: comprehensiveUpdate.monthly_mrr, actual: refetchedDeal.monthly_mrr },
         { field: 'probability', expected: comprehensiveUpdate.probability, actual: refetchedDeal.probability }
       ];
       
@@ -1529,7 +1535,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         function: 'pipeline',
         operation: 'update_all_deal_fields',
         status: 'success',
-        message: `Comprehensive update: name, company, value, stage, probability, and close date`,
+        message: `Comprehensive update: name, company, revenue (one-off: £${comprehensiveUpdate.one_off_revenue.toLocaleString()}, MRR: £${comprehensiveUpdate.monthly_mrr.toLocaleString()}), calculated value: £${expectedCalculatedValue.toLocaleString()}, stage, probability, and close date`,
         duration: Date.now() - startTime,
         data: { originalDeal: deal, updatedDeal: refetchedDeal }
       };
@@ -1560,11 +1566,12 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       if (stageError || !verbalStage) throw new Error('Could not find Verbal stage');
       
-      // Create a deal and contact
+      // Create a deal and contact (use revenue fields since value is auto-calculated)
       const dealData = {
         name: `Persistence Test Deal ${timestamp}`,
         company: `Test Company ${timestamp}`,
-        value: 40000,
+        one_off_revenue: 25000,   // This will auto-calculate to value = 25000 + (2000 * 3) = 31000
+        monthly_mrr: 2000,
         stage_id: verbalStage.id,
         owner_id: userData!.id,
         probability: 85
