@@ -182,12 +182,9 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
   };
 
   return (
-    <motion.div
-      initial={false}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.2 }}
+    <div
       onClick={handleClick}
-      className="relative overflow-visible bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-3xl p-6 border border-gray-800/50"
+      className="relative overflow-visible bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-3xl p-6 border border-gray-800/50 cursor-pointer"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -328,7 +325,18 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison to prevent re-renders
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.value === nextProps.value &&
+    prevProps.target === nextProps.target &&
+    prevProps.trend === nextProps.trend &&
+    prevProps.previousMonthTotal === nextProps.previousMonthTotal &&
+    prevProps.isLoadingComparisons === nextProps.isLoadingComparisons &&
+    prevProps.hasComparisons === nextProps.hasComparisons
   );
 });
 
@@ -493,25 +501,17 @@ export default function Dashboard() {
     );
   }, [recentDeals, currentMonthActivities, searchQuery, loadRecentDeals]);
 
-  // Check if any data is loading
-  const isAnyLoading = isInitialLoad || isLoadingSales || !userData;
+  // Check if any data is loading - include metrics check
+  const isAnyLoading = isInitialLoad || isLoadingSales || !userData || !targets;
 
   // Remove logging to prevent re-renders
 
   // Use effect to handle initial loading state only
   useEffect(() => {
-    let timeout: number;
-    // Only set showContent on initial load, not when data changes
+    // Immediately show content if data is ready
     if (!isAnyLoading && !showContent) {
-      timeout = window.setTimeout(() => {
-        setShowContent(true);
-      }, 300);
+      setShowContent(true);
     }
-    return () => {
-      if (timeout) {
-        window.clearTimeout(timeout);
-      }
-    };
   }, [isAnyLoading, showContent]); // Added showContent to deps to prevent re-running
 
   // Intersection observer for lazy loading recent deals
@@ -536,18 +536,8 @@ export default function Dashboard() {
     return () => observer.disconnect();
   }, [loadRecentDeals, showContent]);
 
-  // Early return for loading state
-  if (!showContent) {
-    return <DashboardSkeleton />;
-  }
-
-  // Early return for missing data
-  if (!targets) {
-    return null;
-  }
-
-  // Prevent flicker by waiting for initial data
-  if (isInitialLoad) {
+  // Single loading check to prevent flicker
+  if (!showContent || isAnyLoading) {
     return <DashboardSkeleton />;
   }
 
