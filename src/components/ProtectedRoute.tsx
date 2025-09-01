@@ -23,6 +23,10 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isPublicRoute = publicRoutes.includes(location.pathname);
   const isPasswordRecovery = location.pathname === '/auth/reset-password' && 
     location.hash.includes('type=recovery');
+  
+  // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
+  const isDevModeBypass = process.env.NODE_ENV === 'development' && 
+    location.pathname.startsWith('/roadmap');
 
   useEffect(() => {
     // Don't redirect while loading
@@ -35,7 +39,8 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     }
 
     // If user is not authenticated and trying to access protected route, redirect to login
-    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery) {
+    // TEMPORARY DEV: Skip redirect for roadmap in development
+    if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery && !isDevModeBypass) {
       // Store the intended destination for after login
       const intendedPath = location.pathname + location.search;
       navigate(redirectTo, { 
@@ -44,7 +49,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       });
       return;
     }
-  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, navigate, redirectTo, location]);
+  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, isDevModeBypass, navigate, redirectTo, location]);
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -67,7 +72,8 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   }
 
   // For protected routes, only show content if authenticated
-  if (isAuthenticated) {
+  // TEMPORARY DEV: Allow roadmap access in development
+  if (isAuthenticated || isDevModeBypass) {
     return <>{children}</>;
   }
 

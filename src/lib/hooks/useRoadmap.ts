@@ -62,7 +62,11 @@ export function useRoadmap() {
   }, []);
 
   const fetchSuggestions = async (skipLoadingState = false) => {
-    if (!session?.user?.id) {
+    // TICKET #42: Allow development mode with mock user when no session exists
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const hasMockUser = userData?.id && !session?.user?.id;
+    
+    if (!session?.user?.id && !(isDevelopment && hasMockUser)) {
       setLoading(false);
       return;
     }
@@ -74,20 +78,129 @@ export function useRoadmap() {
       }
       setError(null);
 
-      // Get all roadmap suggestions (handle missing ticket_id column gracefully)
-      const { data: suggestions, error } = await supabase
-        .from('roadmap_suggestions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        logger.error('Supabase error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
+      let suggestions: any[] = [];
+      let error: any = null;
+      
+      // TICKET #42: Use mock data in development when no session but mock user exists
+      if (isDevelopment && hasMockUser && !session?.user?.id) {
+        // Mock roadmap suggestions for development
+        suggestions = [
+          {
+            id: '42-mock-id',
+            ticket_id: 42,
+            title: 'Development Mode Authentication Fix',
+            description: 'Fix roadmap data fetching in development mode when using mock users',
+            type: 'bug',
+            priority: 'high',
+            status: 'in_progress',
+            submitted_by: userData.id,
+            submitted_at: new Date().toISOString(),
+            assigned_to: null,
+            votes_count: 3,
+            estimated_effort: 'medium',
+            target_version: 'v1.2.0',
+            completion_date: null,
+            admin_notes: 'Critical for development workflow',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '36-mock-id',
+            ticket_id: 36,
+            title: 'Performance Optimization',
+            description: 'Optimize component rendering and reduce bundle size for better LCP scores',
+            type: 'improvement',
+            priority: 'medium',
+            status: 'testing',
+            submitted_by: userData.id,
+            submitted_at: new Date().toISOString(),
+            assigned_to: null,
+            votes_count: 5,
+            estimated_effort: 'large',
+            target_version: 'v1.2.0',
+            completion_date: null,
+            admin_notes: 'Focus on Largest Contentful Paint improvements',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '26-mock-id',
+            ticket_id: 26,
+            title: 'Enhanced Error Handling',
+            description: 'Improve error states and user feedback when data loading fails',
+            type: 'improvement',
+            priority: 'medium',
+            status: 'testing',
+            submitted_by: userData.id,
+            submitted_at: new Date().toISOString(),
+            assigned_to: null,
+            votes_count: 2,
+            estimated_effort: 'medium',
+            target_version: 'v1.2.0',
+            completion_date: null,
+            admin_notes: 'Better UX for error scenarios',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '23-mock-id',
+            ticket_id: 23,
+            title: 'UI/UX Improvements',
+            description: 'Enhance roadmap interface with better loading states and mobile responsiveness',
+            type: 'feature',
+            priority: 'low',
+            status: 'testing',
+            submitted_by: userData.id,
+            submitted_at: new Date().toISOString(),
+            assigned_to: null,
+            votes_count: 4,
+            estimated_effort: 'medium',
+            target_version: 'v1.2.0',
+            completion_date: null,
+            admin_notes: 'Polish UI for better user experience',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          },
+          {
+            id: '12-mock-id',
+            ticket_id: 12,
+            title: 'Mock Data Support',
+            description: 'Add development-friendly mock data system for easier testing',
+            type: 'feature',
+            priority: 'low',
+            status: 'completed',
+            submitted_by: userData.id,
+            submitted_at: new Date().toISOString(),
+            assigned_to: null,
+            votes_count: 1,
+            estimated_effort: 'small',
+            target_version: 'v1.2.0',
+            completion_date: new Date().toISOString(),
+            admin_notes: 'Enables better development workflow',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ];
+        logger.log('Using mock roadmap data for development');
+      } else {
+        // Get all roadmap suggestions from database
+        const response = await supabase
+          .from('roadmap_suggestions')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        suggestions = response.data || [];
+        error = response.error;
+        
+        if (error) {
+          logger.error('Supabase error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+          throw new Error(`Database error: ${error.message}${error.details ? ` - ${error.details}` : ''}`);
+        }
       }
 
       if (!suggestions || suggestions.length === 0) {
@@ -101,7 +214,15 @@ export function useRoadmap() {
       const allUserIds = [...new Set([...submitterIds, ...assigneeIds])];
 
       let profiles: any[] = [];
-      if (allUserIds.length > 0) {
+      if (isDevelopment && hasMockUser) {
+        // Mock profile data for development
+        profiles = [{
+          id: userData.id,
+          first_name: userData.first_name,
+          last_name: userData.last_name,
+          email: userData.email
+        }];
+      } else if (allUserIds.length > 0) {
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id, first_name, last_name, email')
@@ -110,12 +231,19 @@ export function useRoadmap() {
       }
 
       // Get user's votes
-      const { data: userVotes } = await supabase
-        .from('roadmap_votes')
-        .select('suggestion_id')
-        .eq('user_id', session.user.id);
+      let userVoteIds = new Set<string>();
       
-      const userVoteIds = new Set((userVotes || []).map(v => v.suggestion_id));
+      if (isDevelopment && hasMockUser) {
+        // Mock user votes for development - assume user voted on some tickets
+        userVoteIds = new Set(['42-mock-id', '36-mock-id']);
+      } else if (session?.user?.id) {
+        const { data: userVotes } = await supabase
+          .from('roadmap_votes')
+          .select('suggestion_id')
+          .eq('user_id', session.user.id);
+        
+        userVoteIds = new Set((userVotes || []).map(v => v.suggestion_id));
+      }
 
       // Transform the data to include user's vote status and profile information
       const transformedSuggestions = suggestions
@@ -392,7 +520,7 @@ export function useRoadmap() {
 
   useEffect(() => {
     fetchSuggestions();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, userData?.id]);
 
   // Set up real-time subscription for suggestions
   useEffect(() => {
