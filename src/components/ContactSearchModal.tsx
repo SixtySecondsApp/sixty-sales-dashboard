@@ -463,11 +463,16 @@ export function ContactSearchModal({
                                 <Mail className="w-3 h-3 text-gray-400" />
                                 <span className="text-sm text-gray-400 truncate">{contact.email}</span>
                               </div>
-                              {(contact.company || contact.company_name || contact.companies?.name) && (
+                              {(contact.company || contact.company_name || contact.companies?.name || contact.companies) && (
                                 <div className="flex items-center gap-2 mt-1">
                                   <Building2 className="w-3 h-3 text-gray-400" />
                                   <span className="text-sm text-gray-400 truncate">
-                                    {contact.company || contact.company_name || contact.companies?.name}
+                                    {typeof contact.company === 'string' 
+                                      ? contact.company 
+                                      : contact.company?.name || 
+                                        contact.company_name || 
+                                        contact.companies?.name || 
+                                        (typeof contact.companies === 'object' ? contact.companies?.name : contact.companies)}
                                   </span>
                                 </div>
                               )}
