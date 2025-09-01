@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -65,8 +65,12 @@ const colorClasses = {
   }
 } as const;
 
-function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) {
-  const colorClass = colorClasses[color as keyof typeof colorClasses] || colorClasses.gray;
+// TICKET #36: Memoized StatCard component for better performance
+const StatCard = memo(function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) {
+  const colorClass = useMemo(() => 
+    colorClasses[color as keyof typeof colorClasses] || colorClasses.gray,
+    [color]
+  );
   
   return (
     <motion.div
@@ -85,7 +89,7 @@ function StatCard({ title, value, icon: Icon, color, subtitle }: StatCardProps) 
       </div>
     </motion.div>
   );
-}
+});
 
 export default function Roadmap() {
   const { ticketId } = useParams();
@@ -98,6 +102,36 @@ export default function Roadmap() {
   const roadmapKanbanRef = useRef<RoadmapKanbanHandle>(null);
 
   const isAdmin = userData?.is_admin || false;
+
+  // TICKET #36: Memoized event handlers for better performance
+  const handleOpenSuggestionForm = useCallback(() => {
+    roadmapKanbanRef.current?.openSuggestionForm();
+  }, []);
+
+  const handleTypeFilterChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setTypeFilter(e.target.value as any);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    setStatusFilter(e.target.value as any);
+  }, []);
+
+  // TICKET #36: Memoized loading skeleton for better performance
+  const loadingSkeleton = useMemo(() => (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 bg-gray-800 rounded-lg w-64" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-24 bg-gray-800 rounded-xl" />
+            ))}
+          </div>
+          <div className="h-96 bg-gray-800 rounded-xl" />
+        </div>
+      </div>
+    </div>
+  ), []);
 
   // Handle ticket ID routing
   useEffect(() => {
@@ -133,20 +167,20 @@ export default function Roadmap() {
     });
   }, [suggestions, debouncedQuery, typeFilter, statusFilter]);
 
-  // Calculate statistics
-  const stats = {
+  // TICKET #36: Memoized statistics calculation for better performance
+  const stats = useMemo(() => ({
     total: suggestions.length,
     completed: suggestions.filter((s: RoadmapSuggestion) => s.status === 'completed').length,
     inProgress: suggestions.filter((s: RoadmapSuggestion) => s.status === 'in_progress').length,
     pending: suggestions.filter((s: RoadmapSuggestion) => s.status === 'submitted').length,
-  };
+  }), [suggestions]);
 
-  const typeStats = {
+  const typeStats = useMemo(() => ({
     features: suggestions.filter((s: RoadmapSuggestion) => s.type === 'feature').length,
     bugs: suggestions.filter((s: RoadmapSuggestion) => s.type === 'bug').length,
     improvements: suggestions.filter((s: RoadmapSuggestion) => s.type === 'improvement').length,
     other: suggestions.filter((s: RoadmapSuggestion) => s.type === 'other').length,
-  };
+  }), [suggestions]);
 
   if (loading) {
     return (
@@ -201,9 +235,7 @@ export default function Roadmap() {
           
           <div className="flex items-center gap-3">
             <Button
-              onClick={() => {
-                roadmapKanbanRef.current?.openSuggestionForm();
-              }}
+              onClick={handleOpenSuggestionForm}
               className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
             >
               <Plus className="w-4 h-4" />
@@ -297,7 +329,7 @@ export default function Roadmap() {
           <div className="flex gap-2">
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as any)}
+              onChange={handleTypeFilterChange}
               className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             >
               <option value="all">All Types</option>
@@ -309,7 +341,7 @@ export default function Roadmap() {
             
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={handleStatusFilterChange}
               className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             >
               <option value="all">All Statuses</option>
