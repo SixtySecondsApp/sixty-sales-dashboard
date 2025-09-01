@@ -231,9 +231,21 @@ export async function cleanupTestDataByIds(dataMap: Record<string, string[]>): P
     errors: []
   };
 
+  // Map singular keys to correct plural table names
+  const tableNameMap: Record<string, string> = {
+    'contact': 'contacts',
+    'company': 'companies',
+    'deal': 'deals',
+    'task': 'tasks',
+    'activity': 'activities'
+  };
+
   try {
-    for (const [tableName, ids] of Object.entries(dataMap)) {
+    for (const [rawTableName, ids] of Object.entries(dataMap)) {
       if (ids.length === 0) continue;
+
+      // Get the correct table name (handle both singular and plural forms)
+      const tableName = tableNameMap[rawTableName] || rawTableName;
 
       try {
         const { error } = await supabase
@@ -242,15 +254,28 @@ export async function cleanupTestDataByIds(dataMap: Record<string, string[]>): P
           .in('id', ids);
 
         if (error) {
-          result.errors.push({ table: tableName, error: error.message });
-          result.success = false;
+          // Handle the case where records were already deleted (404 equivalent)
+          if (error.message.includes('not found') || error.message.includes('0 rows')) {
+            result.deletedCounts[rawTableName] = 0;
+            logger.log(`🧹 No ${rawTableName} records to delete (already cleaned)`);
+          } else {
+            result.errors.push({ table: rawTableName, error: error.message });
+            result.success = false;
+          }
         } else {
-          result.deletedCounts[tableName] = ids.length;
-          logger.log(`🧹 Cleaned up ${ids.length} ${tableName} by IDs`);
+          result.deletedCounts[rawTableName] = ids.length;
+          logger.log(`🧹 Cleaned up ${ids.length} ${rawTableName} by IDs`);
         }
       } catch (error) {
-        result.errors.push({ table: tableName, error: (error as Error).message });
-        result.success = false;
+        const errorMessage = (error as Error).message;
+        // Handle network errors or 404s more gracefully
+        if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+          result.deletedCounts[rawTableName] = 0;
+          logger.log(`🧹 No ${rawTableName} records found (already cleaned)`);
+        } else {
+          result.errors.push({ table: rawTableName, error: errorMessage });
+          result.success = false;
+        }
       }
     }
 

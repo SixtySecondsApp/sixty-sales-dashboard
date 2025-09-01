@@ -1293,6 +1293,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       // Update the deal value
       const newValue = 35000;
       
+      console.log(`🔧 Updating deal ${deal.id} value from ${deal.value} to ${newValue}`);
+      
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update({ 
@@ -1303,20 +1305,44 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .select()
         .single();
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Update error:', updateError);
+        throw updateError;
+      }
+      
+      console.log('Updated deal result:', updatedDeal);
+      
+      // Wait a moment and re-fetch to see if there's a trigger affecting the value
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const { data: refetchedDeal, error: refetchError } = await supabase
+        .from('deals')
+        .select('*')
+        .eq('id', deal.id)
+        .single();
+      
+      if (refetchError) {
+        console.error('Refetch error:', refetchError);
+        throw refetchError;
+      }
+      
+      console.log('Refetched deal:', refetchedDeal);
+      
+      // Use the refetched deal for verification
+      const finalValue = refetchedDeal.value;
       
       // Verify the update
-      if (updatedDeal.value !== newValue) {
-        throw new Error(`Value update failed: expected ${newValue}, got ${updatedDeal.value}`);
+      if (finalValue !== newValue) {
+        throw new Error(`Value update failed: expected ${newValue}, got ${finalValue}. Original: ${deal.value}, Immediate update: ${updatedDeal.value}, Refetched: ${finalValue}`);
       }
       
       return {
         function: 'pipeline',
         operation: 'update_deal_value',
         status: 'success',
-        message: `Updated deal value from £${deal.value.toLocaleString()} to £${updatedDeal.value.toLocaleString()}`,
+        message: `Updated deal value from £${deal.value.toLocaleString()} to £${finalValue.toLocaleString()}`,
         duration: Date.now() - startTime,
-        data: { originalDeal: deal, updatedDeal }
+        data: { originalDeal: deal, updatedDeal: refetchedDeal }
       };
       
     } catch (error: any) {
@@ -1454,6 +1480,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         stage_changed_at: new Date().toISOString()
       };
       
+      console.log(`🔧 Updating all fields for deal ${deal.id}`, comprehensiveUpdate);
+      
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update(comprehensiveUpdate)
@@ -1461,18 +1489,39 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .select()
         .single();
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Comprehensive update error:', updateError);
+        throw updateError;
+      }
       
-      // Verify multiple updates
+      console.log('Comprehensive update result:', updatedDeal);
+      
+      // Wait a moment and re-fetch to see if there's a trigger affecting the values
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const { data: refetchedDeal, error: refetchError } = await supabase
+        .from('deals')
+        .select('*')
+        .eq('id', deal.id)
+        .single();
+      
+      if (refetchError) {
+        console.error('Comprehensive refetch error:', refetchError);
+        throw refetchError;
+      }
+      
+      console.log('Comprehensive refetched deal:', refetchedDeal);
+      
+      // Verify multiple updates using refetched data
       const verifications = [
-        { field: 'name', expected: comprehensiveUpdate.name, actual: updatedDeal.name },
-        { field: 'value', expected: comprehensiveUpdate.value, actual: updatedDeal.value },
-        { field: 'probability', expected: comprehensiveUpdate.probability, actual: updatedDeal.probability }
+        { field: 'name', expected: comprehensiveUpdate.name, actual: refetchedDeal.name },
+        { field: 'value', expected: comprehensiveUpdate.value, actual: refetchedDeal.value },
+        { field: 'probability', expected: comprehensiveUpdate.probability, actual: refetchedDeal.probability }
       ];
       
       for (const verification of verifications) {
         if (verification.actual !== verification.expected) {
-          throw new Error(`${verification.field} update failed: expected ${verification.expected}, got ${verification.actual}`);
+          throw new Error(`${verification.field} update failed: expected ${verification.expected}, got ${verification.actual}. Immediate: ${updatedDeal[verification.field]}, Refetched: ${verification.actual}`);
         }
       }
       
@@ -1482,7 +1531,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         status: 'success',
         message: `Comprehensive update: name, company, value, stage, probability, and close date`,
         duration: Date.now() - startTime,
-        data: { originalDeal: deal, updatedDeal }
+        data: { originalDeal: deal, updatedDeal: refetchedDeal }
       };
       
     } catch (error: any) {
@@ -2097,8 +2146,12 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       cleanupDataRef.current = {};
       
       const successCount = cleanupResults.filter(r => r.includes('✅')).length;
+      const alreadyCleanCount = cleanupResults.filter(r => r.includes('already cleaned')).length;
+      
       if (successCount > 0) {
         toast.success(`🧹 Manually cleaned up ${successCount} test records`);
+      } else if (alreadyCleanCount > 0 || cleanupResults.some(r => r.includes('No cleanup needed'))) {
+        toast.success('✨ Database is already clean - no test data found to remove');
       } else {
         toast.warning('⚠️ Some cleanup operations may have failed');
       }
