@@ -117,12 +117,15 @@ export function useDashboardActivities(currentMonth: Date, enabled: boolean = tr
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  logger.log('[useDashboardActivities] Fetching activities for:', {
-    month: currentMonth.toLocaleDateString(),
-    start: startOfMonth.toISOString(),
-    end: endOfMonth.toISOString(),
-    enabled
-  });
+  // Only log in development
+  if (process.env.NODE_ENV === 'development') {
+    logger.log('[useDashboardActivities] Fetching activities for:', {
+      month: currentMonth.toLocaleDateString(),
+      start: startOfMonth.toISOString(),
+      end: endOfMonth.toISOString(),
+      enabled
+    });
+  }
 
   return useLazyActivities({
     enabled,

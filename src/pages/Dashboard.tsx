@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
 import { useTargets } from '@/lib/hooks/useTargets';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
@@ -88,7 +88,7 @@ const Tooltip = ({ show, content, position }: TooltipProps) => {
   );
 };
 
-const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal, isLoadingComparisons, hasComparisons }: MetricCardProps) => {
+const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal, isLoadingComparisons, hasComparisons }: MetricCardProps) => {
   const navigate = useNavigate();
   const { setFilters } = useActivityFilters();
   const [showTrendTooltip, setShowTrendTooltip] = useState(false);
@@ -183,8 +183,9 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={false}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
       onClick={handleClick}
       className="relative overflow-visible bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-3xl p-6 border border-gray-800/50"
     >
@@ -329,7 +330,7 @@ const MetricCard = ({ title, value, target, trend, icon: Icon, type, dateRange, 
       </div>
     </motion.div>
   );
-};
+});
 
 // Skeleton loader component for the dashboard
 function DashboardSkeleton() {
@@ -583,6 +584,7 @@ export default function Dashboard() {
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
         <MetricCard
+          key="revenue-metric"
           title="Revenue"
           value={metrics.revenue}
           target={targets.revenue_target}
@@ -595,6 +597,7 @@ export default function Dashboard() {
           hasComparisons={hasComparisons}
         />
         <MetricCard
+          key="outbound-metric"
           title="Outbound"
           value={metrics.outbound}
           target={targets.outbound_target}
@@ -607,6 +610,7 @@ export default function Dashboard() {
           hasComparisons={hasComparisons}
         />
         <MetricCard
+          key="meetings-metric"
           title="Meetings"
           value={metrics.meetings}
           target={targets.meetings_target}
@@ -619,6 +623,7 @@ export default function Dashboard() {
           hasComparisons={hasComparisons}
         />
         <MetricCard
+          key="proposals-metric"
           title="Proposals"
           value={metrics.proposals}
           target={targets.proposal_target}
