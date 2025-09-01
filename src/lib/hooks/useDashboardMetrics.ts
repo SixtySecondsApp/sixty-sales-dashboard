@@ -41,14 +41,7 @@ function calculateMetrics(activities: any[]): DashboardMetrics {
   }
   
   try {
-    // Log the raw activities for debugging
-    logger.log('calculateMetrics: Processing activities', {
-      totalCount: activities.length,
-      types: activities.reduce((acc, a) => {
-        acc[a.type] = (acc[a.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>)
-    });
+    // Remove logging to prevent re-renders
     
     const salesActivities = activities.filter(a => a.type === 'sale');
     const outboundActivities = activities.filter(a => a.type === 'outbound');
@@ -64,30 +57,7 @@ function calculateMetrics(activities: any[]): DashboardMetrics {
         .reduce((sum, a) => sum + (a.quantity || 1), 0),
     };
     
-    // Log detailed info for debugging
-    if (salesActivities.length > 0) {
-      logger.log('calculateMetrics: Sales breakdown', {
-        count: salesActivities.length,
-        total: metrics.revenue,
-        sales: salesActivities.map(s => ({
-          date: s.date,
-          amount: s.amount,
-          client: s.client_name
-        }))
-      });
-    }
-    
-    if (outboundActivities.length > 0) {
-      logger.log('calculateMetrics: Outbound breakdown', {
-        count: outboundActivities.length,
-        total: metrics.outbound,
-        activities: outboundActivities.map(o => ({
-          date: o.date,
-          quantity: o.quantity || 1,
-          client: o.client_name
-        }))
-      });
-    }
+    // Remove logging to prevent re-renders
     
     return metrics;
   } catch (error) {
@@ -140,10 +110,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
   const metricsQuery = useQuery({
     queryKey: cacheKey,
     queryFn: (): DashboardComparisons => {
-      // Only log in development
-      if (process.env.NODE_ENV === 'development') {
-        logger.log('🧮 Calculating dashboard metrics (cached)');
-      }
+      // Remove logging to prevent re-renders
       
       // Current month metrics
       const current = calculateMetrics(currentMonth.activities || []);

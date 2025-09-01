@@ -454,7 +454,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { setFilters } = useActivityFilters();
   
-  // Progressive dashboard metrics with caching
+  // Get targets first
+  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
+  
+  // Progressive dashboard metrics with caching - only enable when ready
   const {
     metrics,
     trends,
@@ -465,18 +468,17 @@ export default function Dashboard() {
     hasComparisons,
     currentMonthActivities,
     refreshDashboard
-  } = useDashboardMetrics(selectedMonth, showContent);
+  } = useDashboardMetrics(selectedMonth, showContent && !!userData && !!targets);
   
   // Lazy load recent deals only when user scrolls to that section
   const [loadRecentDeals, setLoadRecentDeals] = useState(false);
   const { activities: recentDeals, isLoading: isLoadingDeals } = useRecentDeals(loadRecentDeals);
-  
-  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
 
-  const selectedMonthRange = useMemo(() => ({
-    start: startOfMonth(selectedMonth),
-    end: endOfMonth(selectedMonth),
-  }), [selectedMonth]);
+  const selectedMonthRange = useMemo(() => {
+    const start = startOfMonth(selectedMonth);
+    const end = endOfMonth(selectedMonth);
+    return { start, end };
+  }, [selectedMonth]);
 
   // All metrics are now handled by useDashboardMetrics hook with caching
 
@@ -494,12 +496,7 @@ export default function Dashboard() {
   // Check if any data is loading
   const isAnyLoading = isInitialLoad || isLoadingSales || !userData;
 
-  // Only log month changes in development
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      logger.log('📅 Month changed to:', format(selectedMonth, 'MMMM yyyy'));
-    }
-  }, [selectedMonth]);
+  // Remove logging to prevent re-renders
 
   // Use effect to handle initial loading state only
   useEffect(() => {

@@ -44,13 +44,7 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 
   // Apply date range filter if provided
   if (config.dateRange) {
-    // Log the date range being queried
-    logger.log('[fetchLimitedActivities] Date range filter:', {
-      start: config.dateRange.start.toISOString(),
-      end: config.dateRange.end.toISOString(),
-      startFormatted: config.dateRange.start.toLocaleDateString(),
-      endFormatted: config.dateRange.end.toLocaleDateString()
-    });
+    // Remove logging to prevent issues
     
     query = query
       .gte('date', config.dateRange.start.toISOString())
@@ -76,22 +70,7 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
     throw error;
   }
 
-  // Log sales activities specifically for debugging
-  if (data && data.length > 0) {
-    const salesActivities = data.filter((a: any) => a.type === 'sale');
-    if (salesActivities.length > 0) {
-      logger.log('[fetchLimitedActivities] Sales activities found:', {
-        count: salesActivities.length,
-        sales: salesActivities.map((s: any) => ({
-          date: s.date,
-          amount: s.amount,
-          client: s.client_name
-        }))
-      });
-    }
-  }
-
-  logger.log(`[fetchLimitedActivities] Loaded ${data?.length || 0} activities`);
+  // Remove logging to prevent re-renders
   return data || [];
 }
 
@@ -118,15 +97,7 @@ export function useDashboardActivities(currentMonth: Date, enabled: boolean = tr
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
   const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  // Only log in development
-  if (process.env.NODE_ENV === 'development') {
-    logger.log('[useDashboardActivities] Fetching activities for:', {
-      month: currentMonth.toLocaleDateString(),
-      start: startOfMonth.toISOString(),
-      end: endOfMonth.toISOString(),
-      enabled
-    });
-  }
+  // Remove logging to prevent re-renders
 
   return useLazyActivities({
     enabled,
