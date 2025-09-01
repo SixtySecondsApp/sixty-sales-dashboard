@@ -220,19 +220,139 @@ export default function Roadmap() {
     }
   }, [loading, error]);
 
-  // TICKET #36: Memoized loading skeleton for better performance
+  // TICKET #23 & #36: Enhanced loading skeleton with better UX and mobile responsiveness
   const loadingSkeleton = useMemo(() => (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-800 rounded-lg w-64" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-24 bg-gray-800 rounded-xl" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
+        {/* TICKET #23: Enhanced header skeleton with mobile optimization */}
+        <div className="animate-pulse space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-gray-800/50 w-10 h-10" />
+                <div className="space-y-2">
+                  <div className="h-8 bg-gray-800 rounded-lg w-48 sm:w-64" />
+                  <div className="h-4 bg-gray-800/60 rounded w-32 sm:w-40" />
+                </div>
+              </div>
+            </div>
+            <div className="w-full sm:w-auto">
+              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-48" />
+            </div>
+          </div>
+        </div>
+
+        {/* TICKET #23: Enhanced statistics cards with mobile-first design */}
+        <div className="animate-pulse grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50 space-y-3"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 sm:p-3 rounded-lg bg-gray-800/50 w-8 h-8 sm:w-12 sm:h-12" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-3 sm:h-4 bg-gray-800/60 rounded w-16 sm:w-20" />
+                  <div className="h-6 sm:h-8 bg-gray-800 rounded w-8 sm:w-12" />
+                  <div className="h-2 sm:h-3 bg-gray-800/40 rounded w-12 sm:w-16" />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* TICKET #23: Enhanced type breakdown with improved mobile layout */}
+        <div className="animate-pulse grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4 + i * 0.05 }}
+              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50"
+            >
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-gray-800/60 rounded" />
+                <div className="space-y-1 flex-1">
+                  <div className="h-3 bg-gray-800/60 rounded w-12 sm:w-16" />
+                  <div className="h-4 sm:h-5 bg-gray-800 rounded w-6 sm:w-8" />
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* TICKET #23: Enhanced filters section with mobile responsiveness */}
+        <div className="animate-pulse space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center">
+            <div className="flex-1 max-w-full sm:max-w-md">
+              <div className="h-10 bg-gray-800 rounded-lg w-full" />
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-32" />
+              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-32" />
+            </div>
+          </div>
+          <div className="h-4 bg-gray-800/60 rounded w-40" />
+        </div>
+
+        {/* TICKET #23: Enhanced kanban skeleton with progressive loading animation */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="animate-pulse"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+            {Array.from({ length: 5 }).map((_, columnIndex) => (
+              <motion.div
+                key={columnIndex}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8 + columnIndex * 0.1 }}
+                className="space-y-4"
+              >
+                {/* Column header */}
+                <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 space-y-2">
+                  <div className="h-5 sm:h-6 bg-gray-800 rounded w-20 sm:w-24" />
+                  <div className="h-3 bg-gray-800/60 rounded w-8" />
+                </div>
+                
+                {/* Column cards */}
+                {Array.from({ length: columnIndex === 2 ? 1 : columnIndex === 3 ? 3 : columnIndex === 4 ? 1 : 0 }).map((_, cardIndex) => (
+                  <motion.div
+                    key={cardIndex}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 1.0 + columnIndex * 0.1 + cardIndex * 0.1 }}
+                    className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="h-4 bg-gray-800 rounded w-12" />
+                      <div className="w-6 h-6 bg-gray-800/60 rounded" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-5 bg-gray-800 rounded w-full" />
+                      <div className="h-3 bg-gray-800/60 rounded w-3/4" />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="h-4 bg-gray-800/60 rounded w-12" />
+                      <div className="h-4 bg-gray-800/60 rounded w-8" />
+                      <div className="h-4 bg-gray-800/60 rounded w-10" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="h-3 bg-gray-800/40 rounded w-16" />
+                      <div className="h-3 bg-gray-800/40 rounded w-12" />
+                    </div>
+                  </motion.div>
+                ))}
+              </motion.div>
             ))}
           </div>
-          <div className="h-96 bg-gray-800 rounded-xl" />
-        </div>
+        </motion.div>
       </div>
     </div>
   ), []);
@@ -387,121 +507,132 @@ export default function Roadmap() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <div className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
+        {/* TICKET #23: Enhanced header with improved mobile responsiveness */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-6"
+        >
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <Map className="w-6 h-6 text-emerald-500" />
-              </div>
+              <motion.div 
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+              >
+                <Map className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
+              </motion.div>
               <div>
-                <h1 className="text-3xl font-bold">Product Roadmap</h1>
-                <p className="text-gray-400">
+                <h1 className="text-2xl sm:text-3xl font-bold">Product Roadmap</h1>
+                <p className="text-sm sm:text-base text-gray-400 leading-relaxed max-w-md">
                   Share your ideas, report bugs, and track development progress
                 </p>
               </div>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="flex items-center gap-3 w-full sm:w-auto"
+          >
             <Button
               onClick={handleOpenSuggestionForm}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 hover:scale-105 w-full sm:w-auto justify-center"
             >
               <Plus className="w-4 h-4" />
-              Submit Feature Request
+              <span className="hidden xs:inline">Submit Feature Request</span>
+              <span className="xs:hidden">Submit</span>
             </Button>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard
-            title="Total Suggestions"
-            value={stats.total}
-            icon={BarChart3}
-            color="blue"
-            subtitle="All time submissions"
-          />
-          <StatCard
-            title="Completed"
-            value={stats.completed}
-            icon={CheckCircle2}
-            color="green"
-            subtitle="Successfully implemented"
-          />
-          <StatCard
-            title="In Progress"
-            value={stats.inProgress}
-            icon={Clock}
-            color="yellow"
-            subtitle="Currently being developed"
-          />
-          <StatCard
-            title="Pending Review"
-            value={stats.pending}
-            icon={Users}
-            color="purple"
-            subtitle="Awaiting evaluation"
-          />
-        </div>
+        {/* TICKET #23: Enhanced statistics with improved mobile layout and animations */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6"
+        >
+          {[
+            { title: "Total Suggestions", value: stats.total, icon: BarChart3, color: "blue", subtitle: "All time submissions" },
+            { title: "Completed", value: stats.completed, icon: CheckCircle2, color: "green", subtitle: "Successfully implemented" },
+            { title: "In Progress", value: stats.inProgress, icon: Clock, color: "yellow", subtitle: "Currently being developed" },
+            { title: "Pending Review", value: stats.pending, icon: Users, color: "purple", subtitle: "Awaiting evaluation" },
+          ].map((stat, index) => (
+            <motion.div
+              key={stat.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 + index * 0.1 }}
+            >
+              <StatCard
+                title={stat.title}
+                value={stat.value}
+                icon={stat.icon}
+                color={stat.color}
+                subtitle={stat.subtitle}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
 
-        {/* Type Breakdown */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-            <div className="flex items-center gap-3">
-              <Lightbulb className="w-5 h-5 text-blue-400" />
-              <div>
-                <p className="text-sm text-gray-400">Features</p>
-                <p className="text-lg font-semibold text-white">{typeStats.features}</p>
+        {/* TICKET #23: Enhanced type breakdown with improved mobile layout */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4"
+        >
+          {[
+            { label: "Features", value: typeStats.features, icon: Lightbulb, color: "text-blue-400" },
+            { label: "Bugs", value: typeStats.bugs, icon: Bug, color: "text-red-400" },
+            { label: "Improvements", value: typeStats.improvements, icon: ArrowUp, color: "text-emerald-400" },
+            { label: "Other", value: typeStats.other, icon: AlertTriangle, color: "text-yellow-400" },
+          ].map((type, index) => (
+            <motion.div
+              key={type.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.9 + index * 0.05 }}
+              whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 hover:border-gray-700/50 transition-all duration-200"
+            >
+              <div className="flex items-center gap-2 sm:gap-3">
+                <type.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${type.color}`} />
+                <div>
+                  <p className="text-xs sm:text-sm text-gray-400">{type.label}</p>
+                  <p className="text-base sm:text-lg font-semibold text-white">{type.value}</p>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-            <div className="flex items-center gap-3">
-              <Bug className="w-5 h-5 text-red-400" />
-              <div>
-                <p className="text-sm text-gray-400">Bugs</p>
-                <p className="text-lg font-semibold text-white">{typeStats.bugs}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-            <div className="flex items-center gap-3">
-              <ArrowUp className="w-5 h-5 text-emerald-400" />
-              <div>
-                <p className="text-sm text-gray-400">Improvements</p>
-                <p className="text-lg font-semibold text-white">{typeStats.improvements}</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-400" />
-              <div>
-                <p className="text-sm text-gray-400">Other</p>
-                <p className="text-lg font-semibold text-white">{typeStats.other}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          ))}
+        </motion.div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <div className="flex-1 max-w-md">
+        {/* TICKET #23: Enhanced filters with improved mobile responsiveness */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.1 }}
+          className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center"
+        >
+          <div className="flex-1 w-full sm:max-w-md">
             <SearchInput
               onSearch={setQuery}
               placeholder="Search suggestions..."
-              className="w-full"
+              className="w-full transition-all duration-200 focus:scale-[1.02]"
             />
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             <select
               value={typeFilter}
               onChange={handleTypeFilterChange}
-              className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="flex-1 sm:flex-none bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-800/70"
             >
               <option value="all">All Types</option>
               <option value="feature">Features</option>
@@ -513,7 +644,7 @@ export default function Roadmap() {
             <select
               value={statusFilter}
               onChange={handleStatusFilterChange}
-              className="bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="flex-1 sm:flex-none bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-800/70"
             >
               <option value="all">All Statuses</option>
               <option value="submitted">Submitted</option>
@@ -523,19 +654,31 @@ export default function Roadmap() {
               <option value="completed">Completed</option>
             </select>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Results Summary */}
-        <div className="flex items-center justify-between">
-          <p className="text-gray-400">
-            Showing {filteredSuggestions.length} of {suggestions.length} suggestions
+        {/* TICKET #23: Enhanced results summary with mobile responsiveness */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2 }}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+        >
+          <p className="text-sm sm:text-base text-gray-400">
+            Showing <span className="font-medium text-emerald-400">{filteredSuggestions.length}</span> of{' '}
+            <span className="font-medium text-white">{suggestions.length}</span> suggestions
           </p>
           {isAdmin && (
-            <div className="text-sm text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-              Admin Mode: You can drag & drop to manage suggestions
-            </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.3 }}
+              className="text-xs sm:text-sm text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 whitespace-nowrap"
+            >
+              <span className="hidden sm:inline">Admin Mode: You can drag & drop to manage suggestions</span>
+              <span className="sm:hidden">Admin Mode</span>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
         {/* Kanban Board */}
         <RoadmapKanban ref={roadmapKanbanRef} />
