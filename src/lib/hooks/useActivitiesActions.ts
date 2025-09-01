@@ -22,51 +22,98 @@ export function useActivitiesActions() {
     status?: string;
     deal_id?: string | null;
   }) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('first_name, last_name')
-      .eq('id', user.id)
-      .single();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .single();
 
-    if (!profile) throw new Error('User profile not found');
+      if (!profile) {
+        console.warn('User profile not found, using fallback');
+      }
 
-    // Create the insert data with only database-compatible fields
-    const insertData = {
-      type: activity.type,
-      client_name: activity.client_name,
-      details: activity.details,
-      amount: activity.amount,
-      priority: activity.priority || 'medium',
-      date: activity.date || new Date().toISOString(),
-      quantity: activity.quantity,
-      status: activity.status || 'completed',
-      deal_id: activity.deal_id,
-      user_id: user.id,
-      sales_rep: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-      // Map camelCase to snake_case for database
-      contact_identifier: activity.contactIdentifier,
-      contact_identifier_type: activity.contactIdentifierType,
-    };
-    
-    const { data, error } = await supabase
-      .from('activities')
-      .insert(insertData)
-      .select()
-      .single();
+      // Create the insert data with only database-compatible fields
+      // Filter out undefined values to prevent database errors
+      const insertData: any = {
+        type: activity.type,
+        client_name: activity.client_name || 'Unknown',
+        user_id: user.id,
+        sales_rep: profile ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() : user.email || 'Unknown',
+        priority: activity.priority || 'medium',
+        date: activity.date || new Date().toISOString(),
+        status: activity.status || 'completed',
+      };
 
-    if (error) {
-      throw new Error(`Failed to create activity: ${error.message}`);
+      // Only add optional fields if they have valid values
+      if (activity.details !== undefined && activity.details !== null) {
+        insertData.details = activity.details;
+      }
+      if (activity.amount !== undefined && activity.amount !== null && !isNaN(activity.amount)) {
+        insertData.amount = activity.amount;
+      }
+      if (activity.quantity !== undefined && activity.quantity !== null && activity.quantity > 0) {
+        insertData.quantity = activity.quantity;
+      }
+      // Only add deal_id if it's a valid UUID and exists in deals table
+      if (activity.deal_id !== undefined && activity.deal_id !== null && activity.deal_id !== '' && activity.deal_id !== 'null') {
+        try {
+          console.log(`Validating deal_id: ${activity.deal_id}`);
+          // Validate that the deal exists before trying to link it
+          const { data: dealExists, error: dealCheckError } = await supabase
+            .from('deals')
+            .select('id')
+            .eq('id', activity.deal_id)
+            .single();
+          
+          if (dealCheckError) {
+            console.warn(`Error checking deal existence for ID ${activity.deal_id}:`, dealCheckError);
+          } else if (dealExists) {
+            console.log(`Deal ${activity.deal_id} exists, linking to activity`);
+            insertData.deal_id = activity.deal_id;
+          } else {
+            console.warn(`Deal ID ${activity.deal_id} does not exist, creating activity without deal link`);
+          }
+        } catch (error) {
+          console.warn(`Error validating deal_id ${activity.deal_id}:`, error);
+        }
+      } else {
+        console.log(`Skipping deal_id (invalid or null): ${activity.deal_id}`);
+      }
+      if (activity.contactIdentifier !== undefined && activity.contactIdentifier !== null && activity.contactIdentifier !== '') {
+        insertData.contact_identifier = activity.contactIdentifier;
+      }
+      if (activity.contactIdentifierType !== undefined && activity.contactIdentifierType !== null && activity.contactIdentifierType !== '') {
+        insertData.contact_identifier_type = activity.contactIdentifierType;
+      }
+      
+      // Debug: log what we're about to insert
+      console.log('About to insert activity with data:', JSON.stringify(insertData, null, 2));
+      
+      const { data, error } = await supabase
+        .from('activities')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating activity:', error);
+        throw new Error(`Failed to create activity: ${error.message}`);
+      }
+
+      // Invalidate queries to trigger refresh where needed
+      queryClient.invalidateQueries({ queryKey: ['activities'] });
+      queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+
+      return data;
+    } catch (error) {
+      console.error('Error in addActivity:', error);
+      throw error;
     }
-
-    // Invalidate queries to trigger refresh where needed
-    queryClient.invalidateQueries({ queryKey: ['activities'] });
-    queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
-    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
-
-    return data;
   };
 
   const addSale = async (sale: {

@@ -21,10 +21,15 @@ export function useDealsActions() {
 
   // Find deals by client name and stage (lightweight query)
   const findDealsByClient = async (clientName: string, stageId?: string): Promise<Deal[]> => {
+    // Guard against empty or invalid client names
+    if (!clientName || clientName.trim() === '') {
+      return [];
+    }
+
     let query = supabase
       .from('deals')
       .select('id, name, company, value, stage_id, owner_id, one_off_revenue, monthly_mrr, annual_value')
-      .ilike('company', `%${clientName}%`);
+      .ilike('company', `%${clientName.trim()}%`);
 
     if (stageId) {
       query = query.eq('stage_id', stageId);
@@ -33,7 +38,9 @@ export function useDealsActions() {
     const { data, error } = await query.limit(10); // Limit to prevent large queries
 
     if (error) {
-      throw new Error(`Failed to find deals: ${error.message}`);
+      console.error('Error finding deals by client:', error);
+      // Return empty array instead of throwing to prevent breaking the flow
+      return [];
     }
 
     return data || [];

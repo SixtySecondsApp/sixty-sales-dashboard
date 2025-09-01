@@ -247,7 +247,7 @@ BEGIN
     due_date,
     task_type,
     priority,
-    owner_id,
+    assigned_to,
     deal_id,
     created_by,
     status
@@ -259,9 +259,9 @@ BEGIN
     NEW.created_at::DATE + stt.days_after_trigger,
     stt.task_type,
     stt.priority,
-    NEW.owner_id,
+    NEW.user_id,
     NEW.deal_id,
-    NEW.owner_id,
+    NEW.user_id,
     'pending'
   FROM smart_task_templates stt
   WHERE stt.trigger_activity_type = NEW.type

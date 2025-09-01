@@ -33,6 +33,8 @@ import { useContacts } from '@/lib/hooks/useContacts';
 import { useCompanies } from '@/lib/hooks/useCompanies';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useActivities } from '@/lib/hooks/useActivities';
+import { useDealsActions } from '@/lib/hooks/useDealsActions';
+import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
 import { cleanupAllTestData, cleanupTestDataByIds, getTestDataCounts } from '@/lib/utils/testCleanup';
 
 interface TestResult {
@@ -51,6 +53,8 @@ interface FunctionTestSuiteProps {
 
 export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose }) => {
   const [isRunning, setIsRunning] = useState(false);
+  const [isQuickAddTesting, setIsQuickAddTesting] = useState(false);
+  const [isRunningAll, setIsRunningAll] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
   const [progress, setProgress] = useState(0);
   const [createdIds, setCreatedIds] = useState<Record<string, string[]>>({});
@@ -62,6 +66,10 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
   const { companies, createCompany, updateCompany, deleteCompany } = useCompanies();
   const { tasks, createTask, updateTask, deleteTask } = useTasks();
   const { activities, addActivity, addActivityAsync, updateActivity, removeActivity } = useActivities();
+  
+  // QuickAdd specific hooks
+  const { findDealsByClient } = useDealsActions();
+  const { addActivity: addActivityViaQuickAdd } = useActivitiesActions();
 
   // Cleanup on component unmount
   useEffect(() => {
@@ -729,77 +737,500 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     }
   };
 
-  // Main test suite runner
-  const runCompleteTestSuite = async () => {
+  // QuickAdd specific test functions
+  const runQuickAddMeetingTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      const meetingData = {
+        type: 'meeting' as const,
+        client_name: `QA Meeting Client ${timestamp}`,
+        details: 'QuickAdd meeting test',
+        date: new Date().toISOString(),
+        status: 'completed',
+        contactIdentifier: `qa_meeting_${timestamp}@example.com`,
+        contactIdentifierType: 'email'
+      };
+      
+      const result = await addActivityViaQuickAdd(meetingData);
+      
+      if (result) {
+        // Track for cleanup
+        if (!cleanupDataRef.current.activity) cleanupDataRef.current.activity = [];
+        cleanupDataRef.current.activity.push(result.id);
+        
+        return {
+          function: 'quickadd',
+          operation: 'meeting',
+          status: 'success',
+          message: `Meeting created via QuickAdd (ID: ${result.id.substring(0, 8)}...)`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+      throw new Error('No result returned from createActivity');
+    } catch (error: any) {
+      return {
+        function: 'quickadd',
+        operation: 'meeting',
+        status: 'failed',
+        message: error.message || 'QuickAdd meeting creation failed',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runQuickAddOutboundTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      const outboundData = {
+        type: 'outbound' as const,
+        client_name: `QA Outbound Client ${timestamp}`,
+        details: 'QuickAdd outbound test call',
+        date: new Date().toISOString(),
+        status: 'completed',
+        quantity: 1,
+        contactIdentifier: `qa_outbound_${timestamp}@example.com`,
+        contactIdentifierType: 'email'
+      };
+      
+      const result = await addActivityViaQuickAdd(outboundData);
+      
+      if (result) {
+        // Track for cleanup
+        if (!cleanupDataRef.current.activity) cleanupDataRef.current.activity = [];
+        cleanupDataRef.current.activity.push(result.id);
+        
+        return {
+          function: 'quickadd',
+          operation: 'outbound',
+          status: 'success',
+          message: `Outbound created via QuickAdd (ID: ${result.id.substring(0, 8)}...)`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+      throw new Error('No result returned from createActivity');
+    } catch (error: any) {
+      return {
+        function: 'quickadd',
+        operation: 'outbound',
+        status: 'failed',
+        message: error.message || 'QuickAdd outbound creation failed',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runQuickAddProposalTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      const proposalData = {
+        type: 'proposal' as const,
+        client_name: `QA Proposal Client ${timestamp}`,
+        details: 'QuickAdd proposal test',
+        amount: 5000,
+        date: new Date().toISOString(),
+        status: 'completed',
+        contactIdentifier: `qa_proposal_${timestamp}@example.com`,
+        contactIdentifierType: 'email'
+      };
+      
+      const result = await addActivityViaQuickAdd(proposalData);
+      
+      if (result) {
+        // Track for cleanup
+        if (!cleanupDataRef.current.activity) cleanupDataRef.current.activity = [];
+        cleanupDataRef.current.activity.push(result.id);
+        
+        return {
+          function: 'quickadd',
+          operation: 'proposal',
+          status: 'success',
+          message: `Proposal created via QuickAdd (ID: ${result.id.substring(0, 8)}...)`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+      throw new Error('No result returned from createActivity');
+    } catch (error: any) {
+      return {
+        function: 'quickadd',
+        operation: 'proposal',
+        status: 'failed',
+        message: error.message || 'QuickAdd proposal creation failed',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runQuickAddSaleTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      const saleData = {
+        type: 'sale' as const,
+        client_name: `QA Sale Client ${timestamp}`,
+        details: 'QuickAdd sale test',
+        amount: 10000,
+        date: new Date().toISOString(),
+        status: 'completed',
+        contactIdentifier: `qa_sale_${timestamp}@example.com`,
+        contactIdentifierType: 'email'
+      };
+      
+      const result = await addActivityViaQuickAdd(saleData);
+      
+      if (result) {
+        // Track for cleanup
+        if (!cleanupDataRef.current.activity) cleanupDataRef.current.activity = [];
+        cleanupDataRef.current.activity.push(result.id);
+        
+        return {
+          function: 'quickadd',
+          operation: 'sale',
+          status: 'success',
+          message: `Sale created via QuickAdd (ID: ${result.id.substring(0, 8)}...)`,
+          duration: Date.now() - startTime,
+          data: result
+        };
+      }
+      throw new Error('No result returned from createActivity');
+    } catch (error: any) {
+      return {
+        function: 'quickadd',
+        operation: 'sale',
+        status: 'failed',
+        message: error.message || 'QuickAdd sale creation failed',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runQuickAddWithDealTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      const clientName = `QA Deal Client ${timestamp}`;
+      
+      // Get user ID and first available stage
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
+      const stages = await getPipelineStages();
+      if (stages.length === 0) throw new Error('No pipeline stages available');
+      
+      // First create a deal
+      const dealData = {
+        name: `QA Deal ${timestamp}`,
+        company: clientName,
+        contact_name: `QA Contact ${timestamp}`,
+        value: 15000,
+        stage_id: stages[0].id,
+        owner_id: user.id,
+        one_off_revenue: 15000,
+        monthly_mrr: 0
+      };
+      
+      const deal = await createDeal(dealData);
+      
+      if (deal) {
+        // Track for cleanup
+        if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+        cleanupDataRef.current.deal.push(deal.id);
+        
+        // Now create an activity linked to this deal
+        const activityData = {
+          type: 'meeting' as const,
+          client_name: clientName,
+          details: 'QuickAdd meeting linked to deal',
+          date: new Date().toISOString(),
+          status: 'completed',
+          deal_id: deal.id,
+          contactIdentifier: `qa_deal_${timestamp}@example.com`,
+          contactIdentifierType: 'email'
+        };
+        
+        const activity = await addActivityViaQuickAdd(activityData);
+        
+        if (activity) {
+          // Track for cleanup
+          if (!cleanupDataRef.current.activity) cleanupDataRef.current.activity = [];
+          cleanupDataRef.current.activity.push(activity.id);
+          
+          return {
+            function: 'quickadd',
+            operation: 'deal_with_activity',
+            status: 'success',
+            message: `Deal and linked activity created (Deal: ${deal.id.substring(0, 8)}..., Activity: ${activity.id.substring(0, 8)}...)`,
+            duration: Date.now() - startTime,
+            data: { deal, activity }
+          };
+        }
+        throw new Error('Failed to create linked activity');
+      }
+      throw new Error('Failed to create deal');
+    } catch (error: any) {
+      return {
+        function: 'quickadd',
+        operation: 'deal_with_activity',
+        status: 'failed',
+        message: error.message || 'QuickAdd deal with activity creation failed',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  // Run all QuickAdd tests
+  const runQuickAddTests = async () => {
     if (!userData) {
-      toast.error('Please log in to run function tests');
+      toast.error('Please log in to run QuickAdd tests');
       return;
     }
 
-    setIsRunning(true);
+    setIsQuickAddTesting(true);
     setResults([]);
     setProgress(0);
-    setCreatedIds({});
+    
+    const quickAddTests = [
+      { name: 'Meeting', test: runQuickAddMeetingTest },
+      { name: 'Outbound', test: runQuickAddOutboundTest },
+      { name: 'Proposal', test: runQuickAddProposalTest },
+      { name: 'Sale', test: runQuickAddSaleTest },
+      { name: 'Deal with Activity', test: runQuickAddWithDealTest }
+    ];
+    
+    const totalTests = quickAddTests.length;
+    let completedTests = 0;
+    const allResults: TestResult[] = [];
 
+    // Run each QuickAdd test
+    for (const testCase of quickAddTests) {
+      setResults(prev => [...prev, { 
+        function: 'quickadd', 
+        operation: testCase.name.toLowerCase().replace(' ', '_'), 
+        status: 'running' 
+      }]);
+      
+      try {
+        console.log(`🧪 Starting QuickAdd test: ${testCase.name}`);
+        const result = await testCase.test();
+        console.log(`✅ QuickAdd test ${testCase.name} completed:`, result);
+        allResults.push(result);
+        setResults([...allResults]);
+        
+        completedTests++;
+        setProgress((completedTests / totalTests) * 100);
+        
+        // Small delay between tests
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error) {
+        console.error(`❌ QuickAdd test ${testCase.name} failed with error:`, error);
+        const errorResult = {
+          function: 'quickadd',
+          operation: testCase.name.toLowerCase().replace(' ', '_'),
+          status: 'failed' as const,
+          message: `Test error: ${(error as Error).message}`,
+          duration: 0,
+          error
+        };
+        allResults.push(errorResult);
+        setResults([...allResults]);
+        
+        completedTests++;
+        setProgress((completedTests / totalTests) * 100);
+        
+        // Continue with next test even if this one failed
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    setIsQuickAddTesting(false);
+    
+    const successCount = allResults.filter(r => r.status === 'success').length;
+    const failedCount = allResults.filter(r => r.status === 'failed').length;
+    
+    if (failedCount === 0) {
+      toast.success(`All QuickAdd tests passed! ${successCount} successful`);
+    } else {
+      toast.warning(`QuickAdd tests completed: ${successCount} passed, ${failedCount} failed`);
+    }
+  };
+
+  // Run all tests (both function tests and QuickAdd tests)
+  const runAllTests = async () => {
+    if (!userData) {
+      toast.error('Please log in to run tests');
+      return;
+    }
+
+    setIsRunningAll(true);
+    setResults([]);
+    setProgress(0);
+    
+    try {
+      // Run the main function test logic (80% of total progress)
+      await runFunctionTestLogic(0.8);
+      
+      // Add a separator result
+      setResults(prev => [...prev, {
+        function: 'separator',
+        operation: 'quickadd_start',
+        status: 'success',
+        message: '--- Starting QuickAdd Tests ---'
+      }]);
+      
+      // Then run QuickAdd tests
+      const quickAddTests = [
+        { name: 'Meeting', test: runQuickAddMeetingTest },
+        { name: 'Outbound', test: runQuickAddOutboundTest },
+        { name: 'Proposal', test: runQuickAddProposalTest },
+        { name: 'Sale', test: runQuickAddSaleTest },
+        { name: 'Deal with Activity', test: runQuickAddWithDealTest }
+      ];
+      
+      let quickAddProgress = 0;
+      const quickAddTotal = quickAddTests.length;
+      
+      for (const testCase of quickAddTests) {
+        try {
+          console.log(`🧪 Starting QuickAdd test (All Tests): ${testCase.name}`);
+          setResults(prev => [...prev, { 
+            function: 'quickadd', 
+            operation: testCase.name.toLowerCase().replace(' ', '_'), 
+            status: 'running' 
+          }]);
+          
+          const result = await testCase.test();
+          console.log(`✅ QuickAdd test ${testCase.name} completed (All Tests):`, result);
+          setResults(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = result;
+            return updated;
+          });
+          
+          quickAddProgress++;
+          // Update progress to show QuickAdd portion (assuming function tests took 80% of progress)
+          setProgress(80 + (quickAddProgress / quickAddTotal) * 20);
+          
+          // Small delay between tests
+          await new Promise(resolve => setTimeout(resolve, 200));
+        } catch (error) {
+          console.error(`❌ QuickAdd test ${testCase.name} failed in All Tests with error:`, error);
+          const errorResult = {
+            function: 'quickadd',
+            operation: testCase.name.toLowerCase().replace(' ', '_'),
+            status: 'failed' as const,
+            message: `Test error: ${(error as Error).message}`,
+            duration: 0,
+            error
+          };
+          setResults(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = errorResult;
+            return updated;
+          });
+          
+          quickAddProgress++;
+          setProgress(80 + (quickAddProgress / quickAddTotal) * 20);
+          
+          // Continue with next test even if this one failed
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      setProgress(100);
+      
+      // Final results counting - use a timeout to ensure state is updated
+      setTimeout(() => {
+        setResults(currentResults => {
+          const allResults = currentResults.filter(r => r.function !== 'separator');
+          const successCount = allResults.filter(r => r.status === 'success').length;
+          const failedCount = allResults.filter(r => r.status === 'failed').length;
+          
+          if (failedCount === 0) {
+            toast.success(`All tests passed! ${successCount} successful tests completed`);
+          } else {
+            toast.warning(`All tests completed: ${successCount} passed, ${failedCount} failed`);
+          }
+          
+          return currentResults;
+        });
+      }, 100);
+      
+    } catch (error) {
+      toast.error('Error running all tests');
+      console.error('All tests error:', error);
+    } finally {
+      setIsRunningAll(false);
+    }
+  };
+  
+  // Extracted function test logic for reuse
+  const runFunctionTestLogic = async (progressMultiplier = 1.0) => {
     const functionTypes = ['contact', 'company', 'deal', 'task', 'meeting', 'proposal', 'sale', 'outbound'];
     const operations = ['create', 'update', 'delete'];
     const specialTests = ['bulk_create', 'move_stage', 'performance', 'company_linking', 'integrity', 'error_handling'];
     
-    const totalTests = (functionTypes.length * operations.length) + specialTests.length + 1; // +1 for initial cleanup
+    const totalTests = (functionTypes.length * operations.length) + specialTests.length + 1;
     let completedTests = 0;
+    const testDataToCleanup: Record<string, string[]> = { contact: [], company: [], deal: [], task: [], activity: [] };
     const allResults: TestResult[] = [];
-    const testDataToCleanup: Record<string, string[]> = {};
 
-    // **STEP 1: Quick Pre-Test Check (Less Aggressive)**
-    console.log('🔍 Checking for existing test data...');
-    const counts = await getTestDataCounts();
-    const totalTestItems = Object.values(counts).reduce((sum, count) => sum + count, 0);
-    
-    if (totalTestItems > 0) {
-      toast.info(`🔍 Found ${totalTestItems} existing test records - they'll be cleaned only if current tests fail`);
-      console.log('📊 Existing test data:', counts);
-    } else {
-      toast.success('✅ Database is clean - ready for fresh tests');
-    }
+    // Clear existing cleanup data
+    cleanupDataRef.current = { ...testDataToCleanup };
 
-    // Initialize cleanup tracking
-    functionTypes.forEach(type => {
-      testDataToCleanup[type] = [];
-      cleanupDataRef.current[type] = [];
-    });
-
-    // Test basic CRUD operations for each function type
+    // Run CRUD tests for each function type
     for (const functionType of functionTypes) {
-      // Create operation
-      setResults([...allResults, { function: functionType, operation: 'create', status: 'running' }]);
       const createData = generateTestData(functionType, 'create');
+      
+      // Create operation
+      setResults(prev => [...prev, { function: functionType, operation: 'create', status: 'running' }]);
       const createResult = await runFunctionTest(functionType, 'create', createData);
       allResults.push(createResult);
       setResults([...allResults]);
-      
-      let createdId: string | null = null;
-      if (createResult.status === 'success' && createResult.data?.id) {
-        createdId = createResult.data.id;
-        setCreatedIds(prev => ({ 
-          ...prev, 
-          [functionType]: [...(prev[functionType] || []), createdId!]
-        }));
-        testDataToCleanup[functionType].push(createdId);
-        cleanupDataRef.current[functionType].push(createdId);
-      }
-      
       completedTests++;
-      setProgress((completedTests / totalTests) * 100);
+      setProgress((completedTests / totalTests) * 100 * progressMultiplier);
 
-      if (createdId) {
+      // Track created items for cleanup and further testing
+      let createdId: string | null = null;
+      if (createResult.status === 'success' && createResult.data) {
+        if (Array.isArray(createResult.data)) {
+          createdId = createResult.data[0]?.id;
+          createResult.data.forEach((item: any) => {
+            if (item?.id) {
+              testDataToCleanup[functionType]?.push(item.id);
+              cleanupDataRef.current[functionType]?.push(item.id);
+            }
+          });
+        } else if (typeof createResult.data === 'object' && createResult.data?.id) {
+          createdId = createResult.data.id;
+          testDataToCleanup[functionType]?.push(createResult.data.id);
+          cleanupDataRef.current[functionType]?.push(createResult.data.id);
+        }
+      }
+
+      if (createdId && createResult.status === 'success') {
         // Update operation
-        setResults(prev => [...prev, { function: functionType, operation: 'update', status: 'running' }]);
         const updateData = generateTestData(functionType, 'update');
+        setResults(prev => [...prev, { function: functionType, operation: 'update', status: 'running' }]);
         const updateResult = await runFunctionTest(functionType, 'update', updateData, createdId);
         allResults.push(updateResult);
         setResults([...allResults]);
         completedTests++;
-        setProgress((completedTests / totalTests) * 100);
+        setProgress((completedTests / totalTests) * 100 * progressMultiplier);
 
         // Delete operation
         setResults(prev => [...prev, { function: functionType, operation: 'delete', status: 'running' }]);
@@ -814,11 +1245,11 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         }
         
         completedTests++;
-        setProgress((completedTests / totalTests) * 100);
+        setProgress((completedTests / totalTests) * 100 * progressMultiplier);
       } else {
         // Skip update and delete if create failed
         completedTests += 2;
-        setProgress((completedTests / totalTests) * 100);
+        setProgress((completedTests / totalTests) * 100 * progressMultiplier);
         allResults.push(
           { function: functionType, operation: 'update', status: 'skipped', message: 'Skipped due to create failure' },
           { function: functionType, operation: 'delete', status: 'skipped', message: 'Skipped due to create failure' }
@@ -826,69 +1257,40 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         setResults([...allResults]);
       }
 
-      await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between function types
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    // Special tests
-    // Bulk operations test
-    setResults(prev => [...prev, { function: 'contact', operation: 'bulk_create', status: 'running' }]);
-    const bulkData = generateTestData('contact', 'create');
-    const bulkResult = await runFunctionTest('contact', 'bulk_create', bulkData);
-    allResults.push(bulkResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
+    // Run special tests...
+    const specialTestMethods = [
+      { name: 'bulk_create', method: async () => {
+        const bulkData = generateTestData('contact', 'create');
+        return await runFunctionTest('contact', 'bulk_create', bulkData);
+      }},
+      { name: 'move_stage', method: async () => {
+        if (testDataToCleanup['deal'].length > 0) {
+          return await runFunctionTest('deal', 'move_stage', null, testDataToCleanup['deal'][0]);
+        } else {
+          return { function: 'deal', operation: 'move_stage', status: 'skipped', message: 'No deals available for stage testing' };
+        }
+      }},
+      { name: 'performance', method: runPerformanceBenchmark },
+      { name: 'company_linking', method: runCompanyContactLinkingTest },
+      { name: 'integrity', method: runDataIntegrityCheck },
+      { name: 'error_handling', method: runErrorHandlingTest }
+    ];
 
-    // Deal stage transition test
-    if (testDataToCleanup['deal'].length > 0) {
-      setResults(prev => [...prev, { function: 'deal', operation: 'move_stage', status: 'running' }]);
-      const stageResult = await runFunctionTest('deal', 'move_stage', null, testDataToCleanup['deal'][0]);
-      allResults.push(stageResult);
+    for (const testMethod of specialTestMethods) {
+      setResults(prev => [...prev, { function: testMethod.name, operation: 'test', status: 'running' }]);
+      const result = await testMethod.method();
+      allResults.push(result);
       setResults([...allResults]);
-    } else {
-      allResults.push({ function: 'deal', operation: 'move_stage', status: 'skipped', message: 'No deals available for stage testing' });
-      setResults([...allResults]);
+      completedTests++;
+      setProgress((completedTests / totalTests) * 100 * progressMultiplier);
     }
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
-
-    // Performance benchmark
-    setResults(prev => [...prev, { function: 'performance', operation: 'benchmark', status: 'running' }]);
-    const perfResult = await runPerformanceBenchmark();
-    allResults.push(perfResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
-
-    // Company linking test
-    setResults(prev => [...prev, { function: 'company_linking', operation: 'auto_create_test', status: 'running' }]);
-    const linkingResult = await runCompanyContactLinkingTest();
-    allResults.push(linkingResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
-
-    // Data integrity test
-    setResults(prev => [...prev, { function: 'integrity', operation: 'test', status: 'running' }]);
-    const integrityResult = await runDataIntegrityCheck();
-    allResults.push(integrityResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
-
-    // Error handling test
-    setResults(prev => [...prev, { function: 'error_handling', operation: 'test', status: 'running' }]);
-    const errorResult = await runErrorHandlingTest();
-    allResults.push(errorResult);
-    setResults([...allResults]);
-    completedTests++;
-    setProgress((completedTests / totalTests) * 100);
 
     // Final cleanup
     const remainingCleanup = Object.values(testDataToCleanup).flat().filter(Boolean);
     if (remainingCleanup.length > 0) {
-      console.log('🧹 Performing final cleanup for remaining test data...', testDataToCleanup);
-      
       allResults.push({
         function: 'cleanup',
         operation: 'final_cleanup',
@@ -908,37 +1310,75 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       };
       setResults([...allResults]);
       
-      if (cleanupResults.length > 0) {
-        toast.info(`🧹 Cleaned up ${cleanupResults.filter(r => r.includes('✅')).length} test records`);
-      }
-      
       cleanupDataRef.current = {};
     }
+  };
 
-    setIsRunning(false);
-    
-    const successCount = allResults.filter(r => r.status === 'success').length;
-    const failedCount = allResults.filter(r => r.status === 'failed').length;
-    const skippedCount = allResults.filter(r => r.status === 'skipped').length;
-    
-    if (failedCount === 0) {
-      toast.success(`All function tests passed! ${successCount} successful, ${skippedCount} skipped`);
-    } else {
-      toast.warning(`Function tests completed: ${successCount} passed, ${failedCount} failed, ${skippedCount} skipped`);
+  // Main test suite runner
+  const runCompleteTestSuite = async () => {
+    if (!userData) {
+      toast.error('Please log in to run function tests');
+      return;
+    }
+
+    setIsRunning(true);
+    setResults([]);
+    setProgress(0);
+    setCreatedIds({});
+
+    try {
+      await runFunctionTestLogic();
+      
+      const successCount = results.filter(r => r.status === 'success').length;
+      const failedCount = results.filter(r => r.status === 'failed').length;
+      const skippedCount = results.filter(r => r.status === 'skipped').length;
+      
+      if (failedCount === 0) {
+        toast.success(`All function tests passed! ${successCount} successful, ${skippedCount} skipped`);
+      } else {
+        toast.warning(`Function tests completed: ${successCount} passed, ${failedCount} failed, ${skippedCount} skipped`);
+      }
+    } catch (error) {
+      toast.error('Error running function tests');
+      console.error('Function test error:', error);
+    } finally {
+      setIsRunning(false);
     }
   };
 
   const downloadResults = () => {
+    // Separate results by test type
+    const functionResults = results.filter(r => r.function !== 'quickadd' && r.function !== 'separator');
+    const quickAddResults = results.filter(r => r.function === 'quickadd');
+    const allTestResults = results.filter(r => r.function !== 'separator');
+    
+    const testType = quickAddResults.length > 0 && functionResults.length > 0 ? 'All Tests' :
+                    quickAddResults.length > 0 ? 'QuickAdd Tests' : 'Function Tests';
+    
     const report = {
       timestamp: new Date().toISOString(),
-      testType: 'Function Test Suite',
+      testType: testType,
       user: userData?.email || 'Unknown',
       summary: {
-        total: results.length,
-        success: results.filter(r => r.status === 'success').length,
-        failed: results.filter(r => r.status === 'failed').length,
-        skipped: results.filter(r => r.status === 'skipped').length,
-        avgDuration: results.reduce((acc, r) => acc + (r.duration || 0), 0) / results.length
+        total: allTestResults.length,
+        success: allTestResults.filter(r => r.status === 'success').length,
+        failed: allTestResults.filter(r => r.status === 'failed').length,
+        skipped: allTestResults.filter(r => r.status === 'skipped').length,
+        avgDuration: allTestResults.reduce((acc, r) => acc + (r.duration || 0), 0) / allTestResults.length
+      },
+      breakdown: {
+        functionTests: {
+          total: functionResults.length,
+          success: functionResults.filter(r => r.status === 'success').length,
+          failed: functionResults.filter(r => r.status === 'failed').length,
+          skipped: functionResults.filter(r => r.status === 'skipped').length,
+        },
+        quickAddTests: {
+          total: quickAddResults.length,
+          success: quickAddResults.filter(r => r.status === 'success').length,
+          failed: quickAddResults.filter(r => r.status === 'failed').length,
+          skipped: quickAddResults.filter(r => r.status === 'skipped').length,
+        }
       },
       results: results
     };
@@ -956,6 +1396,9 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     setResults([]);
     setProgress(0);
     setCreatedIds({});
+    setIsRunning(false);
+    setIsQuickAddTesting(false);
+    setIsRunningAll(false);
     cleanupDataRef.current = {};
   };
 
@@ -1029,6 +1472,10 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         return <AlertTriangle className="h-4 w-4" />;
       case 'cleanup':
         return <Trash2 className="h-4 w-4" />;
+      case 'quickadd':
+        return <Zap className="h-4 w-4" />;
+      case 'separator':
+        return <div className="h-4 w-4" />; // Empty div for separator
       default:
         return <Zap className="h-4 w-4" />;
     }
@@ -1066,7 +1513,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           </div>
           <div>
             <h3 className="text-xl font-bold text-gray-100">Function Test Suite</h3>
-            <p className="text-sm text-gray-400">Comprehensive testing for Quick Add Functions & Pipeline Operations</p>
+            <p className="text-sm text-gray-400">Comprehensive testing for CRUD operations, QuickAdd functions, and pipeline operations</p>
           </div>
         </div>
         {onClose && (
@@ -1086,7 +1533,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       <div className="flex gap-3 mb-6 flex-wrap">
         <Button
           onClick={runCompleteTestSuite}
-          disabled={isRunning || !userData}
+          disabled={isRunning || isQuickAddTesting || isRunningAll || !userData}
           className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
         >
           {isRunning ? (
@@ -1097,7 +1544,43 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           ) : (
             <>
               <Play className="h-4 w-4 mr-2" />
-              Run Complete Function Test Suite
+              Run Function Tests
+            </>
+          )}
+        </Button>
+        
+        <Button
+          onClick={runQuickAddTests}
+          disabled={isRunning || isQuickAddTesting || isRunningAll || !userData}
+          className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+        >
+          {isQuickAddTesting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Running QuickAdd Tests...
+            </>
+          ) : (
+            <>
+              <Zap className="h-4 w-4 mr-2" />
+              Run QuickAdd Tests
+            </>
+          )}
+        </Button>
+        
+        <Button
+          onClick={runAllTests}
+          disabled={isRunning || isQuickAddTesting || isRunningAll || !userData}
+          className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
+        >
+          {isRunningAll ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Running All Tests...
+            </>
+          ) : (
+            <>
+              <Play className="h-4 w-4 mr-2" />
+              Run All Tests
             </>
           )}
         </Button>
@@ -1105,7 +1588,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         <Button
           variant="outline"
           onClick={resetTests}
-          disabled={isRunning}
+          disabled={isRunning || isQuickAddTesting || isRunningAll}
           className="bg-gray-800/50 hover:bg-gray-700/50 border-gray-700/50"
         >
           <RotateCcw className="h-4 w-4 mr-2" />
@@ -1141,7 +1624,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
               setIsRunning(false);
             }
           }}
-          disabled={isRunning}
+          disabled={isRunning || isQuickAddTesting || isRunningAll}
           className="bg-orange-800/50 hover:bg-orange-700/50 border-orange-700/50 text-orange-300"
         >
           <Trash2 className="h-4 w-4 mr-2" />
@@ -1152,7 +1635,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           <Button
             variant="outline"
             onClick={manualCleanup}
-            disabled={isRunning}
+            disabled={isRunning || isQuickAddTesting || isRunningAll}
             className="bg-red-800/50 hover:bg-red-700/50 border-red-700/50 text-red-300 hover:text-red-200"
             title={`Clean up ${totalCleanupItems} test records`}
           >
@@ -1163,10 +1646,14 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       </div>
 
       {/* Progress Bar */}
-      {isRunning && (
+      {(isRunning || isQuickAddTesting || isRunningAll) && (
         <div className="mb-6">
           <div className="flex justify-between text-sm text-gray-400 mb-2">
-            <span>Function Testing Progress</span>
+            <span>
+              {isRunningAll ? 'All Tests Progress' : 
+               isQuickAddTesting ? 'QuickAdd Testing Progress' : 
+               'Function Testing Progress'}
+            </span>
             <span>{Math.round(progress)}%</span>
           </div>
           <Progress value={progress} className="h-2 bg-gray-700/50" />
@@ -1177,75 +1664,129 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       {results.length > 0 && (
         <div className="space-y-2 max-h-96 overflow-y-auto">
           <AnimatePresence mode="popLayout">
-            {results.map((result, index) => (
-              <motion.div
-                key={`${result.function}-${result.operation}-${index}`}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-lg border border-gray-700/50"
-              >
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(result.status)}
-                  <div className="flex items-center gap-2">
-                    {getFunctionIcon(result.function)}
-                    <span className="text-sm font-medium text-gray-200 capitalize">{result.function}</span>
-                    <Badge className={cn("text-xs", getOperationBadgeClass(result.operation))}>
-                      {result.operation.toUpperCase()}
-                    </Badge>
+            {results.map((result, index) => {
+              // Handle separator display
+              if (result.function === 'separator') {
+                return (
+                  <motion.div
+                    key={`separator-${index}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex items-center justify-center py-4"
+                  >
+                    <div className="flex items-center gap-4 w-full">
+                      <div className="h-px bg-gradient-to-r from-transparent to-blue-500/50 flex-1" />
+                      <span className="text-sm font-medium text-blue-400 bg-gray-900/50 px-3 py-1 rounded-full border border-blue-500/30">
+                        {result.message}
+                      </span>
+                      <div className="h-px bg-gradient-to-l from-transparent to-blue-500/50 flex-1" />
+                    </div>
+                  </motion.div>
+                );
+              }
+              
+              return (
+                <motion.div
+                  key={`${result.function}-${result.operation}-${index}`}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-lg border border-gray-700/50"
+                >
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(result.status)}
+                    <div className="flex items-center gap-2">
+                      {getFunctionIcon(result.function)}
+                      <span className="text-sm font-medium text-gray-200 capitalize">{result.function}</span>
+                      <Badge className={cn("text-xs", getOperationBadgeClass(result.operation))}>
+                        {result.operation.toUpperCase()}
+                      </Badge>
+                    </div>
                   </div>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  {result.duration && (
-                    <span className="text-xs text-gray-400">{result.duration}ms</span>
-                  )}
-                  {result.message && result.status === 'failed' && (
-                    <span className="text-xs text-red-400 max-w-xs truncate" title={result.message}>
-                      {result.message}
-                    </span>
-                  )}
-                  {result.message && result.status === 'success' && (
-                    <span className="text-xs text-green-400 max-w-xs truncate" title={result.message}>
-                      {result.message}
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+                  
+                  <div className="flex items-center gap-3">
+                    {result.duration && (
+                      <span className="text-xs text-gray-400">{result.duration}ms</span>
+                    )}
+                    {result.message && result.status === 'failed' && (
+                      <span className="text-xs text-red-400 max-w-xs truncate" title={result.message}>
+                        {result.message}
+                      </span>
+                    )}
+                    {result.message && result.status === 'success' && (
+                      <span className="text-xs text-green-400 max-w-xs truncate" title={result.message}>
+                        {result.message}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })}
           </AnimatePresence>
         </div>
       )}
 
       {/* Summary */}
-      {results.length > 0 && !isRunning && (
+      {results.length > 0 && !isRunning && !isQuickAddTesting && !isRunningAll && (
         <div className="mt-6 p-4 bg-gray-800/30 backdrop-blur-sm rounded-lg border border-gray-700/50">
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-green-400">
-                {results.filter(r => r.status === 'success').length}
-              </div>
-              <div className="text-xs text-gray-400">Passed</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-red-400">
-                {results.filter(r => r.status === 'failed').length}
-              </div>
-              <div className="text-xs text-gray-400">Failed</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-yellow-400">
-                {results.filter(r => r.status === 'skipped').length}
-              </div>
-              <div className="text-xs text-gray-400">Skipped</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-300">
-                {Math.round(results.reduce((acc, r) => acc + (r.duration || 0), 0) / results.length)}ms
-              </div>
-              <div className="text-xs text-gray-400">Avg Time</div>
-            </div>
-          </div>
+          {(() => {
+            const validResults = results.filter(r => r.function !== 'separator');
+            const functionResults = validResults.filter(r => r.function !== 'quickadd');
+            const quickAddResults = validResults.filter(r => r.function === 'quickadd');
+            const hasQuickAdd = quickAddResults.length > 0;
+            const hasFunction = functionResults.length > 0;
+            
+            return (
+              <>
+                <div className="grid grid-cols-4 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-green-400">
+                      {validResults.filter(r => r.status === 'success').length}
+                    </div>
+                    <div className="text-xs text-gray-400">Passed</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-red-400">
+                      {validResults.filter(r => r.status === 'failed').length}
+                    </div>
+                    <div className="text-xs text-gray-400">Failed</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-yellow-400">
+                      {validResults.filter(r => r.status === 'skipped').length}
+                    </div>
+                    <div className="text-xs text-gray-400">Skipped</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-300">
+                      {validResults.length > 0 ? Math.round(validResults.reduce((acc, r) => acc + (r.duration || 0), 0) / validResults.length) : 0}ms
+                    </div>
+                    <div className="text-xs text-gray-400">Avg Time</div>
+                  </div>
+                </div>
+                
+                {hasQuickAdd && hasFunction && (
+                  <div className="mt-4 pt-4 border-t border-gray-700/50">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-blue-400">Function Tests</div>
+                        <div className="text-sm text-gray-400 mt-1">
+                          {functionResults.filter(r => r.status === 'success').length} passed, {functionResults.filter(r => r.status === 'failed').length} failed
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-semibold text-green-400">QuickAdd Tests</div>
+                        <div className="text-sm text-gray-400 mt-1">
+                          {quickAddResults.filter(r => r.status === 'success').length} passed, {quickAddResults.filter(r => r.status === 'failed').length} failed
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import type { Activity } from './useActivities';
 import logger from '@/lib/utils/logger';
+import { useViewMode } from '@/contexts/ViewModeContext';
 
 interface LazyActivitiesConfig {
   // Essential: Only fetch data when this is true
@@ -16,6 +17,8 @@ interface LazyActivitiesConfig {
   limit?: number;
   // Activity types to filter
   types?: Array<'sale' | 'outbound' | 'meeting' | 'proposal'>;
+  // Override user ID for view mode
+  viewedUserId?: string;
 }
 
 async function fetchLimitedActivities(config: LazyActivitiesConfig) {
@@ -25,6 +28,9 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
+
+  // Use viewedUserId if provided (view mode), otherwise use authenticated user
+  const targetUserId = config.viewedUserId || user.id;
 
   let query = (supabase as any)
     .from('activities')
@@ -40,7 +46,7 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
         stage_id
       )
     `)
-    .eq('user_id', user.id);
+    .eq('user_id', targetUserId);
 
   // Apply date range filter if provided
   if (config.dateRange) {
@@ -75,10 +81,18 @@ async function fetchLimitedActivities(config: LazyActivitiesConfig) {
 }
 
 export function useLazyActivities(config: LazyActivitiesConfig = { enabled: false }) {
+  const { isViewMode, viewedUser } = useViewMode();
+  
+  // Add viewedUserId to config if in view mode
+  const effectiveConfig = {
+    ...config,
+    viewedUserId: isViewMode && viewedUser ? viewedUser.id : config.viewedUserId
+  };
+  
   const queryResult = useQuery({
-    queryKey: ['activities-lazy', config],
-    queryFn: () => fetchLimitedActivities(config),
-    enabled: config.enabled,
+    queryKey: ['activities-lazy', effectiveConfig],
+    queryFn: () => fetchLimitedActivities(effectiveConfig),
+    enabled: effectiveConfig.enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes - prevent excessive refetching
     cacheTime: 10 * 60 * 1000, // 10 minutes - keep data in cache longer
     refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker

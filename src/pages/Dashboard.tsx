@@ -111,7 +111,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
 
   const getIconColor = (title: string) => {
     switch (title) {
-      case 'Revenue':
+      case 'New Business':
         return 'emerald';
       case 'Outbound':
         return 'blue';
@@ -297,10 +297,10 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
       <div className="space-y-2">
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold text-white" suppressHydrationWarning>
-            {title === 'Revenue' ? `£${value.toLocaleString()}` : value}
+            {title === 'New Business' ? `£${value.toLocaleString()}` : value}
           </span>
           <span className="text-sm text-gray-500 font-medium">
-            / {title === 'Revenue' ? `£${target.toLocaleString()}` : target}
+            / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
           </span>
         </div>
         
@@ -308,7 +308,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
           <div className="h-2.5 bg-gray-900/80 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-none ${
-                title === 'Revenue'
+                title === 'New Business'
                   ? 'bg-emerald-500/80'
                   : title === 'Outbound'
                   ? 'bg-blue-500/80'
@@ -580,7 +580,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
         <MetricCard
           key="revenue-metric"
-          title="Revenue"
+          title="New Business"
           value={metrics.revenue}
           target={targets.revenue_target}
           trend={trends.revenue}

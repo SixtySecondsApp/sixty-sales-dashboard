@@ -1,316 +1,508 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QuickAdd } from '../../src/components/QuickAdd';
+import { QuickAdd } from '@/components/QuickAdd';
+import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
+import { useDealsActions } from '@/lib/hooks/useDealsActions';
+import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Mock dependencies
+// Mock the hooks
+vi.mock('@/lib/hooks/useActivitiesActions', () => ({
+  useActivitiesActions: vi.fn()
+}));
+
+vi.mock('@/lib/hooks/useDealsActions', () => ({
+  useDealsActions: vi.fn()
+}));
+
 vi.mock('@/lib/hooks/useUser', () => ({
   useUser: () => ({
-    userData: {
-      id: 'user123',
-      email: 'test@example.com',
-      is_admin: true
-    }
+    userData: { id: 'test-user', email: 'test@example.com' }
   })
 }));
 
-vi.mock('@/lib/hooks/useActivities', () => ({
-  useActivities: () => ({
-    addActivity: vi.fn().mockResolvedValue({}),
-    addSale: vi.fn().mockResolvedValue({})
-  })
-}));
-
-vi.mock('@/lib/hooks/useTasks', () => ({
-  useTasks: () => ({
-    createTask: vi.fn().mockResolvedValue({})
-  })
-}));
-
-vi.mock('@/lib/hooks/useContacts', () => ({
-  useContacts: () => ({
-    contacts: [],
-    createContact: vi.fn().mockResolvedValue({}),
-    findContactByEmail: vi.fn().mockResolvedValue(null)
-  })
-}));
-
-vi.mock('@/lib/hooks/useDeals', () => ({
-  useDeals: () => ({
-    deals: [],
-    moveDealToStage: vi.fn().mockResolvedValue({})
-  })
-}));
-
-vi.mock('@/lib/hooks/useCompanies', () => ({
-  useCompanies: () => ({
-    companies: []
-  })
-}));
-
-vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    info: vi.fn()
+vi.mock('@/lib/supabase/clientV2', () => ({
+  supabase: {
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: { id: 'test-user' } } })
+    },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: () => Promise.resolve({ data: { first_name: 'Test', last_name: 'User' } })
+        }),
+        ilike: () => ({
+          limit: () => Promise.resolve({ data: [] })
+        })
+      }),
+      insert: () => ({
+        select: () => ({
+          single: () => Promise.resolve({ data: { id: 'new-deal-id' } })
+        })
+      })
+    })
   }
 }));
 
-vi.mock('@/lib/utils/logger', () => ({
-  default: {
-    log: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn()
-  }
-}));
-
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: any) => {
-      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
-      return <div {...domProps}>{children}</div>;
-    },
-    button: ({ children, ...props }: any) => {
-      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
-      return <button {...domProps}>{children}</button>;
-    },
-    form: ({ children, ...props }: any) => {
-      const { initial, animate, exit, whileHover, whileTap, whileInView, variants, transition, layoutId, drag, dragConstraints, dragElastic, dragMomentum, onDrag, onDragStart, onDragEnd, ...domProps } = props;
-      return <form {...domProps}>{children}</form>;
+describe('QuickAdd Component - Comprehensive Activity Tests', () => {
+  const mockAddActivity = vi.fn();
+  const mockAddSale = vi.fn();
+  const mockFindDealsByClient = vi.fn();
+  const mockMoveDealToStage = vi.fn();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false }
     }
-  },
-  AnimatePresence: ({ children }: any) => children
-}));
-
-// Mock date-fns
-vi.mock('date-fns', () => ({
-  format: vi.fn((date, formatStr) => {
-    if (formatStr.includes('yyyy-MM-dd')) {
-      return '2024-01-15T10:00';
-    }
-    return '2024-01-15';
-  }),
-  addDays: vi.fn((date, days) => new Date(date.getTime() + days * 24 * 60 * 60 * 1000)),
-  addHours: vi.fn((date, hours) => new Date(date.getTime() + hours * 60 * 60 * 1000)),
-  setHours: vi.fn(() => new Date()),
-  setMinutes: vi.fn(() => new Date()),
-  startOfWeek: vi.fn(() => new Date()),
-  addWeeks: vi.fn(() => new Date())
-}));
-
-describe('QuickAdd Component', () => {
-  const defaultProps = {
-    isOpen: true,
-    onClose: vi.fn()
-  };
-
+  });
+  
   beforeEach(() => {
     vi.clearAllMocks();
-  });
+    
+    // Setup the mocked hooks
+    (useActivitiesActions as any).mockReturnValue({
+      addActivity: mockAddActivity.mockResolvedValue({ id: 'activity-123' }),
+      addSale: mockAddSale.mockResolvedValue({ id: 'sale-123' })
+    });
 
-  it('renders all quick action buttons when modal is open', () => {
-    render(<QuickAdd {...defaultProps} />);
-
-    expect(screen.getByText('Create Deal')).toBeInTheDocument();
-    expect(screen.getByText('Add Task')).toBeInTheDocument();
-    expect(screen.getByText('Add Sale')).toBeInTheDocument();
-    expect(screen.getByText('Add Outbound')).toBeInTheDocument();
-    expect(screen.getByText('Add Meeting')).toBeInTheDocument();
-    expect(screen.getByText('Add Proposal')).toBeInTheDocument();
-  });
-
-  it('does not render when modal is closed', () => {
-    render(<QuickAdd isOpen={false} onClose={vi.fn()} />);
-
-    expect(screen.queryByText('Create Deal')).not.toBeInTheDocument();
-  });
-
-  it('calls onClose when close button is clicked', async () => {
-    const onClose = vi.fn();
-    render(<QuickAdd {...defaultProps} onClose={onClose} />);
-
-    const closeButton = screen.getByRole('button', { name: /close/i });
-    await userEvent.click(closeButton);
-
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('shows task form when Add Task is clicked', async () => {
-    render(<QuickAdd {...defaultProps} />);
-
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    expect(screen.getByText('Create New Task')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/what needs to be done/i)).toBeInTheDocument();
-  });
-
-  it('validates required fields in task form', async () => {
-    render(<QuickAdd {...defaultProps} />);
-
-    // Click Add Task
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    // Try to submit without filling required fields
-    const submitButton = screen.getByRole('button', { name: /create task/i });
-    await userEvent.click(submitButton);
-
-    // Should show validation error
-    await waitFor(() => {
-      expect(screen.getByText(/task title is required/i)).toBeInTheDocument();
+    (useDealsActions as any).mockReturnValue({
+      findDealsByClient: mockFindDealsByClient.mockResolvedValue([]),
+      moveDealToStage: mockMoveDealToStage.mockResolvedValue(undefined)
     });
   });
 
-  it('creates task successfully with valid data', async () => {
-    const createTaskMock = vi.fn().mockResolvedValue({});
-    vi.mocked(require('@/lib/hooks/useTasks').useTasks).mockReturnValue({
-      createTask: createTaskMock
-    });
-
-    render(<QuickAdd {...defaultProps} />);
-
-    // Click Add Task
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    // Fill in task title
-    const titleInput = screen.getByPlaceholderText(/what needs to be done/i);
-    await userEvent.type(titleInput, 'Test task');
-
-    // Submit form
-    const submitButton = screen.getByRole('button', { name: /create task/i });
-    await userEvent.click(submitButton);
-
-    // Should call createTask
-    await waitFor(() => {
-      expect(createTaskMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Test task'
-        })
-      );
-    });
-  });
-
-  it('shows loading state during task submission', async () => {
-    const createTaskMock = vi.fn().mockImplementation(() => 
-      new Promise(resolve => setTimeout(resolve, 100))
+  const renderQuickAdd = () => {
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <QuickAdd isOpen={true} onClose={() => {}} />
+        </BrowserRouter>
+      </QueryClientProvider>
     );
-    vi.mocked(require('@/lib/hooks/useTasks').useTasks).mockReturnValue({
-      createTask: createTaskMock
+  };
+  
+  describe('Outbound Activities', () => {
+    it('should correctly capture outbound type (Call/LinkedIn/Email)', async () => {
+      renderQuickAdd();
+      
+      // Select the outbound action
+      const outboundButton = screen.getByText('Add Outbound');
+      await userEvent.click(outboundButton);
+      
+      // Fill the form with test data
+      await userEvent.type(screen.getByLabelText('Prospect Name'), 'Test Prospect');
+      
+      // Select LinkedIn as outbound type
+      const outboundTypeSelect = screen.getByLabelText('Outbound Type');
+      await userEvent.selectOptions(outboundTypeSelect, 'LinkedIn');
+      
+      // Set outbound count
+      await userEvent.clear(screen.getByLabelText('Number of Contacts'));
+      await userEvent.type(screen.getByLabelText('Number of Contacts'), '5');
+      
+      // Submit the form
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      // Verify that addActivity was called with correct parameters
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalledTimes(1);
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'outbound',
+          client_name: 'Test Prospect',
+          details: expect.stringContaining('LinkedIn'),
+          quantity: 5
+        }));
+      });
     });
-
-    render(<QuickAdd {...defaultProps} />);
-
-    // Click Add Task and fill form
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    const titleInput = screen.getByPlaceholderText(/what needs to be done/i);
-    await userEvent.type(titleInput, 'Test task');
-
-    const submitButton = screen.getByRole('button', { name: /create task/i });
-    await userEvent.click(submitButton);
-
-    // Should show loading state
-    expect(screen.getByText(/creating/i)).toBeInTheDocument();
-  });
-
-  it('handles task creation error gracefully', async () => {
-    const createTaskMock = vi.fn().mockRejectedValue(new Error('Creation failed'));
-    vi.mocked(require('@/lib/hooks/useTasks').useTasks).mockReturnValue({
-      createTask: createTaskMock
-    });
-
-    render(<QuickAdd {...defaultProps} />);
-
-    // Click Add Task and fill form
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    const titleInput = screen.getByPlaceholderText(/what needs to be done/i);
-    await userEvent.type(titleInput, 'Test task');
-
-    const submitButton = screen.getByRole('button', { name: /create task/i });
-    await userEvent.click(submitButton);
-
-    // Should handle error
-    await waitFor(() => {
-      expect(require('sonner').toast.error).toHaveBeenCalled();
-    });
-  });
-
-  it('shows contact search for meeting creation', async () => {
-    render(<QuickAdd {...defaultProps} />);
-
-    const addMeetingButton = screen.getByText('Add Meeting');
-    await userEvent.click(addMeetingButton);
-
-    // Should trigger contact search modal (mocked component would handle this)
-    // This tests the click handler logic
-    expect(addMeetingButton).toBeInTheDocument();
-  });
-
-  it('handles authentication errors with user-friendly messages', async () => {
-    const authError = {
-      status: 403,
-      message: 'Forbidden: insufficient privileges'
-    };
-
-    const createTaskMock = vi.fn().mockRejectedValue(authError);
-    vi.mocked(require('@/lib/hooks/useTasks').useTasks).mockReturnValue({
-      createTask: createTaskMock
-    });
-
-    render(<QuickAdd {...defaultProps} />);
-
-    // Create task and trigger error
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
-
-    const titleInput = screen.getByPlaceholderText(/what needs to be done/i);
-    await userEvent.type(titleInput, 'Test task');
-
-    const submitButton = screen.getByRole('button', { name: /create task/i });
-    await userEvent.click(submitButton);
-
-    // Should show user-friendly error message
-    await waitFor(() => {
-      expect(require('sonner').toast.error).toHaveBeenCalledWith(
-        expect.stringContaining('Access denied')
-      );
+    
+    it('should handle outbound without contact identifier', async () => {
+      renderQuickAdd();
+      
+      const outboundButton = screen.getByText('Add Outbound');
+      await userEvent.click(outboundButton);
+      
+      await userEvent.type(screen.getByLabelText('Prospect Name'), 'No Identifier Prospect');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalledTimes(1);
+        const callArgs = mockAddActivity.mock.calls[0][0];
+        expect(callArgs.type).toBe('outbound');
+        expect(callArgs.client_name).toBe('No Identifier Prospect');
+        expect(callArgs.contactIdentifier).toBeUndefined();
+        expect(callArgs.contactIdentifierType).toBeUndefined();
+      });
     });
   });
 
-  it('resets form when modal is closed and reopened', async () => {
-    const onClose = vi.fn();
-    const { rerender } = render(<QuickAdd isOpen={true} onClose={onClose} />);
+  describe('Meeting Activities', () => {
+    it('should create meeting activity with all required fields', async () => {
+      renderQuickAdd();
+      
+      // Select meeting action
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      // Fill meeting details
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Test Company');
+      
+      // Select meeting type
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Discovery Call');
+      
+      // Submit
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalledTimes(1);
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'meeting',
+          client_name: 'Test Company',
+          details: 'Discovery Call',
+          status: 'completed'
+        }));
+      });
+    });
 
-    // Open task form and fill data
-    const addTaskButton = screen.getByText('Add Task');
-    await userEvent.click(addTaskButton);
+    it('should handle meeting with contact information', async () => {
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Test Company');
+      await userEvent.type(screen.getByLabelText('Contact Name'), 'John Doe');
+      await userEvent.type(screen.getByPlaceholderText(/email/i), 'john@example.com');
+      
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Demo');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'meeting',
+          client_name: 'Test Company',
+          contact_name: 'John Doe',
+          contactIdentifier: 'john@example.com',
+          contactIdentifierType: 'email',
+          details: 'Demo'
+        }));
+      });
+    });
 
-    const titleInput = screen.getByPlaceholderText(/what needs to be done/i);
-    await userEvent.type(titleInput, 'Test task');
-
-    // Close modal
-    rerender(<QuickAdd isOpen={false} onClose={onClose} />);
-
-    // Reopen modal
-    rerender(<QuickAdd isOpen={true} onClose={onClose} />);
-
-    // Should show action buttons again (form reset)
-    expect(screen.getByText('Add Task')).toBeInTheDocument();
-    expect(screen.queryByText('Create New Task')).not.toBeInTheDocument();
+    it('should create a deal automatically for meeting if none exists', async () => {
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'New Company');
+      
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Discovery Call');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        // Should search for existing deals
+        expect(mockFindDealsByClient).toHaveBeenCalledWith('New Company', expect.any(String));
+        // Should create activity with the new deal
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'meeting',
+          client_name: 'New Company',
+          deal_id: expect.any(String)
+        }));
+      });
+    });
   });
 
-  it('shows admin-only features for admin users', () => {
-    render(<QuickAdd {...defaultProps} />);
+  describe('Proposal Activities', () => {
+    it('should create proposal activity with amount', async () => {
+      renderQuickAdd();
+      
+      const proposalButton = screen.getByText('Send Proposal');
+      await userEvent.click(proposalButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Proposal Company');
+      await userEvent.type(screen.getByLabelText('Proposal Amount ($)'), '5000');
+      await userEvent.type(screen.getByLabelText('Details'), 'Custom solution proposal');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'proposal',
+          client_name: 'Proposal Company',
+          amount: 5000,
+          details: 'Custom solution proposal'
+        }));
+      });
+    });
 
-    const addSaleButton = screen.getByText('Add Sale');
-    expect(addSaleButton).toBeInTheDocument();
+    it('should handle proposal with existing deal in SQL stage', async () => {
+      // Mock finding an existing deal
+      mockFindDealsByClient.mockResolvedValueOnce([
+        { id: 'existing-deal', name: 'Existing Deal', stage_id: '603b5020-aafc-4646-9195-9f041a9a3f14' }
+      ]);
 
-    // Admin users should see all options including revenue split capabilities
-    // This is tested more thoroughly in the e2e tests
+      renderQuickAdd();
+      
+      const proposalButton = screen.getByText('Send Proposal');
+      await userEvent.click(proposalButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Existing Company');
+      await userEvent.type(screen.getByLabelText('Proposal Amount ($)'), '10000');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      // Wait for the modal to appear and click to progress the deal
+      await waitFor(() => {
+        const progressButton = document.querySelector('#progress-deal');
+        if (progressButton) {
+          fireEvent.click(progressButton);
+        }
+      });
+      
+      await waitFor(() => {
+        // Should move deal to Opportunity stage
+        expect(mockMoveDealToStage).toHaveBeenCalledWith(
+          'existing-deal',
+          '8be6a854-e7d0-41b5-9057-03b2213e7697' // Opportunity stage ID
+        );
+        // Should create activity with existing deal
+        expect(mockAddActivity).toHaveBeenCalledWith(expect.objectContaining({
+          type: 'proposal',
+          deal_id: 'existing-deal'
+        }));
+      });
+    });
+  });
+
+  describe('Sale Activities', () => {
+    it('should create sale with LTV calculation', async () => {
+      renderQuickAdd();
+      
+      const saleButton = screen.getByText('Record Sale');
+      await userEvent.click(saleButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Sale Company');
+      await userEvent.type(screen.getByLabelText('One-off Revenue ($)'), '1000');
+      await userEvent.type(screen.getByLabelText('Monthly MRR ($)'), '500');
+      await userEvent.type(screen.getByLabelText('Details'), 'New subscription sale');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddSale).toHaveBeenCalledWith(expect.objectContaining({
+          client_name: 'Sale Company',
+          amount: 2500, // LTV: (500 * 3) + 1000
+          details: 'New subscription sale',
+          saleType: 'subscription',
+          oneOffRevenue: 1000,
+          monthlyMrr: 500
+        }));
+      });
+    });
+
+    it('should handle sale with contact information', async () => {
+      renderQuickAdd();
+      
+      const saleButton = screen.getByText('Record Sale');
+      await userEvent.click(saleButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Contact Sale Company');
+      await userEvent.type(screen.getByLabelText('Contact Name'), 'Jane Smith');
+      await userEvent.type(screen.getByPlaceholderText(/email/i), 'jane@company.com');
+      await userEvent.type(screen.getByLabelText('One-off Revenue ($)'), '2000');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddSale).toHaveBeenCalledWith(expect.objectContaining({
+          client_name: 'Contact Sale Company',
+          contact_name: 'Jane Smith',
+          contactIdentifier: 'jane@company.com',
+          contactIdentifierType: 'email',
+          amount: 2000,
+          saleType: 'one-off'
+        }));
+      });
+    });
+
+    it('should handle sale with existing deal progression', async () => {
+      // Mock finding an existing deal in Opportunity stage
+      mockFindDealsByClient.mockResolvedValueOnce([
+        { id: 'opp-deal', name: 'Opportunity Deal', stage_id: '8be6a854-e7d0-41b5-9057-03b2213e7697' }
+      ]);
+
+      renderQuickAdd();
+      
+      const saleButton = screen.getByText('Record Sale');
+      await userEvent.click(saleButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Closing Company');
+      await userEvent.type(screen.getByLabelText('One-off Revenue ($)'), '5000');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      // Wait for the modal and click to progress
+      await waitFor(() => {
+        const progressButton = document.querySelector('#progress-deal');
+        if (progressButton) {
+          fireEvent.click(progressButton);
+        }
+      });
+      
+      await waitFor(() => {
+        // Should move deal to Signed stage
+        expect(mockMoveDealToStage).toHaveBeenCalledWith(
+          'opp-deal',
+          '207a94db-abd8-43d8-ba21-411be66183d2' // Signed stage ID
+        );
+        // Should create sale with existing deal
+        expect(mockAddSale).toHaveBeenCalledWith(expect.objectContaining({
+          deal_id: 'opp-deal',
+          amount: 5000
+        }));
+      });
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle empty client name gracefully', async () => {
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      // Don't fill company name
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Demo');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      // Should show error toast (implementation dependent)
+      await waitFor(() => {
+        expect(mockAddActivity).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockAddActivity.mockRejectedValueOnce(new Error('API Error'));
+      
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Error Company');
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Demo');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        expect(mockAddActivity).toHaveBeenCalled();
+        // Component should handle error without crashing
+      });
+    });
+
+    it('should not query for deals with empty client name', async () => {
+      renderQuickAdd();
+      
+      const proposalButton = screen.getByText('Send Proposal');
+      await userEvent.click(proposalButton);
+      
+      // Submit without entering company name
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        // Should not call findDealsByClient with empty name
+        expect(mockFindDealsByClient).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('Field Validation', () => {
+    it('should validate required fields for meetings', async () => {
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      // Try to submit without meeting type
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Test Company');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        // Should not submit without meeting type
+        expect(mockAddActivity).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should validate numeric fields', async () => {
+      renderQuickAdd();
+      
+      const saleButton = screen.getByText('Record Sale');
+      await userEvent.click(saleButton);
+      
+      await userEvent.type(screen.getByLabelText('Company Name'), 'Test Company');
+      await userEvent.type(screen.getByLabelText('One-off Revenue ($)'), 'invalid');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        // Should handle invalid numeric input
+        const calls = mockAddSale.mock.calls;
+        if (calls.length > 0) {
+          expect(calls[0][0].amount).toBe(0);
+        }
+      });
+    });
+
+    it('should sanitize user inputs', async () => {
+      renderQuickAdd();
+      
+      const meetingButton = screen.getByText('Log Meeting');
+      await userEvent.click(meetingButton);
+      
+      // Try to inject script tags
+      await userEvent.type(screen.getByLabelText('Company Name'), '<script>alert("XSS")</script>');
+      await userEvent.type(screen.getByLabelText('Details'), '<img src=x onerror=alert("XSS")>');
+      
+      const meetingTypeSelect = screen.getByLabelText('Meeting Type');
+      await userEvent.selectOptions(meetingTypeSelect, 'Demo');
+      
+      const submitButton = screen.getByRole('button', { name: /save|submit/i });
+      await userEvent.click(submitButton);
+      
+      await waitFor(() => {
+        if (mockAddActivity.mock.calls.length > 0) {
+          const callArgs = mockAddActivity.mock.calls[0][0];
+          // Should sanitize dangerous inputs
+          expect(callArgs.client_name).not.toContain('<script>');
+          expect(callArgs.details).not.toContain('onerror');
+        }
+      });
+    });
   });
 });

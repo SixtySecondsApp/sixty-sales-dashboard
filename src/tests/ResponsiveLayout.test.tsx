@@ -157,7 +157,7 @@ describe('Responsive Layout Tests', () => {
         </div>
       );
 
-      render(<ResponsiveStatCard title="Revenue" />);
+      render(<ResponsiveStatCard title="New Business" />);
       
       const card = screen.getByTestId('responsive-stat-card');
       const title = card.querySelector('h3');
@@ -234,7 +234,7 @@ describe('Responsive Layout Tests', () => {
     test('maintains stable layout during data updates', () => {
       const { rerender } = render(
         <ResponsiveStatsGrid>
-          <MockStatCard title="Revenue" />
+          <MockStatCard title="New Business" />
         </ResponsiveStatsGrid>
       );
 
@@ -244,7 +244,7 @@ describe('Responsive Layout Tests', () => {
       // Simulate data update
       rerender(
         <ResponsiveStatsGrid>
-          <MockStatCard title="Revenue" className="updated" />
+          <MockStatCard title="New Business" className="updated" />
         </ResponsiveStatsGrid>
       );
 

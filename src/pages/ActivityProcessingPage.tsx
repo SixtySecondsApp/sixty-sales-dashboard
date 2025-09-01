@@ -42,6 +42,7 @@ export function ActivityProcessingPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | undefined>(undefined); // State for user filter
   const [userList, setUserList] = useState<UserProfile[]>([]); // State for user list
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [showAutoProcessInfo, setShowAutoProcessInfo] = useState(true);
 
   // Fetch user list for the dropdown
   useEffect(() => {
@@ -232,6 +233,26 @@ export function ActivityProcessingPage() {
     <div className="container mx-auto py-8">
       <h1 className="text-2xl font-bold mb-4">{pageTitle}</h1>
       <p className="text-muted-foreground mb-6">{pageDescription}</p>
+
+      {/* Auto-Processing Information Banner */}
+      {showAutoProcessInfo && currentView === 'process-ready' && (
+        <Alert className="mb-6 bg-green-900/20 border-green-800">
+          <AlertTitle className="text-green-400">🎉 Automatic Processing is Now Active!</AlertTitle>
+          <AlertDescription className="text-gray-300">
+            New activities with email addresses are automatically processed into deals. 
+            Activities shown here may be legacy items or require manual review. 
+            The "Process" button remains available for manual processing when needed.
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="ml-4 text-xs"
+              onClick={() => setShowAutoProcessInfo(false)}
+            >
+              Dismiss
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Filters Row */}
       <div className="flex flex-col md:flex-row gap-4 mb-6">

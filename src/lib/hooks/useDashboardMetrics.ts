@@ -7,6 +7,7 @@ import { getDate, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useProgressiveDashboardData } from './useLazyActivities';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
+import { useViewMode } from '@/contexts/ViewModeContext';
 
 interface DashboardMetrics {
   revenue: number;
@@ -74,6 +75,7 @@ function calculateTrend(current: number, previous: number): number {
 
 export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true) {
   const queryClient = useQueryClient();
+  const { isViewMode, viewedUser } = useViewMode();
   
   // Progressive data loading
   const { 
@@ -102,6 +104,8 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     currentMonth.activities?.length ?? 'loading',
     previousMonth.activities?.length ?? 'loading',
     currentDayOfMonth,
+    // Add ViewMode user to cache key
+    isViewMode && viewedUser ? `view-${viewedUser.id}` : 'own',
     // Add a timestamp component that changes when activities change
     currentMonth.activities ? JSON.stringify(currentMonth.activities.map(a => a.id)).slice(0, 20) : 'no-data'
   ];
@@ -179,7 +183,10 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Subscribe to activities table changes for the current user
+        // Use viewed user ID if in view mode, otherwise use current user
+        const targetUserId = isViewMode && viewedUser ? viewedUser.id : user.id;
+
+        // Subscribe to activities table changes for the target user
         const channel = supabase
           .channel('dashboard-activities-changes')
           .on(
@@ -188,7 +195,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
               event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
               schema: 'public',
               table: 'activities',
-              filter: `user_id=eq.${user.id}`
+              filter: `user_id=eq.${targetUserId}`
             },
             (payload) => {
               logger.log('🔄 Real-time activity update received:', payload);
@@ -236,7 +243,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     return () => {
       cleanupPromise.then(cleanup => cleanup?.());
     };
-  }, [enabled, queryClient]);
+  }, [enabled, queryClient, isViewMode, viewedUser?.id]);
 
   // Force refresh function for manual data reload
   const refreshDashboard = useCallback(() => {

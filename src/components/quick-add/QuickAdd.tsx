@@ -458,10 +458,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           ...(selectedContact
             ? {
                 contactIdentifier: selectedContact.email,
-                contactIdentifierType: 'email' as const,
-                contact_name: selectedContact.full_name || 
-                             `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() ||
-                             selectedContact.email
+                contactIdentifierType: 'email' as const
               }
             : {})
         });
@@ -714,11 +711,13 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                 toast.success(`📊 Deal created and linked to ${selectedAction}`);
               } else {
                 logger.warn(`Failed to create deal for ${selectedAction}:`, dealError);
+                finalDealId = null; // Clear any invalid deal ID
               }
             }
           } catch (error) {
             logger.error(`Error creating deal for ${selectedAction}:`, error);
             // Continue anyway - we can still create the activity without a deal
+            finalDealId = null; // Clear any invalid deal ID
           }
         }
         
@@ -748,7 +747,6 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
             deal_id: finalDealId,
             contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
-            contact_name: sanitizedFormData.contact_name,
             // Pass the split values for proper recording
             oneOffRevenue: oneOff,
             monthlyMrr: monthly
@@ -768,7 +766,6 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
             deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
             contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
-            contact_name: sanitizedFormData.contact_name,
             status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'
           });
           logger.log(`✅ ${selectedAction} activity created successfully with deal_id: ${finalDealId}`);

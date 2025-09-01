@@ -26,7 +26,7 @@ interface ViewSpecificStatsProps {
 export function ViewSpecificStats({ activeTab, companies = [], contacts = [], deals = [], meetings = [] }: ViewSpecificStatsProps) {
   // Calculate companies stats
   const companiesStats = [
-    { label: 'Total Revenue', value: '$2.4M', change: '+15%', icon: DollarSign, color: 'emerald' },
+    { label: 'Total New Business', value: '$2.4M', change: '+15%', icon: DollarSign, color: 'emerald' },
     { label: 'Active Deals', value: deals.length.toString(), change: '+8', icon: Heart, color: 'blue' },
     { label: 'Companies', value: companies.length.toString(), change: '+12%', icon: Building2, color: 'violet' },
     { label: 'This Month', value: '28', change: '+5', icon: Calendar, color: 'orange' },
