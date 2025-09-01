@@ -1275,10 +1275,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         company: `Test Company ${timestamp}`,
         value: 25000,
         stage_id: sqlStage.id,
-        owner_id: userData!.id,
-        one_off_revenue: 15000,
-        monthly_mrr: 1000,
-        notes: 'Test deal for value updating'
+        owner_id: userData!.id
       };
       
       const { data: deal, error: createError } = await supabase
@@ -1295,15 +1292,11 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       // Update the deal value
       const newValue = 35000;
-      const newOneOff = 25000;
-      const newMrr = 1500;
       
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update({ 
           value: newValue,
-          one_off_revenue: newOneOff,
-          monthly_mrr: newMrr,
           updated_at: new Date().toISOString()
         })
         .eq('id', deal.id)
@@ -1367,8 +1360,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       const additionalInfo = {
         phone: `+1-555-${timestamp.toString().slice(-4)}`,
         title: 'Senior Manager',
-        linkedin_url: `https://linkedin.com/in/basic-contact-${timestamp}`,
-        notes: 'Added through pipeline editing test'
+        linkedin_url: `https://linkedin.com/in/basic-contact-${timestamp}`
       };
       
       const { data: updatedContact, error: updateError } = await supabase
@@ -1435,8 +1427,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         company: `Basic Company ${timestamp}`,
         value: 30000,
         stage_id: sqlStage.id,
-        owner_id: userData!.id,
-        notes: 'Basic deal for comprehensive update'
+        owner_id: userData!.id
       };
       
       const { data: deal, error: createError } = await supabase
@@ -1458,10 +1449,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         value: 45000,
         stage_id: opportunityStage.id,
         probability: 75,
-        one_off_revenue: 30000,
-        monthly_mrr: 2000,
-        expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        notes: 'Completely updated through pipeline editing test',
+        expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now, date only
         updated_at: new Date().toISOString(),
         stage_changed_at: new Date().toISOString()
       };
@@ -1492,7 +1480,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         function: 'pipeline',
         operation: 'update_all_deal_fields',
         status: 'success',
-        message: `Comprehensive update: name, company, value, stage, probability, revenue split, close date, and notes`,
+        message: `Comprehensive update: name, company, value, stage, probability, and close date`,
         duration: Date.now() - startTime,
         data: { originalDeal: deal, updatedDeal }
       };
@@ -1530,10 +1518,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         value: 40000,
         stage_id: verbalStage.id,
         owner_id: userData!.id,
-        one_off_revenue: 25000,
-        monthly_mrr: 1500,
-        probability: 85,
-        notes: 'Testing database persistence'
+        probability: 85
       };
       
       const { data: deal, error: dealError } = await supabase
