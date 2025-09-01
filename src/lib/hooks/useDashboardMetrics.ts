@@ -269,21 +269,13 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
 
   // Force refresh function for manual data reload
   const refreshDashboard = useCallback(() => {
-    logger.log('🔄 Manual dashboard refresh triggered - clearing all caches');
+    logger.log('🔄 Dashboard refresh triggered');
     
-    // Clear ALL caches to ensure fresh data
-    queryClient.removeQueries({ queryKey: ['activities-lazy'] });
-    queryClient.removeQueries({ queryKey: ['dashboard-metrics'] });
-    
-    // Invalidate to trigger refetch
+    // Just invalidate queries to trigger refetch - don't remove them
     queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     
-    // Force immediate refetch
-    queryClient.refetchQueries({ queryKey: ['activities-lazy'] });
-    queryClient.refetchQueries({ queryKey: ['dashboard-metrics'] });
-    
-    logger.log('✅ Cache cleared and data refetching');
+    logger.log('✅ Queries invalidated, refetching data');
   }, [queryClient]);
 
   return {

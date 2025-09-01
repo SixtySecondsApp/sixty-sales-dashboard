@@ -115,7 +115,14 @@ export function useLazyActivities(config: LazyActivitiesConfig = { enabled: fals
 // Hook specifically for dashboard metrics with progressive loading
 export function useDashboardActivities(currentMonth: Date, enabled: boolean = true) {
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  logger.log('[useDashboardActivities] Fetching activities for:', {
+    month: currentMonth.toLocaleDateString(),
+    start: startOfMonth.toISOString(),
+    end: endOfMonth.toISOString(),
+    enabled
+  });
 
   return useLazyActivities({
     enabled,
@@ -129,7 +136,7 @@ export function useDashboardActivities(currentMonth: Date, enabled: boolean = tr
 export function usePreviousMonthActivities(currentMonth: Date, enabled: boolean = false) {
   const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
   const startOfPrevMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1);
-  const endOfPrevMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0);
+  const endOfPrevMonth = new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0, 23, 59, 59, 999);
 
   return useLazyActivities({
     enabled,
