@@ -462,7 +462,8 @@ export default function Dashboard() {
     isInitialLoad,
     isLoadingComparisons,
     hasComparisons,
-    currentMonthActivities
+    currentMonthActivities,
+    refreshDashboard
   } = useDashboardMetrics(selectedMonth, showContent);
   
   // Lazy load recent deals only when user scrolls to that section
@@ -491,6 +492,21 @@ export default function Dashboard() {
 
   // Check if any data is loading
   const isAnyLoading = isInitialLoad || isLoadingSales || !userData;
+
+  // Force refresh when month changes
+  useEffect(() => {
+    logger.log('📅 Month changed, forcing dashboard refresh', {
+      month: format(selectedMonth, 'MMMM yyyy')
+    });
+    // Force a complete refresh of dashboard data
+    refreshDashboard();
+  }, [selectedMonth, refreshDashboard]);
+
+  // Force refresh on initial mount to ensure fresh data
+  useEffect(() => {
+    logger.log('🚀 Dashboard mounted, forcing initial data refresh');
+    refreshDashboard();
+  }, [refreshDashboard]);
 
   // Use effect to handle stable loading state
   useEffect(() => {

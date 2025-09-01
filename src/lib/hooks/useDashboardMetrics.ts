@@ -1,7 +1,7 @@
 // Cached dashboard metrics with progressive loading and comparison calculations
 // Avoids recomputation until user activities change
 
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getDate, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { useProgressiveDashboardData } from './useLazyActivities';
@@ -268,13 +268,23 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
   }, [enabled, queryClient]);
 
   // Force refresh function for manual data reload
-  const refreshDashboard = () => {
-    logger.log('🔄 Manual dashboard refresh triggered');
-    invalidateMetrics();
-    // Also refetch the queries directly
+  const refreshDashboard = useCallback(() => {
+    logger.log('🔄 Manual dashboard refresh triggered - clearing all caches');
+    
+    // Clear ALL caches to ensure fresh data
+    queryClient.removeQueries({ queryKey: ['activities-lazy'] });
+    queryClient.removeQueries({ queryKey: ['dashboard-metrics'] });
+    
+    // Invalidate to trigger refetch
+    queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+    
+    // Force immediate refetch
     queryClient.refetchQueries({ queryKey: ['activities-lazy'] });
     queryClient.refetchQueries({ queryKey: ['dashboard-metrics'] });
-  };
+    
+    logger.log('✅ Cache cleared and data refetching');
+  }, [queryClient]);
 
   return {
     // Metrics data
