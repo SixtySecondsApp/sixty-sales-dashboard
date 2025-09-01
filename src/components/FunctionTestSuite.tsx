@@ -19,7 +19,8 @@ import {
   Building2,
   Zap,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,7 @@ interface FunctionTestSuiteProps {
 export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [isQuickAddTesting, setIsQuickAddTesting] = useState(false);
+  const [isPipelineTesting, setIsPipelineTesting] = useState(false);
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
   const [progress, setProgress] = useState(0);
@@ -993,6 +995,632 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     }
   };
 
+  // Pipeline Editing Test Functions
+  const runPipelineEditingTests = async () => {
+    if (!userData) {
+      toast.error('Please log in to run pipeline editing tests');
+      return;
+    }
+
+    setIsPipelineTesting(true);
+    setResults([]);
+    setProgress(0);
+    
+    const pipelineTests = [
+      { name: 'Create New Contact', test: runCreateContactTest },
+      { name: 'Choose Existing Contact', test: runChooseExistingContactTest },
+      { name: 'Update Deal Value', test: runUpdateDealValueTest },
+      { name: 'Add Contact Information', test: runAddContactInformationTest },
+      { name: 'Update All Deal Fields', test: runUpdateAllDealFieldsTest },
+      { name: 'Verify Database Persistence', test: runVerifyDatabasePersistenceTest }
+    ];
+    
+    const totalTests = pipelineTests.length;
+    let completedTests = 0;
+    const allResults: TestResult[] = [];
+
+    // Run each Pipeline Editing test
+    for (const testCase of pipelineTests) {
+      setResults(prev => [...prev, { 
+        function: 'pipeline', 
+        operation: testCase.name.toLowerCase().replace(/\s+/g, '_'), 
+        status: 'running' 
+      }]);
+      
+      try {
+        console.log(`🧪 Starting Pipeline test: ${testCase.name}`);
+        const result = await testCase.test();
+        console.log(`✅ Pipeline test ${testCase.name} completed:`, result);
+        allResults.push(result);
+        setResults([...allResults]);
+        
+        completedTests++;
+        setProgress((completedTests / totalTests) * 100);
+        
+        // Small delay between tests
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        console.error(`❌ Pipeline test ${testCase.name} failed with error:`, error);
+        const errorResult = {
+          function: 'pipeline',
+          operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
+          status: 'failed' as const,
+          message: `Test error: ${(error as Error).message}`,
+          duration: 0,
+          error
+        };
+        allResults.push(errorResult);
+        setResults([...allResults]);
+        
+        completedTests++;
+        setProgress((completedTests / totalTests) * 100);
+        
+        // Continue with next test even if this one failed
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    setPipelineTesting(false);
+    
+    const successCount = allResults.filter(r => r.status === 'success').length;
+    const failedCount = allResults.filter(r => r.status === 'failed').length;
+    
+    if (failedCount === 0) {
+      toast.success(`All Pipeline editing tests passed! ${successCount} successful`);
+    } else {
+      toast.warning(`Pipeline editing tests completed: ${successCount} passed, ${failedCount} failed`);
+    }
+  };
+
+  // Individual Pipeline Test Functions
+  const runCreateContactTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Get SQL stage ID
+      const { data: sqlStage, error: stageError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'SQL')
+        .single();
+      
+      if (stageError || !sqlStage) throw new Error('Could not find SQL stage');
+      
+      // First create a deal
+      const dealData = {
+        name: `Pipeline Test Deal ${timestamp}`,
+        company: `Test Company ${timestamp}`,
+        contact_name: `New Contact ${timestamp}`,
+        value: 15000,
+        stage_id: sqlStage.id,
+        owner_id: userData!.id,
+        one_off_revenue: 10000,
+        monthly_mrr: 500,
+        notes: 'Test deal for pipeline contact creation'
+      };
+      
+      const { data: deal, error: dealError } = await supabase
+        .from('deals')
+        .insert(dealData)
+        .select()
+        .single();
+      
+      if (dealError) throw dealError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+      cleanupDataRef.current.deal.push(deal.id);
+      
+      // Now create a new contact through the deal editing process
+      const contactData = {
+        first_name: 'Test',
+        last_name: `Contact ${timestamp}`,
+        full_name: `Test Contact ${timestamp}`,
+        email: `test_contact_${timestamp}@example.com`,
+        phone: `+1-555-${timestamp.toString().slice(-4)}`,
+        title: 'Test Manager',
+        company_id: deal.company_id
+      };
+      
+      const { data: contact, error: contactError } = await supabase
+        .from('contacts')
+        .insert(contactData)
+        .select()
+        .single();
+      
+      if (contactError) throw contactError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.contact) cleanupDataRef.current.contact = [];
+      cleanupDataRef.current.contact.push(contact.id);
+      
+      // Link contact to deal
+      const { error: linkError } = await supabase
+        .from('deals')
+        .update({ primary_contact_id: contact.id, contact_name: contact.full_name })
+        .eq('id', deal.id);
+      
+      if (linkError) throw linkError;
+      
+      return {
+        function: 'pipeline',
+        operation: 'create_contact',
+        status: 'success',
+        message: `Created new contact ${contact.full_name} and linked to deal ${deal.name}`,
+        duration: Date.now() - startTime,
+        data: { deal, contact }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'create_contact',
+        status: 'failed',
+        message: error.message || 'Failed to create contact for pipeline editing',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runChooseExistingContactTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Get Opportunity stage ID
+      const { data: opportunityStage, error: stageError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'Opportunity')
+        .single();
+      
+      if (stageError || !opportunityStage) throw new Error('Could not find Opportunity stage');
+      
+      // Create an existing contact first
+      const existingContactData = {
+        first_name: 'Existing',
+        last_name: `Contact ${timestamp}`,
+        full_name: `Existing Contact ${timestamp}`,
+        email: `existing_${timestamp}@example.com`,
+        phone: `+1-555-${timestamp.toString().slice(-4)}`,
+        title: 'Existing Manager'
+      };
+      
+      const { data: existingContact, error: contactError } = await supabase
+        .from('contacts')
+        .insert(existingContactData)
+        .select()
+        .single();
+      
+      if (contactError) throw contactError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.contact) cleanupDataRef.current.contact = [];
+      cleanupDataRef.current.contact.push(existingContact.id);
+      
+      // Create a deal without a contact
+      const dealData = {
+        name: `Pipeline Test Deal ${timestamp}`,
+        company: `Test Company ${timestamp}`,
+        value: 20000,
+        stage_id: opportunityStage.id,
+        owner_id: userData!.id,
+        notes: 'Test deal for choosing existing contact'
+      };
+      
+      const { data: deal, error: dealError } = await supabase
+        .from('deals')
+        .insert(dealData)
+        .select()
+        .single();
+      
+      if (dealError) throw dealError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+      cleanupDataRef.current.deal.push(deal.id);
+      
+      // Link existing contact to deal
+      const { error: linkError } = await supabase
+        .from('deals')
+        .update({ 
+          primary_contact_id: existingContact.id, 
+          contact_name: existingContact.full_name,
+          contact_email: existingContact.email
+        })
+        .eq('id', deal.id);
+      
+      if (linkError) throw linkError;
+      
+      return {
+        function: 'pipeline',
+        operation: 'choose_existing_contact',
+        status: 'success',
+        message: `Linked existing contact ${existingContact.full_name} to deal ${deal.name}`,
+        duration: Date.now() - startTime,
+        data: { deal, existingContact }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'choose_existing_contact',
+        status: 'failed',
+        message: error.message || 'Failed to choose existing contact for pipeline editing',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runUpdateDealValueTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Get SQL stage ID
+      const { data: sqlStage, error: stageError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'SQL')
+        .single();
+      
+      if (stageError || !sqlStage) throw new Error('Could not find SQL stage');
+      
+      // Create a deal with initial value
+      const dealData = {
+        name: `Value Update Deal ${timestamp}`,
+        company: `Test Company ${timestamp}`,
+        value: 25000,
+        stage_id: sqlStage.id,
+        owner_id: userData!.id,
+        one_off_revenue: 15000,
+        monthly_mrr: 1000,
+        notes: 'Test deal for value updating'
+      };
+      
+      const { data: deal, error: createError } = await supabase
+        .from('deals')
+        .insert(dealData)
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+      cleanupDataRef.current.deal.push(deal.id);
+      
+      // Update the deal value
+      const newValue = 35000;
+      const newOneOff = 25000;
+      const newMrr = 1500;
+      
+      const { data: updatedDeal, error: updateError } = await supabase
+        .from('deals')
+        .update({ 
+          value: newValue,
+          one_off_revenue: newOneOff,
+          monthly_mrr: newMrr,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', deal.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Verify the update
+      if (updatedDeal.value !== newValue) {
+        throw new Error(`Value update failed: expected ${newValue}, got ${updatedDeal.value}`);
+      }
+      
+      return {
+        function: 'pipeline',
+        operation: 'update_deal_value',
+        status: 'success',
+        message: `Updated deal value from £${deal.value.toLocaleString()} to £${updatedDeal.value.toLocaleString()}`,
+        duration: Date.now() - startTime,
+        data: { originalDeal: deal, updatedDeal }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'update_deal_value',
+        status: 'failed',
+        message: error.message || 'Failed to update deal value',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runAddContactInformationTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Create a contact with basic info
+      const contactData = {
+        first_name: 'Basic',
+        last_name: `Contact ${timestamp}`,
+        full_name: `Basic Contact ${timestamp}`,
+        email: `basic_${timestamp}@example.com`
+      };
+      
+      const { data: contact, error: createError } = await supabase
+        .from('contacts')
+        .insert(contactData)
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.contact) cleanupDataRef.current.contact = [];
+      cleanupDataRef.current.contact.push(contact.id);
+      
+      // Add additional contact information
+      const additionalInfo = {
+        phone: `+1-555-${timestamp.toString().slice(-4)}`,
+        title: 'Senior Manager',
+        linkedin_url: `https://linkedin.com/in/basic-contact-${timestamp}`,
+        notes: 'Added through pipeline editing test'
+      };
+      
+      const { data: updatedContact, error: updateError } = await supabase
+        .from('contacts')
+        .update(additionalInfo)
+        .eq('id', contact.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Verify the updates
+      if (!updatedContact.phone || !updatedContact.title) {
+        throw new Error('Contact information update failed');
+      }
+      
+      return {
+        function: 'pipeline',
+        operation: 'add_contact_information',
+        status: 'success',
+        message: `Added phone, title, and LinkedIn to contact ${updatedContact.full_name}`,
+        duration: Date.now() - startTime,
+        data: { originalContact: contact, updatedContact }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'add_contact_information',
+        status: 'failed',
+        message: error.message || 'Failed to add contact information',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runUpdateAllDealFieldsTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Get SQL stage ID
+      const { data: sqlStage, error: stageError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'SQL')
+        .single();
+      
+      if (stageError || !sqlStage) throw new Error('Could not find SQL stage');
+      
+      // Get Opportunity stage ID for update
+      const { data: opportunityStage, error: oppError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'Opportunity')
+        .single();
+      
+      if (oppError || !opportunityStage) throw new Error('Could not find Opportunity stage');
+      
+      // Create a basic deal
+      const dealData = {
+        name: `Basic Deal ${timestamp}`,
+        company: `Basic Company ${timestamp}`,
+        value: 30000,
+        stage_id: sqlStage.id,
+        owner_id: userData!.id,
+        notes: 'Basic deal for comprehensive update'
+      };
+      
+      const { data: deal, error: createError } = await supabase
+        .from('deals')
+        .insert(dealData)
+        .select()
+        .single();
+      
+      if (createError) throw createError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+      cleanupDataRef.current.deal.push(deal.id);
+      
+      // Update all possible fields
+      const comprehensiveUpdate = {
+        name: `Updated Deal ${timestamp}`,
+        company: `Updated Company ${timestamp}`,
+        value: 45000,
+        stage_id: opportunityStage.id,
+        probability: 75,
+        one_off_revenue: 30000,
+        monthly_mrr: 2000,
+        expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        notes: 'Completely updated through pipeline editing test',
+        updated_at: new Date().toISOString(),
+        stage_changed_at: new Date().toISOString()
+      };
+      
+      const { data: updatedDeal, error: updateError } = await supabase
+        .from('deals')
+        .update(comprehensiveUpdate)
+        .eq('id', deal.id)
+        .select()
+        .single();
+      
+      if (updateError) throw updateError;
+      
+      // Verify multiple updates
+      const verifications = [
+        { field: 'name', expected: comprehensiveUpdate.name, actual: updatedDeal.name },
+        { field: 'value', expected: comprehensiveUpdate.value, actual: updatedDeal.value },
+        { field: 'probability', expected: comprehensiveUpdate.probability, actual: updatedDeal.probability }
+      ];
+      
+      for (const verification of verifications) {
+        if (verification.actual !== verification.expected) {
+          throw new Error(`${verification.field} update failed: expected ${verification.expected}, got ${verification.actual}`);
+        }
+      }
+      
+      return {
+        function: 'pipeline',
+        operation: 'update_all_deal_fields',
+        status: 'success',
+        message: `Comprehensive update: name, company, value, stage, probability, revenue split, close date, and notes`,
+        duration: Date.now() - startTime,
+        data: { originalDeal: deal, updatedDeal }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'update_all_deal_fields',
+        status: 'failed',
+        message: error.message || 'Failed to update all deal fields',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
+  const runVerifyDatabasePersistenceTest = async (): Promise<TestResult> => {
+    const startTime = Date.now();
+    const timestamp = Date.now();
+    
+    try {
+      // Get Verbal stage ID
+      const { data: verbalStage, error: stageError } = await supabase
+        .from('deal_stages')
+        .select('id')
+        .eq('name', 'Verbal')
+        .single();
+      
+      if (stageError || !verbalStage) throw new Error('Could not find Verbal stage');
+      
+      // Create a deal and contact
+      const dealData = {
+        name: `Persistence Test Deal ${timestamp}`,
+        company: `Test Company ${timestamp}`,
+        value: 40000,
+        stage_id: verbalStage.id,
+        owner_id: userData!.id,
+        one_off_revenue: 25000,
+        monthly_mrr: 1500,
+        probability: 85,
+        notes: 'Testing database persistence'
+      };
+      
+      const { data: deal, error: dealError } = await supabase
+        .from('deals')
+        .insert(dealData)
+        .select()
+        .single();
+      
+      if (dealError) throw dealError;
+      
+      // Track for cleanup
+      if (!cleanupDataRef.current.deal) cleanupDataRef.current.deal = [];
+      cleanupDataRef.current.deal.push(deal.id);
+      
+      // Wait a moment then re-fetch to verify persistence
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const { data: refetchedDeal, error: refetchError } = await supabase
+        .from('deals')
+        .select('*')
+        .eq('id', deal.id)
+        .single();
+      
+      if (refetchError) throw refetchError;
+      
+      // Verify all fields persisted correctly
+      const fieldsToVerify = ['name', 'company', 'value', 'stage_id', 'one_off_revenue', 'monthly_mrr', 'probability'];
+      const persistenceResults = [];
+      
+      for (const field of fieldsToVerify) {
+        const originalValue = deal[field];
+        const refetchedValue = refetchedDeal[field];
+        const persisted = originalValue === refetchedValue;
+        persistenceResults.push({ field, persisted, originalValue, refetchedValue });
+        
+        if (!persisted) {
+          throw new Error(`Field ${field} not persisted correctly: expected ${originalValue}, got ${refetchedValue}`);
+        }
+      }
+      
+      // Test that the deal appears in pipeline queries (simulating ticket card display)
+      const { data: pipelineDeals, error: pipelineError } = await supabase
+        .from('deals')
+        .select(`
+          *,
+          deal_stages (
+            id,
+            name,
+            color
+          )
+        `)
+        .eq('owner_id', userData!.id)
+        .order('created_at', { ascending: false });
+      
+      if (pipelineError) throw pipelineError;
+      
+      const dealInPipeline = pipelineDeals.find(d => d.id === deal.id);
+      if (!dealInPipeline) {
+        throw new Error('Deal not found in pipeline query - not reflected on ticket cards');
+      }
+      
+      return {
+        function: 'pipeline',
+        operation: 'verify_database_persistence',
+        status: 'success',
+        message: `Database persistence verified: all ${fieldsToVerify.length} fields saved correctly and deal appears in pipeline`,
+        duration: Date.now() - startTime,
+        data: { 
+          deal, 
+          refetchedDeal, 
+          persistenceResults,
+          foundInPipeline: !!dealInPipeline 
+        }
+      };
+      
+    } catch (error: any) {
+      return {
+        function: 'pipeline',
+        operation: 'verify_database_persistence',
+        status: 'failed',
+        message: error.message || 'Failed to verify database persistence',
+        duration: Date.now() - startTime,
+        error
+      };
+    }
+  };
+
   // Run all QuickAdd tests
   const runQuickAddTests = async () => {
     if (!userData) {
@@ -1081,8 +1709,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
     setProgress(0);
     
     try {
-      // Run the main function test logic (80% of total progress)
-      await runFunctionTestLogic(0.8);
+      // Run the main function test logic (60% of total progress)
+      await runFunctionTestLogic(0.6);
       
       // Add a separator result
       setResults(prev => [...prev, {
@@ -1122,8 +1750,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           });
           
           quickAddProgress++;
-          // Update progress to show QuickAdd portion (assuming function tests took 80% of progress)
-          setProgress(80 + (quickAddProgress / quickAddTotal) * 20);
+          // Update progress to show QuickAdd portion (assuming function tests took 60% of progress)
+          setProgress(60 + (quickAddProgress / quickAddTotal) * 20);
           
           // Small delay between tests
           await new Promise(resolve => setTimeout(resolve, 200));
@@ -1144,10 +1772,78 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           });
           
           quickAddProgress++;
-          setProgress(80 + (quickAddProgress / quickAddTotal) * 20);
+          setProgress(60 + (quickAddProgress / quickAddTotal) * 20);
           
           // Continue with next test even if this one failed
           await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+      
+      // Add separator for Pipeline tests
+      setResults(prev => [...prev, {
+        function: 'separator',
+        operation: 'pipeline_start',
+        status: 'success',
+        message: '--- Starting Pipeline Editing Tests ---'
+      }]);
+      
+      // Then run Pipeline editing tests
+      const pipelineTests = [
+        { name: 'Create New Contact', test: runCreateContactTest },
+        { name: 'Choose Existing Contact', test: runChooseExistingContactTest },
+        { name: 'Update Deal Value', test: runUpdateDealValueTest },
+        { name: 'Add Contact Information', test: runAddContactInformationTest },
+        { name: 'Update All Deal Fields', test: runUpdateAllDealFieldsTest },
+        { name: 'Verify Database Persistence', test: runVerifyDatabasePersistenceTest }
+      ];
+      
+      let pipelineProgress = 0;
+      const pipelineTotal = pipelineTests.length;
+      
+      for (const testCase of pipelineTests) {
+        try {
+          console.log(`🧪 Starting Pipeline test (All Tests): ${testCase.name}`);
+          setResults(prev => [...prev, { 
+            function: 'pipeline', 
+            operation: testCase.name.toLowerCase().replace(/\s+/g, '_'), 
+            status: 'running' 
+          }]);
+          
+          const result = await testCase.test();
+          console.log(`✅ Pipeline test ${testCase.name} completed (All Tests):`, result);
+          setResults(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = result;
+            return updated;
+          });
+          
+          pipelineProgress++;
+          // Update progress to show Pipeline portion (Function: 60%, QuickAdd: 20%, Pipeline: 20%)
+          setProgress(80 + (pipelineProgress / pipelineTotal) * 20);
+          
+          // Small delay between tests
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`❌ Pipeline test ${testCase.name} failed in All Tests with error:`, error);
+          const errorResult = {
+            function: 'pipeline',
+            operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
+            status: 'failed' as const,
+            message: `Test error: ${(error as Error).message}`,
+            duration: 0,
+            error
+          };
+          setResults(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1] = errorResult;
+            return updated;
+          });
+          
+          pipelineProgress++;
+          setProgress(80 + (pipelineProgress / pipelineTotal) * 20);
+          
+          // Continue with next test even if this one failed
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
       
@@ -1568,8 +2264,26 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         </Button>
         
         <Button
+          onClick={runPipelineEditingTests}
+          disabled={isRunning || isQuickAddTesting || isPipelineTesting || isRunningAll || !userData}
+          className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white"
+        >
+          {isPipelineTesting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Running Pipeline Tests...
+            </>
+          ) : (
+            <>
+              <Settings className="h-4 w-4 mr-2" />
+              Run Pipeline Tests
+            </>
+          )}
+        </Button>
+        
+        <Button
           onClick={runAllTests}
-          disabled={isRunning || isQuickAddTesting || isRunningAll || !userData}
+          disabled={isRunning || isQuickAddTesting || isPipelineTesting || isRunningAll || !userData}
           className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"
         >
           {isRunningAll ? (
@@ -1732,10 +2446,12 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         <div className="mt-6 p-4 bg-gray-800/30 backdrop-blur-sm rounded-lg border border-gray-700/50">
           {(() => {
             const validResults = results.filter(r => r.function !== 'separator');
-            const functionResults = validResults.filter(r => r.function !== 'quickadd');
+            const functionResults = validResults.filter(r => r.function !== 'quickadd' && r.function !== 'pipeline');
             const quickAddResults = validResults.filter(r => r.function === 'quickadd');
+            const pipelineResults = validResults.filter(r => r.function === 'pipeline');
             const hasQuickAdd = quickAddResults.length > 0;
             const hasFunction = functionResults.length > 0;
+            const hasPipeline = pipelineResults.length > 0;
             
             return (
               <>
@@ -1766,21 +2482,33 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
                   </div>
                 </div>
                 
-                {hasQuickAdd && hasFunction && (
+                {(hasFunction || hasQuickAdd || hasPipeline) && (hasFunction + hasQuickAdd + hasPipeline > 1) && (
                   <div className="mt-4 pt-4 border-t border-gray-700/50">
-                    <div className="grid grid-cols-2 gap-6">
-                      <div className="text-center">
-                        <div className="text-lg font-semibold text-blue-400">Function Tests</div>
-                        <div className="text-sm text-gray-400 mt-1">
-                          {functionResults.filter(r => r.status === 'success').length} passed, {functionResults.filter(r => r.status === 'failed').length} failed
+                    <div className={`grid gap-6 ${hasPipeline && hasQuickAdd && hasFunction ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      {hasFunction && (
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-blue-400">Function Tests</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            {functionResults.filter(r => r.status === 'success').length} passed, {functionResults.filter(r => r.status === 'failed').length} failed
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-lg font-semibold text-green-400">QuickAdd Tests</div>
-                        <div className="text-sm text-gray-400 mt-1">
-                          {quickAddResults.filter(r => r.status === 'success').length} passed, {quickAddResults.filter(r => r.status === 'failed').length} failed
+                      )}
+                      {hasQuickAdd && (
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-green-400">QuickAdd Tests</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            {quickAddResults.filter(r => r.status === 'success').length} passed, {quickAddResults.filter(r => r.status === 'failed').length} failed
+                          </div>
                         </div>
-                      </div>
+                      )}
+                      {hasPipeline && (
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-orange-400">Pipeline Tests</div>
+                          <div className="text-sm text-gray-400 mt-1">
+                            {pipelineResults.filter(r => r.status === 'success').length} passed, {pipelineResults.filter(r => r.status === 'failed').length} failed
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
