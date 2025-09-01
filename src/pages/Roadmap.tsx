@@ -14,7 +14,12 @@ import {
   Bug,
   ArrowUp,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Shield,
+  Server
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useRoadmap, RoadmapSuggestion } from '@/lib/hooks/useRoadmap';
@@ -91,17 +96,85 @@ const StatCard = memo(function StatCard({ title, value, icon: Icon, color, subti
   );
 });
 
+// TICKET #26: Enhanced error categorization and retry logic
+interface ErrorInfo {
+  type: 'network' | 'auth' | 'server' | 'validation' | 'unknown';
+  message: string;
+  originalError: string;
+  recoverable: boolean;
+}
+
+// TICKET #26: Enhanced error parsing and categorization
+const parseError = (error: string): ErrorInfo => {
+  const errorLower = error.toLowerCase();
+  
+  // Network-related errors
+  if (errorLower.includes('fetch') || errorLower.includes('network') || errorLower.includes('connection')) {
+    return {
+      type: 'network',
+      message: 'Network connection failed. Please check your internet connection and try again.',
+      originalError: error,
+      recoverable: true
+    };
+  }
+  
+  // Authentication errors
+  if (errorLower.includes('authentication') || errorLower.includes('unauthorized') || errorLower.includes('token')) {
+    return {
+      type: 'auth',
+      message: 'Authentication failed. Please refresh the page or log in again.',
+      originalError: error,
+      recoverable: true
+    };
+  }
+  
+  // Database/server errors
+  if (errorLower.includes('database') || errorLower.includes('server') || errorLower.includes('internal')) {
+    return {
+      type: 'server',
+      message: 'Server is temporarily unavailable. Our team has been notified.',
+      originalError: error,
+      recoverable: true
+    };
+  }
+  
+  // Validation errors
+  if (errorLower.includes('validation') || errorLower.includes('required') || errorLower.includes('invalid')) {
+    return {
+      type: 'validation',
+      message: 'Invalid data provided. Please check your input and try again.',
+      originalError: error,
+      recoverable: false
+    };
+  }
+  
+  // Default unknown error
+  return {
+    type: 'unknown',
+    message: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
+    originalError: error,
+    recoverable: true
+  };
+};
+
 export default function Roadmap() {
   const { ticketId } = useParams();
   const navigate = useNavigate();
-  const { suggestions, loading, error } = useRoadmap();
+  const { suggestions, loading, error, refetch } = useRoadmap();
   const { userData } = useUser();
   const { debouncedQuery, setQuery } = useSearch('', { debounceDelay: 300, minSearchLength: 0 });
   const [typeFilter, setTypeFilter] = useState<RoadmapSuggestion['type'] | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<RoadmapSuggestion['status'] | 'all'>('all');
   const roadmapKanbanRef = useRef<RoadmapKanbanHandle>(null);
+  
+  // TICKET #26: Enhanced error state management
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const isAdmin = userData?.is_admin || false;
+  
+  // TICKET #26: Enhanced error information
+  const errorInfo = useMemo(() => error ? parseError(error) : null, [error]);
 
   // TICKET #36: Memoized event handlers for better performance
   const handleOpenSuggestionForm = useCallback(() => {
@@ -115,6 +188,37 @@ export default function Roadmap() {
   const handleStatusFilterChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setStatusFilter(e.target.value as any);
   }, []);
+
+  // TICKET #26: Enhanced retry mechanism with exponential backoff
+  const handleRetry = useCallback(async () => {
+    if (isRetrying || !errorInfo?.recoverable) return;
+    
+    setIsRetrying(true);
+    setRetryCount(prev => prev + 1);
+    
+    try {
+      // Add delay for retry with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
+      // Attempt to refetch data
+      if (refetch) {
+        await refetch();
+      }
+    } catch (err) {
+      logger.error('Retry failed:', err);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [isRetrying, errorInfo?.recoverable, retryCount, refetch]);
+
+  // TICKET #26: Reset retry count when error changes or loading starts
+  useEffect(() => {
+    if (loading || !error) {
+      setRetryCount(0);
+      setIsRetrying(false);
+    }
+  }, [loading, error]);
 
   // TICKET #36: Memoized loading skeleton for better performance
   const loadingSkeleton = useMemo(() => (
@@ -200,15 +304,82 @@ export default function Roadmap() {
     );
   }
 
-  if (error) {
+  // TICKET #26: Enhanced error display with better UX and retry functionality
+  if (error && errorInfo) {
+    const getErrorIcon = () => {
+      switch (errorInfo.type) {
+        case 'network':
+          return <WifiOff className="w-12 h-12 text-red-500 mx-auto mb-4" />;
+        case 'auth':
+          return <Shield className="w-12 h-12 text-orange-500 mx-auto mb-4" />;
+        case 'server':
+          return <Server className="w-12 h-12 text-red-500 mx-auto mb-4" />;
+        case 'validation':
+          return <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />;
+        default:
+          return <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />;
+      }
+    };
+
+    const getErrorTitle = () => {
+      switch (errorInfo.type) {
+        case 'network':
+          return 'Connection Problem';
+        case 'auth':
+          return 'Authentication Required';
+        case 'server':
+          return 'Server Unavailable';
+        case 'validation':
+          return 'Invalid Request';
+        default:
+          return 'Something Went Wrong';
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-center h-96">
-          <div className="text-center">
-            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">Error Loading Roadmap</h2>
-            <p className="text-gray-400">{error}</p>
-          </div>
+        <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center max-w-md mx-auto"
+          >
+            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800/50">
+              {getErrorIcon()}
+              <h2 className="text-2xl font-semibold mb-3">{getErrorTitle()}</h2>
+              <p className="text-gray-300 mb-6 leading-relaxed">{errorInfo.message}</p>
+              
+              {errorInfo.recoverable && (
+                <div className="space-y-4">
+                  <Button
+                    onClick={handleRetry}
+                    disabled={isRetrying}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} />
+                    {isRetrying ? 'Retrying...' : retryCount > 0 ? `Retry (${retryCount + 1})` : 'Try Again'}
+                  </Button>
+                  
+                  {retryCount > 2 && (
+                    <p className="text-sm text-gray-500">
+                      Having trouble? Try refreshing the page or contact support.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {process.env.NODE_ENV === 'development' && (
+                <details className="mt-6 text-left">
+                  <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-400">
+                    Debug Info
+                  </summary>
+                  <pre className="mt-2 text-xs text-gray-600 bg-gray-800/50 p-3 rounded overflow-auto">
+                    {errorInfo.originalError}
+                  </pre>
+                </details>
+              )}
+            </div>
+          </motion.div>
         </div>
       </div>
     );
