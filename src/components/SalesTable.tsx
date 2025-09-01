@@ -25,7 +25,9 @@ import {
   X,
   Search,
   Download,
-  XCircle
+  XCircle,
+  RefreshCw,
+  UserCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActivities, Activity } from '@/lib/hooks/useActivities';
@@ -49,6 +51,7 @@ import { exportActivitiesToCSV, getExportSummary } from '@/lib/utils/csvExport';
 import { calculateLTVValue, formatActivityAmount } from '@/lib/utils/calculations';
 import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-filter';
 import { SubscriptionStats } from './SubscriptionStats';
+import { Badge } from './Pipeline/Badge';
 import logger from '@/lib/utils/logger';
 // ActivityFilters component created inline to avoid import issues
 
@@ -699,11 +702,30 @@ export function SalesTable() {
                   }`
                 })}
               </div>
-              <div>
-                <div className="text-sm font-medium text-white capitalize">
-                  {type}
-                  {type === 'outbound' && quantity > 1 && (
-                    <span className="ml-2 text-xs text-blue-400">×{quantity}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="text-sm font-medium text-white capitalize">
+                    {type}
+                    {type === 'outbound' && quantity > 1 && (
+                      <span className="ml-2 text-xs text-blue-400">×{quantity}</span>
+                    )}
+                  </div>
+                  {/* Meeting badges */}
+                  {type === 'meeting' && (
+                    <div className="flex items-center gap-1">
+                      {activity.is_rebooking && (
+                        <Badge color="orange" className="text-[10px] px-1.5 py-0.5">
+                          <RefreshCw className="w-2.5 h-2.5 mr-1" />
+                          Rebooked
+                        </Badge>
+                      )}
+                      {activity.is_self_generated && (
+                        <Badge color="emerald" className="text-[10px] px-1.5 py-0.5">
+                          <UserCheck className="w-2.5 h-2.5 mr-1" />
+                          Self Gen
+                        </Badge>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="text-[10px] text-gray-400">{format(new Date(activity.date), 'MMM d')}</div>
@@ -835,7 +857,7 @@ export function SalesTable() {
                     <Edit2 className="w-4 h-4 text-gray-400 hover:text-[#37bd7e]" />
                   </motion.button>
                 </DialogTrigger>
-                <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-[95vw] w-[95vw] max-h-[90vh] overflow-y-auto">
+                <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
                   {editingActivity && editingActivity.id === activity.id && (
                     <EditActivityForm 
                       activity={editingActivity}

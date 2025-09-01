@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompaniesTable from '@/pages/companies/CompaniesTable';
 import ContactsTable from '@/pages/contacts/ContactsTable';
@@ -13,6 +13,15 @@ import {
 
 export default function CRM() {
   const [activeTab, setActiveTab] = useState('companies');
+
+  // Handle URL tab parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['companies', 'contacts', 'deals', 'meetings'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, []);
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
@@ -27,7 +36,13 @@ export default function CRM() {
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <Tabs value={activeTab} onValueChange={(tab) => {
+            setActiveTab(tab);
+            // Update URL without page refresh
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url.toString());
+          }} className="space-y-6">
             <TabsList className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50">
               <TabsTrigger 
                 value="companies" 

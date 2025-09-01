@@ -40,6 +40,12 @@ export interface Activity {
   is_split?: boolean;
   original_activity_id?: string;
   split_percentage?: number;
+  // Enhanced form fields
+  outbound_type?: 'email' | 'linkedin' | 'call';
+  proposal_date?: string;
+  is_rebooking?: boolean;
+  is_self_generated?: boolean;
+  sale_date?: string;
 }
 
 async function fetchActivities(dateRange?: { start: Date; end: Date }, viewedUserId?: string) {

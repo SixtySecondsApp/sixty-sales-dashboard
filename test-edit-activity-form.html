@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EditActivityForm Enhancement Testing</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 2rem;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            border-left: 4px solid #37bd7e;
+        }
+        .test-checklist {
+            list-style: none;
+            padding: 0;
+        }
+        .test-checklist li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #333;
+        }
+        .test-checklist li:before {
+            content: "☐ ";
+            color: #37bd7e;
+            margin-right: 0.5rem;
+        }
+        .completed:before {
+            content: "✅ ";
+        }
+        .header {
+            background: linear-gradient(135deg, #37bd7e, #2ea368);
+            padding: 2rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        .enhancement-summary {
+            background: #1e3a8a20;
+            border: 1px solid #3b82f6;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+        .code-snippet {
+            background: #111;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>EditActivityForm Enhancement Testing Guide</h1>
+        <p>Comprehensive testing framework for modal fixes and activity type enhancements</p>
+    </div>
+
+    <div class="test-section">
+        <h2>🎯 Phase 1: ContactSearchModal Cut-off Fix</h2>
+        <div class="enhancement-summary">
+            <h3>Technical Implementation:</h3>
+            <ul>
+                <li><strong>Z-index increased</strong> from <code>z-[60]</code> to <code>z-[9999]</code></li>
+                <li><strong>Portal rendering</strong> added with <code>createPortal(modal, document.body)</code></li>
+                <li><strong>EditActivityForm height</strong> increased from <code>max-h-[60vh]</code> to <code>max-h-[70vh]</code></li>
+            </ul>
+        </div>
+        <ul class="test-checklist">
+            <li>Open EditActivityForm for any non-outbound activity type</li>
+            <li>Click "Search Contacts" button</li>
+            <li>Verify ContactSearchModal opens without cut-off</li>
+            <li>Verify all modal buttons are accessible (Search, Create New Contact)</li>
+            <li>Verify contact creation form is fully visible</li>
+            <li>Verify modal closes properly with X button or backdrop click</li>
+            <li>Test on different screen sizes (desktop, tablet, mobile)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🚀 Phase 2: Enhanced Outbound Activity Interface</h2>
+        <div class="enhancement-summary">
+            <h3>New Features:</h3>
+            <ul>
+                <li><strong>Visual outreach type selection</strong> with icons (Email, LinkedIn, Call)</li>
+                <li><strong>Smart quantity field</strong> with context-aware placeholders</li>
+                <li><strong>Enhanced UX</strong> with hover animations and color coding</li>
+            </ul>
+        </div>
+        <ul class="test-checklist">
+            <li>Open EditActivityForm for an outbound activity</li>
+            <li>Verify "Outbound Details" section appears</li>
+            <li>Test email type selection (blue icon, email placeholder)</li>
+            <li>Test LinkedIn type selection (blue LinkedIn icon, message placeholder)</li>
+            <li>Test call type selection (green phone icon, calls placeholder)</li>
+            <li>Verify placeholder text changes: "How many emails sent?" vs "How many calls made?"</li>
+            <li>Test quantity field accepts numbers 1-100</li>
+            <li>Verify hover effects work on outreach type buttons</li>
+            <li>Verify selected state visual feedback (ring highlight)</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>📅 Phase 3: Activity Type Enhancements</h2>
+        
+        <h3>Meeting Enhancements</h3>
+        <ul class="test-checklist">
+            <li>Open EditActivityForm for a meeting activity</li>
+            <li>Verify "Meeting Details" section appears</li>
+            <li>Test "Rescheduled Meeting" checkbox</li>
+            <li>Test "Self-Generated" checkbox</li>
+            <li>Verify badges appear when checkboxes are selected</li>
+            <li>Verify "Rescheduled" badge shows with calendar icon</li>
+            <li>Verify "Self-Generated" badge shows with user check icon</li>
+            <li>Test both checkboxes selected simultaneously</li>
+        </ul>
+
+        <h3>Proposal Enhancements</h3>
+        <ul class="test-checklist">
+            <li>Open EditActivityForm for a proposal activity</li>
+            <li>Verify "Proposal Details" section appears</li>
+            <li>Test "Proposal Value" field accepts decimal numbers</li>
+            <li>Test "Proposal Date" field accepts date input</li>
+            <li>Verify both fields are in responsive grid layout</li>
+            <li>Verify calendar icon appears in date field</li>
+            <li>Verify dollar sign icon appears in value field</li>
+        </ul>
+
+        <h3>Sale Enhancements</h3>
+        <ul class="test-checklist">
+            <li>Open EditActivityForm for a sale activity</li>
+            <li>Verify existing "Revenue Details" section still works</li>
+            <li>Verify new "Sale Date" field appears after revenue fields</li>
+            <li>Test sale date field accepts date input</li>
+            <li>Verify calendar icon appears in sale date field</li>
+            <li>Verify LTV calculation still works correctly</li>
+            <li>Test save functionality preserves all new fields</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🔍 Integration Testing</h2>
+        <ul class="test-checklist">
+            <li>Test form submission with new fields populated</li>
+            <li>Verify form data persistence across activity types</li>
+            <li>Test validation - required fields still enforced</li>
+            <li>Verify no console errors during type switching</li>
+            <li>Test modal opening/closing multiple times</li>
+            <li>Verify contact selection from modal works correctly</li>
+            <li>Test form reset when switching activity types</li>
+            <li>Verify existing functionality remains intact</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🌐 Browser Compatibility Testing</h2>
+        <ul class="test-checklist">
+            <li>Chrome/Chromium - Desktop and Mobile</li>
+            <li>Firefox - Desktop and Mobile</li>
+            <li>Safari - Desktop and Mobile</li>
+            <li>Edge - Desktop</li>
+            <li>Mobile Safari - iOS</li>
+            <li>Chrome Mobile - Android</li>
+        </ul>
+    </div>
+
+    <div class="test-section">
+        <h2>🐛 Regression Testing</h2>
+        <ul class="test-checklist">
+            <li>All original EditActivityForm functionality works</li>
+            <li>Contact selection from modal still functions</li>
+            <li>Revenue calculations remain accurate</li>
+            <li>Status selection buttons work correctly</li>
+            <li>Form submission saves successfully</li>
+            <li>Form cancellation works without errors</li>
+            <li>Activity type icons and colors display correctly</li>
+            <li>Dialog header and footer remain styled properly</li>
+        </ul>
+    </div>
+
+    <div class="enhancement-summary">
+        <h2>✅ Success Criteria</h2>
+        <p>All tests should pass for the enhancement to be considered successfully implemented:</p>
+        <ul>
+            <li><strong>ContactSearchModal</strong> displays fully without cut-off</li>
+            <li><strong>Outbound interface</strong> shows enhanced type selection with icons</li>
+            <li><strong>Meeting activities</strong> include rebooking and self-generated options</li>
+            <li><strong>Proposal activities</strong> include date field alongside value field</li>
+            <li><strong>Sale activities</strong> include sale date field</li>
+            <li><strong>No regressions</strong> in existing functionality</li>
+            <li><strong>Cross-browser compatibility</strong> maintained</li>
+        </ul>
+    </div>
+
+    <div class="code-snippet">
+        <h3>Key Files Modified:</h3>
+        <pre>
+/src/components/ContactSearchModal.tsx
+- Added createPortal import and implementation
+- Increased z-index to z-[9999]
+- Modal now renders outside parent containers
+
+/src/components/EditActivityForm.tsx  
+- Added new activity-specific enhancements
+- Enhanced outbound type selection with icons
+- Added meeting rebooking and self-generated options
+- Added proposal and sale date fields
+- Improved form state management
+        </pre>
+    </div>
+</body>
+</html>

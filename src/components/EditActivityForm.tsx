@@ -1,10 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { Activity } from '@/lib/hooks/useActivities'; // Assuming Activity type path
-import { IdentifierType } from './IdentifierField'; // Assuming IdentifierType path
+import React, { useState, useEffect, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Activity 
+} from '@/lib/hooks/useActivities';
+import { IdentifierType } from './IdentifierField';
 import { Button } from '@/components/ui/button';
+import { 
+  Search, 
+  User, 
+  X,
+  CheckCircle,
+  Calendar,
+  DollarSign,
+  Target,
+  MessageSquare,
+  PhoneCall,
+  FileText,
+  TrendingUp,
+  Clock,
+  AlertCircle,
+  Mail,
+  Linkedin,
+  Send,
+  Hash,
+  CalendarDays,
+  UserCheck,
+  RefreshCw
+} from 'lucide-react';
 import logger from '@/lib/utils/logger';
 import { useDeals } from '@/lib/hooks/useDeals';
-import { supabase } from '@/lib/supabase/clientV2';
+import { cn } from '@/lib/utils';
+import { ContactSearchModal } from '@/components/ContactSearchModal';
 import {
   DialogHeader,
   DialogTitle,
@@ -27,10 +53,71 @@ type EditFormData = Omit<Partial<Activity>, 'id' | 'user_id'> & {
   company_website?: string;
   // Proposal specific
   proposalValue?: number;
+  proposalDate?: string;
+  // Contact information
+  selectedContact?: any;
+  showContactSearch?: boolean;
+  // Outbound specific
+  outboundType?: 'email' | 'linkedin' | 'call';
+  // Meeting specific
+  isRebooking?: boolean;
+  isSelfGenerated?: boolean;
+  // Sale specific
+  saleDate?: string;
+};
+
+
+// Activity type configurations
+const ACTIVITY_TYPES = {
+  meeting: {
+    icon: Calendar,
+    color: 'text-blue-400',
+    bgColor: 'bg-blue-500/10',
+    borderColor: 'border-blue-500/20',
+    label: 'Meeting',
+    description: 'Schedule or record a meeting'
+  },
+  call: {
+    icon: PhoneCall,
+    color: 'text-green-400',
+    bgColor: 'bg-green-500/10',
+    borderColor: 'border-green-500/20',
+    label: 'Call',
+    description: 'Phone call or video call'
+  },
+  proposal: {
+    icon: FileText,
+    color: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    borderColor: 'border-purple-500/20',
+    label: 'Proposal',
+    description: 'Send or follow up on proposal'
+  },
+  sale: {
+    icon: TrendingUp,
+    color: 'text-emerald-400',
+    bgColor: 'bg-emerald-500/10',
+    borderColor: 'border-emerald-500/20',
+    label: 'Sale',
+    description: 'Record a completed sale'
+  },
+  outbound: {
+    icon: MessageSquare,
+    color: 'text-orange-400',
+    bgColor: 'bg-orange-500/10',
+    borderColor: 'border-orange-500/20',
+    label: 'Outbound',
+    description: 'Outbound marketing or outreach'
+  }
 };
 
 export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFormProps) {
+  console.log('🚀 Enhanced EditActivityForm loaded!', { activity });
   const { updateDeal } = useDeals();
+  
+  // Contact search modal state
+  const [showContactSearch, setShowContactSearch] = useState(false);
+
   // State to manage the form data, initialized with the activity data
   const [formData, setFormData] = useState<EditFormData>({
     client_name: activity.client_name,
@@ -50,10 +137,30 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
     // Company website - we'll need to fetch this or initialize empty
     company_website: '',
     // Proposal value - use amount for proposals
-    proposalValue: activity.type === 'proposal' ? activity.amount : 0
+    proposalValue: activity.type === 'proposal' ? activity.amount : 0,
+    proposalDate: activity.proposal_date || (activity.type === 'proposal' ? activity.date : ''),
+    // Outbound defaults
+    outboundType: activity.outbound_type || 'email',
+    // Meeting defaults
+    isRebooking: activity.is_rebooking || false,
+    isSelfGenerated: activity.is_self_generated || false,
+    // Sale defaults
+    saleDate: activity.sale_date || (activity.type === 'sale' ? activity.date : '')
   });
 
-  // Update form data if the activity prop changes (e.g., opening dialog for different activity)
+  // Handle contact selection from modal
+  const handleContactSelect = (contact: any) => {
+    setFormData(prev => ({
+      ...prev,
+      client_name: `${contact.first_name} ${contact.last_name}`,
+      contactIdentifier: contact.email || contact.phone,
+      contactIdentifierType: contact.email ? 'email' : 'phone',
+      selectedContact: contact,
+      company_website: contact.company_website || ''
+    }));
+  };
+
+  // Update form data if the activity prop changes
   useEffect(() => {
     setFormData({
         client_name: activity.client_name,
@@ -67,13 +174,20 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
         priority: activity.priority,
         quantity: activity.quantity,
         sales_rep: activity.sales_rep,
-        // Initialize revenue fields from linked deal
         monthlyMrr: activity.deals?.monthly_mrr || 0,
         oneOffRevenue: activity.deals?.one_off_revenue || 0,
-        // Company website - we'll need to fetch this or initialize empty
         company_website: '',
-        // Proposal value - use amount for proposals
-        proposalValue: activity.type === 'proposal' ? activity.amount : 0
+        proposalValue: activity.type === 'proposal' ? activity.amount : 0,
+        proposalDate: activity.proposal_date || (activity.type === 'proposal' ? activity.date : ''),
+        selectedContact: null,
+        showContactSearch: false,
+        // Outbound defaults
+        outboundType: activity.outbound_type || 'email',
+        // Meeting defaults
+        isRebooking: activity.is_rebooking || false,
+        isSelfGenerated: activity.is_self_generated || false,
+        // Sale defaults
+        saleDate: activity.sale_date || (activity.type === 'sale' ? activity.date : '')
     });
   }, [activity]);
 
@@ -87,16 +201,6 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
     }));
   };
 
-  // Handle changes specifically for the amount input
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    const parsedValue = parseFloat(value);
-    const newAmount = value === '' || isNaN(parsedValue) ? undefined : parsedValue;
-    setFormData(prevData => ({
-      ...prevData,
-      [name]: newAmount,
-    }));
-  };
 
   // Handle changes specifically for revenue fields (monthlyMrr, oneOffRevenue, proposalValue)
   const handleRevenueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,6 +210,14 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
     setFormData(prevData => ({
       ...prevData,
       [name]: newValue,
+    }));
+  };
+
+  // Handle checkbox changes
+  const handleCheckboxChange = (name: string, checked: boolean) => {
+    setFormData(prevData => ({
+      ...prevData,
+      [name]: checked,
     }));
   };
 
@@ -120,6 +232,22 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
       quantity: formData.quantity,
       date: formData.date
     };
+
+    // Add enhanced form fields only if they have values or are explicitly set
+    if (formData.outboundType) {
+      updates.outbound_type = formData.outboundType;
+    }
+    if (formData.proposalDate) {
+      updates.proposal_date = formData.proposalDate;
+    }
+    if (formData.saleDate) {
+      updates.sale_date = formData.saleDate;
+    }
+    // Always include boolean fields for meetings
+    if (formData.type === 'meeting') {
+      updates.is_rebooking = formData.isRebooking || false;
+      updates.is_self_generated = formData.isSelfGenerated || false;
+    }
 
     // Conditionally manage contact identifier fields based on type
     if (formData.type !== 'outbound') {
@@ -180,31 +308,119 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
       }
     }
     
-    // Call the onSave prop (which wraps the API call and handles success/error)
-    await onSave(activity.id, updates);
-    // onSave should handle closing the dialog on success
+    // Debug logging to see what we're trying to save
+    logger.log('[EditActivityForm] Attempting to save updates:', {
+      activityId: activity.id,
+      updates: updates,
+      formData: formData
+    });
+
+    try {
+      // Call the onSave prop (which wraps the API call and handles success/error)
+      await onSave(activity.id, updates);
+      // onSave should handle closing the dialog on success
+    } catch (error) {
+      logger.error('[EditActivityForm] Save failed:', error);
+      // You can add user-friendly error handling here
+    }
   };
+
+  // Get current activity type info
+  const currentActivityType = ACTIVITY_TYPES[formData.type as keyof typeof ACTIVITY_TYPES] || ACTIVITY_TYPES.meeting;
+  const ActivityIcon = currentActivityType.icon;
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Edit Activity</DialogTitle>
-      </DialogHeader>
-      <div className="space-y-6 py-4">
-        {/* Top Row: Basic Fields in horizontal grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {/* Client Name Input */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-400">Client Name</label>
-            <input
-              type="text"
-              name="client_name"
-              value={formData.client_name || ''}
-              onChange={handleFormChange}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-            />
+        <DialogTitle className="flex items-center gap-3">
+          <div className={cn(
+            "p-2 rounded-lg",
+            currentActivityType.bgColor,
+            currentActivityType.borderColor,
+            "border"
+          )}>
+            <ActivityIcon className={cn("w-5 h-5", currentActivityType.color)} />
           </div>
-          {/* Details Input */}
+          <div>
+            <div className="text-white">Edit {currentActivityType.label}</div>
+            <div className="text-sm text-gray-400 font-normal">{currentActivityType.description}</div>
+          </div>
+        </DialogTitle>
+      </DialogHeader>
+
+      <div className="space-y-3 py-3 max-h-[70vh] overflow-y-auto">
+        {/* Contact Selection Section */}
+        {formData.type !== 'outbound' && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-gray-300">Contact</label>
+              <button
+                type="button"
+                onClick={() => setShowContactSearch(true)}
+                className="text-xs text-[#37bd7e] hover:text-[#2ea368] flex items-center gap-1"
+              >
+                <Search className="w-3 h-3" />
+                Search Contacts
+              </button>
+            </div>
+            
+            {formData.selectedContact ? (
+              <div className="bg-gray-800/50 border border-gray-700/50 rounded-xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#37bd7e]/20 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-[#37bd7e]" />
+                    </div>
+                    <div>
+                      <div className="text-white font-medium">
+                        {formData.selectedContact.first_name} {formData.selectedContact.last_name}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {formData.selectedContact.email}
+                        {formData.selectedContact.phone && (
+                          <span className="ml-2">• {formData.selectedContact.phone}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, selectedContact: null }))}
+                    className="text-gray-400 hover:text-red-400"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Client name"
+                    name="client_name"
+                    value={formData.client_name || ''}
+                    onChange={handleFormChange}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Email or phone"
+                    name="contactIdentifier"
+                    value={formData.contactIdentifier || ''}
+                    onChange={handleFormChange}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Details and Company Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-400">Details</label>
             <input
@@ -212,26 +428,10 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
               name="details"
               value={formData.details || ''}
               onChange={handleFormChange}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+              placeholder="Activity details"
+              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
             />
           </div>
-          {/* Amount Input (Conditional) */}
-          {formData.amount !== undefined && formData.amount !== null && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-400">Amount</label>
-              <input
-                type="text" 
-                inputMode="decimal"
-                pattern="[0-9]*[.,]?[0-9]*"
-                step="0.01"
-                name="amount"
-                value={formData.amount ?? ''}
-                onChange={handleAmountChange}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-              />
-            </div>
-          )}
-          {/* Company Website Field */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-400">Company Website</label>
             <input
@@ -240,150 +440,406 @@ export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFor
               name="company_website"
               value={formData.company_website || ''}
               onChange={handleFormChange}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
             />
           </div>
         </div>
-        {/* Status Select - Horizontal layout */}
+
+        {/* Status Selection */}
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-400">Status</label>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
-              { value: 'completed', label: 'Completed', icon: '✅', color: 'bg-green-500/20 text-green-400 border-green-500/30' },
-              { value: 'pending', label: 'Scheduled', icon: '📅', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
-              { value: 'cancelled', label: 'Cancelled', icon: '❌', color: 'bg-red-500/20 text-red-400 border-red-500/30' },
-              { value: 'no_show', label: 'No Show', icon: '🚫', color: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+              { value: 'completed', label: 'Completed', icon: CheckCircle, color: 'text-green-400', bgColor: 'bg-green-500/10', borderColor: 'border-green-500/30' },
+              { value: 'pending', label: 'Scheduled', icon: Clock, color: 'text-blue-400', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/30' },
+              { value: 'cancelled', label: 'Cancelled', icon: X, color: 'text-red-400', bgColor: 'bg-red-500/10', borderColor: 'border-red-500/30' },
+              { value: 'no_show', label: 'No Show', icon: AlertCircle, color: 'text-orange-400', bgColor: 'bg-orange-500/10', borderColor: 'border-orange-500/30' },
               ...(formData.type === 'meeting' ? [
-                { value: 'discovery', label: 'Discovery', icon: '🔍', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30' }
+                { value: 'discovery', label: 'Discovery', icon: Search, color: 'text-purple-400', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/30' }
               ] : [])
-            ].map((status) => (
-              <button
-                key={status.value}
-                type="button"
-                onClick={() => setFormData(prevData => ({ ...prevData, status: status.value as 'completed' | 'pending' | 'cancelled' | 'no_show' | 'discovery' }))}
-                className={`p-2 rounded-xl border transition-all ${
-                  formData.status === status.value
-                    ? `${status.color} ring-2 ring-opacity-50`
-                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <span className="text-sm">{status.icon}</span>
+            ].map((status) => {
+              const StatusIcon = status.icon;
+              const isSelected = formData.status === status.value;
+              return (
+                <motion.button
+                  key={status.value}
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setFormData(prevData => ({ ...prevData, status: status.value as any }))}
+                  className={cn(
+                    "p-2 rounded-lg border transition-all flex items-center gap-1.5 text-sm",
+                    isSelected
+                      ? `${status.bgColor} ${status.color} ${status.borderColor} ring-2 ring-opacity-50`
+                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                  )}
+                >
+                  <StatusIcon className="w-3.5 h-3.5" />
                   <span className="text-xs font-medium">{status.label}</span>
-                </div>
-              </button>
-            ))}
+                </motion.button>
+              );
+            })}
           </div>
         </div>
 
         {/* Activity Type-Specific Fields */}
-        {formData.type === 'sale' && (
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium text-gray-300 border-b border-gray-700 pb-2">Revenue Details</h3>
-            <div className="grid grid-cols-2 gap-3">
+        <AnimatePresence>
+          {formData.type === 'sale' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-medium text-gray-300">Revenue Details</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-400">Monthly MRR</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      name="monthlyMrr"
+                      value={formData.monthlyMrr || ''}
+                      onChange={handleRevenueChange}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-400">One-Off Revenue</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      name="oneOffRevenue"
+                      value={formData.oneOffRevenue || ''}
+                      onChange={handleRevenueChange}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sale Date */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">Monthly MRR</label>
+                <label className="text-sm font-medium text-gray-400">Sale Date</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-gray-500 text-sm">£</span>
+                  <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    name="monthlyMrr"
-                    value={formData.monthlyMrr || ''}
-                    onChange={handleRevenueChange}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-8 pr-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    type="date"
+                    name="saleDate"
+                    value={formData.saleDate || ''}
+                    onChange={handleFormChange}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
                   />
                 </div>
               </div>
+              
+              {(formData.monthlyMrr || formData.oneOffRevenue) && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-r from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-xl p-4"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="w-4 h-4 text-emerald-400" />
+                    <div className="text-sm text-emerald-400 font-medium">Calculated LTV</div>
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-400">
+                    £{((formData.monthlyMrr || 0) * 3 + (formData.oneOffRevenue || 0)).toLocaleString()}
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {formData.type === 'proposal' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <h3 className="text-sm font-medium text-gray-300">Proposal Details</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-400">Proposal Value</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      name="proposalValue"
+                      value={formData.proposalValue || ''}
+                      onChange={handleRevenueChange}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-400">Proposal Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                    <input
+                      type="date"
+                      name="proposalDate"
+                      value={formData.proposalDate || ''}
+                      onChange={handleFormChange}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {formData.type === 'outbound' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
+                <Send className="w-4 h-4 text-orange-400" />
+                <h3 className="text-sm font-medium text-gray-300">Outbound Details</h3>
+              </div>
+              
+              {/* Outbound Type Selection */}
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">One-Off Revenue</label>
+                <label className="text-sm font-medium text-gray-400">Outreach Type</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { 
+                      value: 'email', 
+                      label: 'Email', 
+                      icon: Mail, 
+                      color: 'text-blue-400', 
+                      bgColor: 'bg-blue-500/10', 
+                      borderColor: 'border-blue-500/30' 
+                    },
+                    { 
+                      value: 'linkedin', 
+                      label: 'LinkedIn', 
+                      icon: Linkedin, 
+                      color: 'text-blue-500', 
+                      bgColor: 'bg-blue-500/10', 
+                      borderColor: 'border-blue-500/30' 
+                    },
+                    { 
+                      value: 'call', 
+                      label: 'Call', 
+                      icon: PhoneCall, 
+                      color: 'text-green-400', 
+                      bgColor: 'bg-green-500/10', 
+                      borderColor: 'border-green-500/30' 
+                    }
+                  ].map((type) => {
+                    const TypeIcon = type.icon;
+                    const isSelected = formData.outboundType === type.value;
+                    return (
+                      <motion.button
+                        key={type.value}
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setFormData(prev => ({ ...prev, outboundType: type.value as any }))}
+                        className={cn(
+                          "p-3 rounded-lg border transition-all flex flex-col items-center gap-1.5",
+                          isSelected
+                            ? `${type.bgColor} ${type.color} ${type.borderColor} ring-2 ring-opacity-50`
+                            : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                        )}
+                      >
+                        <TypeIcon className="w-4 h-4" />
+                        <span className="text-xs font-medium">{type.label}</span>
+                      </motion.button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Number of Outreaches */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-400">Number of Outreaches</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-gray-500 text-sm">£</span>
+                  <Hash className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                   <input
                     type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    name="oneOffRevenue"
-                    value={formData.oneOffRevenue || ''}
-                    onChange={handleRevenueChange}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-8 pr-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    min="1"
+                    max="100"
+                    placeholder={
+                      formData.outboundType === 'email' ? "How many emails sent?" :
+                      formData.outboundType === 'linkedin' ? "How many LinkedIn messages?" :
+                      "How many calls made?"
+                    }
+                    name="quantity"
+                    value={formData.quantity || ''}
+                    onChange={handleFormChange}
+                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
                   />
                 </div>
               </div>
-            </div>
-            {/* LTV Display */}
-            {(formData.monthlyMrr || formData.oneOffRevenue) && (
-              <div className="bg-gray-900/50 border border-gray-700/50 rounded-xl p-3">
-                <div className="text-sm text-gray-400 mb-1">Calculated LTV</div>
-                <div className="text-lg font-semibold text-[#37bd7e]">
-                  £{((formData.monthlyMrr || 0) * 3 + (formData.oneOffRevenue || 0)).toLocaleString()}
-                </div>
+            </motion.div>
+          )}
+
+          {formData.type === 'meeting' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-4"
+            >
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
+                <Calendar className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-medium text-gray-300">Meeting Details</h3>
               </div>
-            )}
-          </div>
-        )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Rescheduled Meeting Checkbox */}
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    formData.isRebooking 
+                      ? 'bg-orange-500/10 border-orange-500/30 ring-1 ring-orange-500/20' 
+                      : 'bg-gray-800/30 border-gray-700/50 hover:border-orange-500/40'
+                  }`}
+                  onClick={() => handleCheckboxChange('isRebooking', !formData.isRebooking)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`relative w-5 h-5 rounded border-2 transition-all ${
+                      formData.isRebooking
+                        ? 'bg-orange-500 border-orange-500'
+                        : 'bg-transparent border-gray-600 hover:border-orange-500/60'
+                    }`}>
+                      {formData.isRebooking && (
+                        <motion.div
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <RefreshCw className="w-3 h-3 text-white absolute top-0.5 left-0.5" />
+                        </motion.div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium transition-colors ${
+                        formData.isRebooking ? 'text-orange-400' : 'text-gray-300'
+                      }`}>
+                        Rescheduled Meeting
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Mark as rebooked from previous no-show
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
 
-        {formData.type === 'proposal' && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-400">Proposal Value</label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-gray-500 text-sm">£</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                name="proposalValue"
-                value={formData.proposalValue || ''}
-                onChange={handleRevenueChange}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl pl-8 pr-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
+                {/* Self-Generated Meeting Checkbox */}
+                <motion.div 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    formData.isSelfGenerated 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 ring-1 ring-emerald-500/20' 
+                      : 'bg-gray-800/30 border-gray-700/50 hover:border-emerald-500/40'
+                  }`}
+                  onClick={() => handleCheckboxChange('isSelfGenerated', !formData.isSelfGenerated)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`relative w-5 h-5 rounded border-2 transition-all ${
+                      formData.isSelfGenerated
+                        ? 'bg-emerald-500 border-emerald-500'
+                        : 'bg-transparent border-gray-600 hover:border-emerald-500/60'
+                    }`}>
+                      {formData.isSelfGenerated && (
+                        <motion.div
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <UserCheck className="w-3 h-3 text-white absolute top-0.5 left-0.5" />
+                        </motion.div>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className={`text-sm font-medium transition-colors ${
+                        formData.isSelfGenerated ? 'text-emerald-400' : 'text-gray-300'
+                      }`}>
+                        Self-Generated
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Sales rep generated this meeting
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </div>
 
-        {/* Contact Identifier Inputs - Horizontal (Conditional) */}
-        {formData.type !== 'outbound' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-400">Contact Identifier</label>
-              <input
-                type="text"
-                placeholder="Enter email or phone"
-                name="contactIdentifier"
-                value={formData.contactIdentifier || ''}
-                onChange={handleFormChange}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-400">Identifier Type</label>
-              <input
-                type="text"
-                placeholder="Identifier Type (e.g., email, phone)"
-                name="contactIdentifierType"
-                value={formData.contactIdentifierType || ''}
-                onChange={handleFormChange}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
-              />
-            </div>
-          </div>
-        )}
+              {(formData.isRebooking || formData.isSelfGenerated) && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-2 flex-wrap"
+                >
+                  {formData.isRebooking && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      <CalendarDays className="w-3 h-3 mr-1" />
+                      Rescheduled
+                    </span>
+                  )}
+                  {formData.isSelfGenerated && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/20">
+                      <UserCheck className="w-3 h-3 mr-1" />
+                      Self-Generated
+                    </span>
+                  )}
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
-      <DialogFooter>
+
+      {/* Contact Search Modal */}
+      <ContactSearchModal
+        isOpen={showContactSearch}
+        onClose={() => setShowContactSearch(false)}
+        onContactSelect={handleContactSelect}
+        prefilledEmail={formData.contactIdentifier || ''}
+        prefilledName={formData.client_name || ''}
+      />
+
+      <DialogFooter className="border-t border-gray-800 pt-4">
         <Button 
           variant="outline" 
-          onClick={onCancel} // Use onCancel prop
-          // Change text to black, remove hover text change for simplicity
-          className="text-black border-gray-600 hover:bg-gray-700" 
+          onClick={onCancel}
+          className="border-gray-600 text-gray-300 hover:bg-gray-700"
         >
           Cancel 
         </Button>
-        <Button onClick={handleSaveChanges}>Save Changes</Button>
+        <Button 
+          onClick={handleSaveChanges}
+          className="bg-[#37bd7e] hover:bg-[#2ea368] text-white"
+        >
+          Save Changes
+        </Button>
       </DialogFooter>
     </>
   );

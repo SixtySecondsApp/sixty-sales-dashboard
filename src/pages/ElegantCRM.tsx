@@ -40,6 +40,7 @@ import ViewSpecificStats from '@/components/ViewSpecificStats';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import AddCompanyModal from '@/components/AddCompanyModal';
 import AddContactModal from '@/components/AddContactModal';
+import { DealForm } from '@/components/Pipeline/DealForm';
 
 // Import existing hooks
 import { useUser } from '@/lib/hooks/useUser';
@@ -133,6 +134,7 @@ export default function ElegantCRM() {
   // Modal states
   const [addCompanyModalOpen, setAddCompanyModalOpen] = useState(false);
   const [addContactModalOpen, setAddContactModalOpen] = useState(false);
+  const [addDealModalOpen, setAddDealModalOpen] = useState(false);
 
   // Open sidebar after initial load to prevent glitching
   useEffect(() => {
@@ -179,7 +181,7 @@ export default function ElegantCRM() {
     return userData?.id || undefined;
   }, [selectedOwnerId, userData?.id]);
   
-  const { deals, isLoading: dealsLoading } = useDeals(dealOwnerId);
+  const { deals, isLoading: dealsLoading, createDeal } = useDeals(dealOwnerId);
 
   // Convert error object to string for component compatibility
   const error = hookError instanceof Error ? hookError.message : 
@@ -394,6 +396,21 @@ export default function ElegantCRM() {
     setAddContactModalOpen(true);
   };
 
+  const handleAddDeal = () => {
+    setAddDealModalOpen(true);
+  };
+
+  const handleSaveDeal = async (formData: any) => {
+    try {
+      await createDeal(formData);
+      setAddDealModalOpen(false);
+      toast.success('Deal created successfully!');
+    } catch (error) {
+      console.error('Error creating deal:', error);
+      toast.error('Failed to create deal');
+    }
+  };
+
   // Get the appropriate add button based on active tab
   const getAddButton = () => {
     switch (activeTab) {
@@ -426,7 +443,7 @@ export default function ElegantCRM() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => toast.info('Deal creation coming soon!')}
+            onClick={handleAddDeal}
             className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 border border-purple-400/20 hover:border-purple-400/40 transition-all duration-300"
           >
             <Plus className="w-4 h-4" />
@@ -884,6 +901,18 @@ export default function ElegantCRM() {
             toast.success('Contact added successfully!');
           }}
         />
+        
+        {/* Deal Form Modal */}
+        {addDealModalOpen && (
+          <Dialog open={addDealModalOpen} onOpenChange={setAddDealModalOpen}>
+            <DialogContent className="bg-gray-900 border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DealForm
+                onSave={handleSaveDeal}
+                onCancel={() => setAddDealModalOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );

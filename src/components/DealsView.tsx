@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import DealCard from '@/components/DealCard';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
+import { DealForm } from '@/components/Pipeline/DealForm';
 import { useUser } from '@/lib/hooks/useUser';
 import { useDeals } from '@/lib/hooks/useDeals';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
@@ -73,6 +74,10 @@ export function DealsView({
   
   // Deletion state
   const [deletingDeal, setDeletingDeal] = useState<DealWithRelationships | null>(null);
+  
+  // Edit modal state
+  const [editingDeal, setEditingDeal] = useState<DealWithRelationships | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   // Determine the owner ID to use for fetching deals
   // This prevents the flicker from "All Items" to "My Items"
@@ -90,6 +95,7 @@ export function DealsView({
     stages,
     isLoading, 
     error,
+    updateDeal,
     deleteDeal
   } = useDeals(dealOwnerId);
 
@@ -254,8 +260,39 @@ export function DealsView({
   };
 
   const handleEditDeal = (deal: DealWithRelationships) => {
-    // Handle edit deal
-    console.log('Edit deal:', deal.id);
+    setEditingDeal(deal);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEditDeal = async (formData: any) => {
+    if (!editingDeal) return;
+    
+    try {
+      await updateDeal(editingDeal.id, formData);
+      setEditModalOpen(false);
+      setEditingDeal(null);
+      toast.success('Deal updated successfully!');
+    } catch (error) {
+      console.error('Error updating deal:', error);
+      toast.error('Failed to update deal');
+    }
+  };
+
+  const handleDeleteEditDeal = async (dealId: string) => {
+    try {
+      await deleteDeal(dealId);
+      setEditModalOpen(false);
+      setEditingDeal(null);
+      toast.success('Deal deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting deal:', error);
+      toast.error('Failed to delete deal');
+    }
+  };
+
+  const handleCloseEditModal = () => {
+    setEditModalOpen(false);
+    setEditingDeal(null);
   };
 
   const handleDeleteDeal = (deal: DealWithRelationships) => {
@@ -618,6 +655,20 @@ export function DealsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Deal Modal */}
+      {editModalOpen && editingDeal && (
+        <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+          <DialogContent className="bg-gray-900 border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DealForm
+              deal={editingDeal}
+              onSave={handleSaveEditDeal}
+              onDelete={handleDeleteEditDeal}
+              onCancel={handleCloseEditModal}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </motion.div>
   );
 }
