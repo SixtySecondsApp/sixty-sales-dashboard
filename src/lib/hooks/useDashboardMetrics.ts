@@ -35,16 +35,27 @@ interface DashboardComparisons {
 
 // Calculate metrics from activities array
 function calculateMetrics(activities: any[]): DashboardMetrics {
-  if (!Array.isArray(activities)) return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
+  if (!Array.isArray(activities)) {
+    logger.warn('calculateMetrics: activities is not an array', activities);
+    return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
+  }
   
   try {
-    return {
-      revenue: activities
-        .filter(a => a.type === 'sale')
-        .reduce((sum, a) => sum + (a.amount || 0), 0),
-      outbound: activities
-        .filter(a => a.type === 'outbound')
-        .reduce((sum, a) => sum + (a.quantity || 1), 0),
+    // Log the raw activities for debugging
+    logger.log('calculateMetrics: Processing activities', {
+      totalCount: activities.length,
+      types: activities.reduce((acc, a) => {
+        acc[a.type] = (acc[a.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    });
+    
+    const salesActivities = activities.filter(a => a.type === 'sale');
+    const outboundActivities = activities.filter(a => a.type === 'outbound');
+    
+    const metrics = {
+      revenue: salesActivities.reduce((sum, a) => sum + (a.amount || 0), 0),
+      outbound: outboundActivities.reduce((sum, a) => sum + (a.quantity || 1), 0),
       meetings: activities
         .filter(a => a.type === 'meeting')
         .reduce((sum, a) => sum + (a.quantity || 1), 0),
@@ -52,6 +63,33 @@ function calculateMetrics(activities: any[]): DashboardMetrics {
         .filter(a => a.type === 'proposal')
         .reduce((sum, a) => sum + (a.quantity || 1), 0),
     };
+    
+    // Log detailed info for debugging
+    if (salesActivities.length > 0) {
+      logger.log('calculateMetrics: Sales breakdown', {
+        count: salesActivities.length,
+        total: metrics.revenue,
+        sales: salesActivities.map(s => ({
+          date: s.date,
+          amount: s.amount,
+          client: s.client_name
+        }))
+      });
+    }
+    
+    if (outboundActivities.length > 0) {
+      logger.log('calculateMetrics: Outbound breakdown', {
+        count: outboundActivities.length,
+        total: metrics.outbound,
+        activities: outboundActivities.map(o => ({
+          date: o.date,
+          quantity: o.quantity || 1,
+          client: o.client_name
+        }))
+      });
+    }
+    
+    return metrics;
   } catch (error) {
     logger.error('Error calculating metrics:', error);
     return { revenue: 0, outbound: 0, meetings: 0, proposals: 0 };
@@ -148,12 +186,15 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
       };
     },
     enabled: Boolean(enabled && currentMonth.activities !== undefined),
-    staleTime: 5 * 60 * 1000, // 5 minutes - only recalculate if data actually changes
-    cacheTime: 30 * 60 * 1000, // 30 minutes
+    staleTime: 30 * 1000, // 30 seconds - recalculate more frequently
+    cacheTime: 60 * 1000, // 1 minute - keep cache shorter for fresher data
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Always refetch when component mounts
   });
 
   // Invalidate cache when activities change
   const invalidateMetrics = () => {
+    logger.log('🔄 Invalidating dashboard metrics and activities cache');
     queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
   };
@@ -226,6 +267,15 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     };
   }, [enabled, queryClient]);
 
+  // Force refresh function for manual data reload
+  const refreshDashboard = () => {
+    logger.log('🔄 Manual dashboard refresh triggered');
+    invalidateMetrics();
+    // Also refetch the queries directly
+    queryClient.refetchQueries({ queryKey: ['activities-lazy'] });
+    queryClient.refetchQueries({ queryKey: ['dashboard-metrics'] });
+  };
+
   return {
     // Metrics data
     metrics: metricsQuery.data?.current || { revenue: 0, outbound: 0, meetings: 0, proposals: 0 },
@@ -244,6 +294,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     
     // Utilities
     invalidateMetrics,
+    refreshDashboard,
     
     // Raw data access (for other components)
     currentMonthActivities: currentMonth.activities || [],

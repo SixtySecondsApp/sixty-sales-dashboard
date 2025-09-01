@@ -100,8 +100,10 @@ export function useLazyActivities(config: LazyActivitiesConfig = { enabled: fals
     queryKey: ['activities-lazy', config],
     queryFn: () => fetchLimitedActivities(config),
     enabled: config.enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 30 * 1000, // 30 seconds - refetch more frequently for dashboard accuracy
+    cacheTime: 60 * 1000, // 1 minute - keep cache shorter for fresher data
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnMount: true, // Always refetch when component mounts
   });
 
   return {
@@ -118,7 +120,8 @@ export function useDashboardActivities(currentMonth: Date, enabled: boolean = tr
   return useLazyActivities({
     enabled,
     dateRange: { start: startOfMonth, end: endOfMonth },
-    limit: 100, // Reasonable limit for dashboard
+    // Removed limit to ensure all activities are fetched for accurate metrics
+    // The dashboard needs all activities to calculate totals correctly
   });
 }
 
@@ -131,7 +134,7 @@ export function usePreviousMonthActivities(currentMonth: Date, enabled: boolean 
   return useLazyActivities({
     enabled,
     dateRange: { start: startOfPrevMonth, end: endOfPrevMonth },
-    limit: 100,
+    // Removed limit to ensure all activities are fetched for accurate comparisons
   });
 }
 
