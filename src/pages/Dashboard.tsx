@@ -299,7 +299,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
       
       <div className="space-y-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-white">
+          <span className="text-3xl font-bold text-white" suppressHydrationWarning>
             {title === 'Revenue' ? `£${value.toLocaleString()}` : value}
           </span>
           <span className="text-sm text-gray-500 font-medium">
@@ -310,7 +310,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
         <div className="space-y-1">
           <div className="h-2.5 bg-gray-900/80 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full ${
+              className={`h-full rounded-full transition-none ${
                 title === 'Revenue'
                   ? 'bg-emerald-500/80'
                   : title === 'Outbound'
@@ -547,6 +547,11 @@ export default function Dashboard() {
   // Early return for missing data
   if (!targets) {
     return null;
+  }
+
+  // Prevent flicker by waiting for initial data
+  if (isInitialLoad) {
+    return <DashboardSkeleton />;
   }
 
   return (

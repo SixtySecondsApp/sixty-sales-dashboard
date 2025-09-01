@@ -140,7 +140,10 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
   const metricsQuery = useQuery({
     queryKey: cacheKey,
     queryFn: (): DashboardComparisons => {
-      logger.log('🧮 Calculating dashboard metrics (cached)');
+      // Only log in development
+      if (process.env.NODE_ENV === 'development') {
+        logger.log('🧮 Calculating dashboard metrics (cached)');
+      }
       
       // Current month metrics
       const current = calculateMetrics(currentMonth.activities || []);
