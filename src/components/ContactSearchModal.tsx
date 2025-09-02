@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, 
@@ -375,7 +374,7 @@ export function ContactSearchModal({
 
   return (
     <AnimatePresence>
-      {isOpen && createPortal(
+      {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -673,8 +672,7 @@ export function ContactSearchModal({
               </AnimatePresence>
             </div>
           </motion.div>
-        </motion.div>,
-        document.body
+        </motion.div>
       )}
     </AnimatePresence>
   );
