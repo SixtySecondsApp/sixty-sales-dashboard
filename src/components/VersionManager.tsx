@@ -78,10 +78,10 @@ export function VersionManager() {
         )}
       </AnimatePresence>
 
-      {/* Version Info Button (bottom right corner) */}
+      {/* Version Info Button (top right corner) */}
       <button
         onClick={() => setShowVersionModal(true)}
-        className="fixed bottom-4 right-4 z-[9998] px-3 py-1.5 bg-gray-900/80 hover:bg-gray-900/90 backdrop-blur-sm text-gray-400 hover:text-white text-xs rounded-lg transition-all duration-200 border border-gray-800 hover:border-gray-700"
+        className="fixed top-4 right-4 z-[9998] px-3 py-1.5 bg-gray-900/80 hover:bg-gray-900/90 backdrop-blur-sm text-gray-400 hover:text-white text-xs rounded-lg transition-all duration-200 border border-gray-800 hover:border-gray-700"
         title="Version info and cache management"
       >
         v{APP_VERSION}
