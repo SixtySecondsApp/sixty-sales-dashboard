@@ -188,7 +188,7 @@ function PipelineContent() {
   // Update local state when the context data changes
   useEffect(() => {
     setLocalDealsByStage(structuredClone(contextDealsByStage));
-  }, [contextDealsByStage]);
+  }, [contextDealsByStage, refreshKey]);
 
   // Apply sorting to the local state
   useEffect(() => {
@@ -580,7 +580,24 @@ function PipelineContent() {
   };
 
   const handleDeleteDeal = async (dealId: string) => {
-    await deleteDeal(dealId);
+    logger.log('🗑️ Attempting to delete deal:', dealId);
+    const success = await deleteDeal(dealId);
+    if (success) {
+      logger.log('✅ Deal deleted successfully, refreshing pipeline view');
+      
+      // Small delay to ensure database operations are complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Force refresh the pipeline data to update the view
+      await refreshDeals();
+      
+      // Also trigger a local refresh for good measure
+      setRefreshKey(prev => prev + 1);
+      
+      logger.log('🔄 Pipeline refresh completed');
+    } else {
+      logger.error('❌ Deal deletion failed');
+    }
   };
 
   const handleConvertToSubscription = (deal: any) => {
