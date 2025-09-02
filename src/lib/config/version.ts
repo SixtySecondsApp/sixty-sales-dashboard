@@ -1,5 +1,5 @@
 // Version configuration for cache busting and update management
-export const APP_VERSION = '2.1.2'; // Increment this with each release
+export const APP_VERSION = '2.1.3'; // Increment this with each release
 export const BUILD_DATE = new Date().toISOString();
 export const VERSION_KEY = 'sixty_app_version';
 export const LAST_UPDATED_KEY = 'sixty_last_updated';
