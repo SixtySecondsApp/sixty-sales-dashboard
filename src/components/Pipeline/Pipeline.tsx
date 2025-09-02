@@ -907,8 +907,10 @@ function PipelineContent() {
           setPendingDealMove(null);
         }}
         onConfirm={handleProposalConfirmation}
-        dealName={pendingDealMove?.deal?.name || pendingDealMove?.deal?.company || 'Deal'}
-        clientName={pendingDealMove?.deal?.company}
+        dealName={pendingDealMove?.deal?.name || (typeof pendingDealMove?.deal?.company === 'string' ? pendingDealMove?.deal?.company : pendingDealMove?.deal?.company?.name) || 'Deal'}
+        clientName={typeof pendingDealMove?.deal?.company === 'string' 
+          ? pendingDealMove?.deal?.company 
+          : pendingDealMove?.deal?.company?.name || undefined}
       />
     </>
   );

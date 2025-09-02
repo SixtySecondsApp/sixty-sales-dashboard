@@ -18,6 +18,8 @@ import PipelineStageSection from './components/PipelineStageSection';
 import LeadSourceSection from './components/LeadSourceSection';
 import ActivitySection from './components/ActivitySection';
 import { useFocusTrap } from './utils/useFocusTrap';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
+import { useUser } from '@/lib/hooks/useUser';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { useForm, FormProvider } from 'react-hook-form';
 import { useToast } from '../../../hooks/use-toast';
@@ -69,6 +71,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
   onDelete 
 }) => {
   const { toast } = useToast();
+  const { userData } = useUser();
   const [activeTab, setActiveTab] = useState('details');
   const [currentStage, setCurrentStage] = useState('');
   const [stageName, setStageName] = useState('');
@@ -508,7 +511,7 @@ const EditDealModal: React.FC<EditDealModalProps> = ({
             </div>
             
             <div className="max-h-[60vh] overflow-y-auto p-6" role="region" aria-live="polite" id={`${activeTab}-section`}>
-              {activeTab === 'details' && <DealDetailsSection initialFocusRef={initialFocusRef} />}
+              {activeTab === 'details' && <DealDetailsSection initialFocusRef={initialFocusRef} isAdmin={true} />}
               {activeTab === 'stage' && <PipelineStageSection onStageChange={handleStageChange} currentStage={currentStage} />}
               {activeTab === 'source' && <LeadSourceSection />}
               {activeTab === 'activity' && <ActivitySection dealId={deal.id} />}

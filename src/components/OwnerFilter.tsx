@@ -27,6 +27,7 @@ export function OwnerFilter({
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const isTyping = useRef(false);
   
   // Set default to current user on component mount if no owner is selected
   React.useEffect(() => {
@@ -35,18 +36,23 @@ export function OwnerFilter({
     }
   }, [userData?.id, selectedOwnerId, onOwnerChange]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearchTerm('');
-      }
-    }
+  // Close dropdown when clicking outside - disabled for now to fix search input
+  // useEffect(() => {
+  //   function handleClickOutside(event: MouseEvent) {
+  //     if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+  //       // Only close if the dropdown is open and user is not actively typing
+  //       if (isOpen && !isTyping.current) {
+  //         setIsOpen(false);
+  //         setSearchTerm('');
+  //       }
+  //     }
+  //   }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  //   if (isOpen) {
+  //     document.addEventListener('mousedown', handleClickOutside);
+  //     return () => document.removeEventListener('mousedown', handleClickOutside);
+  //   }
+  // }, [isOpen]);
 
   // Focus search input when dropdown opens
   useEffect(() => {
@@ -176,15 +182,26 @@ export function OwnerFilter({
             className="absolute top-full left-0 right-0 mt-1 z-50 bg-gray-900/95 backdrop-blur-lg border border-gray-700/50 rounded-lg shadow-2xl max-h-80 overflow-hidden"
           >
             {/* Search Input */}
-            <div className="p-2 border-b border-gray-700/50">
+            <div className="p-2 border-b border-gray-700/50 flex items-center gap-2">
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search owners..."
-                className="w-full px-3 py-1.5 bg-gray-800/50 border border-gray-700/50 rounded text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+                className="flex-1 px-3 py-1.5 bg-gray-800/50 border border-gray-700/50 rounded text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-500/50"
+                autoComplete="off"
               />
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  setSearchTerm('');
+                }}
+                className="p-1 hover:bg-gray-700/50 rounded text-gray-400 hover:text-white"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             {/* Quick Actions */}

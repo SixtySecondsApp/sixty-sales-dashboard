@@ -67,8 +67,10 @@ export function OwnerFilterV3({
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
   }, [isOpen]);
 
   // Focus search input and calculate position when dropdown opens
@@ -303,6 +305,9 @@ export function OwnerFilterV3({
                   "focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
                 )}
                 onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                autoComplete="off"
               />
             </div>
 

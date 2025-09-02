@@ -4,8 +4,8 @@ import { useDealStages } from '@/lib/hooks/useDealStages';
 import { ContactSearchModal } from '@/components/ContactSearchModal';
 import DealSplitModal from '@/components/DealSplitModal';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { isUserAdmin } from '@/lib/utils/adminUtils';
 import { toast } from 'sonner';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
 
 interface DealFormProps {
   deal?: any;
@@ -388,7 +388,11 @@ export function DealForm({
                     <p className="text-xs text-gray-400">{selectedContact.phone}</p>
                   )}
                   {selectedContact.company && (
-                    <p className="text-sm text-gray-400">{selectedContact.company}</p>
+                    <p className="text-sm text-gray-400">
+                      {typeof selectedContact.company === 'string' 
+                        ? selectedContact.company 
+                        : selectedContact.company.name || 'Unknown Company'}
+                    </p>
                   )}
                 </div>
                 <button

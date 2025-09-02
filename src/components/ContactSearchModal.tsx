@@ -46,6 +46,7 @@ export function ContactSearchModal({
   const { contacts, isLoading, searchContacts, createContact, findContactByEmail, fetchContacts } = useContacts();
   const { createCompany, companies } = useCompanies();
   
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -174,6 +175,8 @@ export function ContactSearchModal({
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
+      console.log('ContactSearchModal opened - fetching contacts...');
+      fetchContacts(); // Fetch contacts when modal opens
       setSearchQuery(prefilledEmail || '');
       setShowCreateForm(false);
       const suggestedWebsite = prefilledEmail ? extractWebsiteFromEmail(prefilledEmail) : '';
@@ -200,21 +203,26 @@ export function ContactSearchModal({
         handleSearch(prefilledEmail);
       }
     }
-  }, [isOpen, prefilledEmail, prefilledName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, prefilledEmail, prefilledName]); // Intentionally limited dependencies to prevent re-renders
   
   // Fetch all contacts for initial display
   const fetchAllContacts = async () => {
     if (!isOpen) return;
     
+    // If we already have contacts from the hook, use them
+    if (contacts && contacts.length > 0) {
+      setAllContacts(contacts);
+      if (!searchQuery.trim()) {
+        setSearchResults(contacts);
+      }
+      return;
+    }
+    
     setIsSearching(true);
     try {
       // Fetch contacts without search term to get all
-      logger.log('Calling searchContacts with empty string...');
       const results = await searchContacts('', true); // Explicitly pass includeCompany: true
-      logger.log('Fetched all contacts:', results);
-      logger.log('Results type:', typeof results);
-      logger.log('Results is array:', Array.isArray(results));
-      logger.log('Results length:', results?.length);
       setAllContacts(results || []);
       // If no search query, also set as search results
       if (!searchQuery.trim()) {

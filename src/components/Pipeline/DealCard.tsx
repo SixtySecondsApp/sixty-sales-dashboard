@@ -95,10 +95,20 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
 
   // Get primary contact information (normalized vs legacy)
   const contactInfo = useMemo(() => {
+    // Debug logging
+    console.log('DealCard contact info for deal:', deal.id, {
+      hasContacts: !!deal.contacts,
+      contacts: deal.contacts,
+      contact_name: deal.contact_name,
+      contact_email: deal.contact_email
+    });
+    
     // Primary: Use normalized contact relationship
     if (deal.contacts) {
+      const name = deal.contacts.full_name || `${deal.contacts.first_name || ''} ${deal.contacts.last_name || ''}`.trim();
+      console.log('Using normalized contact name:', name);
       return {
-        name: deal.contacts.full_name || `${deal.contacts.first_name || ''} ${deal.contacts.last_name || ''}`.trim(),
+        name: name || 'Unnamed Contact',
         email: deal.contacts.email,
         phone: deal.contacts.phone,
         title: deal.contacts.title,
@@ -107,8 +117,10 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
     }
     
     // Fallback: Use legacy contact fields
+    const legacyName = deal.contact_name || 'No contact';
+    console.log('Using legacy contact name:', legacyName);
     return {
-      name: deal.contact_name || 'No contact',
+      name: legacyName,
       email: deal.contact_email,
       phone: deal.contact_phone,
       title: null,
@@ -249,16 +261,24 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
       )}
 
       <div className="relative z-[2]">
-        {/* Header with company and value */}
+        {/* Header with deal name and value */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
-              <Building2 className="w-4 h-4 text-blue-400 flex-shrink-0" />
-              <h3 className="font-medium text-white text-base truncate"
-                  title={companyInfo.name}
+            {/* Deal name as primary title */}
+            <h3 className="font-semibold text-white text-base truncate mb-2"
+                title={deal.name || 'Untitled Deal'}
+            >
+              {deal.name || 'Untitled Deal'}
+            </h3>
+            
+            {/* Company info */}
+            <div className="flex items-center gap-2 mb-1">
+              <Building2 className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
+              <span className="text-sm text-gray-300 truncate"
+                    title={companyInfo.name}
               >
                 {companyInfo.name}
-              </h3>
+              </span>
             </div>
             
             {/* Contact info */}

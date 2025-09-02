@@ -841,7 +841,11 @@ const TaskForm: React.FC<TaskFormProps> = ({
                         <div className="text-gray-400 text-sm">{selectedContact.email}</div>
                       )}
                       {selectedContact.company && (
-                        <div className="text-gray-500 text-xs">{selectedContact.company}</div>
+                        <div className="text-gray-500 text-xs">
+                          {typeof selectedContact.company === 'string' 
+                            ? selectedContact.company 
+                            : selectedContact.company.name || 'Unknown Company'}
+                        </div>
                       )}
                     </div>
                     <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
@@ -883,7 +887,11 @@ const TaskForm: React.FC<TaskFormProps> = ({
                               <div className="text-gray-400 text-sm">{contact.email}</div>
                             )}
                             {contact.company && (
-                              <div className="text-gray-500 text-xs">{contact.company}</div>
+                              <div className="text-gray-500 text-xs">
+                                {typeof contact.company === 'string' 
+                                  ? contact.company 
+                                  : contact.company.name || 'Unknown Company'}
+                              </div>
                             )}
                           </div>
                           <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">

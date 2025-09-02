@@ -14,9 +14,10 @@ import logger from '@/lib/utils/logger';
 
 interface DealDetailsSectionProps {
   initialFocusRef?: RefObject<HTMLInputElement>;
+  isAdmin?: boolean;
 }
 
-const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef }) => {
+const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef, isAdmin = false }) => {
   const { register, watch, getValues, formState: { errors }, setValue } = useFormContext();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
@@ -336,7 +337,11 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
                             <div className="text-gray-400 text-sm">{contact.email}</div>
                           )}
                           {contact.company && (
-                            <div className="text-gray-500 text-xs">{contact.company}</div>
+                            <div className="text-gray-500 text-xs">
+                              {typeof contact.company === 'string' 
+                                ? contact.company 
+                                : contact.company?.name || 'Unknown Company'}
+                            </div>
                           )}
                         </div>
                         <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
@@ -640,12 +645,13 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
 
         {/* Right Column: Revenue & Priority Stack */}
         <div className="space-y-6">
-          {/* Deal Revenue Section */}
-          <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <PoundSterling className="w-4 h-4 text-emerald-400" />
-              <h4 className="text-sm font-medium text-gray-300">Deal Revenue</h4>
-            </div>
+          {/* Deal Revenue Section - Admin Only */}
+          {isAdmin && (
+            <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <PoundSterling className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-sm font-medium text-gray-300">Deal Revenue</h4>
+              </div>
             
             <div className="space-y-4">
               <FormField
@@ -731,7 +737,8 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          )}
 
           {/* Deal Priority Section */}
           <div className="bg-gray-800/20 border border-gray-700/30 rounded-lg p-4">

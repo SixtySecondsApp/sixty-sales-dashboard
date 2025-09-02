@@ -182,7 +182,11 @@ const DealCard: React.FC<DealCardProps> = ({
               </h3>
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Building2 className="w-3 h-3" />
-                <span>{deal.company}</span>
+                <span>
+                  {typeof deal.company === 'string' 
+                    ? deal.company 
+                    : deal.company?.name || 'Unknown Company'}
+                </span>
                 {deal.contact_name && (
                   <>
                     <span>•</span>
@@ -313,7 +317,11 @@ const DealCard: React.FC<DealCardProps> = ({
         </h3>
         <div className="flex items-center gap-1 text-sm text-gray-400 mb-2">
           <Building2 className="w-3 h-3" />
-          <span>{deal.company}</span>
+          <span>
+            {typeof deal.company === 'string' 
+              ? deal.company 
+              : deal.company?.name || 'Unknown Company'}
+          </span>
         </div>
         {deal.contact_name && (
           <div className="flex items-center gap-1 text-xs text-emerald-400/80">
