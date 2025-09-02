@@ -19,36 +19,37 @@ import logger from '@/lib/utils/logger';
 import { StateProvider } from '@/lib/communication/StateManagement';
 import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
 import { VersionManager } from '@/components/VersionManager';
+import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
 
-// Heavy routes - lazy load to reduce initial bundle size
-const ActivityLog = lazy(() => import('@/pages/ActivityLog'));
-const Heatmap = lazy(() => import('@/pages/Heatmap'));
-const SalesFunnel = lazy(() => import('@/pages/SalesFunnel'));
-const Profile = lazy(() => import('@/pages/Profile'));
+// Heavy routes - lazy load with retry mechanism to handle cache issues
+const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
+const Heatmap = lazyWithRetry(() => import('@/pages/Heatmap'));
+const SalesFunnel = lazyWithRetry(() => import('@/pages/SalesFunnel'));
+const Profile = lazyWithRetry(() => import('@/pages/Profile'));
 
-// Admin routes - lazy load (infrequently accessed)
-const Users = lazy(() => import('@/pages/admin/Users'));
-const PipelineSettings = lazy(() => import('@/pages/admin/PipelineSettings'));
-const AuditLogs = lazy(() => import('@/pages/admin/AuditLogs'));
-const SmartTasksAdmin = lazy(() => import('@/pages/SmartTasksAdmin'));
+// Admin routes - lazy load with retry (infrequently accessed, more prone to cache issues)
+const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
+const PipelineSettings = lazyWithRetry(() => import('@/pages/admin/PipelineSettings'));
+const AuditLogs = lazyWithRetry(() => import('@/pages/admin/AuditLogs'));
+const SmartTasksAdmin = lazyWithRetry(() => import('@/pages/SmartTasksAdmin'));
 
-// Auth routes - lazy load except login
-const Signup = lazy(() => import('@/pages/auth/signup'));
-const ForgotPassword = lazy(() => import('@/pages/auth/forgot-password'));
-const ResetPassword = lazy(() => import('@/pages/auth/reset-password'));
+// Auth routes - lazy load with retry except login
+const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
+const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
+const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
 
-// Large feature routes - lazy load
-const PipelinePage = lazy(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
-const ActivityProcessingPage = lazy(() => import('@/pages/ActivityProcessingPage'));
-const TasksPage = lazy(() => import('@/pages/TasksPage'));
-const Roadmap = lazy(() => import('@/pages/Roadmap'));
-const Releases = lazy(() => import('@/pages/Releases'));
-const Clients = lazy(() => import('@/pages/Clients'));
-const TestFallback = lazy(() => import('@/pages/TestFallback'));
+// Large feature routes - lazy load with retry (most prone to cache issues)
+const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
+const ActivityProcessingPage = lazyWithRetry(() => import('@/pages/ActivityProcessingPage'));
+const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
+const Roadmap = lazyWithRetry(() => import('@/pages/Roadmap'));
+const Releases = lazyWithRetry(() => import('@/pages/Releases'));
+const Clients = lazyWithRetry(() => import('@/pages/Clients'));
+const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
