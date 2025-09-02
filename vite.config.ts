@@ -114,15 +114,17 @@ export default defineConfig({
           'vendor-icons': ['lucide-react'],
         },
         
-        // Generate consistent file names to avoid 404s
+        // Generate consistent file names with content hashes for cache busting
         entryFileNames: (chunkInfo) => {
           const facadeModuleId = chunkInfo.facadeModuleId
             ? chunkInfo.facadeModuleId.split('/').pop().replace(/\.[jt]sx?$/, '')
             : 'unknown';
+          // Use contenthash for cache busting
           return `js/${facadeModuleId}-[hash].js`;
         },
         
         chunkFileNames: (chunkInfo) => {
+          // Use contenthash for cache busting
           return `js/[name]-[hash].js`;
         },
         
@@ -139,6 +141,7 @@ export default defineConfig({
             extType = 'css';
           }
           
+          // Use contenthash for cache busting
           return `${extType}/[name]-[hash].[ext]`;
         }
       },

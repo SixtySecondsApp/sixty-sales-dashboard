@@ -18,6 +18,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import logger from '@/lib/utils/logger';
 import { StateProvider } from '@/lib/communication/StateManagement';
 import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
+import { VersionManager } from '@/components/VersionManager';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -220,6 +221,7 @@ function App() {
             </Suspense>
           </ProtectedRoute>
           <Toaster />
+          <VersionManager />
           <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
             </StateProvider>
           </ViewModeProvider>
