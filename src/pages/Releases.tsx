@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { useVersionCheck } from '@/lib/hooks/useVersionCheck';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
+import { APP_VERSION, clearCacheAndReload, getVersionInfo } from '@/lib/config/version';
 
 /**
  * Dedicated Releases page displaying version information, update notifications, and release history
@@ -43,6 +44,10 @@ export default function Releases() {
   const [dismissedUpdate, setDismissedUpdate] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showOnlyMajor, setShowOnlyMajor] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  
+  // Get version info from the new version system
+  const versionInfo = getVersionInfo();
 
   // Find current and new release data
   const currentRelease = releases.find(r => r.buildId === clientBuildId);
@@ -64,6 +69,25 @@ export default function Releases() {
       logger.error('Update failed:', err);
       toast.error('Update failed. Please try refreshing manually.');
       setIsUpdating(false);
+    }
+  };
+
+  /**
+   * Handle clearing cache using the new version system
+   */
+  const handleClearCache = async () => {
+    try {
+      setIsClearingCache(true);
+      toast.loading('Clearing cache and reloading...');
+      
+      // Small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      clearCacheAndReload();
+    } catch (err) {
+      logger.error('Cache clear failed:', err);
+      toast.error('Cache clear failed. Please try refreshing manually.');
+      setIsClearingCache(false);
     }
   };
 
@@ -216,6 +240,70 @@ export default function Releases() {
                 </p>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Permanent Cache Management Section - Always Visible */}
+        <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-xl p-6">
+          <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                <RefreshCw className="w-6 h-6 text-violet-400" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-semibold text-white">
+                  Force Update & Cache Management
+                </h3>
+                <p className="text-gray-300">
+                  If you're experiencing issues or not seeing the latest updates, clear your cache to get the newest version.
+                </p>
+                <div className="flex items-center gap-6 text-sm text-gray-400">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    <span>Current Version: <strong className="text-violet-400">v{APP_VERSION}</strong></span>
+                  </div>
+                  {versionInfo.lastUpdated !== 'Never' && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>Last Updated: {new Date(versionInfo.lastUpdated).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {versionInfo.isOutdated && (
+                    <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Update Available
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                onClick={handleClearCache}
+                disabled={isClearingCache}
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                {isClearingCache ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Clearing Cache...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Clear Cache & Get Latest
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          
+          <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/30">
+            <p className="text-xs text-gray-400">
+              <strong>Note:</strong> This will clear all cached data, log you out, and reload the page with the latest version. 
+              Use this if you're experiencing loading errors or missing new features.
+            </p>
           </div>
         </div>
 
