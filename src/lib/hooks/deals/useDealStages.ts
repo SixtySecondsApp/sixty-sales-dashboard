@@ -4,7 +4,6 @@ import { API_BASE_URL } from '@/lib/config';
 import { apiCall } from '@/lib/utils/apiUtils';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
-import { handlePipelineStageTransition } from '@/lib/utils/pipelineActivityCreator';
 import { sanitizeErrorMessage } from './utils/dealValidation';
 import { DealStage, DealWithRelationships, DealForStageTransition } from './types/dealTypes';
 
@@ -68,21 +67,8 @@ export function useDealStages(
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
-        // Create activity for the stage transition if we have the necessary data
-        if (deal && toStage) {
-          await handlePipelineStageTransition(
-            {
-              id: deal.id,
-              name: deal.name,
-              company: deal.company,
-              value: deal.value,
-              owner_id: deal.owner_id,
-              contact_email: deal.contact_email,
-            },
-            fromStage,
-            toStage
-          );
-        }
+        // Note: Automatic activity creation on stage transitions disabled per user request
+        // Users can manually create activities as needed
 
         onDataChange?.();
         return true;
@@ -101,21 +87,8 @@ export function useDealStages(
         
         if (error) throw error;
         
-        // Create activity for the stage transition if we have the necessary data
-        if (deal && toStage) {
-          await handlePipelineStageTransition(
-            {
-              id: deal.id,
-              name: deal.name,
-              company: deal.company,
-              value: deal.value,
-              owner_id: deal.owner_id,
-              contact_email: deal.contact_email,
-            },
-            fromStage,
-            toStage
-          );
-        }
+        // Note: Automatic activity creation on stage transitions disabled per user request
+        // Users can manually create activities as needed
         
         onDataChange?.();
         return true;

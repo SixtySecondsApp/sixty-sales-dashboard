@@ -33,7 +33,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
 import logger from '@/lib/utils/logger';
-import { handlePipelineStageTransition } from '@/lib/utils/pipelineActivityCreator';
 
 
 
@@ -521,21 +520,8 @@ function PipelineContent() {
         });
         
         if (toStageObj) {
-          // Create activity for the stage transition
-          const activityCreated = await handlePipelineStageTransition(
-            {
-              id: movedDeal.id,
-              name: movedDeal.name,
-              company: movedDeal.company,
-              value: movedDeal.value,
-              owner_id: movedDeal.owner_id,
-              contact_email: movedDeal.contact_email,
-            },
-            fromStageObj,
-            toStageObj
-          );
-          
-          logger.log(`🎯 Activity creation result: ${activityCreated ? 'SUCCESS' : 'FAILED'}`);
+          // Note: Automatic activity creation on stage transitions disabled per user request
+          logger.log(`✅ Stage transition completed: ${fromStageObj?.name || 'unknown'} → ${toStageObj.name}`);
         } else {
           logger.warn('❌ Could not find target stage object');
         }
@@ -680,19 +666,8 @@ function PipelineContent() {
         const isMovingToOpportunity = toStage === opportunityStage?.id;
         
         if (!isMovingToOpportunity) {
-          // Normal stage transition - create activity automatically
-          await handlePipelineStageTransition(
-            {
-              id: deal.id,
-              name: deal.name,
-              company: deal.company,
-              value: deal.value,
-              owner_id: deal.owner_id,
-              contact_email: deal.contact_email,
-            },
-            fromStageObj,
-            toStageObj
-          );
+          // Note: Automatic activity creation on stage transitions disabled per user request
+          logger.log(`✅ Stage transition completed: ${fromStageObj?.name || 'unknown'} → ${toStageObj.name}`);
         } else if (sentProposal) {
           // Moving to Opportunity AND user confirmed proposal was sent - create proposal activity
           logger.log('✅ User confirmed proposal was sent, creating activity...');
