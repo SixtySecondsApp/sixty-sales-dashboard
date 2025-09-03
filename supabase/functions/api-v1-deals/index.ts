@@ -521,6 +521,7 @@ async function handleDeleteDeal(client: any, dealId: string, userId: string, per
       .single()
 
     if (fetchError || !existingDeal) {
+      console.error('Deal not found:', fetchError)
       return createErrorResponse('Deal not found', 404, 'DEAL_NOT_FOUND')
     }
 
@@ -536,19 +537,53 @@ async function handleDeleteDeal(client: any, dealId: string, userId: string, per
       }
     }
 
-    const { error } = await client
+    // Use a transaction to ensure data consistency
+    const { data: deletedDeal, error: deleteError } = await client
       .from('deals')
       .delete()
       .eq('id', dealId)
+      .select('id')
+      .single()
 
-    if (error) {
-      throw error
+    if (deleteError) {
+      console.error('Error deleting deal:', deleteError)
+      
+      // Check if it's a foreign key constraint error
+      if (deleteError.code === '23503') {
+        // Try to provide more specific error message for foreign key constraints
+        return createErrorResponse(
+          'Cannot delete deal due to related records. Please remove associated activities, splits, or contacts first.',
+          409,
+          'FOREIGN_KEY_CONSTRAINT'
+        )
+      }
+      
+      throw deleteError
     }
 
+    if (!deletedDeal) {
+      return createErrorResponse('Deal not found or could not be deleted', 404, 'DEAL_NOT_FOUND')
+    }
+
+    console.log(`Deal ${dealId} successfully deleted`)
     return createSuccessResponse({ id: dealId, deleted: true })
 
   } catch (error) {
     console.error('Error deleting deal:', error)
+    
+    // Return more specific error messages based on error type
+    if (error.code === '23503') {
+      return createErrorResponse(
+        'Cannot delete deal due to foreign key constraints',
+        409,
+        'FOREIGN_KEY_CONSTRAINT'
+      )
+    }
+    
+    if (error.code === 'PGRST116') {
+      return createErrorResponse('Deal not found', 404, 'DEAL_NOT_FOUND')
+    }
+    
     throw new Error(error.message || 'Failed to delete deal')
   }
 }

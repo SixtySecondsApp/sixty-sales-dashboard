@@ -332,18 +332,44 @@ export function useDealCRUD(
         }, 150);
         
         return true;
-      } catch (edgeFunctionError) {
+      } catch (edgeFunctionError: any) {
         console.warn('Edge function deletion failed, falling back to direct client:', edgeFunctionError);
         
-        // Fallback to direct Supabase client
+        // If it's a permission error, don't try fallback
+        if (edgeFunctionError?.status === 403) {
+          throw edgeFunctionError;
+        }
+        
+        // If it's a foreign key constraint error, don't try fallback
+        if (edgeFunctionError?.status === 409) {
+          throw edgeFunctionError;
+        }
+        
+        // For 500 errors, try fallback to direct Supabase client
         const { error, data } = await (supabase as any)
           .from('deals')
           .delete()
-          .eq('id', id);
+          .eq('id', id)
+          .select('id')
+          .single();
         
         if (error) {
           console.error('Direct Supabase deletion error:', error);
+          
+          // Handle specific Postgres error codes
+          if (error.code === '23503') {
+            throw new Error('Cannot delete deal due to related records. Please remove associated activities, splits, or contacts first.');
+          }
+          
+          if (error.code === 'PGRST116') {
+            throw new Error('Deal not found or already deleted.');
+          }
+          
           throw error;
+        }
+        
+        if (!data) {
+          throw new Error('Deal not found or could not be deleted.');
         }
         
         toast.success('Deal deleted successfully');
@@ -356,9 +382,23 @@ export function useDealCRUD(
         return true;
       }
     } catch (error: any) {
-      const sanitizedMessage = sanitizeErrorMessage(error);
-      logger.error('Error deleting deal - sanitized message:', sanitizedMessage);
-      toast.error(sanitizedMessage);
+      let errorMessage = sanitizeErrorMessage(error);
+      
+      // Provide user-friendly error messages
+      if (error?.message?.includes('foreign key') || error?.message?.includes('related records')) {
+        if (error?.message?.includes('tasks')) {
+          errorMessage = 'This deal has associated tasks. The database constraints need to be updated to allow deletion. Please contact support.';
+        } else {
+          errorMessage = 'Cannot delete deal due to related records. Please contact support if this persists.';
+        }
+      } else if (error?.message?.includes('not found')) {
+        errorMessage = 'Deal not found or already deleted.';
+      } else if (error?.message?.includes('not authorized') || error?.status === 403) {
+        errorMessage = 'You are not authorized to delete this deal.';
+      }
+      
+      logger.error('Error deleting deal - sanitized message:', errorMessage);
+      toast.error(errorMessage);
       return false;
     }
   };
