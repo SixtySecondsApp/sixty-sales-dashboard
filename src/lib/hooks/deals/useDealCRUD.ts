@@ -325,20 +325,34 @@ export function useDealCRUD(
         );
 
         toast.success('Deal deleted successfully');
-        onDataChange?.();
+        
+        // Ensure data refresh happens after a short delay to allow for database consistency
+        setTimeout(async () => {
+          await onDataChange?.();
+        }, 150);
+        
         return true;
       } catch (edgeFunctionError) {
+        console.warn('Edge function deletion failed, falling back to direct client:', edgeFunctionError);
         
         // Fallback to direct Supabase client
-        const { error } = await (supabase as any)
+        const { error, data } = await (supabase as any)
           .from('deals')
           .delete()
           .eq('id', id);
         
-        if (error) throw error;
+        if (error) {
+          console.error('Direct Supabase deletion error:', error);
+          throw error;
+        }
         
         toast.success('Deal deleted successfully');
-        onDataChange?.();
+        
+        // Ensure data refresh happens after a short delay to allow for database consistency
+        setTimeout(async () => {
+          await onDataChange?.();
+        }, 150);
+        
         return true;
       }
     } catch (error: any) {

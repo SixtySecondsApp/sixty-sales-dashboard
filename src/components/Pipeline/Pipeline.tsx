@@ -156,6 +156,7 @@ function PipelineContent() {
   const [activeDeal, setActiveDeal] = useState<any>(null);
   const [sortBy, setSortBy] = useState<'value' | 'date' | 'alpha' | 'none'>('none');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [lastRefreshTime, setLastRefreshTime] = useState(0);
 
   // DnD state
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -581,22 +582,31 @@ function PipelineContent() {
 
   const handleDeleteDeal = async (dealId: string) => {
     logger.log('🗑️ Attempting to delete deal:', dealId);
-    const success = await deleteDeal(dealId);
-    if (success) {
-      logger.log('✅ Deal deleted successfully, refreshing pipeline view');
-      
-      // Small delay to ensure database operations are complete
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Force refresh the pipeline data to update the view
-      await refreshDeals();
-      
-      // Also trigger a local refresh for good measure
-      setRefreshKey(prev => prev + 1);
-      
-      logger.log('🔄 Pipeline refresh completed');
-    } else {
-      logger.error('❌ Deal deletion failed');
+    
+    try {
+      const success = await deleteDeal(dealId);
+      if (success) {
+        logger.log('✅ Deal deleted successfully, refreshing pipeline view');
+        
+        // Longer delay to ensure database operations and webhooks are complete
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Force refresh the pipeline data to update the view
+        await refreshDeals();
+        
+        // Also trigger a local refresh for good measure
+        setRefreshKey(prev => prev + 1);
+        
+        logger.log('🔄 Pipeline refresh completed');
+        
+        // Force re-render by updating a state that triggers re-evaluation
+        setLastRefreshTime(Date.now());
+        
+      } else {
+        logger.error('❌ Deal deletion failed - success was false');
+      }
+    } catch (error) {
+      logger.error('❌ Deal deletion error:', error);
     }
   };
 
