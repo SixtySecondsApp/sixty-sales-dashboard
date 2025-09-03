@@ -1,5 +1,5 @@
-import React, { RefObject, useState } from 'react';
-import { FileText, Building, User, Calendar, PoundSterling, Star, AlignLeft, Clock, ChevronLeft, ChevronRight, Mail, Phone, Search, Plus, Map, AlertCircle } from 'lucide-react';
+import React, { RefObject, useState, useEffect } from 'react';
+import { FileText, Building, User, Calendar, PoundSterling, Star, AlignLeft, Clock, ChevronLeft, ChevronRight, Mail, Phone, Search, Plus, Map, AlertCircle, Users, Edit, X } from 'lucide-react';
 import { useFormContext, Controller } from 'react-hook-form';
 import { format, addDays, addWeeks, startOfWeek, addMonths, isToday, isTomorrow, isThisWeek, isThisMonth } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { Badge } from '@/components/ui/badge';
+import { ContactSearchModal } from '@/components/ContactSearchModal';
 import logger from '@/lib/utils/logger';
 
 interface DealDetailsSectionProps {
@@ -24,13 +25,25 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
     watch('closeDate') ? new Date(watch('closeDate')) : undefined
   );
   
-  // Contact search states
-  const [contactSearchQuery, setContactSearchQuery] = useState(watch('contactName') || '');
-  const [searchedContacts, setSearchedContacts] = useState<any[]>([]);
+  // Contact selection states
   const [selectedContact, setSelectedContact] = useState<any>(null);
-  const [showCreateContact, setShowCreateContact] = useState(false);
-  
-  const { searchContacts } = useContacts();
+  const [showContactModal, setShowContactModal] = useState(false);
+
+  // Initialize selectedContact if form has contact data
+  useEffect(() => {
+    const contactName = watch('contactName');
+    const contactEmail = watch('contactEmail');
+    
+    if (contactName && !selectedContact) {
+      setSelectedContact({
+        full_name: contactName,
+        email: contactEmail,
+        phone: watch('contactPhone'),
+        // Mark as existing since it's from form data
+        isExisting: true
+      });
+    }
+  }, [watch('contactName'), watch('contactEmail'), selectedContact]);
   
   const priorityOptions = [
     { value: 'low', label: 'Low', icon: '🟢', color: 'bg-green-500/20 text-green-400 border-green-500/30', ringColor: 'ring-green-500/30' },
@@ -164,58 +177,22 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
     return formatted;
   };
 
-  // Contact search functionality
-  const handleContactSearch = async (query: string) => {
-    setContactSearchQuery(query);
-    
-    if (query.length < 2) {
-      setSearchedContacts([]);
-      setShowCreateContact(false);
-      return;
-    }
-    
-    try {
-      const results = await searchContacts(query);
-      setSearchedContacts(results.slice(0, 10));
-      setShowCreateContact(results.length === 0);
-    } catch (error) {
-      logger.error('Error searching contacts:', error);
-      setSearchedContacts([]);
-      setShowCreateContact(true);
-    }
-  };
-
-  // Select a contact from search results
+  // Handle contact selection from ContactSearchModal
   const handleContactSelect = (contact: any) => {
     setSelectedContact(contact);
     const contactName = contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
-    setContactSearchQuery(contactName);
-    setSearchedContacts([]);
-    setShowCreateContact(false);
     
     // Update form fields
     setValue('contactName', contactName);
     setValue('contactEmail', contact.email || '');
     setValue('contactPhone', contact.phone || '');
-  };
-
-  // Create new contact
-  const handleCreateContact = () => {
-    const newContactName = contactSearchQuery.trim();
-    if (newContactName) {
-      setSelectedContact({ full_name: newContactName, isNew: true });
-      setValue('contactName', newContactName);
-      setSearchedContacts([]);
-      setShowCreateContact(false);
-    }
+    setValue('company', contact.company_name || contact.company?.name || contact.companies?.name || 
+      (typeof contact.companies === 'string' ? contact.companies : '') || watch('company'));
   };
 
   // Clear contact selection
   const handleClearContact = () => {
     setSelectedContact(null);
-    setContactSearchQuery('');
-    setSearchedContacts([]);
-    setShowCreateContact(false);
     setValue('contactName', '');
     setValue('contactEmail', '');
     setValue('contactPhone', '');
@@ -277,7 +254,7 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
               <div className="bg-gray-900/80 border border-gray-700 rounded-lg py-3 px-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                    {selectedContact.full_name?.[0] || selectedContact.first_name?.[0] || '?'}
+                    {(selectedContact.full_name || selectedContact.first_name || '?')[0]}
                   </div>
                   <div>
                     <div className="text-white font-medium">
@@ -293,86 +270,38 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClearContact}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  ×
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowContactModal(true)}
+                    className="text-gray-400 hover:text-violet-400 transition-colors p-1"
+                    title="Change contact"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClearContact}
+                    className="text-gray-400 hover:text-red-400 transition-colors p-1"
+                    title="Remove contact"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ) : (
-              // Contact Search Interface
-              <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    value={contactSearchQuery}
-                    onChange={(e) => handleContactSearch(e.target.value)}
-                    placeholder="Search contacts by name, email, or company..."
-                    className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 pl-10 pr-3 
-                      text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-violet-500 
-                      focus:border-violet-500 transition-colors"
-                  />
-                </div>
-                
-                {/* Search Results Dropdown */}
-                {(searchedContacts.length > 0 || showCreateContact) && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800/95 border border-gray-600/50 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
-                    {searchedContacts.map((contact) => (
-                      <div
-                        key={contact.id}
-                        onClick={() => handleContactSelect(contact)}
-                        className="flex items-center gap-3 p-3 hover:bg-gray-700/50 cursor-pointer border-b border-gray-700/30 last:border-b-0"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                          {contact.first_name?.[0] || contact.full_name?.[0] || '?'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-white font-medium">
-                            {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
-                          </div>
-                          {contact.email && (
-                            <div className="text-gray-400 text-sm">{contact.email}</div>
-                          )}
-                          {contact.company && (
-                            <div className="text-gray-500 text-xs">
-                              {typeof contact.company === 'string' 
-                                ? contact.company 
-                                : contact.company?.name || 'Unknown Company'}
-                            </div>
-                          )}
-                        </div>
-                        <Badge variant="outline" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                          Select
-                        </Badge>
-                      </div>
-                    ))}
-                    
-                    {/* Create New Contact Option */}
-                    {showCreateContact && contactSearchQuery.trim() && (
-                      <div
-                        onClick={handleCreateContact}
-                        className="flex items-center gap-3 p-3 hover:bg-gray-700/50 cursor-pointer border-t border-gray-700/30"
-                      >
-                        <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center text-white">
-                          <Plus className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-white font-medium">
-                            Create "{contactSearchQuery.trim()}"
-                          </div>
-                          <div className="text-gray-400 text-sm">Add as new contact</div>
-                        </div>
-                        <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
-                          Create
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
+              // Contact Selection Button
+              <button
+                type="button"
+                onClick={() => setShowContactModal(true)}
+                className="w-full bg-gray-900/80 border border-gray-700 rounded-lg py-3 px-4 
+                  text-gray-400 hover:text-white hover:bg-gray-800/80 hover:border-gray-600 
+                  focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 
+                  transition-all duration-200 flex items-center gap-3 text-left"
+              >
+                <Users className="w-4 h-4 flex-shrink-0" />
+                <span>Choose Contact or Create New...</span>
+              </button>
             )}
             
             {/* Hidden input for form registration */}
@@ -800,7 +729,14 @@ const DealDetailsSection: React.FC<DealDetailsSectionProps> = ({ initialFocusRef
         )}
       </FormField>
 
-
+      {/* Contact Search Modal */}
+      <ContactSearchModal 
+        isOpen={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        onContactSelect={handleContactSelect}
+        prefilledEmail={watch('contactEmail')}
+        prefilledName={watch('contactName')}
+      />
     </div>
   );
 };
