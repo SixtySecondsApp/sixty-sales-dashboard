@@ -4,6 +4,7 @@ import Users from '@/pages/admin/Users';
 import PipelineSettings from '@/pages/admin/PipelineSettings';
 import AuditLogs from '@/pages/admin/AuditLogs';
 import SmartTasksAdmin from '@/pages/SmartTasksAdmin';
+import PipelineAutomationAdmin from '@/pages/PipelineAutomationAdmin';
 import ApiTesting from '@/pages/ApiTesting';
 import FunctionTesting from '@/pages/admin/FunctionTesting';
 import { 
@@ -12,7 +13,8 @@ import {
   Shield, 
   Zap, 
   Code2,
-  Target
+  Target,
+  Workflow
 } from 'lucide-react';
 
 export default function Admin() {
@@ -62,6 +64,13 @@ export default function Admin() {
                 Smart Tasks
               </TabsTrigger>
               <TabsTrigger 
+                value="pipeline-automation" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <Workflow className="w-4 h-4" />
+                Pipeline Automation
+              </TabsTrigger>
+              <TabsTrigger 
                 value="api-testing" 
                 className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
               >
@@ -91,6 +100,10 @@ export default function Admin() {
 
             <TabsContent value="smart-tasks" className="space-y-0">
               <SmartTasksAdmin />
+            </TabsContent>
+
+            <TabsContent value="pipeline-automation" className="space-y-0">
+              <PipelineAutomationAdmin />
             </TabsContent>
 
             <TabsContent value="api-testing" className="space-y-0">

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 import { sanitizeErrorMessage } from './utils/dealValidation';
 import { DealStage, DealWithRelationships, DealForStageTransition } from './types/dealTypes';
+import { executePipelineAutomationRules } from '@/lib/utils/pipelineAutomationEngine';
 
 export function useDealStages(
   deals: DealWithRelationships[],
@@ -67,8 +68,29 @@ export function useDealStages(
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
-        // Note: Automatic activity creation on stage transitions disabled per user request
-        // Users can manually create activities as needed
+        // Execute user-configured pipeline automation rules (client-side fallback)
+        // The database trigger should handle most cases, but this provides backup
+        if (deal && toStage) {
+          try {
+            await executePipelineAutomationRules(
+              {
+                id: deal.id,
+                name: deal.name,
+                company: deal.company,
+                value: deal.value,
+                owner_id: deal.owner_id,
+                contact_email: deal.contact_email,
+                stage_id: stageId,
+              },
+              fromStage,
+              toStage,
+              false // Don't show user feedback here, let the UI handle it
+            );
+          } catch (automationError) {
+            logger.warn('Pipeline automation fallback failed:', automationError);
+            // Don't fail the stage transition if automation fails
+          }
+        }
 
         onDataChange?.();
         return true;
@@ -87,8 +109,29 @@ export function useDealStages(
         
         if (error) throw error;
         
-        // Note: Automatic activity creation on stage transitions disabled per user request
-        // Users can manually create activities as needed
+        // Execute user-configured pipeline automation rules (client-side fallback)
+        // The database trigger should handle most cases, but this provides backup
+        if (deal && toStage) {
+          try {
+            await executePipelineAutomationRules(
+              {
+                id: deal.id,
+                name: deal.name,
+                company: deal.company,
+                value: deal.value,
+                owner_id: deal.owner_id,
+                contact_email: deal.contact_email,
+                stage_id: stageId,
+              },
+              fromStage,
+              toStage,
+              false // Don't show user feedback here, let the UI handle it
+            );
+          } catch (automationError) {
+            logger.warn('Pipeline automation fallback failed:', automationError);
+            // Don't fail the stage transition if automation fails
+          }
+        }
         
         onDataChange?.();
         return true;

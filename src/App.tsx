@@ -36,6 +36,7 @@ const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
 const PipelineSettings = lazyWithRetry(() => import('@/pages/admin/PipelineSettings'));
 const AuditLogs = lazyWithRetry(() => import('@/pages/admin/AuditLogs'));
 const SmartTasksAdmin = lazyWithRetry(() => import('@/pages/SmartTasksAdmin'));
+const PipelineAutomationAdmin = lazyWithRetry(() => import('@/pages/PipelineAutomationAdmin'));
 
 // Auth routes - lazy load with retry except login
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
@@ -198,6 +199,7 @@ function App() {
                 <Route path="/admin/pipeline-settings" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin/audit-logs" element={<Navigate to="/admin" replace />} />
                 <Route path="/admin/smart-tasks" element={<Navigate to="/admin" replace />} />
+                <Route path="/admin/pipeline-automation" element={<Navigate to="/admin" replace />} />
                 <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
                 <Route path="/crm/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
                 
