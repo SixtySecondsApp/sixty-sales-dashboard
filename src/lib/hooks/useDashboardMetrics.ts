@@ -165,6 +165,7 @@ export function useDashboardMetrics(selectedMonth: Date, enabled: boolean = true
     refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker
     refetchOnMount: false, // Don't refetch on mount if we have cached data
     keepPreviousData: true, // Keep showing old data while calculating new data
+    placeholderData: previousData => previousData, // Use previous data as placeholder
   });
 
   // Invalidate cache when activities change

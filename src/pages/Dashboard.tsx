@@ -434,18 +434,21 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showContent, setShowContent] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [isPending, startTransition] = useTransition();
   
-  // Safe month navigation handlers
+  // Safe month navigation handlers with transition
   const handlePreviousMonth = () => {
     try {
-      setSelectedMonth(prev => {
-        const newMonth = subMonths(prev, 1);
-        // Ensure the date is valid
-        if (isNaN(newMonth.getTime())) {
-          logger.error('Invalid date after subtracting month');
-          return prev;
-        }
-        return newMonth;
+      startTransition(() => {
+        setSelectedMonth(prev => {
+          const newMonth = subMonths(prev, 1);
+          // Ensure the date is valid
+          if (isNaN(newMonth.getTime())) {
+            logger.error('Invalid date after subtracting month');
+            return prev;
+          }
+          return newMonth;
+        });
       });
     } catch (error) {
       logger.error('Error navigating to previous month:', error);
@@ -454,18 +457,20 @@ export default function Dashboard() {
   
   const handleNextMonth = () => {
     try {
-      setSelectedMonth(prev => {
-        const newMonth = addMonths(prev, 1);
-        // Ensure the date is valid
-        if (isNaN(newMonth.getTime())) {
-          logger.error('Invalid date after adding month');
-          return prev;
-        }
-        // Don't go beyond current month
-        if (newMonth > new Date()) {
-          return prev;
-        }
-        return newMonth;
+      startTransition(() => {
+        setSelectedMonth(prev => {
+          const newMonth = addMonths(prev, 1);
+          // Ensure the date is valid
+          if (isNaN(newMonth.getTime())) {
+            logger.error('Invalid date after adding month');
+            return prev;
+          }
+          // Don't go beyond current month
+          if (newMonth > new Date()) {
+            return prev;
+          }
+          return newMonth;
+        });
       });
     } catch (error) {
       logger.error('Error navigating to next month:', error);
@@ -603,7 +608,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.revenue}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
-          isInitialLoad={isInitialLoad}
+          isInitialLoad={false}
         />
         <MetricCard
           key="outbound-metric"
@@ -617,7 +622,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.outbound}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
-          isInitialLoad={isInitialLoad}
+          isInitialLoad={false}
         />
         <MetricCard
           key="meetings-metric"
@@ -631,7 +636,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.meetings}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
-          isInitialLoad={isInitialLoad}
+          isInitialLoad={false}
         />
         <MetricCard
           key="proposals-metric"
@@ -645,7 +650,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.proposals}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
-          isInitialLoad={isInitialLoad}
+          isInitialLoad={false}
         />
       </div>
 

@@ -98,6 +98,7 @@ export function useLazyActivities(config: LazyActivitiesConfig = { enabled: fals
     refetchOnWindowFocus: false, // Don't refetch on window focus to prevent flicker
     refetchOnMount: false, // Don't refetch on mount if we have cached data
     keepPreviousData: true, // Keep showing old data while fetching new data
+    placeholderData: previousData => previousData, // Use previous data as placeholder during transitions
   });
 
   return {
