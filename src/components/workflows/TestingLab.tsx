@@ -26,6 +26,10 @@ import {
   Bell,
   CheckSquare
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
+import { useUser } from '@/lib/hooks/useUser';
+import { workflowRealtimeService } from '@/lib/services/workflowRealtimeService';
+import { formatDistanceToNow } from 'date-fns';
 
 interface TestScenario {
   id: string;
@@ -313,7 +317,7 @@ const TestingLab: React.FC<TestingLabProps> = ({ workflow }) => {
     
     try {
       // Execute the workflow using the execution engine
-      const result = await workflowEngine.testWorkflow(workflow.id, scenario.mockData);
+      const result = await workflowRealtimeService.testWorkflow(workflow.id, scenario.mockData);
       
       // Determine if test passed based on execution result
       const passed = result.success && !result.error_message;

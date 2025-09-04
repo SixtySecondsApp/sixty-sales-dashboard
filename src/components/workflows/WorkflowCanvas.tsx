@@ -111,6 +111,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [showNodePanel, setShowNodePanel] = useState(true);
   const [workflowName, setWorkflowName] = useState('Untitled Workflow');
   const [workflowDescription, setWorkflowDescription] = useState('');
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [showNodeEditor, setShowNodeEditor] = useState(false);
   const reactFlowInstance = useRef<any>(null);
 
   // Load selected workflow data
@@ -145,6 +147,45 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
+
+  // Handle node selection
+  const onNodeClick = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      setSelectedNode(node);
+      setShowNodeEditor(true);
+    },
+    []
+  );
+
+  // Update node data when edited
+  const updateNodeData = (nodeId: string, newData: any) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              ...newData,
+            },
+          };
+        }
+        return node;
+      })
+    );
+  };
+
+  // Delete selected node
+  const deleteSelectedNode = () => {
+    if (selectedNode) {
+      setNodes((nds) => nds.filter((node) => node.id !== selectedNode.id));
+      setEdges((eds) => eds.filter((edge) => 
+        edge.source !== selectedNode.id && edge.target !== selectedNode.id
+      ));
+      setSelectedNode(null);
+      setShowNodeEditor(false);
+    }
+  };
 
   const onDrop = useCallback(
     (event: React.DragEvent) => {
@@ -400,6 +441,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onInit={(instance) => { reactFlowInstance.current = instance; }}
@@ -434,6 +476,141 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               <p className="text-sm text-gray-500">Drag and drop nodes from the left panel to get started</p>
             </div>
           </div>
+        )}
+
+        {/* Node Editor Panel */}
+        {showNodeEditor && selectedNode && (
+          <motion.div
+            initial={{ x: 300 }}
+            animate={{ x: 0 }}
+            className="absolute top-0 right-0 w-96 h-full bg-gray-900/95 backdrop-blur-xl border-l border-gray-800/50 p-6 overflow-y-auto z-20"
+          >
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Edit Node</h3>
+                  <p className="text-sm text-gray-400 mt-1">Configure node settings</p>
+                </div>
+                <button
+                  onClick={() => setShowNodeEditor(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Node Type */}
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <p className="text-xs text-gray-400 mb-1">Node Type</p>
+                <p className="text-white font-medium capitalize">{selectedNode.type}</p>
+              </div>
+
+              {/* Node Settings */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Label</label>
+                  <input
+                    type="text"
+                    value={selectedNode.data.label || ''}
+                    onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                    placeholder="Enter node label..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                  <textarea
+                    value={selectedNode.data.description || ''}
+                    onChange={(e) => updateNodeData(selectedNode.id, { description: e.target.value })}
+                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                    placeholder="Enter description..."
+                  />
+                </div>
+
+                {/* Condition-specific settings */}
+                {selectedNode.type === 'condition' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Condition</label>
+                    <input
+                      type="text"
+                      value={selectedNode.data.condition || ''}
+                      onChange={(e) => updateNodeData(selectedNode.id, { condition: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                      placeholder="e.g., value > 10000"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Enter condition logic</p>
+                  </div>
+                )}
+
+                {/* Action-specific settings */}
+                {selectedNode.type === 'action' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Action Type</label>
+                      <select
+                        value={selectedNode.data.type || 'create_task'}
+                        onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                      >
+                        <option value="create_task">Create Task</option>
+                        <option value="send_notification">Send Notification</option>
+                        <option value="create_activity">Create Activity</option>
+                        <option value="update_deal_stage">Update Deal Stage</option>
+                        <option value="update_field">Update Field</option>
+                      </select>
+                    </div>
+
+                    {selectedNode.data.type === 'create_task' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Task Priority</label>
+                        <select
+                          value={selectedNode.data.priority || 'medium'}
+                          onChange={(e) => updateNodeData(selectedNode.id, { priority: e.target.value })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Trigger-specific settings */}
+                {selectedNode.type === 'trigger' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Trigger Type</label>
+                    <select
+                      value={selectedNode.data.type || 'pipeline_stage_changed'}
+                      onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                    >
+                      <option value="pipeline_stage_changed">Pipeline Stage Changed</option>
+                      <option value="activity_created">Activity Created</option>
+                      <option value="deal_created">Deal Created</option>
+                      <option value="task_completed">Task Completed</option>
+                      <option value="manual">Manual Trigger</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="pt-4 border-t border-gray-800">
+                <button
+                  onClick={deleteSelectedNode}
+                  className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                >
+                  Delete Node
+                </button>
+              </div>
+            </div>
+          </motion.div>
         )}
       </div>
     </div>
