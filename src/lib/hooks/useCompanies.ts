@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { CompanyService } from '@/lib/services/companyService';
 import type { Company } from '@/lib/database/models';
@@ -44,6 +44,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const hasFetched = useRef(false);
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -246,7 +247,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
     } finally {
       setIsLoading(false);
     }
-  }, [options.search, userData?.id]);
+  }, [options.search, userData?.id, options.domain, options.size, options.industry, options.includeStats]);
 
   // Create a new company
   const createCompany = useCallback(async (companyData: Omit<Company, 'id' | 'created_at' | 'updated_at'>) => {
@@ -373,9 +374,14 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
   }, []);
 
   // Auto-fetch on mount and when options change
+  // Fetch companies on mount and when search changes
   useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
+    // Reset the flag when options change
+    if (!hasFetched.current || options.search !== undefined) {
+      hasFetched.current = true;
+      fetchCompanies();
+    }
+  }, [options.search]); // Only depend on search changes, not the callback
 
   return {
     companies,

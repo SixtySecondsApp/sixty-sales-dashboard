@@ -23,6 +23,10 @@ export function useDeals(ownerId?: string) {
   // Use viewed user ID if in view mode
   const effectiveOwnerId = isViewMode && viewedUser ? viewedUser.id : ownerId;
 
+  // Initialize specialized hooks first (without data refresh callback)
+  const crudHook = useDealCRUD(effectiveOwnerId, undefined);
+  const stageHook = useDealStages(deals, stages, undefined);
+
   // Data refresh callback to update local state
   const handleDataChange = async () => {
     const [newDeals, newStages] = await Promise.all([
@@ -33,10 +37,6 @@ export function useDeals(ownerId?: string) {
     setStages(newStages);
   };
 
-  // Initialize specialized hooks
-  const crudHook = useDealCRUD(effectiveOwnerId, handleDataChange);
-  const stageHook = useDealStages(deals, stages, handleDataChange);
-
   // Group deals by stage for pipeline display (memoized for performance)
   const dealsByStage: DealsByStage = useMemo(() => {
     return groupDealsByStage(deals);
@@ -44,6 +44,11 @@ export function useDeals(ownerId?: string) {
 
   // Load data on mount and when effectiveOwnerId changes
   useEffect(() => {
+    // Skip if no owner ID yet (prevents fetching with undefined)
+    if (effectiveOwnerId === undefined) {
+      return;
+    }
+    
     const loadData = async () => {
       const [initialDeals, initialStages] = await Promise.all([
         crudHook.fetchDeals(),

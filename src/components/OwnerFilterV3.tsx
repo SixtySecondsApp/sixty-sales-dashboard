@@ -37,19 +37,17 @@ export function OwnerFilterV3({
 
   // Initialize default owner on first mount only
   useEffect(() => {
-    // Only initialize if we haven't already and we have user data
+    // Only initialize once when we have user data and if needed
     if (!isInitialized.current && defaultToCurrentUser && userData?.id) {
-      // Check if selectedOwnerId is undefined (meaning parent hasn't set a value yet)
+      isInitialized.current = true;
+      
+      // Only set default if parent hasn't provided a value
       if (selectedOwnerId === undefined) {
-        isInitialized.current = true;
         console.log('[OwnerFilterV3] Initializing to My Items:', userData.id);
         onOwnerChange(userData.id);
-      } else {
-        // Parent has already set a value, mark as initialized
-        isInitialized.current = true;
       }
     }
-  }, [userData?.id, defaultToCurrentUser, selectedOwnerId, onOwnerChange]);
+  }, [userData?.id, selectedOwnerId, defaultToCurrentUser, onOwnerChange]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -170,8 +168,11 @@ export function OwnerFilterV3({
   const currentSelection = getCurrentSelection();
 
   const handleOptionSelect = (ownerId: string | null | undefined) => {
-    console.log('[OwnerFilterV3] Selecting:', ownerId);
-    onOwnerChange(ownerId);
+    // Only trigger onChange if the value actually changes
+    if (ownerId !== selectedOwnerId) {
+      console.log('[OwnerFilterV3] Owner changed from', selectedOwnerId, 'to', ownerId);
+      onOwnerChange(ownerId);
+    }
     setIsOpen(false);
     setSearchTerm('');
   };

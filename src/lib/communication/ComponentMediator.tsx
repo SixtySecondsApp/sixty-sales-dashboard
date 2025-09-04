@@ -78,7 +78,10 @@ export class ComponentMediator implements IComponentMediator {
     // Auto-subscribe to relevant events based on component type
     this.setupComponentSubscriptions(registration);
 
-    console.log(`📝 Registered component: ${componentId} (${registration.metadata.type})`);
+    // Only log in development mode
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MEDIATOR === 'true') {
+      console.log(`📝 Registered component: ${componentId} (${registration.metadata.type})`);
+    }
   }
 
   /**
@@ -90,7 +93,11 @@ export class ComponentMediator implements IComponentMediator {
       // Clean up subscriptions
       registration.subscriptions.forEach(unsub => unsub());
       this.components.delete(componentId);
-      console.log(`🗑️ Unregistered component: ${componentId}`);
+      
+      // Only log in development mode
+      if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MEDIATOR === 'true') {
+        console.log(`🗑️ Unregistered component: ${componentId}`);
+      }
     }
   }
 
@@ -159,7 +166,11 @@ export class ComponentMediator implements IComponentMediator {
    */
   addRule(rule: MediatorRule): void {
     this.rules.push(rule);
-    console.log(`➕ Added mediation rule: ${rule.id}`);
+    
+    // Only log in development mode
+    if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MEDIATOR === 'true') {
+      console.log(`➕ Added mediation rule: ${rule.id}`);
+    }
   }
 
   /**
@@ -169,7 +180,11 @@ export class ComponentMediator implements IComponentMediator {
     const index = this.rules.findIndex(rule => rule.id === ruleId);
     if (index > -1) {
       this.rules.splice(index, 1);
-      console.log(`➖ Removed mediation rule: ${ruleId}`);
+      
+      // Only log in development mode  
+      if (import.meta.env.DEV && import.meta.env.VITE_DEBUG_MEDIATOR === 'true') {
+        console.log(`➖ Removed mediation rule: ${ruleId}`);
+      }
     }
   }
 
@@ -218,7 +233,12 @@ export class ComponentMediator implements IComponentMediator {
       try {
         await rule.action(fromId, toId, message);
       } catch (error) {
-        console.error(`Error executing mediation rule ${rule.id}:`, error);
+        // Always log errors but only in development show rule details
+        if (import.meta.env.DEV) {
+          console.error(`Error executing mediation rule ${rule.id}:`, error);
+        } else {
+          console.error('Mediation rule execution failed:', error);
+        }
       }
     }
 
@@ -450,7 +470,7 @@ export class ComponentMediator implements IComponentMediator {
 
     const originalSend = this.send.bind(this);
     this.send = async (fromId: string, toId: string, message: any) => {
-      if (isTracing) {
+      if (isTracing && import.meta.env.DEV) {
         console.log(`📨 Message: ${fromId} → ${toId}`, message);
       }
       return originalSend(fromId, toId, message);
@@ -458,7 +478,7 @@ export class ComponentMediator implements IComponentMediator {
 
     const originalBroadcast = this.broadcast.bind(this);
     this.broadcast = async (fromId: string, message: any) => {
-      if (isTracing) {
+      if (isTracing && import.meta.env.DEV) {
         console.log(`📢 Broadcast: ${fromId} → ALL`, message);
       }
       return originalBroadcast(fromId, message);
@@ -516,8 +536,11 @@ export function useComponentMediator(
   }
 ) {
   React.useEffect(() => {
+    // Only register if component is provided
+    if (!component) return;
+    
     return registerComponent(componentId, component, metadata);
-  }, [componentId, component, metadata]);
+  }, [componentId]); // Only depend on componentId to prevent re-registration
 
   return {
     send: (toId: string, message: any) => 

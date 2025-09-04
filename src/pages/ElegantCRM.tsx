@@ -113,13 +113,13 @@ export default function ElegantCRM() {
   const [industryFilter, setIndustryFilter] = useState<string[]>([]);
   const [locationFilter, setLocationFilter] = useState<string[]>([]);
   const [dealStageFilter, setDealStageFilter] = useState<string[]>([]);
-  // Initialize with undefined to let OwnerFilterV3 set default to "My Items"
+  // Initialize with undefined, will be set when userData loads
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null | undefined>(undefined);
   const [sortField, setSortField] = useState<SortField>('updated_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
-  // Sidebar state - start closed and animate open after mount
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Sidebar state - start open to prevent animation on load
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   // Multi-select functionality
@@ -136,17 +136,23 @@ export default function ElegantCRM() {
   const [addContactModalOpen, setAddContactModalOpen] = useState(false);
   const [addDealModalOpen, setAddDealModalOpen] = useState(false);
 
-  // Open sidebar after initial load to prevent glitching
+  // Mark initial load complete after mount and set default owner
   useEffect(() => {
     if (isInitialLoad) {
-      const timer = setTimeout(() => {
-        setSidebarOpen(true);
+      // Use requestAnimationFrame to ensure rendering is complete
+      requestAnimationFrame(() => {
         setIsInitialLoad(false);
-      }, 500); // 500ms delay for smooth animation after page load
-      
-      return () => clearTimeout(timer);
+      });
     }
-  }, [isInitialLoad]);
+  }, []);
+  
+  // Set default owner when userData loads
+  useEffect(() => {
+    if (userData?.id && selectedOwnerId === undefined) {
+      console.log('[ElegantCRM] Setting initial owner to:', userData.id);
+      setSelectedOwnerId(userData.id);
+    }
+  }, [userData?.id]);
 
   // Function to handle tab changes and update URL
   const handleTabChange = (tabId: string) => {
@@ -171,17 +177,8 @@ export default function ElegantCRM() {
     includeCompany: true
   });
 
-  // Determine the owner ID to use for fetching deals
-  // This prevents the flicker from "All Items" to "My Items"
-  const dealOwnerId = useMemo(() => {
-    if (selectedOwnerId === null) return undefined; // Explicitly selected "All Items"
-    if (selectedOwnerId !== undefined) return selectedOwnerId; // User selected a specific owner
-    // selectedOwnerId is undefined - waiting for initialization
-    // Default to current user to prevent loading all deals initially
-    return userData?.id || undefined;
-  }, [selectedOwnerId, userData?.id]);
-  
-  const { deals, isLoading: dealsLoading, createDeal } = useDeals(dealOwnerId);
+  // Use selectedOwnerId directly for fetching deals
+  const { deals, isLoading: dealsLoading, createDeal } = useDeals(selectedOwnerId || undefined);
 
   // Convert error object to string for component compatibility
   const error = hookError instanceof Error ? hookError.message : 
@@ -493,6 +490,7 @@ export default function ElegantCRM() {
           locationOptions={[]}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          skipInitialAnimation={isInitialLoad}
           className="flex-shrink-0"
         />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
@@ -530,6 +528,7 @@ export default function ElegantCRM() {
           locationOptions={[]}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          skipInitialAnimation={isInitialLoad}
           className="flex-shrink-0"
         />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
@@ -631,7 +630,12 @@ export default function ElegantCRM() {
                 showQuickFilters={false}
                 compact={true}
                 selectedOwnerId={selectedOwnerId}
-                onOwnerChange={setSelectedOwnerId}
+                onOwnerChange={(newOwnerId) => {
+                  // Only update if actually changed
+                  if (newOwnerId !== selectedOwnerId) {
+                    setSelectedOwnerId(newOwnerId);
+                  }
+                }}
                 className="w-full sm:w-[180px]"
               />
 
@@ -870,6 +874,7 @@ export default function ElegantCRM() {
           activeTab={activeTab}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          skipInitialAnimation={isInitialLoad}
           sizeFilter={sizeFilter}
           setSizeFilter={setSizeFilter}
           industryFilter={industryFilter}

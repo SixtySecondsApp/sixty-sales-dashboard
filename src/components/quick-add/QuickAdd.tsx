@@ -118,8 +118,8 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
     }
   });
 
-  // Only register component when it's actually open to prevent thrashing
-  useComponentMediator('quick-add', isOpen ? componentRef.current : null, {
+  // Register component once and keep registration stable
+  useComponentMediator('quick-add', componentRef.current, {
     type: 'form',
     capabilities: ['form', 'modal', 'business-logic'],
     dependencies: ['deals', 'contacts', 'activities', 'tasks']

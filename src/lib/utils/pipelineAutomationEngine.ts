@@ -60,7 +60,7 @@ export async function executePipelineAutomationRules(
     
     // Find matching automation rules
     const { data: rules, error: rulesError } = await supabase
-      .from('pipeline_automation_rules')
+      .from('user_automation_rules')
       .select('*')
       .eq('to_stage_id', toStage.id)
       .eq('is_active', true)
@@ -341,7 +341,7 @@ async function logRuleExecution(
 ): Promise<void> {
   try {
     await supabase
-      .from('pipeline_automation_executions')
+      .from('automation_executions')
       .insert({
         rule_id: ruleId,
         deal_id: dealId,

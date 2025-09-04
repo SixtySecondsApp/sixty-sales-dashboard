@@ -60,6 +60,7 @@ const CRM = lazy(() => import('@/pages/CRM'));
 const ElegantCRM = lazy(() => import('@/pages/ElegantCRM'));
 const Admin = lazy(() => import('@/pages/Admin'));
 const Insights = lazy(() => import('@/pages/Insights'));
+const Workflows = lazy(() => import('@/pages/Workflows'));
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
 const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
 const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
@@ -183,6 +184,7 @@ function App() {
                 <Route path="/crm" element={<AppLayout><ElegantCRM /></AppLayout>} />
                 <Route path="/crm/elegant" element={<Navigate to="/crm" replace />} />
                 <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
+                <Route path="/workflows" element={<AppLayout><Workflows /></AppLayout>} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
                 

@@ -31,7 +31,8 @@ import {
   Video,
   Code2,
   Zap,
-  History
+  History,
+  Workflow
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -80,6 +81,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
     { icon: History, label: 'Releases', href: '/releases' },
     ...(userData?.is_admin ? [
+      { icon: Workflow, label: 'Workflows', href: '/workflows' },
       { icon: UserCog, label: 'Admin', href: '/admin' }
     ] : []),
   ];

@@ -20,6 +20,7 @@ interface ConnectedFilterSidebarProps {
   activeTab: string;
   isOpen: boolean;
   onClose: () => void;
+  skipInitialAnimation?: boolean;
   
   // Company filters
   sizeFilter: string[];
@@ -239,6 +240,7 @@ export function ConnectedFilterSidebar({
   activeTab,
   isOpen,
   onClose,
+  skipInitialAnimation = false,
   sizeFilter,
   setSizeFilter,
   industryFilter,
@@ -252,6 +254,16 @@ export function ConnectedFilterSidebar({
   locationOptions,
   dealStageOptions = []
 }: ConnectedFilterSidebarProps) {
+  const [hasAnimated, setHasAnimated] = useState(false);
+  const isFirstRender = useRef(true);
+  
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setHasAnimated(true);
+  }, [isOpen]);
 
   const clearAllFilters = () => {
     setSizeFilter([]);
@@ -311,14 +323,16 @@ export function ConnectedFilterSidebar({
     return baseFilters;
   };
 
+  const shouldAnimate = !isFirstRender.current && !skipInitialAnimation;
+  
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ x: -256 }}
+          initial={shouldAnimate ? { x: -256 } : { x: 0 }}
           animate={{ x: 0 }}
           exit={{ x: -256 }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          transition={shouldAnimate ? { type: "spring", damping: 25, stiffness: 200 } : { duration: 0 }}
           className="fixed left-0 top-0 h-full w-[256px] bg-gray-900 border-r border-gray-800 z-[150] overflow-hidden flex flex-col"
         >
           {/* Header */}

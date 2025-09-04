@@ -166,7 +166,7 @@ export default function PipelineAutomationAdmin() {
   const fetchRules = async () => {
     try {
       const { data, error } = await supabase
-        .from('pipeline_automation_rules')
+        .from('user_automation_rules')
         .select('*')
         .order('execution_order', { ascending: true });
 
@@ -207,7 +207,7 @@ export default function PipelineAutomationAdmin() {
       if (editingId) {
         // Update existing
         const { error } = await supabase
-          .from('pipeline_automation_rules')
+          .from('user_automation_rules')
           .update({ ...dataToSave, updated_at: new Date().toISOString() })
           .eq('id', editingId);
 
@@ -216,7 +216,7 @@ export default function PipelineAutomationAdmin() {
       } else {
         // Create new
         const { error } = await supabase
-          .from('pipeline_automation_rules')
+          .from('user_automation_rules')
           .insert([{ ...dataToSave, created_by: user?.id }]);
 
         if (error) throw error;
@@ -242,7 +242,7 @@ export default function PipelineAutomationAdmin() {
 
     try {
       const { error } = await supabase
-        .from('pipeline_automation_rules')
+        .from('user_automation_rules')
         .delete()
         .eq('id', id);
 
@@ -258,7 +258,7 @@ export default function PipelineAutomationAdmin() {
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
-        .from('pipeline_automation_rules')
+        .from('user_automation_rules')
         .update({ is_active: !currentStatus, updated_at: new Date().toISOString() })
         .eq('id', id);
 

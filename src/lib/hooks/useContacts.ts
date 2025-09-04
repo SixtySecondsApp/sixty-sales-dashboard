@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
@@ -41,6 +41,7 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [totalCount, setTotalCount] = useState(0);
+  const hasFetched = useRef(false);
 
   const { autoFetch = true } = options;
 
@@ -225,11 +226,13 @@ export function useContacts(options: UseContactsOptions = {}): UseContactsReturn
   }, []);
 
   // Auto-fetch on mount and when options change
+  // Fetch contacts on mount and when search changes
   useEffect(() => {
-    if (autoFetch) {
+    if (autoFetch && (!hasFetched.current || options.search !== undefined)) {
+      hasFetched.current = true;
       fetchContacts();
     }
-  }, [fetchContacts, autoFetch]);
+  }, [options.search, autoFetch]); // Only depend on search changes, not the callback
 
   return {
     contacts,

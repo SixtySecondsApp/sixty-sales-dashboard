@@ -311,7 +311,7 @@ export function useUser() {
         } else {
           // No user session - create a mock user for development
           logger.log('No authenticated user, creating mock user for development');
-          setUserData({
+          const mockUserData = {
             id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
             email: 'andrew.bryce@sixtyseconds.video',
             first_name: 'Andrew',
@@ -321,12 +321,17 @@ export function useUser() {
             role: 'Senior',
             department: 'Sales',
             stage: 'Senior',
-            is_admin: false,
+            is_admin: true, // Set to true for development access to admin features
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             username: null,
             website: null
-          } as UserProfile);
+          } as UserProfile;
+          
+          setUserData(mockUserData);
+          
+          // Store mock user in localStorage for AuthContext compatibility
+          localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
         }
       } catch (err) {
         // Only log once, not repeatedly
