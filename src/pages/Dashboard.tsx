@@ -38,6 +38,7 @@ interface MetricCardProps {
   previousMonthTotal?: number;
   isLoadingComparisons?: boolean;
   hasComparisons?: boolean;
+  isInitialLoad?: boolean;
 }
 
 interface TooltipProps {
@@ -88,7 +89,7 @@ const Tooltip = ({ show, content, position }: TooltipProps) => {
   );
 };
 
-const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal, isLoadingComparisons, hasComparisons }: MetricCardProps) => {
+const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, dateRange, previousMonthTotal, isLoadingComparisons, hasComparisons, isInitialLoad = false }: MetricCardProps) => {
   const navigate = useNavigate();
   const { setFilters } = useActivityFilters();
   const [showTrendTooltip, setShowTrendTooltip] = useState(false);
@@ -296,12 +297,23 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
       
       <div className="space-y-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-white" suppressHydrationWarning>
-            {title === 'New Business' ? `£${value.toLocaleString()}` : value}
-          </span>
-          <span className="text-sm text-gray-500 font-medium">
-            / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
-          </span>
+          {isInitialLoad ? (
+            <div className="flex items-baseline gap-2">
+              <div className="w-24 h-9 bg-gray-800/50 rounded animate-pulse" />
+              <span className="text-sm text-gray-500 font-medium">
+                / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
+              </span>
+            </div>
+          ) : (
+            <>
+              <span className="text-3xl font-bold text-white transition-none" suppressHydrationWarning>
+                {title === 'New Business' ? `£${value.toLocaleString()}` : value}
+              </span>
+              <span className="text-sm text-gray-500 font-medium">
+                / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
+              </span>
+            </>
+          )}
         </div>
         
         <div className="space-y-1">
@@ -336,7 +348,8 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
     prevProps.trend === nextProps.trend &&
     prevProps.previousMonthTotal === nextProps.previousMonthTotal &&
     prevProps.isLoadingComparisons === nextProps.isLoadingComparisons &&
-    prevProps.hasComparisons === nextProps.hasComparisons
+    prevProps.hasComparisons === nextProps.hasComparisons &&
+    prevProps.isInitialLoad === nextProps.isInitialLoad
   );
 });
 
@@ -590,6 +603,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.revenue}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
+          isInitialLoad={isInitialLoad}
         />
         <MetricCard
           key="outbound-metric"
@@ -603,6 +617,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.outbound}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
+          isInitialLoad={isInitialLoad}
         />
         <MetricCard
           key="meetings-metric"
@@ -616,6 +631,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.meetings}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
+          isInitialLoad={isInitialLoad}
         />
         <MetricCard
           key="proposals-metric"
@@ -629,6 +645,7 @@ export default function Dashboard() {
           previousMonthTotal={previousMonthTotals.proposals}
           isLoadingComparisons={isLoadingComparisons}
           hasComparisons={hasComparisons}
+          isInitialLoad={isInitialLoad}
         />
       </div>
 
