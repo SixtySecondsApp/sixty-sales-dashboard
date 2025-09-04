@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactFlow, {
   Node,
   Edge,
@@ -109,9 +109,37 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
-  const [workflowName, setWorkflowName] = useState(selectedWorkflow?.name || 'Untitled Workflow');
-  const [workflowDescription, setWorkflowDescription] = useState(selectedWorkflow?.description || '');
+  const [workflowName, setWorkflowName] = useState('Untitled Workflow');
+  const [workflowDescription, setWorkflowDescription] = useState('');
   const reactFlowInstance = useRef<any>(null);
+
+  // Load selected workflow data
+  useEffect(() => {
+    if (selectedWorkflow) {
+      setWorkflowName(selectedWorkflow.name || 'Untitled Workflow');
+      setWorkflowDescription(selectedWorkflow.description || '');
+      
+      // Load canvas data if available
+      if (selectedWorkflow.canvas_data) {
+        const canvasData = typeof selectedWorkflow.canvas_data === 'string' 
+          ? JSON.parse(selectedWorkflow.canvas_data) 
+          : selectedWorkflow.canvas_data;
+        
+        if (canvasData.nodes) {
+          setNodes(canvasData.nodes);
+        }
+        if (canvasData.edges) {
+          setEdges(canvasData.edges);
+        }
+      }
+    } else {
+      // Reset for new workflow
+      setWorkflowName('Untitled Workflow');
+      setWorkflowDescription('');
+      setNodes([]);
+      setEdges([]);
+    }
+  }, [selectedWorkflow, setNodes, setEdges]);
   
   const onConnect = useCallback(
     (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -151,15 +179,60 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   }, []);
 
   const handleSave = () => {
+    // Extract trigger and action information from nodes
+    const triggerNode = nodes.find(n => n.type === 'trigger');
+    const actionNode = nodes.find(n => n.type === 'action');
+    const conditionNodes = nodes.filter(n => n.type === 'condition');
+
+    // Build trigger conditions from condition nodes
+    const trigger_conditions: any = {};
+    conditionNodes.forEach(node => {
+      if (node.data.condition && node.data.label) {
+        // Parse condition (simplified for now)
+        const conditionParts = node.data.condition.split(' ');
+        if (conditionParts.length >= 3) {
+          const field = conditionParts[0];
+          const operator = conditionParts[1];
+          const value = conditionParts.slice(2).join(' ');
+          trigger_conditions[field] = { operator, value };
+        }
+      }
+    });
+
+    // Build action config from action node
+    const action_config: any = {};
+    if (actionNode?.data) {
+      action_config.action_title = actionNode.data.label;
+      action_config.action_description = actionNode.data.description;
+      // Add specific config based on action type
+      switch (actionNode.data.type) {
+        case 'create_task':
+          action_config.task_title = `Task from ${workflowName}`;
+          action_config.task_description = 'Automated task';
+          action_config.due_in_days = 1;
+          action_config.priority = 'medium';
+          break;
+        case 'send_notification':
+          action_config.message = `Notification from ${workflowName}`;
+          action_config.urgency = 'medium';
+          break;
+      }
+    }
+
     const workflow = {
+      id: selectedWorkflow?.id, // Include ID for updates
       name: workflowName,
       description: workflowDescription,
-      nodes,
-      edges,
-      trigger_type: nodes.find(n => n.type === 'trigger')?.data?.type || 'manual',
-      action_type: nodes.find(n => n.type === 'action')?.data?.type || 'create_task',
-      is_active: true
+      canvas_data: { nodes, edges },
+      trigger_type: triggerNode?.data?.type || 'manual',
+      trigger_config: trigger_conditions,
+      action_type: actionNode?.data?.type || 'create_task',
+      action_config: action_config,
+      is_active: false, // Start inactive by default
+      template_id: selectedWorkflow?.template_id || null
     };
+    
+    console.log('💾 Saving workflow:', workflow);
     onSave(workflow);
   };
 

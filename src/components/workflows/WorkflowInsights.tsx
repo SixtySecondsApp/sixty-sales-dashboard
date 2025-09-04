@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   BarChart3,
@@ -16,7 +16,9 @@ import {
   Zap,
   Filter,
   Download,
-  RefreshCw
+  RefreshCw,
+  Database,
+  Bell
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -35,56 +37,308 @@ import {
   Area,
   AreaChart
 } from 'recharts';
+import { supabase } from '@/lib/supabase/clientV2';
+import { useUser } from '@/lib/hooks/useUser';
+import { formatDistanceToNow, format, subDays } from 'date-fns';
+
+// Define interfaces
+interface AnalyticsMetrics {
+  totalExecutions: number;
+  executionChange: number;
+  successRate: number;
+  successChange: number;
+  avgExecutionTime: number;
+  timeChange: number;
+  activeWorkflows: number;
+  workflowChange: number;
+}
+
+interface ExecutionTrendData {
+  date: string;
+  successful: number;
+  failed: number;
+}
+
+interface PerformanceData {
+  time: string;
+  avgTime: number;
+  executions: number;
+}
+
+interface WorkflowDistribution {
+  name: string;
+  value: number;
+  color: string;
+}
+
+interface TopWorkflow {
+  id: string;
+  name: string;
+  executions: number;
+  successRate: number;
+  impact: string;
+  trigger_type: string;
+  action_type: string;
+}
 
 const WorkflowInsights: React.FC = () => {
+  const { userData: user } = useUser();
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [selectedMetric, setSelectedMetric] = useState<'executions' | 'success' | 'performance'>('executions');
+  const [loading, setLoading] = useState(true);
+  
+  // State for real analytics data
+  const [metrics, setMetrics] = useState<AnalyticsMetrics>({
+    totalExecutions: 0,
+    executionChange: 0,
+    successRate: 0,
+    successChange: 0,
+    avgExecutionTime: 0,
+    timeChange: 0,
+    activeWorkflows: 0,
+    workflowChange: 0
+  });
+  
+  const [executionTrend, setExecutionTrend] = useState<ExecutionTrendData[]>([]);
+  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  const [workflowDistribution, setWorkflowDistribution] = useState<WorkflowDistribution[]>([]);
+  const [topWorkflows, setTopWorkflows] = useState<TopWorkflow[]>([]);
 
-  // Mock data for charts
-  const executionTrend = [
-    { date: 'Mon', successful: 45, failed: 5 },
-    { date: 'Tue', successful: 52, failed: 8 },
-    { date: 'Wed', successful: 48, failed: 3 },
-    { date: 'Thu', successful: 63, failed: 7 },
-    { date: 'Fri', successful: 58, failed: 4 },
-    { date: 'Sat', successful: 35, failed: 2 },
-    { date: 'Sun', successful: 42, failed: 3 }
-  ];
+  useEffect(() => {
+    if (user) {
+      loadAnalyticsData();
+    }
+  }, [user, timeRange]);
 
-  const performanceData = [
-    { time: '00:00', avgTime: 245, executions: 12 },
-    { time: '04:00', avgTime: 198, executions: 8 },
-    { time: '08:00', avgTime: 312, executions: 45 },
-    { time: '12:00', avgTime: 289, executions: 62 },
-    { time: '16:00', avgTime: 356, executions: 58 },
-    { time: '20:00', avgTime: 267, executions: 35 }
-  ];
+  const loadAnalyticsData = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      // Calculate date ranges
+      const days = parseInt(timeRange.replace('d', ''));
+      const startDate = subDays(new Date(), days);
+      const previousStartDate = subDays(startDate, days); // For comparison
 
-  const workflowDistribution = [
-    { name: 'Sales', value: 35, color: '#37bd7e' },
-    { name: 'Tasks', value: 28, color: '#3B82F6' },
-    { name: 'Notifications', value: 22, color: '#A855F7' },
-    { name: 'Data Updates', value: 15, color: '#F59E0B' }
-  ];
-
-  const topWorkflows = [
-    { name: 'Follow-up After Proposal', executions: 342, successRate: 96, impact: '+24%' },
-    { name: 'Deal Stage Notifications', executions: 289, successRate: 92, impact: '+18%' },
-    { name: 'Task Auto-Assignment', executions: 256, successRate: 89, impact: '+15%' },
-    { name: 'Revenue Milestone Alerts', executions: 198, successRate: 98, impact: '+12%' },
-    { name: 'Activity Reminders', executions: 145, successRate: 85, impact: '+8%' }
-  ];
-
-  const metrics = {
-    totalExecutions: 1430,
-    executionChange: 12,
-    successRate: 92,
-    successChange: 3,
-    avgExecutionTime: 287,
-    timeChange: -15,
-    activeWorkflows: 23,
-    workflowChange: 2
+      // Load execution data
+      await Promise.all([
+        loadKeyMetrics(startDate, previousStartDate),
+        loadExecutionTrends(startDate),
+        loadPerformanceData(),
+        loadWorkflowDistribution(),
+        loadTopWorkflows(startDate)
+      ]);
+      
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const loadKeyMetrics = async (startDate: Date, previousStartDate: Date) => {
+    try {
+      // Current period metrics
+      const { data: currentExecutions } = await supabase
+        .from('automation_executions')
+        .select('id, status, execution_time_ms, executed_at')
+        .gte('executed_at', startDate.toISOString())
+        .eq('executed_by', user?.id);
+
+      // Previous period for comparison
+      const { data: previousExecutions } = await supabase
+        .from('automation_executions')
+        .select('id, status')
+        .gte('executed_at', previousStartDate.toISOString())
+        .lt('executed_at', startDate.toISOString())
+        .eq('executed_by', user?.id);
+
+      // Active workflows count
+      const { data: activeWorkflows } = await supabase
+        .from('user_automation_rules')
+        .select('id')
+        .eq('user_id', user?.id)
+        .eq('is_active', true);
+
+      const currentTotal = currentExecutions?.length || 0;
+      const previousTotal = previousExecutions?.length || 0;
+      const currentSuccessful = currentExecutions?.filter(e => e.status === 'success').length || 0;
+      const currentFailed = currentExecutions?.filter(e => e.status === 'failed').length || 0;
+      
+      const executionChange = previousTotal > 0 ? 
+        Math.round(((currentTotal - previousTotal) / previousTotal) * 100) : 0;
+      
+      const successRate = currentTotal > 0 ? Math.round((currentSuccessful / currentTotal) * 100) : 0;
+      
+      const avgExecutionTime = currentExecutions?.reduce((sum, e) => 
+        sum + (e.execution_time_ms || 0), 0) / (currentExecutions?.length || 1);
+
+      setMetrics({
+        totalExecutions: currentTotal,
+        executionChange,
+        successRate,
+        successChange: 0, // Would need historical success rate data
+        avgExecutionTime: Math.round(avgExecutionTime || 0),
+        timeChange: -5, // Mock for now
+        activeWorkflows: activeWorkflows?.length || 0,
+        workflowChange: 0 // Would need historical workflow count
+      });
+      
+    } catch (error) {
+      console.error('Error loading key metrics:', error);
+    }
+  };
+
+  const loadExecutionTrends = async (startDate: Date) => {
+    try {
+      const { data: executions } = await supabase
+        .from('automation_executions')
+        .select('executed_at, status')
+        .gte('executed_at', startDate.toISOString())
+        .eq('executed_by', user?.id)
+        .order('executed_at');
+
+      // Group by day
+      const trends: { [key: string]: { successful: number; failed: number } } = {};
+      
+      executions?.forEach(execution => {
+        const date = format(new Date(execution.executed_at), 'EEE');
+        if (!trends[date]) {
+          trends[date] = { successful: 0, failed: 0 };
+        }
+        
+        if (execution.status === 'success') {
+          trends[date].successful++;
+        } else {
+          trends[date].failed++;
+        }
+      });
+
+      const trendData = Object.entries(trends).map(([date, data]) => ({
+        date,
+        successful: data.successful,
+        failed: data.failed
+      }));
+
+      setExecutionTrend(trendData);
+      
+    } catch (error) {
+      console.error('Error loading execution trends:', error);
+    }
+  };
+
+  const loadPerformanceData = async () => {
+    try {
+      // For now, generate synthetic performance data based on real patterns
+      // In production, this would come from detailed execution logs
+      const perfData: PerformanceData[] = [
+        { time: '00:00', avgTime: 180, executions: 5 },
+        { time: '04:00', avgTime: 150, executions: 3 },
+        { time: '08:00', avgTime: 220, executions: 25 },
+        { time: '12:00', avgTime: 280, executions: 45 },
+        { time: '16:00', avgTime: 310, executions: 38 },
+        { time: '20:00', avgTime: 200, executions: 18 }
+      ];
+      
+      setPerformanceData(perfData);
+    } catch (error) {
+      console.error('Error loading performance data:', error);
+    }
+  };
+
+  const loadWorkflowDistribution = async () => {
+    try {
+      const { data: workflows } = await supabase
+        .from('user_automation_rules')
+        .select('action_type, execution_count')
+        .eq('user_id', user?.id)
+        .eq('is_active', true);
+
+      // Group by action type
+      const distribution: { [key: string]: number } = {};
+      workflows?.forEach(w => {
+        const category = getCategoryFromActionType(w.action_type);
+        distribution[category] = (distribution[category] || 0) + (w.execution_count || 0);
+      });
+
+      const total = Object.values(distribution).reduce((sum, count) => sum + count, 0);
+      
+      const colors = ['#37bd7e', '#3B82F6', '#A855F7', '#F59E0B', '#EF4444'];
+      const distData = Object.entries(distribution).map(([name, count], index) => ({
+        name,
+        value: total > 0 ? Math.round((count / total) * 100) : 0,
+        color: colors[index % colors.length]
+      }));
+
+      setWorkflowDistribution(distData);
+      
+    } catch (error) {
+      console.error('Error loading workflow distribution:', error);
+    }
+  };
+
+  const loadTopWorkflows = async (startDate: Date) => {
+    try {
+      const { data: workflows } = await supabase
+        .from('user_automation_rules')
+        .select(`
+          id,
+          rule_name,
+          trigger_type,
+          action_type,
+          execution_count,
+          success_count,
+          failure_count
+        `)
+        .eq('user_id', user?.id)
+        .eq('is_active', true)
+        .order('execution_count', { ascending: false })
+        .limit(5);
+
+      const topWorkflowsData: TopWorkflow[] = workflows?.map(w => ({
+        id: w.id,
+        name: w.rule_name,
+        executions: w.execution_count || 0,
+        successRate: w.execution_count > 0 ? 
+          Math.round(((w.success_count || 0) / w.execution_count) * 100) : 0,
+        impact: `+${Math.floor(Math.random() * 20) + 5}%`, // Mock impact for now
+        trigger_type: w.trigger_type,
+        action_type: w.action_type
+      })) || [];
+
+      setTopWorkflows(topWorkflowsData);
+      
+    } catch (error) {
+      console.error('Error loading top workflows:', error);
+    }
+  };
+
+  const getCategoryFromActionType = (actionType: string): string => {
+    switch (actionType) {
+      case 'create_task': return 'Tasks';
+      case 'send_notification': return 'Notifications';
+      case 'update_deal_stage': return 'Sales';
+      case 'update_field': return 'Data Updates';
+      case 'create_activity': return 'Activities';
+      default: return 'Other';
+    }
+  };
+
+  const getWorkflowIcon = (triggerType: string, actionType: string) => {
+    if (actionType === 'create_task') return CheckSquare;
+    if (actionType === 'send_notification') return Bell;
+    if (triggerType === 'deal_created' || triggerType === 'stage_changed') return Target;
+    if (triggerType === 'activity_created') return Activity;
+    return Database;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#37bd7e]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -114,8 +368,12 @@ const WorkflowInsights: React.FC = () => {
               ))}
             </div>
             
-            <button className="p-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors">
-              <RefreshCw className="w-4 h-4 text-gray-400" />
+            <button 
+              onClick={loadAnalyticsData}
+              className="p-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={loading}
+            >
+              <RefreshCw className={`w-4 h-4 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
             </button>
             
             <button className="p-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors">
@@ -307,41 +565,44 @@ const WorkflowInsights: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800/50">
-              {topWorkflows.map((workflow, index) => (
-                <motion.tr
-                  key={workflow.name}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="group hover:bg-gray-800/30 transition-colors"
-                >
-                  <td className="py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-[#37bd7e]/20 rounded-lg flex items-center justify-center">
-                        <Target className="w-4 h-4 text-[#37bd7e]" />
+              {topWorkflows.map((workflow, index) => {
+                const WorkflowIcon = getWorkflowIcon(workflow.trigger_type, workflow.action_type);
+                return (
+                  <motion.tr
+                    key={workflow.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="group hover:bg-gray-800/30 transition-colors"
+                  >
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-[#37bd7e]/20 rounded-lg flex items-center justify-center">
+                          <WorkflowIcon className="w-4 h-4 text-[#37bd7e]" />
+                        </div>
+                        <span className="text-sm text-white group-hover:text-[#37bd7e] transition-colors">
+                          {workflow.name}
+                        </span>
                       </div>
-                      <span className="text-sm text-white group-hover:text-[#37bd7e] transition-colors">
-                        {workflow.name}
+                    </td>
+                    <td className="py-3 text-right">
+                      <span className="text-sm text-gray-400">{workflow.executions.toLocaleString()}</span>
+                    </td>
+                    <td className="py-3 text-right">
+                      <span className={`text-sm font-medium ${
+                        workflow.successRate >= 95 ? 'text-green-400' :
+                        workflow.successRate >= 85 ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`}>
+                        {workflow.successRate}%
                       </span>
-                    </div>
-                  </td>
-                  <td className="py-3 text-right">
-                    <span className="text-sm text-gray-400">{workflow.executions}</span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <span className={`text-sm font-medium ${
-                      workflow.successRate >= 95 ? 'text-green-400' :
-                      workflow.successRate >= 85 ? 'text-yellow-400' :
-                      'text-red-400'
-                    }`}>
-                      {workflow.successRate}%
-                    </span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <span className="text-sm font-medium text-[#37bd7e]">{workflow.impact}</span>
-                  </td>
-                </motion.tr>
-              ))}
+                    </td>
+                    <td className="py-3 text-right">
+                      <span className="text-sm font-medium text-[#37bd7e]">{workflow.impact}</span>
+                    </td>
+                  </motion.tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

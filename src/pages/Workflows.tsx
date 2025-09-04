@@ -101,24 +101,45 @@ export default function Workflows() {
 
   const handleWorkflowSave = async (workflow: any) => {
     try {
-      const { error } = await supabase
-        .from('user_automation_rules')
-        .insert({
-          user_id: user?.id,
-          rule_name: workflow.name,
-          rule_description: workflow.description,
-          trigger_type: workflow.trigger_type,
-          trigger_conditions: workflow.trigger_config,
-          action_type: workflow.action_type,
-          action_config: workflow.action_config,
-          is_active: workflow.is_active
-        });
+      const workflowData = {
+        user_id: user?.id,
+        rule_name: workflow.name,
+        rule_description: workflow.description,
+        canvas_data: workflow.canvas_data,
+        trigger_type: workflow.trigger_type,
+        trigger_conditions: workflow.trigger_config || {},
+        action_type: workflow.action_type,
+        action_config: workflow.action_config || {},
+        template_id: workflow.template_id,
+        is_active: workflow.is_active || false,
+        priority_level: 1
+      };
 
-      if (error) throw error;
+      let result;
+      if (workflow.id) {
+        // Update existing workflow
+        result = await supabase
+          .from('user_automation_rules')
+          .update(workflowData)
+          .eq('id', workflow.id)
+          .eq('user_id', user?.id);
+      } else {
+        // Create new workflow
+        result = await supabase
+          .from('user_automation_rules')
+          .insert(workflowData);
+      }
+
+      if (result.error) throw result.error;
       
+      console.log(`✅ Workflow ${workflow.id ? 'updated' : 'created'} successfully`);
       await loadWorkflowStats();
+      
+      // Clear selected workflow to show success
+      setSelectedWorkflow(null);
     } catch (error) {
       console.error('Failed to save workflow:', error);
+      alert('Failed to save workflow. Please try again.');
     }
   };
   
