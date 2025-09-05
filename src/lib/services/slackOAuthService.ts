@@ -63,32 +63,54 @@ class SlackOAuthService {
    * Check if user has an active Slack integration
    */
   async hasActiveIntegration(userId: string): Promise<boolean> {
-    const { data, error } = await supabase
-      .from('slack_integrations')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .single();
-    
-    return !error && !!data;
+    try {
+      const { data, error } = await supabase
+        .from('slack_integrations')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+      
+      // If table doesn't exist (404) or no rows found, return false
+      if (error?.code === 'PGRST116' || error?.code === '42P01') {
+        console.warn('[SlackOAuth] Table not found or no integrations:', error.message);
+        return false;
+      }
+      
+      return !error && !!data;
+    } catch (err) {
+      console.error('[SlackOAuth] Error checking integration:', err);
+      return false;
+    }
   }
 
   /**
    * Get user's Slack integrations
    */
   async getIntegrations(userId: string): Promise<SlackIntegration[]> {
-    const { data, error } = await supabase
-      .from('slack_integrations')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true);
-    
-    if (error) {
-      logger.error('Failed to get Slack integrations:', error);
+    try {
+      const { data, error } = await supabase
+        .from('slack_integrations')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      
+      // If table doesn't exist, return empty array
+      if (error?.code === 'PGRST116' || error?.code === '42P01') {
+        console.warn('[SlackOAuth] Table not found, returning empty integrations');
+        return [];
+      }
+      
+      if (error) {
+        logger.error('Failed to get Slack integrations:', error);
+        return [];
+      }
+      
+      return data || [];
+    } catch (err) {
+      console.error('[SlackOAuth] Error getting integrations:', err);
       return [];
     }
-    
-    return data || [];
   }
 
   /**
