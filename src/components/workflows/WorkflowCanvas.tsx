@@ -1,4 +1,4 @@
-// Workflow Canvas Component - v2.0
+// Workflow Canvas Component - v2.1 with Visual Testing
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactFlow, {
   Node,
@@ -48,6 +48,8 @@ import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
 import { slackOAuthService } from '@/lib/services/slackOAuthService';
 import { supabase } from '@/lib/supabase/clientV2';
+import { WorkflowTestEngine, TestExecutionState, TEST_SCENARIOS, NodeExecutionState } from '@/lib/utils/workflowTestEngine';
+import AnimatedTestEdge from './AnimatedTestEdge';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -70,11 +72,38 @@ const iconMap: { [key: string]: any } = {
   Plus
 };
 
-// Custom Node Types - 33% smaller
-const TriggerNode = ({ data }: any) => {
-  const Icon = data.iconName ? iconMap[data.iconName] : Target;
+// Visual Test Status Indicator Component
+const NodeStatusIndicator = ({ status }: { status: NodeExecutionState['status'] }) => {
+  if (status === 'idle') return null;
+  
+  const statusConfig = {
+    active: { color: 'bg-yellow-400', icon: '⚡', animation: 'animate-pulse' },
+    success: { color: 'bg-green-500', icon: '✓', animation: '' },
+    failed: { color: 'bg-red-500', icon: '✗', animation: '' },
+    skipped: { color: 'bg-gray-400', icon: '−', animation: '' },
+    waiting: { color: 'bg-blue-400', icon: '⏳', animation: 'animate-spin' }
+  };
+  
+  const config = statusConfig[status] || statusConfig.skipped;
+  
   return (
-    <div className="bg-purple-600 rounded-lg p-3 min-w-[120px] border-2 border-purple-500 shadow-lg">
+    <div className={`absolute -top-2 -right-2 w-6 h-6 ${config.color} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg ${config.animation} z-10`}>
+      {config.icon}
+    </div>
+  );
+};
+
+// Custom Node Types with Visual Testing - 33% smaller
+const TriggerNode = ({ data, selected }: any) => {
+  const Icon = data.iconName ? iconMap[data.iconName] : Target;
+  const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const isActive = status === 'active';
+  
+  return (
+    <div className={`bg-purple-600 rounded-lg p-3 min-w-[120px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-purple-500'
+    } ${selected ? 'ring-2 ring-purple-300' : ''}`}>
+      <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-purple-500" />
       <div className="flex items-center gap-2 text-white">
         <Icon className="w-4 h-4" />
@@ -87,26 +116,39 @@ const TriggerNode = ({ data }: any) => {
   );
 };
 
-const ConditionNode = ({ data }: any) => {
+const ConditionNode = ({ data, selected }: any) => {
+  const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const isActive = status === 'active';
+  
   return (
-    <div className="bg-blue-600 rounded-lg p-3 min-w-[110px] border-2 border-blue-500 shadow-lg">
+    <div className={`bg-blue-600 rounded-lg p-3 min-w-[110px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
+    } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
+      <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="true" style={{top: '35%'}} />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="false" style={{top: '65%'}} />
       <div className="flex items-center gap-2 text-white">
         <GitBranch className="w-3.5 h-3.5" />
         <div>
           <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.condition}</div>
+          <div className="text-[10px] opacity-80">{data.condition || 'If condition met'}</div>
         </div>
       </div>
     </div>
   );
 };
 
-const ActionNode = ({ data }: any) => {
+const ActionNode = ({ data, selected }: any) => {
   const Icon = data.iconName === 'Slack' ? FaSlack : (data.iconName ? iconMap[data.iconName] : CheckSquare);
+  const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const isActive = status === 'active';
+  
   return (
-    <div className="bg-[#37bd7e] rounded-lg p-3 min-w-[120px] border-2 border-[#37bd7e] shadow-lg">
+    <div className={`bg-[#37bd7e] rounded-lg p-3 min-w-[120px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-[#37bd7e]'
+    } ${selected ? 'ring-2 ring-green-300' : ''}`}>
+      <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
       <div className="flex items-center gap-2 text-white">
         <Icon className="w-4 h-4" />
@@ -120,9 +162,15 @@ const ActionNode = ({ data }: any) => {
 };
 
 // Router Node for advanced workflows - 33% smaller
-const RouterNode = ({ data }: any) => {
+const RouterNode = ({ data, selected }: any) => {
+  const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const isActive = status === 'active';
+  
   return (
-    <div className="bg-orange-600 rounded-lg p-3 min-w-[110px] border-2 border-orange-500 shadow-lg">
+    <div className={`bg-orange-600 rounded-lg p-3 min-w-[110px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-orange-500'
+    } ${selected ? 'ring-2 ring-orange-300' : ''}`}>
+      <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '30%'}} id="a" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '50%'}} id="b" />
@@ -145,6 +193,10 @@ const nodeTypes: NodeTypes = {
   router: RouterNode
 };
 
+const edgeTypes = {
+  animated: AnimatedTestEdge,
+};
+
 interface WorkflowCanvasProps {
   selectedWorkflow: any;
   onSave: (workflow: any) => void;
@@ -163,6 +215,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const reactFlowInstance = useRef<any>(null);
+  
+  // Test Execution State
+  const [testExecutionState, setTestExecutionState] = useState<TestExecutionState | null>(null);
+  const [showTestPanel, setShowTestPanel] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState<string>('high_value_deal');
+  const testEngineRef = useRef<WorkflowTestEngine | null>(null);
 
   // Get current user on mount
   useEffect(() => {
@@ -385,6 +443,100 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   }, []);
+
+  // Test Execution Functions
+  const handleTestStateChange = (newState: TestExecutionState) => {
+    setTestExecutionState(newState);
+    
+    // Update node visual states
+    const updatedNodes = nodes.map(node => {
+      const nodeState = newState.nodeStates.get(node.id);
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          testStatus: nodeState?.status || 'idle'
+        }
+      };
+    });
+    setNodes(updatedNodes);
+    
+    // Update edge visual states for animation
+    const updatedEdges = edges.map(edge => {
+      const sourceState = newState.nodeStates.get(edge.source);
+      const targetState = newState.nodeStates.get(edge.target);
+      
+      // Edge is flowing if source is complete and target is active
+      const isFlowing = sourceState?.status === 'success' && targetState?.status === 'active';
+      // Edge is active if either node is active
+      const isTestActive = sourceState?.status === 'active' || targetState?.status === 'active' || isFlowing;
+      
+      return {
+        ...edge,
+        type: newState.isRunning ? 'animated' : undefined,
+        animated: false, // Disable default animation
+        data: {
+          ...edge.data,
+          isTestActive,
+          isFlowing
+        }
+      };
+    });
+    setEdges(updatedEdges);
+  };
+
+  const startTest = () => {
+    // Create test engine instance
+    testEngineRef.current = new WorkflowTestEngine(nodes, edges, handleTestStateChange);
+    
+    // Find selected scenario
+    const scenario = TEST_SCENARIOS.find(s => s.id === selectedScenario);
+    
+    // Start test execution
+    testEngineRef.current.startTest(scenario);
+    setShowTestPanel(true);
+  };
+
+  const pauseTest = () => {
+    testEngineRef.current?.pause();
+  };
+
+  const resumeTest = () => {
+    testEngineRef.current?.resume();
+  };
+
+  const stopTest = () => {
+    testEngineRef.current?.stop();
+    
+    // Reset all node states
+    const updatedNodes = nodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        testStatus: 'idle'
+      }
+    }));
+    setNodes(updatedNodes);
+    
+    // Reset all edge states
+    const updatedEdges = edges.map(edge => ({
+      ...edge,
+      type: undefined,
+      animated: true,
+      data: {
+        ...edge.data,
+        isTestActive: false,
+        isFlowing: false
+      }
+    }));
+    setEdges(updatedEdges);
+    
+    setTestExecutionState(null);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    testEngineRef.current?.setSpeed(speed);
+  };
 
   const handleSave = () => {
     // Extract trigger and action information from nodes
@@ -755,6 +907,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           onDragOver={onDragOver}
           onInit={(instance) => { reactFlowInstance.current = instance; }}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           connectionMode={ConnectionMode.Loose}
           defaultEdgeOptions={{
             animated: true,
@@ -775,6 +928,175 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               return '#37bd7e';
             }}
           />
+          
+          {/* Test Control Panel */}
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+            <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-2xl p-4">
+              <div className="flex items-center gap-4">
+                {/* Test Scenario Selector */}
+                <select
+                  value={selectedScenario}
+                  onChange={(e) => setSelectedScenario(e.target.value)}
+                  className="px-3 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-sm"
+                  disabled={testExecutionState?.isRunning}
+                >
+                  {TEST_SCENARIOS.map(scenario => (
+                    <option key={scenario.id} value={scenario.id}>
+                      {scenario.name}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Test Controls */}
+                {!testExecutionState?.isRunning ? (
+                  <button
+                    onClick={startTest}
+                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                  >
+                    <Play className="w-4 h-4" />
+                    Start Test
+                  </button>
+                ) : (
+                  <>
+                    {testExecutionState.isPaused ? (
+                      <button
+                        onClick={resumeTest}
+                        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                      >
+                        <Play className="w-4 h-4" />
+                        Resume
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pauseTest}
+                        className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <rect x="6" y="4" width="3" height="12" rx="1" />
+                          <rect x="11" y="4" width="3" height="12" rx="1" />
+                        </svg>
+                        Pause
+                      </button>
+                    )}
+                    <button
+                      onClick={stopTest}
+                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                      Stop
+                    </button>
+                  </>
+                )}
+                
+                {/* Speed Control */}
+                {testExecutionState?.isRunning && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Speed:</span>
+                    <select
+                      value={testExecutionState.executionSpeed}
+                      onChange={(e) => handleSpeedChange(Number(e.target.value))}
+                      className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
+                    >
+                      <option value={0.5}>0.5x</option>
+                      <option value={1}>1x</option>
+                      <option value={2}>2x</option>
+                      <option value={5}>5x</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Execution Timeline Panel */}
+          {showTestPanel && testExecutionState && (
+            <motion.div
+              initial={{ x: 400 }}
+              animate={{ x: 0 }}
+              className="absolute right-0 top-0 bottom-0 w-96 bg-gray-900/95 backdrop-blur-xl border-l border-gray-700 shadow-2xl overflow-hidden flex flex-col z-10"
+            >
+              {/* Timeline Header */}
+              <div className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-white">Test Execution Timeline</h3>
+                <button
+                  onClick={() => setShowTestPanel(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Current Test Data */}
+              <div className="p-4 border-b border-gray-700">
+                <h4 className="text-xs font-semibold text-gray-400 mb-2">Test Data Context</h4>
+                <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-x-auto">
+                  {JSON.stringify(testExecutionState.testData, null, 2)}
+                </pre>
+              </div>
+              
+              {/* Execution Logs */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <h4 className="text-xs font-semibold text-gray-400 mb-3">Execution Log</h4>
+                <div className="space-y-2">
+                  {testExecutionState.logs.map((log, index) => (
+                    <div
+                      key={index}
+                      className={`p-2 rounded-lg text-xs ${
+                        log.type === 'error' ? 'bg-red-900/20 border border-red-800/50' :
+                        log.type === 'complete' ? 'bg-green-900/20 border border-green-800/50' :
+                        log.type === 'condition' ? 'bg-blue-900/20 border border-blue-800/50' :
+                        'bg-gray-800/50 border border-gray-700/50'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex items-center gap-1">
+                          {log.type === 'error' && <X className="w-3 h-3 text-red-400" />}
+                          {log.type === 'complete' && <CheckSquare className="w-3 h-3 text-green-400" />}
+                          {log.type === 'condition' && <GitBranch className="w-3 h-3 text-blue-400" />}
+                          {log.type === 'start' && <Play className="w-3 h-3 text-purple-400" />}
+                          {log.type === 'data' && <Database className="w-3 h-3 text-yellow-400" />}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium text-white">{log.nodeName}</div>
+                          <div className="text-gray-400">{log.message}</div>
+                          {log.data && (
+                            <div className="mt-1">
+                              <pre className="text-xs text-gray-500 bg-gray-900 rounded p-1 overflow-x-auto">
+                                {JSON.stringify(log.data, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Execution Summary */}
+              {testExecutionState.endTime && (
+                <div className="p-4 border-t border-gray-700 bg-gray-800">
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-gray-400">Total Time:</span>
+                      <span className="ml-2 text-white font-medium">
+                        {(testExecutionState.endTime - testExecutionState.startTime!) / 1000}s
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Nodes Executed:</span>
+                      <span className="ml-2 text-white font-medium">
+                        {testExecutionState.executionPath.length}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
         </ReactFlow>
 
         {/* Empty State */}
