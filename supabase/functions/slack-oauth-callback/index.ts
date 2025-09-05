@@ -42,7 +42,8 @@ serve(async (req) => {
     }
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    // Use the built-in Supabase environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://ewtuefzeogytgmsnkpmb.supabase.co';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -55,18 +56,28 @@ serve(async (req) => {
       throw new Error('Invalid state parameter');
     }
 
+    // Log the Slack data for debugging
+    console.log('[Slack OAuth] Slack data received:', {
+      team_id: slackData.team?.id,
+      team_name: slackData.team?.name,
+      bot_user_id: slackData.bot_user_id,
+      app_id: slackData.app_id,
+      has_access_token: !!slackData.access_token,
+      scope: slackData.scope,
+    });
+
     // Store the access token in database
     const { data: integration, error: dbError } = await supabase
       .from('slack_integrations')
       .upsert({
         user_id: userId,
-        team_id: slackData.team.id,
-        team_name: slackData.team.name,
+        team_id: slackData.team?.id || slackData.team_id,
+        team_name: slackData.team?.name || slackData.team_name || 'Unknown Team',
         access_token: slackData.access_token,
-        bot_user_id: slackData.bot_user_id,
-        app_id: slackData.app_id,
-        authed_user: slackData.authed_user,
-        scope: slackData.scope,
+        bot_user_id: slackData.bot_user_id || '',
+        app_id: slackData.app_id || '',
+        authed_user: slackData.authed_user || {},
+        scope: slackData.scope || '',
         token_type: 'bot',
         is_active: true,
       }, {
@@ -76,7 +87,8 @@ serve(async (req) => {
       .single();
 
     if (dbError) {
-      throw new Error(`Database error: ${dbError.message}`);
+      console.error('[Slack OAuth] Database error details:', dbError);
+      throw new Error(`Database error: ${dbError.message || dbError}`);
     }
 
     // Fetch and cache available channels
