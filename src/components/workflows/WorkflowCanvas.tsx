@@ -103,7 +103,7 @@ const ConditionNode = ({ data }: any) => {
 };
 
 const ActionNode = ({ data }: any) => {
-  const Icon = data.iconName ? iconMap[data.iconName] : CheckSquare;
+  const Icon = data.iconName === 'Slack' ? FaSlack : (data.iconName ? iconMap[data.iconName] : CheckSquare);
   return (
     <div className="bg-[#37bd7e] rounded-lg p-3 min-w-[120px] border-2 border-[#37bd7e] shadow-lg">
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
@@ -137,28 +137,11 @@ const RouterNode = ({ data }: any) => {
   );
 };
 
-// Slack Node for Slack integration - dedicated node for cleaner workflow
-const SlackNode = ({ data }: any) => {
-  return (
-    <div className="bg-[#4A154B] rounded-lg p-3 min-w-[120px] border-2 border-[#611f69] shadow-lg">
-      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#611f69]" />
-      <div className="flex items-center gap-2 text-white">
-        <FaSlack className="w-4 h-4" />
-        <div>
-          <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.description}</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   condition: ConditionNode,
   action: ActionNode,
-  router: RouterNode,
-  slack: SlackNode
+  router: RouterNode
 };
 
 interface WorkflowCanvasProps {
@@ -684,13 +667,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               {[
                 { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },
                 { type: 'send_notification', label: 'Send Notification', iconName: 'Bell', description: 'Send alert' },
+                { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack', description: 'Post to Slack channel' },
                 { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
                 { type: 'update_field', label: 'Update Field', iconName: 'TrendingUp', description: 'Change data' },
                 { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
                 { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
                 { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
               ].map((action) => {
-                const ActionIcon = iconMap[action.iconName] || CheckSquare;
+                const ActionIcon = action.iconName === 'Slack' ? FaSlack : (iconMap[action.iconName] || CheckSquare);
                 return (
                   <div
                     key={action.type}
@@ -711,36 +695,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                   </div>
                 );
               })}
-            </div>
-          </div>
-          
-          {/* Slack Integration */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Slack Integration</h3>
-            <div className="space-y-2">
-              <div
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('nodeType', 'slack');
-                  e.dataTransfer.setData('nodeData', JSON.stringify({
-                    type: 'send_slack',
-                    label: 'Send to Slack',
-                    description: 'Post to Slack channel'
-                  }));
-                }}
-                className="bg-[#4A154B]/20 border border-[#611f69]/50 rounded-lg p-3 cursor-move hover:bg-[#4A154B]/30 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <FaSlack className="w-4 h-4 text-[#4A154B]" />
-                  <div>
-                    <div className="text-sm text-white">Send to Slack</div>
-                    <div className="text-xs text-gray-400">Post message to channel</div>
-                  </div>
-                </div>
-              </div>
-              <div className="text-xs text-gray-500 px-2">
-                Drag to canvas to add Slack messaging to your workflow
-              </div>
             </div>
           </div>
         </div>
@@ -1282,7 +1236,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       </>
                     )}
 
-                    {(selectedNode.data.type === 'send_slack' || selectedNode.type === 'slack') && (
+                    {selectedNode.data.type === 'send_slack' && (
                       <>
                         {/* Show Slack connection component if not connected */}
                         {!slackConnected ? (
