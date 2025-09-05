@@ -10,10 +10,20 @@ const corsHeaders = {
 serve(async (req) => {
   console.log('[Slack OAuth] Request method:', req.method);
   console.log('[Slack OAuth] Request URL:', req.url);
+  console.log('[Slack OAuth] Headers:', Object.fromEntries(req.headers.entries()));
   
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+  
+  // For OAuth callbacks, we don't need JWT verification
+  // Slack will call this directly without any auth headers
+  if (req.method !== 'GET') {
+    return new Response('Method not allowed', { 
+      status: 405,
+      headers: corsHeaders 
+    });
   }
 
   try {
