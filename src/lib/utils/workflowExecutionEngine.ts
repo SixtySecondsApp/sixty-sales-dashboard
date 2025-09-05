@@ -627,3 +627,22 @@ export function clearWorkflowEngine() {
     engineInstance = null;
   }
 }
+
+// Export singleton instance for backward compatibility
+export const workflowExecutionEngine = {
+  executeWorkflowsForTrigger: async (triggerType: string, triggerData: any, userId: string) => {
+    const engine = getWorkflowEngine(userId);
+    return engine.executeWorkflowsForTrigger(triggerType, triggerData);
+  },
+  getPerformanceMetrics: async (userId: string, timeframe?: any) => {
+    const engine = getWorkflowEngine(userId);
+    return engine.getPerformanceMetrics();
+  },
+  getWorkflowHealth: async (userId: string) => {
+    const engine = getWorkflowEngine(userId);
+    return engine.getWorkflowHealth();
+  },
+  cleanup: () => {
+    clearWorkflowEngine();
+  }
+};
