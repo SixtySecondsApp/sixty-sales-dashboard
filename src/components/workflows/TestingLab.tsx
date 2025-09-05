@@ -26,7 +26,7 @@ import {
   Bell,
   CheckSquare
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { workflowRealtimeService } from '@/lib/services/workflowRealtimeService';
 import { formatDistanceToNow } from 'date-fns';
