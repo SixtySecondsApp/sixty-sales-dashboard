@@ -1295,7 +1295,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                                 alert('✅ Test message sent successfully!');
                                               }
                                             } catch (error) {
-                                              alert(`❌ Test failed: ${error.message}`);
+                                              alert(`❌ Test failed: ${error?.message || 'Unknown error'}`);
                                             }
                                           }}
                                           className="text-xs px-2 py-1 bg-[#37bd7e]/10 text-[#37bd7e] rounded hover:bg-[#37bd7e]/20 transition-colors"
@@ -1400,7 +1400,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                       JSON.parse(selectedNode.data.slackBlocks);
                                       alert('✅ Valid JSON format');
                                     } catch (error) {
-                                      alert(`❌ Invalid JSON: ${error.message}`);
+                                      alert(`❌ Invalid JSON: ${error?.message || 'Unknown error'}`);
                                     }
                                   }}
                                   className="text-xs px-3 py-1 bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors"
@@ -1427,10 +1427,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                           alert('✅ Blocks message sent successfully!');
                                         }
                                       } catch (error) {
-                                        if (error.message.includes('Invalid JSON')) {
-                                          alert(`❌ Invalid JSON format: ${error.message}`);
+                                        if (error?.message?.includes('Invalid JSON')) {
+                                          alert(`❌ Invalid JSON format: ${error?.message || 'Unknown error'}`);
                                         } else {
-                                          alert(`❌ Test failed: ${error.message}`);
+                                          alert(`❌ Test failed: ${error?.message || 'Unknown error'}`);
                                         }
                                       }
                                     }}
