@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useViewMode } from '@/contexts/ViewModeContext';
 import { groupDealsByStage } from './utils/dealCalculations';
 import { useDealCRUD } from './useDealCRUD';
@@ -23,19 +23,29 @@ export function useDeals(ownerId?: string) {
   // Use viewed user ID if in view mode
   const effectiveOwnerId = isViewMode && viewedUser ? viewedUser.id : ownerId;
 
-  // Initialize specialized hooks first (without data refresh callback)
-  const crudHook = useDealCRUD(effectiveOwnerId, undefined);
-  const stageHook = useDealStages(deals, stages, undefined);
+  // Use refs to break circular dependency
+  const crudHookRef = useRef<any>();
+  const stageHookRef = useRef<any>();
 
   // Data refresh callback to update local state
-  const handleDataChange = async () => {
-    const [newDeals, newStages] = await Promise.all([
-      crudHook.fetchDeals(),
-      stageHook.fetchStages()
-    ]);
-    setDeals(newDeals);
-    setStages(newStages);
-  };
+  const handleDataChange = useCallback(async () => {
+    if (crudHookRef.current && stageHookRef.current) {
+      const [newDeals, newStages] = await Promise.all([
+        crudHookRef.current.fetchDeals(),
+        stageHookRef.current.fetchStages()
+      ]);
+      setDeals(newDeals);
+      setStages(newStages);
+    }
+  }, []);
+
+  // Initialize specialized hooks with data refresh callback
+  const crudHook = useDealCRUD(effectiveOwnerId, handleDataChange);
+  const stageHook = useDealStages(deals, stages, handleDataChange);
+  
+  // Store hook references
+  crudHookRef.current = crudHook;
+  stageHookRef.current = stageHook;
 
   // Group deals by stage for pipeline display (memoized for performance)
   const dealsByStage: DealsByStage = useMemo(() => {

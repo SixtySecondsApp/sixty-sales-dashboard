@@ -7,6 +7,8 @@ import SmartTasksAdmin from '@/pages/SmartTasksAdmin';
 import PipelineAutomationAdmin from '@/pages/PipelineAutomationAdmin';
 import ApiTesting from '@/pages/ApiTesting';
 import FunctionTesting from '@/pages/admin/FunctionTesting';
+import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
+import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
 import { 
   UsersIcon, 
   PanelLeft, 
@@ -14,7 +16,9 @@ import {
   Zap, 
   Code2,
   Target,
-  Workflow
+  Workflow,
+  TestTube,
+  FlaskConical
 } from 'lucide-react';
 
 export default function Admin() {
@@ -84,6 +88,20 @@ export default function Admin() {
                 <Target className="w-4 h-4" />
                 Function Testing
               </TabsTrigger>
+              <TabsTrigger 
+                value="workflows-test" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <TestTube className="w-4 h-4" />
+                Workflows Test
+              </TabsTrigger>
+              <TabsTrigger 
+                value="workflows-e2e" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <FlaskConical className="w-4 h-4" />
+                E2E Tests
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="users" className="space-y-0">
@@ -112,6 +130,14 @@ export default function Admin() {
 
             <TabsContent value="function-testing" className="space-y-0">
               <FunctionTesting />
+            </TabsContent>
+
+            <TabsContent value="workflows-test" className="space-y-0">
+              <WorkflowsTestSuite />
+            </TabsContent>
+
+            <TabsContent value="workflows-e2e" className="space-y-0">
+              <WorkflowsE2ETestSuite />
             </TabsContent>
           </Tabs>
         </div>

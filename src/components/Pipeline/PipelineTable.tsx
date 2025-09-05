@@ -83,12 +83,12 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
 
   const confirmDelete = useCallback(async () => {
     if (dealToDelete) {
-      await deleteDeal(dealToDelete);
       setDeleteDialogOpen(false);
       setDealToDelete(null);
-      onDeleteDeal(dealToDelete);
+      // Only use onDeleteDeal which calls the deleteDeal and handles refresh
+      await onDeleteDeal(dealToDelete);
     }
-  }, [dealToDelete, deleteDeal, onDeleteDeal]);
+  }, [dealToDelete, onDeleteDeal]);
 
   const getStage = useCallback((stageId: string) => {
     return stages.find(s => s.id === stageId);

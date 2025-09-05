@@ -313,7 +313,7 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
                       </button>
                       
                       {showMenu === workflow.id && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-10">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
                           <button
                             onClick={() => {
                               onSelectWorkflow(workflow);

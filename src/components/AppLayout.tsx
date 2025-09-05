@@ -138,16 +138,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </motion.button>
       </div>
       
-      {/* Quick Add FAB */}
-      <motion.button
-        type="button"
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={() => setIsQuickAddOpen(true)}
-        className="fixed bottom-6 right-6 p-4 rounded-full bg-[#37bd7e] hover:bg-[#2da76c] transition-colors shadow-lg shadow-[#37bd7e]/20 z-50"
-      >
-        <Plus className="w-6 h-6 text-white" />
-      </motion.button>
+      {/* Quick Add FAB - Hidden on Workflows page */}
+      {location.pathname !== '/workflows' && (
+        <motion.button
+          type="button"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsQuickAddOpen(true)}
+          className="fixed bottom-6 right-6 p-4 rounded-full bg-[#37bd7e] hover:bg-[#2da76c] transition-colors shadow-lg shadow-[#37bd7e]/20 z-50"
+        >
+          <Plus className="w-6 h-6 text-white" />
+        </motion.button>
+      )}
 
       {/* Mobile Menu */}
       <AnimatePresence>

@@ -39,7 +39,9 @@ import {
   AlertTriangle,
   Briefcase,
   FileText,
-  Heart
+  Heart,
+  Sparkles,
+  X
 } from 'lucide-react';
 
 // Icon mapping
@@ -59,20 +61,21 @@ const iconMap: { [key: string]: any } = {
   AlertTriangle,
   Briefcase,
   FileText,
-  Heart
+  Heart,
+  Plus
 };
 
-// Custom Node Types
+// Custom Node Types - 33% smaller
 const TriggerNode = ({ data }: any) => {
   const Icon = data.iconName ? iconMap[data.iconName] : Target;
   return (
-    <div className="bg-purple-600 rounded-xl p-4 min-w-[180px] border-2 border-purple-500 shadow-lg">
-      <Handle type="source" position={Position.Right} className="w-3 h-3 bg-white border-2 border-purple-500" />
-      <div className="flex items-center gap-3 text-white">
-        <Icon className="w-6 h-6" />
+    <div className="bg-purple-600 rounded-lg p-3 min-w-[120px] border-2 border-purple-500 shadow-lg">
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-purple-500" />
+      <div className="flex items-center gap-2 text-white">
+        <Icon className="w-4 h-4" />
         <div>
-          <div className="text-sm font-semibold">{data.label}</div>
-          <div className="text-xs opacity-80">{data.description}</div>
+          <div className="text-xs font-semibold">{data.label}</div>
+          <div className="text-[10px] opacity-80">{data.description}</div>
         </div>
       </div>
     </div>
@@ -81,14 +84,14 @@ const TriggerNode = ({ data }: any) => {
 
 const ConditionNode = ({ data }: any) => {
   return (
-    <div className="bg-blue-600 rounded-xl p-4 min-w-[160px] border-2 border-blue-500 shadow-lg">
-      <Handle type="target" position={Position.Left} className="w-3 h-3 bg-white border-2 border-blue-500" />
-      <Handle type="source" position={Position.Right} className="w-3 h-3 bg-white border-2 border-blue-500" />
-      <div className="flex items-center gap-3 text-white">
-        <GitBranch className="w-5 h-5" />
+    <div className="bg-blue-600 rounded-lg p-3 min-w-[110px] border-2 border-blue-500 shadow-lg">
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
+      <div className="flex items-center gap-2 text-white">
+        <GitBranch className="w-3.5 h-3.5" />
         <div>
-          <div className="text-sm font-semibold">{data.label}</div>
-          <div className="text-xs opacity-80">{data.condition}</div>
+          <div className="text-xs font-semibold">{data.label}</div>
+          <div className="text-[10px] opacity-80">{data.condition}</div>
         </div>
       </div>
     </div>
@@ -98,13 +101,32 @@ const ConditionNode = ({ data }: any) => {
 const ActionNode = ({ data }: any) => {
   const Icon = data.iconName ? iconMap[data.iconName] : CheckSquare;
   return (
-    <div className="bg-[#37bd7e] rounded-xl p-4 min-w-[180px] border-2 border-[#37bd7e] shadow-lg">
-      <Handle type="target" position={Position.Left} className="w-3 h-3 bg-white border-2 border-[#37bd7e]" />
-      <div className="flex items-center gap-3 text-white">
-        <Icon className="w-6 h-6" />
+    <div className="bg-[#37bd7e] rounded-lg p-3 min-w-[120px] border-2 border-[#37bd7e] shadow-lg">
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
+      <div className="flex items-center gap-2 text-white">
+        <Icon className="w-4 h-4" />
         <div>
-          <div className="text-sm font-semibold">{data.label}</div>
-          <div className="text-xs opacity-80">{data.description}</div>
+          <div className="text-xs font-semibold">{data.label}</div>
+          <div className="text-[10px] opacity-80">{data.description}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Router Node for advanced workflows - 33% smaller
+const RouterNode = ({ data }: any) => {
+  return (
+    <div className="bg-orange-600 rounded-lg p-3 min-w-[110px] border-2 border-orange-500 shadow-lg">
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '30%'}} id="a" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '50%'}} id="b" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '70%'}} id="c" />
+      <div className="flex items-center gap-2 text-white">
+        <GitBranch className="w-3.5 h-3.5" />
+        <div>
+          <div className="text-xs font-semibold">{data.label}</div>
+          <div className="text-[10px] opacity-80">{data.description || 'Routes to multiple paths'}</div>
         </div>
       </div>
     </div>
@@ -114,7 +136,8 @@ const ActionNode = ({ data }: any) => {
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   condition: ConditionNode,
-  action: ActionNode
+  action: ActionNode,
+  router: RouterNode
 };
 
 interface WorkflowCanvasProps {
@@ -179,13 +202,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === nodeId) {
-          return {
+          const updatedNode = {
             ...node,
             data: {
               ...node.data,
               ...newData,
             },
           };
+          // Also update selectedNode if it's the one being edited
+          if (selectedNode && selectedNode.id === nodeId) {
+            setSelectedNode(updatedNode);
+          }
+          return updatedNode;
         }
         return node;
       })
@@ -208,24 +236,90 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     (event: React.DragEvent) => {
       event.preventDefault();
       
-      const reactFlowBounds = (event.target as HTMLElement)?.getBoundingClientRect();
       const type = event.dataTransfer.getData('nodeType');
       const nodeData = JSON.parse(event.dataTransfer.getData('nodeData'));
 
       if (type && nodeData && reactFlowInstance.current) {
-        const position = reactFlowInstance.current.project({
-          x: event.clientX - reactFlowBounds.left,
-          y: event.clientY - reactFlowBounds.top,
-        });
+        // Get viewport info for proper centering
+        const { x, y, zoom } = reactFlowInstance.current.getViewport();
+        const reactFlowBounds = document.querySelector('.react-flow')?.getBoundingClientRect();
+        
+        if (reactFlowBounds) {
+          // Calculate center of the visible viewport
+          const centerX = (-x + reactFlowBounds.width / 2) / zoom;
+          const centerY = (-y + reactFlowBounds.height / 2) / zoom;
+          
+          // Enhanced data for condition nodes based on their type
+          let enhancedData = { ...nodeData };
+          
+          // Initialize multi_action node with default actions
+          if (type === 'action' && nodeData.type === 'multi_action') {
+            enhancedData = {
+              ...nodeData,
+              actions: [
+                { type: 'create_task' },
+                { type: 'send_notification' }
+              ],
+              executionMode: 'sequential'
+            };
+          }
+          
+          // Initialize router node with default configuration
+          if (type === 'router') {
+            enhancedData = {
+              ...nodeData,
+              routerType: 'stage',
+              route_SQL: 'continue',
+              route_Opportunity: 'action1',
+              route_Verbal: 'action2',
+              route_Signed: 'action3'
+            };
+          }
+          
+          if (type === 'condition') {
+            if (nodeData.type === 'if_value') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'field',
+                fieldName: 'deal_value',
+                fieldOperator: '>',
+                fieldValue: '10000',
+                condition: 'deal_value > 10000'
+              };
+            } else if (nodeData.type === 'if_stage') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'stage',
+                stageCondition: 'Opportunity',
+                condition: 'stage = Opportunity'
+              };
+            } else if (nodeData.type === 'if_time') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'custom',
+                condition: 'days_in_stage > 7'
+              };
+            } else if (nodeData.type === 'if_user') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'owner',
+                condition: 'owner = current_user'
+              };
+            }
+          }
+          
+          const newNode = {
+            id: `${type}_${Date.now()}`,
+            type,
+            position: {
+              x: centerX - 60, // Center horizontally (node width ~120px)
+              y: centerY - 30  // Center vertically (node height ~60px)
+            },
+            data: enhancedData,
+          };
 
-        const newNode = {
-          id: `${type}_${Date.now()}`,
-          type,
-          position,
-          data: nodeData,
-        };
-
-        setNodes((nds) => nds.concat(newNode));
+          setNodes((nds) => nds.concat(newNode));
+        }
       }
     },
     [setNodes]
@@ -298,13 +392,118 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     console.log('Testing workflow with nodes:', nodes, 'edges:', edges);
   };
 
+  // Tidy nodes - arrange them in a clean layout
+  const tidyNodes = () => {
+    if (nodes.length === 0) return;
+
+    // Group nodes by type
+    const triggers = nodes.filter(n => n.type === 'trigger');
+    const routers = nodes.filter(n => n.type === 'router');
+    const conditions = nodes.filter(n => n.type === 'condition');
+    const actions = nodes.filter(n => n.type === 'action');
+
+    // Create a map of node connections
+    const nodeConnections = new Map<string, string[]>();
+    const nodeIncoming = new Map<string, string[]>();
+    
+    edges.forEach(edge => {
+      if (!nodeConnections.has(edge.source)) {
+        nodeConnections.set(edge.source, []);
+      }
+      nodeConnections.get(edge.source)!.push(edge.target);
+      
+      if (!nodeIncoming.has(edge.target)) {
+        nodeIncoming.set(edge.target, []);
+      }
+      nodeIncoming.get(edge.target)!.push(edge.source);
+    });
+
+    // Find root nodes (triggers or nodes with no incoming edges)
+    const rootNodes = nodes.filter(node => 
+      node.type === 'trigger' || !nodeIncoming.has(node.id) || nodeIncoming.get(node.id)!.length === 0
+    );
+
+    // Build a level-based layout
+    const levels = new Map<string, number>();
+    const visited = new Set<string>();
+    const nodePositions = new Map<string, { x: number, y: number }>();
+
+    // BFS to assign levels
+    const queue: { node: Node, level: number }[] = rootNodes.map(n => ({ node: n, level: 0 }));
+    rootNodes.forEach(n => levels.set(n.id, 0));
+
+    while (queue.length > 0) {
+      const { node, level } = queue.shift()!;
+      if (visited.has(node.id)) continue;
+      visited.add(node.id);
+
+      const children = nodeConnections.get(node.id) || [];
+      children.forEach(childId => {
+        const childNode = nodes.find(n => n.id === childId);
+        if (childNode && !levels.has(childId)) {
+          levels.set(childId, level + 1);
+          queue.push({ node: childNode, level: level + 1 });
+        }
+      });
+    }
+
+    // Group nodes by level
+    const nodesByLevel = new Map<number, Node[]>();
+    nodes.forEach(node => {
+      const level = levels.get(node.id) || 0;
+      if (!nodesByLevel.has(level)) {
+        nodesByLevel.set(level, []);
+      }
+      nodesByLevel.get(level)!.push(node);
+    });
+
+    // Calculate positions
+    const horizontalSpacing = 250;
+    const verticalSpacing = 120;
+    const startX = 100;
+    const startY = 100;
+
+    nodesByLevel.forEach((levelNodes, level) => {
+      const totalHeight = levelNodes.length * verticalSpacing;
+      const startYForLevel = startY + (400 - totalHeight) / 2; // Center vertically
+
+      levelNodes.forEach((node, index) => {
+        nodePositions.set(node.id, {
+          x: startX + level * horizontalSpacing,
+          y: startYForLevel + index * verticalSpacing
+        });
+      });
+    });
+
+    // Update all node positions
+    setNodes((nds) => 
+      nds.map(node => {
+        const newPosition = nodePositions.get(node.id);
+        if (newPosition) {
+          return {
+            ...node,
+            position: newPosition
+          };
+        }
+        return node;
+      })
+    );
+
+    // Fit view after tidying
+    setTimeout(() => {
+      if (reactFlowInstance.current) {
+        reactFlowInstance.current.fitView({ padding: 0.2, duration: 800 });
+      }
+    }, 100);
+  };
+
   return (
-    <div className="h-full flex">
+    <div className="h-[calc(100vh-8rem)] flex overflow-hidden">
       {/* Left Panel - Node Library */}
       <motion.div 
         initial={{ x: -300 }}
         animate={{ x: showNodePanel ? 0 : -300 }}
-        className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 p-6 overflow-y-auto"
+        className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 p-6 overflow-y-auto h-[calc(100vh-8rem)]" 
       >
         <div className="space-y-6">
           {/* Workflow Details */}
@@ -330,9 +529,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             <h3 className="text-sm font-semibold text-white mb-3">Triggers</h3>
             <div className="space-y-2">
               {[
-                { type: 'pipeline_stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves' },
+                { type: 'stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves stages' },
                 { type: 'activity_created', label: 'Activity Created', iconName: 'Activity', description: 'When activity logged' },
-                { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal' }
+                { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
+                { type: 'scheduled', label: 'Scheduled', iconName: 'Clock', description: 'Time-based trigger' },
+                { type: 'no_activity', label: 'No Activity', iconName: 'Clock', description: 'Inactivity trigger' },
+                { type: 'time_based', label: 'Time Based', iconName: 'Clock', description: 'After time period' }
               ].map((trigger) => {
                 const TriggerIcon = iconMap[trigger.iconName] || Target;
                 return (
@@ -358,23 +560,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             </div>
           </div>
           
-          {/* Conditions */}
+          {/* Conditions & Routers */}
           <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Conditions</h3>
+            <h3 className="text-sm font-semibold text-white mb-3">Logic & Routing</h3>
             <div className="space-y-2">
               {[
                 { type: 'if_value', label: 'If Value', condition: 'Check field value' },
+                { type: 'if_stage', label: 'If Stage', condition: 'Check deal stage' },
                 { type: 'if_time', label: 'If Time', condition: 'Time-based condition' },
-                { type: 'if_user', label: 'If User', condition: 'User-based check' }
+                { type: 'if_user', label: 'If User', condition: 'User-based check' },
+                { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' }
               ].map((condition) => (
                 <div
                   key={condition.type}
                   draggable
                   onDragStart={(e) => {
-                    e.dataTransfer.setData('nodeType', 'condition');
+                    e.dataTransfer.setData('nodeType', condition.nodeType || 'condition');
                     e.dataTransfer.setData('nodeData', JSON.stringify(condition));
                   }}
-                  className="bg-blue-600/20 border border-blue-600/30 rounded-lg p-3 cursor-move hover:bg-blue-600/30 transition-colors"
+                  className={`${condition.nodeType === 'router' ? 'bg-orange-600/20 border-orange-600/30 hover:bg-orange-600/30' : 'bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30'} rounded-lg p-3 cursor-move transition-colors`}
                 >
                   <div className="flex items-center gap-2">
                     <GitBranch className="w-4 h-4 text-blue-400" />
@@ -396,7 +600,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },
                 { type: 'send_notification', label: 'Send Notification', iconName: 'Bell', description: 'Send alert' },
                 { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
-                { type: 'update_field', label: 'Update Field', iconName: 'Database', description: 'Change data' }
+                { type: 'update_field', label: 'Update Field', iconName: 'TrendingUp', description: 'Change data' },
+                { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
+                { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
+                { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
               ].map((action) => {
                 const ActionIcon = iconMap[action.iconName] || CheckSquare;
                 return (
@@ -425,9 +632,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       </motion.div>
 
       {/* Main Canvas */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative h-[calc(100vh-8rem)] overflow-hidden">
         {/* Canvas Toolbar */}
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+          <button
+            onClick={tidyNodes}
+            className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+            disabled={nodes.length === 0}
+          >
+            <Sparkles className="w-4 h-4" />
+            Tidy Nodes
+          </button>
           <button
             onClick={() => setShowNodePanel(!showNodePanel)}
             className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
@@ -470,7 +685,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             type: 'smoothstep'
           }}
           fitView
-          className="bg-gray-950"
+          className="bg-gray-950 h-full"
+          style={{ height: '100%' }}
         >
           <Background color="#374151" gap={20} />
           <Controls className="bg-gray-800 border-gray-700" />
@@ -500,7 +716,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           <motion.div
             initial={{ x: 300 }}
             animate={{ x: 0 }}
-            className="absolute top-0 right-0 w-96 h-full bg-gray-900/95 backdrop-blur-xl border-l border-gray-800/50 p-6 overflow-y-auto z-20"
+            className="absolute top-0 right-0 w-96 h-[calc(100vh-8rem)] bg-gray-900/95 backdrop-blur-xl border-l border-gray-800/50 p-6 overflow-y-auto z-50"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="space-y-6">
               {/* Header */}
@@ -550,17 +768,308 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
                 {/* Condition-specific settings */}
                 {selectedNode.type === 'condition' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Condition</label>
-                    <input
-                      type="text"
-                      value={selectedNode.data.condition || ''}
-                      onChange={(e) => updateNodeData(selectedNode.id, { condition: e.target.value })}
-                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                      placeholder="e.g., value > 10000"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Enter condition logic</p>
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Condition Type</label>
+                      <select
+                        value={selectedNode.data.conditionType || 'field'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { conditionType: e.target.value });
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                      >
+                        <option value="field">Field Value</option>
+                        <option value="stage">Deal Stage</option>
+                        <option value="value">Deal Value</option>
+                        <option value="owner">Deal Owner</option>
+                        <option value="time">Time-Based</option>
+                        <option value="custom">Custom Logic</option>
+                      </select>
+                    </div>
+
+                    {selectedNode.data.conditionType === 'stage' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Stage Equals</label>
+                        <select
+                          value={selectedNode.data.stageCondition || 'SQL'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { 
+                              stageCondition: e.target.value, 
+                              condition: `stage = ${e.target.value}` 
+                            });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                        >
+                          <option value="SQL">SQL</option>
+                          <option value="Opportunity">Opportunity</option>
+                          <option value="Verbal">Verbal</option>
+                          <option value="Signed">Signed</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {selectedNode.data.conditionType === 'value' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Operator</label>
+                          <select
+                            value={selectedNode.data.operator || '>'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const op = e.target.value;
+                              const val = selectedNode.data.valueAmount || 10000;
+                              updateNodeData(selectedNode.id, { 
+                                operator: op, 
+                                condition: `deal_value ${op} ${val}` 
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value=">">Greater than</option>
+                            <option value="<">Less than</option>
+                            <option value="=">Equals</option>
+                            <option value=">=">Greater or equal</option>
+                            <option value="<=">Less or equal</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Value</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.valueAmount || 10000}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const op = selectedNode.data.operator || '>';
+                              updateNodeData(selectedNode.id, { 
+                                valueAmount: val, 
+                                condition: `deal_value ${op} ${val}` 
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            placeholder="Enter amount..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.conditionType === 'owner' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Owner Condition</label>
+                          <select
+                            value={selectedNode.data.ownerCondition || 'is_current_user'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const cond = e.target.value;
+                              updateNodeData(selectedNode.id, { 
+                                ownerCondition: cond,
+                                condition: cond === 'is_current_user' ? 'owner = current_user' : 
+                                          cond === 'is_not_current_user' ? 'owner != current_user' :
+                                          cond === 'is_team_member' ? 'owner IN team_members' :
+                                          'owner IS NULL'
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="is_current_user">Is Current User</option>
+                            <option value="is_not_current_user">Is Not Current User</option>
+                            <option value="is_team_member">Is Team Member</option>
+                            <option value="is_unassigned">Is Unassigned</option>
+                          </select>
+                        </div>
+                        {selectedNode.data.ownerCondition === 'is_specific_user' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">User Email</label>
+                            <input
+                              type="email"
+                              value={selectedNode.data.specificUser || ''}
+                              onChange={(e) => {
+                                const user = e.target.value;
+                                updateNodeData(selectedNode.id, { 
+                                  specificUser: user,
+                                  condition: `owner = '${user}'`
+                                });
+                              }}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="user@example.com"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {selectedNode.data.conditionType === 'time' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Time Condition</label>
+                          <select
+                            value={selectedNode.data.timeField || 'days_in_stage'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const field = e.target.value;
+                              const op = selectedNode.data.timeOperator || '>';
+                              const val = selectedNode.data.timeValue || 7;
+                              updateNodeData(selectedNode.id, { 
+                                timeField: field,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="days_in_stage">Days in Current Stage</option>
+                            <option value="days_since_created">Days Since Created</option>
+                            <option value="days_since_last_activity">Days Since Last Activity</option>
+                            <option value="days_until_due">Days Until Due Date</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Operator</label>
+                          <select
+                            value={selectedNode.data.timeOperator || '>'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const op = e.target.value;
+                              const field = selectedNode.data.timeField || 'days_in_stage';
+                              const val = selectedNode.data.timeValue || 7;
+                              updateNodeData(selectedNode.id, { 
+                                timeOperator: op,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value=">">More Than</option>
+                            <option value="<">Less Than</option>
+                            <option value="=">Exactly</option>
+                            <option value=">=">At Least</option>
+                            <option value="<=">At Most</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Days</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.timeValue || 7}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const field = selectedNode.data.timeField || 'days_in_stage';
+                              const op = selectedNode.data.timeOperator || '>';
+                              updateNodeData(selectedNode.id, { 
+                                timeValue: val,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Enter number of days..."
+                            min="0"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.conditionType === 'field' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Field to Check</label>
+                          <select
+                            value={selectedNode.data.fieldName || 'deal_value'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const field = e.target.value;
+                              const op = selectedNode.data.fieldOperator || '=';
+                              const val = selectedNode.data.fieldValue || '';
+                              updateNodeData(selectedNode.id, { 
+                                fieldName: field,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="deal_value">Deal Value</option>
+                            <option value="deal_name">Deal Name</option>
+                            <option value="company">Company</option>
+                            <option value="contact_name">Contact Name</option>
+                            <option value="owner">Owner</option>
+                            <option value="stage">Stage</option>
+                            <option value="days_in_stage">Days in Stage</option>
+                            <option value="activity_count">Activity Count</option>
+                            <option value="task_count">Task Count</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Operator</label>
+                          <select
+                            value={selectedNode.data.fieldOperator || '='}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              const op = e.target.value;
+                              const field = selectedNode.data.fieldName || 'deal_value';
+                              const val = selectedNode.data.fieldValue || '';
+                              updateNodeData(selectedNode.id, { 
+                                fieldOperator: op,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="=">Equals</option>
+                            <option value="!=">Not Equals</option>
+                            <option value=">">Greater Than</option>
+                            <option value="<">Less Than</option>
+                            <option value=">=">Greater or Equal</option>
+                            <option value="<=">Less or Equal</option>
+                            <option value="contains">Contains</option>
+                            <option value="not_contains">Does Not Contain</option>
+                            <option value="starts_with">Starts With</option>
+                            <option value="ends_with">Ends With</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Value to Compare</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fieldValue || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const field = selectedNode.data.fieldName || 'deal_value';
+                              const op = selectedNode.data.fieldOperator || '=';
+                              updateNodeData(selectedNode.id, { 
+                                fieldValue: val,
+                                condition: `${field} ${op} ${val}`
+                              });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Enter value to compare..."
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Enter the value to compare against the selected field</p>
+                        </div>
+                      </>
+                    )}
+                    
+                    {selectedNode.data.conditionType === 'custom' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Custom Condition Logic</label>
+                        <input
+                          type="text"
+                          value={selectedNode.data.condition || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { condition: e.target.value })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                          placeholder="e.g., days_in_stage > 14 AND deal_value > 10000"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Enter custom condition logic using SQL-like syntax</p>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Action-specific settings */}
@@ -570,50 +1079,749 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       <label className="block text-sm font-medium text-gray-300 mb-2">Action Type</label>
                       <select
                         value={selectedNode.data.type || 'create_task'}
-                        onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value })}
-                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { type: e.target.value });
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
                       >
                         <option value="create_task">Create Task</option>
                         <option value="send_notification">Send Notification</option>
                         <option value="create_activity">Create Activity</option>
                         <option value="update_deal_stage">Update Deal Stage</option>
                         <option value="update_field">Update Field</option>
+                        <option value="assign_owner">Assign Owner</option>
+                        <option value="send_email">Send Email</option>
+                        <option value="multi_action">Multiple Actions</option>
                       </select>
                     </div>
 
                     {selectedNode.data.type === 'create_task' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Task Title</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.taskTitle || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { taskTitle: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="e.g., Follow up with {deal_name}"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Task Priority</label>
+                          <select
+                            value={selectedNode.data.priority || 'medium'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { priority: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Due Date</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={selectedNode.data.dueInDays || 3}
+                              onChange={(e) => updateNodeData(selectedNode.id, { dueInDays: parseInt(e.target.value) })}
+                              className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="Number..."
+                              min="0"
+                            />
+                            <span className="px-3 py-2 text-gray-400 text-sm">days from now</span>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_notification' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Title</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.notificationTitle || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notificationTitle: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="e.g., Deal Update"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Message</label>
+                          <textarea
+                            value={selectedNode.data.notificationMessage || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notificationMessage: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Enter notification message..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_email' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Email Template</label>
+                          <select
+                            value={selectedNode.data.emailTemplate || 'follow_up'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { emailTemplate: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="follow_up">Follow-up</option>
+                            <option value="welcome">Welcome</option>
+                            <option value="proposal">Proposal</option>
+                            <option value="reminder">Reminder</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </div>
+                        {selectedNode.data.emailTemplate === 'custom' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.emailSubject || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { emailSubject: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="Email subject..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Body</label>
+                              <textarea
+                                value={selectedNode.data.emailBody || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { emailBody: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                                placeholder="Email body..."
+                              />
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'update_deal_stage' && (
                       <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Task Priority</label>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">New Stage</label>
                         <select
-                          value={selectedNode.data.priority || 'medium'}
-                          onChange={(e) => updateNodeData(selectedNode.id, { priority: e.target.value })}
-                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          value={selectedNode.data.newStage || 'Opportunity'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { newStage: e.target.value });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
                         >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
+                          <option value="SQL">SQL</option>
+                          <option value="Opportunity">Opportunity</option>
+                          <option value="Verbal">Verbal</option>
+                          <option value="Signed">Signed</option>
                         </select>
                       </div>
+                    )}
+
+                    {selectedNode.data.type === 'update_field' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Field Name</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fieldName || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fieldName: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="e.g., priority, status"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">New Value</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fieldValue || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fieldValue: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="New value..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'assign_owner' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Assign To</label>
+                        <select
+                          value={selectedNode.data.assignTo || 'round_robin'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { assignTo: e.target.value });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                        >
+                          <option value="round_robin">Round Robin</option>
+                          <option value="least_busy">Least Busy</option>
+                          <option value="team_lead">Team Lead</option>
+                          <option value="specific">Specific User</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {selectedNode.data.type === 'create_activity' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Activity Type</label>
+                          <select
+                            value={selectedNode.data.activityType || 'note'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { activityType: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="note">Note</option>
+                            <option value="call">Call</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="email">Email</option>
+                            <option value="proposal">Proposal</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Activity Note</label>
+                          <textarea
+                            value={selectedNode.data.activityNote || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { activityNote: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Activity details..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'multi_action' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Actions to Execute</label>
+                          <div className="space-y-2">
+                            {(selectedNode.data.actions || []).map((action: any, index: number) => (
+                              <div key={index} className="flex items-center gap-2">
+                                <select
+                                  value={action.type || 'create_task'}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const newActions = [...(selectedNode.data.actions || [])];
+                                    newActions[index] = { ...newActions[index], type: e.target.value };
+                                    updateNodeData(selectedNode.id, { actions: newActions });
+                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                                >
+                                  <option value="create_task">Create Task</option>
+                                  <option value="send_notification">Send Notification</option>
+                                  <option value="send_email">Send Email</option>
+                                  <option value="update_field">Update Field</option>
+                                  <option value="assign_owner">Assign Owner</option>
+                                  <option value="create_activity">Create Activity</option>
+                                  <option value="update_deal_stage">Update Stage</option>
+                                </select>
+                                <button
+                                  onClick={() => {
+                                    const newActions = (selectedNode.data.actions || []).filter((_: any, i: number) => i !== index);
+                                    updateNodeData(selectedNode.id, { actions: newActions });
+                                  }}
+                                  className="p-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 rounded-lg text-red-400 transition-colors"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => {
+                              const newActions = [...(selectedNode.data.actions || []), { type: 'create_task' }];
+                              updateNodeData(selectedNode.id, { actions: newActions });
+                            }}
+                            className="mt-2 w-full px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/30 rounded-lg text-green-400 text-sm transition-colors"
+                          >
+                            + Add Action
+                          </button>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Execution Mode</label>
+                          <select
+                            value={selectedNode.data.executionMode || 'sequential'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { executionMode: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="sequential">Sequential (one after another)</option>
+                            <option value="parallel">Parallel (all at once)</option>
+                          </select>
+                        </div>
+                      </>
                     )}
                   </>
                 )}
 
                 {/* Trigger-specific settings */}
                 {selectedNode.type === 'trigger' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Trigger Type</label>
-                    <select
-                      value={selectedNode.data.type || 'pipeline_stage_changed'}
-                      onChange={(e) => updateNodeData(selectedNode.id, { type: e.target.value })}
-                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
-                    >
-                      <option value="pipeline_stage_changed">Pipeline Stage Changed</option>
-                      <option value="activity_created">Activity Created</option>
-                      <option value="deal_created">Deal Created</option>
-                      <option value="task_completed">Task Completed</option>
-                      <option value="manual">Manual Trigger</option>
-                    </select>
-                  </div>
+                  <>
+                    {/* Display trigger type (read-only) */}
+                    <div className="bg-gray-800/50 rounded-lg p-3">
+                      <p className="text-xs text-gray-400 mb-1">Trigger Type</p>
+                      <p className="text-white font-medium capitalize">
+                        {selectedNode.data.type?.replace(/_/g, ' ') || 'Not Set'}
+                      </p>
+                    </div>
+
+                    {/* Stage selection for stage_changed trigger */}
+                    {selectedNode.data.type === 'stage_changed' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Stage</label>
+                        <select
+                          value={selectedNode.data.stage || 'any'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { stage: e.target.value });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                        >
+                          <option value="any">Any Stage Change</option>
+                          <option value="SQL">To SQL</option>
+                          <option value="Opportunity">To Opportunity</option>
+                          <option value="Verbal">To Verbal</option>
+                          <option value="Signed">To Signed</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Activity type for activity_created trigger */}
+                    {selectedNode.data.type === 'activity_created' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Activity Type</label>
+                        <select
+                          value={selectedNode.data.activityType || 'any'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { activityType: e.target.value });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                        >
+                          <option value="any">Any Activity</option>
+                          <option value="meeting">Meeting</option>
+                          <option value="call">Call</option>
+                          <option value="email">Email</option>
+                          <option value="proposal">Proposal</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Schedule frequency for scheduled trigger */}
+                    {selectedNode.data.type === 'scheduled' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Frequency</label>
+                        <select
+                          value={selectedNode.data.frequency || 'daily'}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            updateNodeData(selectedNode.id, { frequency: e.target.value });
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                        >
+                          <option value="hourly">Hourly</option>
+                          <option value="daily">Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Days inactive for no_activity trigger */}
+                    {selectedNode.data.type === 'no_activity' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Days Inactive</label>
+                        <input
+                          type="number"
+                          value={selectedNode.data.daysInactive || 7}
+                          onChange={(e) => updateNodeData(selectedNode.id, { daysInactive: parseInt(e.target.value) })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          placeholder="Number of days..."
+                          min="1"
+                        />
+                      </div>
+                    )}
+
+                    {/* Time-based trigger settings */}
+                    {selectedNode.data.type === 'time_based' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Time Period</label>
+                          <select
+                            value={selectedNode.data.timePeriod || 'after_deal_created'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { timePeriod: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="after_deal_created">After Deal Created</option>
+                            <option value="after_stage_change">After Stage Change</option>
+                            <option value="after_last_activity">After Last Activity</option>
+                            <option value="before_close_date">Before Expected Close Date</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Time Amount</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              value={selectedNode.data.timeAmount || 3}
+                              onChange={(e) => updateNodeData(selectedNode.id, { timeAmount: parseInt(e.target.value) })}
+                              className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="Number..."
+                              min="1"
+                            />
+                            <select
+                              value={selectedNode.data.timeUnit || 'days'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { timeUnit: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="hours">Hours</option>
+                              <option value="days">Days</option>
+                              <option value="weeks">Weeks</option>
+                              <option value="months">Months</option>
+                            </select>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Manual trigger settings */}
+                    {selectedNode.data.type === 'manual' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Trigger Name</label>
+                        <input
+                          type="text"
+                          value={selectedNode.data.triggerName || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, { triggerName: e.target.value })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                          placeholder="e.g., Send Follow-up"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">This workflow will only run when manually triggered</p>
+                      </div>
+                    )}
+
+                    {/* Task completed trigger settings */}
+                    {selectedNode.data.type === 'task_completed' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Task Type</label>
+                          <select
+                            value={selectedNode.data.taskType || 'any'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { taskType: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="any">Any Task</option>
+                            <option value="follow_up">Follow-up</option>
+                            <option value="call">Call</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="proposal">Proposal</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </div>
+                        {selectedNode.data.taskType === 'custom' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Task Name Contains</label>
+                            <input
+                              type="text"
+                              value={selectedNode.data.taskNameFilter || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { taskNameFilter: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="e.g., Follow-up"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Deal created trigger settings */}
+                    {selectedNode.data.type === 'deal_created' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Stage</label>
+                          <select
+                            value={selectedNode.data.dealStage || 'any'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { dealStage: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="any">Any Stage</option>
+                            <option value="SQL">SQL</option>
+                            <option value="Opportunity">Opportunity</option>
+                            <option value="Verbal">Verbal</option>
+                            <option value="Signed">Signed</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Value</label>
+                          <div className="flex gap-2">
+                            <select
+                              value={selectedNode.data.dealValueOperator || 'any'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { dealValueOperator: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="any">Any Value</option>
+                              <option value=">">Greater than</option>
+                              <option value="<">Less than</option>
+                              <option value=">=">Greater or equal</option>
+                              <option value="<=">Less or equal</option>
+                            </select>
+                            {selectedNode.data.dealValueOperator !== 'any' && (
+                              <input
+                                type="number"
+                                value={selectedNode.data.dealValueAmount || 10000}
+                                onChange={(e) => updateNodeData(selectedNode.id, { dealValueAmount: parseInt(e.target.value) })}
+                                className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="Amount..."
+                                min="0"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* Router-specific settings */}
+                {selectedNode.type === 'router' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Router Type</label>
+                      <select
+                        value={selectedNode.data.routerType || 'stage'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { routerType: e.target.value });
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                      >
+                        <option value="stage">Route by Stage</option>
+                        <option value="value">Route by Deal Value</option>
+                        <option value="priority">Route by Priority</option>
+                        <option value="owner">Route by Owner</option>
+                      </select>
+                    </div>
+
+                    {selectedNode.data.routerType === 'stage' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Stage Routes</label>
+                        <div className="space-y-2">
+                          {['SQL', 'Opportunity', 'Verbal', 'Signed'].map((stage) => (
+                            <div key={stage} className="flex items-center gap-2">
+                              <span className="text-sm text-gray-300 w-24">{stage}:</span>
+                              <select
+                                value={selectedNode.data[`route_${stage}`] || 'continue'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { [`route_${stage}`]: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                              >
+                                <option value="continue">Continue Flow</option>
+                                <option value="action1">Action Path 1</option>
+                                <option value="action2">Action Path 2</option>
+                                <option value="action3">Action Path 3</option>
+                                <option value="stop">Stop Workflow</option>
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Connect different actions to each route</p>
+                      </div>
+                    )}
+
+                    {selectedNode.data.routerType === 'value' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Value Ranges</label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">Low (&lt;10k):</span>
+                            <select
+                              value={selectedNode.data.route_low || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_low: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="action1">Action Path 1</option>
+                              <option value="action2">Action Path 2</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">Med (10-50k):</span>
+                            <select
+                              value={selectedNode.data.route_medium || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_medium: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="action1">Action Path 1</option>
+                              <option value="action2">Action Path 2</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">High (&gt;50k):</span>
+                            <select
+                              value={selectedNode.data.route_high || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_high: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="action1">Action Path 1</option>
+                              <option value="action2">Action Path 2</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedNode.data.routerType === 'priority' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Priority Routes</label>
+                        <div className="space-y-2">
+                          {['Low', 'Medium', 'High'].map((priority) => (
+                            <div key={priority} className="flex items-center gap-2">
+                              <span className="text-sm text-gray-300 w-24">{priority}:</span>
+                              <select
+                                value={selectedNode.data[`route_${priority.toLowerCase()}`] || 'continue'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { [`route_${priority.toLowerCase()}`]: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                              >
+                                <option value="continue">Continue Flow</option>
+                                <option value="urgent">Urgent Path</option>
+                                <option value="normal">Normal Path</option>
+                                <option value="defer">Defer Path</option>
+                                <option value="stop">Stop Workflow</option>
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedNode.data.routerType === 'owner' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Owner Routes</label>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">Me:</span>
+                            <select
+                              value={selectedNode.data.route_me || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_me: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="personal">Personal Action</option>
+                              <option value="delegate">Delegate Action</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">Team:</span>
+                            <select
+                              value={selectedNode.data.route_team || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_team: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="team">Team Action</option>
+                              <option value="manager">Manager Action</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-300 w-24">Unassigned:</span>
+                            <select
+                              value={selectedNode.data.route_unassigned || 'continue'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { route_unassigned: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="continue">Continue Flow</option>
+                              <option value="assign">Auto-Assign</option>
+                              <option value="alert">Alert Manager</option>
+                              <option value="stop">Stop Workflow</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

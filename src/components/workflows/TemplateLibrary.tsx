@@ -408,23 +408,30 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
   const loadTemplates = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('workflow_templates')
-        .select('*')
-        .eq('is_public', true)
-        .order('popularity', { ascending: false });
+      
+      // For now, always use default templates since the database table doesn't exist yet
+      // This ensures templates are always available
+      setTemplates(getDefaultTemplates());
+      
+      // Try to load from database as well (for future when table exists)
+      try {
+        const { data, error } = await supabase
+          .from('workflow_templates')
+          .select('*')
+          .eq('is_public', true)
+          .order('popularity', { ascending: false });
 
-      if (error) {
-        console.error('Error loading templates:', error);
-        // Load default templates if database query fails
-        setTemplates(getDefaultTemplates());
-      } else {
-        // If no templates in database, use defaults
-        setTemplates(data && data.length > 0 ? data : getDefaultTemplates());
+        if (!error && data && data.length > 0) {
+          // If we successfully get templates from DB, use those instead
+          setTemplates(data);
+        }
+      } catch (dbError) {
+        // Silently fail - we already have default templates loaded
+        console.log('Using default templates (database table not yet available)');
       }
     } catch (error) {
-      console.error('Error loading templates:', error);
-      // Load default templates on error
+      console.error('Error in loadTemplates:', error);
+      // Ensure we always have templates
       setTemplates(getDefaultTemplates());
     } finally {
       setLoading(false);
@@ -433,11 +440,16 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
 
   const handleTemplateSelect = async (template: Template) => {
     try {
-      // Increment usage count
-      await supabase
-        .from('workflow_templates')
-        .update({ usage_count: template.usage_count + 1 })
-        .eq('id', template.id);
+      // Try to increment usage count (but don't fail if table doesn't exist)
+      try {
+        await supabase
+          .from('workflow_templates')
+          .update({ usage_count: template.usage_count + 1 })
+          .eq('id', template.id);
+      } catch (dbError) {
+        // Silently fail - template selection should still work
+        console.log('Could not update usage count (database table not yet available)');
+      }
 
       // Convert template to workflow format for the canvas
       const workflowData = {
@@ -456,6 +468,20 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
       onSelectTemplate(workflowData);
     } catch (error) {
       console.error('Error selecting template:', error);
+      // Still try to use the template even if there was an error
+      const workflowData = {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        canvas_data: template.canvas_data,
+        trigger_type: template.trigger_type,
+        trigger_config: template.trigger_conditions,
+        action_type: template.action_type,
+        action_config: template.action_config,
+        is_active: false,
+        template_id: template.id
+      };
+      onSelectTemplate(workflowData);
     }
   };
 

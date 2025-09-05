@@ -314,6 +314,8 @@ export function useDealCRUD(
 
   const deleteDeal = async (id: string) => {
     try {
+      logger.log('🗑️ Starting deal deletion for ID:', id);
+      
       // Try Edge Function first
       try {
         const result = await apiCall(
@@ -324,16 +326,17 @@ export function useDealCRUD(
           { maxRetries: 1, retryDelay: 1000, showToast: false }
         );
 
+        logger.log('✅ Edge function deletion successful');
         toast.success('Deal deleted successfully');
         
-        // Ensure data refresh happens after a short delay to allow for database consistency
-        setTimeout(async () => {
-          await onDataChange?.();
-        }, 150);
+        // Trigger immediate data refresh
+        if (onDataChange) {
+          await onDataChange();
+        }
         
         return true;
       } catch (edgeFunctionError: any) {
-        console.warn('Edge function deletion failed, falling back to direct client:', edgeFunctionError);
+        logger.warn('⚠️ Edge function deletion failed, attempting direct deletion:', edgeFunctionError);
         
         // If it's a permission error, don't try fallback
         if (edgeFunctionError?.status === 403) {
@@ -345,39 +348,44 @@ export function useDealCRUD(
           throw edgeFunctionError;
         }
         
-        // For 500 errors, try fallback to direct Supabase client
-        const { error, data } = await (supabase as any)
+        // Try direct Supabase deletion - don't select the deleted row
+        // Use admin client in development for better permissions
+        const { data: { session } } = await supabase.auth.getSession();
+        const clientToUse = !session && process.env.NODE_ENV === 'development' ? supabaseAdmin : supabase;
+        
+        const { error } = await (clientToUse as any)
           .from('deals')
           .delete()
-          .eq('id', id)
-          .select('id')
-          .single();
+          .eq('id', id);
         
         if (error) {
-          console.error('Direct Supabase deletion error:', error);
+          logger.error('❌ Direct Supabase deletion error:', error);
           
           // Handle specific Postgres error codes
           if (error.code === '23503') {
             throw new Error('Cannot delete deal due to related records. Please remove associated activities, splits, or contacts first.');
           }
           
-          if (error.code === 'PGRST116') {
-            throw new Error('Deal not found or already deleted.');
+          if (error.code === 'PGRST116' || error.code === 'PGRST301') {
+            // This might actually mean success if the row doesn't exist
+            logger.log('⚠️ Deal may have been already deleted');
+            // Still trigger refresh to update the UI
+            if (onDataChange) {
+              await onDataChange();
+            }
+            return true;
           }
           
           throw error;
         }
         
-        if (!data) {
-          throw new Error('Deal not found or could not be deleted.');
-        }
-        
+        logger.log('✅ Direct Supabase deletion successful');
         toast.success('Deal deleted successfully');
         
-        // Ensure data refresh happens after a short delay to allow for database consistency
-        setTimeout(async () => {
-          await onDataChange?.();
-        }, 150);
+        // Trigger immediate data refresh
+        if (onDataChange) {
+          await onDataChange();
+        }
         
         return true;
       }

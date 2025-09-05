@@ -572,27 +572,24 @@ function PipelineContent() {
     try {
       const success = await deleteDeal(dealId);
       if (success) {
-        logger.log('✅ Deal deleted successfully, refreshing pipeline view');
+        logger.log('✅ Deal deleted successfully');
         
-        // Longer delay to ensure database operations and webhooks are complete
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Force refresh the pipeline data to update the view
+        // The deletion should trigger a refresh automatically via onDataChange
+        // But we can also force a manual refresh to be sure
         await refreshDeals();
         
-        // Also trigger a local refresh for good measure
+        // Trigger UI update
         setRefreshKey(prev => prev + 1);
-        
-        logger.log('🔄 Pipeline refresh completed');
-        
-        // Force re-render by updating a state that triggers re-evaluation
         setLastRefreshTime(Date.now());
         
+        logger.log('🔄 Pipeline refresh completed');
       } else {
-        logger.error('❌ Deal deletion failed - success was false');
+        logger.error('❌ Deal deletion failed');
+        toast.error('Failed to delete deal. Please try again.');
       }
     } catch (error) {
       logger.error('❌ Deal deletion error:', error);
+      toast.error('Failed to delete deal. Please try again.');
     }
   };
 
