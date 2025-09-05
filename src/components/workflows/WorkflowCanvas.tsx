@@ -43,6 +43,7 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
+import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
 import { slackOAuthService } from '@/lib/services/slackOAuthService';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -136,11 +137,28 @@ const RouterNode = ({ data }: any) => {
   );
 };
 
+// Slack Node for Slack integration - dedicated node for cleaner workflow
+const SlackNode = ({ data }: any) => {
+  return (
+    <div className="bg-[#4A154B] rounded-lg p-3 min-w-[120px] border-2 border-[#611f69] shadow-lg">
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#611f69]" />
+      <div className="flex items-center gap-2 text-white">
+        <FaSlack className="w-4 h-4" />
+        <div>
+          <div className="text-xs font-semibold">{data.label}</div>
+          <div className="text-[10px] opacity-80">{data.description}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   condition: ConditionNode,
   action: ActionNode,
-  router: RouterNode
+  router: RouterNode,
+  slack: SlackNode
 };
 
 interface WorkflowCanvasProps {
@@ -695,6 +713,36 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               })}
             </div>
           </div>
+          
+          {/* Slack Integration */}
+          <div>
+            <h3 className="text-sm font-semibold text-white mb-3">Slack Integration</h3>
+            <div className="space-y-2">
+              <div
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('nodeType', 'slack');
+                  e.dataTransfer.setData('nodeData', JSON.stringify({
+                    type: 'send_slack',
+                    label: 'Send to Slack',
+                    description: 'Post to Slack channel'
+                  }));
+                }}
+                className="bg-[#4A154B]/20 border border-[#611f69]/50 rounded-lg p-3 cursor-move hover:bg-[#4A154B]/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <FaSlack className="w-4 h-4 text-[#4A154B]" />
+                  <div>
+                    <div className="text-sm text-white">Send to Slack</div>
+                    <div className="text-xs text-gray-400">Post message to channel</div>
+                  </div>
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 px-2">
+                Drag to canvas to add Slack messaging to your workflow
+              </div>
+            </div>
+          </div>
         </div>
       </motion.div>
 
@@ -1234,7 +1282,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       </>
                     )}
 
-                    {selectedNode.data.type === 'send_slack' && (
+                    {(selectedNode.data.type === 'send_slack' || selectedNode.type === 'slack') && (
                       <>
                         {/* Show Slack connection component if not connected */}
                         {!slackConnected ? (
