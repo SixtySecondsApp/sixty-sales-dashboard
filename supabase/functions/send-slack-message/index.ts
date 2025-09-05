@@ -43,7 +43,7 @@ serve(async (req) => {
     }
 
     // Get the user's Slack integration
-    const { data: integration, error: integrationError } = await supabase
+    let { data: integration, error: integrationError } = await supabase
       .from('slack_integrations')
       .select('*')
       .eq('user_id', user.id)
