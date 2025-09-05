@@ -498,7 +498,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     rootNodes.forEach(n => levels.set(n.id, 0));
 
     while (queue.length > 0) {
-      const { node, level } = queue.shift()!;
+      const item = queue.shift();
+      if (!item) continue;
+      const { node, level } = item;
       if (visited.has(node.id)) continue;
       visited.add(node.id);
 
