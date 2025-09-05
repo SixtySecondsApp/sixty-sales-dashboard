@@ -88,7 +88,8 @@ serve(async (req) => {
 
     if (dbError) {
       console.error('[Slack OAuth] Database error details:', dbError);
-      throw new Error(`Database error: ${dbError.message || dbError}`);
+      const errorMessage = dbError.message || JSON.stringify(dbError);
+      throw new Error(`Database error: ${errorMessage}`);
     }
 
     // Fetch and cache available channels
