@@ -676,8 +676,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack', description: 'Post to Slack channel' },
                 { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
                 { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText', description: 'Add activity note' },
-                { type: 'update_field', label: 'Update Field', iconName: 'TrendingUp', description: 'Change data' },
-                { type: 'update_multiple_fields', label: 'Update Multiple Fields', iconName: 'TrendingUp', description: 'Batch updates' },
+                { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp', description: 'Update one or more fields' },
                 { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
                 { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
                 { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
@@ -1249,7 +1248,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                         <option value="send_slack">Send Slack Message</option>
                         <option value="create_activity">Create Activity</option>
                         <option value="update_deal_stage">Update Deal Stage</option>
-                        <option value="update_field">Update Field</option>
+                        <option value="update_fields">Update Fields</option>
                         <option value="assign_owner">Assign Owner</option>
                         <option value="send_email">Send Email</option>
                         <option value="multi_action">Multiple Actions</option>
@@ -1432,7 +1431,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       </>
                     )}
 
-                    {selectedNode.data.type === 'update_multiple_fields' && (
+                    {selectedNode.data.type === 'update_fields' && (
                       <>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Field Updates</label>
@@ -1927,7 +1926,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                   <option value="send_notification">Send Notification</option>
                                   <option value="send_slack">Send Slack Message</option>
                                   <option value="send_email">Send Email</option>
-                                  <option value="update_field">Update Field</option>
+                                  <option value="update_fields">Update Fields</option>
                                   <option value="assign_owner">Assign Owner</option>
                                   <option value="create_activity">Create Activity</option>
                                   <option value="update_deal_stage">Update Stage</option>
