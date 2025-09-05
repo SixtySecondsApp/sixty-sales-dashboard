@@ -13,7 +13,9 @@ import {
   AlertTriangle,
   Settings,
   Plus,
-  Sparkles
+  Sparkles,
+  CheckCircle,
+  X
 } from 'lucide-react';
 
 // Import workflow components
@@ -29,6 +31,8 @@ export default function Workflows() {
   const [isAdmin, setIsAdmin] = useState(true); // Allow all users to use workflows
   const [activeTab, setActiveTab] = useState<'builder' | 'templates' | 'my-workflows' | 'testing' | 'insights'>('builder');
   const [selectedWorkflow, setSelectedWorkflow] = useState<any>(null);
+  const [showSlackSuccess, setShowSlackSuccess] = useState(false);
+  const [showSlackError, setShowSlackError] = useState('');
   const [stats, setStats] = useState({
     totalWorkflows: 0,
     activeWorkflows: 0,
@@ -47,6 +51,27 @@ export default function Workflows() {
   useEffect(() => {
     // No need to check admin status - workflows are available to all users
     loadWorkflowStats();
+    
+    // Check for Slack OAuth callback parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const slackConnected = urlParams.get('slack_connected');
+    const slackError = urlParams.get('slack_error');
+    
+    if (slackConnected === 'true') {
+      setShowSlackSuccess(true);
+      // Clean up URL
+      window.history.replaceState({}, '', '/workflows');
+      // Auto-hide after 5 seconds
+      setTimeout(() => setShowSlackSuccess(false), 5000);
+    }
+    
+    if (slackError) {
+      setShowSlackError(decodeURIComponent(slackError));
+      // Clean up URL
+      window.history.replaceState({}, '', '/workflows');
+      // Auto-hide after 8 seconds for errors
+      setTimeout(() => setShowSlackError(''), 8000);
+    }
   }, [user]);
 
   const loadWorkflowStats = async () => {
@@ -160,6 +185,56 @@ export default function Workflows() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+      {/* Slack Success Notification */}
+      <AnimatePresence>
+        {showSlackSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-4 right-4 z-50 bg-green-500 text-white p-4 rounded-lg shadow-lg flex items-center gap-3 max-w-md"
+          >
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">Slack Connected Successfully!</p>
+              <p className="text-sm text-green-100 mt-1">
+                Your Slack workspace is now connected. You can use Slack notifications in your workflows.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowSlackSuccess(false)}
+              className="text-green-100 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Slack Error Notification */}
+      <AnimatePresence>
+        {showSlackError && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-4 right-4 z-50 bg-red-500 text-white p-4 rounded-lg shadow-lg flex items-center gap-3 max-w-md"
+          >
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium">Slack Connection Failed</p>
+              <p className="text-sm text-red-100 mt-1">{showSlackError}</p>
+            </div>
+            <button
+              onClick={() => setShowSlackError('')}
+              className="text-red-100 hover:text-white transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <header className="bg-gray-900/50 backdrop-blur-xl border-b border-gray-800/50">
         <div className="px-6 py-4">
