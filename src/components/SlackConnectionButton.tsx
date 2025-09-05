@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { slackOAuthService } from '@/lib/services/slackOAuthService';
 import { supabase } from '@/lib/supabase/clientV2';
 import { FaSlack } from 'react-icons/fa';
 import { HiCheck, HiX } from 'react-icons/hi';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import logger from '@/lib/utils/logger';
 
 interface SlackConnectionButtonProps {
@@ -18,6 +20,8 @@ export function SlackConnectionButton({
   const [isLoading, setIsLoading] = useState(true);
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [disconnectingTeamId, setDisconnectingTeamId] = useState<string | null>(null);
   
   // Get current user on mount
   useEffect(() => {
@@ -107,19 +111,27 @@ export function SlackConnectionButton({
     }, 1000);
   };
   
-  const handleDisconnect = async (teamId: string) => {
-    if (!userId) return;
+  const handleDisconnect = (teamId: string) => {
+    setDisconnectingTeamId(teamId);
+    setShowDisconnectModal(true);
+  };
+
+  const confirmDisconnect = async () => {
+    if (!userId || !disconnectingTeamId) return;
     
-    if (confirm('Are you sure you want to disconnect from this Slack workspace?')) {
-      try {
-        await slackOAuthService.disconnect(userId, teamId);
-        await checkConnection();
-        alert('✅ Disconnected from Slack');
-      } catch (error) {
-        alert('❌ Failed to disconnect from Slack');
-        logger.error('Failed to disconnect:', error);
-      }
+    try {
+      await slackOAuthService.disconnect(userId, disconnectingTeamId);
+      await checkConnection();
+      setShowDisconnectModal(false);
+      setDisconnectingTeamId(null);
+    } catch (error) {
+      logger.error('Failed to disconnect:', error);
     }
+  };
+
+  const cancelDisconnect = () => {
+    setShowDisconnectModal(false);
+    setDisconnectingTeamId(null);
   };
   
   const handleTest = async (teamId: string) => {
@@ -199,8 +211,9 @@ export function SlackConnectionButton({
                 </button>
                 <button
                   onClick={() => handleDisconnect(integration.team_id)}
-                  className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+                  className="px-3 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors flex items-center gap-1"
                 >
+                  <Trash2 className="w-3 h-3" />
                   Disconnect
                 </button>
               </div>
@@ -219,6 +232,67 @@ export function SlackConnectionButton({
             : 'OAuth integration allows dynamic channel selection and doesn\'t require managing webhook URLs. Connect once and post to any channel.'}
         </p>
       </div>
+      
+      {/* Disconnect Confirmation Modal */}
+      <AnimatePresence>
+        {showDisconnectModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={cancelDisconnect}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-gray-900 rounded-xl border border-gray-800 p-6 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-red-500/20 rounded-lg">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Disconnect Slack</h3>
+                  <p className="text-sm text-gray-400">Are you sure you want to disconnect?</p>
+                </div>
+              </div>
+              
+              <div className="bg-gray-800/50 rounded-lg p-3 mb-6">
+                {disconnectingTeamId && integrations.find(i => i.team_id === disconnectingTeamId) && (
+                  <div className="flex items-center gap-3">
+                    <FaSlack className="text-[#4A154B]" />
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {integrations.find(i => i.team_id === disconnectingTeamId)?.team_name}
+                      </p>
+                      <p className="text-xs text-gray-400">This will stop all workflow notifications to this workspace</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelDisconnect}
+                  className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDisconnect}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Disconnect
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
