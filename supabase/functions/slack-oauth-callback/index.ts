@@ -4,9 +4,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
 
 serve(async (req) => {
+  console.log('[Slack OAuth] Request method:', req.method);
+  console.log('[Slack OAuth] Request URL:', req.url);
+  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -17,19 +21,28 @@ serve(async (req) => {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state'); // Contains user_id
     
+    console.log('[Slack OAuth] Received code:', code ? 'present' : 'missing');
+    console.log('[Slack OAuth] Received state:', state ? 'present' : 'missing');
+    
     if (!code) {
       throw new Error('No authorization code provided');
     }
 
     // Exchange code for access token
+    const clientId = Deno.env.get('SLACK_CLIENT_ID') || '';
+    const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET') || '';
+    
+    console.log('[Slack OAuth] Client ID configured:', clientId ? 'yes' : 'no');
+    console.log('[Slack OAuth] Client Secret configured:', clientSecret ? 'yes' : 'no');
+    
     const slackResponse = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
-        client_id: Deno.env.get('SLACK_CLIENT_ID') || '',
-        client_secret: Deno.env.get('SLACK_CLIENT_SECRET') || '',
+        client_id: clientId,
+        client_secret: clientSecret,
         code: code,
         redirect_uri: 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/slack-oauth-callback',
       }),
