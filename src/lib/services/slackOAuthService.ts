@@ -29,8 +29,12 @@ class SlackOAuthService {
    * Initialize Slack OAuth flow
    */
   initiateOAuth(userId: string): string {
-    const clientId = import.meta.env.VITE_SLACK_CLIENT_ID;
+    const clientId = import.meta.env.VITE_SLACK_CLIENT_ID || '417685783159.9470252829718';
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-oauth-callback`;
+    
+    // Debug log to check if env var is loaded
+    console.log('[SlackOAuth] Client ID:', clientId);
+    console.log('[SlackOAuth] All env vars:', import.meta.env);
     
     // Encode state with user information
     const state = btoa(JSON.stringify({ user_id: userId, timestamp: Date.now() }));

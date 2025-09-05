@@ -31,7 +31,7 @@ serve(async (req) => {
         client_id: Deno.env.get('SLACK_CLIENT_ID') || '',
         client_secret: Deno.env.get('SLACK_CLIENT_SECRET') || '',
         code: code,
-        redirect_uri: `${Deno.env.get('PUBLIC_URL')}/api/slack/callback`,
+        redirect_uri: 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/slack-oauth-callback',
       }),
     });
 
