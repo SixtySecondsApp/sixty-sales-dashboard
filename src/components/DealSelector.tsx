@@ -24,6 +24,7 @@ export interface DealSelectorProps {
   className?: string;
   placeholder?: string;
   disabled?: boolean;
+  stageFilter?: string | null; // Add stage filter prop
 }
 
 interface QuickDealForm {
@@ -42,7 +43,8 @@ export function DealSelector({
   required = false,
   className = '',
   placeholder = 'Select or create a deal...',
-  disabled = false
+  disabled = false,
+  stageFilter = null
 }: DealSelectorProps) {
   const { userData } = useUser();
   const { deals, isLoading: dealsLoading, createDeal } = useDeals(userData?.id);
@@ -52,6 +54,7 @@ export function DealSelector({
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedStageFilter, setSelectedStageFilter] = useState<string | null>(stageFilter);
   
   // Quick deal creation form
   const [quickDealForm, setQuickDealForm] = useState<QuickDealForm>({
@@ -74,7 +77,12 @@ export function DealSelector({
     }
   }, [clientName, quickDealForm.company]);
 
-  // Filter deals based on search query and client name
+  // Update selected stage filter when prop changes
+  useEffect(() => {
+    setSelectedStageFilter(stageFilter);
+  }, [stageFilter]);
+
+  // Filter deals based on search query, client name, and stage
   const filteredDeals = useMemo(() => {
     if (!deals) return [];
     
@@ -88,12 +96,24 @@ export function DealSelector({
         deal.company.toLowerCase().includes(clientName.toLowerCase()) ||
         deal.contact_name?.toLowerCase().includes(clientName.toLowerCase());
       
-      return matchesSearch && matchesClient;
+      const matchesStage = !selectedStageFilter || deal.stage_id === selectedStageFilter;
+      
+      return matchesSearch && matchesClient && matchesStage;
     });
-  }, [deals, searchQuery, clientName]);
+  }, [deals, searchQuery, clientName, selectedStageFilter]);
 
   // Get the selected deal info
   const selectedDeal = deals?.find(deal => deal.id === selectedDealId);
+  
+  // Calculate deal counts per stage for display
+  const dealCountsByStage = useMemo(() => {
+    if (!deals || !stages) return {};
+    const counts: Record<string, number> = {};
+    stages.forEach(stage => {
+      counts[stage.id] = deals.filter(deal => deal.stage_id === stage.id).length;
+    });
+    return counts;
+  }, [deals, stages]);
 
   // Get default stage for new deals (first stage or "Opportunity")
   const defaultStage = stages?.find(stage => 
@@ -218,8 +238,8 @@ export function DealSelector({
             transition={{ duration: 0.15 }}
             className="absolute top-full left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl shadow-2xl z-50 max-h-80 overflow-hidden"
           >
-            {/* Search Input */}
-            <div className="p-3 border-b border-gray-800/50">
+            {/* Search Input and Filters */}
+            <div className="p-3 border-b border-gray-800/50 space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
@@ -229,6 +249,97 @@ export function DealSelector({
                   placeholder="Search deals..."
                   className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
                 />
+              </div>
+              
+              {/* Stage Filter Pills */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStageFilter(null)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
+                    !selectedStageFilter
+                      ? "bg-violet-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                  )}
+                >
+                  All Stages
+                  <span className="bg-black/20 px-1.5 py-0.5 rounded-full text-xs">
+                    {deals?.length || 0}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sqlStage = stages?.find(s => s.name === 'SQL');
+                    setSelectedStageFilter(sqlStage?.id || null);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
+                    selectedStageFilter === stages?.find(s => s.name === 'SQL')?.id
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                  )}
+                >
+                  SQL
+                  <span className="bg-black/20 px-1.5 py-0.5 rounded-full text-xs">
+                    {dealCountsByStage[stages?.find(s => s.name === 'SQL')?.id || ''] || 0}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const oppStage = stages?.find(s => s.name === 'Opportunity');
+                    setSelectedStageFilter(oppStage?.id || null);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
+                    selectedStageFilter === stages?.find(s => s.name === 'Opportunity')?.id
+                      ? "bg-purple-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                  )}
+                >
+                  Opportunity
+                  <span className="bg-black/20 px-1.5 py-0.5 rounded-full text-xs">
+                    {dealCountsByStage[stages?.find(s => s.name === 'Opportunity')?.id || ''] || 0}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const verbalStage = stages?.find(s => s.name === 'Verbal');
+                    setSelectedStageFilter(verbalStage?.id || null);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
+                    selectedStageFilter === stages?.find(s => s.name === 'Verbal')?.id
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                  )}
+                >
+                  Verbal
+                  <span className="bg-black/20 px-1.5 py-0.5 rounded-full text-xs">
+                    {dealCountsByStage[stages?.find(s => s.name === 'Verbal')?.id || ''] || 0}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const signedStage = stages?.find(s => s.name === 'Signed');
+                    setSelectedStageFilter(signedStage?.id || null);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
+                    selectedStageFilter === stages?.find(s => s.name === 'Signed')?.id
+                      ? "bg-green-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                  )}
+                >
+                  Signed
+                  <span className="bg-black/20 px-1.5 py-0.5 rounded-full text-xs">
+                    {dealCountsByStage[stages?.find(s => s.name === 'Signed')?.id || ''] || 0}
+                  </span>
+                </button>
               </div>
             </div>
 
@@ -343,7 +454,7 @@ export function DealSelector({
                           {deal.name}
                         </div>
                         <div className="text-sm text-gray-400 truncate">
-                          {deal.company} • £{deal.value?.toLocaleString()}
+                          {deal.company} • £{deal.value?.toLocaleString()} • {stages?.find(s => s.id === deal.stage_id)?.name || 'Unknown'}
                         </div>
                       </div>
                       {selectedDealId === deal.id && (
