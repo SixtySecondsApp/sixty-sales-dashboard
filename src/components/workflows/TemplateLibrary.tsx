@@ -307,9 +307,388 @@ const getDefaultTemplates = (): Template[] => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     },
-    // ADVANCED COMPLEXITY
+    // NEW POWERFUL TEMPLATES WITH ADVANCED NODES
     {
       id: '9',
+      name: '🚀 Deal Nurture Automation',
+      description: 'Intelligent deal nurturing with recurring tasks, custom field tracking, and multi-channel engagement based on time since last contact.',
+      category: 'sales',
+      canvas_data: {
+        nodes: [
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Low Activity Warning', 
+            type: 'low_activity', 
+            iconName: 'AlertTriangle', 
+            description: 'No activity for 5 days',
+            inactiveDays: 5,
+            checkTime: '09:00'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 250, y: 150}, data: {
+            label: 'Check Priority', 
+            conditionType: 'custom_field',
+            customFieldName: 'priority',
+            customFieldOperator: 'equals',
+            customFieldValue: 'high',
+            condition: 'Check if high priority'
+          }},
+          {id: 'condition_2', type: 'condition', position: {x: 250, y: 250}, data: {
+            label: 'Time Since Contact', 
+            conditionType: 'time_since_contact',
+            timeComparison: 'greater_than',
+            daysSinceContact: 7,
+            condition: 'More than 7 days'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
+            label: 'Urgent Follow-up', 
+            type: 'create_recurring_task',
+            iconName: 'CheckSquare',
+            taskTitle: '🔥 URGENT: Contact {{deal_name}}',
+            recurrencePattern: 'daily',
+            occurrences: 3
+          }},
+          {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
+            label: 'Send to Slack', 
+            type: 'send_slack',
+            iconName: 'Slack',
+            slackMessage: '⚠️ Deal needs attention: {{deal_name}} - {{value}}'
+          }},
+          {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
+            label: 'Add Note', 
+            type: 'add_note',
+            iconName: 'FileText',
+            noteContent: 'Automated follow-up triggered due to low activity. Last contact: {{days_since_contact}} days ago.',
+            noteType: 'internal'
+          }}
+        ],
+        edges: [
+          {id: 'e1', source: 'trigger_1', target: 'condition_1'},
+          {id: 'e2', source: 'trigger_1', target: 'condition_2'},
+          {id: 'e3', source: 'condition_1', target: 'action_1'},
+          {id: 'e4', source: 'condition_1', target: 'action_2'},
+          {id: 'e5', source: 'condition_2', target: 'action_3'}
+        ]
+      },
+      trigger_type: 'low_activity',
+      trigger_conditions: {days: 5},
+      action_type: 'multi_action',
+      action_config: {actions: ['recurring_task', 'slack', 'note']},
+      difficulty_level: 'hard',
+      estimated_setup_time: 10,
+      tags: ['sales', 'automation', 'engagement', 'slack', 'advanced'],
+      usage_count: 0,
+      rating_avg: 5.0,
+      rating_count: 0,
+      is_public: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: '10',
+      name: '📊 Customer Success Monitoring',
+      description: 'Monitor customer health with task overdue alerts, batch field updates, and automated check-in scheduling.',
+      category: 'customer success',
+      canvas_data: {
+        nodes: [
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Task Overdue', 
+            type: 'task_overdue', 
+            iconName: 'AlertTriangle',
+            description: 'Monitor overdue tasks',
+            checkFrequency: 'hourly'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 250, y: 200}, data: {
+            label: 'Customer Type',
+            conditionType: 'custom_field',
+            customFieldName: 'customer_tier',
+            customFieldOperator: 'equals',
+            customFieldValue: 'enterprise'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
+            label: 'Update Fields', 
+            type: 'update_multiple_fields',
+            iconName: 'TrendingUp',
+            fieldUpdates: [
+              {field: 'priority', value: 'urgent'},
+              {field: 'health_score', value: 'at_risk'},
+              {field: 'needs_attention', value: 'true'}
+            ]
+          }},
+          {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
+            label: 'Schedule Check-in', 
+            type: 'create_recurring_task',
+            iconName: 'CheckSquare',
+            taskTitle: '📞 Customer health check: {{company}}',
+            recurrencePattern: 'weekly',
+            occurrences: 4
+          }},
+          {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
+            label: 'Alert CSM', 
+            type: 'send_notification',
+            iconName: 'Bell',
+            notificationTitle: 'Customer At Risk',
+            notificationMessage: '{{company}} has overdue tasks and needs immediate attention'
+          }}
+        ],
+        edges: [
+          {id: 'e1', source: 'trigger_1', target: 'condition_1'},
+          {id: 'e2', source: 'condition_1', target: 'action_1'},
+          {id: 'e3', source: 'condition_1', target: 'action_2'},
+          {id: 'e4', source: 'condition_1', target: 'action_3'}
+        ]
+      },
+      trigger_type: 'task_overdue',
+      trigger_conditions: {},
+      action_type: 'multi_action',
+      action_config: {actions: ['update_fields', 'recurring_task', 'notification']},
+      difficulty_level: 'medium',
+      estimated_setup_time: 8,
+      tags: ['customer-success', 'monitoring', 'automation', 'health-score'],
+      usage_count: 0,
+      rating_avg: 5.0,
+      rating_count: 0,
+      is_public: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: '11',
+      name: '💬 Slack Deal Alert System',
+      description: 'Real-time Slack notifications for deal movements with rich formatting, webhooks, and intelligent routing based on deal characteristics.',
+      category: 'sales',
+      canvas_data: {
+        nodes: [
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Stage Changed', 
+            type: 'stage_changed',
+            iconName: 'Target',
+            description: 'When deal moves stages'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 200, y: 100}, data: {
+            label: 'High Value',
+            conditionType: 'value',
+            valueOperator: '>',
+            valueAmount: 50000
+          }},
+          {id: 'router_1', type: 'router', position: {x: 350, y: 200}, data: {
+            label: 'Stage Router',
+            description: 'Route by stage'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 550, y: 50}, data: {
+            label: 'Executive Alert', 
+            type: 'send_slack',
+            iconName: 'Slack',
+            slackChannel: 'executive-deals',
+            slackMessageType: 'blocks',
+            slackBlocks: `[{
+              "type": "section",
+              "text": {"type": "mrkdwn", "text": "🎯 *High Value Deal Movement*\\n*Deal:* {{deal_name}}\\n*Value:* ${{value}}\\n*New Stage:* {{stage}}"}
+            }]`
+          }},
+          {id: 'action_2', type: 'action', position: {x: 550, y: 150}, data: {
+            label: 'Sales Channel', 
+            type: 'send_slack',
+            iconName: 'Slack',
+            slackChannel: 'sales-wins',
+            slackMessage: '✅ {{deal_name}} moved to {{stage}}'
+          }},
+          {id: 'action_3', type: 'action', position: {x: 550, y: 250}, data: {
+            label: 'Log Activity', 
+            type: 'add_note',
+            iconName: 'FileText',
+            noteContent: 'Deal stage changed. Slack notification sent to {{channel}}',
+            noteType: 'internal'
+          }},
+          {id: 'action_4', type: 'action', position: {x: 550, y: 350}, data: {
+            label: 'Webhook', 
+            type: 'send_webhook',
+            iconName: 'Zap',
+            webhookUrl: 'https://api.example.com/deal-update',
+            httpMethod: 'POST',
+            webhookPayload: '{"deal_id": "{{deal_id}}", "new_stage": "{{stage}}", "value": "{{value}}"}'
+          }}
+        ],
+        edges: [
+          {id: 'e1', source: 'trigger_1', target: 'condition_1'},
+          {id: 'e2', source: 'trigger_1', target: 'router_1'},
+          {id: 'e3', source: 'condition_1', target: 'action_1'},
+          {id: 'e4', source: 'router_1', target: 'action_2', sourceHandle: 'a'},
+          {id: 'e5', source: 'router_1', target: 'action_3', sourceHandle: 'b'},
+          {id: 'e6', source: 'router_1', target: 'action_4', sourceHandle: 'c'}
+        ]
+      },
+      trigger_type: 'stage_changed',
+      trigger_conditions: {},
+      action_type: 'multi_action',
+      action_config: {actions: ['slack', 'webhook', 'note']},
+      difficulty_level: 'hard',
+      estimated_setup_time: 12,
+      tags: ['sales', 'slack', 'notifications', 'webhooks', 'integration'],
+      usage_count: 0,
+      rating_avg: 5.0,
+      rating_count: 0,
+      is_public: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: '12',
+      name: '🔗 API Integration Hub',
+      description: 'Webhook-driven workflow that receives external events, processes them, and updates your CRM with smart field mapping.',
+      category: 'general',
+      canvas_data: {
+        nodes: [
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Webhook Received', 
+            type: 'webhook_received',
+            iconName: 'Zap',
+            description: 'External API trigger',
+            webhookSecret: 'your-secret-key'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 250, y: 150}, data: {
+            label: 'Check Source',
+            conditionType: 'custom_field',
+            customFieldName: 'integration_source',
+            customFieldOperator: 'equals',
+            customFieldValue: 'hubspot'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
+            label: 'Update CRM', 
+            type: 'update_multiple_fields',
+            iconName: 'TrendingUp',
+            fieldUpdates: [
+              {field: 'external_id', value: '{{webhook.id}}'},
+              {field: 'sync_status', value: 'synced'},
+              {field: 'last_sync', value: '{{timestamp}}'}
+            ]
+          }},
+          {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
+            label: 'Create Task', 
+            type: 'create_task',
+            iconName: 'CheckSquare',
+            taskTitle: 'Review synced data from {{source}}'
+          }},
+          {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
+            label: 'Send Confirmation', 
+            type: 'send_webhook',
+            iconName: 'Zap',
+            webhookUrl: '{{webhook.callback_url}}',
+            httpMethod: 'POST',
+            webhookPayload: '{"status": "processed", "crm_id": "{{deal_id}}"}'
+          }}
+        ],
+        edges: [
+          {id: 'e1', source: 'trigger_1', target: 'condition_1'},
+          {id: 'e2', source: 'condition_1', target: 'action_1'},
+          {id: 'e3', source: 'condition_1', target: 'action_2'},
+          {id: 'e4', source: 'action_2', target: 'action_3'}
+        ]
+      },
+      trigger_type: 'webhook_received',
+      trigger_conditions: {},
+      action_type: 'multi_action',
+      action_config: {actions: ['update_fields', 'create_task', 'webhook']},
+      difficulty_level: 'hard',
+      estimated_setup_time: 15,
+      tags: ['integration', 'api', 'webhooks', 'automation', 'sync'],
+      usage_count: 0,
+      rating_avg: 5.0,
+      rating_count: 0,
+      is_public: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    {
+      id: '13',
+      name: '⏰ Smart Follow-up Cadence',
+      description: 'Intelligent follow-up system with recurring tasks based on deal value, time since contact, and custom priority fields.',
+      category: 'productivity',
+      canvas_data: {
+        nodes: [
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Activity Created', 
+            type: 'activity_created',
+            iconName: 'Activity',
+            description: 'When activity is logged'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 200, y: 100}, data: {
+            label: 'Time Check',
+            conditionType: 'time_since_contact',
+            timeComparison: 'greater_than',
+            daysSinceContact: 3
+          }},
+          {id: 'condition_2', type: 'condition', position: {x: 200, y: 200}, data: {
+            label: 'Deal Size',
+            conditionType: 'value',
+            valueOperator: '>',
+            valueAmount: 25000
+          }},
+          {id: 'condition_3', type: 'condition', position: {x: 200, y: 300}, data: {
+            label: 'Custom Priority',
+            conditionType: 'custom_field',
+            customFieldName: 'follow_up_priority',
+            customFieldOperator: 'not_equals',
+            customFieldValue: 'low'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 450, y: 50}, data: {
+            label: 'Daily Follow-ups', 
+            type: 'create_recurring_task',
+            iconName: 'CheckSquare',
+            taskTitle: '🔥 Daily: Follow up on {{deal_name}}',
+            recurrencePattern: 'daily',
+            occurrences: 5
+          }},
+          {id: 'action_2', type: 'action', position: {x: 450, y: 150}, data: {
+            label: 'Weekly Check-ins', 
+            type: 'create_recurring_task',
+            iconName: 'CheckSquare',
+            taskTitle: '📅 Weekly: Check in on {{deal_name}}',
+            recurrencePattern: 'weekly',
+            occurrences: 4
+          }},
+          {id: 'action_3', type: 'action', position: {x: 450, y: 250}, data: {
+            label: 'Update Priority', 
+            type: 'update_multiple_fields',
+            iconName: 'TrendingUp',
+            fieldUpdates: [
+              {field: 'follow_up_status', value: 'active'},
+              {field: 'last_cadence_start', value: '{{today}}'}
+            ]
+          }},
+          {id: 'action_4', type: 'action', position: {x: 450, y: 350}, data: {
+            label: 'Track Engagement', 
+            type: 'add_note',
+            iconName: 'FileText',
+            noteContent: 'Follow-up cadence started. Type: {{cadence_type}}, Duration: {{duration}}',
+            noteType: 'internal'
+          }}
+        ],
+        edges: [
+          {id: 'e1', source: 'trigger_1', target: 'condition_1'},
+          {id: 'e2', source: 'trigger_1', target: 'condition_2'},
+          {id: 'e3', source: 'trigger_1', target: 'condition_3'},
+          {id: 'e4', source: 'condition_1', target: 'action_1'},
+          {id: 'e5', source: 'condition_2', target: 'action_2'},
+          {id: 'e6', source: 'condition_3', target: 'action_3'},
+          {id: 'e7', source: 'action_3', target: 'action_4'}
+        ]
+      },
+      trigger_type: 'activity_created',
+      trigger_conditions: {},
+      action_type: 'multi_action',
+      action_config: {actions: ['recurring_tasks', 'field_updates', 'notes']},
+      difficulty_level: 'hard',
+      estimated_setup_time: 10,
+      tags: ['productivity', 'follow-up', 'automation', 'cadence', 'tasks'],
+      usage_count: 0,
+      rating_avg: 5.0,
+      rating_count: 0,
+      is_public: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    },
+    // ADVANCED COMPLEXITY (Original templates continue)
+    {
+      id: '14',
       name: 'Deal Velocity Optimizer',
       description: 'Complex workflow that monitors deal progression speed and accelerates stuck deals.',
       category: 'sales',
