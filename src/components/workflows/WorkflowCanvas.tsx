@@ -1,3 +1,4 @@
+// Workflow Canvas Component - v2.0
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactFlow, {
   Node,
