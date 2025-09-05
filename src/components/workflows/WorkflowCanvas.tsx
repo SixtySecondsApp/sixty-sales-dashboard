@@ -1178,15 +1178,65 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       <>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Slack Webhook URL</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.slackWebhookUrl || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { slackWebhookUrl: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="https://hooks.slack.com/services/..."
-                          />
-                          <p className="text-xs text-gray-500 mt-1">Get this from Slack Incoming Webhooks</p>
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={selectedNode.data.slackWebhookUrl || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackWebhookUrl: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="https://hooks.slack.com/services/..."
+                            />
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs text-gray-500">
+                                <a 
+                                  href="https://api.slack.com/apps" 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-[#37bd7e] hover:text-[#2da96a] underline"
+                                >
+                                  Get webhook URL from Slack
+                                </a>
+                              </p>
+                              {selectedNode.data.slackWebhookUrl && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-slack-webhook`, {
+                                        method: 'POST',
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+                                        },
+                                        body: JSON.stringify({ webhookUrl: selectedNode.data.slackWebhookUrl })
+                                      });
+                                      
+                                      const result = await response.json();
+                                      if (result.success) {
+                                        alert('✅ Test message sent successfully! Check your Slack channel.');
+                                      } else {
+                                        alert(`❌ Test failed: ${result.error || 'Unknown error'}`);
+                                      }
+                                    } catch (error) {
+                                      alert(`❌ Test failed: ${error.message}`);
+                                    }
+                                  }}
+                                  className="text-xs px-2 py-1 bg-[#37bd7e]/10 text-[#37bd7e] rounded hover:bg-[#37bd7e]/20 transition-colors"
+                                >
+                                  Test Webhook
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
+                        
+                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                          <h4 className="text-xs font-medium text-blue-400 mb-1">📌 Note about Channels</h4>
+                          <p className="text-xs text-gray-400">
+                            The webhook URL is tied to a specific channel. To post to different channels, you'll need separate webhook URLs for each channel.
+                          </p>
+                        </div>
+                        
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Message Type</label>
                           <select
@@ -1204,6 +1254,21 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             <option value="custom">Custom Message</option>
                           </select>
                         </div>
+                        
+                        {selectedNode.data.slackMessageType === 'simple' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                            <textarea
+                              value={selectedNode.data.slackMessage || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackMessage: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="🎉 New deal created: {{deal_name}}"
+                              rows={2}
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Use variables: {{deal_name}}, {{company}}, {{value}}</p>
+                          </div>
+                        )}
+                        
                         {selectedNode.data.slackMessageType === 'custom' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Custom Message</label>
@@ -1216,27 +1281,45 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             />
                           </div>
                         )}
+                        
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Channel (optional)</label>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Mention Users (optional)</label>
                           <input
                             type="text"
-                            value={selectedNode.data.slackChannel || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { slackChannel: e.target.value })}
+                            value={selectedNode.data.slackMentionUsers || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackMentionUsers: e.target.value })}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="#sales-notifications"
+                            placeholder="@username1, @username2"
                           />
+                          <p className="text-xs text-gray-500 mt-1">Comma-separated Slack user IDs to mention</p>
                         </div>
-                        <div className="flex items-center">
-                          <label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedNode.data.slackIncludeDealLink || false}
-                              onChange={(e) => updateNodeData(selectedNode.id, { slackIncludeDealLink: e.target.checked })}
-                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-offset-0 focus:ring-offset-gray-900"
-                            />
-                            <span className="text-sm text-gray-300">Include Deal Link</span>
-                          </label>
-                        </div>
+                        
+                        {selectedNode.data.slackMessageType === 'deal_notification' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNode.data.slackIncludeDealLink || false}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { slackIncludeDealLink: e.target.checked })}
+                                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-offset-0 focus:ring-offset-gray-900"
+                                />
+                                <span className="text-sm text-gray-300">Include Deal Link</span>
+                              </label>
+                            </div>
+                            <div className="flex items-center">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNode.data.slackIncludeOwner || false}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { slackIncludeOwner: e.target.checked })}
+                                  className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-offset-0 focus:ring-offset-gray-900"
+                                />
+                                <span className="text-sm text-gray-300">Include Deal Owner</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
                       </>
                     )}
 
