@@ -425,9 +425,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         case 'send_slack':
           action_config.webhook_url = actionNode.data.slackWebhookUrl || '';
           action_config.message_type = actionNode.data.slackMessageType || 'simple';
+          action_config.message = actionNode.data.slackMessage || '';
           action_config.custom_message = actionNode.data.slackCustomMessage || '';
+          action_config.blocks = actionNode.data.slackBlocks || '';
           action_config.channel = actionNode.data.slackChannel || '';
+          action_config.mention_users = actionNode.data.slackMentionUsers || '';
           action_config.include_deal_link = actionNode.data.slackIncludeDealLink || false;
+          action_config.include_owner = actionNode.data.slackIncludeOwner || false;
           break;
       }
     }
@@ -1329,6 +1333,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             <option value="deal_notification">Deal Notification</option>
                             <option value="task_created">Task Created</option>
                             <option value="custom">Custom Message</option>
+                            <option value="blocks">Rich Message (Blocks)</option>
                           </select>
                         </div>
                         
@@ -1356,6 +1361,86 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                               placeholder="Use {{deal_name}}, {{company}}, {{value}}, {{stage}}"
                               rows={3}
                             />
+                          </div>
+                        )}
+
+                        {selectedNode.data.slackMessageType === 'blocks' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Slack Blocks JSON</label>
+                            <textarea
+                              value={selectedNode.data.slackBlocks || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackBlocks: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors font-mono"
+                              placeholder={`[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "🎉 *New deal created:* {{deal_name}}\\n💰 *Value:* ${{value}}\\n🏢 *Company:* {{company}}"
+    }
+  }
+]`}
+                              rows={8}
+                            />
+                            <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                              <h4 className="text-xs font-medium text-blue-400 mb-1">💡 Slack Blocks Tips</h4>
+                              <div className="text-xs text-gray-400 space-y-1">
+                                <p>• Use JSON format for rich formatting, buttons, and layouts</p>
+                                <p>• Variables: {{deal_name}}, {{company}}, {{value}}, {{stage}}, {{owner}}</p>
+                                <p>• <a href="https://api.slack.com/block-kit/building" target="_blank" rel="noopener" className="text-blue-400 hover:text-blue-300 underline">Block Kit Builder</a> for visual editing</p>
+                              </div>
+                            </div>
+                            
+                            {selectedNode.data.slackBlocks && (
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    try {
+                                      JSON.parse(selectedNode.data.slackBlocks);
+                                      alert('✅ Valid JSON format');
+                                    } catch (error) {
+                                      alert(`❌ Invalid JSON: ${error.message}`);
+                                    }
+                                  }}
+                                  className="text-xs px-3 py-1 bg-blue-500/10 text-blue-400 rounded hover:bg-blue-500/20 transition-colors"
+                                >
+                                  Validate JSON
+                                </button>
+                                {selectedNode.data.slackChannel && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        // Validate JSON first
+                                        const blocks = JSON.parse(selectedNode.data.slackBlocks);
+                                        
+                                        const success = await slackOAuthService.sendMessage(
+                                          userId,
+                                          selectedNode.data.slackChannel,
+                                          { 
+                                            text: '🧪 Test blocks message from Sixty Sales workflow!',
+                                            blocks: blocks
+                                          }
+                                        );
+                                        if (success) {
+                                          alert('✅ Blocks message sent successfully!');
+                                        }
+                                      } catch (error) {
+                                        if (error.message.includes('Invalid JSON')) {
+                                          alert(`❌ Invalid JSON format: ${error.message}`);
+                                        } else {
+                                          alert(`❌ Test failed: ${error.message}`);
+                                        }
+                                      }
+                                    }}
+                                    className="text-xs px-3 py-1 bg-[#37bd7e]/10 text-[#37bd7e] rounded hover:bg-[#37bd7e]/20 transition-colors"
+                                  >
+                                    Test Blocks
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                         

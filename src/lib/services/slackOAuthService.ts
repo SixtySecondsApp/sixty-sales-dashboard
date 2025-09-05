@@ -220,6 +220,35 @@ class SlackOAuthService {
         throw new Error('No active session');
       }
       
+      // Prepare the message payload
+      const messagePayload: any = {
+        channel,
+        team_id: teamId,
+      };
+
+      // Handle different message types
+      if (message.blocks) {
+        // If blocks are provided, use them (can be string or object)
+        if (typeof message.blocks === 'string') {
+          try {
+            messagePayload.blocks = JSON.parse(message.blocks);
+          } catch (e) {
+            throw new Error('Invalid JSON in blocks field');
+          }
+        } else {
+          messagePayload.blocks = message.blocks;
+        }
+        // Include fallback text for blocks
+        messagePayload.message = message.text || 'New notification from Sixty Sales';
+      } else if (message.attachments) {
+        // Legacy attachments format
+        messagePayload.message = message.text || 'New notification from Sixty Sales';
+        messagePayload.attachments = message.attachments;
+      } else {
+        // Simple text message
+        messagePayload.message = message.text || 'New notification from Sixty Sales';
+      }
+      
       // Call our Edge Function to send the message
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-slack-message`,
@@ -229,13 +258,7 @@ class SlackOAuthService {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            channel,
-            message: message.text,
-            blocks: message.blocks,
-            attachments: message.attachments,
-            team_id: teamId,
-          }),
+          body: JSON.stringify(messagePayload),
         }
       );
       
