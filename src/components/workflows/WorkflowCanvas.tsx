@@ -1378,7 +1378,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     "type": "section",
     "text": {
       "type": "mrkdwn",
-      "text": "🎉 *New deal created:* {{deal_name}}\\n💰 *Value:* ${{value}}\\n🏢 *Company:* {{company}}"
+      "text": "🎉 *New deal created:* {{deal_name}}\\n💰 *Value:* \\${{value}}\\n🏢 *Company:* {{company}}"
     }
   }
 ]`}
