@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { slackService } from '@/lib/services/slackService';
 
 interface WorkflowRule {
   id: string;
@@ -356,6 +357,9 @@ export class WorkflowExecutionEngine {
       case 'send_email':
         return await this.sendEmail(actionConfig, triggerData);
       
+      case 'send_slack':
+        return await this.sendSlackMessage(actionConfig, triggerData);
+      
       default:
         throw new Error(`Unknown action type: ${actionType}`);
     }
@@ -467,6 +471,114 @@ export class WorkflowExecutionEngine {
         queued_at: new Date()
       }
     };
+  }
+
+  // Action: Send a Slack message
+  private async sendSlackMessage(config: any, triggerData: any): Promise<any> {
+    try {
+      // Extract webhook URL
+      const webhookUrl = config.webhook_url || config.slackWebhookUrl;
+      if (!webhookUrl) {
+        throw new Error('Slack webhook URL is required');
+      }
+
+      // Prepare message data based on message type
+      let message: any = {};
+      const messageType = config.message_type || config.slackMessageType || 'simple';
+      
+      // Extract deal data if available
+      const deal = triggerData.deal || triggerData.new || triggerData.old || {};
+      const task = triggerData.task || {};
+      
+      switch (messageType) {
+        case 'deal_notification':
+          // Format deal notification for Slack
+          message = slackService.formatDealNotification(
+            deal,
+            {
+              webhook_url: webhookUrl,
+              channel: config.channel || config.slackChannel,
+              username: config.username || 'Sixty Sales Bot',
+              icon_emoji: config.icon_emoji || ':chart_with_upwards_trend:',
+              include_deal_link: config.include_deal_link || config.slackIncludeDealLink,
+              include_owner: config.include_owner || config.slackIncludeOwner,
+              mention_users: config.mention_users || config.slackMentionUsers?.split(',').map((u: string) => u.trim()),
+              message_template: config.message_template || config.slackCustomMessage
+            },
+            triggerData.event || 'deal_update'
+          );
+          break;
+          
+        case 'task_created':
+          // Format task notification
+          message = slackService.formatTaskNotification(
+            task,
+            {
+              webhook_url: webhookUrl,
+              channel: config.channel || config.slackChannel,
+              username: config.username || 'Sixty Sales Bot',
+              icon_emoji: config.icon_emoji || ':clipboard:',
+              mention_users: config.mention_users || config.slackMentionUsers?.split(',').map((u: string) => u.trim())
+            }
+          );
+          break;
+          
+        case 'custom':
+          // Use custom message with variable interpolation
+          const customMessage = this.interpolateString(
+            config.custom_message || config.slackCustomMessage || 'Workflow notification',
+            triggerData
+          );
+          message = slackService.formatGeneralNotification(
+            config.title || 'Workflow Notification',
+            customMessage,
+            {
+              webhook_url: webhookUrl,
+              channel: config.channel || config.slackChannel,
+              username: config.username || 'Sixty Sales Bot',
+              icon_emoji: config.icon_emoji || ':bell:',
+              mention_users: config.mention_users || config.slackMentionUsers?.split(',').map((u: string) => u.trim())
+            }
+          );
+          break;
+          
+        case 'simple':
+        default:
+          // Simple text message
+          const text = this.interpolateString(
+            config.message || config.slackMessage || 'Workflow triggered',
+            triggerData
+          );
+          message = {
+            text,
+            channel: config.channel || config.slackChannel,
+            username: config.username || 'Sixty Sales Bot',
+            icon_emoji: config.icon_emoji || ':bell:'
+          };
+          break;
+      }
+
+      // Send the message
+      const success = await slackService.sendWebhookMessage(webhookUrl, message);
+      
+      if (!success) {
+        throw new Error('Failed to send Slack message');
+      }
+      
+      console.log('[WorkflowEngine] Slack message sent successfully');
+      
+      return {
+        slack_sent: {
+          webhook_url: webhookUrl.substring(0, 30) + '...', // Don't log full webhook URL
+          message_type: messageType,
+          sent_at: new Date()
+        }
+      };
+      
+    } catch (error) {
+      console.error('[WorkflowEngine] Error sending Slack message:', error);
+      throw error;
+    }
   }
 
   // Interpolate variables in strings

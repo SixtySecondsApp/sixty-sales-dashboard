@@ -368,6 +368,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           action_config.message = `Notification from ${workflowName}`;
           action_config.urgency = 'medium';
           break;
+        case 'send_slack':
+          action_config.webhook_url = actionNode.data.slackWebhookUrl || '';
+          action_config.message_type = actionNode.data.slackMessageType || 'simple';
+          action_config.custom_message = actionNode.data.slackCustomMessage || '';
+          action_config.channel = actionNode.data.slackChannel || '';
+          action_config.include_deal_link = actionNode.data.slackIncludeDealLink || false;
+          break;
       }
     }
 
@@ -1088,6 +1095,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       >
                         <option value="create_task">Create Task</option>
                         <option value="send_notification">Send Notification</option>
+                        <option value="send_slack">Send Slack Message</option>
                         <option value="create_activity">Create Activity</option>
                         <option value="update_deal_stage">Update Deal Stage</option>
                         <option value="update_field">Update Field</option>
@@ -1162,6 +1170,72 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
                             placeholder="Enter notification message..."
                           />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_slack' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Slack Webhook URL</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.slackWebhookUrl || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackWebhookUrl: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="https://hooks.slack.com/services/..."
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Get this from Slack Incoming Webhooks</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Message Type</label>
+                          <select
+                            value={selectedNode.data.slackMessageType || 'simple'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { slackMessageType: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="simple">Simple Message</option>
+                            <option value="deal_notification">Deal Notification</option>
+                            <option value="task_created">Task Created</option>
+                            <option value="custom">Custom Message</option>
+                          </select>
+                        </div>
+                        {selectedNode.data.slackMessageType === 'custom' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Custom Message</label>
+                            <textarea
+                              value={selectedNode.data.slackCustomMessage || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackCustomMessage: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="Use {{deal_name}}, {{company}}, {{value}}, {{stage}}"
+                              rows={3}
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Channel (optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.slackChannel || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackChannel: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="#sales-notifications"
+                          />
+                        </div>
+                        <div className="flex items-center">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.slackIncludeDealLink || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackIncludeDealLink: e.target.checked })}
+                              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-offset-0 focus:ring-offset-gray-900"
+                            />
+                            <span className="text-sm text-gray-300">Include Deal Link</span>
+                          </label>
                         </div>
                       </>
                     )}
@@ -1329,6 +1403,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                 >
                                   <option value="create_task">Create Task</option>
                                   <option value="send_notification">Send Notification</option>
+                                  <option value="send_slack">Send Slack Message</option>
                                   <option value="send_email">Send Email</option>
                                   <option value="update_field">Update Field</option>
                                   <option value="assign_owner">Assign Owner</option>
