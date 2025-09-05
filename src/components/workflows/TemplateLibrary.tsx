@@ -483,7 +483,7 @@ const getDefaultTemplates = (): Template[] => {
             slackMessageType: 'blocks',
             slackBlocks: `[{
               "type": "section",
-              "text": {"type": "mrkdwn", "text": "🎯 *High Value Deal Movement*\\n*Deal:* {{deal_name}}\\n*Value:* ${{value}}\\n*New Stage:* {{stage}}"}
+              "text": {"type": "mrkdwn", "text": "🎯 *High Value Deal Movement*\\n*Deal:* {{deal_name}}\\n*Value:* $\{{value}}\\n*New Stage:* {{stage}}"}
             }]`
           }},
           {id: 'action_2', type: 'action', position: {x: 550, y: 150}, data: {
