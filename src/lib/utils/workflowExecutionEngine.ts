@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { slackService } from '@/lib/services/slackService';
+import { slackOAuthService } from '@/lib/services/slackOAuthService';
 
 interface WorkflowRule {
   id: string;
@@ -476,12 +477,10 @@ export class WorkflowExecutionEngine {
   // Action: Send a Slack message
   private async sendSlackMessage(config: any, triggerData: any): Promise<any> {
     try {
-      // Extract webhook URL
+      // Check if using OAuth (channel) or legacy webhook
+      const channel = config.channel || config.slackChannel;
       const webhookUrl = config.webhook_url || config.slackWebhookUrl;
-      if (!webhookUrl) {
-        throw new Error('Slack webhook URL is required');
-      }
-
+      
       // Prepare message data based on message type
       let message: any = {};
       const messageType = config.message_type || config.slackMessageType || 'simple';
@@ -489,6 +488,56 @@ export class WorkflowExecutionEngine {
       // Extract deal data if available
       const deal = triggerData.deal || triggerData.new || triggerData.old || {};
       const task = triggerData.task || {};
+      
+      // If using OAuth (channel specified)
+      if (channel && !webhookUrl) {
+        switch (messageType) {
+          case 'deal_notification':
+            message = slackOAuthService.formatDealNotification(
+              deal,
+              triggerData.event || 'deal_update'
+            );
+            break;
+            
+          case 'simple':
+          case 'custom':
+          default:
+            const text = this.interpolateString(
+              config.message || config.slackMessage || config.custom_message || config.slackCustomMessage || 'Workflow triggered',
+              triggerData
+            );
+            message = { text };
+            break;
+        }
+        
+        // Send via OAuth
+        const success = await slackOAuthService.sendMessage(
+          this.userId,
+          channel,
+          message,
+          config.team_id
+        );
+        
+        if (!success) {
+          throw new Error('Failed to send Slack message via OAuth');
+        }
+        
+        console.log('[WorkflowEngine] Slack message sent via OAuth');
+        
+        return {
+          slack_sent: {
+            channel,
+            message_type: messageType,
+            method: 'oauth',
+            sent_at: new Date()
+          }
+        };
+      }
+      
+      // Legacy webhook method
+      if (!webhookUrl) {
+        throw new Error('Either Slack channel (OAuth) or webhook URL is required');
+      }
       
       switch (messageType) {
         case 'deal_notification':
@@ -571,6 +620,7 @@ export class WorkflowExecutionEngine {
         slack_sent: {
           webhook_url: webhookUrl.substring(0, 30) + '...', // Don't log full webhook URL
           message_type: messageType,
+          method: 'webhook',
           sent_at: new Date()
         }
       };

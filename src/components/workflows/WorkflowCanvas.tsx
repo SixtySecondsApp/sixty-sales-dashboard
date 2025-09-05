@@ -43,6 +43,9 @@ import {
   Sparkles,
   X
 } from 'lucide-react';
+import { SlackConnectionButton } from '@/components/SlackConnectionButton';
+import { slackOAuthService } from '@/lib/services/slackOAuthService';
+import { supabase } from '@/lib/supabase/clientV2';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -153,7 +156,58 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [showNodeEditor, setShowNodeEditor] = useState(false);
+  const [slackConnected, setSlackConnected] = useState(false);
+  const [slackChannels, setSlackChannels] = useState<any[]>([]);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const reactFlowInstance = useRef<any>(null);
+
+  // Get current user on mount
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+      }
+    };
+    getUser();
+  }, []);
+
+  // Check Slack connection and load channels
+  useEffect(() => {
+    if (userId) {
+      checkSlackConnection();
+    }
+  }, [userId]);
+
+  const checkSlackConnection = async () => {
+    if (!userId) return;
+    
+    try {
+      const connected = await slackOAuthService.hasActiveIntegration(userId);
+      setSlackConnected(connected);
+      
+      if (connected) {
+        loadSlackChannels();
+      }
+    } catch (error) {
+      console.error('Failed to check Slack connection:', error);
+    }
+  };
+
+  const loadSlackChannels = async () => {
+    if (!userId) return;
+    
+    setLoadingChannels(true);
+    try {
+      const channels = await slackOAuthService.getChannels(userId);
+      setSlackChannels(channels);
+    } catch (error) {
+      console.error('Failed to load Slack channels:', error);
+    } finally {
+      setLoadingChannels(false);
+    }
+  };
 
   // Load selected workflow data
   useEffect(() => {
@@ -1176,66 +1230,89 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
                     {selectedNode.data.type === 'send_slack' && (
                       <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Slack Webhook URL</label>
-                          <div className="space-y-2">
-                            <input
-                              type="text"
-                              value={selectedNode.data.slackWebhookUrl || ''}
-                              onChange={(e) => updateNodeData(selectedNode.id, { slackWebhookUrl: e.target.value })}
-                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                              placeholder="https://hooks.slack.com/services/..."
+                        {/* Show Slack connection component if not connected */}
+                        {!slackConnected ? (
+                          <div className="mb-4">
+                            <SlackConnectionButton 
+                              onConnectionChange={(connected) => {
+                                setSlackConnected(connected);
+                                if (connected) {
+                                  loadSlackChannels();
+                                }
+                              }}
                             />
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-gray-500">
-                                <a 
-                                  href="https://api.slack.com/apps" 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-[#37bd7e] hover:text-[#2da96a] underline"
-                                >
-                                  Get webhook URL from Slack
-                                </a>
-                              </p>
-                              {selectedNode.data.slackWebhookUrl && (
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-slack-webhook`, {
-                                        method: 'POST',
-                                        headers: {
-                                          'Content-Type': 'application/json',
-                                          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-                                        },
-                                        body: JSON.stringify({ webhookUrl: selectedNode.data.slackWebhookUrl })
-                                      });
-                                      
-                                      const result = await response.json();
-                                      if (result.success) {
-                                        alert('✅ Test message sent successfully! Check your Slack channel.');
-                                      } else {
-                                        alert(`❌ Test failed: ${result.error || 'Unknown error'}`);
-                                      }
-                                    } catch (error) {
-                                      alert(`❌ Test failed: ${error.message}`);
-                                    }
-                                  }}
-                                  className="text-xs px-2 py-1 bg-[#37bd7e]/10 text-[#37bd7e] rounded hover:bg-[#37bd7e]/20 transition-colors"
-                                >
-                                  Test Webhook
-                                </button>
-                              )}
-                            </div>
                           </div>
-                        </div>
-                        
-                        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                          <h4 className="text-xs font-medium text-blue-400 mb-1">📌 Note about Channels</h4>
-                          <p className="text-xs text-gray-400">
-                            The webhook URL is tied to a specific channel. To post to different channels, you'll need separate webhook URLs for each channel.
-                          </p>
-                        </div>
+                        ) : (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Slack Channel</label>
+                              <div className="space-y-2">
+                                {loadingChannels ? (
+                                  <div className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-400 text-sm">
+                                    Loading channels...
+                                  </div>
+                                ) : (
+                                  <>
+                                    <select
+                                      value={selectedNode.data.slackChannel || ''}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        updateNodeData(selectedNode.id, { slackChannel: e.target.value });
+                                      }}
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                                    >
+                                      <option value="">Select a channel...</option>
+                                      {slackChannels.map((channel) => (
+                                        <option key={channel.id} value={channel.id}>
+                                          #{channel.name} {channel.is_private ? '🔒' : ''}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="flex items-center justify-between">
+                                      <button
+                                        type="button"
+                                        onClick={loadSlackChannels}
+                                        className="text-xs text-[#37bd7e] hover:text-[#2da96a] underline"
+                                      >
+                                        Refresh channels
+                                      </button>
+                                      {selectedNode.data.slackChannel && (
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              const success = await slackOAuthService.sendMessage(
+                                                userId,
+                                                selectedNode.data.slackChannel,
+                                                { text: '✅ Test message from Sixty Sales workflow!' }
+                                              );
+                                              if (success) {
+                                                alert('✅ Test message sent successfully!');
+                                              }
+                                            } catch (error) {
+                                              alert(`❌ Test failed: ${error.message}`);
+                                            }
+                                          }}
+                                          className="text-xs px-2 py-1 bg-[#37bd7e]/10 text-[#37bd7e] rounded hover:bg-[#37bd7e]/20 transition-colors"
+                                        >
+                                          Test Channel
+                                        </button>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+                              <h4 className="text-xs font-medium text-green-400 mb-1">✅ Connected to Slack</h4>
+                              <p className="text-xs text-gray-400">
+                                You can now select any channel from your workspace. The bot will automatically join public channels if needed.
+                              </p>
+                            </div>
+                          </>
+                        )}
                         
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Message Type</label>
