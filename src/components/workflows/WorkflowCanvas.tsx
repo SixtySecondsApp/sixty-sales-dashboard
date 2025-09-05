@@ -31,7 +31,15 @@ import {
   Database,
   GitBranch,
   Zap,
-  ChevronRight
+  ChevronRight,
+  Clock,
+  Users,
+  TrendingUp,
+  Calendar,
+  AlertTriangle,
+  Briefcase,
+  FileText,
+  Heart
 } from 'lucide-react';
 
 // Icon mapping
@@ -42,7 +50,16 @@ const iconMap: { [key: string]: any } = {
   GitBranch,
   CheckSquare,
   Bell,
-  Mail
+  Mail,
+  Clock,
+  Zap,
+  Users,
+  TrendingUp,
+  Calendar,
+  AlertTriangle,
+  Briefcase,
+  FileText,
+  Heart
 };
 
 // Custom Node Types
