@@ -316,12 +316,14 @@ const getDefaultTemplates = (): Template[] => {
       canvas_data: {
         nodes: [
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
-            label: 'Low Activity Warning', 
-            type: 'low_activity', 
-            iconName: 'AlertTriangle', 
-            description: 'No activity for 5 days',
-            inactiveDays: 5,
-            checkTime: '09:00'
+            label: 'Activity Monitor', 
+            type: 'activity_monitor', 
+            iconName: 'Activity', 
+            description: 'Monitor low activity',
+            monitorType: 'low_activity',
+            monitorDays: 5,
+            activityThreshold: 2,
+            monitoredActivityTypes: ['outbound', 'meeting', 'email']
           }},
           {id: 'condition_1', type: 'condition', position: {x: 250, y: 150}, data: {
             label: 'Check Priority', 
@@ -368,7 +370,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'e5', source: 'condition_2', target: 'action_3'}
         ]
       },
-      trigger_type: 'low_activity',
+      trigger_type: 'activity_monitor',
       trigger_conditions: {days: 5},
       action_type: 'multi_action',
       action_config: {actions: ['recurring_task', 'slack', 'note']},

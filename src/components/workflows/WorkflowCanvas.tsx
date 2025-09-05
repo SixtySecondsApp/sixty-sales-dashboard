@@ -602,9 +602,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
                 { type: 'webhook_received', label: 'Webhook Received', iconName: 'Zap', description: 'External webhook trigger' },
                 { type: 'task_overdue', label: 'Task Overdue', iconName: 'AlertTriangle', description: 'Task past due date' },
-                { type: 'low_activity', label: 'Low Activity Warning', iconName: 'AlertTriangle', description: 'No activity for X days' },
+                { type: 'activity_monitor', label: 'Activity Monitor', iconName: 'Activity', description: 'Monitor activity levels' },
                 { type: 'scheduled', label: 'Scheduled', iconName: 'Clock', description: 'Time-based trigger' },
-                { type: 'no_activity', label: 'No Activity', iconName: 'Clock', description: 'Inactivity trigger' },
                 { type: 'time_based', label: 'Time Based', iconName: 'Clock', description: 'After time period' }
               ].map((trigger) => {
                 const TriggerIcon = iconMap[trigger.iconName] || Target;
@@ -2177,15 +2176,72 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                       </div>
                     )}
 
-                    {/* Low Activity Warning Trigger */}
-                    {selectedNode.data.type === 'low_activity' && (
+                    {/* Activity Monitor Trigger */}
+                    {selectedNode.data.type === 'activity_monitor' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Days Without Activity</label>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Monitor Type</label>
+                          <select
+                            value={selectedNode.data.monitorType || 'low_activity'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { monitorType: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="low_activity">Low Activity (Less than X activities)</option>
+                            <option value="no_activity">No Activity (Zero activities)</option>
+                            <option value="high_activity">High Activity (More than X activities)</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Activity Types to Monitor</label>
+                          <div className="space-y-2">
+                            {['outbound', 'meeting', 'proposal', 'email', 'call', 'task', 'note'].map((activityType) => (
+                              <label key={activityType} className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNode.data.monitoredActivityTypes?.includes(activityType) || false}
+                                  onChange={(e) => {
+                                    const currentTypes = selectedNode.data.monitoredActivityTypes || [];
+                                    const newTypes = e.target.checked
+                                      ? [...currentTypes, activityType]
+                                      : currentTypes.filter(t => t !== activityType);
+                                    updateNodeData(selectedNode.id, { monitoredActivityTypes: newTypes });
+                                  }}
+                                  className="w-4 h-4 text-[#37bd7e] bg-gray-800 border-gray-600 rounded focus:ring-[#37bd7e] focus:ring-offset-0"
+                                />
+                                <span className="text-sm text-gray-300 capitalize">{activityType}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Leave unchecked to monitor all activity types</p>
+                        </div>
+
+                        {selectedNode.data.monitorType !== 'no_activity' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                              {selectedNode.data.monitorType === 'low_activity' ? 'Maximum Activities' : 'Minimum Activities'}
+                            </label>
+                            <input
+                              type="number"
+                              value={selectedNode.data.activityThreshold || 3}
+                              onChange={(e) => updateNodeData(selectedNode.id, { activityThreshold: parseInt(e.target.value) })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              placeholder="Number of activities..."
+                              min="1"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Time Period (Days)</label>
                           <input
                             type="number"
-                            value={selectedNode.data.inactiveDays || 7}
-                            onChange={(e) => updateNodeData(selectedNode.id, { inactiveDays: parseInt(e.target.value) })}
+                            value={selectedNode.data.monitorDays || 7}
+                            onChange={(e) => updateNodeData(selectedNode.id, { monitorDays: parseInt(e.target.value) })}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
                             placeholder="Number of days..."
                             min="1"
