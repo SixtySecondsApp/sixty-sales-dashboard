@@ -221,7 +221,7 @@ class SlackOAuthService {
       }
       
       // Prepare the message payload
-      const messagePayload: any = {
+      let messagePayload: any = {
         channel,
         team_id: teamId,
       };
