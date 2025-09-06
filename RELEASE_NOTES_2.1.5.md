@@ -1,8 +1,8 @@
-# 🎉 Sixty Sales Dashboard v2.5.0 Release Notes
+# 🎉 Sixty Sales Dashboard v2.1.5 Release Notes
 
-## 🚀 Major Release: Workflow Analytics & Real Data Testing
+## 🚀 Major Update: Workflow Analytics & Real Data Testing
 
-We're excited to announce version 2.5.0 of Sixty Sales Dashboard, featuring comprehensive workflow analytics and revolutionary real data testing capabilities!
+We're excited to announce version 2.1.5 of Sixty Sales Dashboard, featuring comprehensive workflow analytics and revolutionary real data testing capabilities!
 
 ### 🌟 Headline Features
 
@@ -128,7 +128,7 @@ For detailed implementation information, see:
 ---
 
 **Release Date**: January 7, 2025
-**Version**: 2.5.0
+**Version**: 2.1.5
 **Commit**: f718f54
 
 For questions or issues, please open a GitHub issue or contact support.
