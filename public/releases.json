@@ -1,5 +1,20 @@
 [
   {
+    "buildId": "build-2025-01-07T00-00-00-v2.1.5",
+    "date": "2025-01-07T00:00:00.000Z",
+    "notes": "🚀 Major Update: Workflow Analytics & Real Data Testing - Real-time execution statistics with health indicators (✅ >95%, ⚠️ 80-95%, ❌ <80% success rates). Live testing mode with production data. Visual workflow health monitoring. Fixed progress tracking. Database migration required for full features."
+  },
+  {
+    "buildId": "build-2025-01-06T00-00-00-v2.1.4",
+    "date": "2025-01-06T00:00:00.000Z",
+    "notes": "🔧 Workflow Testing Enhancements - Enhanced testing lab with visual workflow builder integration. Improved test scenario generation. Fixed progress bar tracking during test execution."
+  },
+  {
+    "buildId": "build-2025-01-05T00-00-00-v2.1.3",
+    "date": "2025-01-05T00:00:00.000Z",
+    "notes": "📊 Workflow System Foundation - New visual workflow builder with drag-and-drop interface. Template library for common automation patterns. Basic workflow insights and analytics."
+  },
+  {
     "buildId": "build-2025-08-29T08-26-52-v1.0.9-navigation-cache-fix",
     "date": "2025-08-29T08:26:51.589Z",
     "notes": "🔄 Cache Fix - Navigation update with Releases menu item now properly cached and visible. Force refresh to clear browser cache and see new navigation"
