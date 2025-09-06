@@ -22,7 +22,7 @@ import {
 import WorkflowCanvas from '@/components/workflows/WorkflowCanvas';
 import TemplateLibrary from '@/components/workflows/TemplateLibrary';
 import MyWorkflows from '@/components/workflows/MyWorkflows';
-import TestingLab from '@/components/workflows/TestingLab';
+import TestingLabEnhanced from '@/components/workflows/TestingLabEnhanced';
 import WorkflowInsights from '@/components/workflows/WorkflowInsights';
 
 export default function Workflows() {
@@ -105,6 +105,9 @@ export default function Workflows() {
 
   const handleWorkflowSave = async (workflow: any) => {
     try {
+      // Import test generator
+      const { WorkflowTestGenerator } = await import('@/lib/utils/workflowTestGenerator');
+      
       // Check if user is available
       if (!user?.id) {
         console.warn('No user found, using development fallback');
@@ -114,6 +117,10 @@ export default function Workflows() {
       }
 
       const userId = user?.id || 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Fallback for development
+
+      // Generate test scenarios for the workflow
+      const testScenarios = WorkflowTestGenerator.generateTestScenarios(workflow);
+      console.log('Generated test scenarios:', testScenarios);
 
       const workflowData = {
         user_id: userId,
@@ -126,7 +133,8 @@ export default function Workflows() {
         action_config: workflow.action_config || {},
         template_id: workflow.template_id,
         is_active: workflow.is_active || false,
-        priority_level: 1
+        priority_level: 1,
+        test_scenarios: testScenarios // Include test scenarios
       };
 
       console.log('Saving workflow with data:', workflowData);
@@ -153,8 +161,13 @@ export default function Workflows() {
         throw result.error;
       }
       
-      console.log(`✅ Workflow ${workflow.id ? 'updated' : 'created'} successfully`, result.data);
-      alert(`Workflow "${workflow.name}" saved successfully!`);
+      // Save test scenarios locally as well
+      if (result.data && result.data[0]) {
+        await WorkflowTestGenerator.saveTestScenarios(result.data[0].id, testScenarios);
+      }
+      
+      console.log(`✅ Workflow ${workflow.id ? 'updated' : 'created'} successfully with ${testScenarios.length} test scenarios`, result.data);
+      alert(`Workflow "${workflow.name}" saved successfully with ${testScenarios.length} test scenarios!`);
       await loadWorkflowStats();
       
       // Clear selected workflow to show success
@@ -346,7 +359,7 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <TestingLab 
+              <TestingLabEnhanced 
                 workflow={selectedWorkflow}
               />
             </motion.div>

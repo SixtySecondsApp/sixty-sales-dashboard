@@ -249,22 +249,63 @@ export class WorkflowTestEngine {
           nextNodes = this.getNextNodes(node.id);
       }
 
-      // Mark node as successful
+      // Mark node as successful or skipped based on condition result
       const executionTime = Date.now() - (this.state.nodeStates.get(node.id)?.startTime || Date.now());
+      
+      // For condition nodes, mark as success/failed based on the condition result
+      let nodeStatus = 'success';
+      if (node.type === 'condition') {
+        // Condition node itself is successful if it evaluated without error
+        // But we log whether the condition passed or failed
+        const conditionPassed = result.conditionMet;
+        nodeStatus = 'success'; // The node executed successfully
+        this.addLog('condition', node.id, node.data.label, 
+          `Condition ${conditionPassed ? 'PASSED' : 'FAILED'}`, result, conditionPassed);
+      }
+      
       this.updateNodeState(node.id, { 
-        status: 'success', 
+        status: nodeStatus, 
         executionTime,
         outputData: result 
       });
       
-      this.addLog('complete', node.id, node.data.label, 
-        `Completed in ${executionTime}ms`, result, true);
+      if (node.type !== 'condition') {
+        this.addLog('complete', node.id, node.data.label, 
+          `Completed in ${executionTime}ms`, result, true);
+      }
+      
+      // Update state to notify listeners of progress
+      this.updateState();
 
-      // Execute next nodes
+      // Execute next nodes (will be empty if condition failed and no false branch)
       for (const nextNode of nextNodes) {
         if (!this.state.executionPath.includes(nextNode.id)) {
           await this.executeNode(nextNode);
         }
+      }
+      
+      // Mark any unreachable nodes as skipped if this was a failed condition
+      if (node.type === 'condition' && !result.conditionMet && nextNodes.length === 0) {
+        // Find all nodes that would have been executed if condition passed
+        const skippedNodes = this.getNextNodes(node.id);
+        for (const skippedNode of skippedNodes) {
+          if (!this.state.executionPath.includes(skippedNode.id)) {
+            this.updateNodeState(skippedNode.id, { status: 'skipped' });
+            this.addLog('skip', skippedNode.id, skippedNode.data.label, 
+              'Skipped due to failed condition');
+            
+            // Recursively mark downstream nodes as skipped
+            const downstreamNodes = this.getNextNodes(skippedNode.id);
+            for (const downstream of downstreamNodes) {
+              if (!this.state.executionPath.includes(downstream.id)) {
+                this.updateNodeState(downstream.id, { status: 'skipped' });
+                this.addLog('skip', downstream.id, downstream.data.label, 
+                  'Skipped due to failed condition');
+              }
+            }
+          }
+        }
+        this.updateState();
       }
 
     } catch (error) {
@@ -276,6 +317,9 @@ export class WorkflowTestEngine {
       
       this.addLog('error', node.id, node.data.label, 
         error instanceof Error ? error.message : 'Execution failed', null, false);
+      
+      // Update state to notify listeners of progress
+      this.updateState();
     }
   }
 
@@ -289,15 +333,62 @@ export class WorkflowTestEngine {
   // Evaluate condition node
   private async evaluateCondition(node: any): Promise<boolean> {
     const { testData } = this.state;
-    const conditionType = node.data.conditionType;
+    const conditionType = node.data.conditionType || node.data.type;
+    
+    // Check if there's a raw condition string (e.g., "deal_value > 10000")
+    const rawCondition = node.data.condition;
     
     let result = false;
     let message = '';
+    
+    // Handle raw condition strings like "deal_value > 10000"
+    if (rawCondition && typeof rawCondition === 'string') {
+      // Parse conditions like "deal_value > 10000" or "activity_type == 'proposal_sent'"
+      const conditionMatch = rawCondition.match(/(\w+)\s*([><=!]+)\s*(.+)/);
+      if (conditionMatch) {
+        const [, field, operator, expectedValue] = conditionMatch;
+        const actualValue = testData[field];
+        const expected = expectedValue.replace(/['"]/g, ''); // Remove quotes if present
+        const expectedNum = parseFloat(expected);
+        
+        console.log('Raw condition evaluation:', { field, operator, actualValue, expected, testData });
+        
+        switch (operator) {
+          case '>':
+            result = parseFloat(actualValue) > expectedNum;
+            break;
+          case '<':
+            result = parseFloat(actualValue) < expectedNum;
+            break;
+          case '>=':
+            result = parseFloat(actualValue) >= expectedNum;
+            break;
+          case '<=':
+            result = parseFloat(actualValue) <= expectedNum;
+            break;
+          case '==':
+          case '===':
+            result = actualValue == expected;
+            break;
+          case '!=':
+          case '!==':
+            result = actualValue != expected;
+            break;
+          default:
+            result = false;
+        }
+        
+        message = `${field} ${operator} ${expected} = ${result} (actual: ${actualValue})`;
+        this.addLog('condition', node.id, node.data.label, message, { result });
+        return result;
+      }
+    }
 
     switch (conditionType) {
       case 'value_check':
+      case 'value_greater_than':
         const value = testData.value || 0;
-        const threshold = node.data.threshold || 50000;
+        const threshold = node.data.threshold || node.data.value || 50000;
         const operator = node.data.operator || '>';
         
         switch (operator) {
@@ -306,22 +397,32 @@ export class WorkflowTestEngine {
           case '>=': result = value >= threshold; break;
           case '<=': result = value <= threshold; break;
           case '=': result = value === threshold; break;
+          case '==': result = value === threshold; break;
         }
         message = `Value ${value} ${operator} ${threshold} = ${result}`;
         break;
 
       case 'stage_check':
         const stage = testData.stage || testData.new_stage;
-        const targetStage = node.data.stage;
+        const targetStage = node.data.stage || node.data.value;
         result = stage === targetStage;
         message = `Stage "${stage}" === "${targetStage}" = ${result}`;
         break;
 
+      case 'activity_type':
+        // Handle activity type checks (used in Smart Proposal Follow-up)
+        const activityType = testData.activity_type;
+        const expectedType = node.data.activityType || node.data.value || 'proposal_sent';
+        result = activityType === expectedType;
+        message = `Activity type "${activityType}" === "${expectedType}" = ${result}`;
+        console.log('Activity type check:', { activityType, expectedType, result, nodeData: node.data });
+        break;
+
       case 'custom_field':
-        const fieldName = node.data.customFieldName;
+        const fieldName = node.data.customFieldName || node.data.field;
         const fieldValue = testData[fieldName];
-        const expectedValue = node.data.customFieldValue;
-        const fieldOperator = node.data.customFieldOperator || 'equals';
+        const expectedValue = node.data.customFieldValue || node.data.value;
+        const fieldOperator = node.data.customFieldOperator || node.data.operator || 'equals';
         
         switch (fieldOperator) {
           case 'equals': result = fieldValue === expectedValue; break;
@@ -334,12 +435,33 @@ export class WorkflowTestEngine {
         break;
 
       default:
-        // Default to true for testing
-        result = Math.random() > 0.5;
-        message = `Random condition = ${result}`;
+        // Check if the condition type is actually the field name itself
+        if (conditionType === 'activity_type' || node.data.field === 'activity_type') {
+          const activityType = testData.activity_type;
+          const expectedType = node.data.value || 'proposal_sent';
+          result = activityType === expectedType;
+          message = `Activity type "${activityType}" === "${expectedType}" = ${result}`;
+          console.log('Default activity type check:', { activityType, expectedType, result, nodeData: node.data });
+        } else if (node.data.field && node.data.value !== undefined) {
+          const fieldName = node.data.field;
+          const fieldValue = testData[fieldName];
+          const expectedValue = node.data.value;
+          result = fieldValue === expectedValue;
+          message = `Field "${fieldName}" === "${expectedValue}" = ${result} (actual: "${fieldValue}")`;
+        } else {
+          // Default to checking if the node has any specific condition data
+          console.log('Unknown condition, defaulting to pass:', { conditionType, nodeData: node.data });
+          result = true; // Default to passing for unknown conditions
+          message = `Unknown condition type "${conditionType}" - defaulting to pass`;
+        }
     }
 
-    this.addLog('condition', node.id, node.data.label, message, { result });
+    this.addLog('condition', node.id, node.data.label, message, { 
+      result, 
+      conditionType,
+      nodeData: node.data,
+      testData 
+    });
     return result;
   }
 

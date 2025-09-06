@@ -42,7 +42,9 @@ import {
   FileText,
   Heart,
   Sparkles,
-  X
+  X,
+  Pause,
+  Square
 } from 'lucide-react';
 import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
@@ -216,8 +218,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [userId, setUserId] = useState<string | null>(null);
   const reactFlowInstance = useRef<any>(null);
   
-  // Test Execution State
-  const [testExecutionState, setTestExecutionState] = useState<TestExecutionState | null>(null);
+  // Test Execution State - Initialize with default state
+  const [testExecutionState, setTestExecutionState] = useState<TestExecutionState>({
+    isRunning: false,
+    isPaused: false,
+    currentNodeId: null,
+    nodeStates: new Map(),
+    executionPath: [],
+    testData: {},
+    executionSpeed: 1,
+    logs: []
+  });
   const [showTestPanel, setShowTestPanel] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<string>('high_value_deal');
   const testEngineRef = useRef<WorkflowTestEngine | null>(null);
@@ -232,6 +243,21 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     };
     getUser();
   }, []);
+  
+  // Load workflow data when selectedWorkflow changes
+  useEffect(() => {
+    if (selectedWorkflow) {
+      // Set workflow name and description
+      setWorkflowName(selectedWorkflow.name || selectedWorkflow.rule_name || 'Untitled Workflow');
+      setWorkflowDescription(selectedWorkflow.description || selectedWorkflow.rule_description || '');
+      
+      // Load canvas data if available
+      if (selectedWorkflow.canvas_data) {
+        setNodes(selectedWorkflow.canvas_data.nodes || []);
+        setEdges(selectedWorkflow.canvas_data.edges || []);
+      }
+    }
+  }, [selectedWorkflow, setNodes, setEdges]);
 
   // Check Slack connection and load channels
   useEffect(() => {
@@ -486,15 +512,44 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   };
 
   const startTest = () => {
+    console.log('🚀 Starting test with nodes:', nodes.length, 'edges:', edges.length);
+    
+    // Check if there are nodes to test
+    if (nodes.length === 0) {
+      alert('Please add some nodes to the workflow before testing.');
+      return;
+    }
+    
+    // Check for trigger node
+    const hasTrigger = nodes.some(n => n.type === 'trigger');
+    if (!hasTrigger) {
+      alert('Please add a trigger node to start the workflow.');
+      return;
+    }
+    
+    // Auto-fit view to show all nodes when test starts
+    if (reactFlowInstance.current) {
+      reactFlowInstance.current.fitView({ 
+        padding: 0.2, 
+        duration: 800,
+        maxZoom: 1.5,
+        minZoom: 0.5
+      });
+    }
+    
     // Create test engine instance
     testEngineRef.current = new WorkflowTestEngine(nodes, edges, handleTestStateChange);
     
     // Find selected scenario
     const scenario = TEST_SCENARIOS.find(s => s.id === selectedScenario);
+    console.log('📊 Selected scenario:', scenario);
     
     // Start test execution
     testEngineRef.current.startTest(scenario);
+    
+    // Ensure test panel is visible and node editor is closed
     setShowTestPanel(true);
+    setShowNodeEditor(false);
   };
 
   const pauseTest = () => {
@@ -590,8 +645,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       }
     }
 
+    // Only include ID if it's a valid UUID (not a template ID)
+    const isValidUUID = (id: string) => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return id && uuidRegex.test(id);
+    };
+    
     const workflow = {
-      id: selectedWorkflow?.id, // Include ID for updates
+      id: isValidUUID(selectedWorkflow?.id) ? selectedWorkflow.id : undefined, // Only include valid UUID IDs
       name: workflowName,
       description: workflowDescription,
       canvas_data: { nodes, edges },
@@ -600,7 +661,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       action_type: actionNode?.data?.type || 'create_task',
       action_config: action_config,
       is_active: false, // Start inactive by default
-      template_id: selectedWorkflow?.template_id || null
+      template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
     };
     
     console.log('💾 Saving workflow:', workflow);
@@ -720,15 +781,162 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
   return (
     <div className="h-[calc(100vh-8rem)] flex overflow-hidden">
-      {/* Left Panel - Node Library */}
+      {/* Left Panel - Node Library OR Test Panel */}
       <motion.div 
         initial={{ x: -300 }}
-        animate={{ x: showNodePanel ? 0 : -300 }}
-        className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 p-6 overflow-y-auto h-[calc(100vh-8rem)]" 
+        animate={{ x: (showNodePanel || showTestPanel) ? 0 : -300 }}
+        className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 overflow-y-auto h-[calc(100vh-8rem)]" 
       >
-        <div className="space-y-6">
-          {/* Workflow Details */}
-          <div>
+        {/* Show Test Panel if testing, otherwise show Node Library */}
+        {showTestPanel ? (
+          <div className="h-full flex flex-col">
+            {/* Test Panel Header */}
+            <div className="bg-gray-800 p-4 flex items-center justify-between border-b border-gray-700">
+              <div className="flex items-center gap-2">
+                <Play className="w-4 h-4 text-[#37bd7e]" />
+                <h3 className="text-sm font-semibold text-white">Test Execution</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTestPanel(false);
+                  if (testExecutionState?.isRunning) {
+                    stopTest();
+                  }
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Close test panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Test Controls */}
+            <div className="p-4 border-b border-gray-700 space-y-3">
+              {!testExecutionState.isRunning ? (
+                <>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 mb-1 block">Test Scenario</label>
+                    <select
+                      value={selectedScenario}
+                      onChange={(e) => setSelectedScenario(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm"
+                    >
+                      {TEST_SCENARIOS.map(scenario => (
+                        <option key={scenario.id} value={scenario.id}>
+                          {scenario.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={startTest}
+                    className="w-full px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Start Test
+                  </button>
+                </>
+              ) : (
+                <div className="flex gap-2">
+                  {testExecutionState.isPaused ? (
+                    <button
+                      onClick={resumeTest}
+                      className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4" />
+                      Resume
+                    </button>
+                  ) : (
+                    <button
+                      onClick={pauseTest}
+                      className="flex-1 px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Pause className="w-4 h-4" />
+                      Pause
+                    </button>
+                  )}
+                  <button
+                    onClick={stopTest}
+                    className="flex-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Square className="w-4 h-4" />
+                    Stop
+                  </button>
+                </div>
+              )}
+              
+              {/* Speed Control */}
+              {testExecutionState.isRunning && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 mb-1 block">Execution Speed</label>
+                  <select
+                    value={testExecutionState.executionSpeed}
+                    onChange={(e) => handleSpeedChange(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm"
+                  >
+                    <option value={0.5}>0.5x Speed</option>
+                    <option value={1}>1x Speed</option>
+                    <option value={2}>2x Speed</option>
+                    <option value={5}>5x Speed</option>
+                  </select>
+                </div>
+              )}
+            </div>
+            
+            {/* Test Data */}
+            <div className="p-4 border-b border-gray-700">
+              <h4 className="text-xs font-semibold text-gray-400 mb-2">Test Data Context</h4>
+              <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-x-auto max-h-32">
+                {JSON.stringify(testExecutionState.testData, null, 2)}
+              </pre>
+            </div>
+            
+            {/* Execution Logs */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <h4 className="text-xs font-semibold text-gray-400 mb-3">Execution Log</h4>
+              <div className="space-y-2">
+                {testExecutionState.logs.map((log, index) => (
+                  <div
+                    key={index}
+                    className={`p-2 rounded-lg text-xs ${
+                      log.type === 'error' ? 'bg-red-900/20 border border-red-800/50' :
+                      log.type === 'complete' ? 'bg-green-900/20 border border-green-800/50' :
+                      log.type === 'condition' ? 'bg-blue-900/20 border border-blue-800/50' :
+                      'bg-gray-800/50 border border-gray-700/50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex items-center gap-1">
+                        {log.type === 'error' && <X className="w-3 h-3 text-red-400" />}
+                        {log.type === 'complete' && <CheckSquare className="w-3 h-3 text-green-400" />}
+                        {log.type === 'condition' && <GitBranch className="w-3 h-3 text-blue-400" />}
+                        {log.type === 'start' && <Play className="w-3 h-3 text-purple-400" />}
+                        {log.type === 'data' && <Database className="w-3 h-3 text-yellow-400" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-white">{log.nodeName}</div>
+                        <div className="text-gray-400">{log.message}</div>
+                        {log.data && (
+                          <div className="mt-1">
+                            <pre className="text-xs text-gray-500 bg-gray-900 rounded p-1 overflow-x-auto">
+                              {JSON.stringify(log.data, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-gray-500 text-xs">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6 p-6">
+            {/* Workflow Details */}
+            <div>
             <h3 className="text-sm font-semibold text-white mb-3">Workflow Details</h3>
             <input
               type="text"
@@ -857,13 +1065,73 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               })}
             </div>
           </div>
-        </div>
+          </div>
+        )}
       </motion.div>
 
       {/* Main Canvas */}
       <div className="flex-1 relative h-[calc(100vh-8rem)] overflow-hidden">
         {/* Canvas Toolbar */}
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+          {/* Test Button - Toggle test panel */}
+          <button
+            onClick={() => {
+              setShowTestPanel(!showTestPanel);
+              if (!showTestPanel) {
+                setShowNodeEditor(false); // Close node editor if opening test panel
+                setShowNodePanel(false); // Hide node panel when testing
+                // Auto-fit view when entering test mode
+                if (reactFlowInstance.current) {
+                  setTimeout(() => {
+                    reactFlowInstance.current.fitView({ 
+                      padding: 0.1, 
+                      duration: 800,
+                      maxZoom: 1.2,
+                      minZoom: 0.3
+                    });
+                  }, 100);
+                }
+              } else {
+                // Restore node panel when exiting test mode
+                setShowNodePanel(true);
+                if (testExecutionState?.isRunning) {
+                  stopTest();
+                }
+              }
+            }}
+            className={`px-3 py-2 ${showTestPanel ? 'bg-orange-700' : 'bg-orange-600 hover:bg-orange-700'} text-white rounded-lg text-sm transition-colors flex items-center gap-2`}
+            title={showTestPanel ? "Exit Test Mode" : "Enter Test Mode"}
+          >
+            {showTestPanel ? (
+              <>
+                <X className="w-4 h-4" />
+                Exit Test
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Test Workflow
+              </>
+            )}
+          </button>
+          
+          {/* Compact Test Status Indicator when running and panel is closed */}
+          {testExecutionState?.isRunning && !showTestPanel && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg border border-gray-600">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-white text-sm">Test Running</span>
+              <button
+                onClick={stopTest}
+                className="ml-2 text-red-500 hover:text-red-400 transition-colors"
+                title="Stop Test"
+              >
+                <Square className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          
+          <div className="border-l border-gray-600 h-8 mx-1"></div>
+          
           <button
             onClick={tidyNodes}
             className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
@@ -878,13 +1146,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           >
             <Settings className="w-4 h-4" />
             {showNodePanel ? 'Hide' : 'Show'} Panel
-          </button>
-          <button
-            onClick={handleTest}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-          >
-            <Play className="w-4 h-4" />
-            Test
           </button>
           <button
             onClick={handleSave}
@@ -928,175 +1189,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               return '#37bd7e';
             }}
           />
-          
-          {/* Test Control Panel */}
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-            <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-2xl p-4">
-              <div className="flex items-center gap-4">
-                {/* Test Scenario Selector */}
-                <select
-                  value={selectedScenario}
-                  onChange={(e) => setSelectedScenario(e.target.value)}
-                  className="px-3 py-1.5 bg-gray-800 border border-gray-600 rounded text-white text-sm"
-                  disabled={testExecutionState?.isRunning}
-                >
-                  {TEST_SCENARIOS.map(scenario => (
-                    <option key={scenario.id} value={scenario.id}>
-                      {scenario.name}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Test Controls */}
-                {!testExecutionState?.isRunning ? (
-                  <button
-                    onClick={startTest}
-                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-                  >
-                    <Play className="w-4 h-4" />
-                    Start Test
-                  </button>
-                ) : (
-                  <>
-                    {testExecutionState.isPaused ? (
-                      <button
-                        onClick={resumeTest}
-                        className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-                      >
-                        <Play className="w-4 h-4" />
-                        Resume
-                      </button>
-                    ) : (
-                      <button
-                        onClick={pauseTest}
-                        className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <rect x="6" y="4" width="3" height="12" rx="1" />
-                          <rect x="11" y="4" width="3" height="12" rx="1" />
-                        </svg>
-                        Pause
-                      </button>
-                    )}
-                    <button
-                      onClick={stopTest}
-                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                      Stop
-                    </button>
-                  </>
-                )}
-                
-                {/* Speed Control */}
-                {testExecutionState?.isRunning && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">Speed:</span>
-                    <select
-                      value={testExecutionState.executionSpeed}
-                      onChange={(e) => handleSpeedChange(Number(e.target.value))}
-                      className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-white text-xs"
-                    >
-                      <option value={0.5}>0.5x</option>
-                      <option value={1}>1x</option>
-                      <option value={2}>2x</option>
-                      <option value={5}>5x</option>
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-          
-          {/* Execution Timeline Panel */}
-          {showTestPanel && testExecutionState && (
-            <motion.div
-              initial={{ x: 400 }}
-              animate={{ x: 0 }}
-              className="absolute right-0 top-0 bottom-0 w-96 bg-gray-900/95 backdrop-blur-xl border-l border-gray-700 shadow-2xl overflow-hidden flex flex-col z-10"
-            >
-              {/* Timeline Header */}
-              <div className="bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Test Execution Timeline</h3>
-                <button
-                  onClick={() => setShowTestPanel(false)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              
-              {/* Current Test Data */}
-              <div className="p-4 border-b border-gray-700">
-                <h4 className="text-xs font-semibold text-gray-400 mb-2">Test Data Context</h4>
-                <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-x-auto">
-                  {JSON.stringify(testExecutionState.testData, null, 2)}
-                </pre>
-              </div>
-              
-              {/* Execution Logs */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <h4 className="text-xs font-semibold text-gray-400 mb-3">Execution Log</h4>
-                <div className="space-y-2">
-                  {testExecutionState.logs.map((log, index) => (
-                    <div
-                      key={index}
-                      className={`p-2 rounded-lg text-xs ${
-                        log.type === 'error' ? 'bg-red-900/20 border border-red-800/50' :
-                        log.type === 'complete' ? 'bg-green-900/20 border border-green-800/50' :
-                        log.type === 'condition' ? 'bg-blue-900/20 border border-blue-800/50' :
-                        'bg-gray-800/50 border border-gray-700/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex items-center gap-1">
-                          {log.type === 'error' && <X className="w-3 h-3 text-red-400" />}
-                          {log.type === 'complete' && <CheckSquare className="w-3 h-3 text-green-400" />}
-                          {log.type === 'condition' && <GitBranch className="w-3 h-3 text-blue-400" />}
-                          {log.type === 'start' && <Play className="w-3 h-3 text-purple-400" />}
-                          {log.type === 'data' && <Database className="w-3 h-3 text-yellow-400" />}
-                        </div>
-                        <div className="flex-1">
-                          <div className="font-medium text-white">{log.nodeName}</div>
-                          <div className="text-gray-400">{log.message}</div>
-                          {log.data && (
-                            <div className="mt-1">
-                              <pre className="text-xs text-gray-500 bg-gray-900 rounded p-1 overflow-x-auto">
-                                {JSON.stringify(log.data, null, 2)}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-gray-500 text-xs">
-                          {new Date(log.timestamp).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Execution Summary */}
-              {testExecutionState.endTime && (
-                <div className="p-4 border-t border-gray-700 bg-gray-800">
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <span className="text-gray-400">Total Time:</span>
-                      <span className="ml-2 text-white font-medium">
-                        {(testExecutionState.endTime - testExecutionState.startTime!) / 1000}s
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Nodes Executed:</span>
-                      <span className="ml-2 text-white font-medium">
-                        {testExecutionState.executionPath.length}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          )}
         </ReactFlow>
 
         {/* Empty State */}
@@ -1110,8 +1202,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           </div>
         )}
 
-        {/* Node Editor Panel */}
-        {showNodeEditor && selectedNode && (
+        {/* Node Editor Panel - Hide when test panel is active */}
+        {showNodeEditor && selectedNode && !showTestPanel && (
           <motion.div
             initial={{ x: 300 }}
             animate={{ x: 0 }}

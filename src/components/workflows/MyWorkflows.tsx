@@ -34,7 +34,13 @@ interface Workflow {
   updated_at: string;
   last_executed?: string;
   execution_count?: number;
+  success_count?: number;
+  failure_count?: number;
   success_rate?: number;
+  last_execution_at?: string;
+  last_execution_status?: string;
+  last_error_message?: string;
+  avg_execution_time_ms?: number;
 }
 
 interface MyWorkflowsProps {
@@ -68,15 +74,8 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
 
       if (error) throw error;
       
-      // Add mock execution data for demo
-      const workflowsWithStats = (data || []).map(w => ({
-        ...w,
-        execution_count: Math.floor(Math.random() * 100),
-        success_rate: 85 + Math.floor(Math.random() * 15),
-        last_executed: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString()
-      }));
-      
-      setWorkflows(workflowsWithStats);
+      // Data now includes real statistics from database
+      setWorkflows(data || []);
     } catch (error) {
       console.error('Error loading workflows:', error);
     } finally {
@@ -146,6 +145,30 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
     return 'text-red-400 bg-red-400/10';
   };
 
+  const getHealthIndicator = (workflow: Workflow) => {
+    if (!workflow.is_active) {
+      return <AlertTriangle className="w-4 h-4 text-gray-400" />;
+    }
+    
+    if (workflow.last_execution_status === 'failed') {
+      return <XCircle className="w-4 h-4 text-red-400" />;
+    }
+    
+    if (!workflow.success_rate || workflow.execution_count === 0) {
+      return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+    }
+    
+    if (workflow.success_rate >= 95) {
+      return <CheckCircle className="w-4 h-4 text-green-400" />;
+    }
+    
+    if (workflow.success_rate >= 80) {
+      return <AlertTriangle className="w-4 h-4 text-yellow-400" />;
+    }
+    
+    return <XCircle className="w-4 h-4 text-red-400" />;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -186,7 +209,17 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-400">Avg Success</p>
-              <p className="text-2xl font-bold text-blue-400">92%</p>
+              <p className="text-2xl font-bold text-blue-400">
+                {workflows.length > 0 && workflows.some(w => w.execution_count > 0)
+                  ? Math.round(
+                      workflows
+                        .filter(w => w.execution_count > 0)
+                        .reduce((sum, w) => sum + (w.success_rate || 0), 0) / 
+                      workflows.filter(w => w.execution_count > 0).length
+                    ) + '%'
+                  : 'N/A'
+                }
+              </p>
             </div>
             <TrendingUp className="w-8 h-8 text-blue-400" />
           </div>
@@ -194,7 +227,7 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
         <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400">Executions</p>
+              <p className="text-sm text-gray-400">Total Runs</p>
               <p className="text-2xl font-bold text-purple-400">{workflows.reduce((sum, w) => sum + (w.execution_count || 0), 0)}</p>
             </div>
             <Activity className="w-8 h-8 text-purple-400" />
@@ -243,11 +276,12 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ delay: index * 0.05 }}
-                className={`bg-gray-900/50 backdrop-blur-xl border rounded-lg p-4 transition-all ${
+                className={`bg-gray-900/50 backdrop-blur-xl border rounded-lg p-4 transition-all relative ${
                   selectedWorkflow === workflow.id 
                     ? 'border-[#37bd7e]/50' 
                     : 'border-gray-800/50 hover:border-gray-700'
-                }`}
+                } ${showMenu === workflow.id ? 'z-50' : 'z-0'}`}
+                style={{ zIndex: showMenu === workflow.id ? 50 : 'auto' }}
               >
                 <div className="flex items-center justify-between">
                   {/* Left Side */}
@@ -263,22 +297,46 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
                       }`} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-white font-medium">{workflow.rule_name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-white font-medium">{workflow.rule_name}</h3>
+                        {getHealthIndicator(workflow)}
+                      </div>
                       <p className="text-sm text-gray-400">{workflow.rule_description || 'No description'}</p>
                       <div className="flex items-center gap-4 mt-2">
                         <span className={`px-2 py-1 rounded text-xs font-medium ${getStatusColor(workflow)}`}>
                           {workflow.is_active ? 'Active' : 'Inactive'}
                         </span>
+                        {workflow.last_execution_status && (
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            workflow.last_execution_status === 'success' 
+                              ? 'text-green-400 bg-green-400/10'
+                              : workflow.last_execution_status === 'failed'
+                              ? 'text-red-400 bg-red-400/10'
+                              : 'text-yellow-400 bg-yellow-400/10'
+                          }`}>
+                            Last: {workflow.last_execution_status}
+                          </span>
+                        )}
                         <span className="text-xs text-gray-500 flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          Last run {workflow.last_executed ? formatDistanceToNow(new Date(workflow.last_executed), { addSuffix: true }) : 'Never'}
+                          {workflow.last_execution_at 
+                            ? formatDistanceToNow(new Date(workflow.last_execution_at), { addSuffix: true })
+                            : 'Never run'}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {workflow.execution_count || 0} executions
+                          {workflow.execution_count || 0} runs
                         </span>
-                        {workflow.success_rate && (
+                        {workflow.success_rate !== undefined && workflow.execution_count > 0 && (
+                          <span className={`text-xs font-medium ${
+                            workflow.success_rate >= 95 ? 'text-green-400' :
+                            workflow.success_rate >= 80 ? 'text-yellow-400' : 'text-red-400'
+                          }`}>
+                            {workflow.success_rate.toFixed(0)}% success
+                          </span>
+                        )}
+                        {workflow.avg_execution_time_ms && (
                           <span className="text-xs text-gray-500">
-                            {workflow.success_rate}% success
+                            ~{workflow.avg_execution_time_ms}ms
                           </span>
                         )}
                       </div>
@@ -313,7 +371,7 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
                       </button>
                       
                       {showMenu === workflow.id && (
-                        <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                        <div className="absolute right-0 top-full mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-[100]">
                           <button
                             onClick={() => {
                               onSelectWorkflow(workflow);

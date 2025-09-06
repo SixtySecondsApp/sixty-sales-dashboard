@@ -81,8 +81,8 @@ const getDefaultTemplates = (): Template[] => {
       category: 'sales',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 100}, data: {label: 'New Deal Created', type: 'deal_created', iconName: 'Database', description: 'When a new deal is added'}},
-          {id: 'action_1', type: 'action', position: {x: 400, y: 100}, data: {label: 'Create Welcome Task', type: 'create_task', iconName: 'CheckSquare', description: 'Reach out within 1 hour'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 100}, data: {label: 'New Deal Created', type: 'deal_created', triggerType: 'deal_created', iconName: 'Database', description: 'When a new deal is added'}},
+          {id: 'action_1', type: 'action', position: {x: 400, y: 100}, data: {label: 'Create Welcome Task', type: 'create_task', actionType: 'create_task', iconName: 'CheckSquare', description: 'Reach out within 1 hour'}}
         ],
         edges: [{id: 'e1', source: 'trigger_1', target: 'action_1'}]
       },
@@ -186,10 +186,10 @@ const getDefaultTemplates = (): Template[] => {
       category: 'sales',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {label: 'Proposal Sent', type: 'activity_created', iconName: 'Mail'}},
-          {id: 'condition_1', type: 'condition', position: {x: 300, y: 150}, data: {label: 'Check Value', condition: 'deal_value > 10000'}},
-          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {label: 'Day 3 Follow-up', type: 'create_task', iconName: 'CheckSquare'}},
-          {id: 'action_2', type: 'action', position: {x: 500, y: 200}, data: {label: 'Day 7 Follow-up', type: 'create_task', iconName: 'CheckSquare'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {label: 'Proposal Sent', type: 'activity_created', triggerType: 'activity_created', iconName: 'Mail'}},
+          {id: 'condition_1', type: 'condition', position: {x: 300, y: 150}, data: {label: 'Check Value', condition: 'deal_value > 10000', conditionType: 'value_check', field: 'deal_value', operator: '>', value: 10000}},
+          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {label: 'Day 3 Follow-up', type: 'create_task', actionType: 'create_task', iconName: 'CheckSquare'}},
+          {id: 'action_2', type: 'action', position: {x: 500, y: 200}, data: {label: 'Day 7 Follow-up', type: 'create_task', actionType: 'create_task', iconName: 'CheckSquare'}}
         ],
         edges: [
           {id: 'e1', source: 'trigger_1', target: 'condition_1'},
@@ -218,11 +218,38 @@ const getDefaultTemplates = (): Template[] => {
       category: 'sales',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {label: 'Activity Logged', type: 'activity_created', iconName: 'Activity'}},
-          {id: 'condition_1', type: 'condition', position: {x: 300, y: 100}, data: {label: 'Email Opened', condition: 'activity_type = email_opened'}},
-          {id: 'condition_2', type: 'condition', position: {x: 300, y: 200}, data: {label: 'Meeting Booked', condition: 'activity_type = meeting'}},
-          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {label: 'Increase Score', type: 'update_field', iconName: 'TrendingUp'}},
-          {id: 'action_2', type: 'action', position: {x: 500, y: 200}, data: {label: 'Assign Senior Rep', type: 'assign_owner', iconName: 'Users'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {
+            label: 'Activity Logged', 
+            type: 'activity_created', 
+            triggerType: 'activity_created',
+            iconName: 'Activity'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 300, y: 100}, data: {
+            label: 'Email Opened', 
+            condition: 'activity_type = email_opened',
+            field: 'activity_type',
+            operator: '==',
+            value: 'email_opened'
+          }},
+          {id: 'condition_2', type: 'condition', position: {x: 300, y: 200}, data: {
+            label: 'Meeting Booked', 
+            condition: 'activity_type = meeting',
+            field: 'activity_type',
+            operator: '==',
+            value: 'meeting'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {
+            label: 'Increase Score', 
+            type: 'update_field', 
+            actionType: 'update_field',
+            iconName: 'TrendingUp'
+          }},
+          {id: 'action_2', type: 'action', position: {x: 500, y: 200}, data: {
+            label: 'Assign Senior Rep', 
+            type: 'assign_owner', 
+            actionType: 'assign_owner',
+            iconName: 'Users'
+          }}
         ],
         edges: [
           {id: 'e1', source: 'trigger_1', target: 'condition_1'},
@@ -252,10 +279,30 @@ const getDefaultTemplates = (): Template[] => {
       category: 'customer success',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {label: 'Deal Won', type: 'stage_changed', iconName: 'Target'}},
-          {id: 'action_1', type: 'action', position: {x: 350, y: 100}, data: {label: 'Notify CS Team', type: 'send_notification', iconName: 'Bell'}},
-          {id: 'action_2', type: 'action', position: {x: 350, y: 200}, data: {label: 'Create Onboarding', type: 'create_task', iconName: 'CheckSquare'}},
-          {id: 'action_3', type: 'action', position: {x: 350, y: 300}, data: {label: 'Schedule Kickoff', type: 'create_activity', iconName: 'Calendar'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {
+            label: 'Deal Won', 
+            type: 'stage_changed', 
+            triggerType: 'stage_changed',
+            iconName: 'Target'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 350, y: 100}, data: {
+            label: 'Notify CS Team', 
+            type: 'send_notification', 
+            actionType: 'send_notification',
+            iconName: 'Bell'
+          }},
+          {id: 'action_2', type: 'action', position: {x: 350, y: 200}, data: {
+            label: 'Create Onboarding', 
+            type: 'create_task', 
+            actionType: 'create_task',
+            iconName: 'CheckSquare'
+          }},
+          {id: 'action_3', type: 'action', position: {x: 350, y: 300}, data: {
+            label: 'Schedule Kickoff', 
+            type: 'create_activity', 
+            actionType: 'create_activity',
+            iconName: 'Calendar'
+          }}
         ],
         edges: [
           {id: 'e1', source: 'trigger_1', target: 'action_1'},
@@ -284,9 +331,25 @@ const getDefaultTemplates = (): Template[] => {
       category: 'sales',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {label: '90 Days Lost', type: 'time_based', iconName: 'Clock'}},
-          {id: 'condition_1', type: 'condition', position: {x: 300, y: 150}, data: {label: 'Lost Reason', condition: 'lost_reason != competitor'}},
-          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {label: 'Re-engage Email', type: 'create_task', iconName: 'Mail'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 100, y: 150}, data: {
+            label: '90 Days Lost', 
+            type: 'time_based', 
+            triggerType: 'time_based',
+            iconName: 'Clock'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 300, y: 150}, data: {
+            label: 'Lost Reason', 
+            condition: 'lost_reason != competitor',
+            field: 'lost_reason',
+            operator: '!=',
+            value: 'competitor'
+          }},
+          {id: 'action_1', type: 'action', position: {x: 500, y: 100}, data: {
+            label: 'Re-engage Email', 
+            type: 'create_task', 
+            actionType: 'create_task',
+            iconName: 'Mail'
+          }}
         ],
         edges: [
           {id: 'e1', source: 'trigger_1', target: 'condition_1'},
@@ -317,7 +380,8 @@ const getDefaultTemplates = (): Template[] => {
         nodes: [
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
             label: 'Activity Monitor', 
-            type: 'activity_monitor', 
+            type: 'activity_monitor',
+            triggerType: 'activity_monitor', 
             iconName: 'Activity', 
             description: 'Monitor low activity',
             monitorType: 'low_activity',
@@ -331,18 +395,25 @@ const getDefaultTemplates = (): Template[] => {
             customFieldName: 'priority',
             customFieldOperator: 'equals',
             customFieldValue: 'high',
-            condition: 'Check if high priority'
+            condition: 'priority == high',
+            field: 'priority',
+            operator: '==',
+            value: 'high'
           }},
           {id: 'condition_2', type: 'condition', position: {x: 250, y: 250}, data: {
             label: 'Time Since Contact', 
             conditionType: 'time_since_contact',
             timeComparison: 'greater_than',
             daysSinceContact: 7,
-            condition: 'More than 7 days'
+            condition: 'days_inactive > 7',
+            field: 'days_inactive',
+            operator: '>',
+            value: 7
           }},
           {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
             label: 'Urgent Follow-up', 
             type: 'create_recurring_task',
+            actionType: 'create_recurring_task',
             iconName: 'CheckSquare',
             taskTitle: '🔥 URGENT: Contact {{deal_name}}',
             recurrencePattern: 'daily',
@@ -351,12 +422,14 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
             label: 'Send to Slack', 
             type: 'send_slack',
+            actionType: 'send_slack',
             iconName: 'Slack',
             slackMessage: '⚠️ Deal needs attention: {{deal_name}} - {{value}}'
           }},
           {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
             label: 'Add Note', 
             type: 'add_note',
+            actionType: 'add_note',
             iconName: 'FileText',
             noteContent: 'Automated follow-up triggered due to low activity. Last contact: {{days_since_contact}} days ago.',
             noteType: 'internal'
@@ -393,7 +466,8 @@ const getDefaultTemplates = (): Template[] => {
         nodes: [
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
             label: 'Task Overdue', 
-            type: 'task_overdue', 
+            type: 'task_overdue',
+            triggerType: 'task_overdue', 
             iconName: 'AlertTriangle',
             description: 'Monitor overdue tasks',
             checkFrequency: 'hourly'
@@ -403,11 +477,16 @@ const getDefaultTemplates = (): Template[] => {
             conditionType: 'custom_field',
             customFieldName: 'customer_tier',
             customFieldOperator: 'equals',
-            customFieldValue: 'enterprise'
+            customFieldValue: 'enterprise',
+            condition: 'customer_tier == enterprise',
+            field: 'customer_tier',
+            operator: '==',
+            value: 'enterprise'
           }},
           {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
             label: 'Update Fields', 
             type: 'update_multiple_fields',
+            actionType: 'update_multiple_fields',
             iconName: 'TrendingUp',
             fieldUpdates: [
               {field: 'priority', value: 'urgent'},
@@ -418,6 +497,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
             label: 'Schedule Check-in', 
             type: 'create_recurring_task',
+            actionType: 'create_recurring_task',
             iconName: 'CheckSquare',
             taskTitle: '📞 Customer health check: {{company}}',
             recurrencePattern: 'weekly',
@@ -426,6 +506,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
             label: 'Alert CSM', 
             type: 'send_notification',
+            actionType: 'send_notification',
             iconName: 'Bell',
             notificationTitle: 'Customer At Risk',
             notificationMessage: '{{company}} has overdue tasks and needs immediate attention'
@@ -462,6 +543,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
             label: 'Stage Changed', 
             type: 'stage_changed',
+            triggerType: 'stage_changed',
             iconName: 'Target',
             description: 'When deal moves stages'
           }},
@@ -469,7 +551,11 @@ const getDefaultTemplates = (): Template[] => {
             label: 'High Value',
             conditionType: 'value',
             valueOperator: '>',
-            valueAmount: 50000
+            valueAmount: 50000,
+            condition: 'deal_value > 50000',
+            field: 'deal_value',
+            operator: '>',
+            value: 50000
           }},
           {id: 'router_1', type: 'router', position: {x: 350, y: 200}, data: {
             label: 'Stage Router',
@@ -478,6 +564,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_1', type: 'action', position: {x: 550, y: 50}, data: {
             label: 'Executive Alert', 
             type: 'send_slack',
+            actionType: 'send_slack',
             iconName: 'Slack',
             slackChannel: 'executive-deals',
             slackMessageType: 'blocks',
@@ -489,6 +576,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_2', type: 'action', position: {x: 550, y: 150}, data: {
             label: 'Sales Channel', 
             type: 'send_slack',
+            actionType: 'send_slack',
             iconName: 'Slack',
             slackChannel: 'sales-wins',
             slackMessage: '✅ {{deal_name}} moved to {{stage}}'
@@ -496,6 +584,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_3', type: 'action', position: {x: 550, y: 250}, data: {
             label: 'Log Activity', 
             type: 'add_note',
+            actionType: 'add_note',
             iconName: 'FileText',
             noteContent: 'Deal stage changed. Slack notification sent to {{channel}}',
             noteType: 'internal'
@@ -503,6 +592,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_4', type: 'action', position: {x: 550, y: 350}, data: {
             label: 'Webhook', 
             type: 'send_webhook',
+            actionType: 'send_webhook',
             iconName: 'Zap',
             webhookUrl: 'https://api.example.com/deal-update',
             httpMethod: 'POST',
@@ -542,6 +632,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
             label: 'Webhook Received', 
             type: 'webhook_received',
+            triggerType: 'webhook_received',
             iconName: 'Zap',
             description: 'External API trigger',
             webhookSecret: 'your-secret-key'
@@ -551,11 +642,16 @@ const getDefaultTemplates = (): Template[] => {
             conditionType: 'custom_field',
             customFieldName: 'integration_source',
             customFieldOperator: 'equals',
-            customFieldValue: 'hubspot'
+            customFieldValue: 'hubspot',
+            condition: 'integration_source == hubspot',
+            field: 'integration_source',
+            operator: '==',
+            value: 'hubspot'
           }},
           {id: 'action_1', type: 'action', position: {x: 450, y: 100}, data: {
             label: 'Update CRM', 
             type: 'update_multiple_fields',
+            actionType: 'update_multiple_fields',
             iconName: 'TrendingUp',
             fieldUpdates: [
               {field: 'external_id', value: '{{webhook.id}}'},
@@ -566,12 +662,14 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_2', type: 'action', position: {x: 450, y: 200}, data: {
             label: 'Create Task', 
             type: 'create_task',
+            actionType: 'create_task',
             iconName: 'CheckSquare',
             taskTitle: 'Review synced data from {{source}}'
           }},
           {id: 'action_3', type: 'action', position: {x: 450, y: 300}, data: {
             label: 'Send Confirmation', 
             type: 'send_webhook',
+            actionType: 'send_webhook',
             iconName: 'Zap',
             webhookUrl: '{{webhook.callback_url}}',
             httpMethod: 'POST',
@@ -609,6 +707,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
             label: 'Activity Created', 
             type: 'activity_created',
+            triggerType: 'activity_created',
             iconName: 'Activity',
             description: 'When activity is logged'
           }},
@@ -616,24 +715,37 @@ const getDefaultTemplates = (): Template[] => {
             label: 'Time Check',
             conditionType: 'time_since_contact',
             timeComparison: 'greater_than',
-            daysSinceContact: 3
+            daysSinceContact: 3,
+            condition: 'days_inactive > 3',
+            field: 'days_inactive',
+            operator: '>',
+            value: 3
           }},
           {id: 'condition_2', type: 'condition', position: {x: 200, y: 200}, data: {
             label: 'Deal Size',
             conditionType: 'value',
             valueOperator: '>',
-            valueAmount: 25000
+            valueAmount: 25000,
+            condition: 'deal_value > 25000',
+            field: 'deal_value',
+            operator: '>',
+            value: 25000
           }},
           {id: 'condition_3', type: 'condition', position: {x: 200, y: 300}, data: {
             label: 'Custom Priority',
             conditionType: 'custom_field',
             customFieldName: 'follow_up_priority',
             customFieldOperator: 'not_equals',
-            customFieldValue: 'low'
+            customFieldValue: 'low',
+            condition: 'follow_up_priority != low',
+            field: 'follow_up_priority',
+            operator: '!=',
+            value: 'low'
           }},
           {id: 'action_1', type: 'action', position: {x: 450, y: 50}, data: {
             label: 'Daily Follow-ups', 
             type: 'create_recurring_task',
+            actionType: 'create_recurring_task',
             iconName: 'CheckSquare',
             taskTitle: '🔥 Daily: Follow up on {{deal_name}}',
             recurrencePattern: 'daily',
@@ -642,6 +754,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_2', type: 'action', position: {x: 450, y: 150}, data: {
             label: 'Weekly Check-ins', 
             type: 'create_recurring_task',
+            actionType: 'create_recurring_task',
             iconName: 'CheckSquare',
             taskTitle: '📅 Weekly: Check in on {{deal_name}}',
             recurrencePattern: 'weekly',
@@ -650,6 +763,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_3', type: 'action', position: {x: 450, y: 250}, data: {
             label: 'Update Priority', 
             type: 'update_multiple_fields',
+            actionType: 'update_multiple_fields',
             iconName: 'TrendingUp',
             fieldUpdates: [
               {field: 'follow_up_status', value: 'active'},
@@ -659,6 +773,7 @@ const getDefaultTemplates = (): Template[] => {
           {id: 'action_4', type: 'action', position: {x: 450, y: 350}, data: {
             label: 'Track Engagement', 
             type: 'add_note',
+            actionType: 'add_note',
             iconName: 'FileText',
             noteContent: 'Follow-up cadence started. Type: {{cadence_type}}, Duration: {{duration}}',
             noteType: 'internal'
@@ -696,13 +811,52 @@ const getDefaultTemplates = (): Template[] => {
       category: 'sales',
       canvas_data: {
         nodes: [
-          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {label: 'Daily Check', type: 'scheduled', iconName: 'Clock'}},
-          {id: 'condition_1', type: 'condition', position: {x: 200, y: 100}, data: {label: 'SQL > 14 days', condition: 'stage = SQL AND days_in_stage > 14'}},
-          {id: 'condition_2', type: 'condition', position: {x: 200, y: 200}, data: {label: 'Opp > 21 days', condition: 'stage = Opportunity AND days_in_stage > 21'}},
-          {id: 'condition_3', type: 'condition', position: {x: 200, y: 300}, data: {label: 'Verbal > 7 days', condition: 'stage = Verbal AND days_in_stage > 7'}},
-          {id: 'condition_4', type: 'condition', position: {x: 400, y: 150}, data: {label: 'High Value?', condition: 'deal_value > 25000'}},
-          {id: 'action_1', type: 'action', position: {x: 600, y: 50}, data: {label: 'Escalate to Manager', type: 'send_notification', iconName: 'AlertTriangle'}},
-          {id: 'action_2', type: 'action', position: {x: 600, y: 150}, data: {label: 'Create Acceleration Plan', type: 'create_task', iconName: 'Zap'}}
+          {id: 'trigger_1', type: 'trigger', position: {x: 50, y: 200}, data: {
+            label: 'Daily Check', 
+            type: 'scheduled', 
+            triggerType: 'scheduled',
+            iconName: 'Clock'
+          }},
+          {id: 'condition_1', type: 'condition', position: {x: 200, y: 100}, data: {
+            label: 'SQL > 14 days', 
+            condition: 'stage = SQL AND days_in_stage > 14',
+            field: 'days_in_stage',
+            operator: '>',
+            value: 14
+          }},
+          {id: 'condition_2', type: 'condition', position: {x: 200, y: 200}, data: {
+            label: 'Opp > 21 days', 
+            condition: 'stage = Opportunity AND days_in_stage > 21',
+            field: 'days_in_stage',
+            operator: '>',
+            value: 21
+          }},
+          {id: 'condition_3', type: 'condition', position: {x: 200, y: 300}, data: {
+            label: 'Verbal > 7 days', 
+            condition: 'stage = Verbal AND days_in_stage > 7',
+            field: 'days_in_stage',
+            operator: '>',
+            value: 7
+          }},
+          {id: 'condition_4', type: 'condition', position: {x: 400, y: 150}, data: {
+            label: 'High Value?', 
+            condition: 'deal_value > 25000',
+            field: 'deal_value',
+            operator: '>',
+            value: 25000
+          }},
+          {id: 'action_1', type: 'action', position: {x: 600, y: 50}, data: {
+            label: 'Escalate to Manager', 
+            type: 'send_notification', 
+            actionType: 'send_notification',
+            iconName: 'AlertTriangle'
+          }},
+          {id: 'action_2', type: 'action', position: {x: 600, y: 150}, data: {
+            label: 'Create Acceleration Plan', 
+            type: 'create_task', 
+            actionType: 'create_task',
+            iconName: 'Zap'
+          }}
         ],
         edges: [
           {id: 'e1', source: 'trigger_1', target: 'condition_1'},
@@ -729,7 +883,7 @@ const getDefaultTemplates = (): Template[] => {
       updated_at: new Date().toISOString()
     },
     {
-      id: '10',
+      id: '11',
       name: 'RevOps Command Center',
       description: 'Enterprise-grade workflow orchestrating multiple teams and tracking SLAs.',
       category: 'general',

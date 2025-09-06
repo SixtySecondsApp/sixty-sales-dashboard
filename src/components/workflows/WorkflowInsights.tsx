@@ -209,7 +209,7 @@ const WorkflowInsights: React.FC = () => {
         
         if (execution.status === 'success') {
           trends[date].successful++;
-        } else {
+        } else if (execution.status === 'failed') {
           trends[date].failed++;
         }
       });
