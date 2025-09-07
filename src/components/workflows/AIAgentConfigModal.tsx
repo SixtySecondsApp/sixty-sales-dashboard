@@ -308,7 +308,7 @@ export default function AIAgentConfigModal({
                     </div>
                   </div>
                 </>
-              ) : (
+              ) : activeTab === 'advanced' ? (
                 <>
                   {/* Advanced Tab */}
                   <div>
