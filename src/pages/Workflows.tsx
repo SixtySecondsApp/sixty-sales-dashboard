@@ -141,7 +141,12 @@ export default function Workflows() {
       // Add test scenarios after migration is applied
       workflowData.test_scenarios = testScenarios;
 
+      console.log('🚨 Workflow received from canvas:', workflow);
+      console.log('🚨 trigger_type from canvas:', workflow.trigger_type);
+      console.log('🚨 action_type from canvas:', workflow.action_type);
       console.log('Saving workflow with data:', workflowData);
+      console.log('🚨 Final trigger_type being saved:', workflowData.trigger_type);
+      console.log('🚨 Final action_type being saved:', workflowData.action_type);
 
       let result;
       if (workflow.id) {

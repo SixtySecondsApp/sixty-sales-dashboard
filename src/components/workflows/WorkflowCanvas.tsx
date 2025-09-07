@@ -839,9 +839,24 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     // Map form nodes to 'manual' trigger type since they're user-initiated
     // The database only allows: 'activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'
     let mappedTriggerType = triggerNode?.data?.type || 'manual';
+    
+    // Debug logging
+    console.log('🔍 Trigger node:', triggerNode);
+    console.log('🔍 Trigger node type:', triggerNode?.type);
+    console.log('🔍 Trigger node data type:', triggerNode?.data?.type);
+    console.log('🔍 Original trigger type:', mappedTriggerType);
+    
+    // Map various trigger types to valid database values
+    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
+    
     if (mappedTriggerType === 'form_submission' || triggerNode?.type === 'form') {
       mappedTriggerType = 'manual';
+    } else if (!validTriggerTypes.includes(mappedTriggerType)) {
+      console.warn(`⚠️ Invalid trigger type "${mappedTriggerType}", defaulting to "manual"`);
+      mappedTriggerType = 'manual';
     }
+    
+    console.log('🔍 Mapped trigger type:', mappedTriggerType);
     
     // Map action types to valid database values
     // The database only allows: 'create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'
@@ -865,6 +880,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       is_active: false, // Start inactive by default
       template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
     };
+    
+    console.log('📦 Final workflow object being returned:', workflow);
+    console.log('📦 Final trigger_type:', workflow.trigger_type);
+    console.log('📦 Final action_type:', workflow.action_type);
     
     return workflow;
   };
