@@ -129,11 +129,11 @@ interface AIResponse {
 
 ---
 
-## Phase 3: Internal CRM Tools ⏳
+## Phase 3: Internal CRM Tools ✅
 
 **Goal:** Add tools that let AI interact with your CRM data
 
-### 3.1 Tool System Architecture ⏳
+### 3.1 Tool System Architecture ✅
 **File:** `/src/lib/services/workflowTools.ts`
 ```typescript
 interface CRMTool {
@@ -145,48 +145,47 @@ interface CRMTool {
 }
 ```
 
-### 3.2 Core CRM Tools ⏳
+### 3.2 Core CRM Tools ✅
 
 **Deals Tools:**
-- ⬜ getDeal(dealId) - Fetch deal details
-- ⬜ updateDeal(dealId, updates) - Update deal fields
-- ⬜ listDeals(filters) - Search/list deals
-- ⬜ createDeal(data) - Create new deal
-- ⬜ moveDealStage(dealId, stage) - Pipeline movement
+- ✅ search_deals - Search/filter deals with various criteria
+- ✅ create_deal - Create new deal
+- ✅ update_deal_stage - Move deal through pipeline stages
+- ⬜ getDeal(dealId) - Fetch single deal details (deferred)
+- ⬜ updateDeal(dealId, updates) - Update deal fields (deferred)
 
 **Contacts Tools:**
-- ⬜ getContact(contactId) - Fetch contact details
-- ⬜ searchContacts(query) - Search contacts
-- ⬜ updateContact(contactId, updates) - Update contact
-- ⬜ createContact(data) - Create new contact
-- ⬜ linkContactToDeal(contactId, dealId) - Relationships
-
-**Activities Tools:**
-- ⬜ logActivity(type, data) - Create activity
-- ⬜ getRecentActivities(filters) - Fetch activities
-- ⬜ updateActivity(activityId, updates) - Update activity
-- ⬜ getActivityMetrics() - Activity analytics
+- ✅ search_contacts - Search contacts by name, email, company
+- ⬜ getContact(contactId) - Fetch contact details (deferred)
+- ⬜ updateContact(contactId, updates) - Update contact (deferred)
+- ⬜ createContact(data) - Create new contact (deferred)
+- ⬜ linkContactToDeal(contactId, dealId) - Relationships (deferred)
 
 **Tasks Tools:**
-- ⬜ createTask(data) - Create new task
-- ⬜ updateTask(taskId, updates) - Update task
-- ⬜ completeTask(taskId) - Mark task complete
-- ⬜ listTasks(filters) - List tasks
-- ⬜ assignTask(taskId, userId) - Task assignment
+- ✅ create_task - Create new task with priority and due date
+- ⬜ updateTask(taskId, updates) - Update task (deferred)
+- ⬜ completeTask(taskId) - Mark task complete (deferred)
+- ⬜ listTasks(filters) - List tasks (deferred)
+- ⬜ assignTask(taskId, userId) - Task assignment (deferred)
 
-### 3.3 Tool Selection UI ⏳
-- ⬜ Update AI config modal with "Tools" tab
-- ⬜ Checkbox list of available tools
-- ⬜ Tool descriptions for user understanding
-- ⬜ Visual indicator of selected tools on node
-- ⬜ Tool permission management
+**Analytics Tools:**
+- ✅ get_deal_analytics - Get deal metrics and analytics
+- ⬜ getActivityMetrics() - Activity analytics (deferred)
+- ⬜ getConversionRates() - Conversion funnel metrics (deferred)
 
-### 3.4 Tool Execution Engine ⏳
-- ⬜ Inject tool descriptions into system prompt
-- ⬜ Parse AI responses for tool calls
-- ⬜ Execute tools and return results to AI
-- ⬜ Support for multiple tool calls in sequence
-- ⬜ Tool execution logging
+### 3.3 Tool Selection UI ✅
+- ✅ Update AI config modal with "Tools" tab
+- ✅ Checkbox list of available tools grouped by category
+- ✅ Tool descriptions for user understanding
+- ✅ Enable/disable tools toggle
+- ✅ Auto-execute tools option
+
+### 3.4 Tool Execution Engine ✅
+- ✅ Inject tool descriptions into system prompt
+- ✅ Parse AI responses for tool calls
+- ✅ Execute tools and return results to AI
+- ✅ Support for tool execution context
+- ✅ Tool execution result handling in test mode
 
 ---
 

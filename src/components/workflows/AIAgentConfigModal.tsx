@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain } from 'lucide-react';
+import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Tool } from 'lucide-react';
 import PromptTemplatesModal from './PromptTemplatesModal';
 import type { PromptTemplate } from './PromptTemplatesModal';
+import { ToolRegistry } from '../../lib/services/workflowTools';
 
 export interface AINodeConfig {
   modelProvider: 'openai' | 'anthropic' | 'openrouter' | 'gemini' | 'cohere';
@@ -23,6 +24,9 @@ export interface AINodeConfig {
   }>;
   retryOnError?: boolean;
   maxRetries?: number;
+  enableTools?: boolean;
+  selectedTools?: string[];
+  autoExecuteTools?: boolean;
 }
 
 interface AIAgentConfigModalProps {
@@ -78,9 +82,15 @@ export default function AIAgentConfigModal({
     maxTokens: config?.maxTokens || 1000,
     outputFormat: config?.outputFormat || 'text',
     chainOfThought: config?.chainOfThought || false,
+    enableTools: config?.enableTools || false,
+    selectedTools: config?.selectedTools || [],
+    autoExecuteTools: config?.autoExecuteTools || false,
   });
   const [showTemplates, setShowTemplates] = useState(false);
-  const [activeTab, setActiveTab] = useState<'config' | 'advanced'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'advanced' | 'tools'>('config');
+  
+  const toolRegistry = ToolRegistry.getInstance();
+  const availableTools = toolRegistry.getAllTools();
 
   useEffect(() => {
     if (config) {
@@ -174,6 +184,17 @@ export default function AIAgentConfigModal({
                   }`}
                 >
                   Advanced
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('tools')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'tools'
+                      ? 'text-purple-400 border-purple-400'
+                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  Tools
                 </button>
               </div>
             </div>
@@ -530,7 +551,119 @@ export default function AIAgentConfigModal({
                     )}
                   </div>
                 </>
-              )}
+              ) : activeTab === 'tools' ? (
+                <>
+                  {/* Tools Tab */}
+                  <div>
+                    <label className="flex items-center gap-3 text-gray-300 mb-4">
+                      <input
+                        type="checkbox"
+                        checked={formData.enableTools || false}
+                        onChange={(e) => setFormData({ ...formData, enableTools: e.target.checked })}
+                        className="rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Tool className="w-4 h-4 text-purple-400" />
+                          <span className="text-sm font-medium">Enable CRM Tools</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Allow AI to query and interact with CRM data
+                        </p>
+                      </div>
+                    </label>
+
+                    {formData.enableTools && (
+                      <>
+                        <div className="mb-4">
+                          <label className="flex items-center gap-3 text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={formData.autoExecuteTools || false}
+                              onChange={(e) => setFormData({ ...formData, autoExecuteTools: e.target.checked })}
+                              className="rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500"
+                            />
+                            <div>
+                              <span className="text-sm font-medium">Auto-execute Tools</span>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Automatically execute tools when AI requests them
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-3">
+                            Available Tools
+                          </label>
+                          <div className="space-y-3">
+                            {/* Group tools by category */}
+                            {Object.entries(
+                              availableTools.reduce((acc, tool) => {
+                                if (!acc[tool.category]) acc[tool.category] = [];
+                                acc[tool.category].push(tool);
+                                return acc;
+                              }, {} as Record<string, typeof availableTools>)
+                            ).map(([category, tools]) => (
+                              <div key={category} className="p-3 bg-gray-800 rounded-lg">
+                                <h4 className="text-sm font-medium text-purple-400 mb-2 capitalize">
+                                  {category}
+                                </h4>
+                                <div className="space-y-2">
+                                  {tools.map((tool) => (
+                                    <label
+                                      key={tool.name}
+                                      className="flex items-start gap-3 text-gray-300 hover:bg-gray-700/50 p-2 rounded transition-colors"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={(formData.selectedTools || []).includes(tool.name)}
+                                        onChange={(e) => {
+                                          const selectedTools = formData.selectedTools || [];
+                                          if (e.target.checked) {
+                                            setFormData({
+                                              ...formData,
+                                              selectedTools: [...selectedTools, tool.name],
+                                            });
+                                          } else {
+                                            setFormData({
+                                              ...formData,
+                                              selectedTools: selectedTools.filter(t => t !== tool.name),
+                                            });
+                                          }
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-700 text-purple-600 focus:ring-purple-500 mt-0.5"
+                                      />
+                                      <div className="flex-1">
+                                        <div className="text-sm font-medium">{tool.displayName}</div>
+                                        <p className="text-xs text-gray-500 mt-0.5">
+                                          {tool.description}
+                                        </p>
+                                      </div>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {formData.selectedTools && formData.selectedTools.length > 0 && (
+                          <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <Info className="w-4 h-4 text-blue-400 mt-0.5" />
+                              <div className="text-xs text-blue-300">
+                                <p>Selected tools will be available to the AI during execution.</p>
+                                <p className="mt-1">The AI will be instructed on how to use these tools properly.</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : null}
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">

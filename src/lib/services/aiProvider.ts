@@ -9,6 +9,12 @@ import {
   ExtractionRule,
   ProcessingResult 
 } from '../utils/responseProcessing';
+import { 
+  ToolRegistry, 
+  formatToolsForAI, 
+  parseToolCall,
+  ToolExecutionContext 
+} from '../services/workflowTools';
 import { z } from 'zod';
 
 export interface AIResponse {
@@ -23,6 +29,11 @@ export interface AIResponse {
   model?: string;
   processedData?: any;
   extractedFields?: Record<string, any>;
+  toolCalls?: Array<{
+    toolName: string;
+    parameters: Record<string, any>;
+    result?: any;
+  }>;
 }
 
 export interface AIProviderConfig {
@@ -100,7 +111,8 @@ export class AIProviderService {
    */
   public async complete(
     config: AINodeConfig,
-    variables: VariableContext
+    variables: VariableContext,
+    userId?: string
   ): Promise<AIResponse> {
     try {
       // Interpolate variables in prompts
@@ -111,6 +123,23 @@ export class AIProviderService {
       let enhancedSystemPrompt = systemPrompt;
       if (config.chainOfThought) {
         enhancedSystemPrompt += '\n\nPlease think step-by-step through your reasoning before providing the final answer.';
+      }
+
+      // Add tool instructions if enabled
+      if (config.enableTools && config.selectedTools && config.selectedTools.length > 0) {
+        const toolRegistry = ToolRegistry.getInstance();
+        const selectedTools = config.selectedTools
+          .map(name => toolRegistry.getTool(name)?.definition)
+          .filter(Boolean);
+        
+        if (selectedTools.length > 0) {
+          const toolDescriptions = formatToolsForAI(selectedTools);
+          enhancedSystemPrompt += `\n\nYou have access to the following tools:\n\n${toolDescriptions}\n\n`;
+          enhancedSystemPrompt += 'To use a tool, format your response as:\n';
+          enhancedSystemPrompt += '<tool>tool_name</tool>\n';
+          enhancedSystemPrompt += '<parameters>{"param1": "value1", "param2": "value2"}</parameters>\n';
+          enhancedSystemPrompt += 'Then provide your analysis of the results.';
+        }
       }
 
       // Add output format instructions
@@ -156,7 +185,7 @@ export class AIProviderService {
 
         // Process response if needed
         if (!response.error && response.content) {
-          response = await this.processResponse(response, config);
+          response = await this.processResponse(response, config, userId);
         }
 
         return response;
@@ -189,8 +218,46 @@ export class AIProviderService {
    */
   private async processResponse(
     response: AIResponse,
-    config: AINodeConfig
+    config: AINodeConfig,
+    userId?: string
   ): Promise<AIResponse> {
+    // Check for tool calls in the response
+    if (config.enableTools && config.autoExecuteTools) {
+      const toolCall = parseToolCall(response.content);
+      
+      if (toolCall.toolName && userId) {
+        const toolRegistry = ToolRegistry.getInstance();
+        const context: ToolExecutionContext = {
+          userId,
+          workflowId: undefined, // Will be set by workflow engine
+          nodeId: undefined, // Will be set by workflow engine
+        };
+        
+        const toolResult = await toolRegistry.executeTool(
+          toolCall.toolName,
+          toolCall.parameters || {},
+          context
+        );
+        
+        if (!response.toolCalls) {
+          response.toolCalls = [];
+        }
+        
+        response.toolCalls.push({
+          toolName: toolCall.toolName,
+          parameters: toolCall.parameters || {},
+          result: toolResult,
+        });
+        
+        // If tool execution was successful, append results to content
+        if (toolResult.success) {
+          response.content += `\n\nTool Result: ${JSON.stringify(toolResult.data, null, 2)}`;
+        } else {
+          response.content += `\n\nTool Error: ${toolResult.error}`;
+        }
+      }
+    }
+    
     // Parse JSON if output format is JSON
     if (config.outputFormat === 'json' || config.outputFormat === 'structured') {
       const parseResult = parseJSONResponse(response.content);

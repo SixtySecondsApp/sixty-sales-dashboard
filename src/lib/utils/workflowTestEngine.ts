@@ -591,8 +591,42 @@ export class WorkflowTestEngine {
     let mockContent: string;
     let mockProcessedData: any = null;
     let mockExtractedFields: any = null;
+    let mockToolCalls: any[] = [];
 
-    if (aiConfig.outputFormat === 'json') {
+    // Simulate tool usage if enabled
+    if (aiConfig.enableTools && aiConfig.selectedTools?.length > 0) {
+      // Simulate AI using a tool
+      const selectedTool = aiConfig.selectedTools[0]; // Use first selected tool for simulation
+      
+      mockToolCalls.push({
+        toolName: selectedTool,
+        parameters: {
+          // Mock parameters based on tool name
+          ...(selectedTool === 'search_deals' ? {
+            stage: 'Opportunity',
+            minValue: 10000,
+            limit: 5
+          } : selectedTool === 'create_task' ? {
+            title: 'Follow up on opportunity',
+            description: 'Contact the lead to discuss next steps',
+            priority: 'high',
+            dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+          } : {})
+        },
+        result: {
+          success: true,
+          data: selectedTool === 'search_deals' ? [
+            { id: '1', title: 'Deal 1', value: 50000, stage: 'Opportunity' },
+            { id: '2', title: 'Deal 2', value: 75000, stage: 'Opportunity' }
+          ] : { id: 'task-1', status: 'created' }
+        }
+      });
+      
+      mockContent = `I'll help you with that. Let me use the ${selectedTool} tool.\n\n` +
+                   `<tool>${selectedTool}</tool>\n` +
+                   `<parameters>${JSON.stringify(mockToolCalls[0].parameters, null, 2)}</parameters>\n\n` +
+                   `Based on the results, here's my analysis...`;
+    } else if (aiConfig.outputFormat === 'json') {
       // Simulate JSON response
       mockProcessedData = {
         decision: "approve",
@@ -642,6 +676,7 @@ export class WorkflowTestEngine {
       content: mockContent,
       processedData: mockProcessedData,
       extractedFields: mockExtractedFields,
+      toolCalls: mockToolCalls.length > 0 ? mockToolCalls : undefined,
       usage: {
         promptTokens: 150,
         completionTokens: 50,
@@ -652,13 +687,14 @@ export class WorkflowTestEngine {
     };
 
     this.addLog('data', node.id, node.data.label, 
-      `Mock: AI processed with ${aiConfig.model}`, mockResponse);
+      `Mock: AI processed with ${aiConfig.model}${mockToolCalls.length > 0 ? ' (with tools)' : ''}`, mockResponse);
 
     // Pass AI output and processed data to next nodes
     return {
       aiResponse: mockResponse.content,
       processedData: mockResponse.processedData,
       extractedFields: mockResponse.extractedFields,
+      toolCalls: mockResponse.toolCalls,
       usage: mockResponse.usage,
       inputData: this.state.testData
     };
