@@ -779,8 +779,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
   const buildWorkflowData = () => {
     // Extract trigger and action information from nodes
-    const triggerNode = nodes.find(n => n.type === 'trigger');
-    const actionNode = nodes.find(n => n.type === 'action');
+    // Form nodes can also act as triggers
+    const triggerNode = nodes.find(n => n.type === 'trigger' || n.type === 'form');
+    const actionNode = nodes.find(n => n.type === 'action' || n.type === 'aiAgent');
     const conditionNodes = nodes.filter(n => n.type === 'condition');
 
     // Build trigger conditions from condition nodes
@@ -835,14 +836,31 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       return id && uuidRegex.test(id);
     };
     
+    // Map form nodes to 'manual' trigger type since they're user-initiated
+    // The database only allows: 'activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'
+    let mappedTriggerType = triggerNode?.data?.type || 'manual';
+    if (mappedTriggerType === 'form_submission' || triggerNode?.type === 'form') {
+      mappedTriggerType = 'manual';
+    }
+    
+    // Map action types to valid database values
+    // The database only allows: 'create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'
+    let mappedActionType = actionNode?.data?.type || 'create_task';
+    if (actionNode?.type === 'aiAgent') {
+      mappedActionType = 'create_activity'; // AI agents create activities
+    } else if (!['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'].includes(mappedActionType)) {
+      // Default to create_task if action type is not valid
+      mappedActionType = 'create_task';
+    }
+    
     const workflow = {
       id: isValidUUID(selectedWorkflow?.id) ? selectedWorkflow.id : undefined, // Only include valid UUID IDs
       name: workflowName,
       description: workflowDescription,
       canvas_data: { nodes, edges },
-      trigger_type: triggerNode?.data?.type || 'manual',
+      trigger_type: mappedTriggerType,
       trigger_config: trigger_conditions,
-      action_type: actionNode?.data?.type || 'create_task',
+      action_type: mappedActionType,
       action_config: action_config,
       is_active: false, // Start inactive by default
       template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
