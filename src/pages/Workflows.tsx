@@ -105,6 +105,22 @@ export default function Workflows() {
   };
 
   const handleWorkflowSave = async (workflow: any) => {
+    console.log('🎯 handleWorkflowSave called with:', workflow);
+    
+    // Validate and fix trigger_type before any processing
+    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
+    if (!workflow.trigger_type || !validTriggerTypes.includes(workflow.trigger_type)) {
+      console.warn(`⚠️ Invalid trigger_type "${workflow.trigger_type}" detected, forcing to "manual"`);
+      workflow.trigger_type = 'manual';
+    }
+    
+    // Validate and fix action_type before any processing
+    const validActionTypes = ['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'];
+    if (!workflow.action_type || !validActionTypes.includes(workflow.action_type)) {
+      console.warn(`⚠️ Invalid action_type "${workflow.action_type}" detected, forcing to "create_task"`);
+      workflow.action_type = 'create_task';
+    }
+    
     try {
       // Import test generator
       const { WorkflowTestGenerator } = await import('@/lib/utils/workflowTestGenerator');
@@ -147,6 +163,20 @@ export default function Workflows() {
       console.log('Saving workflow with data:', workflowData);
       console.log('🚨 Final trigger_type being saved:', workflowData.trigger_type);
       console.log('🚨 Final action_type being saved:', workflowData.action_type);
+
+      // FINAL SAFETY CHECK - Ensure trigger_type and action_type are valid
+      const finalValidTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
+      const finalValidActionTypes = ['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'];
+      
+      if (!finalValidTriggerTypes.includes(workflowData.trigger_type)) {
+        console.error(`❌ CRITICAL: Invalid trigger_type "${workflowData.trigger_type}" about to be saved! Forcing to "manual"`);
+        workflowData.trigger_type = 'manual';
+      }
+      
+      if (!finalValidActionTypes.includes(workflowData.action_type)) {
+        console.error(`❌ CRITICAL: Invalid action_type "${workflowData.action_type}" about to be saved! Forcing to "create_task"`);
+        workflowData.action_type = 'create_task';
+      }
 
       let result;
       if (workflow.id) {
