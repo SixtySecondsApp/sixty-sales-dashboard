@@ -55,6 +55,11 @@ import { WorkflowTestEngine, TestExecutionState, TEST_SCENARIOS, NodeExecutionSt
 import AnimatedTestEdge from './AnimatedTestEdge';
 import WorkflowSaveModal from './WorkflowSaveModal';
 import { WorkflowSuggestionGenerator } from '@/lib/utils/workflowSuggestions';
+import AIAgentNode from './nodes/AIAgentNode';
+import AIAgentConfigModal from './AIAgentConfigModal';
+import type { AINodeConfig } from './AIAgentConfigModal';
+import { AIProviderService } from '@/lib/services/aiProvider';
+import { createContextFromWorkflow } from '@/lib/utils/promptVariables';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -195,7 +200,8 @@ const nodeTypes: NodeTypes = {
   trigger: TriggerNode,
   condition: ConditionNode,
   action: ActionNode,
-  router: RouterNode
+  router: RouterNode,
+  aiAgent: AIAgentNode
 };
 
 const edgeTypes = {
@@ -230,6 +236,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [loadingChannels, setLoadingChannels] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const reactFlowInstance = useRef<any>(null);
+  const [showAIConfigModal, setShowAIConfigModal] = useState(false);
+  const [selectedAINode, setSelectedAINode] = useState<Node | null>(null);
+  const aiProviderService = useRef<AIProviderService>(AIProviderService.getInstance());
   
   // Test Execution State - Initialize with default state
   const [testExecutionState, setTestExecutionState] = useState<TestExecutionState>({
@@ -252,6 +261,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
+        // Initialize AI provider service with user ID
+        aiProviderService.current.initialize(user.id);
       }
     };
     getUser();
@@ -378,8 +389,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   // Handle node selection
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      setSelectedNode(node);
-      setShowNodeEditor(true);
+      // Special handling for AI Agent nodes
+      if (node.type === 'aiAgent') {
+        setSelectedAINode(node);
+        setShowAIConfigModal(true);
+      } else {
+        setSelectedNode(node);
+        setShowNodeEditor(true);
+      }
     },
     []
   );
@@ -405,6 +422,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         return node;
       })
     );
+  };
+  
+  // Handle AI configuration save
+  const handleAIConfigSave = (config: AINodeConfig) => {
+    if (selectedAINode) {
+      updateNodeData(selectedAINode.id, { config });
+      setSelectedAINode(null);
+    }
   };
 
   // Delete selected node
@@ -460,6 +485,21 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               route_Opportunity: 'action1',
               route_Verbal: 'action2',
               route_Signed: 'action3'
+            };
+          }
+          
+          // Initialize AI Agent node with default configuration
+          if (type === 'aiAgent') {
+            enhancedData = {
+              ...nodeData,
+              config: {
+                modelProvider: 'openai',
+                model: 'gpt-3.5-turbo',
+                systemPrompt: 'You are a helpful AI assistant for a CRM system.',
+                userPrompt: 'Process the following deal: {{deal.value}} for {{contact.name}}',
+                temperature: 0.7,
+                maxTokens: 1000
+              }
             };
           }
           
@@ -1180,6 +1220,44 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                         <div>
                           <div className="text-sm text-white">{condition.label}</div>
                           <div className="text-xs text-gray-400">{condition.condition}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null;
+          })()}
+          
+          {/* AI & Intelligence */}
+          {(() => {
+            const aiNodes = [
+              { type: 'ai_agent', label: 'AI Agent', description: 'Process with AI model', iconName: 'Sparkles', nodeType: 'aiAgent' }
+            ].filter(node => 
+              !nodeSearchQuery || 
+              node.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
+              node.description.toLowerCase().includes(nodeSearchQuery.toLowerCase())
+            );
+            
+            return aiNodes.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">AI & Intelligence</h3>
+                <div className="space-y-2">
+                  {aiNodes.map((node) => (
+                    <div
+                      key={node.type}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('nodeType', node.nodeType);
+                        e.dataTransfer.setData('nodeData', JSON.stringify(node));
+                      }}
+                      className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <div>
+                          <div className="text-sm text-white">{node.label}</div>
+                          <div className="text-xs text-gray-400">{node.description}</div>
                         </div>
                       </div>
                     </div>
@@ -3187,6 +3265,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       suggestedName={suggestedName}
       suggestedDescription={suggestedDescription}
       isFirstSave={isFirstSave}
+    />
+    
+    {/* AI Agent Configuration Modal */}
+    <AIAgentConfigModal
+      isOpen={showAIConfigModal}
+      onClose={() => {
+        setShowAIConfigModal(false);
+        setSelectedAINode(null);
+      }}
+      config={selectedAINode?.data?.config}
+      onSave={handleAIConfigSave}
+      availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title']}
     />
     </>
   );

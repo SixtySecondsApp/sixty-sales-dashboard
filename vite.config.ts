@@ -187,6 +187,9 @@ export default defineConfig({
       // Charts - need to pre-bundle to fix lodash ESM issues
       'recharts',
       
+      // Workflow visualization
+      'reactflow',
+      
       // Lodash utilities required by recharts
       'lodash',
       'lodash/get',

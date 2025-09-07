@@ -244,6 +244,11 @@ export class WorkflowTestEngine {
           nextNodes = this.getNextNodes(node.id);
           break;
 
+        case 'aiAgent':
+          result = await this.executeAIAgent(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
         default:
           result = { success: true };
           nextNodes = this.getNextNodes(node.id);
@@ -570,6 +575,93 @@ export class WorkflowTestEngine {
     }
 
     return result;
+  }
+
+  // Execute AI Agent node
+  private async executeAIAgent(node: any) {
+    const aiConfig = node.data.config;
+    
+    if (!aiConfig) {
+      this.addLog('error', node.id, node.data.label, 
+        'AI Agent not configured');
+      return { error: 'AI Agent not configured' };
+    }
+
+    // In test mode, simulate AI response based on output format
+    let mockContent: string;
+    let mockProcessedData: any = null;
+    let mockExtractedFields: any = null;
+
+    if (aiConfig.outputFormat === 'json') {
+      // Simulate JSON response
+      mockProcessedData = {
+        decision: "approve",
+        score: 85,
+        reasoning: "High-value opportunity with strong lead indicators",
+        recommendedActions: ["Send proposal", "Schedule follow-up", "Prepare demo"]
+      };
+      mockContent = JSON.stringify(mockProcessedData, null, 2);
+    } else {
+      // Simulate text response
+      mockContent = `Mock AI Response from ${aiConfig.model || 'AI Model'}:\n` +
+                   `Processing deal value: ${this.state.testData.value || 'N/A'}\n` +
+                   `Contact: ${this.state.testData.contact_name || 'N/A'}\n` +
+                   `Recommendation: This is a high-priority opportunity.`;
+    }
+
+    // Simulate field extraction if rules are configured
+    if (aiConfig.extractionRules && aiConfig.extractionRules.length > 0) {
+      mockExtractedFields = {};
+      for (const rule of aiConfig.extractionRules) {
+        switch (rule.field) {
+          case 'name':
+            mockExtractedFields.name = this.state.testData.contact_name || 'John Doe';
+            break;
+          case 'email':
+            mockExtractedFields.email = this.state.testData.email || 'john@example.com';
+            break;
+          case 'score':
+            mockExtractedFields.score = 85;
+            break;
+          case 'qualified':
+            mockExtractedFields.qualified = true;
+            break;
+          case 'priority':
+            mockExtractedFields.priority = 'high';
+            break;
+          default:
+            mockExtractedFields[rule.field] = rule.type === 'number' ? 0 : 
+                                             rule.type === 'boolean' ? false : 
+                                             rule.type === 'array' ? [] : 
+                                             rule.type === 'object' ? {} : '';
+        }
+      }
+    }
+
+    const mockResponse = {
+      content: mockContent,
+      processedData: mockProcessedData,
+      extractedFields: mockExtractedFields,
+      usage: {
+        promptTokens: 150,
+        completionTokens: 50,
+        totalTokens: 200
+      },
+      provider: aiConfig.modelProvider,
+      model: aiConfig.model
+    };
+
+    this.addLog('data', node.id, node.data.label, 
+      `Mock: AI processed with ${aiConfig.model}`, mockResponse);
+
+    // Pass AI output and processed data to next nodes
+    return {
+      aiResponse: mockResponse.content,
+      processedData: mockResponse.processedData,
+      extractedFields: mockResponse.extractedFields,
+      usage: mockResponse.usage,
+      inputData: this.state.testData
+    };
   }
 
   // Get next nodes connected to current node

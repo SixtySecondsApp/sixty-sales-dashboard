@@ -1,0 +1,567 @@
+import React, { useState, useEffect } from 'react';
+import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain } from 'lucide-react';
+import PromptTemplatesModal from './PromptTemplatesModal';
+import type { PromptTemplate } from './PromptTemplatesModal';
+
+export interface AINodeConfig {
+  modelProvider: 'openai' | 'anthropic' | 'openrouter' | 'gemini' | 'cohere';
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  outputFormat?: 'text' | 'json' | 'structured';
+  jsonSchema?: string;
+  fewShotExamples?: Array<{ input: string; output: string }>;
+  chainOfThought?: boolean;
+  templateId?: string;
+  extractionRules?: Array<{
+    field: string;
+    type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+    path?: string;
+    required?: boolean;
+  }>;
+  retryOnError?: boolean;
+  maxRetries?: number;
+}
+
+interface AIAgentConfigModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  config?: AINodeConfig;
+  onSave: (config: AINodeConfig) => void;
+  availableVariables?: string[];
+}
+
+const MODEL_OPTIONS = {
+  openai: [
+    { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
+    { value: 'gpt-4', label: 'GPT-4' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+    { value: 'gpt-4-1106-preview', label: 'GPT-4 Turbo (JSON Mode)' },
+  ],
+  anthropic: [
+    { value: 'claude-3-opus', label: 'Claude 3 Opus' },
+    { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
+    { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
+  ],
+  openrouter: [
+    { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
+    { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus (via OpenRouter)' },
+    { value: 'meta-llama/llama-3-70b', label: 'Llama 3 70B' },
+  ],
+  gemini: [
+    { value: 'gemini-pro', label: 'Gemini Pro' },
+    { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
+  ],
+  cohere: [
+    { value: 'command', label: 'Command' },
+    { value: 'command-light', label: 'Command Light' },
+    { value: 'command-r', label: 'Command R' },
+  ],
+};
+
+export default function AIAgentConfigModal({
+  isOpen,
+  onClose,
+  config,
+  onSave,
+  availableVariables = [],
+}: AIAgentConfigModalProps) {
+  const [formData, setFormData] = useState<AINodeConfig>({
+    modelProvider: config?.modelProvider || 'openai',
+    model: config?.model || 'gpt-3.5-turbo',
+    systemPrompt: config?.systemPrompt || 'You are a helpful AI assistant for a CRM system.',
+    userPrompt: config?.userPrompt || '',
+    temperature: config?.temperature || 0.7,
+    maxTokens: config?.maxTokens || 1000,
+    outputFormat: config?.outputFormat || 'text',
+    chainOfThought: config?.chainOfThought || false,
+  });
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [activeTab, setActiveTab] = useState<'config' | 'advanced'>('config');
+
+  useEffect(() => {
+    if (config) {
+      setFormData(config);
+    }
+  }, [config]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+    onClose();
+  };
+
+  const handleProviderChange = (provider: AINodeConfig['modelProvider']) => {
+    const defaultModel = MODEL_OPTIONS[provider][0].value;
+    setFormData({ ...formData, modelProvider: provider, model: defaultModel });
+  };
+
+  const handleTemplateSelect = (template: PromptTemplate) => {
+    setFormData({
+      ...formData,
+      systemPrompt: template.systemPrompt,
+      userPrompt: template.userPrompt,
+      modelProvider: template.modelProvider as AINodeConfig['modelProvider'],
+      model: template.model,
+      temperature: template.temperature,
+      maxTokens: template.maxTokens,
+      outputFormat: template.outputFormat || 'text',
+      chainOfThought: template.chainOfThought || false,
+      templateId: template.id,
+    });
+    setShowTemplates(false);
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-900 rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
+          <div className="flex items-center justify-between p-6 border-b border-gray-800">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Configure AI Agent</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="overflow-y-auto max-h-[calc(90vh-140px)]">
+            {/* Template Selection Bar */}
+            <div className="px-6 py-3 bg-gray-800/50 border-b border-gray-800">
+              <button
+                type="button"
+                onClick={() => setShowTemplates(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 border border-purple-600/40 rounded-lg text-purple-400 text-sm transition-colors"
+              >
+                <FileText className="w-4 h-4" />
+                Browse Templates
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-gray-800">
+              <div className="flex px-6">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('config')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'config'
+                      ? 'text-purple-400 border-purple-400'
+                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  Configuration
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('advanced')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'advanced'
+                      ? 'text-purple-400 border-purple-400'
+                      : 'text-gray-400 border-transparent hover:text-gray-300'
+                  }`}
+                >
+                  Advanced
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {activeTab === 'config' ? (
+                <>
+                  {/* Model Provider */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Model Provider
+                    </label>
+                    <select
+                      value={formData.modelProvider}
+                      onChange={(e) => handleProviderChange(e.target.value as AINodeConfig['modelProvider'])}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="openai">OpenAI</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openrouter">OpenRouter</option>
+                      <option value="gemini">Google Gemini</option>
+                      <option value="cohere">Cohere</option>
+                    </select>
+                  </div>
+
+                  {/* Model Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Model
+                    </label>
+                    <select
+                      value={formData.model}
+                      onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      {MODEL_OPTIONS[formData.modelProvider].map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* System Prompt */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      System Prompt
+                    </label>
+                    <textarea
+                      value={formData.systemPrompt}
+                      onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                      placeholder="Define the AI's role and behavior..."
+                    />
+                  </div>
+
+                  {/* User Prompt */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      User Prompt Template
+                    </label>
+                    <div className="mb-2 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-blue-400 mt-0.5" />
+                        <div className="text-xs text-blue-300">
+                          <p>Use variables from workflow data with {'{{variableName}}'} syntax.</p>
+                          <p className="mt-1">Available: {availableVariables.length > 0 ? availableVariables.join(', ') : 'deal.value, contact.email, contact.name'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <textarea
+                      value={formData.userPrompt}
+                      onChange={(e) => setFormData({ ...formData, userPrompt: e.target.value })}
+                      rows={4}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
+                      placeholder="Process the following deal: {{deal.value}} for {{contact.name}}..."
+                    />
+                  </div>
+
+                  {/* Basic Settings */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Temperature
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        value={formData.temperature}
+                        onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">0 = Focused, 2 = Creative</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Max Tokens
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="4000"
+                        value={formData.maxTokens}
+                        onChange={(e) => setFormData({ ...formData, maxTokens: parseInt(e.target.value) })}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Maximum response length</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Advanced Tab */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Output Format
+                    </label>
+                    <select
+                      value={formData.outputFormat}
+                      onChange={(e) => setFormData({ ...formData, outputFormat: e.target.value as any })}
+                      className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="text">Plain Text</option>
+                      <option value="json">JSON</option>
+                      <option value="structured">Structured Output</option>
+                    </select>
+                  </div>
+
+                  {formData.outputFormat === 'json' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        <Code className="w-4 h-4 inline mr-1" />
+                        JSON Schema (Optional)
+                      </label>
+                      <textarea
+                        value={formData.jsonSchema ? JSON.stringify(formData.jsonSchema, null, 2) : ''}
+                        onChange={(e) => {
+                          try {
+                            setFormData({ ...formData, jsonSchema: JSON.parse(e.target.value) });
+                          } catch {
+                            // Invalid JSON, just store as string for now
+                            setFormData({ ...formData, jsonSchema: e.target.value });
+                          }
+                        }}
+                        rows={4}
+                        className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-xs"
+                        placeholder='{\n  "type": "object",\n  "properties": {\n    "decision": { "type": "string" }\n  }\n}'
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={formData.chainOfThought || false}
+                        onChange={(e) => setFormData({ ...formData, chainOfThought: e.target.checked })}
+                        className="rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Brain className="w-4 h-4 text-purple-400" />
+                          <span className="text-sm font-medium">Enable Chain of Thought</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          AI will explain its reasoning step-by-step
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Examples Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Few-Shot Examples (Optional)
+                    </label>
+                    <div className="space-y-2">
+                      {(formData.fewShotExamples || []).map((example, index) => (
+                        <div key={index} className="p-3 bg-gray-800 rounded-lg space-y-2">
+                          <input
+                            type="text"
+                            value={example.input}
+                            onChange={(e) => {
+                              const newExamples = [...(formData.fewShotExamples || [])];
+                              newExamples[index].input = e.target.value;
+                              setFormData({ ...formData, fewShotExamples: newExamples });
+                            }}
+                            placeholder="Example input"
+                            className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                          />
+                          <input
+                            type="text"
+                            value={example.output}
+                            onChange={(e) => {
+                              const newExamples = [...(formData.fewShotExamples || [])];
+                              newExamples[index].output = e.target.value;
+                              setFormData({ ...formData, fewShotExamples: newExamples });
+                            }}
+                            placeholder="Expected output"
+                            className="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newExamples = [...(formData.fewShotExamples || [])];
+                              newExamples.splice(index, 1);
+                              setFormData({ ...formData, fewShotExamples: newExamples });
+                            }}
+                            className="text-xs text-red-400 hover:text-red-300"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            fewShotExamples: [...(formData.fewShotExamples || []), { input: '', output: '' }],
+                          });
+                        }}
+                        className="text-sm text-purple-400 hover:text-purple-300"
+                      >
+                        + Add Example
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Field Extraction Rules */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Field Extraction Rules (Optional)
+                    </label>
+                    <div className="space-y-2">
+                      {(formData.extractionRules || []).map((rule, index) => (
+                        <div key={index} className="p-3 bg-gray-800 rounded-lg space-y-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            <input
+                              type="text"
+                              value={rule.field}
+                              onChange={(e) => {
+                                const newRules = [...(formData.extractionRules || [])];
+                                newRules[index].field = e.target.value;
+                                setFormData({ ...formData, extractionRules: newRules });
+                              }}
+                              placeholder="Field name"
+                              className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                            />
+                            <select
+                              value={rule.type}
+                              onChange={(e) => {
+                                const newRules = [...(formData.extractionRules || [])];
+                                newRules[index].type = e.target.value as any;
+                                setFormData({ ...formData, extractionRules: newRules });
+                              }}
+                              className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                            >
+                              <option value="string">String</option>
+                              <option value="number">Number</option>
+                              <option value="boolean">Boolean</option>
+                              <option value="array">Array</option>
+                              <option value="object">Object</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={rule.path || ''}
+                              onChange={(e) => {
+                                const newRules = [...(formData.extractionRules || [])];
+                                newRules[index].path = e.target.value;
+                                setFormData({ ...formData, extractionRules: newRules });
+                              }}
+                              placeholder="Path (optional)"
+                              className="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm text-white"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 text-sm text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={rule.required || false}
+                                onChange={(e) => {
+                                  const newRules = [...(formData.extractionRules || [])];
+                                  newRules[index].required = e.target.checked;
+                                  setFormData({ ...formData, extractionRules: newRules });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800 text-purple-600"
+                              />
+                              Required
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newRules = [...(formData.extractionRules || [])];
+                                newRules.splice(index, 1);
+                                setFormData({ ...formData, extractionRules: newRules });
+                              }}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            extractionRules: [...(formData.extractionRules || []), { field: '', type: 'string', required: false }],
+                          });
+                        }}
+                        className="text-sm text-purple-400 hover:text-purple-300"
+                      >
+                        + Add Extraction Rule
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Retry Settings */}
+                  <div className="space-y-3">
+                    <label className="flex items-center gap-3 text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={formData.retryOnError || false}
+                        onChange={(e) => setFormData({ ...formData, retryOnError: e.target.checked })}
+                        className="rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium">Enable Retry on Error</span>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Automatically retry failed API calls
+                        </p>
+                      </div>
+                    </label>
+                    
+                    {formData.retryOnError && (
+                      <div className="ml-6">
+                        <label className="block text-sm font-medium text-gray-300 mb-1">
+                          Max Retries
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="5"
+                          value={formData.maxRetries || 3}
+                          onChange={(e) => setFormData({ ...formData, maxRetries: parseInt(e.target.value) })}
+                          className="w-20 px-2 py-1 bg-gray-800 border border-gray-700 rounded text-sm text-white"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                >
+                  Save Configuration
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Prompt Templates Modal */}
+      {showTemplates && (
+        <PromptTemplatesModal
+          isOpen={showTemplates}
+          onClose={() => setShowTemplates(false)}
+          onSelectTemplate={handleTemplateSelect}
+          currentConfig={formData}
+        />
+      )}
+    </>
+  );
+}
