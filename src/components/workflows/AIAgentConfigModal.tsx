@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Tool } from 'lucide-react';
+import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Wrench } from 'lucide-react';
 import PromptTemplatesModal from './PromptTemplatesModal';
 import type { PromptTemplate } from './PromptTemplatesModal';
 import { ToolRegistry } from '../../lib/services/workflowTools';
@@ -564,7 +564,7 @@ export default function AIAgentConfigModal({
                       />
                       <div>
                         <div className="flex items-center gap-2">
-                          <Tool className="w-4 h-4 text-purple-400" />
+                          <Wrench className="w-4 h-4 text-purple-400" />
                           <span className="text-sm font-medium">Enable CRM Tools</span>
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
