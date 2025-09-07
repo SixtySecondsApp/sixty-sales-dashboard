@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Read(/Users/andrewbryce/Desktop/**)"
+      "Read(/Users/andrewbryce/Desktop/**)",
+      "Read(/var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_vH7qt4/**)",
+      "Read(/var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_snDK5g/**)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

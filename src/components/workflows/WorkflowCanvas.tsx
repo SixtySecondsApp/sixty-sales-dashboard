@@ -58,8 +58,14 @@ import { WorkflowSuggestionGenerator } from '@/lib/utils/workflowSuggestions';
 import AIAgentNode from './nodes/AIAgentNode';
 import AIAgentConfigModal from './AIAgentConfigModal';
 import type { AINodeConfig } from './AIAgentConfigModal';
+import FormNode from './nodes/FormNode';
+import FormConfigModal from './FormConfigModal';
+import FormPreview from './FormPreview';
+import ExecutionViewer from './ExecutionViewer';
 import { AIProviderService } from '@/lib/services/aiProvider';
 import { createContextFromWorkflow } from '@/lib/utils/promptVariables';
+import { formService } from '@/lib/services/formService';
+import { workflowExecutionService } from '@/lib/services/workflowExecutionService';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -201,7 +207,8 @@ const nodeTypes: NodeTypes = {
   condition: ConditionNode,
   action: ActionNode,
   router: RouterNode,
-  aiAgent: AIAgentNode
+  aiAgent: AIAgentNode,
+  form: FormNode
 };
 
 const edgeTypes = {
@@ -238,6 +245,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const reactFlowInstance = useRef<any>(null);
   const [showAIConfigModal, setShowAIConfigModal] = useState(false);
   const [selectedAINode, setSelectedAINode] = useState<Node | null>(null);
+  const [showFormConfigModal, setShowFormConfigModal] = useState(false);
+  const [selectedFormNode, setSelectedFormNode] = useState<Node | null>(null);
+  const [showFormPreview, setShowFormPreview] = useState(false);
+  const [showExecutionViewer, setShowExecutionViewer] = useState(false);
+  const [currentExecutionId, setCurrentExecutionId] = useState<string | undefined>();
   const aiProviderService = useRef<AIProviderService>(AIProviderService.getInstance());
   
   // Test Execution State - Initialize with default state
@@ -393,6 +405,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       if (node.type === 'aiAgent') {
         setSelectedAINode(node);
         setShowAIConfigModal(true);
+      } else if (node.type === 'form') {
+        setSelectedFormNode(node);
+        setShowFormConfigModal(true);
       } else {
         setSelectedNode(node);
         setShowNodeEditor(true);
@@ -417,6 +432,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           if (selectedNode && selectedNode.id === nodeId) {
             setSelectedNode(updatedNode);
           }
+          // Also update selectedFormNode if it's the one being edited
+          if (selectedFormNode && selectedFormNode.id === nodeId) {
+            setSelectedFormNode(updatedNode);
+          }
+          // Also update selectedAINode if it's the one being edited
+          if (selectedAINode && selectedAINode.id === nodeId) {
+            setSelectedAINode(updatedNode);
+          }
           return updatedNode;
         }
         return node;
@@ -431,6 +454,57 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       setSelectedAINode(null);
     }
   };
+
+  // Run workflow execution
+  const runWorkflow = async (triggerData?: any) => {
+    try {
+      // Check if there are nodes to execute
+      if (nodes.length === 0) {
+        console.warn('No nodes in workflow to execute');
+        alert('Please add nodes to the workflow before running');
+        return;
+      }
+      
+      // Generate workflow ID if not saved
+      const workflowId = `workflow-${Date.now()}`;
+      
+      console.log('Running workflow:', { workflowId, nodes: nodes.length, edges: edges.length });
+      
+      // Start execution
+      const executionId = await workflowExecutionService.startExecution(
+        workflowId,
+        nodes,
+        edges,
+        triggerData ? 'form' : 'manual',
+        triggerData
+      );
+      
+      console.log('Execution started:', executionId);
+      
+      setCurrentExecutionId(executionId);
+      setShowExecutionViewer(true);
+    } catch (error) {
+      console.error('Error running workflow:', error);
+      alert('Error running workflow. Check console for details.');
+    }
+  };
+
+  // Listen for form submissions
+  useEffect(() => {
+    const handleFormSubmission = (event: CustomEvent) => {
+      const { workflowId, formData } = event.detail;
+      // Check if this workflow contains the form
+      const hasFormNode = nodes.some(node => node.type === 'form');
+      if (hasFormNode) {
+        runWorkflow(formData);
+      }
+    };
+
+    window.addEventListener('formSubmitted', handleFormSubmission as EventListener);
+    return () => {
+      window.removeEventListener('formSubmitted', handleFormSubmission as EventListener);
+    };
+  }, [nodes, edges]);
 
   // Delete selected node
   const deleteSelectedNode = () => {
@@ -499,6 +573,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 userPrompt: 'Process the following deal: {{deal.value}} for {{contact.name}}',
                 temperature: 0.7,
                 maxTokens: 1000
+              }
+            };
+          }
+          
+          // Initialize Form node with default configuration
+          if (type === 'form') {
+            enhancedData = {
+              ...nodeData,
+              config: {
+                formTitle: 'New Form',
+                formDescription: 'Enter your information below',
+                submitButtonText: 'Submit',
+                requireAuth: false,
+                fields: [],
+                responseSettings: {
+                  showSuccessMessage: true,
+                  successMessage: 'Thank you for your submission!',
+                  redirectUrl: '',
+                  continueWorkflow: true
+                }
               }
             };
           }
@@ -1085,6 +1179,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           {/* Check if search has no results */}
           {nodeSearchQuery && (() => {
             const allTriggers = [
+              { type: 'form_submission', label: 'Form Submission', iconName: 'FileText', description: 'When form submitted', nodeType: 'form' },
               { type: 'stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves stages' },
               { type: 'activity_created', label: 'Activity Created', iconName: 'Activity', description: 'When activity logged' },
               { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
@@ -1140,6 +1235,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           {/* Triggers */}
           {(() => {
             const triggers = [
+                { type: 'form_submission', label: 'Form Submission', iconName: 'FileText', description: 'When form submitted', nodeType: 'form' },
                 { type: 'stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves stages' },
                 { type: 'activity_created', label: 'Activity Created', iconName: 'Activity', description: 'When activity logged' },
                 { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
@@ -1165,7 +1261,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                         key={trigger.type}
                         draggable
                         onDragStart={(e) => {
-                          e.dataTransfer.setData('nodeType', 'trigger');
+                          e.dataTransfer.setData('nodeType', trigger.nodeType || 'trigger');
                           e.dataTransfer.setData('nodeData', JSON.stringify(trigger));
                         }}
                         className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
@@ -1349,6 +1445,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         
         {/* Canvas Toolbar - Right Side */}
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+          {/* Run Workflow Button */}
+          <button
+            onClick={() => runWorkflow()}
+            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+            title="Run Workflow"
+          >
+            <Play className="w-4 h-4" />
+            Run
+          </button>
+          
+          {/* View Executions Button */}
+          <button
+            onClick={() => setShowExecutionViewer(true)}
+            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+            title="View Executions"
+          >
+            <Activity className="w-4 h-4" />
+            Executions
+          </button>
+          
           {/* Test Button - Toggle test panel */}
           <button
             onClick={() => {
@@ -3277,6 +3393,53 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       config={selectedAINode?.data?.config}
       onSave={handleAIConfigSave}
       availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title']}
+    />
+    
+    {/* Form Configuration Modal */}
+    {showFormConfigModal && selectedFormNode && (
+      <FormConfigModal
+        isOpen={showFormConfigModal}
+        onClose={() => {
+          setShowFormConfigModal(false);
+          setSelectedFormNode(null);
+        }}
+        nodeData={selectedFormNode.data || { config: {} }}
+        onSave={(config) => {
+          if (selectedFormNode) {
+            updateNodeData(selectedFormNode.id, { config });
+          }
+        }}
+        onPreview={() => {
+          setShowFormConfigModal(false);
+          setShowFormPreview(true);
+        }}
+      />
+    )}
+    
+    {/* Form Preview Modal */}
+    {showFormPreview && selectedFormNode?.data?.config && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <FormPreview
+          formTitle={selectedFormNode.data.config.formTitle}
+          formDescription={selectedFormNode.data.config.formDescription}
+          submitButtonText={selectedFormNode.data.config.submitButtonText}
+          fields={selectedFormNode.data.config.fields || []}
+          onClose={() => setShowFormPreview(false)}
+          showVariables={true}
+        />
+      </div>
+    )}
+    
+    {/* Execution Viewer Modal */}
+    <ExecutionViewer
+      executionId={currentExecutionId}
+      workflowId={`workflow-${Date.now()}`}
+      isOpen={showExecutionViewer}
+      onClose={() => setShowExecutionViewer(false)}
+      onVariableSelect={(variable) => {
+        // When a variable is selected, it can be used in the currently selected node
+        console.log('Variable selected:', variable);
+      }}
     />
     </>
   );

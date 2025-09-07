@@ -35,6 +35,7 @@ export default defineConfig({
     // Allow Vite to use any available port
     strictPort: false,
     host: true, // Listen on all addresses
+    port: 5173, // Default port, will increment if in use
     // Commented out proxy to allow API test suite to work with Supabase Edge Functions
     // proxy: {
     //   '/api': {

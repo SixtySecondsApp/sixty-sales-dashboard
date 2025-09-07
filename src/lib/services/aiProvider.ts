@@ -120,6 +120,8 @@ export class AIProviderService {
     userId?: string
   ): Promise<AIResponse> {
     try {
+      // Ensure we have a user ID for tracking and tools
+      const effectiveUserId = userId || 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Fallback to dev user ID
       // Interpolate variables in prompts
       const systemPrompt = interpolateVariables(config.systemPrompt, variables);
       const userPrompt = interpolateVariables(config.userPrompt, variables);
@@ -152,7 +154,7 @@ export class AIProviderService {
         const mcpManager = MCPServerManager.getInstance();
         
         // Initialize user servers if not already done
-        mcpManager.initializeUserServers(userId);
+        mcpManager.initializeUserServers(effectiveUserId);
         
         enhancedSystemPrompt += '\n\nYou have access to MCP (Model Context Protocol) servers:\n';
         
@@ -281,7 +283,7 @@ export class AIProviderService {
       if (toolCall.toolName && userId) {
         const toolRegistry = ToolRegistry.getInstance();
         const context: ToolExecutionContext = {
-          userId,
+          userId: effectiveUserId,
           workflowId: undefined, // Will be set by workflow engine
           nodeId: undefined, // Will be set by workflow engine
         };

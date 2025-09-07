@@ -123,7 +123,7 @@ export default function Workflows() {
       const testScenarios = WorkflowTestGenerator.generateTestScenarios(workflow);
       console.log('Generated test scenarios:', testScenarios);
 
-      const workflowData = {
+      const workflowData: any = {
         user_id: userId,
         rule_name: workflow.name || 'Untitled Workflow',
         rule_description: workflow.description || '',
@@ -135,8 +135,11 @@ export default function Workflows() {
         template_id: workflow.template_id,
         is_active: workflow.is_active || false,
         priority_level: 1,
-        test_scenarios: testScenarios // Include test scenarios
+        // test_scenarios: testScenarios // Commented out until migration is applied
       };
+      
+      // Add test scenarios after migration is applied
+      workflowData.test_scenarios = testScenarios;
 
       console.log('Saving workflow with data:', workflowData);
 

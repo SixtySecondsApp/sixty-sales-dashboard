@@ -240,6 +240,7 @@ export function useUser() {
         if (session?.user) {
           // User is authenticated
           const user = session.user;
+          logger.log('✅ Authenticated user found:', { id: user.id, email: user.email });
           
           // Get or create user profile
           const { data: profile, error: profileError } = await supabase
@@ -309,10 +310,60 @@ export function useUser() {
             }
           }
         } else {
-          // No user session - create a mock user for development
-          logger.log('No authenticated user, creating mock user for development');
+          // No user session - check if we should use mock user
+          const isDevelopment = import.meta.env.MODE === 'development';
+          const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+          
+          if (isDevelopment || allowMockUser) {
+            logger.log('⚠️ No authenticated user found. Using mock user for development.');
+            logger.log('Session details:', { session, sessionError });
+            
+            const mockUserData = {
+              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+              email: 'andrew.bryce@sixtyseconds.video',
+              first_name: 'Andrew',
+              last_name: 'Bryce',
+              full_name: 'Andrew Bryce',
+              avatar_url: null,
+              role: 'Senior',
+              department: 'Sales',
+              stage: 'Senior',
+              is_admin: true, // Set to true for development access to admin features
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              username: null,
+              website: null
+            } as UserProfile;
+            
+            setUserData(mockUserData);
+            
+            // Store mock user in localStorage for AuthContext compatibility
+            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+          } else {
+            logger.warn('❌ No authenticated user and mock user is disabled.');
+            setUserData(null);
+          }
+        }
+      } catch (err: any) {
+        // Only log once, not repeatedly
+        if (!error) {
+          logger.error('❌ Error fetching user:', err);
+          logger.error('Error details:', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code
+          });
+        }
+        setError(err);
+        
+        // In development, fall back to mock user if there's an error
+        const isDevelopment = import.meta.env.MODE === 'development';
+        const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+        
+        if (isDevelopment || allowMockUser) {
+          logger.log('⚠️ Falling back to mock user due to authentication error');
           const mockUserData = {
-            id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+            id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
             email: 'andrew.bryce@sixtyseconds.video',
             first_name: 'Andrew',
             last_name: 'Bryce',
@@ -321,7 +372,7 @@ export function useUser() {
             role: 'Senior',
             department: 'Sales',
             stage: 'Senior',
-            is_admin: true, // Set to true for development access to admin features
+            is_admin: true,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             username: null,
@@ -329,20 +380,10 @@ export function useUser() {
           } as UserProfile;
           
           setUserData(mockUserData);
-          
-          // Store mock user in localStorage for AuthContext compatibility
           localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+        } else {
+          setUserData(null);
         }
-      } catch (err) {
-        // Only log once, not repeatedly
-        if (!error) {
-          logger.error('Error fetching user (using fallback):', err);
-        }
-        setError(err);
-        
-        // Don't fall back to demo user - this was causing the issue
-        // User should re-authenticate if there's a problem
-        setUserData(null);
       } finally {
         setIsLoading(false);
         isUserFetching = false;

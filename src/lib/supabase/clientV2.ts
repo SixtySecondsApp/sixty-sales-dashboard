@@ -35,7 +35,7 @@ function getSupabaseClient(): TypedSupabaseClient {
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
         // Enhanced debug mode for better error tracking
-        debug: false,
+        debug: import.meta.env.MODE === 'development',
         storage: {
           getItem: (key: string) => {
             try {

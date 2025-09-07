@@ -41,6 +41,15 @@ export interface VariableContext {
     currentNode?: string;
     previousOutput?: any;
   };
+  formData?: {
+    submittedAt?: string;
+    fields?: Record<string, any>;
+    formId?: string;
+    submissionId?: string;
+    formTitle?: string;
+    submitterIp?: string;
+    submitterUserAgent?: string;
+  };
   custom?: Record<string, any>;
 }
 
@@ -229,6 +238,11 @@ export function createContextFromWorkflow(workflowData: any): VariableContext {
 
   if (workflowData.task) {
     context.task = workflowData.task;
+  }
+
+  // Add form data if present
+  if (workflowData.formData) {
+    context.formData = workflowData.formData;
   }
 
   // Add any custom data
