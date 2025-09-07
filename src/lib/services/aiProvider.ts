@@ -15,6 +15,11 @@ import {
   parseToolCall,
   ToolExecutionContext 
 } from '../services/workflowTools';
+import { 
+  MCPServerManager,
+  MCPRequest,
+  MCPResponse 
+} from '../mcp/mcpServer';
 import { z } from 'zod';
 
 export interface AIResponse {
@@ -142,6 +147,24 @@ export class AIProviderService {
         }
       }
 
+      // Add MCP server instructions if enabled
+      if (config.enableMCP && config.selectedMCPServers && config.selectedMCPServers.length > 0 && userId) {
+        const mcpManager = MCPServerManager.getInstance();
+        
+        // Initialize user servers if not already done
+        mcpManager.initializeUserServers(userId);
+        
+        enhancedSystemPrompt += '\n\nYou have access to MCP (Model Context Protocol) servers:\n';
+        
+        for (const serverName of config.selectedMCPServers) {
+          enhancedSystemPrompt += `- ${serverName}: Access to ${serverName} data and operations\n`;
+        }
+        
+        enhancedSystemPrompt += '\nTo use MCP, format requests as:\n';
+        enhancedSystemPrompt += '<mcp server="server_name" method="method_name">{"params": {...}}</mcp>\n';
+        enhancedSystemPrompt += 'Available methods: tools/list, tools/call, resources/list, resources/get, prompts/list, prompts/get';
+      }
+
       // Add output format instructions
       if (config.outputFormat === 'json') {
         enhancedSystemPrompt += '\n\nYou must respond with valid JSON only. Do not include any explanatory text outside the JSON structure.';
@@ -221,6 +244,36 @@ export class AIProviderService {
     config: AINodeConfig,
     userId?: string
   ): Promise<AIResponse> {
+    // Check for MCP requests in the response
+    if (config.enableMCP && userId) {
+      const mcpMatch = response.content.match(/<mcp\s+server="([^"]+)"\s+method="([^"]+)">([^<]*)<\/mcp>/);
+      
+      if (mcpMatch) {
+        const [, serverName, method, paramsStr] = mcpMatch;
+        
+        try {
+          const params = paramsStr ? JSON.parse(paramsStr) : {};
+          const mcpManager = MCPServerManager.getInstance();
+          
+          const mcpRequest: MCPRequest = {
+            id: `req_${Date.now()}`,
+            method: method as any,
+            params
+          };
+          
+          const mcpResponse = await mcpManager.handleRequest(serverName, mcpRequest);
+          
+          if (mcpResponse.error) {
+            response.content += `\n\nMCP Error: ${mcpResponse.error.message}`;
+          } else {
+            response.content += `\n\nMCP Result: ${JSON.stringify(mcpResponse.result, null, 2)}`;
+          }
+        } catch (error) {
+          response.content += `\n\nMCP Parse Error: ${error}`;
+        }
+      }
+    }
+    
     // Check for tool calls in the response
     if (config.enableTools && config.autoExecuteTools) {
       const toolCall = parseToolCall(response.content);

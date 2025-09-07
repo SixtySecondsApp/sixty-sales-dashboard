@@ -27,6 +27,8 @@ export interface AINodeConfig {
   enableTools?: boolean;
   selectedTools?: string[];
   autoExecuteTools?: boolean;
+  enableMCP?: boolean;
+  selectedMCPServers?: string[];
 }
 
 interface AIAgentConfigModalProps {
