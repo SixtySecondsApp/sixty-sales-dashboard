@@ -62,6 +62,8 @@ import FormNode from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
 import ExecutionViewer from './ExecutionViewer';
+import WorkflowTestMode from './WorkflowTestMode';
+import ExecutionMonitor from './ExecutionMonitor';
 import { AIProviderService } from '@/lib/services/aiProvider';
 import { createContextFromWorkflow } from '@/lib/utils/promptVariables';
 import { formService } from '@/lib/services/formService';
@@ -249,6 +251,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [selectedFormNode, setSelectedFormNode] = useState<Node | null>(null);
   const [showFormPreview, setShowFormPreview] = useState(false);
   const [showExecutionViewer, setShowExecutionViewer] = useState(false);
+  const [showWorkflowTestMode, setShowWorkflowTestMode] = useState(false);
   const [currentExecutionId, setCurrentExecutionId] = useState<string | undefined>();
   const aiProviderService = useRef<AIProviderService>(AIProviderService.getInstance());
   
@@ -1463,6 +1466,16 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           >
             <Activity className="w-4 h-4" />
             Executions
+          </button>
+          
+          {/* Workflow Test Mode Button */}
+          <button
+            onClick={() => setShowWorkflowTestMode(true)}
+            className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
+            title="Test Mode"
+          >
+            <Activity className="w-4 h-4 animate-pulse" />
+            Test Mode
           </button>
           
           {/* Test Button - Toggle test panel */}
@@ -3441,6 +3454,30 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         console.log('Variable selected:', variable);
       }}
     />
+    
+    {/* Workflow Test Mode Modal */}
+    {showWorkflowTestMode && (
+      <WorkflowTestMode
+        workflowId={selectedWorkflow?.id || `workflow-${Date.now()}`}
+        workflowName={workflowName || 'Untitled Workflow'}
+        formUrls={(() => {
+          // Get form URLs from form nodes
+          const formNodes = nodes.filter(n => n.type === 'form');
+          if (formNodes.length > 0 && formNodes[0].data?.config) {
+            return {
+              test: formNodes[0].data.config.testUrl,
+              production: formNodes[0].data.config.productionUrl
+            };
+          }
+          return undefined;
+        })()}
+        onClose={() => setShowWorkflowTestMode(false)}
+        onExecutionSelect={(executionId) => {
+          setCurrentExecutionId(executionId);
+          setShowExecutionViewer(true);
+        }}
+      />
+    )}
     </>
   );
 };

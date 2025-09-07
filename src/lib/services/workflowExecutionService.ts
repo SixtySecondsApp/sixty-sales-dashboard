@@ -39,9 +39,15 @@ export interface WorkflowExecution {
   finalOutput?: any;
 }
 
+type ExecutionListener = (execution: WorkflowExecution) => void;
+type NodeStatusListener = (nodeId: string, status: NodeExecution['status'], data?: any) => void;
+
 class WorkflowExecutionService {
   private executions: Map<string, WorkflowExecution> = new Map();
-  private executionListeners: Map<string, Set<(execution: WorkflowExecution) => void>> = new Map();
+  private executionListeners: Map<string, Set<ExecutionListener>> = new Map();
+  private workflowListeners: Map<string, Set<ExecutionListener>> = new Map();
+  private nodeStatusListeners: Set<NodeStatusListener> = new Set();
+  private executionHistory: Map<string, WorkflowExecution[]> = new Map();
   private aiService = AIProviderService.getInstance();
 
   /**
@@ -67,7 +73,9 @@ class WorkflowExecutionService {
     };
 
     this.executions.set(executionId, execution);
+    this.addToHistory(workflowId, execution);
     this.notifyListeners(executionId, execution);
+    this.notifyWorkflowListeners(workflowId, execution);
 
     // Start execution in background
     this.executeWorkflow(executionId, nodes, edges, triggerData).catch(error => {
@@ -75,6 +83,7 @@ class WorkflowExecutionService {
       execution.status = 'failed';
       execution.completedAt = new Date().toISOString();
       this.notifyListeners(executionId, execution);
+      this.notifyWorkflowListeners(workflowId, execution);
     });
 
     return executionId;
@@ -466,11 +475,82 @@ class WorkflowExecutionService {
   /**
    * Clear all executions (for testing)
    */
-  clearExecutions() {
+  clearAllExecutions() {
     this.executions.clear();
     this.executionListeners.clear();
   }
+
+  /**
+   * Subscribe to all executions for a workflow
+   */
+  subscribe(workflowId: string, listener: ExecutionListener) {
+    if (!this.workflowListeners.has(workflowId)) {
+      this.workflowListeners.set(workflowId, new Set());
+    }
+    this.workflowListeners.get(workflowId)!.add(listener);
+    
+    // Return unsubscribe function
+    return () => {
+      this.workflowListeners.get(workflowId)?.delete(listener);
+    };
+  }
+
+  /**
+   * Subscribe to node status updates
+   */
+  subscribeToNodeStatus(listener: NodeStatusListener) {
+    this.nodeStatusListeners.add(listener);
+    return () => {
+      this.nodeStatusListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Notify workflow listeners
+   */
+  private notifyWorkflowListeners(workflowId: string, execution: WorkflowExecution) {
+    this.workflowListeners.get(workflowId)?.forEach(listener => {
+      listener(execution);
+    });
+  }
+
+  /**
+   * Notify node status listeners
+   */
+  private notifyNodeStatus(nodeId: string, status: NodeExecution['status'], data?: any) {
+    this.nodeStatusListeners.forEach(listener => {
+      listener(nodeId, status, data);
+    });
+  }
+
+  /**
+   * Add to execution history
+   */
+  private addToHistory(workflowId: string, execution: WorkflowExecution) {
+    if (!this.executionHistory.has(workflowId)) {
+      this.executionHistory.set(workflowId, []);
+    }
+    const history = this.executionHistory.get(workflowId)!;
+    history.unshift(execution);
+    // Keep only last 50 executions per workflow
+    if (history.length > 50) {
+      history.pop();
+    }
+  }
+
+  /**
+   * Get execution history for a workflow
+   */
+  getExecutions(workflowId: string): WorkflowExecution[] {
+    return this.executionHistory.get(workflowId) || [];
+  }
+
+  /**
+   * Clear execution history for a workflow
+   */
+  clearExecutions(workflowId: string) {
+    this.executionHistory.delete(workflowId);
+  }
 }
 
-// Export singleton instance
 export const workflowExecutionService = new WorkflowExecutionService();

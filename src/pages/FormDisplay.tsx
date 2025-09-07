@@ -117,17 +117,37 @@ export default function FormDisplay() {
       // Trigger workflow execution if this form is part of a workflow
       const storedForm = await formStorageService.getFormConfig(formId);
       if (storedForm?.workflow_id) {
-        // In a real implementation, we would load the workflow and execute it
-        // For now, we'll just trigger an event
-        const event = new CustomEvent('formSubmitted', {
-          detail: {
+        // Broadcast form submission event for workflow execution
+        const eventData = {
+          formId,
+          workflowId: storedForm.workflow_id,
+          submission,
+          formData: {
+            fields: formData,
+            submittedAt: new Date().toISOString(),
             formId,
-            workflowId: storedForm.workflow_id,
-            submission,
-            formData
+            submissionId: submission.id
           }
+        };
+        
+        const event = new CustomEvent('formSubmitted', {
+          detail: eventData
         });
         window.dispatchEvent(event);
+        
+        // Also broadcast test mode event if in test environment
+        const isTestMode = window.location.pathname.includes('/form-test/');
+        if (isTestMode) {
+          const testEvent = new CustomEvent('formTestSubmission', {
+            detail: {
+              ...eventData,
+              testMode: true,
+              timestamp: new Date().toISOString()
+            }
+          });
+          window.dispatchEvent(testEvent);
+          console.log('[Test Mode] Form submitted:', eventData);
+        }
       }
       
       // Handle response settings
