@@ -836,9 +836,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       return id && uuidRegex.test(id);
     };
     
-    // Map form nodes to 'manual' trigger type since they're user-initiated
-    // The database only allows: 'activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'
-    let mappedTriggerType = triggerNode?.data?.type || 'manual';
+    // Map form nodes to 'activity_created' trigger type
+    // IMPORTANT: Database constraint does NOT allow 'manual' - only: 'activity_created', 'stage_changed', 'deal_created', 'task_completed'
+    let mappedTriggerType = triggerNode?.data?.type || 'activity_created';
     
     // Debug logging
     console.log('🔍 Trigger node:', triggerNode);
@@ -847,24 +847,40 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     console.log('🔍 Original trigger type:', mappedTriggerType);
     
     // Map various trigger types to valid database values
-    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
+    // NOTE: 'manual' is NOT valid despite what old migrations suggest
+    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
     
     if (mappedTriggerType === 'form_submission' || triggerNode?.type === 'form') {
-      mappedTriggerType = 'manual';
+      // Form submissions trigger an activity creation event
+      mappedTriggerType = 'activity_created';
+      console.log('📝 Mapping form trigger to activity_created');
+    } else if (mappedTriggerType === 'manual') {
+      // Manual triggers also map to activity_created
+      mappedTriggerType = 'activity_created';
+      console.log('📝 Mapping manual trigger to activity_created');
     } else if (!validTriggerTypes.includes(mappedTriggerType)) {
-      console.warn(`⚠️ Invalid trigger type "${mappedTriggerType}", defaulting to "manual"`);
-      mappedTriggerType = 'manual';
+      console.warn(`⚠️ Invalid trigger type "${mappedTriggerType}", defaulting to "activity_created"`);
+      mappedTriggerType = 'activity_created';
     }
     
     console.log('🔍 Mapped trigger type:', mappedTriggerType);
     
     // Map action types to valid database values
-    // The database only allows: 'create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'
+    // Based on testing, only 'create_task' and 'update_deal_stage' are currently valid
+    const validActionTypes = ['create_task', 'update_deal_stage'];
     let mappedActionType = actionNode?.data?.type || 'create_task';
-    if (actionNode?.type === 'aiAgent') {
-      mappedActionType = 'create_activity'; // AI agents create activities
-    } else if (!['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'].includes(mappedActionType)) {
+    
+    if (actionNode?.type === 'aiAgent' || mappedActionType === 'ai_agent') {
+      // AI agents map to create_task (most compatible)
+      mappedActionType = 'create_task';
+      console.log('🤖 Mapping AI agent to create_task');
+    } else if (mappedActionType === 'send_slack') {
+      // Slack actions map to create_task for now
+      mappedActionType = 'create_task';
+      console.log('💬 Mapping Slack action to create_task');
+    } else if (!validActionTypes.includes(mappedActionType)) {
       // Default to create_task if action type is not valid
+      console.warn(`⚠️ Invalid action type "${mappedActionType}", defaulting to "create_task"`);
       mappedActionType = 'create_task';
     }
     

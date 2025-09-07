@@ -108,14 +108,16 @@ export default function Workflows() {
     console.log('🎯 handleWorkflowSave called with:', workflow);
     
     // Validate and fix trigger_type before any processing
-    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
+    // IMPORTANT: 'manual' is NOT valid - database only accepts these:
+    const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
     if (!workflow.trigger_type || !validTriggerTypes.includes(workflow.trigger_type)) {
-      console.warn(`⚠️ Invalid trigger_type "${workflow.trigger_type}" detected, forcing to "manual"`);
-      workflow.trigger_type = 'manual';
+      console.warn(`⚠️ Invalid trigger_type "${workflow.trigger_type}" detected, forcing to "activity_created"`);
+      workflow.trigger_type = 'activity_created';
     }
     
     // Validate and fix action_type before any processing
-    const validActionTypes = ['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'];
+    // Based on database testing, only these are currently valid:
+    const validActionTypes = ['create_task', 'update_deal_stage'];
     if (!workflow.action_type || !validActionTypes.includes(workflow.action_type)) {
       console.warn(`⚠️ Invalid action_type "${workflow.action_type}" detected, forcing to "create_task"`);
       workflow.action_type = 'create_task';
@@ -165,12 +167,13 @@ export default function Workflows() {
       console.log('🚨 Final action_type being saved:', workflowData.action_type);
 
       // FINAL SAFETY CHECK - Ensure trigger_type and action_type are valid
-      const finalValidTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
-      const finalValidActionTypes = ['create_deal', 'update_deal_stage', 'create_task', 'create_activity', 'send_notification', 'update_field'];
+      // Using actual valid values from database testing
+      const finalValidTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
+      const finalValidActionTypes = ['create_task', 'update_deal_stage'];
       
       if (!finalValidTriggerTypes.includes(workflowData.trigger_type)) {
-        console.error(`❌ CRITICAL: Invalid trigger_type "${workflowData.trigger_type}" about to be saved! Forcing to "manual"`);
-        workflowData.trigger_type = 'manual';
+        console.error(`❌ CRITICAL: Invalid trigger_type "${workflowData.trigger_type}" about to be saved! Forcing to "activity_created"`);
+        workflowData.trigger_type = 'activity_created';
       }
       
       if (!finalValidActionTypes.includes(workflowData.action_type)) {
