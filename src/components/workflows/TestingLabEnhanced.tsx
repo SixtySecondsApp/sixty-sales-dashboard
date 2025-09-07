@@ -157,6 +157,9 @@ const edgeTypes = {
 };
 
 const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => {
+  console.log('🎭 TestingLabEnhanced component mounted/rendered');
+  console.log('Workflow prop:', workflow);
+  
   const { userData: user } = useUser();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
@@ -659,18 +662,29 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
 
   // Start test execution
   const startTest = () => {
+    console.log('🚀 Start Test button clicked!');
+    console.log('Workflow data:', workflow);
+    console.log('Test mode:', testMode);
+    
     if (!workflow?.canvas_data) {
+      console.error('No workflow data available');
       alert('No workflow data available to test');
       return;
     }
 
     // Find selected scenario from appropriate source
     const scenarios = testMode === 'real' ? realDataScenarios : dynamicScenarios;
+    console.log('Available scenarios:', scenarios);
+    console.log('Selected scenario ID:', selectedScenario);
+    
     const scenario = scenarios.find(s => s.id === selectedScenario);
     if (!scenario) {
+      console.error('No scenario selected');
       alert('Please select a test scenario');
       return;
     }
+    
+    console.log('Starting test with scenario:', scenario);
 
     // Create test result entry (exclude note nodes from count)
     const executableNodes = nodes.filter(n => n.type !== 'note');
@@ -856,7 +870,10 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
                   <label className="text-xs font-medium text-gray-400 mb-1 block">Test Mode</label>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setTestMode('simulated')}
+                      onClick={() => {
+                        console.log('🔄 Switching to Simulated mode');
+                        setTestMode('simulated');
+                      }}
                       className={`flex-1 px-3 py-2 rounded-lg text-sm transition-colors ${
                         testMode === 'simulated' 
                           ? 'bg-[#37bd7e] text-white' 
@@ -868,8 +885,10 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
                     </button>
                     <button
                       onClick={() => {
+                        console.log('🔄 Switching to Real Data mode');
                         setTestMode('real');
                         if (realDataScenarios.length === 0) {
+                          console.log('Loading real data scenarios...');
                           loadRealDataScenarios();
                         }
                       }}

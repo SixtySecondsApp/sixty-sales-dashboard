@@ -24,6 +24,7 @@ import TemplateLibrary from '@/components/workflows/TemplateLibrary';
 import MyWorkflows from '@/components/workflows/MyWorkflows';
 import TestingLabEnhanced from '@/components/workflows/TestingLabEnhanced';
 import WorkflowInsights from '@/components/workflows/WorkflowInsights';
+import TestingLabDebug from '@/components/workflows/TestingLabDebug';
 
 export default function Workflows() {
   const { userData: user } = useUser();
@@ -167,11 +168,16 @@ export default function Workflows() {
       }
       
       console.log(`✅ Workflow ${workflow.id ? 'updated' : 'created'} successfully with ${testScenarios.length} test scenarios`, result.data);
-      alert(`Workflow "${workflow.name}" saved successfully with ${testScenarios.length} test scenarios!`);
+      
+      // Update the selectedWorkflow with the saved data for autosave
+      if (result.data && result.data[0]) {
+        setSelectedWorkflow(result.data[0]);
+      }
+      
       await loadWorkflowStats();
       
-      // Clear selected workflow to show success
-      setSelectedWorkflow(null);
+      // Return the saved workflow data
+      return result.data?.[0];
     } catch (error: any) {
       console.error('Failed to save workflow:', error);
       const errorMessage = error.message || 'Unknown error occurred';
@@ -359,9 +365,12 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <TestingLabEnhanced 
-                workflow={selectedWorkflow}
-              />
+              <div className="space-y-4">
+                <TestingLabDebug />
+                <TestingLabEnhanced 
+                  workflow={selectedWorkflow}
+                />
+              </div>
             </motion.div>
           )}
           

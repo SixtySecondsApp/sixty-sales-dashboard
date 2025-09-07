@@ -230,8 +230,8 @@ export default defineConfig({
       minifyWhitespace: true,
     }),
     
-    // Development optimizations
-    ...(process.env.NODE_ENV === 'development' && {
+    // Development optimizations - NEVER drop console in dev
+    ...(process.env.NODE_ENV !== 'production' && {
       keepNames: true,
     })
   },

@@ -44,7 +44,8 @@ import {
   Sparkles,
   X,
   Pause,
-  Square
+  Square,
+  Search
 } from 'lucide-react';
 import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
@@ -52,6 +53,8 @@ import { slackOAuthService } from '@/lib/services/slackOAuthService';
 import { supabase } from '@/lib/supabase/clientV2';
 import { WorkflowTestEngine, TestExecutionState, TEST_SCENARIOS, NodeExecutionState } from '@/lib/utils/workflowTestEngine';
 import AnimatedTestEdge from './AnimatedTestEdge';
+import WorkflowSaveModal from './WorkflowSaveModal';
+import { WorkflowSuggestionGenerator } from '@/lib/utils/workflowSuggestions';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -208,8 +211,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
-  const [workflowName, setWorkflowName] = useState('Untitled Workflow');
+  const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [suggestedName, setSuggestedName] = useState('');
+  const [suggestedDescription, setSuggestedDescription] = useState('');
+  const [isFirstSave, setIsFirstSave] = useState(true);
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [lastSavedData, setLastSavedData] = useState<string>('');
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [nodeSearchQuery, setNodeSearchQuery] = useState('');
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [showNodeEditor, setShowNodeEditor] = useState(false);
   const [slackConnected, setSlackConnected] = useState(false);
@@ -248,14 +261,22 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   useEffect(() => {
     if (selectedWorkflow) {
       // Set workflow name and description
-      setWorkflowName(selectedWorkflow.name || selectedWorkflow.rule_name || 'Untitled Workflow');
+      setWorkflowName(selectedWorkflow.name || selectedWorkflow.rule_name || '');
       setWorkflowDescription(selectedWorkflow.description || selectedWorkflow.rule_description || '');
+      setWorkflowId(selectedWorkflow.id || null);
+      setIsFirstSave(false); // If we're loading a workflow, it's not the first save
       
       // Load canvas data if available
       if (selectedWorkflow.canvas_data) {
         setNodes(selectedWorkflow.canvas_data.nodes || []);
         setEdges(selectedWorkflow.canvas_data.edges || []);
       }
+    } else {
+      // Reset for new workflow
+      setWorkflowName('');
+      setWorkflowDescription('');
+      setWorkflowId(null);
+      setIsFirstSave(true);
     }
   }, [selectedWorkflow, setNodes, setEdges]);
 
@@ -295,33 +316,59 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     }
   };
 
-  // Load selected workflow data
+  // Autosave functionality
   useEffect(() => {
-    if (selectedWorkflow) {
-      setWorkflowName(selectedWorkflow.name || 'Untitled Workflow');
-      setWorkflowDescription(selectedWorkflow.description || '');
-      
-      // Load canvas data if available
-      if (selectedWorkflow.canvas_data) {
-        const canvasData = typeof selectedWorkflow.canvas_data === 'string' 
-          ? JSON.parse(selectedWorkflow.canvas_data) 
-          : selectedWorkflow.canvas_data;
-        
-        if (canvasData.nodes) {
-          setNodes(canvasData.nodes);
-        }
-        if (canvasData.edges) {
-          setEdges(canvasData.edges);
-        }
-      }
-    } else {
-      // Reset for new workflow
-      setWorkflowName('Untitled Workflow');
-      setWorkflowDescription('');
-      setNodes([]);
-      setEdges([]);
+    // Only autosave if we have a workflow ID (not first save) and have name/description
+    if (!workflowId || !workflowName || !workflowDescription) return;
+    
+    // Clear existing timer
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
     }
-  }, [selectedWorkflow, setNodes, setEdges]);
+    
+    // Create a hash of current data to check if anything changed
+    const currentData = JSON.stringify({ nodes, edges, workflowName, workflowDescription });
+    
+    // Only save if data changed
+    if (currentData !== lastSavedData) {
+      // Set new timer for autosave (3 seconds after last change)
+      autoSaveTimerRef.current = setTimeout(() => {
+        console.log('🔄 Autosaving workflow...');
+        performAutoSave();
+      }, 3000);
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+    };
+  }, [nodes, edges, workflowName, workflowDescription, workflowId]);
+  
+  const performAutoSave = async () => {
+    if (!workflowId || !workflowName) return;
+    
+    setIsAutoSaving(true);
+    const workflow = buildWorkflowData();
+    workflow.id = workflowId;
+    
+    try {
+      // Call the save function
+      await onSave(workflow);
+      
+      // Update last saved data
+      const currentData = JSON.stringify({ nodes, edges, workflowName, workflowDescription });
+      setLastSavedData(currentData);
+      setLastSaveTime(new Date());
+      
+      console.log('✅ Workflow autosaved');
+    } catch (error) {
+      console.error('Failed to autosave workflow:', error);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
   
   const onConnect = useCallback(
     (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -593,7 +640,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     testEngineRef.current?.setSpeed(speed);
   };
 
-  const handleSave = () => {
+  const buildWorkflowData = () => {
     // Extract trigger and action information from nodes
     const triggerNode = nodes.find(n => n.type === 'trigger');
     const actionNode = nodes.find(n => n.type === 'action');
@@ -664,8 +711,51 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
     };
     
-    console.log('💾 Saving workflow:', workflow);
-    onSave(workflow);
+    return workflow;
+  };
+  
+  const handleSave = () => {
+    // If first save or no name/description, show modal
+    if (isFirstSave || !workflowName || !workflowDescription) {
+      // Generate AI suggestions based on current workflow
+      const suggestions = WorkflowSuggestionGenerator.generateSuggestions(nodes, edges);
+      setSuggestedName(workflowName || suggestions.name);
+      setSuggestedDescription(workflowDescription || suggestions.description);
+      setShowSaveModal(true);
+    } else {
+      // Direct save for existing workflows with name/description
+      const workflow = buildWorkflowData();
+      console.log('💾 Saving workflow:', workflow);
+      onSave(workflow);
+    }
+  };
+  
+  const handleModalSave = async (name: string, description: string) => {
+    setWorkflowName(name);
+    setWorkflowDescription(description);
+    
+    const workflow = buildWorkflowData();
+    workflow.name = name;
+    workflow.description = description;
+    
+    console.log('💾 Saving workflow from modal:', workflow);
+    
+    // Save the workflow and get the returned data
+    const savedWorkflow = await onSave(workflow);
+    
+    // If we got a saved workflow back, update the ID for autosave
+    if (savedWorkflow?.id) {
+      setWorkflowId(savedWorkflow.id);
+      // After first save, enable autosave
+      setIsFirstSave(false);
+    }
+    
+    // Store the saved data hash
+    const currentData = JSON.stringify({ nodes, edges, workflowName: name, workflowDescription: description });
+    setLastSavedData(currentData);
+    
+    // Close modal
+    setShowSaveModal(false);
   };
 
   const handleTest = () => {
@@ -780,6 +870,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   };
 
   return (
+    <>
     <div className="h-[calc(100vh-8rem)] flex overflow-hidden">
       {/* Left Panel - Node Library OR Test Panel */}
       <motion.div 
@@ -934,30 +1025,81 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             </div>
           </div>
         ) : (
-          <div className="space-y-6 p-6">
-            {/* Workflow Details */}
-            <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Workflow Details</h3>
-            <input
-              type="text"
-              value={workflowName}
-              onChange={(e) => setWorkflowName(e.target.value)}
-              placeholder="Workflow name..."
-              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors mb-2"
-            />
-            <textarea
-              value={workflowDescription}
-              onChange={(e) => setWorkflowDescription(e.target.value)}
-              placeholder="Description..."
-              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-            />
-          </div>
+          <div className="flex flex-col h-full">
+            {/* Search Bar */}
+            <div className="p-4 border-b border-gray-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={nodeSearchQuery}
+                  onChange={(e) => setNodeSearchQuery(e.target.value)}
+                  placeholder="Search nodes..."
+                  className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                />
+              </div>
+            </div>
+            
+            {/* Node Library Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Check if search has no results */}
+          {nodeSearchQuery && (() => {
+            const allTriggers = [
+              { type: 'stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves stages' },
+              { type: 'activity_created', label: 'Activity Created', iconName: 'Activity', description: 'When activity logged' },
+              { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
+              { type: 'webhook_received', label: 'Webhook Received', iconName: 'Zap', description: 'External webhook trigger' },
+              { type: 'task_overdue', label: 'Task Overdue', iconName: 'AlertTriangle', description: 'Task past due date' },
+              { type: 'activity_monitor', label: 'Activity Monitor', iconName: 'Activity', description: 'Monitor activity levels' },
+              { type: 'scheduled', label: 'Scheduled', iconName: 'Clock', description: 'Time-based trigger' },
+              { type: 'time_based', label: 'Time Based', iconName: 'Clock', description: 'After time period' }
+            ];
+            
+            const allConditions = [
+              { type: 'if_value', label: 'If Value', condition: 'Check field value' },
+              { type: 'if_stage', label: 'If Stage', condition: 'Check deal stage' },
+              { type: 'if_custom_field', label: 'Custom Field Value', condition: 'Check custom fields' },
+              { type: 'time_since_contact', label: 'Time Since Contact', condition: 'Days since last interaction' },
+              { type: 'if_time', label: 'If Time', condition: 'Time-based condition' },
+              { type: 'if_user', label: 'If User', condition: 'User-based check' },
+              { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' }
+            ];
+            
+            const allActions = [
+              { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },
+              { type: 'create_recurring_task', label: 'Recurring Task', iconName: 'CheckSquare', description: 'Scheduled tasks' },
+              { type: 'send_webhook', label: 'Send Webhook', iconName: 'Zap', description: 'Call external API' },
+              { type: 'send_notification', label: 'Send Notification', iconName: 'Bell', description: 'Send alert' },
+              { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack', description: 'Post to Slack channel' },
+              { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
+              { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText', description: 'Add activity note' },
+              { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp', description: 'Update one or more fields' },
+              { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
+              { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
+              { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
+            ];
+            
+            const query = nodeSearchQuery.toLowerCase();
+            const hasResults = 
+              allTriggers.some(t => t.label.toLowerCase().includes(query) || t.description.toLowerCase().includes(query)) ||
+              allConditions.some(c => c.label.toLowerCase().includes(query) || c.condition.toLowerCase().includes(query)) ||
+              allActions.some(a => a.label.toLowerCase().includes(query) || a.description.toLowerCase().includes(query));
+            
+            if (!hasResults) {
+              return (
+                <div className="text-center py-8">
+                  <Search className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-400 font-medium">No nodes found</p>
+                  <p className="text-gray-500 text-sm mt-1">Try searching for different keywords</p>
+                </div>
+              );
+            }
+            return null;
+          })()}
           
           {/* Triggers */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Triggers</h3>
-            <div className="space-y-2">
-              {[
+          {(() => {
+            const triggers = [
                 { type: 'stage_changed', label: 'Stage Changed', iconName: 'Target', description: 'When deal moves stages' },
                 { type: 'activity_created', label: 'Activity Created', iconName: 'Activity', description: 'When activity logged' },
                 { type: 'deal_created', label: 'Deal Created', iconName: 'Database', description: 'When new deal added' },
@@ -966,36 +1108,46 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'activity_monitor', label: 'Activity Monitor', iconName: 'Activity', description: 'Monitor activity levels' },
                 { type: 'scheduled', label: 'Scheduled', iconName: 'Clock', description: 'Time-based trigger' },
                 { type: 'time_based', label: 'Time Based', iconName: 'Clock', description: 'After time period' }
-              ].map((trigger) => {
-                const TriggerIcon = iconMap[trigger.iconName] || Target;
-                return (
-                  <div
-                    key={trigger.type}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('nodeType', 'trigger');
-                      e.dataTransfer.setData('nodeData', JSON.stringify(trigger));
-                    }}
-                    className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <TriggerIcon className="w-4 h-4 text-purple-400" />
-                      <div>
-                        <div className="text-sm text-white">{trigger.label}</div>
-                        <div className="text-xs text-gray-400">{trigger.description}</div>
+            ].filter(trigger => 
+              !nodeSearchQuery || 
+              trigger.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
+              trigger.description.toLowerCase().includes(nodeSearchQuery.toLowerCase())
+            );
+            
+            return triggers.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Triggers</h3>
+                <div className="space-y-2">
+                  {triggers.map((trigger) => {
+                    const TriggerIcon = iconMap[trigger.iconName] || Target;
+                    return (
+                      <div
+                        key={trigger.type}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('nodeType', 'trigger');
+                          e.dataTransfer.setData('nodeData', JSON.stringify(trigger));
+                        }}
+                        className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <TriggerIcon className="w-4 h-4 text-purple-400" />
+                          <div>
+                            <div className="text-sm text-white">{trigger.label}</div>
+                            <div className="text-xs text-gray-400">{trigger.description}</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null;
+          })()}
           
           {/* Conditions & Routers */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Logic & Routing</h3>
-            <div className="space-y-2">
-              {[
+          {(() => {
+            const conditions = [
                 { type: 'if_value', label: 'If Value', condition: 'Check field value' },
                 { type: 'if_stage', label: 'If Stage', condition: 'Check deal stage' },
                 { type: 'if_custom_field', label: 'Custom Field Value', condition: 'Check custom fields' },
@@ -1003,33 +1155,43 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'if_time', label: 'If Time', condition: 'Time-based condition' },
                 { type: 'if_user', label: 'If User', condition: 'User-based check' },
                 { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' }
-              ].map((condition) => (
-                <div
-                  key={condition.type}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('nodeType', condition.nodeType || 'condition');
-                    e.dataTransfer.setData('nodeData', JSON.stringify(condition));
-                  }}
-                  className={`${condition.nodeType === 'router' ? 'bg-orange-600/20 border-orange-600/30 hover:bg-orange-600/30' : 'bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30'} rounded-lg p-3 cursor-move transition-colors`}
-                >
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="w-4 h-4 text-blue-400" />
-                    <div>
-                      <div className="text-sm text-white">{condition.label}</div>
-                      <div className="text-xs text-gray-400">{condition.condition}</div>
+            ].filter(condition => 
+              !nodeSearchQuery || 
+              condition.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
+              condition.condition.toLowerCase().includes(nodeSearchQuery.toLowerCase())
+            );
+            
+            return conditions.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Logic & Routing</h3>
+                <div className="space-y-2">
+                  {conditions.map((condition) => (
+                    <div
+                      key={condition.type}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('nodeType', condition.nodeType || 'condition');
+                        e.dataTransfer.setData('nodeData', JSON.stringify(condition));
+                      }}
+                      className={`${condition.nodeType === 'router' ? 'bg-orange-600/20 border-orange-600/30 hover:bg-orange-600/30' : 'bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30'} rounded-lg p-3 cursor-move transition-colors`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-4 h-4 text-blue-400" />
+                        <div>
+                          <div className="text-sm text-white">{condition.label}</div>
+                          <div className="text-xs text-gray-400">{condition.condition}</div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
+            ) : null;
+          })()}
           
           {/* Actions */}
-          <div>
-            <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
-            <div className="space-y-2">
-              {[
+          {(() => {
+            const actions = [
                 { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },
                 { type: 'create_recurring_task', label: 'Recurring Task', iconName: 'CheckSquare', description: 'Scheduled tasks' },
                 { type: 'send_webhook', label: 'Send Webhook', iconName: 'Zap', description: 'Call external API' },
@@ -1041,37 +1203,73 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
                 { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
                 { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
-              ].map((action) => {
-                const ActionIcon = action.iconName === 'Slack' ? FaSlack : (iconMap[action.iconName] || CheckSquare);
-                return (
-                  <div
-                    key={action.type}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('nodeType', 'action');
-                      e.dataTransfer.setData('nodeData', JSON.stringify(action));
-                    }}
-                    className="bg-[#37bd7e]/20 border border-[#37bd7e]/30 rounded-lg p-3 cursor-move hover:bg-[#37bd7e]/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <ActionIcon className="w-4 h-4 text-[#37bd7e]" />
-                      <div>
-                        <div className="text-sm text-white">{action.label}</div>
-                        <div className="text-xs text-gray-400">{action.description}</div>
+            ].filter(action => 
+              !nodeSearchQuery || 
+              action.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
+              action.description.toLowerCase().includes(nodeSearchQuery.toLowerCase())
+            );
+            
+            return actions.length > 0 ? (
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
+                <div className="space-y-2">
+                  {actions.map((action) => {
+                    const ActionIcon = action.iconName === 'Slack' ? FaSlack : (iconMap[action.iconName] || CheckSquare);
+                    return (
+                      <div
+                        key={action.type}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('nodeType', 'action');
+                          e.dataTransfer.setData('nodeData', JSON.stringify(action));
+                        }}
+                        className="bg-[#37bd7e]/20 border border-[#37bd7e]/30 rounded-lg p-3 cursor-move hover:bg-[#37bd7e]/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ActionIcon className="w-4 h-4 text-[#37bd7e]" />
+                          <div>
+                            <div className="text-sm text-white">{action.label}</div>
+                            <div className="text-xs text-gray-400">{action.description}</div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null;
+          })()}
             </div>
-          </div>
           </div>
         )}
       </motion.div>
 
       {/* Main Canvas */}
       <div className="flex-1 relative h-[calc(100vh-8rem)] overflow-hidden">
-        {/* Canvas Toolbar */}
+        {/* Workflow Title - Centered at Top */}
+        {workflowName && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40">
+            <div className="flex items-center gap-3 px-6 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
+              <div className="flex flex-col items-center">
+                <span className="text-white font-medium text-base">{workflowName}</span>
+                {lastSaveTime && (
+                  <span className="text-gray-400 text-xs mt-0.5">
+                    {isAutoSaving ? (
+                      <span className="flex items-center gap-1">
+                        <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                        Saving...
+                      </span>
+                    ) : (
+                      `Last saved ${lastSaveTime.toLocaleTimeString()}`
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Canvas Toolbar - Right Side */}
         <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
           {/* Test Button - Toggle test panel */}
           <button
@@ -2980,6 +3178,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         )}
       </div>
     </div>
+    
+    {/* Workflow Save Modal */}
+    <WorkflowSaveModal
+      isOpen={showSaveModal}
+      onClose={() => setShowSaveModal(false)}
+      onSave={handleModalSave}
+      suggestedName={suggestedName}
+      suggestedDescription={suggestedDescription}
+      isFirstSave={isFirstSave}
+    />
+    </>
   );
 };
 

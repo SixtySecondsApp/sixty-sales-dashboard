@@ -1,14 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Edit(*)",
-      "Write(*)",
-      "MultiEdit(*)",
-      "Read(*)",
-      "TodoWrite(*)",
-      "NotebookEdit(*)"
+      "Read(/Users/andrewbryce/Desktop/**)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }
