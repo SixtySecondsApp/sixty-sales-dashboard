@@ -15,23 +15,26 @@ import {
   Plus,
   Sparkles,
   CheckCircle,
-  X
+  X,
+  PlayCircle
 } from 'lucide-react';
 
 // Import workflow components
 import WorkflowCanvas from '@/components/workflows/WorkflowCanvas';
 import TemplateLibrary from '@/components/workflows/TemplateLibrary';
 import MyWorkflows from '@/components/workflows/MyWorkflows';
-import TestingLabEnhanced from '@/components/workflows/TestingLabEnhanced';
+import TestingLabNew from '@/components/workflows/TestingLabNew';
 import WorkflowInsights from '@/components/workflows/WorkflowInsights';
-import TestingLabDebug from '@/components/workflows/TestingLabDebug';
+import ExecutionsList from '@/components/workflows/ExecutionsList';
+import { type WorkflowExecution } from '@/lib/services/workflowExecutionService';
 
 export default function Workflows() {
   const { userData: user } = useUser();
   const [loading, setLoading] = useState(false); // Set to false initially since we don't need to check admin
   const [isAdmin, setIsAdmin] = useState(true); // Allow all users to use workflows
-  const [activeTab, setActiveTab] = useState<'builder' | 'templates' | 'my-workflows' | 'testing' | 'insights'>('builder');
+  const [activeTab, setActiveTab] = useState<'builder' | 'templates' | 'my-workflows' | 'testing' | 'insights' | 'jobs'>('builder');
   const [selectedWorkflow, setSelectedWorkflow] = useState<any>(null);
+  const [selectedExecution, setSelectedExecution] = useState<any>(null);
   const [showSlackSuccess, setShowSlackSuccess] = useState(false);
   const [showSlackError, setShowSlackError] = useState('');
   const [stats, setStats] = useState({
@@ -43,6 +46,7 @@ export default function Workflows() {
   
   const tabs = [
     { id: 'builder', label: 'Builder', icon: Layers, description: 'Create workflows visually' },
+    { id: 'jobs', label: 'Jobs', icon: PlayCircle, description: 'View executions' },
     { id: 'templates', label: 'Templates', icon: BookOpen, description: 'Start from templates' },
     { id: 'my-workflows', label: 'My Workflows', icon: FolderOpen, description: 'Manage workflows' },
     { id: 'testing', label: 'Testing Lab', icon: TestTube, description: 'Test & debug' },
@@ -101,6 +105,28 @@ export default function Workflows() {
     setSelectedWorkflow(workflow);
     if (activeTab !== 'builder' && activeTab !== 'testing') {
       setActiveTab('builder');
+    }
+  };
+
+  const handleExecutionSelect = (execution: WorkflowExecution) => {
+    setSelectedExecution(execution);
+    // Load the workflow associated with this execution and make it available across all tabs
+    if (execution.workflowId) {
+      // Create a clean workflow object that works across all tabs
+      const workflowForAllTabs = {
+        id: execution.workflowId,
+        name: execution.workflowName || 'Unknown Workflow',
+        canvas_data: execution.workflowData,
+        // Remove execution-specific properties so it works in Builder and Testing tabs
+        trigger_type: execution.workflowData?.trigger_type || 'activity_created',
+        action_type: execution.workflowData?.action_type || 'create_task',
+        trigger_config: execution.workflowData?.trigger_config || {},
+        action_config: execution.workflowData?.action_config || {},
+        is_active: execution.workflowData?.is_active || false,
+        description: execution.workflowData?.description || '',
+        rule_description: execution.workflowData?.rule_description || ''
+      };
+      setSelectedWorkflow(workflowForAllTabs);
     }
   };
 
@@ -365,6 +391,119 @@ export default function Workflows() {
               />
             </motion.div>
           )}
+
+          {activeTab === 'jobs' && (
+            <motion.div
+              key="jobs"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="h-[calc(100vh-8rem)] flex"
+            >
+              {selectedWorkflow ? (
+                <>
+                  {/* Left Panel: Executions List */}
+                  <div className="w-80 border-r border-gray-700/50">
+                    <ExecutionsList 
+                      onExecutionSelect={handleExecutionSelect}
+                      selectedExecution={selectedExecution}
+                      workflowId={selectedWorkflow?.id}
+                    />
+                  </div>
+                  
+                  {/* Right Panel: Workflow Canvas in Execution Mode */}
+                  <div className="flex-1">
+                    {selectedExecution ? (
+                      <WorkflowCanvas 
+                        selectedWorkflow={selectedWorkflow}
+                        onSave={() => {}} // Disable saving in execution view mode
+                        executionMode={true}
+                        executionData={(() => {
+                          const transformed = selectedExecution.nodeExecutions.reduce((acc, nodeExecution) => {
+                            acc[nodeExecution.nodeId] = nodeExecution;
+                            return acc;
+                          }, {} as Record<string, any>);
+                          
+                          // Validate execution completeness
+                          let hasExecutionIssues = false;
+                          let issueDescription = '';
+                          
+                          if (selectedExecution.status === 'completed' && selectedWorkflow?.canvas_data?.nodes) {
+                            const workflowNodeIds = selectedWorkflow.canvas_data.nodes.map(node => node.id);
+                            const executedNodeIds = Object.keys(transformed);
+                            const missingNodes = workflowNodeIds.filter(nodeId => !executedNodeIds.includes(nodeId));
+                            
+                            if (missingNodes.length > 0) {
+                              hasExecutionIssues = true;
+                              issueDescription = `Missing execution data for ${missingNodes.length} node(s): ${missingNodes.join(', ')}`;
+                              console.warn(`🚨 Execution ${selectedExecution.id} marked as completed but missing node execution data:`, missingNodes);
+                            }
+                            
+                            // Check for nodes with incomplete status
+                            const incompleteNodes = Object.values(transformed).filter((nodeExec: any) => 
+                              nodeExec.status === 'pending' || nodeExec.status === 'running'
+                            );
+                            
+                            if (incompleteNodes.length > 0) {
+                              hasExecutionIssues = true;
+                              issueDescription += (issueDescription ? '; ' : '') + 
+                                `${incompleteNodes.length} node(s) with incomplete status`;
+                              console.warn(`🚨 Execution ${selectedExecution.id} has nodes with incomplete status:`, incompleteNodes);
+                            }
+                          }
+                          
+                          return {
+                            ...selectedExecution,
+                            nodeExecutions: transformed,
+                            // Add execution issue metadata
+                            hasExecutionIssues,
+                            issueDescription,
+                            // Override status if there are issues
+                            status: hasExecutionIssues ? 'failed' : selectedExecution.status,
+                            error: hasExecutionIssues ? `Execution tracking issue: ${issueDescription}` : selectedExecution.error
+                          };
+                        })()}
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center bg-gray-900/50">
+                        <div className="text-center text-gray-400">
+                          <PlayCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <h3 className="text-lg font-medium text-gray-300 mb-2">Select an Execution</h3>
+                          <p>Choose an execution from the list to view its workflow details</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-gray-900/50">
+                  <div className="text-center text-gray-400 max-w-md">
+                    <Workflow className="w-16 h-16 mx-auto mb-6 opacity-50" />
+                    <h3 className="text-xl font-medium text-gray-300 mb-3">No Workflow Selected</h3>
+                    <p className="text-gray-500 mb-6 leading-relaxed">
+                      Please create a new workflow or select an existing workflow from the Builder tab to view its job executions.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <button
+                        onClick={() => setActiveTab('builder')}
+                        className="px-4 py-2 bg-[#37bd7e] hover:bg-[#2da96a] text-white rounded-lg transition-colors flex items-center gap-2 justify-center"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create Workflow
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('my-workflows')}
+                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2 justify-center"
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                        Select Workflow
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
           
           {activeTab === 'templates' && (
             <motion.div
@@ -406,12 +545,9 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <div className="space-y-4">
-                <TestingLabDebug />
-                <TestingLabEnhanced 
-                  workflow={selectedWorkflow}
-                />
-              </div>
+              <TestingLabNew 
+                workflow={selectedWorkflow}
+              />
             </motion.div>
           )}
           

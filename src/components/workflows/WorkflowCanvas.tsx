@@ -1,5 +1,6 @@
 // Workflow Canvas Component - v2.1 with Visual Testing
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { StatusIndicator, NodeStatus } from './StatusIndicator';
 import ReactFlow, {
   Node,
   Edge,
@@ -45,7 +46,12 @@ import {
   X,
   Pause,
   Square,
-  Search
+  Search,
+  Edit,
+  Check,
+  ChevronDown,
+  Monitor,
+  FlaskConical
 } from 'lucide-react';
 import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
@@ -63,14 +69,16 @@ import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
 import { formStorageService } from '@/lib/services/formStorageService';
-import ExecutionViewer from './ExecutionViewer';
 import WorkflowTestMode from './WorkflowTestMode';
 import ExecutionMonitor from './ExecutionMonitor';
+import NodeExecutionModal from './NodeExecutionModal';
 import { AIProviderService } from '@/lib/services/aiProvider';
 import { createContextFromWorkflow } from '@/lib/utils/promptVariables';
 import { formService } from '@/lib/services/formService';
 import { workflowExecutionService } from '@/lib/services/workflowExecutionService';
+import { useUsers } from '@/lib/hooks/useUsers';
 import VariablePicker from './VariablePicker';
+import LiveMonitorModal from './LiveMonitorModal';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -93,38 +101,38 @@ const iconMap: { [key: string]: any } = {
   Plus
 };
 
-// Visual Test Status Indicator Component
-const NodeStatusIndicator = ({ status }: { status: NodeExecutionState['status'] }) => {
-  if (status === 'idle') return null;
-  
-  const statusConfig = {
-    active: { color: 'bg-yellow-400', icon: '⚡', animation: 'animate-pulse' },
-    success: { color: 'bg-green-500', icon: '✓', animation: '' },
-    failed: { color: 'bg-red-500', icon: '✗', animation: '' },
-    skipped: { color: 'bg-gray-400', icon: '−', animation: '' },
-    waiting: { color: 'bg-blue-400', icon: '⏳', animation: 'animate-spin' }
-  };
-  
-  const config = statusConfig[status] || statusConfig.skipped;
-  
-  return (
-    <div className={`absolute -top-2 -right-2 w-6 h-6 ${config.color} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg ${config.animation} z-10`}>
-      {config.icon}
-    </div>
-  );
+// Map legacy test status to new NodeStatus type
+const mapTestStatusToNodeStatus = (status: NodeExecutionState['status']): NodeStatus => {
+  switch (status) {
+    case 'active': return 'processing';
+    case 'success': return 'success';
+    case 'failed': return 'failed';
+    case 'skipped': return 'skipped';
+    case 'waiting': return 'waiting';
+    case 'idle': 
+    default: return 'idle';
+  }
 };
 
 // Custom Node Types with Visual Testing - 33% smaller
 const TriggerNode = ({ data, selected }: any) => {
   const Icon = data.iconName ? iconMap[data.iconName] : Target;
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
   const isActive = status === 'active';
   
   return (
     <div className={`bg-purple-600 rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-purple-500'
     } ${selected ? 'ring-2 ring-purple-300' : ''}`}>
-      <NodeStatusIndicator status={status || 'idle'} />
+      {nodeStatus !== 'idle' && (
+        <StatusIndicator 
+          status={nodeStatus}
+          variant="badge"
+          position="top-right"
+          size="sm"
+        />
+      )}
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-purple-500" />
       <div className="flex items-center gap-1.5 text-white">
         <Icon className="w-3 h-3" />
@@ -139,13 +147,21 @@ const TriggerNode = ({ data, selected }: any) => {
 
 const ConditionNode = ({ data, selected }: any) => {
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
   const isActive = status === 'active';
   
   return (
     <div className={`bg-blue-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
     } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
-      <NodeStatusIndicator status={status || 'idle'} />
+      {nodeStatus !== 'idle' && (
+        <StatusIndicator 
+          status={nodeStatus}
+          variant="badge"
+          position="top-right"
+          size="sm"
+        />
+      )}
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="true" style={{top: '35%'}} />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="false" style={{top: '65%'}} />
@@ -163,13 +179,21 @@ const ConditionNode = ({ data, selected }: any) => {
 const ActionNode = ({ data, selected }: any) => {
   const Icon = data.iconName === 'Slack' ? FaSlack : (data.iconName ? iconMap[data.iconName] : CheckSquare);
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
   const isActive = status === 'active';
   
   return (
     <div className={`bg-[#37bd7e] rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-[#37bd7e]'
     } ${selected ? 'ring-2 ring-green-300' : ''}`}>
-      <NodeStatusIndicator status={status || 'idle'} />
+      {nodeStatus !== 'idle' && (
+        <StatusIndicator 
+          status={nodeStatus}
+          variant="badge"
+          position="top-right"
+          size="sm"
+        />
+      )}
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
       <div className="flex items-center gap-1.5 text-white">
         <Icon className="w-3 h-3" />
@@ -185,13 +209,21 @@ const ActionNode = ({ data, selected }: any) => {
 // Router Node for advanced workflows - 33% smaller
 const RouterNode = ({ data, selected }: any) => {
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
+  const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
   const isActive = status === 'active';
   
   return (
     <div className={`bg-orange-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-orange-500'
     } ${selected ? 'ring-2 ring-orange-300' : ''}`}>
-      <NodeStatusIndicator status={status || 'idle'} />
+      {nodeStatus !== 'idle' && (
+        <StatusIndicator 
+          status={nodeStatus}
+          variant="badge"
+          position="top-right"
+          size="sm"
+        />
+      )}
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '30%'}} id="a" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '50%'}} id="b" />
@@ -223,9 +255,16 @@ const edgeTypes = {
 interface WorkflowCanvasProps {
   selectedWorkflow: any;
   onSave: (workflow: any) => void;
+  executionMode?: boolean;
+  executionData?: any;
 }
 
-const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSave }) => {
+const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ 
+  selectedWorkflow, 
+  onSave, 
+  executionMode = false, 
+  executionData 
+}) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
@@ -253,10 +292,19 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   const [showFormConfigModal, setShowFormConfigModal] = useState(false);
   const [selectedFormNode, setSelectedFormNode] = useState<Node | null>(null);
   const [showFormPreview, setShowFormPreview] = useState(false);
-  const [showExecutionViewer, setShowExecutionViewer] = useState(false);
   const [showWorkflowTestMode, setShowWorkflowTestMode] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [editingDescription, setEditingDescription] = useState('');
+  const [showExecutionModal, setShowExecutionModal] = useState(false);
+  const [selectedExecutionNode, setSelectedExecutionNode] = useState<Node | null>(null);
   const [currentExecutionId, setCurrentExecutionId] = useState<string | undefined>();
+  const [isRunning, setIsRunning] = useState(false);
+  const [showRunDropdown, setShowRunDropdown] = useState(false);
+  const [showLiveMonitor, setShowLiveMonitor] = useState(false);
+  const { users, isLoading: usersLoading } = useUsers();
   const aiProviderService = useRef<AIProviderService>(AIProviderService.getInstance());
+  const runDropdownRef = useRef<HTMLDivElement>(null);
   
   // Test Execution State - Initialize with default state
   const [testExecutionState, setTestExecutionState] = useState<TestExecutionState>({
@@ -297,7 +345,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       
       // Load canvas data if available
       if (selectedWorkflow.canvas_data) {
-        setNodes(selectedWorkflow.canvas_data.nodes || []);
+        let nodesData = selectedWorkflow.canvas_data.nodes || [];
+        
+        // If in execution mode, enhance nodes with execution data
+        if (executionMode && executionData) {
+          nodesData = nodesData.map(node => {
+            // Add execution data overlay to each node
+            const nodeExecution = executionData.nodeExecutions?.[node.id];
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                executionMode: true,
+                executionData: nodeExecution || null,
+                executionStatus: nodeExecution?.status || 'pending'
+              }
+            };
+          });
+        }
+        
+        setNodes(nodesData);
         setEdges(selectedWorkflow.canvas_data.edges || []);
       }
     } else {
@@ -307,7 +374,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       setWorkflowId(null);
       setIsFirstSave(true);
     }
-  }, [selectedWorkflow, setNodes, setEdges]);
+  }, [selectedWorkflow, setNodes, setEdges, executionMode, executionData]);
 
   // Check Slack connection and load channels
   useEffect(() => {
@@ -407,7 +474,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   // Handle node selection
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      // Special handling for AI Agent nodes
+      // If in execution mode, show execution modal
+      if (executionMode) {
+        setSelectedExecutionNode(node);
+        setShowExecutionModal(true);
+        return;
+      }
+
+      // Normal editing mode
       if (node.type === 'aiAgent') {
         setSelectedAINode(node);
         setShowAIConfigModal(true);
@@ -419,7 +493,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         setShowNodeEditor(true);
       }
     },
-    []
+    [executionMode]
   );
 
   // Update node data when edited
@@ -463,19 +537,30 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
   // Run workflow execution
   const runWorkflow = async (triggerData?: any) => {
+    console.log('🚀 Run button clicked! Starting workflow execution...');
+    
+    if (isRunning) {
+      console.log('⚠️ Workflow is already running, ignoring click');
+      return;
+    }
+    
+    setIsRunning(true);
+    
     try {
       // Check if there are nodes to execute
       if (nodes.length === 0) {
-        console.warn('No nodes in workflow to execute');
+        console.warn('⚠️ No nodes in workflow to execute');
         alert('Please add nodes to the workflow before running');
         return;
       }
+      
+      console.log(`📊 Found ${nodes.length} nodes and ${edges.length} edges to execute`);
       
       let currentWorkflowId = workflowId;
       
       // If workflow hasn't been saved yet, save it first
       if (!currentWorkflowId) {
-        console.log('[WorkflowCanvas] Saving workflow before execution');
+        console.log('💾 Workflow not saved yet, saving before execution...');
         const workflow = buildWorkflowData();
         
         // Ensure we have at least a basic name for the workflow
@@ -488,18 +573,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           currentWorkflowId = savedWorkflow?.id;
           if (currentWorkflowId) {
             setWorkflowId(currentWorkflowId);
-            console.log('[WorkflowCanvas] Workflow saved with ID:', currentWorkflowId);
+            console.log('✅ Workflow saved with ID:', currentWorkflowId);
           } else {
             throw new Error('No ID returned from save operation');
           }
         } catch (error) {
-          console.error('Failed to save workflow before execution:', error);
-          alert('Please save the workflow before running it in test mode');
+          console.error('❌ Failed to save workflow before execution:', error);
+          alert('Failed to save the workflow. Please try saving manually first.');
           return;
         }
       }
       
-      console.log('Running workflow:', { 
+      console.log('🎯 Starting workflow execution:', { 
         workflowId: currentWorkflowId, 
         nodes: nodes.length, 
         edges: edges.length,
@@ -514,22 +599,56 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         edges,
         triggerData ? 'form' : 'manual',
         triggerData,
-        isTestMode
+        isTestMode,
+        workflowName || 'Untitled Workflow'
       );
       
-      console.log('Execution started:', executionId);
+      console.log('✅ Execution started successfully!', { executionId, isTestMode });
       
       setCurrentExecutionId(executionId);
       
-      // Show execution viewer if not already showing test mode
-      if (!showWorkflowTestMode) {
-        setShowExecutionViewer(true);
-      }
-    } catch (error) {
-      console.error('Error running workflow:', error);
-      alert('Error running workflow. Check console for details.');
+      // Show success message
+      alert(`Workflow execution started! Execution ID: ${executionId.slice(0, 8)}...\n\nCheck the Jobs tab to see the results.`);
+      
+      // Execution logged - will appear in Jobs tab
+    } catch (error: any) {
+      console.error('❌ Error running workflow:', error);
+      const errorMessage = error?.message || 'Unknown error occurred';
+      alert(`Failed to run workflow: ${errorMessage}\n\nCheck console for details.`);
+    } finally {
+      setIsRunning(false);
     }
   };
+
+  // Quick test run with visual feedback
+
+  // Live monitor for production jobs
+  const runLiveMonitor = () => {
+    console.log('📺 Starting live monitor mode...');
+    setShowLiveMonitor(true);
+    setShowRunDropdown(false);
+  };
+
+  // Quick run without UI
+  const runQuickExecution = async () => {
+    console.log('⚡ Quick execution...');
+    setShowRunDropdown(false);
+    await runWorkflow();
+  };
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (runDropdownRef.current && !runDropdownRef.current.contains(event.target as Node)) {
+        setShowRunDropdown(false);
+      }
+    };
+
+    if (showRunDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showRunDropdown]);
 
   // Listen for form submissions (both CustomEvents and BroadcastChannel)
   useEffect(() => {
@@ -1011,10 +1130,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       // Add specific config based on action type
       switch (actionNode.data.type) {
         case 'create_task':
-          action_config.task_title = `Task from ${workflowName}`;
-          action_config.task_description = 'Automated task';
-          action_config.due_in_days = 1;
-          action_config.priority = 'medium';
+          action_config.task_title = actionNode.data.taskTitle || `Task from ${workflowName}`;
+          action_config.task_description = actionNode.data.taskDescription || 'Automated task';
+          action_config.due_in_days = actionNode.data.dueDays || 1;
+          action_config.priority = actionNode.data.priority || 'medium';
+          action_config.assigned_to = actionNode.data.assignedTo || '';
+          action_config.multiple_assignees = actionNode.data.multipleAssignees || false;
+          action_config.assignee_list = Array.isArray(actionNode.data.assignedTo) ? actionNode.data.assignedTo : [];
           break;
         case 'send_notification':
           action_config.message = `Notification from ${workflowName}`;
@@ -1030,6 +1152,98 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           action_config.mention_users = actionNode.data.slackMentionUsers || '';
           action_config.include_deal_link = actionNode.data.slackIncludeDealLink || false;
           action_config.include_owner = actionNode.data.slackIncludeOwner || false;
+          break;
+        case 'assign_owner':
+          action_config.assign_to = actionNode.data.assignTo || 'round_robin';
+          action_config.specific_user_id = actionNode.data.specificUserId || '';
+          break;
+        case 'create_contact':
+          action_config.contact_name = actionNode.data.contactName || '';
+          action_config.contact_email = actionNode.data.contactEmail || '';
+          action_config.contact_phone = actionNode.data.contactPhone || '';
+          action_config.contact_company = actionNode.data.contactCompany || '';
+          action_config.assigned_to = actionNode.data.assignedTo || '';
+          action_config.multiple_assignees = actionNode.data.multipleAssignees || false;
+          action_config.assignee_list = Array.isArray(actionNode.data.assignedTo) ? actionNode.data.assignedTo : [];
+          break;
+        case 'create_deal':
+          action_config.deal_name = actionNode.data.dealName || '';
+          action_config.deal_value = actionNode.data.dealValue || 0;
+          action_config.deal_company = actionNode.data.dealCompany || '';
+          action_config.deal_stage = actionNode.data.dealStage || 'SQL';
+          action_config.owner_id = actionNode.data.ownerId || '';
+          action_config.multiple_owners = actionNode.data.multipleOwners || false;
+          action_config.owner_list = Array.isArray(actionNode.data.ownerId) ? actionNode.data.ownerId : [];
+          break;
+        case 'create_company':
+          action_config.company_name = actionNode.data.companyName || '';
+          action_config.company_domain = actionNode.data.companyDomain || '';
+          action_config.company_industry = actionNode.data.companyIndustry || '';
+          action_config.company_size = actionNode.data.companySize || '';
+          action_config.owner_id = actionNode.data.ownerId || '';
+          action_config.multiple_owners = actionNode.data.multipleOwners || false;
+          action_config.owner_list = Array.isArray(actionNode.data.ownerId) ? actionNode.data.ownerId : [];
+          break;
+        case 'create_meeting':
+          action_config.meeting_title = actionNode.data.meetingTitle || '';
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.scheduled_for = actionNode.data.scheduledFor || '';
+          action_config.duration = actionNode.data.duration || 30;
+          action_config.attendees = actionNode.data.attendees || [];
+          action_config.deal_id = actionNode.data.dealId || '';
+          action_config.contact_id = actionNode.data.contactId || '';
+          action_config.assigned_to = actionNode.data.assignedTo || '';
+          action_config.multiple_assignees = actionNode.data.multipleAssignees || false;
+          action_config.assignee_list = Array.isArray(actionNode.data.assignedTo) ? actionNode.data.assignedTo : [];
+          break;
+        case 'update_meeting':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.meeting_status = actionNode.data.meetingStatus || '';
+          action_config.actual_duration = actionNode.data.actualDuration || '';
+          action_config.meeting_notes = actionNode.data.meetingNotes || '';
+          action_config.meeting_outcome = actionNode.data.meetingOutcome || '';
+          break;
+        case 'add_meeting_transcript':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.google_docs_url = actionNode.data.googleDocsUrl || '';
+          action_config.transcript_text = actionNode.data.transcriptText || '';
+          break;
+        case 'add_meeting_summary':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.summary = actionNode.data.summary || '';
+          action_config.key_points = actionNode.data.keyPoints || [];
+          action_config.decisions = actionNode.data.decisions || [];
+          break;
+        case 'add_meeting_tasks':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.tasks = actionNode.data.tasks || [];
+          break;
+        case 'add_meeting_next_steps':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.next_steps = actionNode.data.nextSteps || [];
+          action_config.follow_up_date = actionNode.data.followUpDate || '';
+          break;
+        case 'add_coaching_summary':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.coaching_summary = actionNode.data.coachingSummary || '';
+          action_config.strengths = actionNode.data.strengths || [];
+          action_config.improvement_areas = actionNode.data.improvementAreas || [];
+          action_config.coaching_notes = actionNode.data.coachingNotes || '';
+          break;
+        case 'add_coaching_rating':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.overall_rating = actionNode.data.overallRating || '';
+          action_config.communication_rating = actionNode.data.communicationRating || '';
+          action_config.knowledge_rating = actionNode.data.knowledgeRating || '';
+          action_config.closing_rating = actionNode.data.closingRating || '';
+          action_config.rating_notes = actionNode.data.ratingNotes || '';
+          break;
+        case 'add_talk_time_percentage':
+          action_config.fathom_meeting_id = actionNode.data.fathomMeetingId || '';
+          action_config.sales_rep_talk_time = actionNode.data.salesRepTalkTime || '';
+          action_config.prospect_talk_time = actionNode.data.prospectTalkTime || '';
+          action_config.talk_time_analysis = actionNode.data.talkTimeAnalysis || '';
+          action_config.talk_time_recommendations = actionNode.data.talkTimeRecommendations || '';
           break;
       }
     }
@@ -1071,7 +1285,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     
     // Map action types to valid database values
     // Based on testing, only 'create_task' and 'update_deal_stage' are currently valid
-    const validActionTypes = ['create_task', 'update_deal_stage'];
+    const validActionTypes = ['create_task', 'update_deal_stage', 'create_contact', 'create_deal', 'create_company'];
     let mappedActionType = actionNode?.data?.type || 'create_task';
     
     if (actionNode?.type === 'aiAgent' || mappedActionType === 'ai_agent') {
@@ -1150,6 +1364,35 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     
     // Close modal
     setShowSaveModal(false);
+  };
+
+  // Handle inline title editing
+  const handleTitleClick = () => {
+    setEditingName(workflowName);
+    setEditingDescription(workflowDescription);
+    setIsEditingTitle(true);
+  };
+
+  const handleTitleSave = () => {
+    if (editingName.trim()) {
+      setWorkflowName(editingName.trim());
+      setWorkflowDescription(editingDescription.trim());
+      
+      // Auto-save if this is not the first save
+      if (!isFirstSave && workflowId) {
+        const workflow = buildWorkflowData();
+        workflow.name = editingName.trim();
+        workflow.description = editingDescription.trim();
+        onSave(workflow);
+      }
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleCancel = () => {
+    setEditingName(workflowName);
+    setEditingDescription(workflowDescription);
+    setIsEditingTitle(false);
   };
 
   const handleTest = () => {
@@ -1266,12 +1509,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
   return (
     <>
     <div className="h-[calc(100vh-8rem)] flex overflow-hidden">
-      {/* Left Panel - Node Library OR Test Panel */}
-      <motion.div 
-        initial={{ x: -300 }}
-        animate={{ x: (showNodePanel || showTestPanel) ? 0 : -300 }}
-        className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 overflow-y-auto h-[calc(100vh-8rem)]" 
-      >
+      {/* Left Panel - Node Library OR Test Panel - Hide in execution mode */}
+      {!executionMode && (
+        <motion.div 
+          initial={{ x: -300 }}
+          animate={{ x: (showNodePanel || showTestPanel) ? 0 : -300 }}
+          className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 overflow-y-auto h-[calc(100vh-8rem)]" 
+        >
         {/* Show Test Panel if testing, otherwise show Node Library */}
         {showTestPanel ? (
           <div className="h-full flex flex-col">
@@ -1471,6 +1715,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
               { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp', description: 'Update one or more fields' },
               { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
               { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
+              { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
+              { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
+              { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
+              { type: 'create_meeting', label: 'Create Meeting', iconName: 'Calendar', description: 'Schedule new meeting' },
+              { type: 'update_meeting', label: 'Update Meeting', iconName: 'Edit', description: 'Update meeting details' },
+              { type: 'add_meeting_transcript', label: 'Add Transcript', iconName: 'FileText', description: 'Add meeting transcript' },
+              { type: 'add_meeting_summary', label: 'Add Summary', iconName: 'FileText', description: 'Add meeting summary' },
+              { type: 'add_meeting_tasks', label: 'Add Meeting Tasks', iconName: 'CheckSquare', description: 'Create tasks from meeting' },
+              { type: 'add_meeting_next_steps', label: 'Add Next Steps', iconName: 'ChevronRight', description: 'Add follow-up steps' },
+              { type: 'add_coaching_summary', label: 'Add Coaching', iconName: 'Users', description: 'Add coaching feedback' },
+              { type: 'add_coaching_rating', label: 'Add Rating', iconName: 'TrendingUp', description: 'Rate performance' },
+              { type: 'add_talk_time_percentage', label: 'Add Talk Time', iconName: 'Clock', description: 'Record talk time data' },
               { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
             ];
             
@@ -1636,6 +1892,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                 { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp', description: 'Update one or more fields' },
                 { type: 'assign_owner', label: 'Assign Owner', iconName: 'Users', description: 'Change owner' },
                 { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
+                { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
+                { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
+                { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
+                { type: 'create_meeting', label: 'Create Meeting', iconName: 'Calendar', description: 'Schedule new meeting' },
+                { type: 'update_meeting', label: 'Update Meeting', iconName: 'Edit', description: 'Update meeting details' },
+                { type: 'add_meeting_transcript', label: 'Add Transcript', iconName: 'FileText', description: 'Add meeting transcript' },
+                { type: 'add_meeting_summary', label: 'Add Summary', iconName: 'FileText', description: 'Add meeting summary' },
+                { type: 'add_meeting_tasks', label: 'Add Meeting Tasks', iconName: 'CheckSquare', description: 'Create tasks from meeting' },
+                { type: 'add_meeting_next_steps', label: 'Add Next Steps', iconName: 'ChevronRight', description: 'Add follow-up steps' },
+                { type: 'add_coaching_summary', label: 'Add Coaching', iconName: 'Users', description: 'Add coaching feedback' },
+                { type: 'add_coaching_rating', label: 'Add Rating', iconName: 'TrendingUp', description: 'Rate performance' },
+                { type: 'add_talk_time_percentage', label: 'Add Talk Time', iconName: 'Clock', description: 'Record talk time data' },
                 { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
             ].filter(action => 
               !nodeSearchQuery || 
@@ -1677,9 +1945,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           </div>
         )}
       </motion.div>
+      )}
 
       {/* Main Canvas */}
-      <div className="flex-1 relative h-[calc(100vh-8rem)] overflow-hidden">
+      <div className={`${executionMode ? 'w-full' : 'flex-1'} relative h-[calc(100vh-8rem)] overflow-hidden`}>
         {/* Auto-save notification - Bottom right corner */}
         {lastSaveTime && (
           <div className="absolute bottom-4 right-4 z-40">
@@ -1698,46 +1967,138 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           </div>
         )}
         
-        {/* Workflow Title - Centered at Top */}
-        {workflowName && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40">
-            <div className="px-6 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
-              <span className="text-white font-medium text-base">{workflowName}</span>
-            </div>
+        {/* Workflow Title - Top Left Corner - Editable */}
+        {workflowName && !executionMode && (
+          <div className="absolute top-4 left-4 z-40">
+            {isEditingTitle ? (
+              <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg p-3 min-w-80">
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm focus:outline-none focus:border-blue-500"
+                    placeholder="Workflow name"
+                    autoFocus
+                  />
+                  <textarea
+                    value={editingDescription}
+                    onChange={(e) => setEditingDescription(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm resize-none focus:outline-none focus:border-blue-500"
+                    placeholder="Description (optional)"
+                    rows={2}
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={handleTitleCancel}
+                      className="px-3 py-1.5 text-gray-400 hover:text-white text-xs transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleTitleSave}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs transition-colors flex items-center gap-1"
+                    >
+                      <Check className="w-3 h-3" />
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={handleTitleClick}
+                className="px-4 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg cursor-pointer hover:border-gray-600 transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-medium text-sm">{workflowName}</span>
+                  <Edit className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                {workflowDescription && (
+                  <div className="text-xs text-gray-400 mt-0.5 max-w-60 truncate">
+                    {workflowDescription}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         
-        {/* Canvas Toolbar - Right Side */}
-        <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
-          {/* Run Workflow Button */}
-          <button
-            onClick={() => runWorkflow()}
-            className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-            title="Run Workflow"
-          >
-            <Play className="w-4 h-4" />
-            Run
-          </button>
+        {/* Canvas Toolbar - Right Side - Hide in execution mode */}
+        {!executionMode && (
+          <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
+          {/* Enhanced Run Button with Dropdown */}
+          <div className="relative" ref={runDropdownRef}>
+            {/* Main Run Button */}
+            <div className="flex">
+              <button
+                onClick={() => runWorkflow()}
+                disabled={isRunning || nodes.length === 0}
+                className={`px-3 py-2 ${isRunning ? 'bg-gray-600' : 'bg-green-600 hover:bg-green-700'} text-white rounded-l-lg text-sm transition-colors flex items-center gap-2 ${(isRunning || nodes.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={isRunning ? 'Workflow is running...' : nodes.length === 0 ? 'Add nodes to run workflow' : 'Quick Run Workflow (Most Common)'}
+              >
+                {isRunning ? (
+                  <Clock className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Play className="w-4 h-4" />
+                )}
+                {isRunning ? 'Running...' : 'Run'}
+              </button>
+              
+              {/* Dropdown Toggle */}
+              <button
+                onClick={() => setShowRunDropdown(!showRunDropdown)}
+                disabled={isRunning || nodes.length === 0}
+                className={`px-2 ${isRunning ? 'bg-gray-600' : 'bg-green-600 hover:bg-green-700'} text-white rounded-r-lg border-l border-green-500 text-sm transition-colors ${(isRunning || nodes.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="More run options"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </button>
+            </div>
+            
+            {/* Dropdown Menu */}
+            {showRunDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute top-full mt-1 right-0 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50"
+              >
+                <div className="p-2">
+                  {/* Live Monitor Option */}
+                  <button
+                    onClick={runLiveMonitor}
+                    className="w-full px-3 py-2 text-left text-white hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
+                    title="Keyboard: Ctrl+M (Cmd+M on Mac)"
+                  >
+                    <Monitor className="w-4 h-4 text-green-400" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">📡 Monitor Live Jobs</div>
+                      <div className="text-xs text-gray-400">Watch production jobs in real-time</div>
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono">Ctrl+M</div>
+                  </button>
+                  
+                  <div className="border-t border-gray-700 my-2"></div>
+                  
+                  {/* Quick Run Option */}
+                  <button
+                    onClick={runQuickExecution}
+                    className="w-full px-3 py-2 text-left text-white hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
+                    title="Keyboard: Ctrl+R (Cmd+R on Mac)"
+                  >
+                    <Play className="w-4 h-4 text-orange-400" />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">⚡ Quick Run</div>
+                      <div className="text-xs text-gray-400">Background execution, no UI</div>
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono">Ctrl+R</div>
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </div>
           
-          {/* View Executions Button */}
-          <button
-            onClick={() => setShowExecutionViewer(true)}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-            title="View Executions"
-          >
-            <Activity className="w-4 h-4" />
-            Executions
-          </button>
-          
-          {/* Test Mode Button - Opens test modal */}
-          <button
-            onClick={() => setShowWorkflowTestMode(true)}
-            className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-            title="Test Mode"
-          >
-            <Activity className="w-4 h-4 animate-pulse" />
-            Test Mode
-          </button>
           
           
           <div className="border-l border-gray-600 h-8 mx-1"></div>
@@ -1765,6 +2126,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             Save
           </button>
         </div>
+        )}
 
         {/* React Flow Canvas */}
         <ReactFlow
@@ -2275,6 +2637,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                         <option value="update_deal_stage">Update Deal Stage</option>
                         <option value="update_fields">Update Fields</option>
                         <option value="assign_owner">Assign Owner</option>
+                        <option value="create_contact">Create Contact</option>
+                        <option value="create_deal">Create Deal</option>
+                        <option value="create_company">Create Company</option>
                         <option value="send_email">Send Email</option>
                         <option value="multi_action">Multiple Actions</option>
                       </select>
@@ -2318,6 +2683,82 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
                           </select>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleAssignees || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleAssignees: e.target.checked,
+                                    assignedTo: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Users
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleAssignees ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.assignedTo || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentAssignees = selectedNode.data.assignedTo || [];
+                                          const newAssignees = e.target.checked 
+                                            ? [...currentAssignees, user.id]
+                                            : currentAssignees.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { assignedTo: newAssignees });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.assignedTo || []).length || 0)} user(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.assignedTo || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { assignedTo: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select User...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Due Date</label>
@@ -2364,6 +2805,31 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             <option value="biweekly">Bi-Weekly</option>
                             <option value="monthly">Monthly</option>
                             <option value="quarterly">Quarterly</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Assign To</label>
+                          <select
+                            value={selectedNode.data.assignedTo || ''}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { assignedTo: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="">Select User...</option>
+                            {usersLoading ? (
+                              <option value="" disabled>Loading users...</option>
+                            ) : (
+                              users.map(user => (
+                                <option key={user.id} value={user.id}>
+                                  {user.first_name && user.last_name 
+                                    ? `${user.first_name} ${user.last_name}` 
+                                    : user.email}
+                                </option>
+                              ))
+                            )}
                           </select>
                         </div>
                         <div>
@@ -2463,6 +2929,82 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             <option value="email">Email Notes</option>
                             <option value="internal">Internal Comment</option>
                           </select>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleAssignees || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleAssignees: e.target.checked,
+                                    assignedTo: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Users
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleAssignees ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.assignedTo || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentAssignees = selectedNode.data.assignedTo || [];
+                                          const newAssignees = e.target.checked 
+                                            ? [...currentAssignees, user.id]
+                                            : currentAssignees.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { assignedTo: newAssignees });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.assignedTo || []).length || 0)} user(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.assignedTo || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { assignedTo: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select User...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
                         </div>
                       </>
                     )}
@@ -2911,23 +3453,52 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                     )}
 
                     {selectedNode.data.type === 'assign_owner' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Assign To</label>
-                        <select
-                          value={selectedNode.data.assignTo || 'round_robin'}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            updateNodeData(selectedNode.id, { assignTo: e.target.value });
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
-                        >
-                          <option value="round_robin">Round Robin</option>
-                          <option value="least_busy">Least Busy</option>
-                          <option value="team_lead">Team Lead</option>
-                          <option value="specific">Specific User</option>
-                        </select>
-                      </div>
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Assign To</label>
+                          <select
+                            value={selectedNode.data.assignTo || 'round_robin'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { assignTo: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="round_robin">Round Robin</option>
+                            <option value="least_busy">Least Busy</option>
+                            <option value="team_lead">Team Lead</option>
+                            <option value="specific">Specific User</option>
+                          </select>
+                        </div>
+                        {selectedNode.data.assignTo === 'specific' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Select User</label>
+                            <select
+                              value={selectedNode.data.specificUserId || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { specificUserId: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select User...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {selectedNode.data.type === 'create_activity' && (
@@ -2959,6 +3530,973 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                             placeholder="Activity details..."
                           />
                         </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleAssignees || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleAssignees: e.target.checked,
+                                    assignedTo: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Users
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleAssignees ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.assignedTo || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentAssignees = selectedNode.data.assignedTo || [];
+                                          const newAssignees = e.target.checked 
+                                            ? [...currentAssignees, user.id]
+                                            : currentAssignees.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { assignedTo: newAssignees });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.assignedTo || []).length || 0)} user(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.assignedTo || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { assignedTo: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select User...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'create_contact' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Contact Name</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.contactName || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactName: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Contact full name..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                          <input
+                            type="email"
+                            value={selectedNode.data.contactEmail || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactEmail: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="contact@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Phone (optional)</label>
+                          <input
+                            type="tel"
+                            value={selectedNode.data.contactPhone || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactPhone: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="+1234567890"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Company (optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.contactCompany || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactCompany: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Company name..."
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleAssignees || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleAssignees: e.target.checked,
+                                    assignedTo: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Users
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleAssignees ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.assignedTo || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentAssignees = selectedNode.data.assignedTo || [];
+                                          const newAssignees = e.target.checked 
+                                            ? [...currentAssignees, user.id]
+                                            : currentAssignees.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { assignedTo: newAssignees });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.assignedTo || []).length || 0)} user(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.assignedTo || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { assignedTo: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select User...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'create_deal' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Name</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealName || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealName: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Deal title..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Value</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.dealValue || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealValue: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Company Name</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealCompany || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealCompany: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Company name..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Stage</label>
+                          <select
+                            value={selectedNode.data.dealStage || 'SQL'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { dealStage: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="SQL">SQL</option>
+                            <option value="Opportunity">Opportunity</option>
+                            <option value="Verbal">Verbal</option>
+                            <option value="Signed">Signed</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign Owner To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleOwners || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleOwners: e.target.checked,
+                                    ownerId: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Owners
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleOwners ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.ownerId || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentOwners = selectedNode.data.ownerId || [];
+                                          const newOwners = e.target.checked 
+                                            ? [...currentOwners, user.id]
+                                            : currentOwners.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { ownerId: newOwners });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.ownerId || []).length || 0)} owner(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.ownerId || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { ownerId: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select Owner...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'create_company' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Company Name</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.companyName || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { companyName: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Company name..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Domain (optional)</label>
+                          <input
+                            type="url"
+                            value={selectedNode.data.companyDomain || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { companyDomain: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="https://company.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Industry (optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.companyIndustry || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { companyIndustry: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Technology, Healthcare, etc."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Size (optional)</label>
+                          <select
+                            value={selectedNode.data.companySize || ''}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { companySize: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="">Select size...</option>
+                            <option value="1-10">1-10 employees</option>
+                            <option value="11-50">11-50 employees</option>
+                            <option value="51-200">51-200 employees</option>
+                            <option value="201-500">201-500 employees</option>
+                            <option value="501-1000">501-1000 employees</option>
+                            <option value="1000+">1000+ employees</option>
+                          </select>
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Assign Owner To</label>
+                            <label className="flex items-center gap-2 text-sm text-gray-400">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.multipleOwners || false}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { 
+                                    multipleOwners: e.target.checked,
+                                    ownerId: e.target.checked ? [] : ''
+                                  });
+                                }}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Multiple Owners
+                            </label>
+                          </div>
+                          {selectedNode.data.multipleOwners ? (
+                            <div className="space-y-2">
+                              <div className="max-h-32 overflow-y-auto bg-gray-800/50 border border-gray-700 rounded-lg p-2">
+                                {usersLoading ? (
+                                  <div className="text-gray-400 text-sm">Loading users...</div>
+                                ) : (
+                                  users.map(user => (
+                                    <label key={user.id} className="flex items-center gap-2 py-1 text-sm text-gray-300 hover:bg-gray-700/50 rounded px-2 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={(selectedNode.data.ownerId || []).includes(user.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const currentOwners = selectedNode.data.ownerId || [];
+                                          const newOwners = e.target.checked 
+                                            ? [...currentOwners, user.id]
+                                            : currentOwners.filter((id: string) => id !== user.id);
+                                          updateNodeData(selectedNode.id, { ownerId: newOwners });
+                                        }}
+                                        className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                                      />
+                                      {user.first_name && user.last_name 
+                                        ? `${user.first_name} ${user.last_name}` 
+                                        : user.email}
+                                    </label>
+                                  ))
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {((selectedNode.data.ownerId || []).length || 0)} owner(s) selected
+                              </p>
+                            </div>
+                          ) : (
+                            <select
+                              value={selectedNode.data.ownerId || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { ownerId: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="">Select Owner...</option>
+                              {usersLoading ? (
+                                <option value="" disabled>Loading users...</option>
+                              ) : (
+                                users.map(user => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.first_name && user.last_name 
+                                      ? `${user.first_name} ${user.last_name}` 
+                                      : user.email}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'create_meeting' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Title</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.meetingTitle || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { meetingTitle: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Meeting title..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Scheduled Date/Time</label>
+                          <input
+                            type="datetime-local"
+                            value={selectedNode.data.scheduledFor || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { scheduledFor: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Duration (minutes)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.duration || 30}
+                            onChange={(e) => updateNodeData(selectedNode.id, { duration: parseInt(e.target.value) || 30 })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            min="5"
+                            max="480"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Associated Deal ID (optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Deal ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Contact ID (optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.contactId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Contact ID..."
+                          />
+                        </div>
+                        
+                        {/* User Assignment Section */}
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                          <label className="flex items-center gap-2 text-sm text-gray-400">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.multipleAssignees || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  multipleAssignees: e.target.checked,
+                                  assignedTo: e.target.checked ? [] : ''
+                                });
+                              }}
+                              className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                            />
+                            Multiple Users
+                          </label>
+                        </div>
+                        
+                        {selectedNode.data.multipleAssignees ? (
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {users?.map((user: any) => (
+                              <label key={user.id} className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={Array.isArray(selectedNode.data.assignedTo) && selectedNode.data.assignedTo.includes(user.id)}
+                                  onChange={(e) => {
+                                    const currentAssigned = Array.isArray(selectedNode.data.assignedTo) ? selectedNode.data.assignedTo : [];
+                                    const newAssigned = e.target.checked
+                                      ? [...currentAssigned, user.id]
+                                      : currentAssigned.filter(id => id !== user.id);
+                                    updateNodeData(selectedNode.id, { assignedTo: newAssigned });
+                                  }}
+                                  className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                                />
+                                <span className="text-gray-300">{user.full_name || user.email}</span>
+                              </label>
+                            )) || (
+                              <div className="text-sm text-gray-500">Loading users...</div>
+                            )}
+                          </div>
+                        ) : (
+                          <select
+                            value={selectedNode.data.assignedTo || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { assignedTo: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="">Select user...</option>
+                            {users?.map((user: any) => (
+                              <option key={user.id} value={user.id}>
+                                {user.full_name || user.email}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'update_meeting' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Status</label>
+                          <select
+                            value={selectedNode.data.meetingStatus || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { meetingStatus: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="">Select status...</option>
+                            <option value="scheduled">Scheduled</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Actual Duration (minutes)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.actualDuration || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { actualDuration: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Actual duration..."
+                            min="1"
+                            max="480"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Notes</label>
+                          <textarea
+                            value={selectedNode.data.meetingNotes || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { meetingNotes: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Meeting notes..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Outcome</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.meetingOutcome || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { meetingOutcome: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Meeting outcome..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_meeting_transcript' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Google Docs URL</label>
+                          <input
+                            type="url"
+                            value={selectedNode.data.googleDocsUrl || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { googleDocsUrl: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="https://docs.google.com/document/..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Transcript Text (optional)</label>
+                          <textarea
+                            value={selectedNode.data.transcriptText || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { transcriptText: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-32"
+                            placeholder="Full transcript text (optional if using Google Docs)..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_meeting_summary' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Summary</label>
+                          <textarea
+                            value={selectedNode.data.summary || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { summary: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                            placeholder="Meeting summary..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Key Points</label>
+                          <textarea
+                            value={Array.isArray(selectedNode.data.keyPoints) ? selectedNode.data.keyPoints.join('\n') : ''}
+                            onChange={(e) => {
+                              const points = e.target.value.split('\n').filter(p => p.trim());
+                              updateNodeData(selectedNode.id, { keyPoints: points });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Enter key points (one per line)..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Decisions Made</label>
+                          <textarea
+                            value={Array.isArray(selectedNode.data.decisions) ? selectedNode.data.decisions.join('\n') : ''}
+                            onChange={(e) => {
+                              const decisions = e.target.value.split('\n').filter(d => d.trim());
+                              updateNodeData(selectedNode.id, { decisions });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Enter decisions (one per line)..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_coaching_summary' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Coaching Summary</label>
+                          <textarea
+                            value={selectedNode.data.coachingSummary || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { coachingSummary: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                            placeholder="Coaching feedback and analysis..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Strengths</label>
+                          <textarea
+                            value={Array.isArray(selectedNode.data.strengths) ? selectedNode.data.strengths.join('\n') : ''}
+                            onChange={(e) => {
+                              const strengths = e.target.value.split('\n').filter(s => s.trim());
+                              updateNodeData(selectedNode.id, { strengths });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Enter strengths (one per line)..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Improvement Areas</label>
+                          <textarea
+                            value={Array.isArray(selectedNode.data.improvementAreas) ? selectedNode.data.improvementAreas.join('\n') : ''}
+                            onChange={(e) => {
+                              const areas = e.target.value.split('\n').filter(a => a.trim());
+                              updateNodeData(selectedNode.id, { improvementAreas: areas });
+                            }}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Enter improvement areas (one per line)..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Additional Coaching Notes</label>
+                          <textarea
+                            value={selectedNode.data.coachingNotes || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { coachingNotes: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Additional coaching notes..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_coaching_rating' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Overall Rating (1-10)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.overallRating || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { overallRating: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Overall rating..."
+                            min="1"
+                            max="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Communication Rating (1-10)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.communicationRating || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { communicationRating: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Communication rating..."
+                            min="1"
+                            max="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Product Knowledge Rating (1-10)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.knowledgeRating || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { knowledgeRating: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Knowledge rating..."
+                            min="1"
+                            max="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Closing Skills Rating (1-10)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.closingRating || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { closingRating: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Closing rating..."
+                            min="1"
+                            max="10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Rating Notes</label>
+                          <textarea
+                            value={selectedNode.data.ratingNotes || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { ratingNotes: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Notes explaining the ratings..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_talk_time_percentage' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Sales Rep Talk Time (%)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.salesRepTalkTime || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { salesRepTalkTime: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Sales rep talk time percentage..."
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Prospect Talk Time (%)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.prospectTalkTime || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { prospectTalkTime: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Prospect talk time percentage..."
+                            min="0"
+                            max="100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Talk Time Analysis</label>
+                          <textarea
+                            value={selectedNode.data.talkTimeAnalysis || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { talkTimeAnalysis: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Analysis of talk time distribution..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Talk Time Recommendations</label>
+                          <textarea
+                            value={selectedNode.data.talkTimeRecommendations || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { talkTimeRecommendations: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                            placeholder="Recommendations for improvement..."
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {(selectedNode.data.type === 'add_meeting_tasks' || selectedNode.data.type === 'add_meeting_next_steps') && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.fathomMeetingId || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Fathom meeting ID..."
+                          />
+                        </div>
+                        
+                        {selectedNode.data.type === 'add_meeting_tasks' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Tasks</label>
+                            <textarea
+                              value={Array.isArray(selectedNode.data.tasks) ? 
+                                selectedNode.data.tasks.map(t => typeof t === 'string' ? t : t.title || '').join('\n') : ''}
+                              onChange={(e) => {
+                                const taskLines = e.target.value.split('\n').filter(t => t.trim());
+                                const tasks = taskLines.map(title => ({ title, assignee: '', due_date: '', priority: 'medium' }));
+                                updateNodeData(selectedNode.id, { tasks });
+                              }}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                              placeholder="Enter tasks discussed in meeting (one per line)..."
+                            />
+                          </div>
+                        )}
+                        
+                        {selectedNode.data.type === 'add_meeting_next_steps' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Next Steps</label>
+                              <textarea
+                                value={Array.isArray(selectedNode.data.nextSteps) ? 
+                                  selectedNode.data.nextSteps.map(s => typeof s === 'string' ? s : s.description || '').join('\n') : ''}
+                                onChange={(e) => {
+                                  const stepLines = e.target.value.split('\n').filter(s => s.trim());
+                                  const nextSteps = stepLines.map(description => ({ description, owner: '' }));
+                                  updateNodeData(selectedNode.id, { nextSteps });
+                                }}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                                placeholder="Enter next steps (one per line)..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Follow-up Date</label>
+                              <input
+                                type="date"
+                                value={selectedNode.data.followUpDate || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { followUpDate: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              />
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
 
@@ -2987,6 +4525,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                                   <option value="update_fields">Update Fields</option>
                                   <option value="assign_owner">Assign Owner</option>
                                   <option value="create_activity">Create Activity</option>
+                                  <option value="create_contact">Create Contact</option>
+                                  <option value="create_deal">Create Deal</option>
+                                  <option value="create_company">Create Company</option>
                                   <option value="update_deal_stage">Update Stage</option>
                                 </select>
                                 <button
@@ -3683,17 +5224,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       </div>
     )}
     
-    {/* Execution Viewer Modal */}
-    <ExecutionViewer
-      executionId={currentExecutionId}
-      workflowId={crypto.randomUUID()}
-      isOpen={showExecutionViewer}
-      onClose={() => setShowExecutionViewer(false)}
-      onVariableSelect={(variable) => {
-        // When a variable is selected, it can be used in the currently selected node
-        console.log('Variable selected:', variable);
-      }}
-    />
     
     {/* Workflow Test Mode Modal */}
     {showWorkflowTestMode && (
@@ -3714,8 +5244,34 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         onClose={() => setShowWorkflowTestMode(false)}
         onExecutionSelect={(executionId) => {
           setCurrentExecutionId(executionId);
-          setShowExecutionViewer(true);
+          // Executions now viewed in Jobs tab
         }}
+      />
+    )}
+
+    {/* Node Execution Details Modal - Make.com style */}
+    {showExecutionModal && selectedExecutionNode && (
+      <NodeExecutionModal
+        isOpen={showExecutionModal}
+        onClose={() => {
+          setShowExecutionModal(false);
+          setSelectedExecutionNode(null);
+        }}
+        nodeData={selectedExecutionNode.data}
+        executionData={selectedExecutionNode.data?.executionData}
+        nodeName={selectedExecutionNode.data?.label || selectedExecutionNode.type || 'Unknown Node'}
+        nodeType={selectedExecutionNode.type || 'Node'}
+      />
+    )}
+
+
+    {/* Live Monitor Modal */}
+    {showLiveMonitor && (
+      <LiveMonitorModal
+        isOpen={showLiveMonitor}
+        onClose={() => setShowLiveMonitor(false)}
+        workflowId={workflowId}
+        workflowName={workflowName || 'Untitled Workflow'}
       />
     )}
     </>

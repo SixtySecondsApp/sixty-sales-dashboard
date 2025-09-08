@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import { FileText, Settings } from 'lucide-react';
+import { FileText, Settings, CheckCircle, XCircle, Clock, PlayCircle } from 'lucide-react';
 
 export interface FormField {
   id: string;
@@ -39,12 +39,45 @@ export interface FormNodeData {
   };
   testStatus?: 'idle' | 'active' | 'success' | 'failed' | 'skipped' | 'waiting';
   lastSubmission?: any;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
 const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
   const fieldCount = data.config?.fields?.length || 0;
   const hasUrls = data.config?.testUrl && data.config?.productionUrl;
   const isConfigured = fieldCount > 0 && hasUrls;
+
+  const getExecutionStatusIcon = () => {
+    if (!data.executionMode) return null;
+    
+    switch (data.executionStatus) {
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'failed':
+        return <XCircle className="w-4 h-4 text-red-400" />;
+      case 'running':
+        return <PlayCircle className="w-4 h-4 text-blue-400 animate-pulse" />;
+      default:
+        return <Clock className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getExecutionStatusColor = () => {
+    if (!data.executionMode) return '';
+    
+    switch (data.executionStatus) {
+      case 'completed':
+        return 'ring-2 ring-green-400/30';
+      case 'failed':
+        return 'ring-2 ring-red-400/30';
+      case 'running':
+        return 'ring-2 ring-blue-400/30 animate-pulse';
+      default:
+        return 'ring-2 ring-gray-400/30';
+    }
+  };
   
   return (
     <div
@@ -52,7 +85,7 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
         selected
           ? 'border-blue-500 shadow-lg shadow-blue-500/20'
           : 'border-blue-400/50 hover:border-blue-400'
-      } bg-gradient-to-br from-blue-900/90 via-blue-800/90 to-blue-700/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-gradient-to-br from-blue-900/90 via-blue-800/90 to-blue-700/90 backdrop-blur-sm`}
     >
       <Handle
         type="source"
@@ -109,6 +142,23 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
              data.testStatus === 'success' ? 'Form submitted' :
              data.testStatus === 'failed' ? 'Submission failed' :
              data.testStatus}
+          </div>
+        )}
+
+        {/* Execution Status Overlay */}
+        {data.executionMode && (
+          <div className="mt-2 flex items-center gap-2">
+            {getExecutionStatusIcon()}
+            <span className="text-[8px] text-blue-200/70 capitalize">
+              {data.executionStatus}
+            </span>
+          </div>
+        )}
+
+        {/* Execution Data Tooltip */}
+        {data.executionMode && data.executionData && (
+          <div className="mt-1 text-[8px] text-blue-300/50 truncate">
+            {data.executionData.submissionData ? 'Form data captured' : 'No submission data'}
           </div>
         )}
       </div>

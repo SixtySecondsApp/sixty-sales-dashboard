@@ -60,7 +60,8 @@ class WorkflowExecutionService {
     edges: Edge[],
     triggeredBy: WorkflowExecution['triggeredBy'],
     triggerData?: any,
-    isTestMode?: boolean
+    isTestMode?: boolean,
+    workflowName?: string
   ): Promise<string> {
     console.log('[WorkflowExecutionService] Starting execution:', {
       workflowId,
@@ -75,6 +76,7 @@ class WorkflowExecutionService {
     const execution: WorkflowExecution = {
       id: executionId,
       workflowId,
+      workflowName,
       triggeredBy,
       triggerData,
       startedAt: new Date().toISOString(),
@@ -474,7 +476,7 @@ class WorkflowExecutionService {
   }
 
   /**
-   * Save execution to database
+   * Save execution to database and cleanup old executions
    */
   private async saveExecution(execution: WorkflowExecution) {
     console.log('[WorkflowExecution] Saving execution to database:', execution.id);
@@ -501,9 +503,49 @@ class WorkflowExecutionService {
         console.error('[WorkflowExecution] Error saving execution to database:', error);
       } else {
         console.log('[WorkflowExecution] Successfully saved execution to database:', data);
+        // Clean up old executions for this workflow and mode
+        await this.cleanupOldExecutions(execution.workflowId, execution.isTestMode || false);
       }
     } catch (error) {
       console.error('[WorkflowExecution] Exception saving execution:', error);
+    }
+  }
+
+  /**
+   * Clean up old executions, keeping only the last 25 per workflow per mode
+   */
+  private async cleanupOldExecutions(workflowId: string, isTestMode: boolean) {
+    try {
+      // Get all executions for this workflow and mode, ordered by date
+      const { data, error } = await supabase
+        .from('workflow_executions')
+        .select('id, started_at')
+        .eq('workflow_id', workflowId)
+        .eq('is_test_mode', isTestMode)
+        .order('started_at', { ascending: false });
+
+      if (error) {
+        console.error('[WorkflowExecution] Error fetching executions for cleanup:', error);
+        return;
+      }
+
+      if (data && data.length > 25) {
+        // Get IDs of executions beyond the first 25 (oldest ones)
+        const executionsToDelete = data.slice(25).map(exec => exec.id);
+        
+        const { error: deleteError } = await supabase
+          .from('workflow_executions')
+          .delete()
+          .in('id', executionsToDelete);
+
+        if (deleteError) {
+          console.error('[WorkflowExecution] Error deleting old executions:', deleteError);
+        } else {
+          console.log(`[WorkflowExecution] Cleaned up ${executionsToDelete.length} old executions for workflow ${workflowId} (test: ${isTestMode})`);
+        }
+      }
+    } catch (error) {
+      console.error('[WorkflowExecution] Exception during cleanup:', error);
     }
   }
 
@@ -525,7 +567,7 @@ class WorkflowExecutionService {
         .select('*')
         .eq('workflow_id', workflowId)
         .order('started_at', { ascending: false })
-        .limit(50);
+        .limit(50); // 25 test + 25 production
 
       if (error) {
         console.error('[WorkflowExecution] Error loading executions from database:', error);
@@ -576,6 +618,59 @@ class WorkflowExecutionService {
     return Array.from(this.executions.values())
       .filter(exec => exec.workflowId === workflowId && 
         (testMode === undefined || exec.isTestMode === testMode))
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  /**
+   * Load all executions from database across all workflows
+   */
+  async loadAllExecutionsFromDatabase(): Promise<WorkflowExecution[]> {
+    console.log('[WorkflowExecution] Loading all executions from database');
+    try {
+      const { data, error } = await supabase
+        .from('workflow_executions')
+        .select('*')
+        .order('started_at', { ascending: false })
+        .limit(25);
+
+      if (error) {
+        console.error('[WorkflowExecution] Error loading all executions from database:', error);
+        return [];
+      }
+
+      const executions: WorkflowExecution[] = (data || []).map(row => ({
+        id: row.id,
+        workflowId: row.workflow_id,
+        workflowName: row.workflow_name,
+        triggeredBy: row.triggered_by,
+        triggerData: row.trigger_data,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        status: row.status,
+        nodeExecutions: row.node_executions || [],
+        finalOutput: row.final_output,
+        isTestMode: row.is_test_mode || false
+      }));
+
+      // Add to memory cache
+      executions.forEach(execution => {
+        this.executions.set(execution.id, execution);
+        this.addToHistory(execution.workflowId, execution);
+      });
+
+      console.log('[WorkflowExecution] Loaded', executions.length, 'executions from database');
+      return executions;
+    } catch (error) {
+      console.error('[WorkflowExecution] Exception loading all executions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get all executions across all workflows
+   */
+  getAllExecutions(): WorkflowExecution[] {
+    return Array.from(this.executions.values())
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
 
@@ -671,7 +766,7 @@ class WorkflowExecutionService {
     }
     const history = this.executionHistory.get(workflowId)!;
     history.unshift(execution);
-    // Keep only last 50 executions per workflow
+    // Keep only last 50 executions per workflow (25 test + 25 production)
     if (history.length > 50) {
       history.pop();
     }

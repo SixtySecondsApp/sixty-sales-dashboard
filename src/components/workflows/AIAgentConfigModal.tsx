@@ -81,7 +81,24 @@ export default function AIAgentConfigModal({
   const [formData, setFormData] = useState<AINodeConfig>({
     modelProvider: config?.modelProvider || 'openai',
     model: config?.model || 'gpt-3.5-turbo',
-    systemPrompt: config?.systemPrompt || 'You are a helpful AI assistant for a CRM system.',
+    systemPrompt: config?.systemPrompt || `You are a helpful AI assistant for a CRM system with full access to CRM tools including user assignment capabilities.
+
+IMPORTANT: When creating any CRM records (deals, contacts, companies, tasks, activities), always consider user assignment:
+- Use search_users tool to find available users for assignment
+- Assign records to appropriate users based on context (deal owner, task assignee, contact manager)
+- Include user assignment in all creation operations to ensure proper workflow distribution
+- You can assign multiple users when appropriate
+
+Available tools include:
+- search_users: Find available users for assignment
+- create_contact: Create contacts with assignedTo parameter  
+- create_deal: Create deals with ownerId parameter
+- create_company: Create companies with ownerId parameter
+- create_task: Create tasks with assignedTo parameter
+- create_activity: Log activities with assignedTo parameter
+- assign_owner: Reassign ownership of existing records
+
+Always provide helpful, accurate information and take appropriate actions using the available CRM tools.`,
     userPrompt: config?.userPrompt || '',
     temperature: config?.temperature || 0.7,
     maxTokens: config?.maxTokens || 1000,
