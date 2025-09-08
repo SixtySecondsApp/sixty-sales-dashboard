@@ -17,7 +17,7 @@ export interface AIAgentNodeData {
 const AIAgentNode = memo(({ data, selected }: NodeProps<AIAgentNodeData>) => {
   return (
     <div
-      className={`relative min-w-[200px] rounded-lg border-2 transition-all ${
+      className={`relative min-w-[120px] rounded-lg border-2 transition-all ${
         selected
           ? 'border-purple-500 shadow-lg shadow-purple-500/20'
           : 'border-purple-400/50 hover:border-purple-400'
@@ -30,22 +30,22 @@ const AIAgentNode = memo(({ data, selected }: NodeProps<AIAgentNodeData>) => {
         style={{ width: 10, height: 10 }}
       />
       
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="p-1.5 bg-purple-500/20 rounded-md">
-            <Sparkles className="w-4 h-4 text-purple-300" />
+      <div className="p-3">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <div className="p-1 bg-purple-500/20 rounded-md">
+            <Sparkles className="w-3 h-3 text-purple-300" />
           </div>
-          <span className="text-sm font-semibold text-purple-100">
+          <span className="text-xs font-semibold text-purple-100">
             AI Agent
           </span>
         </div>
         
-        <div className="text-xs text-purple-200/80">
+        <div className="text-[10px] text-purple-200/80">
           {data.label || 'AI Processing'}
         </div>
         
         {data.config?.model && (
-          <div className="mt-2 text-xs text-purple-300/60 truncate">
+          <div className="mt-1.5 text-[9px] text-purple-300/60 truncate">
             {data.config.modelProvider}: {data.config.model}
           </div>
         )}

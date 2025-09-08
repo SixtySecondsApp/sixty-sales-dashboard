@@ -43,11 +43,12 @@ export interface FormNodeData {
 
 const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
   const fieldCount = data.config?.fields?.length || 0;
-  const isConfigured = fieldCount > 0;
+  const hasUrls = data.config?.testUrl && data.config?.productionUrl;
+  const isConfigured = fieldCount > 0 && hasUrls;
   
   return (
     <div
-      className={`relative min-w-[200px] rounded-lg border-2 transition-all ${
+      className={`relative min-w-[120px] rounded-lg border-2 transition-all ${
         selected
           ? 'border-blue-500 shadow-lg shadow-blue-500/20'
           : 'border-blue-400/50 hover:border-blue-400'
@@ -60,36 +61,39 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
         style={{ width: 10, height: 10 }}
       />
       
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="p-1.5 bg-blue-500/20 rounded-md">
-            <FileText className="w-4 h-4 text-blue-300" />
+      <div className="p-3">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <div className="p-1 bg-blue-500/20 rounded-md">
+            <FileText className="w-3 h-3 text-blue-300" />
           </div>
-          <span className="text-sm font-semibold text-blue-100">
+          <span className="text-xs font-semibold text-blue-100">
             Form Trigger
           </span>
         </div>
         
-        <div className="text-xs text-blue-200/80">
+        <div className="text-[10px] text-blue-200/80">
           {data.config?.formTitle || data.label || 'Configure Form'}
         </div>
         
         {isConfigured && (
-          <div className="mt-2 space-y-1">
-            <div className="text-xs text-blue-300/60">
+          <div className="mt-1.5 space-y-0.5">
+            <div className="text-[9px] text-blue-300/60">
               {fieldCount} field{fieldCount !== 1 ? 's' : ''} configured
             </div>
             {data.config?.authentication !== 'none' && (
-              <div className="text-xs text-blue-300/60">
+              <div className="text-[9px] text-blue-300/60">
                 Auth: {data.config?.authentication}
               </div>
             )}
+            <div className="text-[9px] text-green-400/60">
+              ✓ Forms ready
+            </div>
           </div>
         )}
         
         {!isConfigured && (
-          <div className="mt-2 flex items-center gap-1 text-xs text-yellow-400/80">
-            <Settings className="w-3 h-3" />
+          <div className="mt-1.5 flex items-center gap-1 text-[9px] text-yellow-400/80">
+            <Settings className="w-2.5 h-2.5" />
             <span>Needs configuration</span>
           </div>
         )}

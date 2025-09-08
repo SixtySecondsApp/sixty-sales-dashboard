@@ -130,13 +130,36 @@ export default function FormDisplay() {
           }
         };
         
+        // Use BroadcastChannel for cross-tab communication
+        const channel = new BroadcastChannel('workflow-form-submissions');
+        
+        const isTestMode = window.location.pathname.includes('/form-test/');
+        console.log('[FormDisplay] Form submission details:', {
+          formId,
+          workflowId: storedForm.workflow_id,
+          isTestMode,
+          url: window.location.pathname,
+          eventData
+        });
+        
+        // Broadcast to all tabs
+        channel.postMessage({
+          type: isTestMode ? 'formTestSubmission' : 'formSubmitted',
+          data: {
+            ...eventData,
+            testMode: isTestMode,
+            timestamp: new Date().toISOString()
+          }
+        });
+        
+        console.log('[FormDisplay] Broadcasted form submission to all tabs');
+        
+        // Also dispatch local events for backward compatibility
         const event = new CustomEvent('formSubmitted', {
           detail: eventData
         });
         window.dispatchEvent(event);
         
-        // Also broadcast test mode event if in test environment
-        const isTestMode = window.location.pathname.includes('/form-test/');
         if (isTestMode) {
           const testEvent = new CustomEvent('formTestSubmission', {
             detail: {
@@ -146,8 +169,10 @@ export default function FormDisplay() {
             }
           });
           window.dispatchEvent(testEvent);
-          console.log('[Test Mode] Form submitted:', eventData);
         }
+        
+        // Close the channel
+        channel.close();
       }
       
       // Handle response settings

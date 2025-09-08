@@ -37,6 +37,7 @@ export interface WorkflowExecution {
   status: ExecutionContext['status'];
   nodeExecutions: NodeExecution[];
   finalOutput?: any;
+  isTestMode?: boolean;
 }
 
 type ExecutionListener = (execution: WorkflowExecution) => void;
@@ -58,9 +59,18 @@ class WorkflowExecutionService {
     nodes: Node[],
     edges: Edge[],
     triggeredBy: WorkflowExecution['triggeredBy'],
-    triggerData?: any
+    triggerData?: any,
+    isTestMode?: boolean
   ): Promise<string> {
-    const executionId = `exec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('[WorkflowExecutionService] Starting execution:', {
+      workflowId,
+      triggeredBy,
+      nodesCount: nodes.length,
+      edgesCount: edges.length,
+      triggerData
+    });
+    
+    const executionId = crypto.randomUUID();
     
     const execution: WorkflowExecution = {
       id: executionId,
@@ -69,7 +79,8 @@ class WorkflowExecutionService {
       triggerData,
       startedAt: new Date().toISOString(),
       status: 'running',
-      nodeExecutions: []
+      nodeExecutions: [],
+      isTestMode
     };
 
     this.executions.set(executionId, execution);
@@ -77,13 +88,17 @@ class WorkflowExecutionService {
     this.notifyListeners(executionId, execution);
     this.notifyWorkflowListeners(workflowId, execution);
 
+    console.log('[WorkflowExecutionService] Execution created and listeners notified:', executionId);
+
     // Start execution in background
     this.executeWorkflow(executionId, nodes, edges, triggerData).catch(error => {
-      console.error('Workflow execution failed:', error);
+      console.error('[WorkflowExecutionService] Workflow execution failed:', error);
       execution.status = 'failed';
       execution.completedAt = new Date().toISOString();
       this.notifyListeners(executionId, execution);
       this.notifyWorkflowListeners(workflowId, execution);
+      // Save failed execution to database
+      this.saveExecution(execution);
     });
 
     return executionId;
@@ -118,6 +133,7 @@ class WorkflowExecutionService {
 
     // Initialize context with trigger data
     if (triggerData) {
+      console.log('[WorkflowExecution] Processing trigger data:', triggerData);
       if (execution.triggeredBy === 'form' && triggerData.fields) {
         context.variables.formData = {
           submittedAt: new Date().toISOString(),
@@ -125,6 +141,7 @@ class WorkflowExecutionService {
           formId: triggerData.formId,
           submissionId: triggerData.submissionId
         };
+        console.log('[WorkflowExecution] Form data initialized in context:', context.variables.formData);
       }
     }
 
@@ -158,7 +175,8 @@ class WorkflowExecutionService {
     }
 
     this.notifyListeners(executionId, execution);
-    this.saveExecution(execution);
+    this.notifyWorkflowListeners(execution.workflowId, execution);
+    await this.saveExecution(execution);
   }
 
   /**
@@ -171,6 +189,8 @@ class WorkflowExecutionService {
     context: ExecutionContext,
     execution: WorkflowExecution
   ): Promise<any> {
+    console.log(`[WorkflowExecution] Executing node: ${node.id} (${node.type})`);
+    
     const nodeExecution: NodeExecution = {
       nodeId: node.id,
       nodeType: node.type || 'unknown',
@@ -208,8 +228,13 @@ class WorkflowExecutionService {
           output = this.executeConditionNode(node, context);
           break;
         
+        case 'router':
+          output = this.executeRouterNode(node, context);
+          break;
+        
         default:
-          output = { message: `Node type ${node.type} not implemented` };
+          console.warn(`[WorkflowExecution] Node type ${node.type} not fully implemented, passing through`);
+          output = { message: `Node type ${node.type} executed`, nodeData: node.data, input: nodeExecution.input };
       }
 
       // Store output
@@ -296,13 +321,11 @@ class WorkflowExecutionService {
 
     try {
       // Call AI service
-      const response = await this.aiService.generateCompletion({
+      const response = await this.aiService.complete({
         provider: config.modelProvider || 'openai',
         model: config.model || 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
+        systemPrompt,
+        userPrompt,
         temperature: config.temperature || 0.7,
         maxTokens: config.maxTokens || 1000
       });
@@ -375,6 +398,56 @@ class WorkflowExecutionService {
   }
 
   /**
+   * Execute router node
+   */
+  private executeRouterNode(node: Node, context: ExecutionContext): any {
+    const routerType = node.data?.routerType || 'stage';
+    let selectedRoute = 'default';
+    
+    console.log('[WorkflowExecution] Executing router node:', { routerType, nodeData: node.data });
+    
+    switch (routerType) {
+      case 'stage':
+        // Route based on deal stage
+        const stage = context.variables.formData?.fields?.stage || 'SQL';
+        selectedRoute = node.data?.[`route_${stage}`] || 'continue';
+        break;
+      
+      case 'value':
+        // Route based on deal value
+        const value = context.variables.formData?.fields?.value || 0;
+        if (value > 100000) selectedRoute = 'high';
+        else if (value > 10000) selectedRoute = 'medium';
+        else selectedRoute = 'low';
+        break;
+      
+      case 'priority':
+        // Route based on priority
+        const priority = context.variables.formData?.fields?.priority || 'normal';
+        selectedRoute = priority;
+        break;
+      
+      case 'owner':
+        // Route based on owner
+        const owner = context.variables.formData?.fields?.owner || 'unassigned';
+        selectedRoute = owner;
+        break;
+      
+      default:
+        selectedRoute = 'default';
+    }
+    
+    console.log('[WorkflowExecution] Router selected route:', selectedRoute);
+    
+    return {
+      routerType,
+      selectedRoute,
+      routeData: node.data,
+      input: context.variables.formData
+    };
+  }
+
+  /**
    * Update context variables with node output
    */
   private updateContextVariables(context: ExecutionContext, nodeId: string, output: any) {
@@ -404,8 +477,9 @@ class WorkflowExecutionService {
    * Save execution to database
    */
   private async saveExecution(execution: WorkflowExecution) {
+    console.log('[WorkflowExecution] Saving execution to database:', execution.id);
     try {
-      await supabase
+      const { data, error } = await supabase
         .from('workflow_executions')
         .insert({
           id: execution.id,
@@ -417,10 +491,19 @@ class WorkflowExecutionService {
           completed_at: execution.completedAt,
           status: execution.status,
           node_executions: execution.nodeExecutions,
-          final_output: execution.finalOutput
-        });
+          final_output: execution.finalOutput,
+          is_test_mode: execution.isTestMode || false
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[WorkflowExecution] Error saving execution to database:', error);
+      } else {
+        console.log('[WorkflowExecution] Successfully saved execution to database:', data);
+      }
     } catch (error) {
-      console.error('Error saving execution:', error);
+      console.error('[WorkflowExecution] Exception saving execution:', error);
     }
   }
 
@@ -432,11 +515,67 @@ class WorkflowExecutionService {
   }
 
   /**
+   * Load executions from database
+   */
+  async loadExecutionsFromDatabase(workflowId: string): Promise<WorkflowExecution[]> {
+    console.log('[WorkflowExecution] Loading executions from database for workflow:', workflowId);
+    try {
+      const { data, error } = await supabase
+        .from('workflow_executions')
+        .select('*')
+        .eq('workflow_id', workflowId)
+        .order('started_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error('[WorkflowExecution] Error loading executions from database:', error);
+        return [];
+      }
+
+      const executions: WorkflowExecution[] = (data || []).map(row => ({
+        id: row.id,
+        workflowId: row.workflow_id,
+        workflowName: row.workflow_name,
+        triggeredBy: row.triggered_by,
+        triggerData: row.trigger_data,
+        startedAt: row.started_at,
+        completedAt: row.completed_at,
+        status: row.status,
+        nodeExecutions: row.node_executions || [],
+        finalOutput: row.final_output,
+        isTestMode: row.is_test_mode || false
+      }));
+
+      // Add to memory cache
+      executions.forEach(execution => {
+        this.executions.set(execution.id, execution);
+        this.addToHistory(workflowId, execution);
+      });
+
+      console.log('[WorkflowExecution] Loaded', executions.length, 'executions from database');
+      return executions;
+    } catch (error) {
+      console.error('[WorkflowExecution] Exception loading executions:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get all executions for a workflow
    */
   getWorkflowExecutions(workflowId: string): WorkflowExecution[] {
     return Array.from(this.executions.values())
       .filter(exec => exec.workflowId === workflowId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  }
+
+  /**
+   * Get workflow executions filtered by test mode
+   */
+  getWorkflowExecutionsByMode(workflowId: string, testMode?: boolean): WorkflowExecution[] {
+    return Array.from(this.executions.values())
+      .filter(exec => exec.workflowId === workflowId && 
+        (testMode === undefined || exec.isTestMode === testMode))
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }
 

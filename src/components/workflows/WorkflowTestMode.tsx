@@ -19,7 +19,7 @@ import {
   Eye
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { workflowExecutionService, WorkflowExecution, NodeExecution } from '@/lib/services/workflowExecutionService';
+import { workflowExecutionService, type WorkflowExecution, type NodeExecution } from '@/lib/services/workflowExecutionService';
 import { formatDistanceToNow } from 'date-fns';
 
 interface WorkflowTestModeProps {
@@ -94,9 +94,22 @@ export default function WorkflowTestMode({
     // Subscribe to execution updates
     const unsubscribe = workflowExecutionService.subscribe(workflowId, handleExecution);
 
-    // Load existing executions
-    const existingExecutions = workflowExecutionService.getExecutions(workflowId);
-    setExecutions(existingExecutions.slice(0, 10));
+    // Load existing executions from both memory and database
+    const loadExecutions = async () => {
+      // First try to get from memory
+      const memoryExecutions = workflowExecutionService.getExecutions(workflowId);
+      if (memoryExecutions.length > 0) {
+        setExecutions(memoryExecutions.slice(0, 10));
+      }
+      
+      // Then load from database
+      const dbExecutions = await workflowExecutionService.loadExecutionsFromDatabase(workflowId);
+      if (dbExecutions.length > 0) {
+        setExecutions(dbExecutions.slice(0, 10));
+      }
+    };
+    
+    loadExecutions();
 
     addLog('info', `Test mode activated for workflow: ${workflowName || workflowId}`);
     if (formUrls?.test) {

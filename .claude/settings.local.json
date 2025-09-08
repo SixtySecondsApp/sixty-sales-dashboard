@@ -4,7 +4,10 @@
       "Read(/Users/andrewbryce/Desktop/**)",
       "Read(/var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_vH7qt4/**)",
       "Read(/var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_snDK5g/**)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Read(//Users/andrewbryce/Desktop/**)",
+      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_xCN3uX/**)",
+      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_wjGTCC/**)"
     ],
     "deny": [],
     "ask": []

@@ -3,6 +3,7 @@ import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Wrench } from '
 import PromptTemplatesModal from './PromptTemplatesModal';
 import type { PromptTemplate } from './PromptTemplatesModal';
 import { ToolRegistry } from '../../lib/services/workflowTools';
+import VariablePicker from './VariablePicker';
 
 export interface AINodeConfig {
   modelProvider: 'openai' | 'anthropic' | 'openrouter' | 'gemini' | 'cohere';
@@ -37,6 +38,7 @@ interface AIAgentConfigModalProps {
   config?: AINodeConfig;
   onSave: (config: AINodeConfig) => void;
   availableVariables?: string[];
+  formFields?: Array<{ name: string; type: string; label: string }>;
 }
 
 const MODEL_OPTIONS = {
@@ -74,6 +76,7 @@ export default function AIAgentConfigModal({
   config,
   onSave,
   availableVariables = [],
+  formFields = [],
 }: AIAgentConfigModalProps) {
   const [formData, setFormData] = useState<AINodeConfig>({
     modelProvider: config?.modelProvider || 'openai',
@@ -242,9 +245,19 @@ export default function AIAgentConfigModal({
 
                   {/* System Prompt */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      System Prompt
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-300">
+                        System Prompt
+                      </label>
+                      <VariablePicker
+                        onInsert={(variable) => {
+                          const newValue = formData.systemPrompt + variable;
+                          setFormData({ ...formData, systemPrompt: newValue });
+                        }}
+                        buttonText="Insert Variable"
+                        formFields={formFields}
+                      />
+                    </div>
                     <textarea
                       value={formData.systemPrompt}
                       onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
@@ -256,15 +269,25 @@ export default function AIAgentConfigModal({
 
                   {/* User Prompt */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      User Prompt Template
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-300">
+                        User Prompt Template
+                      </label>
+                      <VariablePicker
+                        onInsert={(variable) => {
+                          const newValue = formData.userPrompt + variable;
+                          setFormData({ ...formData, userPrompt: newValue });
+                        }}
+                        buttonText="Insert Variable"
+                        formFields={formFields}
+                      />
+                    </div>
                     <div className="mb-2 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
                       <div className="flex items-start gap-2">
                         <Info className="w-4 h-4 text-blue-400 mt-0.5" />
                         <div className="text-xs text-blue-300">
                           <p>Use variables from workflow data with {'{{variableName}}'} syntax.</p>
-                          <p className="mt-1">Available: {availableVariables.length > 0 ? availableVariables.join(', ') : 'deal.value, contact.email, contact.name'}</p>
+                          <p className="mt-1">Click "Insert Variable" to see available form fields and workflow variables.</p>
                         </div>
                       </div>
                     </div>
@@ -273,7 +296,7 @@ export default function AIAgentConfigModal({
                       onChange={(e) => setFormData({ ...formData, userPrompt: e.target.value })}
                       rows={4}
                       className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500 font-mono text-sm"
-                      placeholder="Process the following deal: {{deal.value}} for {{contact.name}}..."
+                      placeholder="Process the following form submission: {{formData.fields.name}} submitted {{formData.fields.email}}..."
                     />
                   </div>
 

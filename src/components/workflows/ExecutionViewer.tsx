@@ -23,18 +23,26 @@ export default function ExecutionViewer({
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
   const [selectedExecutionId, setSelectedExecutionId] = useState<string | undefined>(executionId);
+  const [activeTab, setActiveTab] = useState<'production' | 'test'>('production');
 
   useEffect(() => {
     if (workflowId) {
-      // Load all executions for this workflow
-      const allExecutions = workflowExecutionService.getWorkflowExecutions(workflowId);
-      setExecutions(allExecutions);
+      // Load executions filtered by the active tab
+      const filteredExecutions = workflowExecutionService.getWorkflowExecutionsByMode(
+        workflowId, 
+        activeTab === 'test' ? true : false
+      );
+      setExecutions(filteredExecutions);
       
-      if (!selectedExecutionId && allExecutions.length > 0) {
-        setSelectedExecutionId(allExecutions[0].id);
+      // Reset selected execution when changing tabs
+      if (filteredExecutions.length > 0) {
+        setSelectedExecutionId(filteredExecutions[0].id);
+      } else {
+        setSelectedExecutionId(undefined);
+        setExecution(null);
       }
     }
-  }, [workflowId]);
+  }, [workflowId, activeTab]);
 
   useEffect(() => {
     if (selectedExecutionId) {
@@ -154,7 +162,7 @@ export default function ExecutionViewer({
             <h2 className="text-lg font-semibold text-white">Workflow Execution Viewer</h2>
             {execution && (
               <p className="text-sm text-gray-400 mt-1">
-                Execution ID: {execution.id}
+                Execution ID: {execution.id} {execution.isTestMode ? '(Test)' : '(Production)'}
               </p>
             )}
           </div>
@@ -163,6 +171,30 @@ export default function ExecutionViewer({
             className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Execution Type Tabs */}
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setActiveTab('production')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'production'
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            Production Executions
+          </button>
+          <button
+            onClick={() => setActiveTab('test')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'test'
+                ? 'text-green-400 border-b-2 border-green-400'
+                : 'text-gray-400 hover:text-gray-300'
+            }`}
+          >
+            Test Executions
           </button>
         </div>
 
@@ -190,9 +222,14 @@ export default function ExecutionViewer({
         <div className="flex-1 overflow-y-auto p-4">
           {!execution ? (
             <div className="text-center py-8">
-              <p className="text-gray-400">No execution data available</p>
+              <p className="text-gray-400">
+                No {activeTab} execution data available
+              </p>
               <p className="text-sm text-gray-500 mt-2">
-                Run the workflow to see execution details
+                {activeTab === 'test' 
+                  ? 'Use the test URL to trigger test executions'
+                  : 'Run the workflow to see production execution details'
+                }
               </p>
             </div>
           ) : (

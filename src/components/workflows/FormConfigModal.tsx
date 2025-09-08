@@ -9,6 +9,7 @@ interface FormConfigModalProps {
   nodeData?: FormNodeData | { config?: Partial<FormNodeData['config']> };
   onSave: (config: FormNodeData['config']) => void;
   onPreview?: () => void;
+  workflowId?: string;
 }
 
 const FIELD_TYPES = [
@@ -23,7 +24,7 @@ const FIELD_TYPES = [
   { value: 'checkbox', label: 'Checkbox' },
 ];
 
-export default function FormConfigModal({ isOpen, onClose, nodeData, onSave, onPreview }: FormConfigModalProps) {
+export default function FormConfigModal({ isOpen, onClose, nodeData, onSave, onPreview, workflowId }: FormConfigModalProps) {
   const [activeTab, setActiveTab] = useState<'config' | 'fields' | 'response'>('config');
   const [config, setConfig] = useState<FormNodeData['config']>({
     formTitle: '',
@@ -150,10 +151,10 @@ export default function FormConfigModal({ isOpen, onClose, nodeData, onSave, onP
     
     // Store form configurations for both test and production
     if (testFormId) {
-      await formStorageService.storeFormConfig(testFormId, config, undefined, true);
+      await formStorageService.storeFormConfig(testFormId, config, workflowId, true);
     }
     if (prodFormId) {
-      await formStorageService.storeFormConfig(prodFormId, config, undefined, false);
+      await formStorageService.storeFormConfig(prodFormId, config, workflowId, false);
     }
     
     onSave(config);

@@ -59,8 +59,10 @@ import AIAgentNode from './nodes/AIAgentNode';
 import AIAgentConfigModal from './AIAgentConfigModal';
 import type { AINodeConfig } from './AIAgentConfigModal';
 import FormNode from './nodes/FormNode';
+import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
+import { formStorageService } from '@/lib/services/formStorageService';
 import ExecutionViewer from './ExecutionViewer';
 import WorkflowTestMode from './WorkflowTestMode';
 import ExecutionMonitor from './ExecutionMonitor';
@@ -68,6 +70,7 @@ import { AIProviderService } from '@/lib/services/aiProvider';
 import { createContextFromWorkflow } from '@/lib/utils/promptVariables';
 import { formService } from '@/lib/services/formService';
 import { workflowExecutionService } from '@/lib/services/workflowExecutionService';
+import VariablePicker from './VariablePicker';
 
 // Icon mapping
 const iconMap: { [key: string]: any } = {
@@ -118,16 +121,16 @@ const TriggerNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-purple-600 rounded-lg p-3 min-w-[120px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-purple-600 rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-purple-500'
     } ${selected ? 'ring-2 ring-purple-300' : ''}`}>
       <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-purple-500" />
-      <div className="flex items-center gap-2 text-white">
-        <Icon className="w-4 h-4" />
+      <div className="flex items-center gap-1.5 text-white">
+        <Icon className="w-3 h-3" />
         <div>
-          <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.description}</div>
+          <div className="text-[10px] font-semibold">{data.label}</div>
+          <div className="text-[8px] opacity-80">{data.description}</div>
         </div>
       </div>
     </div>
@@ -139,18 +142,18 @@ const ConditionNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-blue-600 rounded-lg p-3 min-w-[110px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-blue-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
     } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="true" style={{top: '35%'}} />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="false" style={{top: '65%'}} />
-      <div className="flex items-center gap-2 text-white">
-        <GitBranch className="w-3.5 h-3.5" />
+      <div className="flex items-center gap-1.5 text-white">
+        <GitBranch className="w-3 h-3" />
         <div>
-          <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.condition || 'If condition met'}</div>
+          <div className="text-[10px] font-semibold">{data.label}</div>
+          <div className="text-[8px] opacity-80">{data.condition || 'If condition met'}</div>
         </div>
       </div>
     </div>
@@ -163,16 +166,16 @@ const ActionNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-[#37bd7e] rounded-lg p-3 min-w-[120px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-[#37bd7e] rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-[#37bd7e]'
     } ${selected ? 'ring-2 ring-green-300' : ''}`}>
       <NodeStatusIndicator status={status || 'idle'} />
       <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
-      <div className="flex items-center gap-2 text-white">
-        <Icon className="w-4 h-4" />
+      <div className="flex items-center gap-1.5 text-white">
+        <Icon className="w-3 h-3" />
         <div>
-          <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.description}</div>
+          <div className="text-[10px] font-semibold">{data.label}</div>
+          <div className="text-[8px] opacity-80">{data.description}</div>
         </div>
       </div>
     </div>
@@ -185,7 +188,7 @@ const RouterNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-orange-600 rounded-lg p-3 min-w-[110px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-orange-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-orange-500'
     } ${selected ? 'ring-2 ring-orange-300' : ''}`}>
       <NodeStatusIndicator status={status || 'idle'} />
@@ -193,11 +196,11 @@ const RouterNode = ({ data, selected }: any) => {
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '30%'}} id="a" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '50%'}} id="b" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '70%'}} id="c" />
-      <div className="flex items-center gap-2 text-white">
-        <GitBranch className="w-3.5 h-3.5" />
+      <div className="flex items-center gap-1.5 text-white">
+        <GitBranch className="w-3 h-3" />
         <div>
-          <div className="text-xs font-semibold">{data.label}</div>
-          <div className="text-[10px] opacity-80">{data.description || 'Routes to multiple paths'}</div>
+          <div className="text-[10px] font-semibold">{data.label}</div>
+          <div className="text-[8px] opacity-80">{data.description || 'Routes to multiple paths'}</div>
         </div>
       </div>
     </div>
@@ -468,46 +471,155 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
         return;
       }
       
-      // Generate workflow ID if not saved
-      const workflowId = `workflow-${Date.now()}`;
+      let currentWorkflowId = workflowId;
       
-      console.log('Running workflow:', { workflowId, nodes: nodes.length, edges: edges.length });
+      // If workflow hasn't been saved yet, save it first
+      if (!currentWorkflowId) {
+        console.log('[WorkflowCanvas] Saving workflow before execution');
+        const workflow = buildWorkflowData();
+        
+        // Ensure we have at least a basic name for the workflow
+        if (!workflow.name) {
+          workflow.name = `Workflow-${new Date().toISOString().slice(0, 16)}`;
+        }
+        
+        try {
+          const savedWorkflow = await onSave(workflow);
+          currentWorkflowId = savedWorkflow?.id;
+          if (currentWorkflowId) {
+            setWorkflowId(currentWorkflowId);
+            console.log('[WorkflowCanvas] Workflow saved with ID:', currentWorkflowId);
+          } else {
+            throw new Error('No ID returned from save operation');
+          }
+        } catch (error) {
+          console.error('Failed to save workflow before execution:', error);
+          alert('Please save the workflow before running it in test mode');
+          return;
+        }
+      }
+      
+      console.log('Running workflow:', { 
+        workflowId: currentWorkflowId, 
+        nodes: nodes.length, 
+        edges: edges.length,
+        triggerData 
+      });
       
       // Start execution
+      const isTestMode = triggerData?.testMode || false;
       const executionId = await workflowExecutionService.startExecution(
-        workflowId,
+        currentWorkflowId,
         nodes,
         edges,
         triggerData ? 'form' : 'manual',
-        triggerData
+        triggerData,
+        isTestMode
       );
       
       console.log('Execution started:', executionId);
       
       setCurrentExecutionId(executionId);
-      setShowExecutionViewer(true);
+      
+      // Show execution viewer if not already showing test mode
+      if (!showWorkflowTestMode) {
+        setShowExecutionViewer(true);
+      }
     } catch (error) {
       console.error('Error running workflow:', error);
       alert('Error running workflow. Check console for details.');
     }
   };
 
-  // Listen for form submissions
+  // Listen for form submissions (both CustomEvents and BroadcastChannel)
   useEffect(() => {
-    const handleFormSubmission = (event: CustomEvent) => {
-      const { workflowId, formData } = event.detail;
-      // Check if this workflow contains the form
-      const hasFormNode = nodes.some(node => node.type === 'form');
-      if (hasFormNode) {
-        runWorkflow(formData);
+    // Handle BroadcastChannel messages (cross-tab communication)
+    const channel = new BroadcastChannel('workflow-form-submissions');
+    
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      console.log('[WorkflowCanvas] BroadcastChannel message received:', event.data);
+      const { type, data } = event.data;
+      
+      if (type === 'formSubmitted' || type === 'formTestSubmission') {
+        const { workflowId: eventWorkflowId, formData, formId } = data;
+        
+        console.log('[WorkflowCanvas] Processing form submission from broadcast:', {
+          type,
+          formId,
+          eventWorkflowId,
+          currentWorkflowId: workflowId,
+          nodes: nodes.map(n => ({
+            id: n.id,
+            type: n.type,
+            testUrl: n.data?.config?.testUrl,
+            productionUrl: n.data?.config?.productionUrl
+          }))
+        });
+        
+        // Check if this workflow contains a form node with matching formId
+        const matchingFormNode = nodes.find(node => {
+          if (node.type !== 'form') return false;
+          
+          const testUrl = node.data?.config?.testUrl;
+          const prodUrl = node.data?.config?.productionUrl;
+          
+          const matches = (type === 'formTestSubmission' && testUrl && testUrl.includes(formId)) ||
+                         (type === 'formSubmitted' && prodUrl && prodUrl.includes(formId));
+          
+          if (matches) {
+            console.log('[WorkflowCanvas] Found matching form node:', {
+              nodeId: node.id,
+              testUrl,
+              prodUrl,
+              formId
+            });
+          }
+          
+          return matches;
+        });
+        
+        if (matchingFormNode) {
+          console.log('[WorkflowCanvas] Triggering workflow execution from broadcast');
+          
+          // Show test mode UI if it's a test submission
+          if (type === 'formTestSubmission' && !showWorkflowTestMode) {
+            setShowWorkflowTestMode(true);
+          }
+          
+          const isTestSubmission = type === 'formTestSubmission';
+          runWorkflow({ ...formData, testMode: isTestSubmission });
+        } else if (eventWorkflowId === workflowId) {
+          console.log('[WorkflowCanvas] Workflow ID matches, triggering execution');
+          const isTestSubmission = type === 'formTestSubmission';
+          runWorkflow({ ...formData, testMode: isTestSubmission });
+        } else {
+          console.log('[WorkflowCanvas] No matching form node or workflow ID found');
+        }
       }
+    };
+    
+    channel.addEventListener('message', handleBroadcastMessage);
+    
+    // Also keep CustomEvent listeners for backward compatibility (same-tab submissions)
+    const handleFormSubmission = (event: CustomEvent) => {
+      console.log('[WorkflowCanvas] CustomEvent received (same tab):', event.detail);
+      handleBroadcastMessage({ data: { type: 'formSubmitted', data: event.detail } } as MessageEvent);
+    };
+    
+    const handleTestFormSubmission = (event: CustomEvent) => {
+      console.log('[WorkflowCanvas] CustomEvent test received (same tab):', event.detail);
+      handleBroadcastMessage({ data: { type: 'formTestSubmission', data: event.detail } } as MessageEvent);
     };
 
     window.addEventListener('formSubmitted', handleFormSubmission as EventListener);
+    window.addEventListener('formTestSubmission', handleTestFormSubmission as EventListener);
+    
     return () => {
+      channel.close();
       window.removeEventListener('formSubmitted', handleFormSubmission as EventListener);
+      window.removeEventListener('formTestSubmission', handleTestFormSubmission as EventListener);
     };
-  }, [nodes, edges]);
+  }, [nodes, edges, workflowId, showWorkflowTestMode]);
 
   // Delete selected node
   const deleteSelectedNode = () => {
@@ -632,17 +744,90 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             }
           }
           
+          const nodeId = `${type}_${Date.now()}`;
+          
+          // Special handling for form nodes - automatically generate URLs
+          if (type === 'form') {
+            const timestamp = Date.now();
+            const randomStr = Math.random().toString(36).substring(2, 15);
+            const testFormId = `form-test-${timestamp}-${randomStr}`;
+            const prodFormId = `form-prod-${timestamp}-${randomStr}`;
+            
+            // Generate URLs
+            const testUrl = `${window.location.origin}/form-test/${testFormId}`;
+            const productionUrl = `${window.location.origin}/form/${prodFormId}`;
+            
+            // Create default configuration
+            const defaultFormConfig = {
+              formTitle: nodeData.label || 'New Form',
+              formDescription: 'Please fill out this form',
+              submitButtonText: 'Submit',
+              fields: [
+                {
+                  id: 'field-1',
+                  name: 'name',
+                  label: 'Name',
+                  type: 'text' as const,
+                  required: true,
+                  placeholder: 'Enter your name'
+                },
+                {
+                  id: 'field-2',
+                  name: 'email',
+                  label: 'Email',
+                  type: 'email' as const,
+                  required: true,
+                  placeholder: 'Enter your email'
+                }
+              ] as FormField[],
+              authentication: 'none' as const,
+              responseSettings: {
+                onSubmit: 'continue' as const,
+                successMessage: 'Thank you for your submission!',
+                errorMessage: 'An error occurred. Please try again.'
+              },
+              testUrl,
+              productionUrl
+            };
+            
+            // Save form configurations immediately (async but don't wait)
+            // For new workflows, generate a temporary ID that will be updated when saved
+            const currentWorkflowId = workflowId || crypto.randomUUID();
+            formStorageService.storeFormConfig(testFormId, defaultFormConfig, currentWorkflowId, true);
+            formStorageService.storeFormConfig(prodFormId, defaultFormConfig, currentWorkflowId, false);
+            
+            // Log for debugging
+            console.log('[WorkflowCanvas] Form node created with URLs:', {
+              testUrl,
+              productionUrl,
+              testFormId,
+              prodFormId,
+              workflowId: currentWorkflowId
+            });
+            
+            // Add URLs to node data
+            enhancedData = {
+              ...enhancedData,
+              config: defaultFormConfig
+            };
+          }
+          
           const newNode = {
-            id: `${type}_${Date.now()}`,
+            id: nodeId,
             type,
             position: {
-              x: centerX - 60, // Center horizontally (node width ~120px)
-              y: centerY - 30  // Center vertically (node height ~60px)
+              x: centerX - 36, // Center horizontally (node width ~72px, 40% smaller)
+              y: centerY - 18  // Center vertically (node height ~36px, 40% smaller)
             },
             data: enhancedData,
           };
 
           setNodes((nds) => nds.concat(newNode));
+          
+          // Show helpful message for form nodes
+          if (type === 'form') {
+            console.log('✅ Form node created with test and production URLs ready to use!');
+          }
         }
       }
     },
@@ -775,6 +960,25 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
   const handleSpeedChange = (speed: number) => {
     testEngineRef.current?.setSpeed(speed);
+  };
+
+  // Get form fields from workflow form nodes for variable picker
+  const getFormFieldsFromWorkflow = () => {
+    const formFields: Array<{ name: string; type: string; label: string }> = [];
+    
+    nodes.forEach(node => {
+      if (node.type === 'form' && node.data?.config?.fields) {
+        node.data.config.fields.forEach((field: any) => {
+          formFields.push({
+            name: field.name || field.label?.toLowerCase().replace(/\s+/g, '_') || 'field',
+            type: field.type || 'text',
+            label: field.label || field.name || 'Field'
+          });
+        });
+      }
+    });
+    
+    return formFields;
   };
 
   const buildWorkflowData = () => {
@@ -1476,25 +1680,29 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
 
       {/* Main Canvas */}
       <div className="flex-1 relative h-[calc(100vh-8rem)] overflow-hidden">
+        {/* Auto-save notification - Bottom right corner */}
+        {lastSaveTime && (
+          <div className="absolute bottom-4 right-4 z-40">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/90 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
+              {isAutoSaving ? (
+                <span className="flex items-center gap-2 text-yellow-400 text-xs">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                  Saving...
+                </span>
+              ) : (
+                <span className="text-gray-400 text-xs">
+                  Last saved {lastSaveTime.toLocaleTimeString()}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        
         {/* Workflow Title - Centered at Top */}
         {workflowName && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40">
-            <div className="flex items-center gap-3 px-6 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
-              <div className="flex flex-col items-center">
-                <span className="text-white font-medium text-base">{workflowName}</span>
-                {lastSaveTime && (
-                  <span className="text-gray-400 text-xs mt-0.5">
-                    {isAutoSaving ? (
-                      <span className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                        Saving...
-                      </span>
-                    ) : (
-                      `Last saved ${lastSaveTime.toLocaleTimeString()}`
-                    )}
-                  </span>
-                )}
-              </div>
+            <div className="px-6 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
+              <span className="text-white font-medium text-base">{workflowName}</span>
             </div>
           </div>
         )}
@@ -1521,7 +1729,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             Executions
           </button>
           
-          {/* Workflow Test Mode Button */}
+          {/* Test Mode Button - Opens test modal */}
           <button
             onClick={() => setShowWorkflowTestMode(true)}
             className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
@@ -1531,62 +1739,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
             Test Mode
           </button>
           
-          {/* Test Button - Toggle test panel */}
-          <button
-            onClick={() => {
-              setShowTestPanel(!showTestPanel);
-              if (!showTestPanel) {
-                setShowNodeEditor(false); // Close node editor if opening test panel
-                setShowNodePanel(false); // Hide node panel when testing
-                // Auto-fit view when entering test mode
-                if (reactFlowInstance.current) {
-                  setTimeout(() => {
-                    reactFlowInstance.current.fitView({ 
-                      padding: 0.1, 
-                      duration: 800,
-                      maxZoom: 1.2,
-                      minZoom: 0.3
-                    });
-                  }, 100);
-                }
-              } else {
-                // Restore node panel when exiting test mode
-                setShowNodePanel(true);
-                if (testExecutionState?.isRunning) {
-                  stopTest();
-                }
-              }
-            }}
-            className={`px-3 py-2 ${showTestPanel ? 'bg-orange-700' : 'bg-orange-600 hover:bg-orange-700'} text-white rounded-lg text-sm transition-colors flex items-center gap-2`}
-            title={showTestPanel ? "Exit Test Mode" : "Enter Test Mode"}
-          >
-            {showTestPanel ? (
-              <>
-                <X className="w-4 h-4" />
-                Exit Test
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4" />
-                Test Workflow
-              </>
-            )}
-          </button>
-          
-          {/* Compact Test Status Indicator when running and panel is closed */}
-          {testExecutionState?.isRunning && !showTestPanel && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-800 rounded-lg border border-gray-600">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-white text-sm">Test Running</span>
-              <button
-                onClick={stopTest}
-                className="ml-2 text-red-500 hover:text-red-400 transition-colors"
-                title="Stop Test"
-              >
-                <Square className="w-4 h-4" />
-              </button>
-            </div>
-          )}
           
           <div className="border-l border-gray-600 h-8 mx-1"></div>
           
@@ -2131,13 +2283,24 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                     {selectedNode.data.type === 'create_task' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Task Title</label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Task Title</label>
+                            <VariablePicker
+                              onInsert={(variable) => {
+                                const currentValue = selectedNode.data.taskTitle || '';
+                                const newValue = currentValue + variable;
+                                updateNodeData(selectedNode.id, { taskTitle: newValue });
+                              }}
+                              buttonText="Insert Variable"
+                              formFields={getFormFieldsFromWorkflow()}
+                            />
+                          </div>
                           <input
                             type="text"
                             value={selectedNode.data.taskTitle || ''}
                             onChange={(e) => updateNodeData(selectedNode.id, { taskTitle: e.target.value })}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="e.g., Follow up with {deal_name}"
+                            placeholder="e.g., Follow up with {{formData.fields.name}}"
                           />
                         </div>
                         <div>
@@ -2360,22 +2523,44 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
                     {selectedNode.data.type === 'send_notification' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Title</label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Notification Title</label>
+                            <VariablePicker
+                              onInsert={(variable) => {
+                                const currentValue = selectedNode.data.notificationTitle || '';
+                                const newValue = currentValue + variable;
+                                updateNodeData(selectedNode.id, { notificationTitle: newValue });
+                              }}
+                              buttonText="Insert Variable"
+                              formFields={getFormFieldsFromWorkflow()}
+                            />
+                          </div>
                           <input
                             type="text"
                             value={selectedNode.data.notificationTitle || ''}
                             onChange={(e) => updateNodeData(selectedNode.id, { notificationTitle: e.target.value })}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="e.g., Deal Update"
+                            placeholder="e.g., New submission from {{formData.fields.name}}"
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Message</label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Notification Message</label>
+                            <VariablePicker
+                              onInsert={(variable) => {
+                                const currentValue = selectedNode.data.notificationMessage || '';
+                                const newValue = currentValue + variable;
+                                updateNodeData(selectedNode.id, { notificationMessage: newValue });
+                              }}
+                              buttonText="Insert Variable"
+                              formFields={getFormFieldsFromWorkflow()}
+                            />
+                          </div>
                           <textarea
                             value={selectedNode.data.notificationMessage || ''}
                             onChange={(e) => updateNodeData(selectedNode.id, { notificationMessage: e.target.value })}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-                            placeholder="Enter notification message..."
+                            placeholder="Enter notification message with {{formData.fields.email}} variables..."
                           />
                         </div>
                       </>
@@ -3459,6 +3644,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
       config={selectedAINode?.data?.config}
       onSave={handleAIConfigSave}
       availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title']}
+      formFields={getFormFieldsFromWorkflow()}
     />
     
     {/* Form Configuration Modal */}
@@ -3479,6 +3665,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
           setShowFormConfigModal(false);
           setShowFormPreview(true);
         }}
+        workflowId={workflowId || undefined}
       />
     )}
     
@@ -3499,7 +3686,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     {/* Execution Viewer Modal */}
     <ExecutionViewer
       executionId={currentExecutionId}
-      workflowId={`workflow-${Date.now()}`}
+      workflowId={crypto.randomUUID()}
       isOpen={showExecutionViewer}
       onClose={() => setShowExecutionViewer(false)}
       onVariableSelect={(variable) => {
@@ -3511,7 +3698,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({ selectedWorkflow, onSav
     {/* Workflow Test Mode Modal */}
     {showWorkflowTestMode && (
       <WorkflowTestMode
-        workflowId={selectedWorkflow?.id || `workflow-${Date.now()}`}
+        workflowId={selectedWorkflow?.id || crypto.randomUUID()}
         workflowName={workflowName || 'Untitled Workflow'}
         formUrls={(() => {
           // Get form URLs from form nodes
