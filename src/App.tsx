@@ -42,6 +42,7 @@ const PipelineAutomationAdmin = lazyWithRetry(() => import('@/pages/PipelineAuto
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
 const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
+const GoogleOAuthCallback = lazyWithRetry(() => import('@/pages/GoogleOAuthCallback'));
 
 // Large feature routes - lazy load with retry (most prone to cache issues)
 const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
@@ -180,6 +181,7 @@ function App() {
                 <Route path="/auth/signup" element={<Signup />} />
                 <Route path="/auth/forgot-password" element={<ForgotPassword />} />
                 <Route path="/auth/reset-password" element={<ResetPassword />} />
+                <Route path="/auth/google/callback" element={<GoogleOAuthCallback />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
