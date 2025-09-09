@@ -52,6 +52,7 @@ const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
 const TestNotifications = lazy(() => import('@/pages/TestNotifications'));
@@ -178,6 +179,7 @@ function App() {
                 <Routes>
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/signup" element={<Signup />} />
+                <Route path="/debug-auth" element={<DebugAuth />} />
                 <Route path="/auth/forgot-password" element={<ForgotPassword />} />
                 <Route path="/auth/reset-password" element={<ResetPassword />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />

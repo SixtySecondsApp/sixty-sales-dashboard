@@ -12,7 +12,8 @@ const publicRoutes = [
   '/auth/login', 
   '/auth/signup', 
   '/auth/forgot-password', 
-  '/auth/reset-password'
+  '/auth/reset-password',
+  '/debug-auth'
 ];
 
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
@@ -29,6 +30,13 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     location.pathname.startsWith('/roadmap');
 
   useEffect(() => {
+    console.log('ProtectedRoute:', {
+      pathname: location.pathname,
+      isAuthenticated,
+      loading,
+      isPublicRoute
+    });
+    
     // Don't redirect while loading
     if (loading) return;
 

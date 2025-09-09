@@ -30,7 +30,7 @@ function getSupabaseClient(): TypedSupabaseClient {
     supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
-        storageKey: 'sb.auth.v2', // Versioned storage key
+        // Removed custom storageKey to use default sb-[project-ref]-auth-token format
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
@@ -287,8 +287,11 @@ export const authUtils = {
   clearAuthStorage: (): void => {
     try {
       // Clear all auth-related localStorage items
+      // Using the actual key format that Supabase v2 uses
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
       const keysToRemove = [
-        'sb.auth.v2',
+        `sb-${projectRef}-auth-token`, // Current Supabase v2 format
+        'sb.auth.v2', // Old custom key
         'sb.auth.admin.v2',
         'supabase.auth.token', // Legacy key
         'sb-refresh-token',
