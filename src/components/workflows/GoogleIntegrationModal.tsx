@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
 import { googleOAuthService } from '../../lib/services/googleOAuthService';
-import { supabase } from '../../lib/supabase';
 import { toast } from 'sonner';
 
 interface GoogleIntegrationModalProps {

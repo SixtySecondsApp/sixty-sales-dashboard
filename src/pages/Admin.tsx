@@ -10,7 +10,7 @@ import FunctionTesting from '@/pages/admin/FunctionTesting';
 import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
 import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
-import GoogleWorkspaceSettings from '@/components/admin/GoogleWorkspaceSettings';
+import { GoogleWorkspaceSettings } from '@/components/admin/GoogleWorkspaceSettings';
 import { 
   UsersIcon, 
   PanelLeft, 

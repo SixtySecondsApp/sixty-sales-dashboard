@@ -1,6 +1,6 @@
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;

@@ -12,7 +12,7 @@ import {
   X,
   Loader2
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase/clientV2';
 import { googleOAuthService } from '../../lib/services/googleOAuthService';
 import { GoogleIntegrationModal } from '../workflows/GoogleIntegrationModal';
 import { toast } from 'sonner';

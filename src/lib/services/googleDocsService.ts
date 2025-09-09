@@ -1,6 +1,6 @@
 import { google, docs_v1, drive_v3 } from 'googleapis';
 import { googleOAuthService } from './googleOAuthService';
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 interface DocumentTemplate {
   title: string;
