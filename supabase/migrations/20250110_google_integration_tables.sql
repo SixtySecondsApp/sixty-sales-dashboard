@@ -99,17 +99,17 @@ CREATE TABLE IF NOT EXISTS google_oauth_states (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes for performance
-CREATE INDEX idx_google_integrations_user_id ON google_integrations(user_id);
-CREATE INDEX idx_google_integrations_email ON google_integrations(email);
-CREATE INDEX idx_google_calendars_integration_id ON google_calendars(integration_id);
-CREATE INDEX idx_google_drive_folders_integration_id ON google_drive_folders(integration_id);
-CREATE INDEX idx_google_email_labels_integration_id ON google_email_labels(integration_id);
-CREATE INDEX idx_google_docs_templates_user_id ON google_docs_templates(user_id);
-CREATE INDEX idx_google_service_logs_integration_id ON google_service_logs(integration_id);
-CREATE INDEX idx_google_service_logs_created_at ON google_service_logs(created_at);
-CREATE INDEX idx_google_oauth_states_state ON google_oauth_states(state);
-CREATE INDEX idx_google_oauth_states_expires_at ON google_oauth_states(expires_at);
+-- Indexes for performance (with IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_google_integrations_user_id ON google_integrations(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_integrations_email ON google_integrations(email);
+CREATE INDEX IF NOT EXISTS idx_google_calendars_integration_id ON google_calendars(integration_id);
+CREATE INDEX IF NOT EXISTS idx_google_drive_folders_integration_id ON google_drive_folders(integration_id);
+CREATE INDEX IF NOT EXISTS idx_google_email_labels_integration_id ON google_email_labels(integration_id);
+CREATE INDEX IF NOT EXISTS idx_google_docs_templates_user_id ON google_docs_templates(user_id);
+CREATE INDEX IF NOT EXISTS idx_google_service_logs_integration_id ON google_service_logs(integration_id);
+CREATE INDEX IF NOT EXISTS idx_google_service_logs_created_at ON google_service_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_google_oauth_states_state ON google_oauth_states(state);
+CREATE INDEX IF NOT EXISTS idx_google_oauth_states_expires_at ON google_oauth_states(expires_at);
 
 -- Row Level Security
 ALTER TABLE google_integrations ENABLE ROW LEVEL SECURITY;
@@ -121,18 +121,22 @@ ALTER TABLE google_service_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE google_oauth_states ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for google_integrations
+DROP POLICY IF EXISTS "Users can view their own Google integrations" ON google_integrations;
 CREATE POLICY "Users can view their own Google integrations"
   ON google_integrations FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own Google integrations" ON google_integrations;
 CREATE POLICY "Users can insert their own Google integrations"
   ON google_integrations FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own Google integrations" ON google_integrations;
 CREATE POLICY "Users can update their own Google integrations"
   ON google_integrations FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own Google integrations" ON google_integrations;
 CREATE POLICY "Users can delete their own Google integrations"
   ON google_integrations FOR DELETE
   USING (auth.uid() = user_id);
