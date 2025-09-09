@@ -9,7 +9,8 @@
       "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_xCN3uX/**)",
       "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_wjGTCC/**)",
       "WebSearch",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
