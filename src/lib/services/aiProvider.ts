@@ -277,6 +277,9 @@ export class AIProviderService {
     config: AINodeConfig,
     userId?: string
   ): Promise<AIResponse> {
+    // Ensure we have a user ID for tracking and tools
+    const effectiveUserId = userId || 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Fallback to dev user ID
+    
     // Check for MCP requests in the response
     if (config.enableMCP && userId) {
       const mcpMatch = response.content.match(/<mcp\s+server="([^"]+)"\s+method="([^"]+)">([^<]*)<\/mcp>/);

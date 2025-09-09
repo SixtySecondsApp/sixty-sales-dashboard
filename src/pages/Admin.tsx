@@ -10,6 +10,7 @@ import FunctionTesting from '@/pages/admin/FunctionTesting';
 import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
 import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
+import GoogleWorkspaceSettings from '@/components/admin/GoogleWorkspaceSettings';
 import { 
   UsersIcon, 
   PanelLeft, 
@@ -20,7 +21,8 @@ import {
   Workflow,
   TestTube,
   FlaskConical,
-  Sparkles
+  Sparkles,
+  Building2
 } from 'lucide-react';
 
 export default function Admin() {
@@ -77,6 +79,13 @@ export default function Admin() {
                 AI Settings
               </TabsTrigger>
               <TabsTrigger 
+                value="google-workspace" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <Building2 className="w-4 h-4" />
+                Google Workspace
+              </TabsTrigger>
+              <TabsTrigger 
                 value="pipeline-automation" 
                 className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
               >
@@ -131,6 +140,10 @@ export default function Admin() {
 
             <TabsContent value="ai-settings" className="space-y-0">
               <AIProviderSettings />
+            </TabsContent>
+
+            <TabsContent value="google-workspace" className="space-y-0">
+              <GoogleWorkspaceSettings />
             </TabsContent>
 
             <TabsContent value="pipeline-automation" className="space-y-0">
