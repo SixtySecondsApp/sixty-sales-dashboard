@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useCycle } from 'framer-motion';
 import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
+import { NotificationBell } from '@/components/NotificationBell';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -129,13 +130,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <span className="text-xs text-gray-400">{userData?.stage}</span>
           </div>
         </div>
-        <motion.button
-          animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
-          onClick={() => toggleMobileMenu()}
-          className="p-2 rounded-xl bg-gray-800/50 hover:bg-gray-800/70 transition-colors lg:hidden"
-        >
-          <MenuIcon className="w-6 h-6 text-gray-400" />
-        </motion.button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <motion.button
+            animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
+            onClick={() => toggleMobileMenu()}
+            className="p-2 rounded-xl bg-gray-800/50 hover:bg-gray-800/70 transition-colors lg:hidden"
+          >
+            <MenuIcon className="w-6 h-6 text-gray-400" />
+          </motion.button>
+        </div>
       </div>
       
       {/* Quick Add FAB - Hidden on Workflows page */}
@@ -330,7 +334,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: "auto" }}
                   exit={{ opacity: 0, width: 0 }}
-                  className="overflow-hidden"
+                  className="overflow-hidden flex-1"
                 >
                   <div className="flex flex-col">
                     <span className="text-sm font-semibold text-white/90">
@@ -340,12 +344,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </div>
                 </motion.div>
               </AnimatePresence>
-              <button
-                onClick={() => setIsCollapsed(true)}
-                className="absolute right-2 top-6 p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
-              >
-                <X className="w-5 h-5 text-gray-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                <NotificationBell />
+                <button
+                  onClick={() => setIsCollapsed(true)}
+                  className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
             </>
           )}
         </div>

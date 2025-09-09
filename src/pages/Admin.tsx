@@ -9,6 +9,7 @@ import ApiTesting from '@/pages/ApiTesting';
 import FunctionTesting from '@/pages/admin/FunctionTesting';
 import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
 import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
+import AIProviderSettings from '@/components/settings/AIProviderSettings';
 import { 
   UsersIcon, 
   PanelLeft, 
@@ -18,7 +19,8 @@ import {
   Target,
   Workflow,
   TestTube,
-  FlaskConical
+  FlaskConical,
+  Sparkles
 } from 'lucide-react';
 
 export default function Admin() {
@@ -66,6 +68,13 @@ export default function Admin() {
               >
                 <Zap className="w-4 h-4" />
                 Smart Tasks
+              </TabsTrigger>
+              <TabsTrigger 
+                value="ai-settings" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Settings
               </TabsTrigger>
               <TabsTrigger 
                 value="pipeline-automation" 
@@ -118,6 +127,10 @@ export default function Admin() {
 
             <TabsContent value="smart-tasks" className="space-y-0">
               <SmartTasksAdmin />
+            </TabsContent>
+
+            <TabsContent value="ai-settings" className="space-y-0">
+              <AIProviderSettings />
             </TabsContent>
 
             <TabsContent value="pipeline-automation" className="space-y-0">

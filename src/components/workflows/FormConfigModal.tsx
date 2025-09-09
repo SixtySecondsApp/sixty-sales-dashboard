@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, ChevronUp, ChevronDown, Copy, ExternalLink } from 'lucide-react';
 import type { FormNodeData, FormField } from './nodes/FormNode';
 import { formStorageService } from '@/lib/services/formStorageService';
+import { formService } from '@/lib/services/formService';
 
 interface FormConfigModalProps {
   isOpen: boolean;

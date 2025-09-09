@@ -19,6 +19,7 @@ import {
   Eye
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { formService } from '@/lib/services/formService';
 import { workflowExecutionService, type WorkflowExecution, type NodeExecution } from '@/lib/services/workflowExecutionService';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -49,14 +50,20 @@ export default function WorkflowTestMode({
   const logsEndRef = useRef<HTMLDivElement>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
+  // Fix form URLs to use current port
+  const fixedFormUrls = {
+    test: formUrls?.test ? formService.fixFormUrl(formUrls.test) : undefined,
+    production: formUrls?.production ? formService.fixFormUrl(formUrls.production) : undefined
+  };
+
   // Generate QR code for form URL
   useEffect(() => {
-    if (formUrls?.test) {
-      QRCode.toDataURL(formUrls.test, { width: 200, margin: 2 })
+    if (fixedFormUrls.test) {
+      QRCode.toDataURL(fixedFormUrls.test, { width: 200, margin: 2 })
         .then(setQrCode)
         .catch(console.error);
     }
-  }, [formUrls]);
+  }, [fixedFormUrls]);
 
   // Subscribe to workflow executions
   useEffect(() => {
@@ -112,8 +119,8 @@ export default function WorkflowTestMode({
     loadExecutions();
 
     addLog('info', `Test mode activated for workflow: ${workflowName || workflowId}`);
-    if (formUrls?.test) {
-      addLog('info', `Form URL ready: ${formUrls.test}`);
+    if (fixedFormUrls.test) {
+      addLog('info', `Form URL ready: ${fixedFormUrls.test}`);
     }
 
     return () => {
@@ -136,8 +143,8 @@ export default function WorkflowTestMode({
   };
 
   const copyFormUrl = () => {
-    if (formUrls?.test) {
-      navigator.clipboard.writeText(formUrls.test);
+    if (fixedFormUrls.test) {
+      navigator.clipboard.writeText(fixedFormUrls.test);
       setCopiedUrl(true);
       setTimeout(() => setCopiedUrl(false), 2000);
       addLog('info', 'Form URL copied to clipboard');
@@ -145,8 +152,8 @@ export default function WorkflowTestMode({
   };
 
   const openFormInNewTab = () => {
-    if (formUrls?.test) {
-      window.open(formUrls.test, '_blank');
+    if (fixedFormUrls.test) {
+      window.open(fixedFormUrls.test, '_blank');
       addLog('info', 'Form opened in new tab');
     }
   };
@@ -247,14 +254,14 @@ export default function WorkflowTestMode({
           {/* Left Panel - Form Info & Executions */}
           <div className="w-1/3 border-r border-gray-800 flex flex-col">
             {/* Form URL Section */}
-            {formUrls?.test && (
+            {fixedFormUrls.test && (
               <div className="p-4 border-b border-gray-800">
                 <h3 className="text-sm font-medium text-gray-300 mb-3">Test Form URL</h3>
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={formUrls.test}
+                      value={fixedFormUrls.test}
                       readOnly
                       className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-gray-300"
                     />

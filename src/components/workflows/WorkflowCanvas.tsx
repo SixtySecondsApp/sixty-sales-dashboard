@@ -51,7 +51,9 @@ import {
   Check,
   ChevronDown,
   Monitor,
-  FlaskConical
+  FlaskConical,
+  GitMerge,
+  Bot
 } from 'lucide-react';
 import { FaSlack } from 'react-icons/fa';
 import { SlackConnectionButton } from '@/components/SlackConnectionButton';
@@ -64,6 +66,12 @@ import { WorkflowSuggestionGenerator } from '@/lib/utils/workflowSuggestions';
 import AIAgentNode from './nodes/AIAgentNode';
 import AIAgentConfigModal from './AIAgentConfigModal';
 import type { AINodeConfig } from './AIAgentConfigModal';
+import CustomGPTNode from './nodes/CustomGPTNode';
+import CustomGPTConfigModal from './CustomGPTConfigModal';
+import type { CustomGPTNodeConfig } from './CustomGPTConfigModal';
+import AssistantManagerNode from './nodes/AssistantManagerNode';
+import AssistantManagerConfigModal from './AssistantManagerConfigModal';
+import type { AssistantManagerNodeConfig } from './AssistantManagerConfigModal';
 import FormNode from './nodes/FormNode';
 import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
@@ -98,7 +106,11 @@ const iconMap: { [key: string]: any } = {
   Briefcase,
   FileText,
   Heart,
-  Plus
+  Plus,
+  Edit,
+  GitMerge,
+  Bot,
+  Sparkles
 };
 
 // Map legacy test status to new NodeStatus type
@@ -176,16 +188,29 @@ const ConditionNode = ({ data, selected }: any) => {
   );
 };
 
-const ActionNode = ({ data, selected }: any) => {
+const ActionNode = ({ data, selected, id }: any) => {
   const Icon = data.iconName === 'Slack' ? FaSlack : (data.iconName ? iconMap[data.iconName] : CheckSquare);
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
   const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
   const isActive = status === 'active';
   
+  // Special styling for Multiple Actions and Join Actions nodes
+  const isMultiAction = data.type === 'multi_action';
+  const isJoinAction = data.type === 'join_actions';
+  const bgColor = isMultiAction ? 'bg-gradient-to-r from-purple-600 to-purple-700' : 
+                  isJoinAction ? 'bg-gradient-to-r from-teal-600 to-teal-700' : 'bg-[#37bd7e]';
+  const borderColor = isMultiAction ? 'border-purple-500' : 
+                     isJoinAction ? 'border-teal-500' : 'border-[#37bd7e]';
+  
+  // Get connection count
+  const { getEdges } = useReactFlow();
+  const outgoingCount = isMultiAction ? getEdges().filter(e => e.source === id).length : 0;
+  const incomingCount = isJoinAction ? getEdges().filter(e => e.target === id).length : 0;
+  
   return (
-    <div className={`bg-[#37bd7e] rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
-      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-[#37bd7e]'
-    } ${selected ? 'ring-2 ring-green-300' : ''}`}>
+    <div className={`${bgColor} rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : borderColor
+    } ${selected ? 'ring-2 ring-green-300' : ''} ${isMultiAction ? 'shadow-purple-500/30' : isJoinAction ? 'shadow-teal-500/30' : ''}`}>
       {nodeStatus !== 'idle' && (
         <StatusIndicator 
           status={nodeStatus}
@@ -194,12 +219,35 @@ const ActionNode = ({ data, selected }: any) => {
           size="sm"
         />
       )}
-      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-[#37bd7e]" />
+      {isMultiAction && outgoingCount > 0 && (
+        <div className="absolute -top-2 -right-2 bg-purple-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+          {outgoingCount}
+        </div>
+      )}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        className={`w-2.5 h-2.5 bg-white border-2 ${borderColor}`}
+        isConnectable={true}
+      />
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={`w-2.5 h-2.5 bg-white border-2 ${borderColor} ${isMultiAction ? 'w-3.5 h-3.5 ring-2 ring-purple-300' : ''}`}
+        isConnectable={true}
+      />
       <div className="flex items-center gap-1.5 text-white">
-        <Icon className="w-3 h-3" />
+        <Icon className={`w-3 h-3 ${isMultiAction ? 'animate-pulse' : ''}`} />
         <div>
           <div className="text-[10px] font-semibold">{data.label}</div>
-          <div className="text-[8px] opacity-80">{data.description}</div>
+          <div className="text-[8px] opacity-80">
+            {isMultiAction && data.executionMode && (
+              <div className="text-[7px] uppercase font-bold text-yellow-300">
+                {data.executionMode === 'parallel' ? '⚡ ASYNC' : '⏩ SYNC'}
+              </div>
+            )}
+            <div>{data.description}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -213,9 +261,9 @@ const RouterNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-orange-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
-      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-orange-500'
-    } ${selected ? 'ring-2 ring-orange-300' : ''}`}>
+    <div className={`bg-blue-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
+      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
+    } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       {nodeStatus !== 'idle' && (
         <StatusIndicator 
           status={nodeStatus}
@@ -224,10 +272,10 @@ const RouterNode = ({ data, selected }: any) => {
           size="sm"
         />
       )}
-      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '30%'}} id="a" />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '50%'}} id="b" />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-orange-500" style={{top: '70%'}} id="c" />
+      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" style={{top: '30%'}} id="a" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" style={{top: '50%'}} id="b" />
+      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" style={{top: '70%'}} id="c" />
       <div className="flex items-center gap-1.5 text-white">
         <GitBranch className="w-3 h-3" />
         <div>
@@ -245,6 +293,8 @@ const nodeTypes: NodeTypes = {
   action: ActionNode,
   router: RouterNode,
   aiAgent: AIAgentNode,
+  customGPT: CustomGPTNode,
+  assistantManager: AssistantManagerNode,
   form: FormNode
 };
 
@@ -289,6 +339,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const reactFlowInstance = useRef<any>(null);
   const [showAIConfigModal, setShowAIConfigModal] = useState(false);
   const [selectedAINode, setSelectedAINode] = useState<Node | null>(null);
+  const [showCustomGPTConfigModal, setShowCustomGPTConfigModal] = useState(false);
+  const [selectedCustomGPTNode, setSelectedCustomGPTNode] = useState<Node | null>(null);
+  const [showAssistantManagerConfigModal, setShowAssistantManagerConfigModal] = useState(false);
+  const [selectedAssistantManagerNode, setSelectedAssistantManagerNode] = useState<Node | null>(null);
   const [showFormConfigModal, setShowFormConfigModal] = useState(false);
   const [selectedFormNode, setSelectedFormNode] = useState<Node | null>(null);
   const [showFormPreview, setShowFormPreview] = useState(false);
@@ -467,8 +521,50 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   };
   
   const onConnect = useCallback(
-    (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges]
+    (params: Edge | Connection) => {
+      // Find the source and target nodes
+      const sourceNode = nodes.find(n => n.id === params.source);
+      const targetNode = nodes.find(n => n.id === params.target);
+      
+      // For Multiple Actions node in sequential mode, check if it already has a connection
+      if (sourceNode?.data.type === 'multi_action' && sourceNode?.data.executionMode === 'sequential') {
+        const existingConnections = edges.filter(e => e.source === params.source);
+        if (existingConnections.length > 0) {
+          // In sequential mode, only allow one outgoing connection from Multiple Actions
+          alert('Sequential mode only allows one outgoing connection. Change to parallel mode for multiple connections.');
+          return;
+        }
+      }
+      
+      // For Join Actions node, check if source already has an outgoing connection
+      if (sourceNode?.data.type === 'join_actions') {
+        const existingOutgoing = edges.filter(e => e.source === params.source);
+        if (existingOutgoing.length > 0) {
+          alert('Join Actions node can only have one outgoing connection to continue the flow.');
+          return;
+        }
+      }
+      
+      // Style the edge based on node types
+      let edgeStyle = { stroke: '#37bd7e', strokeWidth: 2 };
+      let animated = false;
+      
+      if (sourceNode?.data.type === 'multi_action') {
+        edgeStyle = { stroke: '#9333ea', strokeWidth: 2 };
+        animated = true;
+      } else if (targetNode?.data.type === 'join_actions') {
+        edgeStyle = { stroke: '#14b8a6', strokeWidth: 2 };
+        animated = true;
+      }
+      
+      // Allow the connection
+      setEdges((eds) => addEdge({
+        ...params,
+        animated,
+        style: edgeStyle
+      }, eds));
+    },
+    [setEdges, nodes, edges]
   );
 
   // Handle node selection
@@ -485,6 +581,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       if (node.type === 'aiAgent') {
         setSelectedAINode(node);
         setShowAIConfigModal(true);
+      } else if (node.type === 'customGPT') {
+        setSelectedCustomGPTNode(node);
+        setShowCustomGPTConfigModal(true);
+      } else if (node.type === 'assistantManager') {
+        setSelectedAssistantManagerNode(node);
+        setShowAssistantManagerConfigModal(true);
       } else if (node.type === 'form') {
         setSelectedFormNode(node);
         setShowFormConfigModal(true);
@@ -532,6 +634,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     if (selectedAINode) {
       updateNodeData(selectedAINode.id, { config });
       setSelectedAINode(null);
+    }
+  };
+
+  // Handle Custom GPT configuration save
+  const handleCustomGPTConfigSave = (config: CustomGPTNodeConfig) => {
+    if (selectedCustomGPTNode) {
+      updateNodeData(selectedCustomGPTNode.id, { config });
+      setSelectedCustomGPTNode(null);
     }
   };
 
@@ -607,8 +717,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       
       setCurrentExecutionId(executionId);
       
-      // Show success message
-      alert(`Workflow execution started! Execution ID: ${executionId.slice(0, 8)}...\n\nCheck the Jobs tab to see the results.`);
+      // Show success message (removed popup)
+      console.log(`✅ Workflow execution started! Execution ID: ${executionId.slice(0, 8)}... Check the Jobs tab to see the results.`);
       
       // Execution logged - will appear in Jobs tab
     } catch (error: any) {
@@ -811,6 +921,41 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             };
           }
           
+          // Initialize Custom GPT node with default configuration
+          if (type === 'customGPT') {
+            enhancedData = {
+              ...nodeData,
+              config: {
+                assistantId: '',
+                createNewThread: true,
+                message: 'Process the following data: {{formData.fields}}',
+                temperature: 1.0,
+                maxPromptTokens: 20000,
+                maxCompletionTokens: 4000,
+                responseFormat: 'text'
+              }
+            };
+          }
+
+          // Initialize Assistant Manager node with default configuration
+          if (type === 'assistantManager') {
+            enhancedData = {
+              ...nodeData,
+              config: {
+                operation: 'create',
+                assistantName: 'New Assistant',
+                model: 'gpt-4-turbo-preview',
+                instructions: 'You are a helpful assistant.',
+                tools: {
+                  codeInterpreter: false,
+                  fileSearch: false
+                },
+                temperature: 1.0,
+                topP: 1.0
+              }
+            };
+          }
+          
           // Initialize Form node with default configuration
           if (type === 'form') {
             enhancedData = {
@@ -859,6 +1004,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 ...nodeData,
                 conditionType: 'owner',
                 condition: 'owner = current_user'
+              };
+            } else if (nodeData.type === 'time_since_contact') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'time_since_contact',
+                timeComparison: 'greater_than',
+                daysSinceContact: 7,
+                condition: 'days_since_contact > 7'
+              };
+            } else if (nodeData.type === 'if_custom_field') {
+              enhancedData = {
+                ...nodeData,
+                conditionType: 'custom_field',
+                customFieldName: '',
+                customFieldOperator: 'equals',
+                customFieldValue: '',
+                condition: 'custom_field = value'
               };
             }
           }
@@ -1701,7 +1863,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               { type: 'time_since_contact', label: 'Time Since Contact', condition: 'Days since last interaction' },
               { type: 'if_time', label: 'If Time', condition: 'Time-based condition' },
               { type: 'if_user', label: 'If User', condition: 'User-based check' },
-              { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' }
+              { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' },
+              { type: 'edit_fields', label: 'Edit Fields', condition: 'Transform variables', iconName: 'Edit', nodeType: 'action' },
+              { type: 'multi_action', label: 'Multiple Actions', condition: 'Split workflow into multiple branches', iconName: 'Zap', nodeType: 'action' }
             ];
             
             const allActions = [
@@ -1718,16 +1882,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
               { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
               { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
-              { type: 'create_meeting', label: 'Create Meeting', iconName: 'Calendar', description: 'Schedule new meeting' },
-              { type: 'update_meeting', label: 'Update Meeting', iconName: 'Edit', description: 'Update meeting details' },
-              { type: 'add_meeting_transcript', label: 'Add Transcript', iconName: 'FileText', description: 'Add meeting transcript' },
-              { type: 'add_meeting_summary', label: 'Add Summary', iconName: 'FileText', description: 'Add meeting summary' },
-              { type: 'add_meeting_tasks', label: 'Add Meeting Tasks', iconName: 'CheckSquare', description: 'Create tasks from meeting' },
-              { type: 'add_meeting_next_steps', label: 'Add Next Steps', iconName: 'ChevronRight', description: 'Add follow-up steps' },
-              { type: 'add_coaching_summary', label: 'Add Coaching', iconName: 'Users', description: 'Add coaching feedback' },
-              { type: 'add_coaching_rating', label: 'Add Rating', iconName: 'TrendingUp', description: 'Rate performance' },
-              { type: 'add_talk_time_percentage', label: 'Add Talk Time', iconName: 'Clock', description: 'Record talk time data' },
-              { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
+              { type: 'meeting', label: 'Meeting', iconName: 'Calendar', description: 'Create/update meetings and add details' }
             ];
             
             const query = nodeSearchQuery.toLowerCase();
@@ -1806,7 +1961,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 { type: 'time_since_contact', label: 'Time Since Contact', condition: 'Days since last interaction' },
                 { type: 'if_time', label: 'If Time', condition: 'Time-based condition' },
                 { type: 'if_user', label: 'If User', condition: 'User-based check' },
-                { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' }
+                { type: 'stage_router', label: 'Stage Router', condition: 'Route by stage', nodeType: 'router' },
+                { type: 'edit_fields', label: 'Edit Fields', condition: 'Transform variables', iconName: 'Edit', nodeType: 'action' },
+                { type: 'multi_action', label: 'Multiple Actions', condition: 'Split workflow into multiple branches', iconName: 'Zap', nodeType: 'action' }
             ].filter(condition => 
               !nodeSearchQuery || 
               condition.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
@@ -1825,10 +1982,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         e.dataTransfer.setData('nodeType', condition.nodeType || 'condition');
                         e.dataTransfer.setData('nodeData', JSON.stringify(condition));
                       }}
-                      className={`${condition.nodeType === 'router' ? 'bg-orange-600/20 border-orange-600/30 hover:bg-orange-600/30' : 'bg-blue-600/20 border-blue-600/30 hover:bg-blue-600/30'} rounded-lg p-3 cursor-move transition-colors`}
+                      className="bg-blue-600/20 border border-blue-600/30 hover:bg-blue-600/30 rounded-lg p-3 cursor-move transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <GitBranch className="w-4 h-4 text-blue-400" />
+                        {condition.iconName ? (
+                          iconMap[condition.iconName] ? React.createElement(iconMap[condition.iconName], { className: "w-4 h-4 text-blue-400" }) : <GitBranch className="w-4 h-4 text-blue-400" />
+                        ) : (
+                          <GitBranch className="w-4 h-4 text-blue-400" />
+                        )}
                         <div>
                           <div className="text-sm text-white">{condition.label}</div>
                           <div className="text-xs text-gray-400">{condition.condition}</div>
@@ -1844,7 +2005,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           {/* AI & Intelligence */}
           {(() => {
             const aiNodes = [
-              { type: 'ai_agent', label: 'AI Agent', description: 'Process with AI model', iconName: 'Sparkles', nodeType: 'aiAgent' }
+              { type: 'ai_agent', label: 'AI Agent', description: 'Process with AI model', iconName: 'Sparkles', nodeType: 'aiAgent' },
+              { type: 'custom_gpt', label: 'Custom GPT', description: 'Use OpenAI Assistant', iconName: 'Bot', nodeType: 'customGPT' },
+              { type: 'assistant_manager', label: 'Assistant Manager', description: 'Create/Update Assistant', iconName: 'Settings', nodeType: 'assistantManager' }
             ].filter(node => 
               !nodeSearchQuery || 
               node.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
@@ -1895,16 +2058,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
                 { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
                 { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
-                { type: 'create_meeting', label: 'Create Meeting', iconName: 'Calendar', description: 'Schedule new meeting' },
-                { type: 'update_meeting', label: 'Update Meeting', iconName: 'Edit', description: 'Update meeting details' },
-                { type: 'add_meeting_transcript', label: 'Add Transcript', iconName: 'FileText', description: 'Add meeting transcript' },
-                { type: 'add_meeting_summary', label: 'Add Summary', iconName: 'FileText', description: 'Add meeting summary' },
-                { type: 'add_meeting_tasks', label: 'Add Meeting Tasks', iconName: 'CheckSquare', description: 'Create tasks from meeting' },
-                { type: 'add_meeting_next_steps', label: 'Add Next Steps', iconName: 'ChevronRight', description: 'Add follow-up steps' },
-                { type: 'add_coaching_summary', label: 'Add Coaching', iconName: 'Users', description: 'Add coaching feedback' },
-                { type: 'add_coaching_rating', label: 'Add Rating', iconName: 'TrendingUp', description: 'Rate performance' },
-                { type: 'add_talk_time_percentage', label: 'Add Talk Time', iconName: 'Clock', description: 'Record talk time data' },
-                { type: 'multi_action', label: 'Multiple Actions', iconName: 'Zap', description: 'Multiple steps' }
+                { type: 'meeting', label: 'Meeting', iconName: 'Calendar', description: 'Create/update meetings and add details' }
             ].filter(action => 
               !nodeSearchQuery || 
               action.label.toLowerCase().includes(nodeSearchQuery.toLowerCase()) ||
@@ -2642,6 +2796,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         <option value="create_company">Create Company</option>
                         <option value="send_email">Send Email</option>
                         <option value="multi_action">Multiple Actions</option>
+                        <option value="edit_fields">Edit Fields</option>
                       </select>
                     </div>
 
@@ -2682,6 +2837,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             <option value="low">Low</option>
                             <option value="medium">Medium</option>
                             <option value="high">High</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Task Stage</label>
+                          <select
+                            value={selectedNode.data.taskStatus || 'planned'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { taskStatus: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="planned">Planned</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="started">Started</option>
+                            <option value="complete">Complete</option>
                           </select>
                         </div>
                         <div>
@@ -2806,6 +2978,56 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             <option value="monthly">Monthly</option>
                             <option value="quarterly">Quarterly</option>
                           </select>
+                        </div>
+                        
+                        {selectedNode.data.recurrencePattern === 'weekly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Day of Week</label>
+                            <select
+                              value={selectedNode.data.dayOfWeek || 'monday'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { dayOfWeek: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="monday">Monday</option>
+                              <option value="tuesday">Tuesday</option>
+                              <option value="wednesday">Wednesday</option>
+                              <option value="thursday">Thursday</option>
+                              <option value="friday">Friday</option>
+                              <option value="saturday">Saturday</option>
+                              <option value="sunday">Sunday</option>
+                            </select>
+                          </div>
+                        )}
+                        
+                        {selectedNode.data.recurrencePattern === 'monthly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Day of Month</label>
+                            <input
+                              type="number"
+                              value={selectedNode.data.dayOfMonth || 1}
+                              onChange={(e) => updateNodeData(selectedNode.id, { dayOfMonth: parseInt(e.target.value) || 1 })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              min="1"
+                              max="31"
+                              placeholder="1-31"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Tasks on days 29-31 will be created on the last valid day of the month</div>
+                          </div>
+                        )}
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Time of Day</label>
+                          <input
+                            type="time"
+                            value={selectedNode.data.timeOfDay || '09:00'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { timeOfDay: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Time when the task will be created (in user's timezone)</div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Assign To</label>
@@ -3028,12 +3250,37 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                                   className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
                                 >
                                   <option value="">Select field...</option>
-                                  <option value="stage">Stage</option>
-                                  <option value="value">Deal Value</option>
-                                  <option value="probability">Probability</option>
-                                  <option value="owner">Owner</option>
-                                  <option value="expected_close">Expected Close</option>
-                                  <option value="priority">Priority</option>
+                                  <optgroup label="Deal Fields">
+                                    <option value="stage">Stage</option>
+                                    <option value="value">Deal Value</option>
+                                    <option value="probability">Probability (%)</option>
+                                    <option value="expected_close">Expected Close Date</option>
+                                    <option value="owner">Deal Owner</option>
+                                    <option value="priority">Priority</option>
+                                    <option value="source">Lead Source</option>
+                                    <option value="type">Deal Type</option>
+                                    <option value="status">Status</option>
+                                    <option value="next_step">Next Step</option>
+                                  </optgroup>
+                                  <optgroup label="Contact Fields">
+                                    <option value="contact_name">Contact Name</option>
+                                    <option value="contact_email">Contact Email</option>
+                                    <option value="contact_phone">Contact Phone</option>
+                                    <option value="contact_title">Contact Title</option>
+                                    <option value="contact_owner">Contact Owner</option>
+                                  </optgroup>
+                                  <optgroup label="Company Fields">
+                                    <option value="company_name">Company Name</option>
+                                    <option value="company_domain">Company Domain</option>
+                                    <option value="company_industry">Industry</option>
+                                    <option value="company_size">Company Size</option>
+                                    <option value="company_revenue">Annual Revenue</option>
+                                  </optgroup>
+                                  <optgroup label="Custom Fields">
+                                    <option value="custom_field_1">Custom Field 1</option>
+                                    <option value="custom_field_2">Custom Field 2</option>
+                                    <option value="custom_field_3">Custom Field 3</option>
+                                  </optgroup>
                                 </select>
                                 <input
                                   type="text"
@@ -3364,46 +3611,101 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                     {selectedNode.data.type === 'send_email' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Email Template</label>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Recipient Email</label>
+                          <input
+                            type="email"
+                            value={selectedNode.data.recipientEmail || '{{formData.fields.email}}'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { recipientEmail: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="recipient@example.com or {{formData.fields.email}}"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Email Format</label>
                           <select
-                            value={selectedNode.data.emailTemplate || 'follow_up'}
+                            value={selectedNode.data.emailFormat || 'html'}
                             onChange={(e) => {
                               e.stopPropagation();
-                              updateNodeData(selectedNode.id, { emailTemplate: e.target.value });
+                              updateNodeData(selectedNode.id, { emailFormat: e.target.value });
                             }}
                             onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
                           >
-                            <option value="follow_up">Follow-up</option>
-                            <option value="welcome">Welcome</option>
-                            <option value="proposal">Proposal</option>
-                            <option value="reminder">Reminder</option>
-                            <option value="custom">Custom</option>
+                            <option value="html">HTML Email</option>
+                            <option value="text">Plain Text</option>
+                            <option value="both">HTML with Text Fallback</option>
                           </select>
                         </div>
-                        {selectedNode.data.emailTemplate === 'custom' && (
-                          <>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-                              <input
-                                type="text"
-                                value={selectedNode.data.emailSubject || ''}
-                                onChange={(e) => updateNodeData(selectedNode.id, { emailSubject: e.target.value })}
-                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                                placeholder="Email subject..."
-                              />
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.emailSubject || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailSubject: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Email subject (supports variables like {{formData.fields.name}})"
+                          />
+                        </div>
+                        
+                        {(selectedNode.data.emailFormat === 'text' || selectedNode.data.emailFormat === 'both' || !selectedNode.data.emailFormat || selectedNode.data.emailFormat === 'html') && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                              {selectedNode.data.emailFormat === 'text' ? 'Plain Text Body' : 'Email Body'}
+                            </label>
+                            <textarea
+                              value={selectedNode.data.emailBody || ''}
+                              onChange={(e) => updateNodeData(selectedNode.id, { emailBody: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                              placeholder="Email content (supports variables like {{formData.fields.name}})"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">
+                              {selectedNode.data.emailFormat === 'html' ? 
+                                'For HTML emails, this will be wrapped in a professional template' :
+                                'Plain text content - line breaks will be preserved'
+                              }
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-300 mb-2">Body</label>
-                              <textarea
-                                value={selectedNode.data.emailBody || ''}
-                                onChange={(e) => updateNodeData(selectedNode.id, { emailBody: e.target.value })}
-                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-                                placeholder="Email body..."
-                              />
-                            </div>
-                          </>
+                          </div>
                         )}
+                        
+                        {(selectedNode.data.emailFormat === 'html' || selectedNode.data.emailFormat === 'both') && (
+                          <div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.useCustomHTML || false}
+                                onChange={(e) => updateNodeData(selectedNode.id, { useCustomHTML: e.target.checked })}
+                                className="text-[#37bd7e] bg-gray-800 border-gray-600 rounded focus:ring-[#37bd7e]"
+                              />
+                              <span className="text-sm font-medium text-gray-300">Use Custom HTML</span>
+                            </label>
+                            
+                            {selectedNode.data.useCustomHTML && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Custom HTML Body</label>
+                                <textarea
+                                  value={selectedNode.data.htmlBody || ''}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { htmlBody: e.target.value })}
+                                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-32 font-mono"
+                                  placeholder="<h1>Custom HTML content</h1><p>Use {{formData.fields.name}} for variables</p>"
+                                />
+                                <div className="text-xs text-gray-500 mt-1">
+                                  Custom HTML will be sent as-is. Include complete HTML structure if needed.
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="bg-gray-800/30 p-3 rounded-lg border border-gray-700">
+                          <h4 className="text-sm font-medium text-gray-300 mb-2">📧 Email Configuration</h4>
+                          <div className="text-xs text-gray-400 space-y-1">
+                            <div>• <strong>From:</strong> workflows@sixtyseconds.ai</div>
+                            <div>• <strong>Provider:</strong> Amazon SES</div>
+                            <div>• <strong>Variables:</strong> Use {'{{formData.fields.fieldName}}'} syntax</div>
+                          </div>
+                        </div>
                       </>
                     )}
 
@@ -3529,6 +3831,117 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
                             placeholder="Activity details..."
                           />
+                        </div>
+                        
+                        {/* Meeting-specific fields */}
+                        {selectedNode.data.activityType === 'meeting' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Location</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.meetingLocation || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingLocation: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="e.g., Zoom, Office, Client Site"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Duration (minutes)</label>
+                              <input
+                                type="number"
+                                value={selectedNode.data.meetingDuration || 60}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingDuration: parseInt(e.target.value) || 60 })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                min="15"
+                                step="15"
+                                placeholder="60"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Deal Stage</label>
+                              <select
+                                value={selectedNode.data.meetingStage || 'SQL'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { meetingStage: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                              >
+                                <option value="SQL">SQL</option>
+                                <option value="Opportunity">Opportunity</option>
+                                <option value="Verbal">Verbal</option>
+                                <option value="Signed">Signed</option>
+                              </select>
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Proposal-specific fields */}
+                        {selectedNode.data.activityType === 'proposal' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Deal Value</label>
+                              <input
+                                type="number"
+                                value={selectedNode.data.proposalValue || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { proposalValue: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="{{deal.value}} or enter amount"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Proposal Type</label>
+                              <select
+                                value={selectedNode.data.proposalType || 'initial'}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { proposalType: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                              >
+                                <option value="initial">Initial Proposal</option>
+                                <option value="revised">Revised Proposal</option>
+                                <option value="final">Final Proposal</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Expiry Date</label>
+                              <input
+                                type="date"
+                                value={selectedNode.data.proposalExpiry || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { proposalExpiry: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              />
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Contact/Company mapping fields for all activity types */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Contact Email</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.contactEmail || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { contactEmail: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{contact.email}} or email@example.com"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Used to link activity to contact and company</div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Company Domain</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.companyDomain || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { companyDomain: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{company.domain}} or example.com"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Optional: Used to link to company if contact not found</div>
                         </div>
                         <div>
                           <div className="flex items-center justify-between mb-2">
@@ -3764,6 +4177,83 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             placeholder="Company name..."
                           />
                         </div>
+                        
+                        {/* Additional Deal Information */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Contact Email</label>
+                          <input
+                            type="email"
+                            value={selectedNode.data.dealContactEmail || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealContactEmail: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{contact.email}} or email@example.com"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Primary contact for this deal</div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Expected Close Date</label>
+                          <input
+                            type="date"
+                            value={selectedNode.data.expectedCloseDate || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { expectedCloseDate: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Type</label>
+                          <select
+                            value={selectedNode.data.dealType || 'new_business'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { dealType: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="new_business">New Business</option>
+                            <option value="renewal">Renewal</option>
+                            <option value="expansion">Expansion</option>
+                            <option value="replacement">Replacement</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Lead Source</label>
+                          <select
+                            value={selectedNode.data.leadSource || 'inbound'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { leadSource: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="inbound">Inbound</option>
+                            <option value="outbound">Outbound</option>
+                            <option value="referral">Referral</option>
+                            <option value="partner">Partner</option>
+                            <option value="website">Website</option>
+                            <option value="social_media">Social Media</option>
+                            <option value="event">Event</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Probability (%)</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.probability || 10}
+                            onChange={(e) => updateNodeData(selectedNode.id, { probability: parseInt(e.target.value) || 10 })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            min="0"
+                            max="100"
+                            step="10"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Win probability based on stage</div>
+                        </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Stage</label>
                           <select
@@ -3991,18 +4481,27 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                       </>
                     )}
 
-                    {selectedNode.data.type === 'create_meeting' && (
+                    {selectedNode.data.type === 'meeting' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Title</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.meetingTitle || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { meetingTitle: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Meeting title..."
-                          />
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Action Type</label>
+                          <select
+                            value={selectedNode.data.meetingAction || 'create'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { meetingAction: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="create">Create Meeting</option>
+                            <option value="update">Update Meeting</option>
+                            <option value="add_transcript">Add Transcript</option>
+                            <option value="add_summary">Add Summary</option>
+                            <option value="add_tasks">Add Tasks</option>
+                            <option value="add_next_steps">Add Next Steps</option>
+                            <option value="add_coaching">Add Coaching</option>
+                            <option value="add_rating">Add Rating</option>
+                            <option value="add_talk_time">Add Talk Time</option>
+                          </select>
                         </div>
+                        
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
                           <input
@@ -4012,448 +4511,163 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                             placeholder="Fathom meeting ID..."
                           />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Scheduled Date/Time</label>
-                          <input
-                            type="datetime-local"
-                            value={selectedNode.data.scheduledFor || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { scheduledFor: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Duration (minutes)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.duration || 30}
-                            onChange={(e) => updateNodeData(selectedNode.id, { duration: parseInt(e.target.value) || 30 })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            min="5"
-                            max="480"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Associated Deal ID (optional)</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.dealId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { dealId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Deal ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Contact ID (optional)</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.contactId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { contactId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Contact ID..."
-                          />
-                        </div>
-                        
-                        {/* User Assignment Section */}
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-300">Assign To</label>
-                          <label className="flex items-center gap-2 text-sm text-gray-400">
-                            <input
-                              type="checkbox"
-                              checked={selectedNode.data.multipleAssignees || false}
-                              onChange={(e) => {
-                                updateNodeData(selectedNode.id, { 
-                                  multipleAssignees: e.target.checked,
-                                  assignedTo: e.target.checked ? [] : ''
-                                });
-                              }}
-                              className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
-                            />
-                            Multiple Users
-                          </label>
-                        </div>
-                        
-                        {selectedNode.data.multipleAssignees ? (
-                          <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {users?.map((user: any) => (
-                              <label key={user.id} className="flex items-center gap-2 text-sm">
-                                <input
-                                  type="checkbox"
-                                  checked={Array.isArray(selectedNode.data.assignedTo) && selectedNode.data.assignedTo.includes(user.id)}
-                                  onChange={(e) => {
-                                    const currentAssigned = Array.isArray(selectedNode.data.assignedTo) ? selectedNode.data.assignedTo : [];
-                                    const newAssigned = e.target.checked
-                                      ? [...currentAssigned, user.id]
-                                      : currentAssigned.filter(id => id !== user.id);
-                                    updateNodeData(selectedNode.id, { assignedTo: newAssigned });
-                                  }}
-                                  className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
-                                />
-                                <span className="text-gray-300">{user.full_name || user.email}</span>
-                              </label>
-                            )) || (
-                              <div className="text-sm text-gray-500">Loading users...</div>
-                            )}
+                          <div className="text-xs text-gray-500 mt-1">
+                            {selectedNode.data.meetingAction === 'create' ? 
+                              'Leave empty to create new meeting, or provide ID to update existing' :
+                              'Required for update/add operations'
+                            }
                           </div>
-                        ) : (
-                          <select
-                            value={selectedNode.data.assignedTo || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { assignedTo: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
-                          >
-                            <option value="">Select user...</option>
-                            {users?.map((user: any) => (
-                              <option key={user.id} value={user.id}>
-                                {user.full_name || user.email}
-                              </option>
-                            ))}
-                          </select>
+                        </div>
+
+                        {/* Create Meeting Fields */}
+                        {(selectedNode.data.meetingAction === 'create' || !selectedNode.data.meetingAction) && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Title</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.meetingTitle || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingTitle: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="Meeting title..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Scheduled Date/Time</label>
+                              <input
+                                type="datetime-local"
+                                value={selectedNode.data.scheduledFor || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { scheduledFor: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Duration (minutes)</label>
+                              <input
+                                type="number"
+                                value={selectedNode.data.duration || 30}
+                                onChange={(e) => updateNodeData(selectedNode.id, { duration: parseInt(e.target.value) || 30 })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                min="5"
+                                max="480"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Associated Deal ID (optional)</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.dealId || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { dealId: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="{{formData.fields.dealId}}"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Contact ID (optional)</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.contactId || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { contactId: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="{{formData.fields.contactId}}"
+                              />
+                            </div>
+                          </>
                         )}
-                      </>
-                    )}
 
-                    {selectedNode.data.type === 'update_meeting' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Status</label>
-                          <select
-                            value={selectedNode.data.meetingStatus || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { meetingStatus: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
-                          >
-                            <option value="">Select status...</option>
-                            <option value="scheduled">Scheduled</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Actual Duration (minutes)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.actualDuration || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { actualDuration: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Actual duration..."
-                            min="1"
-                            max="480"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Notes</label>
-                          <textarea
-                            value={selectedNode.data.meetingNotes || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { meetingNotes: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-                            placeholder="Meeting notes..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Outcome</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.meetingOutcome || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { meetingOutcome: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Meeting outcome..."
-                          />
-                        </div>
-                      </>
-                    )}
+                        {/* Update Meeting Fields */}
+                        {selectedNode.data.meetingAction === 'update' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Status</label>
+                              <select
+                                value={selectedNode.data.meetingStatus || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingStatus: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              >
+                                <option value="">Select status...</option>
+                                <option value="scheduled">Scheduled</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Notes</label>
+                              <textarea
+                                value={selectedNode.data.meetingNotes || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingNotes: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                                placeholder="Meeting notes..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Outcome</label>
+                              <input
+                                type="text"
+                                value={selectedNode.data.meetingOutcome || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { meetingOutcome: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="Meeting outcome..."
+                              />
+                            </div>
+                          </>
+                        )}
 
-                    {selectedNode.data.type === 'add_meeting_transcript' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Google Docs URL</label>
-                          <input
-                            type="url"
-                            value={selectedNode.data.googleDocsUrl || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { googleDocsUrl: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="https://docs.google.com/document/..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Transcript Text (optional)</label>
-                          <textarea
-                            value={selectedNode.data.transcriptText || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { transcriptText: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-32"
-                            placeholder="Full transcript text (optional if using Google Docs)..."
-                          />
-                        </div>
-                      </>
-                    )}
+                        {/* Add Transcript Fields */}
+                        {selectedNode.data.meetingAction === 'add_transcript' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Google Docs URL</label>
+                              <input
+                                type="url"
+                                value={selectedNode.data.googleDocsUrl || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { googleDocsUrl: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="https://docs.google.com/document/..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Transcript Text (optional)</label>
+                              <textarea
+                                value={selectedNode.data.transcriptText || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { transcriptText: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-32"
+                                placeholder="Full transcript text..."
+                              />
+                            </div>
+                          </>
+                        )}
 
-                    {selectedNode.data.type === 'add_meeting_summary' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Summary</label>
-                          <textarea
-                            value={selectedNode.data.summary || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { summary: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
-                            placeholder="Meeting summary..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Key Points</label>
-                          <textarea
-                            value={Array.isArray(selectedNode.data.keyPoints) ? selectedNode.data.keyPoints.join('\n') : ''}
-                            onChange={(e) => {
-                              const points = e.target.value.split('\n').filter(p => p.trim());
-                              updateNodeData(selectedNode.id, { keyPoints: points });
-                            }}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-                            placeholder="Enter key points (one per line)..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Decisions Made</label>
-                          <textarea
-                            value={Array.isArray(selectedNode.data.decisions) ? selectedNode.data.decisions.join('\n') : ''}
-                            onChange={(e) => {
-                              const decisions = e.target.value.split('\n').filter(d => d.trim());
-                              updateNodeData(selectedNode.id, { decisions });
-                            }}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
-                            placeholder="Enter decisions (one per line)..."
-                          />
-                        </div>
-                      </>
-                    )}
+                        {/* Add Summary Fields */}
+                        {selectedNode.data.meetingAction === 'add_summary' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Meeting Summary</label>
+                              <textarea
+                                value={selectedNode.data.summary || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { summary: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                                placeholder="Meeting summary..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Key Points</label>
+                              <textarea
+                                value={Array.isArray(selectedNode.data.keyPoints) ? selectedNode.data.keyPoints.join('\n') : ''}
+                                onChange={(e) => {
+                                  const points = e.target.value.split('\n').filter(p => p.trim());
+                                  updateNodeData(selectedNode.id, { keyPoints: points });
+                                }}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                                placeholder="Enter key points (one per line)..."
+                              />
+                            </div>
+                          </>
+                        )}
 
-                    {selectedNode.data.type === 'add_coaching_summary' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Coaching Summary</label>
-                          <textarea
-                            value={selectedNode.data.coachingSummary || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { coachingSummary: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
-                            placeholder="Coaching feedback and analysis..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Strengths</label>
-                          <textarea
-                            value={Array.isArray(selectedNode.data.strengths) ? selectedNode.data.strengths.join('\n') : ''}
-                            onChange={(e) => {
-                              const strengths = e.target.value.split('\n').filter(s => s.trim());
-                              updateNodeData(selectedNode.id, { strengths });
-                            }}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Enter strengths (one per line)..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Improvement Areas</label>
-                          <textarea
-                            value={Array.isArray(selectedNode.data.improvementAreas) ? selectedNode.data.improvementAreas.join('\n') : ''}
-                            onChange={(e) => {
-                              const areas = e.target.value.split('\n').filter(a => a.trim());
-                              updateNodeData(selectedNode.id, { improvementAreas: areas });
-                            }}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Enter improvement areas (one per line)..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Additional Coaching Notes</label>
-                          <textarea
-                            value={selectedNode.data.coachingNotes || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { coachingNotes: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Additional coaching notes..."
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {selectedNode.data.type === 'add_coaching_rating' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Overall Rating (1-10)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.overallRating || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { overallRating: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Overall rating..."
-                            min="1"
-                            max="10"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Communication Rating (1-10)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.communicationRating || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { communicationRating: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Communication rating..."
-                            min="1"
-                            max="10"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Product Knowledge Rating (1-10)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.knowledgeRating || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { knowledgeRating: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Knowledge rating..."
-                            min="1"
-                            max="10"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Closing Skills Rating (1-10)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.closingRating || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { closingRating: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Closing rating..."
-                            min="1"
-                            max="10"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Rating Notes</label>
-                          <textarea
-                            value={selectedNode.data.ratingNotes || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { ratingNotes: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Notes explaining the ratings..."
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {selectedNode.data.type === 'add_talk_time_percentage' && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Sales Rep Talk Time (%)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.salesRepTalkTime || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { salesRepTalkTime: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Sales rep talk time percentage..."
-                            min="0"
-                            max="100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Prospect Talk Time (%)</label>
-                          <input
-                            type="number"
-                            value={selectedNode.data.prospectTalkTime || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { prospectTalkTime: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Prospect talk time percentage..."
-                            min="0"
-                            max="100"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Talk Time Analysis</label>
-                          <textarea
-                            value={selectedNode.data.talkTimeAnalysis || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { talkTimeAnalysis: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Analysis of talk time distribution..."
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Talk Time Recommendations</label>
-                          <textarea
-                            value={selectedNode.data.talkTimeRecommendations || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { talkTimeRecommendations: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
-                            placeholder="Recommendations for improvement..."
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    {(selectedNode.data.type === 'add_meeting_tasks' || selectedNode.data.type === 'add_meeting_next_steps') && (
-                      <>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Fathom Meeting ID</label>
-                          <input
-                            type="text"
-                            value={selectedNode.data.fathomMeetingId || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { fathomMeetingId: e.target.value })}
-                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                            placeholder="Fathom meeting ID..."
-                          />
-                        </div>
-                        
-                        {selectedNode.data.type === 'add_meeting_tasks' && (
+                        {/* Add Tasks Fields */}
+                        {selectedNode.data.meetingAction === 'add_tasks' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Tasks</label>
                             <textarea
@@ -4469,8 +4683,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             />
                           </div>
                         )}
-                        
-                        {selectedNode.data.type === 'add_meeting_next_steps' && (
+
+                        {/* Add Next Steps Fields */}
+                        {selectedNode.data.meetingAction === 'add_next_steps' && (
                           <>
                             <div>
                               <label className="block text-sm font-medium text-gray-300 mb-2">Next Steps</label>
@@ -4497,65 +4712,181 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             </div>
                           </>
                         )}
+
+                        {/* Add Coaching Fields */}
+                        {selectedNode.data.meetingAction === 'add_coaching' && (
+                          <>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Coaching Summary</label>
+                              <textarea
+                                value={selectedNode.data.coachingSummary || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { coachingSummary: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                                placeholder="Coaching feedback and analysis..."
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Strengths</label>
+                              <textarea
+                                value={Array.isArray(selectedNode.data.strengths) ? selectedNode.data.strengths.join('\n') : ''}
+                                onChange={(e) => {
+                                  const strengths = e.target.value.split('\n').filter(s => s.trim());
+                                  updateNodeData(selectedNode.id, { strengths });
+                                }}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                                placeholder="Enter strengths (one per line)..."
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Add Rating Fields */}
+                        {selectedNode.data.meetingAction === 'add_rating' && (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Overall Rating (1-10)</label>
+                                <input
+                                  type="number"
+                                  value={selectedNode.data.overallRating || ''}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { overallRating: e.target.value })}
+                                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  min="1"
+                                  max="10"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Communication (1-10)</label>
+                                <input
+                                  type="number"
+                                  value={selectedNode.data.communicationRating || ''}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { communicationRating: e.target.value })}
+                                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  min="1"
+                                  max="10"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Rating Notes</label>
+                              <textarea
+                                value={selectedNode.data.ratingNotes || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { ratingNotes: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                                placeholder="Notes explaining the ratings..."
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* Add Talk Time Fields */}
+                        {selectedNode.data.meetingAction === 'add_talk_time' && (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Sales Rep Talk Time (%)</label>
+                                <input
+                                  type="number"
+                                  value={selectedNode.data.salesRepTalkTime || ''}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { salesRepTalkTime: e.target.value })}
+                                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  min="0"
+                                  max="100"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-300 mb-2">Prospect Talk Time (%)</label>
+                                <input
+                                  type="number"
+                                  value={selectedNode.data.prospectTalkTime || ''}
+                                  onChange={(e) => updateNodeData(selectedNode.id, { prospectTalkTime: e.target.value })}
+                                  className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  min="0"
+                                  max="100"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-300 mb-2">Talk Time Analysis</label>
+                              <textarea
+                                value={selectedNode.data.talkTimeAnalysis || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { talkTimeAnalysis: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16"
+                                placeholder="Analysis of talk time distribution..."
+                              />
+                            </div>
+                          </>
+                        )}
+
+                        {/* User Assignment Section for Create/Update */}
+                        {(selectedNode.data.meetingAction === 'create' || selectedNode.data.meetingAction === 'update' || !selectedNode.data.meetingAction) && (
+                          <>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-medium text-gray-300">Assign To</label>
+                              <label className="flex items-center gap-2 text-sm text-gray-400">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNode.data.multipleAssignees || false}
+                                  onChange={(e) => {
+                                    updateNodeData(selectedNode.id, { 
+                                      multipleAssignees: e.target.checked,
+                                      assignedTo: e.target.checked ? [] : ''
+                                    });
+                                  }}
+                                  className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                                />
+                                Multiple Users
+                              </label>
+                            </div>
+                            
+                            {selectedNode.data.multipleAssignees ? (
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {users?.map((user: any) => (
+                                  <label key={user.id} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={Array.isArray(selectedNode.data.assignedTo) && selectedNode.data.assignedTo.includes(user.id)}
+                                      onChange={(e) => {
+                                        const currentAssigned = Array.isArray(selectedNode.data.assignedTo) ? selectedNode.data.assignedTo : [];
+                                        const newAssigned = e.target.checked
+                                          ? [...currentAssigned, user.id]
+                                          : currentAssigned.filter(id => id !== user.id);
+                                        updateNodeData(selectedNode.id, { assignedTo: newAssigned });
+                                      }}
+                                      className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                                    />
+                                    <span className="text-gray-300">{user.full_name || user.email}</span>
+                                  </label>
+                                )) || (
+                                  <div className="text-sm text-gray-500">Loading users...</div>
+                                )}
+                              </div>
+                            ) : (
+                              <select
+                                value={selectedNode.data.assignedTo || ''}
+                                onChange={(e) => updateNodeData(selectedNode.id, { assignedTo: e.target.value })}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                              >
+                                <option value="">Select user...</option>
+                                {users?.map((user: any) => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.full_name || user.email}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </>
+                        )}
                       </>
                     )}
+
 
                     {selectedNode.data.type === 'multi_action' && (
                       <>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Actions to Execute</label>
-                          <div className="space-y-2">
-                            {(selectedNode.data.actions || []).map((action: any, index: number) => (
-                              <div key={index} className="flex items-center gap-2">
-                                <select
-                                  value={action.type || 'create_task'}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    const newActions = [...(selectedNode.data.actions || [])];
-                                    newActions[index] = { ...newActions[index], type: e.target.value };
-                                    updateNodeData(selectedNode.id, { actions: newActions });
-                                  }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
-                                >
-                                  <option value="create_task">Create Task</option>
-                                  <option value="send_notification">Send Notification</option>
-                                  <option value="send_slack">Send Slack Message</option>
-                                  <option value="send_email">Send Email</option>
-                                  <option value="update_fields">Update Fields</option>
-                                  <option value="assign_owner">Assign Owner</option>
-                                  <option value="create_activity">Create Activity</option>
-                                  <option value="create_contact">Create Contact</option>
-                                  <option value="create_deal">Create Deal</option>
-                                  <option value="create_company">Create Company</option>
-                                  <option value="update_deal_stage">Update Stage</option>
-                                </select>
-                                <button
-                                  onClick={() => {
-                                    const newActions = (selectedNode.data.actions || []).filter((_: any, i: number) => i !== index);
-                                    updateNodeData(selectedNode.id, { actions: newActions });
-                                  }}
-                                  className="p-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 rounded-lg text-red-400 transition-colors"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <button
-                            onClick={() => {
-                              const newActions = [...(selectedNode.data.actions || []), { type: 'create_task' }];
-                              updateNodeData(selectedNode.id, { actions: newActions });
-                            }}
-                            className="mt-2 w-full px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/30 rounded-lg text-green-400 text-sm transition-colors"
-                          >
-                            + Add Action
-                          </button>
-                        </div>
-                        <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Execution Mode</label>
                           <select
-                            value={selectedNode.data.executionMode || 'sequential'}
+                            value={selectedNode.data.executionMode || 'parallel'}
                             onChange={(e) => {
                               e.stopPropagation();
                               updateNodeData(selectedNode.id, { executionMode: e.target.value });
@@ -4563,9 +4894,613 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
                           >
-                            <option value="sequential">Sequential (one after another)</option>
                             <option value="parallel">Parallel (all at once)</option>
+                            <option value="sequential">Sequential (one after another)</option>
                           </select>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {selectedNode.data.executionMode === 'parallel' ? 
+                              'All action nodes will execute simultaneously (connects to all nodes directly)' :
+                              'Action nodes will execute one after another in sequence (creates a chain)'
+                            }
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Auto-Connect Actions</label>
+                          <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-700 rounded-lg p-3 bg-gray-800/20">
+                            {[
+                              { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare' },
+                              { type: 'send_email', label: 'Send Email', iconName: 'Mail' },
+                              { type: 'send_notification', label: 'Send Notification', iconName: 'Bell' },
+                              { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack' },
+                              { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText' },
+                              { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp' },
+                              { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar' },
+                              { type: 'create_contact', label: 'Create Contact', iconName: 'Users' },
+                              { type: 'create_deal', label: 'Create Deal', iconName: 'Database' },
+                              { type: 'meeting', label: 'Meeting', iconName: 'Calendar' },
+                              { type: 'edit_fields', label: 'Edit Fields', iconName: 'Edit' },
+                              { type: 'send_webhook', label: 'Send Webhook', iconName: 'Zap' }
+                            ].map((action) => {
+                              const isSelected = Array.isArray(selectedNode.data.selectedActions) && 
+                                selectedNode.data.selectedActions.some((a: any) => a.type === action.type);
+                              
+                              return (
+                                <label key={action.type} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-800/30 p-2 rounded">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const currentActions = Array.isArray(selectedNode.data.selectedActions) ? selectedNode.data.selectedActions : [];
+                                      let newActions;
+                                      
+                                      if (e.target.checked) {
+                                        // Add action
+                                        newActions = [...currentActions, { 
+                                          type: action.type, 
+                                          label: action.label, 
+                                          iconName: action.iconName,
+                                          id: `${action.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                                        }];
+                                      } else {
+                                        // Remove action
+                                        newActions = currentActions.filter((a: any) => a.type !== action.type);
+                                      }
+                                      
+                                      updateNodeData(selectedNode.id, { selectedActions: newActions });
+                                    }}
+                                    className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                                  />
+                                  <span className="text-gray-300 flex-1">{action.label}</span>
+                                  {isSelected && (
+                                    <span className="text-xs text-green-400">✓ Selected</span>
+                                  )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2">
+                            Select actions to automatically create and connect. A Join Actions node will be added to merge the branches back together.
+                          </div>
+                        </div>
+
+                        {selectedNode.data.selectedActions && selectedNode.data.selectedActions.length > 0 && (
+                          <div>
+                            <button
+                              onClick={() => {
+                                // Auto-create and connect selected action nodes
+                                const multiActionNode = selectedNode;
+                                const selectedActions = multiActionNode.data.selectedActions || [];
+                                const executionMode = multiActionNode.data.executionMode || 'parallel';
+                                
+                                const newNodes: any[] = [];
+                                const newEdges: any[] = [];
+                                
+                                // Position nodes to the right of the configuration panel (panel is ~480px wide)
+                                const horizontalOffset = 550; // Place nodes well beyond the panel width
+                                const verticalSpacing = 120; // Reduced vertical spacing for better visibility
+                                
+                                selectedActions.forEach((action: any, index: number) => {
+                                  // Create new action node
+                                  const newNodeId = `${action.type}_${Date.now()}_${index}`;
+                                  const newNode = {
+                                    id: newNodeId,
+                                    type: 'custom',
+                                    position: { 
+                                      x: multiActionNode.position.x + horizontalOffset + (executionMode === 'sequential' ? index * 250 : 0), 
+                                      y: multiActionNode.position.y + (executionMode === 'parallel' ? (index * verticalSpacing) - ((selectedActions.length - 1) * verticalSpacing / 2) : 0)
+                                    },
+                                    data: { 
+                                      type: action.type,
+                                      label: action.label,
+                                      iconName: action.iconName
+                                    },
+                                  };
+                                  newNodes.push(newNode);
+                                });
+                                
+                                // Note: Join Actions functionality is now automated in Multiple Actions node
+                                
+                                // Create edges based on execution mode
+                                if (executionMode === 'parallel') {
+                                  // Parallel: Connect Multiple Actions to all nodes
+                                  newNodes.forEach((node) => {
+                                    const newEdge = {
+                                      id: `${multiActionNode.id}-${node.id}`,
+                                      source: multiActionNode.id,
+                                      target: node.id,
+                                      type: 'default',
+                                      animated: true,
+                                      style: { stroke: '#9333ea', strokeWidth: 2 }
+                                    };
+                                    newEdges.push(newEdge);
+                                    
+                                    // Note: Branches will automatically merge after Multiple Actions execution
+                                  });
+                                } else {
+                                  // Sequential: Connect Multiple Actions to first node, then chain the rest
+                                  if (newNodes.length > 0) {
+                                    // Connect Multiple Actions to first node
+                                    const firstEdge = {
+                                      id: `${multiActionNode.id}-${newNodes[0].id}`,
+                                      source: multiActionNode.id,
+                                      target: newNodes[0].id,
+                                      type: 'default',
+                                      animated: true,
+                                      style: { stroke: '#9333ea', strokeWidth: 2 }
+                                    };
+                                    newEdges.push(firstEdge);
+                                    
+                                    // Chain the rest of the nodes
+                                    for (let i = 0; i < newNodes.length - 1; i++) {
+                                      const chainEdge = {
+                                        id: `${newNodes[i].id}-${newNodes[i + 1].id}`,
+                                        source: newNodes[i].id,
+                                        target: newNodes[i + 1].id,
+                                        type: 'default',
+                                        animated: true,
+                                        style: { stroke: '#37bd7e', strokeWidth: 2 }
+                                      };
+                                      newEdges.push(chainEdge);
+                                    }
+                                    
+                                    // Note: Sequential chains will automatically complete after the last action
+                                  }
+                                }
+                                
+                                // Note: Join functionality is now automated
+                                
+                                // Add all nodes and edges to the workflow
+                                setNodes(prev => [...prev, ...newNodes]);
+                                setEdges(prev => [...prev, ...newEdges]);
+                                
+                                // Clear selected actions after creating
+                                updateNodeData(selectedNode.id, { selectedActions: [] });
+                                
+                                // Auto-pan to show the newly created nodes
+                                if (reactFlowInstance.current && newNodes.length > 0) {
+                                  // Calculate the center of all new nodes
+                                  const bounds = newNodes.reduce((acc, node) => ({
+                                    minX: Math.min(acc.minX, node.position.x),
+                                    maxX: Math.max(acc.maxX, node.position.x + 200), // Assume node width ~200px
+                                    minY: Math.min(acc.minY, node.position.y),
+                                    maxY: Math.max(acc.maxY, node.position.y + 100), // Assume node height ~100px
+                                  }), {
+                                    minX: newNodes[0].position.x,
+                                    maxX: newNodes[0].position.x + 200,
+                                    minY: newNodes[0].position.y,
+                                    maxY: newNodes[0].position.y + 100,
+                                  });
+                                  
+                                  const centerX = (bounds.minX + bounds.maxX) / 2;
+                                  const centerY = (bounds.minY + bounds.maxY) / 2;
+                                  
+                                  // Smooth pan to show the new nodes (offset to account for panel)
+                                  reactFlowInstance.current.setCenter(centerX + 200, centerY, { 
+                                    duration: 800, 
+                                    zoom: reactFlowInstance.current.getZoom() 
+                                  });
+                                }
+                              }}
+                              className="w-full px-4 py-2 bg-[#37bd7e] hover:bg-[#2d9a64] text-white text-sm font-medium rounded-lg transition-colors"
+                            >
+                              Create & Connect {selectedNode.data.selectedActions.length} Action{selectedNode.data.selectedActions.length !== 1 ? 's' : ''}
+                            </button>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {selectedNode.data.executionMode === 'parallel' ? 
+                                `Will create ${selectedNode.data.selectedActions.length} action nodes with parallel connections, plus a Join Actions node to merge them.` :
+                                `Will create ${selectedNode.data.selectedActions.length} action nodes in sequence, plus a Join Actions node at the end.`
+                              }
+                            </div>
+                          </div>
+                        )}
+                        
+                        <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                          <h4 className="text-sm font-medium text-blue-400 mb-2">🔀 Advanced Splitter</h4>
+                          <div className="text-xs text-gray-400 space-y-1">
+                            <div>• Select actions above to auto-connect to this splitter</div>
+                            <div>• All connected actions receive the same input data</div>
+                            <div>• Choose parallel for speed or sequential for order</div>
+                            <div>• Perfect for creating multiple tasks, sending emails, and updating records</div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+
+                    {selectedNode.data.type === 'send_email' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">To (Recipients)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.emailTo || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailTo: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{contact.email}}, user@example.com"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Comma-separated emails or variables</div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.emailSubject || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailSubject: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="Follow-up: {{deal.name}}"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Body</label>
+                          <textarea
+                            value={selectedNode.data.emailBody || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailBody: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-32"
+                            placeholder="Hi {{contact.first_name}},\n\nThank you for..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">CC (Optional)</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.emailCc || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailCc: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="manager@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Email Provider</label>
+                          <select
+                            value={selectedNode.data.emailProvider || 'ses'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { emailProvider: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="ses">AWS SES</option>
+                            <option value="sendgrid">SendGrid</option>
+                            <option value="mailgun">Mailgun</option>
+                            <option value="smtp">Custom SMTP</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_notification' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Title</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.notificationTitle || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notificationTitle: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="New deal stage: {{deal.stage}}"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                          <textarea
+                            value={selectedNode.data.notificationMessage || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notificationMessage: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                            placeholder="Deal {{deal.name}} moved to {{deal.stage}}"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Type</label>
+                          <select
+                            value={selectedNode.data.notificationType || 'info'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notificationType: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="info">Info</option>
+                            <option value="success">Success</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Notify Users</label>
+                          <select
+                            value={selectedNode.data.notifyUsers || 'current'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { notifyUsers: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="current">Current User</option>
+                            <option value="owner">Deal/Task Owner</option>
+                            <option value="team">Entire Team</option>
+                            <option value="specific">Specific Users</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_slack' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Slack Channel</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.slackChannel || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackChannel: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="#sales-team or @username"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                          <textarea
+                            value={selectedNode.data.slackMessage || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackMessage: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                            placeholder=":tada: Deal {{deal.name}} closed for ${{deal.value}}!"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Webhook URL</label>
+                          <input
+                            type="url"
+                            value={selectedNode.data.slackWebhook || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { slackWebhook: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="https://hooks.slack.com/services/..."
+                          />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-2 text-sm text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.slackMention || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, { slackMention: e.target.checked })}
+                              className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                            />
+                            @mention users in message
+                          </label>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'add_note' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Note Content</label>
+                          <textarea
+                            value={selectedNode.data.noteContent || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { noteContent: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
+                            placeholder="Discussed pricing options. Customer interested in {{product.name}}..."
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Attach To</label>
+                          <select
+                            value={selectedNode.data.attachTo || 'deal'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { attachTo: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="deal">Current Deal</option>
+                            <option value="contact">Current Contact</option>
+                            <option value="company">Current Company</option>
+                            <option value="task">Current Task</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-2 text-sm text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.noteInternal || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, { noteInternal: e.target.checked })}
+                              className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                            />
+                            Internal note (not visible to customers)
+                          </label>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'update_fields' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Entity Type</label>
+                          <select
+                            value={selectedNode.data.entityType || 'deal'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { entityType: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="deal">Deal</option>
+                            <option value="contact">Contact</option>
+                            <option value="company">Company</option>
+                            <option value="task">Task</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Field Updates</label>
+                          <div className="space-y-2">
+                            {(selectedNode.data.fieldUpdates || [{ field: '', value: '' }]).map((update: any, index: number) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={update.field || ''}
+                                  onChange={(e) => {
+                                    const updates = [...(selectedNode.data.fieldUpdates || [])];
+                                    updates[index] = { ...updates[index], field: e.target.value };
+                                    updateNodeData(selectedNode.id, { fieldUpdates: updates });
+                                  }}
+                                  className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  placeholder="Field name"
+                                />
+                                <input
+                                  type="text"
+                                  value={update.value || ''}
+                                  onChange={(e) => {
+                                    const updates = [...(selectedNode.data.fieldUpdates || [])];
+                                    updates[index] = { ...updates[index], value: e.target.value };
+                                    updateNodeData(selectedNode.id, { fieldUpdates: updates });
+                                  }}
+                                  className="flex-1 px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                  placeholder="New value"
+                                />
+                                <button
+                                  onClick={() => {
+                                    const updates = (selectedNode.data.fieldUpdates || []).filter((_: any, i: number) => i !== index);
+                                    updateNodeData(selectedNode.id, { fieldUpdates: updates });
+                                  }}
+                                  className="px-2 text-red-400 hover:text-red-300"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const updates = [...(selectedNode.data.fieldUpdates || []), { field: '', value: '' }];
+                                updateNodeData(selectedNode.id, { fieldUpdates: updates });
+                              }}
+                              className="text-sm text-[#37bd7e] hover:text-[#2d9a64]"
+                            >
+                              + Add field
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'send_webhook' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Webhook URL</label>
+                          <input
+                            type="url"
+                            value={selectedNode.data.webhookUrl || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { webhookUrl: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="https://api.example.com/webhook"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">HTTP Method</label>
+                          <select
+                            value={selectedNode.data.webhookMethod || 'POST'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { webhookMethod: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                          >
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Headers (JSON)</label>
+                          <textarea
+                            value={selectedNode.data.webhookHeaders || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { webhookHeaders: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16 font-mono text-xs"
+                            placeholder='{"Authorization": "Bearer {{api_key}}", "Content-Type": "application/json"}'
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Body (JSON)</label>
+                          <textarea
+                            value={selectedNode.data.webhookBody || ''}
+                            onChange={(e) => updateNodeData(selectedNode.id, { webhookBody: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24 font-mono text-xs"
+                            placeholder='{"deal_id": "{{deal.id}}", "stage": "{{deal.stage}}", "value": {{deal.value}}}'
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {selectedNode.data.type === 'edit_fields' && (
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Field Mappings</label>
+                          <div className="space-y-3">
+                            {(selectedNode.data.fieldMappings || []).map((mapping: any, index: number) => (
+                              <div key={index} className="bg-gray-800/30 border border-gray-700 rounded-lg p-3">
+                                <div className="grid grid-cols-1 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">Source Variable</label>
+                                    <input
+                                      type="text"
+                                      value={mapping.sourceField || ''}
+                                      onChange={(e) => {
+                                        const newMappings = [...(selectedNode.data.fieldMappings || [])];
+                                        newMappings[index] = { ...newMappings[index], sourceField: e.target.value };
+                                        updateNodeData(selectedNode.id, { fieldMappings: newMappings });
+                                      }}
+                                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none"
+                                      placeholder="{{formData.fields.name}} or existing variable"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">New Variable Name</label>
+                                    <input
+                                      type="text"
+                                      value={mapping.targetField || ''}
+                                      onChange={(e) => {
+                                        const newMappings = [...(selectedNode.data.fieldMappings || [])];
+                                        newMappings[index] = { ...newMappings[index], targetField: e.target.value };
+                                        updateNodeData(selectedNode.id, { fieldMappings: newMappings });
+                                      }}
+                                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none"
+                                      placeholder="customerName, userEmail, etc."
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1">Transformation (Optional)</label>
+                                    <select
+                                      value={mapping.transformation || 'none'}
+                                      onChange={(e) => {
+                                        const newMappings = [...(selectedNode.data.fieldMappings || [])];
+                                        newMappings[index] = { ...newMappings[index], transformation: e.target.value };
+                                        updateNodeData(selectedNode.id, { fieldMappings: newMappings });
+                                      }}
+                                      className="w-full px-3 py-2 bg-gray-800/50 border border-gray-600 rounded text-white text-sm focus:border-[#37bd7e] outline-none cursor-pointer"
+                                    >
+                                      <option value="none">No transformation</option>
+                                      <option value="uppercase">UPPERCASE</option>
+                                      <option value="lowercase">lowercase</option>
+                                      <option value="capitalize">Capitalize First Letter</option>
+                                      <option value="trim">Remove spaces</option>
+                                      <option value="email_domain">Extract email domain</option>
+                                    </select>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    const newMappings = (selectedNode.data.fieldMappings || []).filter((_: any, i: number) => i !== index);
+                                    updateNodeData(selectedNode.id, { fieldMappings: newMappings });
+                                  }}
+                                  className="mt-2 text-xs text-red-400 hover:text-red-300 transition-colors"
+                                >
+                                  ✕ Remove mapping
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              const newMappings = [...(selectedNode.data.fieldMappings || []), { sourceField: '', targetField: '', transformation: 'none' }];
+                              updateNodeData(selectedNode.id, { fieldMappings: newMappings });
+                            }}
+                            className="mt-3 w-full px-3 py-2 bg-green-600/20 hover:bg-green-600/30 border border-green-600/30 rounded-lg text-green-400 text-sm transition-colors"
+                          >
+                            + Add Field Mapping
+                          </button>
+                        </div>
+                        
+                        <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
+                          <h4 className="text-sm font-medium text-purple-400 mb-2">🔄 Variable Transformer</h4>
+                          <div className="text-xs text-gray-400 space-y-1">
+                            <div>• Transform existing variables into new ones</div>
+                            <div>• Useful for renaming fields, formatting data</div>
+                            <div>• New variables available to connected nodes</div>
+                            <div>• Example: {'{{formData.fields.email}}'} → customerEmail</div>
+                          </div>
                         </div>
                       </>
                     )}
@@ -4629,23 +5564,93 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
                     {/* Schedule frequency for scheduled trigger */}
                     {selectedNode.data.type === 'scheduled' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Frequency</label>
-                        <select
-                          value={selectedNode.data.frequency || 'daily'}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            updateNodeData(selectedNode.id, { frequency: e.target.value });
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
-                        >
-                          <option value="hourly">Hourly</option>
-                          <option value="daily">Daily</option>
-                          <option value="weekly">Weekly</option>
-                          <option value="monthly">Monthly</option>
-                        </select>
-                      </div>
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Frequency</label>
+                          <select
+                            value={selectedNode.data.frequency || 'daily'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { frequency: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="hourly">Hourly</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                          </select>
+                        </div>
+                        
+                        {selectedNode.data.frequency === 'weekly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Day of Week</label>
+                            <select
+                              value={selectedNode.data.scheduledDayOfWeek || 'monday'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { scheduledDayOfWeek: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                            >
+                              <option value="monday">Monday</option>
+                              <option value="tuesday">Tuesday</option>
+                              <option value="wednesday">Wednesday</option>
+                              <option value="thursday">Thursday</option>
+                              <option value="friday">Friday</option>
+                              <option value="saturday">Saturday</option>
+                              <option value="sunday">Sunday</option>
+                            </select>
+                          </div>
+                        )}
+                        
+                        {selectedNode.data.frequency === 'monthly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Day of Month</label>
+                            <input
+                              type="number"
+                              value={selectedNode.data.scheduledDayOfMonth || 1}
+                              onChange={(e) => updateNodeData(selectedNode.id, { scheduledDayOfMonth: parseInt(e.target.value) || 1 })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              min="1"
+                              max="31"
+                              placeholder="1-31"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Runs on the last valid day if date doesn't exist</div>
+                          </div>
+                        )}
+                        
+                        {(selectedNode.data.frequency === 'daily' || selectedNode.data.frequency === 'weekly' || selectedNode.data.frequency === 'monthly') && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Time of Day</label>
+                            <input
+                              type="time"
+                              value={selectedNode.data.scheduledTimeOfDay || '09:00'}
+                              onChange={(e) => updateNodeData(selectedNode.id, { scheduledTimeOfDay: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Time when the workflow will trigger (in user's timezone)</div>
+                          </div>
+                        )}
+                        
+                        {selectedNode.data.frequency === 'hourly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Minute of Hour</label>
+                            <input
+                              type="number"
+                              value={selectedNode.data.minuteOfHour || 0}
+                              onChange={(e) => updateNodeData(selectedNode.id, { minuteOfHour: parseInt(e.target.value) || 0 })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              min="0"
+                              max="59"
+                              placeholder="0-59"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Minute of each hour to trigger (e.g., 15 = quarter past)</div>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Days inactive for no_activity trigger */}
@@ -4710,6 +5715,16 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             </select>
                           </div>
                         </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Trigger at Time</label>
+                          <input
+                            type="time"
+                            value={selectedNode.data.triggerTime || '09:00'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { triggerTime: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Specific time to trigger after the delay period (in user's timezone)</div>
+                        </div>
                       </>
                     )}
 
@@ -4755,23 +5770,54 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
                     {/* Task Overdue Trigger */}
                     {selectedNode.data.type === 'task_overdue' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">Check Frequency</label>
-                        <select
-                          value={selectedNode.data.checkFrequency || 'hourly'}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            updateNodeData(selectedNode.id, { checkFrequency: e.target.value });
-                          }}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
-                        >
-                          <option value="every_15_min">Every 15 minutes</option>
-                          <option value="every_30_min">Every 30 minutes</option>
-                          <option value="hourly">Hourly</option>
-                          <option value="daily">Daily</option>
-                        </select>
-                      </div>
+                      <>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Check Frequency</label>
+                          <select
+                            value={selectedNode.data.checkFrequency || 'hourly'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { checkFrequency: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="every_15_min">Every 15 minutes</option>
+                            <option value="every_30_min">Every 30 minutes</option>
+                            <option value="hourly">Hourly</option>
+                            <option value="daily">Daily</option>
+                          </select>
+                        </div>
+                        
+                        {selectedNode.data.checkFrequency === 'daily' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Check Time</label>
+                            <input
+                              type="time"
+                              value={selectedNode.data.checkTime || '09:00'}
+                              onChange={(e) => updateNodeData(selectedNode.id, { checkTime: e.target.value })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Daily check time for overdue tasks (in user's timezone)</div>
+                          </div>
+                        )}
+                        
+                        {selectedNode.data.checkFrequency === 'hourly' && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Minute of Hour</label>
+                            <input
+                              type="number"
+                              value={selectedNode.data.checkMinute || 0}
+                              onChange={(e) => updateNodeData(selectedNode.id, { checkMinute: parseInt(e.target.value) || 0 })}
+                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                              min="0"
+                              max="59"
+                              placeholder="0-59"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Check at this minute of each hour</div>
+                          </div>
+                        )}
+                      </>
                     )}
 
                     {/* Activity Monitor Trigger */}
@@ -5185,6 +6231,38 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       config={selectedAINode?.data?.config}
       onSave={handleAIConfigSave}
       availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title']}
+      formFields={getFormFieldsFromWorkflow()}
+    />
+    
+    {/* Custom GPT Configuration Modal */}
+    <CustomGPTConfigModal
+      isOpen={showCustomGPTConfigModal}
+      onClose={() => {
+        setShowCustomGPTConfigModal(false);
+        setSelectedCustomGPTNode(null);
+      }}
+      config={selectedCustomGPTNode?.data?.config}
+      onSave={handleCustomGPTConfigSave}
+      availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title', 'formData.fields']}
+      formFields={getFormFieldsFromWorkflow()}
+    />
+
+    {/* Assistant Manager Configuration Modal */}
+    <AssistantManagerConfigModal
+      isOpen={showAssistantManagerConfigModal}
+      onClose={() => {
+        setShowAssistantManagerConfigModal(false);
+        setSelectedAssistantManagerNode(null);
+      }}
+      config={selectedAssistantManagerNode?.data?.config}
+      onSave={(config) => {
+        if (selectedAssistantManagerNode) {
+          updateNodeData(selectedAssistantManagerNode.id, { config });
+        }
+        setShowAssistantManagerConfigModal(false);
+        setSelectedAssistantManagerNode(null);
+      }}
+      availableVariables={['deal.value', 'deal.stage', 'contact.name', 'contact.email', 'activity.type', 'task.title', 'formData.fields']}
       formFields={getFormFieldsFromWorkflow()}
     />
     

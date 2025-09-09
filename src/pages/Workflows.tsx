@@ -82,9 +82,12 @@ export default function Workflows() {
   const loadWorkflowStats = async () => {
     try {
       // Don't set loading to true here since we want fast page load
-      const { data: rules } = await supabase
+      console.log('🔍 Loading workflow stats, user:', user);
+      const { data: rules, error } = await supabase
         .from('user_automation_rules')
         .select('*');
+      
+      console.log('📊 Workflow stats query result:', { data: rules, error, count: rules?.length });
       
       const activeWorkflows = rules?.filter(r => r.is_active).length || 0;
       const totalWorkflows = rules?.length || 0;
@@ -108,25 +111,43 @@ export default function Workflows() {
     }
   };
 
-  const handleExecutionSelect = (execution: WorkflowExecution) => {
+  const handleExecutionSelect = async (execution: WorkflowExecution) => {
     setSelectedExecution(execution);
-    // Load the workflow associated with this execution and make it available across all tabs
+    
+    // Load the workflow associated with this execution from the database
     if (execution.workflowId) {
-      // Create a clean workflow object that works across all tabs
-      const workflowForAllTabs = {
-        id: execution.workflowId,
-        name: execution.workflowName || 'Unknown Workflow',
-        canvas_data: execution.workflowData,
-        // Remove execution-specific properties so it works in Builder and Testing tabs
-        trigger_type: execution.workflowData?.trigger_type || 'activity_created',
-        action_type: execution.workflowData?.action_type || 'create_task',
-        trigger_config: execution.workflowData?.trigger_config || {},
-        action_config: execution.workflowData?.action_config || {},
-        is_active: execution.workflowData?.is_active || false,
-        description: execution.workflowData?.description || '',
-        rule_description: execution.workflowData?.rule_description || ''
-      };
-      setSelectedWorkflow(workflowForAllTabs);
+      try {
+        console.log(`🔍 Loading workflow ${execution.workflowId} for execution ${execution.id}`);
+        
+        const { data: workflow, error } = await supabase
+          .from('user_automation_rules')
+          .select('*')
+          .eq('id', execution.workflowId)
+          .single();
+          
+        if (error) {
+          console.error('Error loading workflow for execution:', error);
+          // Create a minimal workflow object with execution info
+          const fallbackWorkflow = {
+            id: execution.workflowId,
+            name: execution.workflowName || 'Unknown Workflow',
+            canvas_data: { nodes: [], edges: [] },
+            trigger_type: 'activity_created',
+            action_type: 'create_task',
+            trigger_config: {},
+            action_config: {},
+            is_active: false,
+            description: 'Workflow data not found',
+            rule_description: ''
+          };
+          setSelectedWorkflow(fallbackWorkflow);
+        } else {
+          console.log('✅ Successfully loaded workflow:', workflow);
+          setSelectedWorkflow(workflow);
+        }
+      } catch (error) {
+        console.error('Failed to load workflow for execution:', error);
+      }
     }
   };
 
@@ -400,19 +421,17 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-[calc(100vh-8rem)] flex"
             >
-              {selectedWorkflow ? (
-                <>
-                  {/* Left Panel: Executions List */}
-                  <div className="w-80 border-r border-gray-700/50">
-                    <ExecutionsList 
-                      onExecutionSelect={handleExecutionSelect}
-                      selectedExecution={selectedExecution}
-                      workflowId={selectedWorkflow?.id}
-                    />
-                  </div>
-                  
-                  {/* Right Panel: Workflow Canvas in Execution Mode */}
-                  <div className="flex-1">
+              {/* Left Panel: Executions List - Always show all executions */}
+              <div className="w-80 border-r border-gray-700/50">
+                <ExecutionsList 
+                  onExecutionSelect={handleExecutionSelect}
+                  selectedExecution={selectedExecution}
+                  workflowId={selectedWorkflow?.id} // Optional filter when workflow selected
+                />
+              </div>
+              
+              {/* Right Panel: Workflow Canvas in Execution Mode */}
+              <div className="flex-1">
                     {selectedExecution ? (
                       <WorkflowCanvas 
                         selectedWorkflow={selectedWorkflow}
@@ -470,38 +489,15 @@ export default function Workflows() {
                           <PlayCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
                           <h3 className="text-lg font-medium text-gray-300 mb-2">Select an Execution</h3>
                           <p>Choose an execution from the list to view its workflow details</p>
+                          {!selectedWorkflow && (
+                            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-xs text-center">
+                              💡 Tip: When you select an execution, its workflow will be automatically loaded
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
                   </div>
-                </>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center bg-gray-900/50">
-                  <div className="text-center text-gray-400 max-w-md">
-                    <Workflow className="w-16 h-16 mx-auto mb-6 opacity-50" />
-                    <h3 className="text-xl font-medium text-gray-300 mb-3">No Workflow Selected</h3>
-                    <p className="text-gray-500 mb-6 leading-relaxed">
-                      Please create a new workflow or select an existing workflow from the Builder tab to view its job executions.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                      <button
-                        onClick={() => setActiveTab('builder')}
-                        className="px-4 py-2 bg-[#37bd7e] hover:bg-[#2da96a] text-white rounded-lg transition-colors flex items-center gap-2 justify-center"
-                      >
-                        <Plus className="w-4 h-4" />
-                        Create Workflow
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('my-workflows')}
-                        className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors flex items-center gap-2 justify-center"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        Select Workflow
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
           

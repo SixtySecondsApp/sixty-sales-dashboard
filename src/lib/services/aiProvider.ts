@@ -1,5 +1,6 @@
 import { supabase } from '../supabase/clientV2';
 import type { AINodeConfig } from '../../components/workflows/AIAgentConfigModal';
+import type { CustomGPTNodeConfig } from '../../components/workflows/CustomGPTConfigModal';
 import { interpolateVariables, VariableContext } from '../utils/promptVariables';
 import { 
   parseJSONResponse, 
@@ -21,6 +22,8 @@ import {
   MCPResponse 
 } from '../mcp/mcpServer';
 import { z } from 'zod';
+import { openaiAssistantService, type AssistantResponse } from './openaiAssistantService';
+import type { AssistantManagerNodeConfig } from '../../components/workflows/AssistantManagerConfigModal';
 
 export interface AIResponse {
   content: string;
@@ -50,9 +53,16 @@ export interface AIProviderConfig {
 /**
  * Service for managing AI provider integrations
  */
+interface ModelCache {
+  models: Array<{ value: string; label: string }>;
+  timestamp: number;
+}
+
 export class AIProviderService {
   private static instance: AIProviderService;
   private apiKeys: Map<string, string> = new Map();
+  private modelCache: Map<string, ModelCache> = new Map();
+  private readonly CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
   private constructor() {}
 
@@ -76,6 +86,8 @@ export class AIProviderService {
 
       if (error) {
         console.warn('No AI provider keys found for user:', error);
+        // Try to load from environment variables as fallback
+        this.loadFromEnvironment();
         return;
       }
 
@@ -85,9 +97,31 @@ export class AIProviderService {
           this.apiKeys.set(provider, key);
         });
       }
+      
+      // Also check environment variables for any missing keys
+      this.loadFromEnvironment();
     } catch (error) {
       console.error('Error loading AI provider keys:', error);
+      this.loadFromEnvironment();
     }
+  }
+
+  /**
+   * Load API keys from environment variables
+   */
+  private loadFromEnvironment(): void {
+    const envKeys = {
+      openai: import.meta.env.VITE_OPENAI_API_KEY,
+      anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY,
+      openrouter: import.meta.env.VITE_OPENROUTER_API_KEY,
+      gemini: import.meta.env.VITE_GEMINI_API_KEY,
+    };
+
+    Object.entries(envKeys).forEach(([provider, key]) => {
+      if (key && !this.apiKeys.has(provider)) {
+        this.apiKeys.set(provider, key);
+      }
+    });
   }
 
   /**
@@ -200,9 +234,6 @@ export class AIProviderService {
             break;
           case 'gemini':
             response = await this.completeWithGemini(config, enhancedSystemPrompt, enhancedUserPrompt);
-            break;
-          case 'cohere':
-            response = await this.completeWithCohere(config, enhancedSystemPrompt, enhancedUserPrompt);
             break;
           default:
             throw new Error(`Unsupported provider: ${config.modelProvider}`);
@@ -567,47 +598,6 @@ export class AIProviderService {
     };
   }
 
-  /**
-   * Complete using Cohere API
-   */
-  private async completeWithCohere(
-    config: AINodeConfig,
-    systemPrompt: string,
-    userPrompt: string
-  ): Promise<AIResponse> {
-    const apiKey = this.apiKeys.get('cohere');
-    if (!apiKey) {
-      throw new Error('Cohere API key not configured. Please add it in settings.');
-    }
-
-    const response = await fetch('https://api.cohere.ai/v1/generate', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        prompt: `${systemPrompt}\n\n${userPrompt}`,
-        max_tokens: config.maxTokens || 1000,
-        temperature: config.temperature || 0.7,
-        return_likelihoods: 'NONE',
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Cohere API error: ${error.message || response.statusText}`);
-    }
-
-    const data = await response.json();
-    
-    return {
-      content: data.generations?.[0]?.text || '',
-      provider: 'cohere',
-      model: config.model,
-    };
-  }
 
   /**
    * Test API key validity
@@ -621,9 +611,8 @@ export class AIProviderService {
       const testConfig: AINodeConfig = {
         modelProvider: provider as any,
         model: provider === 'openai' ? 'gpt-3.5-turbo' : 
-               provider === 'anthropic' ? 'claude-3-haiku' : 
+               provider === 'anthropic' ? 'claude-3-haiku-20240307' : 
                provider === 'gemini' ? 'gemini-pro' :
-               provider === 'cohere' ? 'command' :
                'openai/gpt-3.5-turbo',
         systemPrompt: 'You are a test assistant.',
         userPrompt: 'Say "API key is valid" if you can read this.',
@@ -644,6 +633,311 @@ export class AIProviderService {
     } catch (error) {
       console.error('API key test failed:', error);
       return false;
+    }
+  }
+
+  /**
+   * Check if cache is still valid
+   */
+  private isCacheValid(provider: string): boolean {
+    const cache = this.modelCache.get(provider);
+    if (!cache) return false;
+    return Date.now() - cache.timestamp < this.CACHE_DURATION;
+  }
+
+  /**
+   * Clear cache for a specific provider or all providers
+   */
+  public clearModelCache(provider?: string): void {
+    if (provider) {
+      this.modelCache.delete(provider);
+    } else {
+      this.modelCache.clear();
+    }
+  }
+
+  /**
+   * Fetch available models from OpenAI with caching
+   */
+  public async fetchOpenAIModels(forceRefresh = false): Promise<Array<{ value: string; label: string }>> {
+    // Check cache first
+    if (!forceRefresh && this.isCacheValid('openai')) {
+      return this.modelCache.get('openai')!.models;
+    }
+
+    const apiKey = this.apiKeys.get('openai');
+    if (!apiKey) {
+      return [
+        { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
+        { value: 'gpt-4', label: 'GPT-4' },
+        { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      ];
+    }
+
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+
+      const data = await response.json();
+      const chatModels = data.data
+        .filter((model: any) => 
+          model.id.includes('gpt') || model.id.includes('o1')
+        )
+        .map((model: any) => ({
+          value: model.id,
+          label: model.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+        }))
+        .sort((a: any, b: any) => {
+          // Sort to put newer models first
+          if (a.value.includes('gpt-5') && !b.value.includes('gpt-5')) return -1;
+          if (!a.value.includes('gpt-5') && b.value.includes('gpt-5')) return 1;
+          if (a.value.includes('gpt-4.1') && !b.value.includes('gpt-4.1')) return -1;
+          if (!a.value.includes('gpt-4.1') && b.value.includes('gpt-4.1')) return 1;
+          if (a.value.includes('gpt-4') && !b.value.includes('gpt-4')) return -1;
+          if (!a.value.includes('gpt-4') && b.value.includes('gpt-4')) return 1;
+          if (a.value.includes('o1') && !b.value.includes('o1')) return -1;
+          if (!a.value.includes('o1') && b.value.includes('o1')) return 1;
+          return a.value.localeCompare(b.value);
+        });
+
+      const models = chatModels.length > 0 ? chatModels : [
+        { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
+        { value: 'gpt-4', label: 'GPT-4' },
+        { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      ];
+
+      // Cache the results
+      this.modelCache.set('openai', {
+        models,
+        timestamp: Date.now(),
+      });
+
+      return models;
+    } catch (error) {
+      console.error('Error fetching OpenAI models:', error);
+      return [
+        { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
+        { value: 'gpt-4', label: 'GPT-4' },
+        { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      ];
+    }
+  }
+
+  /**
+   * Fetch available models from Anthropic with caching
+   */
+  public async fetchAnthropicModels(forceRefresh = false): Promise<Array<{ value: string; label: string }>> {
+    // Check cache first
+    if (!forceRefresh && this.isCacheValid('anthropic')) {
+      return this.modelCache.get('anthropic')!.models;
+    }
+
+    const apiKey = this.apiKeys.get('anthropic');
+    if (!apiKey) {
+      return [
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+        { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+        { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+      ];
+    }
+
+    try {
+      // Anthropic now has a models endpoint!
+      const response = await fetch('https://api.anthropic.com/v1/models', {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+
+      const data = await response.json();
+      const models = data.data
+        .map((model: any) => ({
+          value: model.id,
+          label: model.display_name || model.id,
+        }))
+        .sort((a: any, b: any) => {
+          // Sort newest models first
+          if (a.label.includes('4.1') && !b.label.includes('4.1')) return -1;
+          if (!a.label.includes('4.1') && b.label.includes('4.1')) return 1;
+          if (a.label.includes('4') && !b.label.includes('4')) return -1;
+          if (!a.label.includes('4') && b.label.includes('4')) return 1;
+          if (a.label.includes('3.7') && !b.label.includes('3.7')) return -1;
+          if (!a.label.includes('3.7') && b.label.includes('3.7')) return 1;
+          return b.label.localeCompare(a.label);
+        });
+
+      const result = models.length > 0 ? models : [
+        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+        { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+      ];
+
+      // Cache the results
+      this.modelCache.set('anthropic', {
+        models: result,
+        timestamp: Date.now(),
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching Anthropic models:', error);
+      // Return fallback models
+      return [
+        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+        { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+      ];
+    }
+  }
+
+  /**
+   * Fetch available models from OpenRouter with caching
+   */
+  public async fetchOpenRouterModels(forceRefresh = false): Promise<Array<{ value: string; label: string }>> {
+    // Check cache first
+    if (!forceRefresh && this.isCacheValid('openrouter')) {
+      return this.modelCache.get('openrouter')!.models;
+    }
+
+    const apiKey = this.apiKeys.get('openrouter');
+    if (!apiKey) {
+      return [
+        { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
+        { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus (via OpenRouter)' },
+        { value: 'meta-llama/llama-3-70b', label: 'Llama 3 70B' },
+      ];
+    }
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+
+      const data = await response.json();
+      const models = data.data
+        .filter((model: any) => !model.id.includes('instruct') && !model.id.includes('free'))
+        .slice(0, 20) // Limit to top 20 models
+        .map((model: any) => ({
+          value: model.id,
+          label: model.name || model.id,
+        }));
+
+      const result = models.length > 0 ? models : [
+        { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
+        { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus (via OpenRouter)' },
+        { value: 'meta-llama/llama-3-70b', label: 'Llama 3 70B' },
+      ];
+
+      // Cache the results
+      this.modelCache.set('openrouter', {
+        models: result,
+        timestamp: Date.now(),
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching OpenRouter models:', error);
+      return [
+        { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
+        { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus (via OpenRouter)' },
+        { value: 'meta-llama/llama-3-70b', label: 'Llama 3 70B' },
+      ];
+    }
+  }
+
+  /**
+   * Fetch available models from Google Gemini with caching
+   */
+  public async fetchGeminiModels(forceRefresh = false): Promise<Array<{ value: string; label: string }>> {
+    // Check cache first
+    if (!forceRefresh && this.isCacheValid('gemini')) {
+      return this.modelCache.get('gemini')!.models;
+    }
+
+    const apiKey = this.apiKeys.get('gemini');
+    if (!apiKey) {
+      return [
+        { value: 'gemini-pro', label: 'Gemini Pro' },
+        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+        { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+      ];
+    }
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch models');
+      }
+
+      const data = await response.json();
+      const models = data.models
+        .filter((model: any) => model.supportedGenerationMethods?.includes('generateContent'))
+        .map((model: any) => ({
+          value: model.name.replace('models/', ''),
+          label: model.displayName || model.name.replace('models/', ''),
+        }));
+
+      const result = models.length > 0 ? models : [
+        { value: 'gemini-pro', label: 'Gemini Pro' },
+        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+        { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+      ];
+
+      // Cache the results
+      this.modelCache.set('gemini', {
+        models: result,
+        timestamp: Date.now(),
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching Gemini models:', error);
+      return [
+        { value: 'gemini-pro', label: 'Gemini Pro' },
+        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+        { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+      ];
+    }
+  }
+
+  /**
+   * Fetch all available models for a provider with optional force refresh
+   */
+  public async fetchModelsForProvider(provider: string, forceRefresh = false): Promise<Array<{ value: string; label: string }>> {
+    switch (provider) {
+      case 'openai':
+        return this.fetchOpenAIModels(forceRefresh);
+      case 'anthropic':
+        return this.fetchAnthropicModels(forceRefresh);
+      case 'openrouter':
+        return this.fetchOpenRouterModels(forceRefresh);
+      case 'gemini':
+        return this.fetchGeminiModels(forceRefresh);
+      default:
+        return [];
     }
   }
 
@@ -691,6 +985,234 @@ export class AIProviderService {
 
     if (error) {
       console.error('Error logging AI usage:', error);
+    }
+  }
+
+  /**
+   * Execute a Custom GPT assistant
+   */
+  public async executeCustomGPT(
+    config: CustomGPTNodeConfig,
+    variables: VariableContext,
+    userId?: string
+  ): Promise<AIResponse> {
+    try {
+      // Initialize the OpenAI Assistant service with user's API key
+      if (userId) {
+        await openaiAssistantService.initialize(userId);
+      } else {
+        // Try to use API key from environment or existing keys
+        const openaiKey = this.apiKeys.get('openai');
+        if (openaiKey) {
+          openaiAssistantService.setApiKey(openaiKey);
+        } else {
+          await openaiAssistantService.initialize();
+        }
+      }
+
+      // Execute the assistant
+      const result = await openaiAssistantService.executeAssistant({
+        assistantId: config.assistantId,
+        threadId: config.threadId,
+        createNewThread: config.createNewThread,
+        message: config.message,
+        variables,
+        imageUrls: config.imageUrls,
+        additionalInstructions: config.additionalInstructions,
+        metadata: config.metadata,
+        toolChoice: config.toolChoice,
+        temperature: config.temperature,
+        maxPromptTokens: config.maxPromptTokens,
+        maxCompletionTokens: config.maxCompletionTokens,
+        responseFormat: config.responseFormat,
+        truncationStrategy: config.truncationStrategy,
+      });
+
+      // Convert to AIResponse format
+      const response: AIResponse = {
+        content: result.content || '',
+        usage: result.usage,
+        error: result.error,
+        provider: 'openai',
+        model: config.assistantName || 'custom-gpt',
+        metadata: result.metadata,
+      };
+
+      // Parse JSON if response format is JSON
+      if (config.responseFormat === 'json_object' && result.content) {
+        try {
+          response.processedData = JSON.parse(result.content);
+        } catch (error) {
+          console.warn('Failed to parse JSON response from assistant:', error);
+        }
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Custom GPT execution error:', error);
+      return {
+        content: '',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        provider: 'openai',
+        model: 'custom-gpt',
+      };
+    }
+  }
+
+  /**
+   * Execute Assistant Manager operations (create or update assistant)
+   */
+  public async executeAssistantManager(
+    config: AssistantManagerNodeConfig,
+    variables: VariableContext,
+    userId?: string
+  ): Promise<AIResponse> {
+    try {
+      // Initialize the OpenAI Assistant service with user's API key
+      if (userId) {
+        await openaiAssistantService.initialize(userId);
+      } else {
+        // Try to use API key from environment or existing keys
+        const openaiKey = this.apiKeys.get('openai');
+        if (openaiKey) {
+          openaiAssistantService.setApiKey(openaiKey);
+        } else {
+          await openaiAssistantService.initialize();
+        }
+      }
+
+      let result: any = {};
+      
+      if (config.operation === 'create') {
+        // Create a new assistant
+        const assistant = await openaiAssistantService.createAssistant({
+          name: interpolateVariables(config.assistantName || 'New Assistant', variables),
+          description: config.description ? interpolateVariables(config.description, variables) : undefined,
+          model: config.model || 'gpt-4-turbo-preview',
+          instructions: config.instructions ? interpolateVariables(config.instructions, variables) : undefined,
+          tools: config.tools,
+          metadata: config.metadata,
+          temperature: config.temperature,
+          topP: config.topP,
+          responseFormat: config.responseFormat,
+        });
+
+        // Handle file uploads if provided
+        if (config.files && config.files.length > 0) {
+          const fileIds: string[] = [];
+          for (const file of config.files) {
+            // Note: Files should be uploaded through the UI before execution
+            // The config.files array should contain file IDs
+            if (typeof file === 'string') {
+              fileIds.push(file);
+            } else if (file.id) {
+              fileIds.push(file.id);
+            }
+          }
+
+          // Create or attach to vector store if file search is enabled
+          if (config.tools?.fileSearch && fileIds.length > 0) {
+            let vectorStoreId = config.vectorStoreId;
+            
+            if (!vectorStoreId && config.vectorStoreName) {
+              // Create a new vector store
+              const vectorStore = await openaiAssistantService.createVectorStore({
+                name: interpolateVariables(config.vectorStoreName, variables),
+                fileIds,
+              });
+              vectorStoreId = vectorStore.id;
+            } else if (vectorStoreId) {
+              // Attach files to existing vector store
+              await openaiAssistantService.attachFilesToVectorStore(vectorStoreId, fileIds);
+            }
+
+            // Attach vector store to assistant
+            if (vectorStoreId) {
+              await openaiAssistantService.attachVectorStoreToAssistant(assistant.id, vectorStoreId);
+            }
+          }
+        }
+
+        result = {
+          assistantId: assistant.id,
+          assistantName: assistant.name,
+          operation: 'created',
+          model: assistant.model,
+          tools: assistant.tools,
+        };
+      } else if (config.operation === 'update' && config.assistantId) {
+        // Update existing assistant
+        const assistant = await openaiAssistantService.updateAssistant(
+          config.assistantId,
+          {
+            name: config.assistantName ? interpolateVariables(config.assistantName, variables) : undefined,
+            description: config.description ? interpolateVariables(config.description, variables) : undefined,
+            model: config.model,
+            instructions: config.instructions ? interpolateVariables(config.instructions, variables) : undefined,
+            tools: config.tools,
+            metadata: config.metadata,
+            temperature: config.temperature,
+            topP: config.topP,
+            responseFormat: config.responseFormat,
+          }
+        );
+
+        // Handle file updates if provided
+        if (config.files && config.files.length > 0) {
+          const fileIds: string[] = [];
+          for (const file of config.files) {
+            if (typeof file === 'string') {
+              fileIds.push(file);
+            } else if (file.id) {
+              fileIds.push(file.id);
+            }
+          }
+
+          // Update vector store if needed
+          if (config.tools?.fileSearch && fileIds.length > 0) {
+            let vectorStoreId = config.vectorStoreId;
+            
+            if (!vectorStoreId && config.vectorStoreName) {
+              // Create a new vector store
+              const vectorStore = await openaiAssistantService.createVectorStore({
+                name: interpolateVariables(config.vectorStoreName, variables),
+                fileIds,
+              });
+              vectorStoreId = vectorStore.id;
+              await openaiAssistantService.attachVectorStoreToAssistant(assistant.id, vectorStoreId);
+            } else if (vectorStoreId) {
+              // Attach new files to existing vector store
+              await openaiAssistantService.attachFilesToVectorStore(vectorStoreId, fileIds);
+            }
+          }
+        }
+
+        result = {
+          assistantId: assistant.id,
+          assistantName: assistant.name,
+          operation: 'updated',
+          model: assistant.model,
+          tools: assistant.tools,
+        };
+      } else {
+        throw new Error('Invalid operation or missing assistant ID for update');
+      }
+
+      // Return response
+      return {
+        content: JSON.stringify(result, null, 2),
+        provider: 'openai',
+        model: 'assistant-manager',
+        processedData: result,
+      };
+    } catch (error) {
+      console.error('Assistant Manager execution error:', error);
+      return {
+        content: '',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        provider: 'openai',
+        model: 'assistant-manager',
+      };
     }
   }
 }

@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ExecutionsListProps {
-  onExecutionSelect: (execution: WorkflowExecution) => void;
+  onExecutionSelect: (execution: WorkflowExecution) => void | Promise<void>;
   selectedExecution?: WorkflowExecution;
   workflowId?: string;
 }

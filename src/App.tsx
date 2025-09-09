@@ -54,6 +54,7 @@ const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
+const TestNotifications = lazy(() => import('@/pages/TestNotifications'));
 
 // CRM routes - heavy components, lazy load
 const CRM = lazy(() => import('@/pages/CRM'));
@@ -226,6 +227,7 @@ function App() {
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
                 <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
+                <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
               </Routes>
             </Suspense>

@@ -52,6 +52,28 @@ class FormService {
   }
 
   /**
+   * Fix form URL to use current origin (fixes port issues)
+   */
+  fixFormUrl(url: string): string {
+    if (!url) return url;
+    
+    try {
+      const urlObj = new URL(url);
+      const currentOrigin = window.location.origin;
+      
+      // Replace the origin but keep the path
+      urlObj.protocol = window.location.protocol;
+      urlObj.hostname = window.location.hostname;
+      urlObj.port = window.location.port;
+      
+      return urlObj.toString();
+    } catch (error) {
+      console.warn('Failed to fix form URL:', url, error);
+      return url;
+    }
+  }
+
+  /**
    * Validate form data against schema
    */
   validateFormData(formId: string, data: Record<string, any>): FormValidationResult {

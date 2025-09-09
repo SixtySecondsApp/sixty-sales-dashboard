@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Wrench } from 'lucide-react';
+import { X, Sparkles, Info, FileText, ChevronRight, Code, Brain, Wrench, RefreshCw } from 'lucide-react';
 import PromptTemplatesModal from './PromptTemplatesModal';
 import type { PromptTemplate } from './PromptTemplatesModal';
 import { ToolRegistry } from '../../lib/services/workflowTools';
 import VariablePicker from './VariablePicker';
+import { AIProviderService } from '../../lib/services/aiProvider';
+import { supabase } from '../../lib/supabase/clientV2';
 
 export interface AINodeConfig {
-  modelProvider: 'openai' | 'anthropic' | 'openrouter' | 'gemini' | 'cohere';
+  modelProvider: 'openai' | 'anthropic' | 'openrouter' | 'gemini';
   model: string;
   systemPrompt: string;
   userPrompt: string;
@@ -41,17 +43,19 @@ interface AIAgentConfigModalProps {
   formFields?: Array<{ name: string; type: string; label: string }>;
 }
 
-const MODEL_OPTIONS = {
+// Default model options (used as fallback)
+const DEFAULT_MODEL_OPTIONS = {
   openai: [
     { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
     { value: 'gpt-4', label: 'GPT-4' },
     { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-    { value: 'gpt-4-1106-preview', label: 'GPT-4 Turbo (JSON Mode)' },
   ],
   anthropic: [
-    { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-    { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-    { value: 'claude-3-haiku', label: 'Claude 3 Haiku' },
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+    { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
   ],
   openrouter: [
     { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
@@ -61,12 +65,7 @@ const MODEL_OPTIONS = {
   gemini: [
     { value: 'gemini-pro', label: 'Gemini Pro' },
     { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-  ],
-  cohere: [
-    { value: 'command', label: 'Command' },
-    { value: 'command-light', label: 'Command Light' },
-    { value: 'command-r', label: 'Command R' },
+    { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
   ],
 };
 
@@ -78,6 +77,11 @@ export default function AIAgentConfigModal({
   availableVariables = [],
   formFields = [],
 }: AIAgentConfigModalProps) {
+  const [modelOptions, setModelOptions] = useState(DEFAULT_MODEL_OPTIONS);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const aiProviderService = AIProviderService.getInstance();
+  
   const [formData, setFormData] = useState<AINodeConfig>({
     modelProvider: config?.modelProvider || 'openai',
     model: config?.model || 'gpt-3.5-turbo',
@@ -118,7 +122,39 @@ Always provide helpful, accurate information and take appropriate actions using 
     if (config) {
       setFormData(config);
     }
+    loadUserAndModels();
   }, [config]);
+
+  const loadUserAndModels = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserId(user.id);
+        await aiProviderService.initialize(user.id);
+        // Load models for current provider
+        await fetchModelsForProvider(formData.modelProvider);
+      }
+    } catch (error) {
+      console.error('Error loading user/models:', error);
+    }
+  };
+
+  const fetchModelsForProvider = async (provider: AINodeConfig['modelProvider'], forceRefresh = false) => {
+    setLoadingModels(true);
+    try {
+      const models = await aiProviderService.fetchModelsForProvider(provider, forceRefresh);
+      if (models.length > 0) {
+        setModelOptions(prev => ({
+          ...prev,
+          [provider]: models
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching models for ${provider}:`, error);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -128,8 +164,9 @@ Always provide helpful, accurate information and take appropriate actions using 
     onClose();
   };
 
-  const handleProviderChange = (provider: AINodeConfig['modelProvider']) => {
-    const defaultModel = MODEL_OPTIONS[provider][0].value;
+  const handleProviderChange = async (provider: AINodeConfig['modelProvider']) => {
+    await fetchModelsForProvider(provider);
+    const defaultModel = modelOptions[provider]?.[0]?.value || DEFAULT_MODEL_OPTIONS[provider][0].value;
     setFormData({ ...formData, modelProvider: provider, model: defaultModel });
   };
 
@@ -238,26 +275,40 @@ Always provide helpful, accurate information and take appropriate actions using 
                       <option value="anthropic">Anthropic</option>
                       <option value="openrouter">OpenRouter</option>
                       <option value="gemini">Google Gemini</option>
-                      <option value="cohere">Cohere</option>
                     </select>
                   </div>
 
                   {/* Model Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Model
-                    </label>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-300">
+                        Model
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => fetchModelsForProvider(formData.modelProvider, true)}
+                        disabled={loadingModels}
+                        className="p-1 hover:bg-gray-800 rounded transition-colors"
+                        title="Refresh model list"
+                      >
+                        <RefreshCw className={`w-4 h-4 text-gray-400 ${loadingModels ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
                     <select
                       value={formData.model}
                       onChange={(e) => setFormData({ ...formData, model: e.target.value })}
                       className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled={loadingModels}
                     >
-                      {MODEL_OPTIONS[formData.modelProvider].map((option) => (
+                      {(modelOptions[formData.modelProvider] || DEFAULT_MODEL_OPTIONS[formData.modelProvider]).map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>
                       ))}
                     </select>
+                    {loadingModels && (
+                      <p className="text-xs text-gray-500 mt-1">Loading available models...</p>
+                    )}
                   </div>
 
                   {/* System Prompt */}

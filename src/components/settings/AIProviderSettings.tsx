@@ -16,7 +16,6 @@ export default function AIProviderSettings() {
     { provider: 'anthropic', key: '', isVisible: false },
     { provider: 'openrouter', key: '', isVisible: false },
     { provider: 'gemini', key: '', isVisible: false },
-    { provider: 'cohere', key: '', isVisible: false },
   ]);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState<string | null>(null);
@@ -138,8 +137,6 @@ export default function AIProviderSettings() {
         return 'OpenRouter';
       case 'gemini':
         return 'Google Gemini';
-      case 'cohere':
-        return 'Cohere';
       default:
         return provider;
     }
@@ -155,8 +152,6 @@ export default function AIProviderSettings() {
         return 'Get your API key from openrouter.ai';
       case 'gemini':
         return 'Get your API key from makersuite.google.com/app/apikey';
-      case 'cohere':
-        return 'Get your API key from dashboard.cohere.com/api-keys';
       default:
         return '';
     }

@@ -32,10 +32,10 @@ export default defineConfig({
     global: 'globalThis',
   },
   server: {
-    // Allow Vite to use any available port
-    strictPort: false,
+    // Force a specific port to maintain authentication consistency
+    strictPort: true,
     host: true, // Listen on all addresses
-    port: 5173, // Default port, will increment if in use
+    port: 5173, // Fixed port - will error if in use rather than switching
     // Commented out proxy to allow API test suite to work with Supabase Edge Functions
     // proxy: {
     //   '/api': {

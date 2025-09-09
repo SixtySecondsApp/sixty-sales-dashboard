@@ -62,10 +62,13 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
   }, [user]);
 
   const loadWorkflows = async () => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
     
     try {
       setLoading(true);
+      
       const { data, error } = await supabase
         .from('user_automation_rules')
         .select('*')
