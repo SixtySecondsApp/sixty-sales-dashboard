@@ -17,7 +17,7 @@ export interface ToolDefinition {
   name: string;
   displayName: string;
   description: string;
-  category: 'deals' | 'contacts' | 'tasks' | 'activities' | 'analytics' | 'meetings';
+  category: 'deals' | 'contacts' | 'tasks' | 'activities' | 'analytics' | 'meetings' | 'google';
   parameters: ToolParameter[];
   returns: {
     type: string;
@@ -2041,6 +2041,497 @@ export class GetDealAnalyticsTool extends CRMTool {
 }
 
 /**
+ * Tool: Create Google Doc
+ */
+export class CreateGoogleDocTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'create_google_doc',
+    displayName: 'Create Google Doc',
+    description: 'Create a new Google Doc with formatted content',
+    category: 'google',
+    parameters: [
+      {
+        name: 'title',
+        type: 'string',
+        description: 'Document title',
+        required: true,
+      },
+      {
+        name: 'content',
+        type: 'array',
+        description: 'Array of content elements with type, text, and formatting',
+        required: true,
+      },
+      {
+        name: 'folderId',
+        type: 'string',
+        description: 'Google Drive folder ID to store the document',
+        required: false,
+      },
+      {
+        name: 'variables',
+        type: 'object',
+        description: 'Template variables for replacement (e.g., {{name}}, {{date}})',
+        required: false,
+      },
+    ],
+    returns: {
+      type: 'object',
+      description: 'Document ID and URL',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleDocsService } = await import('./googleDocsService');
+      
+      const result = await googleDocsService.createDocument(
+        context.userId,
+        {
+          title: parameters.title,
+          content: parameters.content,
+          variables: parameters.variables,
+        },
+        parameters.folderId
+      );
+      
+      return {
+        success: true,
+        data: result,
+        metadata: {
+          recordsAffected: 1,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Tool: Send Gmail
+ */
+export class SendGmailTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'send_gmail',
+    displayName: 'Send Gmail',
+    description: 'Send an email via Gmail',
+    category: 'google',
+    parameters: [
+      {
+        name: 'to',
+        type: 'array',
+        description: 'Array of recipient email addresses',
+        required: true,
+      },
+      {
+        name: 'subject',
+        type: 'string',
+        description: 'Email subject',
+        required: true,
+      },
+      {
+        name: 'body',
+        type: 'string',
+        description: 'Email body content',
+        required: true,
+      },
+      {
+        name: 'isHtml',
+        type: 'boolean',
+        description: 'Whether body is HTML formatted',
+        required: false,
+        default: false,
+      },
+      {
+        name: 'cc',
+        type: 'array',
+        description: 'Array of CC email addresses',
+        required: false,
+      },
+      {
+        name: 'bcc',
+        type: 'array',
+        description: 'Array of BCC email addresses',
+        required: false,
+      },
+      {
+        name: 'variables',
+        type: 'object',
+        description: 'Template variables for replacement',
+        required: false,
+      },
+    ],
+    returns: {
+      type: 'string',
+      description: 'Message ID of sent email',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleGmailService } = await import('./googleGmailService');
+      
+      const messageId = await googleGmailService.sendEmail(
+        context.userId,
+        {
+          to: parameters.to,
+          subject: parameters.subject,
+          body: parameters.body,
+          isHtml: parameters.isHtml || false,
+          cc: parameters.cc,
+          bcc: parameters.bcc,
+          variables: parameters.variables,
+        }
+      );
+      
+      return {
+        success: true,
+        data: messageId,
+        metadata: {
+          recordsAffected: 1,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Tool: Create Calendar Event
+ */
+export class CreateCalendarEventTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'create_calendar_event',
+    displayName: 'Create Calendar Event',
+    description: 'Create a new Google Calendar event',
+    category: 'google',
+    parameters: [
+      {
+        name: 'summary',
+        type: 'string',
+        description: 'Event title/summary',
+        required: true,
+      },
+      {
+        name: 'startDateTime',
+        type: 'string',
+        description: 'Start date/time (ISO format)',
+        required: true,
+      },
+      {
+        name: 'endDateTime',
+        type: 'string',
+        description: 'End date/time (ISO format)',
+        required: true,
+      },
+      {
+        name: 'description',
+        type: 'string',
+        description: 'Event description',
+        required: false,
+      },
+      {
+        name: 'location',
+        type: 'string',
+        description: 'Event location',
+        required: false,
+      },
+      {
+        name: 'attendees',
+        type: 'array',
+        description: 'Array of attendee email addresses',
+        required: false,
+      },
+      {
+        name: 'calendarId',
+        type: 'string',
+        description: 'Calendar ID (default: primary)',
+        required: false,
+        default: 'primary',
+      },
+    ],
+    returns: {
+      type: 'string',
+      description: 'Event ID',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleCalendarService } = await import('./googleCalendarService');
+      
+      const attendees = parameters.attendees?.map((email: string) => ({
+        email,
+      }));
+      
+      const eventId = await googleCalendarService.createEvent(
+        context.userId,
+        {
+          summary: parameters.summary,
+          description: parameters.description,
+          location: parameters.location,
+          start: {
+            dateTime: parameters.startDateTime,
+          },
+          end: {
+            dateTime: parameters.endDateTime,
+          },
+          attendees,
+        },
+        parameters.calendarId || 'primary'
+      );
+      
+      return {
+        success: true,
+        data: eventId,
+        metadata: {
+          recordsAffected: 1,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Tool: Upload to Drive
+ */
+export class UploadToDriveTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'upload_to_drive',
+    displayName: 'Upload to Drive',
+    description: 'Upload a file to Google Drive',
+    category: 'google',
+    parameters: [
+      {
+        name: 'fileName',
+        type: 'string',
+        description: 'Name of the file',
+        required: true,
+      },
+      {
+        name: 'content',
+        type: 'string',
+        description: 'File content (base64 encoded for binary files)',
+        required: true,
+      },
+      {
+        name: 'mimeType',
+        type: 'string',
+        description: 'MIME type of the file',
+        required: false,
+        default: 'application/octet-stream',
+      },
+      {
+        name: 'folderId',
+        type: 'string',
+        description: 'Parent folder ID',
+        required: false,
+      },
+      {
+        name: 'convertToGoogle',
+        type: 'boolean',
+        description: 'Convert to Google format (Docs, Sheets, etc.)',
+        required: false,
+        default: false,
+      },
+    ],
+    returns: {
+      type: 'object',
+      description: 'File ID and web view link',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleDriveService } = await import('./googleDriveService');
+      
+      const result = await googleDriveService.uploadFile(
+        context.userId,
+        {
+          name: parameters.fileName,
+          mimeType: parameters.mimeType,
+          parents: parameters.folderId ? [parameters.folderId] : undefined,
+        },
+        parameters.content,
+        parameters.convertToGoogle
+      );
+      
+      return {
+        success: true,
+        data: result,
+        metadata: {
+          recordsAffected: 1,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Tool: Create Drive Folder
+ */
+export class CreateDriveFolderTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'create_drive_folder',
+    displayName: 'Create Drive Folder',
+    description: 'Create a new folder in Google Drive',
+    category: 'google',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Folder name',
+        required: true,
+      },
+      {
+        name: 'parentFolderId',
+        type: 'string',
+        description: 'Parent folder ID',
+        required: false,
+      },
+    ],
+    returns: {
+      type: 'string',
+      description: 'Created folder ID',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleDriveService } = await import('./googleDriveService');
+      
+      const folderId = await googleDriveService.createFolder(
+        context.userId,
+        parameters.name,
+        parameters.parentFolderId
+      );
+      
+      return {
+        success: true,
+        data: folderId,
+        metadata: {
+          recordsAffected: 1,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
+ * Tool: Search Drive Files
+ */
+export class SearchDriveFilesTool extends CRMTool {
+  definition: ToolDefinition = {
+    name: 'search_drive_files',
+    displayName: 'Search Drive Files',
+    description: 'Search for files in Google Drive',
+    category: 'google',
+    parameters: [
+      {
+        name: 'searchTerm',
+        type: 'string',
+        description: 'Search term for file names',
+        required: true,
+      },
+      {
+        name: 'folderId',
+        type: 'string',
+        description: 'Limit search to specific folder',
+        required: false,
+      },
+      {
+        name: 'mimeType',
+        type: 'string',
+        description: 'Filter by MIME type',
+        required: false,
+      },
+    ],
+    returns: {
+      type: 'array',
+      description: 'Array of matching files',
+    },
+  };
+
+  async execute(
+    parameters: Record<string, any>,
+    context: ToolExecutionContext
+  ): Promise<ToolResult> {
+    try {
+      this.validateParameters(parameters);
+      
+      const { googleDriveService } = await import('./googleDriveService');
+      
+      const result = await googleDriveService.searchFilesByName(
+        context.userId,
+        parameters.searchTerm,
+        parameters.folderId
+      );
+      
+      return {
+        success: true,
+        data: result.files,
+        metadata: {
+          recordsAffected: result.files.length,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+}
+
+/**
  * Tool Registry
  */
 export class ToolRegistry {
@@ -2090,6 +2581,14 @@ export class ToolRegistry {
     this.registerTool(new AddCoachingSummaryTool());
     this.registerTool(new AddCoachingRatingTool());
     this.registerTool(new AddTalkTimePercentageTool());
+    
+    // Google Workspace
+    this.registerTool(new CreateGoogleDocTool());
+    this.registerTool(new SendGmailTool());
+    this.registerTool(new CreateCalendarEventTool());
+    this.registerTool(new UploadToDriveTool());
+    this.registerTool(new CreateDriveFolderTool());
+    this.registerTool(new SearchDriveFilesTool());
   }
   
   public registerTool(tool: CRMTool) {
