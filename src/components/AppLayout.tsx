@@ -5,7 +5,6 @@ import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { NotificationBell } from '@/components/NotificationBell';
-import { ProfileRefreshButton } from '@/components/ProfileRefreshButton';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -144,9 +143,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </motion.button>
         </div>
       </div>
-      
-      {/* Profile Refresh Button */}
-      <ProfileRefreshButton />
       
       {/* Quick Add FAB - Hidden on Workflows page */}
       {location.pathname !== '/workflows' && (
