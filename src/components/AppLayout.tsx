@@ -33,7 +33,8 @@ import {
   Code2,
   Zap,
   History,
-  Workflow
+  Workflow,
+  Link as LinkIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -79,6 +80,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },
+    { icon: LinkIcon, label: 'Integrations', href: '/integrations' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
     { icon: History, label: 'Releases', href: '/releases' },
     ...(userData?.is_admin ? [
