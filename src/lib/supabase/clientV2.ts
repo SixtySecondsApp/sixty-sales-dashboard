@@ -143,26 +143,8 @@ export const authUtils = {
    * Check if user is authenticated
    */
   isAuthenticated: (session: Session | null): boolean => {
-    // Check real Supabase authentication first
-    if (!!session?.user && !!session?.access_token) {
-      return true;
-    }
-    
-    // In development mode, allow mock user authentication
-    if (process.env.NODE_ENV === 'development') {
-      // Check if mock user data exists in localStorage
-      const mockUsers = localStorage.getItem('sixty_mock_users');
-      if (mockUsers) {
-        try {
-          const users = JSON.parse(mockUsers);
-          return users.length > 0;
-        } catch (e) {
-          // If parsing fails, fall back to false
-        }
-      }
-    }
-    
-    return false;
+    // Only trust real Supabase session
+    return !!session?.user && !!session?.access_token;
   },
 
   /**
@@ -295,7 +277,8 @@ export const authUtils = {
         'sb.auth.admin.v2',
         'supabase.auth.token', // Legacy key
         'sb-refresh-token',
-        'sb-access-token'
+        'sb-access-token',
+        'sixty_mock_users'
       ];
       
       keysToRemove.forEach(key => {

@@ -5485,7 +5485,18 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-300">Message</label>
+                            <VariablePicker
+                              onInsert={(variable) => {
+                                const currentValue = selectedNode.data.slackMessage || '';
+                                const newValue = currentValue + variable;
+                                updateNodeData(selectedNode.id, { slackMessage: newValue });
+                              }}
+                              buttonText="Insert Variable"
+                              formFields={getFormFieldsFromWorkflow()}
+                            />
+                          </div>
                           <textarea
                             value={selectedNode.data.slackMessage || ''}
                             onChange={(e) => {

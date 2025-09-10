@@ -66,6 +66,11 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
       const serviceStatus = await googleApi.getServiceStatus();
       const health = await googleApi.getHealth();
 
+      // Consider near-expiry tokens as connected to avoid false error UI; backend will refresh when needed
+      const computedStatus: 'connected' | 'disconnected' | 'error' = integration
+        ? (health.isConnected ? 'connected' : 'error')
+        : 'disconnected';
+
       set(state => ({
         google: {
           ...state.google,
@@ -74,11 +79,9 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
           email: integration?.email || null,
           services: serviceStatus,
           lastSync: integration ? new Date(integration.updated_at) : null,
-          status: integration ? 
-            (health.hasValidTokens ? 'connected' : 'error') : 
-            'disconnected',
+          status: computedStatus,
           isLoading: false,
-          error: health.hasValidTokens ? null : 'Token expired or invalid'
+          error: computedStatus === 'error' ? (state.google.error || null) : null
         }
       }));
     } catch (error: any) {
