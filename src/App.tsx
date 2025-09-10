@@ -64,6 +64,7 @@ const Admin = lazy(() => import('@/pages/Admin'));
 const Insights = lazy(() => import('@/pages/Insights'));
 const Workflows = lazy(() => import('@/pages/Workflows'));
 const Integrations = lazy(() => import('@/pages/Integrations'));
+const GoogleCallback = lazy(() => import('@/pages/GoogleCallback'));
 const FormDisplay = lazy(() => import('@/pages/FormDisplay'));
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
 const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
@@ -191,6 +192,7 @@ function App() {
                 <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
                 <Route path="/workflows" element={<AppLayout><Workflows /></AppLayout>} />
                 <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
+                <Route path="/auth/google/callback" element={<GoogleCallback />} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
                 

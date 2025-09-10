@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Google OAuth Dynamic Redirect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .button {
+            background-color: #4285f4;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background-color: #357ae8;
+        }
+        .info {
+            background-color: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google OAuth Dynamic Redirect URI Test</h1>
+        
+        <div class="info">
+            <h3>Current Environment Detection</h3>
+            <p><strong>Origin:</strong> <span id="current-origin"></span></p>
+            <p><strong>Expected Redirect URI:</strong> <span id="expected-redirect"></span></p>
+            <p><strong>Environment:</strong> <span id="environment"></span></p>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Cases</h3>
+            
+            <h4>1. Localhost Development (Port 5173)</h4>
+            <p>Expected: <code>http://localhost:5173/auth/google/callback</code></p>
+            <button class="button" onclick="testOrigin('http://localhost:5173')">Test Localhost:5173</button>
+            
+            <h4>2. Alternative Development (Port 3000)</h4>
+            <p>Expected: <code>http://localhost:3000/auth/google/callback</code></p>
+            <button class="button" onclick="testOrigin('http://localhost:3000')">Test Localhost:3000</button>
+            
+            <h4>3. Production Environment</h4>
+            <p>Expected: <code>https://sales.sixtyseconds.video/auth/google/callback</code></p>
+            <button class="button" onclick="testOrigin('https://sales.sixtyseconds.video')">Test Production</button>
+            
+            <h4>4. Current Environment (Automatic Detection)</h4>
+            <button class="button" onclick="testCurrentEnvironment()">Test Current Environment</button>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Results</h3>
+            <div id="test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Security Validation</h3>
+            <p>The system validates that only allowed origins are accepted:</p>
+            <ul>
+                <li>✅ http://localhost:5173</li>
+                <li>✅ http://localhost:3000</li>
+                <li>✅ https://sales.sixtyseconds.video</li>
+                <li>❌ Any other origin</li>
+            </ul>
+            
+            <h4>Test Unauthorized Origin</h4>
+            <button class="button" onclick="testOrigin('https://malicious-site.com')" style="background-color: #d32f2f;">Test Unauthorized Origin</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize display
+        document.addEventListener('DOMContentLoaded', function() {
+            const origin = window.location.origin;
+            document.getElementById('current-origin').textContent = origin;
+            document.getElementById('expected-redirect').textContent = origin + '/auth/google/callback';
+            
+            let environment = 'Unknown';
+            if (origin.includes('localhost:5173')) {
+                environment = 'Development (Primary)';
+            } else if (origin.includes('localhost')) {
+                environment = 'Development (Alternative)';
+            } else if (origin.includes('sales.sixtyseconds.video')) {
+                environment = 'Production';
+            } else {
+                environment = 'Custom/Unknown';
+            }
+            document.getElementById('environment').textContent = environment;
+        });
+
+        function addTestResult(testName, success, message, details = '') {
+            const resultsDiv = document.getElementById('test-results');
+            const resultHTML = `
+                <div style="margin: 10px 0; padding: 10px; border-radius: 5px; background-color: ${success ? '#e8f5e8' : '#ffeaea'};">
+                    <div class="${success ? 'success' : 'error'}">
+                        ${success ? '✅' : '❌'} ${testName}
+                    </div>
+                    <div>${message}</div>
+                    ${details ? `<pre>${details}</pre>` : ''}
+                </div>
+            `;
+            resultsDiv.innerHTML += resultHTML;
+        }
+
+        function testOrigin(testOrigin) {
+            addTestResult(
+                `Testing Origin: ${testOrigin}`,
+                true,
+                'Test initiated - This would send origin to Edge Function',
+                `Request Body: { "origin": "${testOrigin}" }\nExpected Redirect URI: ${testOrigin}/auth/google/callback`
+            );
+
+            // Validate against allowed origins
+            const allowedOrigins = [
+                'http://localhost:5173',
+                'http://localhost:3000',
+                'https://sales.sixtyseconds.video'
+            ];
+
+            const isAllowed = allowedOrigins.includes(testOrigin);
+            const corsOrigin = isAllowed ? testOrigin : 'http://localhost:5173';
+
+            addTestResult(
+                `CORS Validation for ${testOrigin}`,
+                isAllowed,
+                isAllowed ? 'Origin is allowed' : 'Origin would be rejected, fallback to localhost:5173',
+                `CORS Origin Header: ${corsOrigin}`
+            );
+        }
+
+        function testCurrentEnvironment() {
+            const currentOrigin = window.location.origin;
+            testOrigin(currentOrigin);
+        }
+
+        // Mock Google OAuth Integration API call for demonstration
+        function simulateOAuthCall() {
+            const origin = window.location.origin;
+            
+            addTestResult(
+                'Simulated OAuth Initiation',
+                true,
+                'This simulates the actual GoogleIntegrationAPI.initiateOAuth() call',
+                `
+Frontend code:
+const origin = window.location.origin; // "${origin}"
+
+supabase.functions.invoke('google-oauth-initiate', {
+  body: { origin }
+});
+
+Edge Function would receive:
+- Origin: ${origin}
+- Constructed Redirect URI: ${origin}/auth/google/callback
+                `
+            );
+        }
+
+        // Add simulation button
+        setTimeout(() => {
+            const testSection = document.querySelector('.test-section:last-of-type');
+            const simulateButton = document.createElement('button');
+            simulateButton.className = 'button';
+            simulateButton.textContent = 'Simulate Real OAuth Call';
+            simulateButton.onclick = simulateOAuthCall;
+            simulateButton.style.backgroundColor = '#4caf50';
+            testSection.appendChild(simulateButton);
+        }, 100);
+    </script>
+</body>
+</html>

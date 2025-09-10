@@ -79,8 +79,17 @@ export default function Integrations() {
   // Event handlers using the store
   const handleConnectGoogle = async () => {
     try {
+      console.log('Initiating Google OAuth...');
       const authUrl = await connect();
-      // The connect function will automatically redirect
+      console.log('Received auth URL:', authUrl);
+      // Redirect to the OAuth URL
+      if (authUrl) {
+        console.log('Redirecting to:', authUrl);
+        window.location.href = authUrl;
+      } else {
+        console.error('No auth URL received');
+        toast.error('Failed to get authentication URL');
+      }
     } catch (error: any) {
       console.error('OAuth initiation error:', error);
       toast.error(error.message || 'Failed to initiate Google authentication');
@@ -312,11 +321,11 @@ export default function Integrations() {
 
               {/* Token Status */}
               <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-slate-700">
-                <span>Connected: {integration && new Date(integration.created_at).toLocaleDateString()}</span>
-                {integration?.expires_at && (
+                <span>Connected: {googleIntegration && new Date(googleIntegration.created_at).toLocaleDateString()}</span>
+                {googleIntegration?.expires_at && (
                   <span className="flex items-center space-x-1">
                     <RefreshCw className="w-3 h-3" />
-                    <span>Token expires: {new Date(integration.expires_at).toLocaleDateString()}</span>
+                    <span>Token expires: {new Date(googleIntegration.expires_at).toLocaleDateString()}</span>
                   </span>
                 )}
               </div>

@@ -16,6 +16,8 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // This endpoint handles the OAuth callback from Google, which comes as a GET request
+  // It doesn't require authentication because Google is redirecting the user here
   if (req.method !== 'GET') {
     return new Response('Method not allowed', { 
       status: 405,

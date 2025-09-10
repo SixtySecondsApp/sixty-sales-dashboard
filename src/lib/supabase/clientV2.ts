@@ -62,10 +62,24 @@ function getSupabaseClient(): TypedSupabaseClient {
       },
       global: {
         headers: {
-          'X-Client-Info': 'sales-dashboard-v2'
+          'X-Client-Info': 'sales-dashboard-v2',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         }
+      },
+      db: {
+        schema: 'public'
       }
     });
+    
+    // Ensure headers are set on the REST client
+    if (supabaseInstance.rest) {
+      supabaseInstance.rest.headers = {
+        ...supabaseInstance.rest.headers,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      };
+    }
   }
   return supabaseInstance;
 }
@@ -103,7 +117,9 @@ function getSupabaseAdminClient(): TypedSupabaseClient {
       },
       global: {
         headers: {
-          'X-Client-Info': 'sales-dashboard-admin-v2'
+          'X-Client-Info': 'sales-dashboard-admin-v2',
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         }
       }
     });

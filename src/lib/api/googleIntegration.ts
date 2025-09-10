@@ -28,8 +28,11 @@ export class GoogleIntegrationAPI {
    * Calls the google-oauth-initiate Edge Function to generate an authorization URL
    */
   static async initiateOAuth(): Promise<GoogleOAuthResponse> {
+    // Get current origin to pass to Edge Function for dynamic redirect URI
+    const origin = window.location.origin;
+    
     const { data, error } = await supabase.functions.invoke('google-oauth-initiate', {
-      body: {}
+      body: { origin }
     });
 
     if (error) {
@@ -53,22 +56,29 @@ export class GoogleIntegrationAPI {
       throw new Error('User not authenticated');
     }
 
-    const { data, error } = await supabase
+    // Try the RPC function first (preferred method)
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_my_google_integration');
+
+    if (!rpcError && rpcData) {
+      // RPC returns an array, get the first item
+      return Array.isArray(rpcData) ? rpcData[0] : rpcData;
+    }
+
+    // If RPC fails, try direct query (this now works!)
+    console.log('RPC function not available or returned null, trying direct query');
+    const { data: directData, error: directError } = await supabase
       .from('google_integrations')
       .select('*')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      // If no integration found, return null (not an error)
-      if (error.code === 'PGRST116') {
-        return null;
-      }
-      throw new Error(error.message || 'Failed to fetch integration status');
+    if (directError && directError.code !== 'PGRST116') {
+      console.error('Failed to fetch integration status:', directError);
+      return null;
     }
-
-    return data;
+    
+    return directData;
   }
 
   /**

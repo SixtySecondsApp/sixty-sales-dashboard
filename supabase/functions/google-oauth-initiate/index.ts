@@ -1,11 +1,24 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+// Helper function to get CORS headers with dynamic origin
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get('Origin');
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://sales.sixtyseconds.video'
+  ];
+  
+  const isAllowed = origin && allowedOrigins.includes(origin);
+  
+  return {
+    'Access-Control-Allow-Origin': isAllowed ? origin : 'http://localhost:5173',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 // Helper function to generate PKCE challenge
 async function generatePKCEChallenge() {
@@ -23,6 +36,9 @@ async function generatePKCEChallenge() {
 
 serve(async (req) => {
   console.log('[Google OAuth Initiate] Request method:', req.method);
+  
+  // Get CORS headers
+  const corsHeaders = getCorsHeaders(req);
   
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -42,6 +58,27 @@ serve(async (req) => {
     if (!authHeader) {
       throw new Error('No authorization header');
     }
+
+    // Get request body to extract redirect URI
+    let requestOrigin: string | undefined;
+    try {
+      const requestBody = await req.json();
+      requestOrigin = requestBody.origin;
+    } catch (error) {
+      // If JSON parsing fails, continue without origin
+      console.log('[Google OAuth Initiate] No origin in request body, using fallback');
+    }
+    
+    // Dynamically determine redirect URI based on request origin
+    let redirectUri: string;
+    if (requestOrigin) {
+      redirectUri = `${requestOrigin}/auth/google/callback`;
+    } else {
+      // Fallback to environment variable or localhost
+      redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI') || 'http://localhost:5173/auth/google/callback';
+    }
+    
+    console.log('[Google OAuth Initiate] Using redirect URI:', redirectUri);
 
     // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
@@ -71,7 +108,7 @@ serve(async (req) => {
     // Generate a secure random state
     const state = crypto.randomUUID();
     
-    // Store the state and PKCE verifier in the database
+    // Store the state and PKCE verifier in the database with dynamic redirect URI
     const { error: stateError } = await supabase
       .from('google_oauth_states')
       .insert({
@@ -79,7 +116,7 @@ serve(async (req) => {
         state: state,
         code_verifier: codeVerifier,
         code_challenge: codeChallenge,
-        redirect_uri: Deno.env.get('GOOGLE_REDIRECT_URI') || 'https://localhost:54321/functions/v1/google-oauth-callback',
+        redirect_uri: redirectUri,
       });
 
     if (stateError) {
@@ -89,7 +126,6 @@ serve(async (req) => {
 
     // Get Google OAuth configuration
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
-    const redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI') || 'https://localhost:54321/functions/v1/google-oauth-callback';
     
     if (!clientId) {
       throw new Error('Google OAuth not configured');

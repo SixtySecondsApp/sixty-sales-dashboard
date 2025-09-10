@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Google Integration</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #10b981;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            background: #065f46;
+            color: #10b981;
+            border: 1px solid #10b981;
+        }
+        .error {
+            background: #7f1d1d;
+            color: #ef4444;
+            border: 1px solid #ef4444;
+        }
+        .info {
+            background: #1e3a8a;
+            color: #60a5fa;
+            border: 1px solid #60a5fa;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Google Integration Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Actions</h2>
+        <button onclick="testSupabaseConnection()">Test Supabase Connection</button>
+        <button onclick="testGoogleIntegrationAPI()">Test Google Integration API</button>
+        <button onclick="testAllEndpoints()">Run All Tests</button>
+    </div>
+
+    <script type="module">
+        // Import Supabase client
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        // Create Supabase client with proper headers
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                flowType: 'pkce'
+            },
+            global: {
+                headers: {
+                    'X-Client-Info': 'sales-dashboard-test',
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            }
+        });
+
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            resultsDiv.appendChild(div);
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        window.testSupabaseConnection = async function() {
+            clearResults();
+            addResult('Testing Supabase connection...', 'info');
+            
+            try {
+                const { data: { user }, error } = await supabase.auth.getUser();
+                
+                if (error) {
+                    if (error.message.includes('not authenticated')) {
+                        addResult('✓ Supabase connection successful (not authenticated)', 'success');
+                        addResult('This is expected if you haven\'t logged in yet', 'info');
+                    } else {
+                        addResult(`✗ Supabase connection error: ${error.message}`, 'error');
+                    }
+                } else if (user) {
+                    addResult(`✓ Supabase connection successful - User: ${user.email}`, 'success');
+                } else {
+                    addResult('✓ Supabase connection successful (no user session)', 'success');
+                }
+            } catch (error) {
+                addResult(`✗ Supabase connection failed: ${error.message}`, 'error');
+            }
+        };
+
+        window.testGoogleIntegrationAPI = async function() {
+            clearResults();
+            addResult('Testing Google Integration API...', 'info');
+            
+            try {
+                // Test 1: Check if google_integrations table is accessible
+                addResult('Testing google_integrations table access...', 'info');
+                const { data, error } = await supabase
+                    .from('google_integrations')
+                    .select('*')
+                    .limit(1);
+                
+                if (error) {
+                    // Check if it's a 406 error
+                    if (error.message && error.message.includes('406')) {
+                        addResult('✗ 406 Not Acceptable error - Headers not properly configured', 'error');
+                        addResult(`Error details: ${JSON.stringify(error)}`, 'error');
+                    } else if (error.code === 'PGRST116') {
+                        addResult('✓ Table accessible but no rows found (expected)', 'success');
+                    } else {
+                        addResult(`✗ Error accessing google_integrations: ${error.message}`, 'error');
+                    }
+                } else {
+                    addResult(`✓ google_integrations table accessible`, 'success');
+                    if (data && data.length > 0) {
+                        addResult(`Found ${data.length} integration(s)`, 'info');
+                    } else {
+                        addResult('No integrations found (expected for new setup)', 'info');
+                    }
+                }
+
+                // Test 2: Test with specific query parameters
+                addResult('Testing with query parameters...', 'info');
+                const { data: data2, error: error2 } = await supabase
+                    .from('google_integrations')
+                    .select('*')
+                    .eq('is_active', true);
+                
+                if (error2) {
+                    if (error2.message && error2.message.includes('406')) {
+                        addResult('✗ 406 error with query parameters', 'error');
+                    } else {
+                        addResult(`Query error: ${error2.message}`, 'error');
+                    }
+                } else {
+                    addResult('✓ Query with parameters successful', 'success');
+                }
+
+                // Test 3: Check response headers
+                addResult('Testing direct API call with headers...', 'info');
+                const response = await fetch(`${supabaseUrl}/rest/v1/google_integrations?select=*&is_active=eq.true`, {
+                    headers: {
+                        'apikey': supabaseAnonKey,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                addResult(`API Response Status: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(`✓ Direct API call successful. Response: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    const errorText = await response.text();
+                    addResult(`✗ Direct API call failed: ${errorText}`, 'error');
+                }
+
+            } catch (error) {
+                addResult(`✗ Test failed: ${error.message}`, 'error');
+                console.error('Test error:', error);
+            }
+        };
+
+        window.testAllEndpoints = async function() {
+            clearResults();
+            addResult('Running comprehensive tests...', 'info');
+            
+            await testSupabaseConnection();
+            addResult('---', 'info');
+            await testGoogleIntegrationAPI();
+            
+            addResult('---', 'info');
+            addResult('All tests completed!', 'success');
+        };
+
+        // Run tests automatically on load
+        window.addEventListener('load', () => {
+            testAllEndpoints();
+        });
+    </script>
+</body>
+</html>
