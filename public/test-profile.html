@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Profile Loading</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+        }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success { color: #37bd7e; }
+        .error { color: #ff5555; }
+        .info { color: #50fa7b; }
+    </style>
+</head>
+<body>
+    <h1>Test Profile Loading</h1>
+    
+    <button onclick="checkAuth()">Check Auth Session</button>
+    <button onclick="fetchProfile()">Fetch Profile</button>
+    <button onclick="fetchProfileByEmail()">Fetch Profile by Email</button>
+    <button onclick="clearAndReload()">Clear Storage & Reload</button>
+    
+    <div class="log" id="log"></div>
+    
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.AX7kU-PKsG1z7OE1_qVHuXaKj5EKw-Ws71Sax1gZ7GU';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+        }
+        
+        window.checkAuth = async function() {
+            log('Checking auth session...');
+            
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                log(`Error: ${error.message}`, 'error');
+                return;
+            }
+            
+            if (session) {
+                log(`✅ Session found!`, 'success');
+                log(`User ID: ${session.user.id}`);
+                log(`Email: ${session.user.email}`);
+                log(`Role: ${session.user.role}`);
+            } else {
+                log('No session found. Please sign in.', 'error');
+            }
+        }
+        
+        window.fetchProfile = async function() {
+            log('Fetching profile...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                log('No session found. Please sign in first.', 'error');
+                return;
+            }
+            
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+            
+            if (error) {
+                log(`Error fetching profile: ${error.message}`, 'error');
+                log(`Error code: ${error.code}`);
+                log(`Error hint: ${error.hint || 'none'}`);
+            } else if (profile) {
+                log(`✅ Profile found!`, 'success');
+                log(JSON.stringify(profile, null, 2));
+            } else {
+                log('No profile found for this user ID', 'error');
+            }
+        }
+        
+        window.fetchProfileByEmail = async function() {
+            log('Fetching profile by email...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                log('No session found. Please sign in first.', 'error');
+                return;
+            }
+            
+            const { data: profile, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('email', session.user.email)
+                .single();
+            
+            if (error) {
+                log(`Error fetching profile by email: ${error.message}`, 'error');
+                log(`Error code: ${error.code}`);
+            } else if (profile) {
+                log(`✅ Profile found by email!`, 'success');
+                log(JSON.stringify(profile, null, 2));
+            } else {
+                log('No profile found for this email', 'error');
+            }
+        }
+        
+        window.clearAndReload = function() {
+            log('Clearing storage...');
+            localStorage.clear();
+            sessionStorage.clear();
+            log('Storage cleared. Reloading...', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        }
+        
+        // Check auth on load
+        window.addEventListener('load', () => {
+            checkAuth();
+        });
+    </script>
+</body>
+</html>

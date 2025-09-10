@@ -476,12 +476,23 @@ export default function Dashboard() {
       logger.error('Error navigating to next month:', error);
     }
   };
-  const { userData } = useUser();
+  const { userData, isLoading: isLoadingUser, session } = useUser();
   const navigate = useNavigate();
   const { setFilters } = useActivityFilters();
   
-  // Get targets first
-  const { data: targets, isLoading: isLoadingSales } = useTargets(userData?.id);
+  // Log current auth state for debugging
+  useEffect(() => {
+    logger.log('📊 Dashboard auth state:', {
+      hasSession: !!session,
+      hasUserData: !!userData,
+      userId: userData?.id,
+      isLoadingUser
+    });
+  }, [session, userData, isLoadingUser]);
+  
+  // Get targets first - use session.user.id if userData is not yet loaded
+  const userId = userData?.id || session?.user?.id;
+  const { data: targets, isLoading: isLoadingSales } = useTargets(userId);
   
   // Progressive dashboard metrics with caching - only enable when ready
   const {
@@ -494,7 +505,7 @@ export default function Dashboard() {
     hasComparisons,
     currentMonthActivities,
     refreshDashboard
-  } = useDashboardMetrics(selectedMonth, showContent && !!userData && !!targets);
+  } = useDashboardMetrics(selectedMonth, showContent && !!userId && !!targets);
   
   // Lazy load recent deals only when user scrolls to that section
   const [loadRecentDeals, setLoadRecentDeals] = useState(false);
@@ -520,7 +531,7 @@ export default function Dashboard() {
   }, [recentDeals, currentMonthActivities, searchQuery, loadRecentDeals]);
 
   // Check if any data is loading - include metrics check
-  const isAnyLoading = isInitialLoad || isLoadingSales || !userData || !targets;
+  const isAnyLoading = isInitialLoad || isLoadingSales || isLoadingUser || (!userData && !session) || !targets;
 
   // Remove logging to prevent re-renders
 
@@ -563,7 +574,7 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
       {/* Header with Month Selection */}
       <div className="space-y-1 mt-12 lg:mt-0 mb-6 sm:mb-8">
-        <h1 className="text-3xl font-bold">Welcome back, {userData?.first_name}</h1>
+        <h1 className="text-3xl font-bold">Welcome back{userData?.first_name ? `, ${userData.first_name}` : ''}</h1>
         <div className="flex items-center justify-between mt-2">
           <p className="text-gray-400">Here's how your sales performance is tracking</p>
           <div className="flex items-center gap-3 bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-gray-800/50">

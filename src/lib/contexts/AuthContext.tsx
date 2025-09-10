@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
+import { supabase, supabaseAdmin, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
 import { authLogger } from '../services/authLogger';
 import { toast } from 'sonner';
 import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
@@ -56,59 +56,111 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const mockUserInitialized = useRef(false);
 
   // Fetch user profile helper
-  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
-    if (profileFetchInProgress.current) {
+  const fetchUserProfile = useCallback(async (userId: string, force: boolean = false): Promise<UserProfile | null> => {
+    if (profileFetchInProgress.current && !force) {
       logger.log('Profile fetch already in progress, skipping');
       return null;
     }
     
     profileFetchInProgress.current = true;
+    logger.log('🔍 Fetching profile for user:', userId);
     
     try {
-      const { data: profile, error } = await supabase
+      // Try with service role key for better access
+      const client = supabaseAdmin || supabase;
+      
+      logger.log('🔎 Attempting to fetch profile for userId:', userId);
+      logger.log('Using admin client:', !!supabaseAdmin);
+      
+      const { data: profile, error } = await client
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to handle no rows gracefully
+
+      logger.log('Profile fetch result:', { profile, error });
 
       if (error && error.code !== 'PGRST116') {
-        logger.error('Error fetching profile:', error);
+        logger.error('❌ Error fetching profile:', error);
+        toast.error('Failed to load user profile. Please try refreshing the page.');
         return null;
       }
 
+      // If no profile exists, try to fetch it directly by email
       if (!profile) {
-        // Create default profile for new users
-        const { data: newProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            id: userId,
-            email: user?.email,
-            first_name: user?.user_metadata?.first_name || 'User',
-            last_name: user?.user_metadata?.last_name || '',
-            role: 'Junior',
-            department: 'Sales'
-          })
-          .select()
-          .single();
-
-        if (createError) {
-          logger.error('Error creating profile:', createError);
-          return null;
+        logger.log('📝 No profile found by ID, trying by email...');
+        
+        // Get current user data
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (currentUser?.email) {
+          const { data: profileByEmail } = await client
+            .from('profiles')
+            .select('*')
+            .eq('email', currentUser.email)
+            .maybeSingle();
+            
+          if (profileByEmail) {
+            logger.log('✅ Found profile by email:', profileByEmail);
+            
+            // Update the profile ID to match the auth user ID if different
+            if (profileByEmail.id !== userId) {
+              logger.log('🔄 Updating profile ID to match auth user ID');
+              const { data: updatedProfile, error: updateError } = await client
+                .from('profiles')
+                .update({ id: userId })
+                .eq('email', currentUser.email)
+                .select()
+                .single();
+                
+              if (updateError) {
+                logger.error('Failed to update profile ID:', updateError);
+                return profileByEmail; // Return the profile anyway
+              }
+              
+              return updatedProfile;
+            }
+            
+            return profileByEmail;
+          }
         }
         
-        return newProfile;
+        // Don't create a new profile - just log that we couldn't find one
+        logger.log('⚠️ No profile found for user:', userId, 'email:', currentUser?.email);
+        return null;
       }
 
+      logger.log('✅ Profile fetched successfully:', profile);
       return profile;
+    } catch (err) {
+      logger.error('❌ Unexpected error fetching profile:', err);
+      toast.error('An unexpected error occurred. Please try refreshing the page.');
+      return null;
     } finally {
       profileFetchInProgress.current = false;
     }
   }, [user]);
 
+  // Add retry mechanism for profile fetch
+  useEffect(() => {
+    if (session?.user && !userProfile && !profileFetchInProgress.current) {
+      logger.log('🔄 Retrying profile fetch for user:', session.user.id);
+      fetchUserProfile(session.user.id, true).then(profile => {
+        if (profile) {
+          logger.log('✅ Profile retry successful:', profile);
+          setUserProfile(profile);
+        }
+      });
+    }
+  }, [session, userProfile]);
+
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
     let isInitialLoad = true;
+    
+    // Reset fetch flag on mount to ensure profile can be fetched
+    profileFetchInProgress.current = false;
 
     const initializeAuth = async () => {
       try {
@@ -125,9 +177,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             // Fetch profile if we have a user
             if (session?.user) {
+              logger.log('🔐 Session found for user:', session.user.email, 'ID:', session.user.id);
               const profile = await fetchUserProfile(session.user.id);
+              logger.log('📋 Profile fetch result:', profile);
               if (mounted) {
-                setUserProfile(profile);
+                if (profile) {
+                  logger.log('✅ Setting user profile:', profile);
+                  setUserProfile(profile);
+                } else {
+                  // Don't set fallback data - wait for proper profile
+                  logger.log('⚠️ Profile fetch returned null, will retry on next render');
+                  setUserProfile(null);
+                }
               }
             } else {
               // No session found - don't use mock user
@@ -174,7 +235,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (session?.user && event !== 'TOKEN_REFRESHED') {
             const profile = await fetchUserProfile(session.user.id);
             if (mounted) {
-              setUserProfile(profile);
+              if (profile) {
+                logger.log('✅ Setting user profile from auth state change:', profile);
+                setUserProfile(profile);
+              } else {
+                logger.log('⚠️ Profile fetch failed in auth state change, will retry');
+                // Don't set fallback - let it retry
+                setUserProfile(null);
+              }
             }
           } else if (!session) {
             setUserProfile(null);
@@ -295,7 +363,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Refresh profile function
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
-      const profile = await fetchUserProfile(user.id);
+      const profile = await fetchUserProfile(user.id, true); // Force refresh
       setUserProfile(profile);
     }
   }, [user, fetchUserProfile]);

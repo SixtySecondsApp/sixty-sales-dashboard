@@ -10,20 +10,13 @@ import {
 } from '@/lib/config/version';
 
 export function VersionManager() {
-  const [showUpdateBanner, setShowUpdateBanner] = useState(false);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const versionInfo = getVersionInfo();
 
   useEffect(() => {
-    // Check if version is outdated on mount
-    if (isOutdatedVersion()) {
-      setShowUpdateBanner(true);
-      // Auto-update stored version after showing banner
-      setTimeout(() => {
-        updateStoredVersion();
-      }, 5000);
-    }
+    // Auto-update stored version on mount to prevent banner from showing
+    updateStoredVersion();
   }, []);
 
   const handleClearCache = () => {
@@ -41,43 +34,6 @@ export function VersionManager() {
 
   return (
     <>
-      {/* Update Banner */}
-      <AnimatePresence>
-        {showUpdateBanner && (
-          <motion.div
-            initial={{ y: -100, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -100, opacity: 0 }}
-            className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg"
-          >
-            <div className="max-w-7xl mx-auto px-4 py-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-sm font-medium">
-                    A new version of the app is available! Version {APP_VERSION} includes bug fixes and improvements.
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSoftRefresh}
-                    className="px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Refresh Now
-                  </button>
-                  <button
-                    onClick={() => setShowUpdateBanner(false)}
-                    className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Version Info Button (top right corner) */}
       <button
         onClick={() => setShowVersionModal(true)}
