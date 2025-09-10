@@ -208,15 +208,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Sign out function
   const signOut = useCallback(async () => {
     try {
+      // Clear mock user data if it exists
+      localStorage.removeItem('sixty_mock_users');
+      
+      // Clear any other auth-related storage
+      authUtils.clearAuthStorage();
+      
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        return { error: { message: authUtils.formatAuthError(error) } };
+        // Even if there's an error, clear local data
+        localStorage.removeItem('sixty_mock_users');
+        authUtils.clearAuthStorage();
+        
+        // Force reload to clear state
+        window.location.href = '/auth/login';
+        return { error: null }; // Return success since we're forcing a reload
       }
 
+      // Force navigation to login page
+      window.location.href = '/auth/login';
+      
       return { error: null };
     } catch (error) {
-      return { error: { message: authUtils.formatAuthError(error) } };
+      // Force clear everything and reload
+      localStorage.removeItem('sixty_mock_users');
+      authUtils.clearAuthStorage();
+      window.location.href = '/auth/login';
+      return { error: null };
     }
   }, []);
 

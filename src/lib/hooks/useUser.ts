@@ -207,6 +207,7 @@ export function useUser() {
     }
 
     let isUserFetching = false;
+    let isMounted = true;
     
     async function fetchUser() {
       // Prevent concurrent fetches
@@ -315,33 +316,67 @@ export function useUser() {
           const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
           
           if (isDevelopment || allowMockUser) {
-            logger.log('⚠️ No authenticated user found. Using mock user for development.');
-            logger.log('Session details:', { session, sessionError });
+            // Check if mock user already exists in localStorage to prevent re-creating
+            const existingMockUser = localStorage.getItem('sixty_mock_users');
+            let mockUserData: UserProfile;
             
-            const mockUserData = {
-              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
-              email: 'andrew.bryce@sixtyseconds.video',
-              first_name: 'Andrew',
-              last_name: 'Bryce',
-              full_name: 'Andrew Bryce',
-              avatar_url: null,
-              role: 'Senior',
-              department: 'Sales',
-              stage: 'Senior',
-              is_admin: true, // Set to true for development access to admin features
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              username: null,
-              website: null
-            } as UserProfile;
+            if (existingMockUser) {
+              try {
+                const parsed = JSON.parse(existingMockUser);
+                mockUserData = parsed[0];
+                logger.log('⚠️ Using existing mock user from localStorage.');
+              } catch {
+                // If parsing fails, create new mock user
+                mockUserData = {
+                  id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+                  email: 'andrew.bryce@sixtyseconds.video',
+                  first_name: 'Andrew',
+                  last_name: 'Bryce',
+                  full_name: 'Andrew Bryce',
+                  avatar_url: null,
+                  role: 'Senior',
+                  department: 'Sales',
+                  stage: 'Senior',
+                  is_admin: true, // Set to true for development access to admin features
+                  created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                  updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                  username: null,
+                  website: null
+                } as UserProfile;
+                
+                localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+                logger.log('⚠️ Created new mock user for development.');
+              }
+            } else {
+              mockUserData = {
+                id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+                email: 'andrew.bryce@sixtyseconds.video',
+                first_name: 'Andrew',
+                last_name: 'Bryce',
+                full_name: 'Andrew Bryce',
+                avatar_url: null,
+                role: 'Senior',
+                department: 'Sales',
+                stage: 'Senior',
+                is_admin: true, // Set to true for development access to admin features
+                created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                username: null,
+                website: null
+              } as UserProfile;
+              
+              localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+              logger.log('⚠️ No authenticated user found. Using mock user for development.');
+            }
             
-            setUserData(mockUserData);
-            
-            // Store mock user in localStorage for AuthContext compatibility
-            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+            if (isMounted) {
+              setUserData(mockUserData);
+            }
           } else {
             logger.warn('❌ No authenticated user and mock user is disabled.');
+            if (isMounted) {
             setUserData(null);
+          }
           }
         }
       } catch (err: any) {
@@ -362,27 +397,59 @@ export function useUser() {
         
         if (isDevelopment || allowMockUser) {
           logger.log('⚠️ Falling back to mock user due to authentication error');
-          const mockUserData = {
-            id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
-            email: 'andrew.bryce@sixtyseconds.video',
-            first_name: 'Andrew',
-            last_name: 'Bryce',
-            full_name: 'Andrew Bryce',
-            avatar_url: null,
-            role: 'Senior',
-            department: 'Sales',
-            stage: 'Senior',
-            is_admin: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            username: null,
-            website: null
-          } as UserProfile;
+          
+          // Check if mock user already exists to prevent re-creating
+          const existingMockUser = localStorage.getItem('sixty_mock_users');
+          let mockUserData: UserProfile;
+          
+          if (existingMockUser) {
+            try {
+              const parsed = JSON.parse(existingMockUser);
+              mockUserData = parsed[0];
+            } catch {
+              mockUserData = {
+                id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
+                email: 'andrew.bryce@sixtyseconds.video',
+                first_name: 'Andrew',
+                last_name: 'Bryce',
+                full_name: 'Andrew Bryce',
+                avatar_url: null,
+                role: 'Senior',
+                department: 'Sales',
+                stage: 'Senior',
+                is_admin: true,
+                created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+                username: null,
+                website: null
+              } as UserProfile;
+              localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+            }
+          } else {
+            mockUserData = {
+              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
+              email: 'andrew.bryce@sixtyseconds.video',
+              first_name: 'Andrew',
+              last_name: 'Bryce',
+              full_name: 'Andrew Bryce',
+              avatar_url: null,
+              role: 'Senior',
+              department: 'Sales',
+              stage: 'Senior',
+              is_admin: true,
+              created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+              updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
+              username: null,
+              website: null
+            } as UserProfile;
+            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+          }
           
           setUserData(mockUserData);
-          localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
         } else {
-          setUserData(null);
+          if (isMounted) {
+            setUserData(null);
+          }
         }
       } finally {
         setIsLoading(false);
@@ -405,7 +472,9 @@ export function useUser() {
           fetchUser();
         } else if (event === 'SIGNED_OUT') {
           // User signed out
-          setUserData(null);
+          if (isMounted) {
+            setUserData(null);
+          }
           setOriginalUserData(null);
           setIsImpersonating(false);
           // Clear all impersonation data
@@ -414,7 +483,10 @@ export function useUser() {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
