@@ -1,16 +1,20 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
 import { authLogger } from '../services/authLogger';
 import { toast } from 'sonner';
 import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
+import type { Database } from '@/lib/database.types';
+
+type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
 // Auth context types
 interface AuthContextType {
   // State
   user: User | null;
   session: Session | null;
+  userProfile: UserProfile | null;
   loading: boolean;
   
   // Actions
@@ -19,6 +23,7 @@ interface AuthContextType {
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
+  refreshProfile: () => Promise<void>;
   
   // Utilities
   isAuthenticated: boolean;
@@ -44,8 +49,61 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  const profileFetchInProgress = useRef(false);
+  const mockUserInitialized = useRef(false);
+
+  // Fetch user profile helper
+  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    if (profileFetchInProgress.current) {
+      logger.log('Profile fetch already in progress, skipping');
+      return null;
+    }
+    
+    profileFetchInProgress.current = true;
+    
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        logger.error('Error fetching profile:', error);
+        return null;
+      }
+
+      if (!profile) {
+        // Create default profile for new users
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: userId,
+            email: user?.email,
+            first_name: user?.user_metadata?.first_name || 'User',
+            last_name: user?.user_metadata?.last_name || '',
+            role: 'Junior',
+            department: 'Sales'
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          logger.error('Error creating profile:', createError);
+          return null;
+        }
+        
+        return newProfile;
+      }
+
+      return profile;
+    } finally {
+      profileFetchInProgress.current = false;
+    }
+  }, [user]);
 
   // Initialize auth state
   useEffect(() => {
@@ -65,15 +123,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setSession(session);
             setUser(session?.user ?? null);
             
-                          // Log session restoration without showing toast
-              if (session?.user && isInitialLoad) {
-                logger.log('📱 Session restored for:', session.user.email);
-                authLogger.logAuthEvent({
-                  event_type: 'SIGNED_IN',
-                  user_id: session.user.id,
-                  email: session.user.email,
-                });
+            // Fetch profile if we have a user
+            if (session?.user) {
+              const profile = await fetchUserProfile(session.user.id);
+              if (mounted) {
+                setUserProfile(profile);
               }
+            } else {
+              // Check for mock user in development
+              const isDevelopment = import.meta.env.MODE === 'development';
+              const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+              
+              if ((isDevelopment || allowMockUser) && !mockUserInitialized.current) {
+                mockUserInitialized.current = true;
+                
+                // Use stable mock user data
+                const mockProfile: UserProfile = {
+                  id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
+                  email: 'andrew.bryce@sixtyseconds.video',
+                  first_name: 'Andrew',
+                  last_name: 'Bryce',
+                  full_name: 'Andrew Bryce',
+                  avatar_url: null,
+                  role: 'Senior',
+                  department: 'Sales',
+                  stage: 'Senior',
+                  is_admin: true,
+                  created_at: '2024-01-01T00:00:00Z',
+                  updated_at: '2024-01-01T00:00:00Z',
+                  username: null,
+                  website: null
+                } as UserProfile;
+                
+                // Store in localStorage for consistency
+                localStorage.setItem('sixty_mock_users', JSON.stringify([mockProfile]));
+                logger.log('⚠️ Using mock user for development');
+                
+                if (mounted) {
+                  setUserProfile(mockProfile);
+                }
+              }
+            }
+            
+            // Log session restoration without showing toast
+            if (session?.user && isInitialLoad) {
+              logger.log('📱 Session restored for:', session.user.email);
+              authLogger.logAuthEvent({
+                event_type: 'SIGNED_IN',
+                user_id: session.user.id,
+                email: session.user.email,
+              });
+            }
           }
           setLoading(false);
         }
@@ -96,6 +196,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
+          
+          // Update profile when session changes
+          if (session?.user && event !== 'TOKEN_REFRESHED') {
+            const profile = await fetchUserProfile(session.user.id);
+            if (mounted) {
+              setUserProfile(profile);
+            }
+          } else if (!session) {
+            setUserProfile(null);
+          }
           
           // Handle specific auth events
           switch (event) {
@@ -123,6 +233,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               // Clear all cached data
               queryClient.clear();
               authUtils.clearAuthStorage();
+              // Clear mock user data
+              localStorage.removeItem('sixty_mock_users');
+              mockUserInitialized.current = false;
+              setUserProfile(null);
               // Note: We don't log SIGNED_OUT since we won't have session data
               break;
               
@@ -164,7 +278,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [queryClient]);
+  }, [queryClient, fetchUserProfile]);
 
   // Sign in function
   const signIn = useCallback(async (email: string, password: string) => {
@@ -205,14 +319,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Refresh profile function
+  const refreshProfile = useCallback(async () => {
+    if (user?.id) {
+      const profile = await fetchUserProfile(user.id);
+      setUserProfile(profile);
+    }
+  }, [user, fetchUserProfile]);
+
   // Sign out function
   const signOut = useCallback(async () => {
     try {
       // Clear mock user data if it exists
       localStorage.removeItem('sixty_mock_users');
+      mockUserInitialized.current = false;
       
       // Clear any other auth-related storage
       authUtils.clearAuthStorage();
+      
+      // Clear profile
+      setUserProfile(null);
       
       // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
@@ -287,6 +413,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // State
     user,
     session,
+    userProfile,
     loading,
     
     // Actions
@@ -295,6 +422,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signOut,
     resetPassword,
     updatePassword,
+    refreshProfile,
     
     // Utilities
     isAuthenticated,

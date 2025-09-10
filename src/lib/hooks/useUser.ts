@@ -1,14 +1,13 @@
 import { useState, useEffect, useContext } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
-import type { Database } from '@/lib/database.types';
 import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
 import { getSiteUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
 import { ViewModeContext } from '@/contexts/ViewModeContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
-type UserProfile = Database['public']['Tables']['profiles']['Row'];
-
+// Export USER_STAGES for compatibility
 export const USER_STAGES = [
   'Trainee',
   'Junior',
@@ -179,12 +178,15 @@ export const impersonateUser = async (userId: string) => {
   }
 };
 
+/**
+ * useUser Hook - Now uses AuthContext for state management
+ * This hook is a wrapper around AuthContext to maintain backwards compatibility
+ * and provide impersonation functionality.
+ */
 export function useUser() {
-  const [userData, setUserData] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+  const auth = useAuth();
   const [isImpersonating, setIsImpersonating] = useState(false);
-  const [originalUserData, setOriginalUserData] = useState<UserProfile | null>(null);
+  const [originalUserData, setOriginalUserData] = useState(null);
   
   // Try to get View Mode context - but make it optional
   let viewModeContext = null;
@@ -202,356 +204,40 @@ export function useUser() {
     // Set audit context if impersonating
     if (isImpersonated && originalUserId) {
       setAuditContext();
-    } else {
-      clearAuditContext();
-    }
-
-    let isUserFetching = false;
-    let isMounted = true;
-    
-    async function fetchUser() {
-      // Prevent concurrent fetches
-      if (isUserFetching) {
-        logger.log('⏭️ Skipping concurrent user fetch');
-        return;
-      }
       
-      isUserFetching = true;
-      
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Get the current user session from Supabase with timeout
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session fetch timeout')), 10000) // Increased to 10 seconds
-        );
-        
-        const { data: { session }, error: sessionError } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]).catch(err => ({ data: { session: null }, error: err }));
-        
-        if (sessionError) {
-          logger.warn('Session error (will use fallback):', sessionError.message);
-          throw sessionError;
-        }
-
-        if (session?.user) {
-          // User is authenticated
-          const user = session.user;
-          logger.log('✅ Authenticated user found:', { id: user.id, email: user.email });
-          
-          // Get or create user profile
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-          if (profileError && profileError.code !== 'PGRST116') {
-            // PGRST116 is "not found" error, which is fine for new users
-            throw profileError;
-          }
-
-          // If no profile exists, create a default one
-          if (!profile) {
-            const { data: newProfile, error: createError } = await supabase
-              .from('profiles')
-              .insert({
-                id: user.id,
-                email: user.email,
-                first_name: user.user_metadata?.first_name || 'User',
-                last_name: user.user_metadata?.last_name || '',
-                avatar_url: user.user_metadata?.avatar_url,
-                role: 'Junior',
-                department: 'Sales'
-              })
-              .select()
-              .single();
-
-            if (createError) {
-              logger.warn('Could not create profile, using basic user data:', createError);
-              // Fall back to basic user data
-              setUserData({
-                id: user.id,
-                email: user.email || null,
-                first_name: user.user_metadata?.first_name || 'User',
-                last_name: user.user_metadata?.last_name || '',
-                full_name: null,
-                avatar_url: user.user_metadata?.avatar_url || null,
-                role: 'Junior',
-                department: 'Sales',
-                stage: null,
-                is_admin: false,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                username: null,
-                website: null
-              } as UserProfile);
-            } else {
-              setUserData(newProfile);
-            }
-          } else {
-            setUserData(profile);
-          }
-
-          // If we're impersonating, also get the original user data
-          if (originalUserId && originalUserId !== user.id) {
-            try {
-              const { data: originalProfile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', originalUserId)
-                .single();
-              setOriginalUserData(originalProfile);
-            } catch (error) {
-              logger.warn('Could not fetch original user data:', error);
-            }
-          }
-        } else {
-          // No user session - check if we should use mock user
-          const isDevelopment = import.meta.env.MODE === 'development';
-          const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
-          
-          if (isDevelopment || allowMockUser) {
-            // Check if mock user already exists in localStorage to prevent re-creating
-            const existingMockUser = localStorage.getItem('sixty_mock_users');
-            let mockUserData: UserProfile;
-            
-            if (existingMockUser) {
-              try {
-                const parsed = JSON.parse(existingMockUser);
-                mockUserData = parsed[0];
-                logger.log('⚠️ Using existing mock user from localStorage.');
-              } catch {
-                // If parsing fails, create new mock user
-                mockUserData = {
-                  id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
-                  email: 'andrew.bryce@sixtyseconds.video',
-                  first_name: 'Andrew',
-                  last_name: 'Bryce',
-                  full_name: 'Andrew Bryce',
-                  avatar_url: null,
-                  role: 'Senior',
-                  department: 'Sales',
-                  stage: 'Senior',
-                  is_admin: true, // Set to true for development access to admin features
-                  created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                  updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                  username: null,
-                  website: null
-                } as UserProfile;
-                
-                localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
-                logger.log('⚠️ Created new mock user for development.');
-              }
-            } else {
-              mockUserData = {
-                id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
-                email: 'andrew.bryce@sixtyseconds.video',
-                first_name: 'Andrew',
-                last_name: 'Bryce',
-                full_name: 'Andrew Bryce',
-                avatar_url: null,
-                role: 'Senior',
-                department: 'Sales',
-                stage: 'Senior',
-                is_admin: true, // Set to true for development access to admin features
-                created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                username: null,
-                website: null
-              } as UserProfile;
-              
-              localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
-              logger.log('⚠️ No authenticated user found. Using mock user for development.');
-            }
-            
-            if (isMounted) {
-              setUserData(mockUserData);
-            }
-          } else {
-            logger.warn('❌ No authenticated user and mock user is disabled.');
-            if (isMounted) {
-            setUserData(null);
-          }
-          }
-        }
-      } catch (err: any) {
-        // Only log once, not repeatedly
-        if (!error) {
-          logger.error('❌ Error fetching user:', err);
-          logger.error('Error details:', {
-            message: err.message,
-            stack: err.stack,
-            code: err.code
-          });
-        }
-        setError(err);
-        
-        // In development, fall back to mock user if there's an error
-        const isDevelopment = import.meta.env.MODE === 'development';
-        const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
-        
-        if (isDevelopment || allowMockUser) {
-          logger.log('⚠️ Falling back to mock user due to authentication error');
-          
-          // Check if mock user already exists to prevent re-creating
-          const existingMockUser = localStorage.getItem('sixty_mock_users');
-          let mockUserData: UserProfile;
-          
-          if (existingMockUser) {
-            try {
-              const parsed = JSON.parse(existingMockUser);
-              mockUserData = parsed[0];
-            } catch {
-              mockUserData = {
-                id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
-                email: 'andrew.bryce@sixtyseconds.video',
-                first_name: 'Andrew',
-                last_name: 'Bryce',
-                full_name: 'Andrew Bryce',
-                avatar_url: null,
-                role: 'Senior',
-                department: 'Sales',
-                stage: 'Senior',
-                is_admin: true,
-                created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-                username: null,
-                website: null
-              } as UserProfile;
-              localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
-            }
-          } else {
-            mockUserData = {
-              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
-              email: 'andrew.bryce@sixtyseconds.video',
-              first_name: 'Andrew',
-              last_name: 'Bryce',
-              full_name: 'Andrew Bryce',
-              avatar_url: null,
-              role: 'Senior',
-              department: 'Sales',
-              stage: 'Senior',
-              is_admin: true,
-              created_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-              updated_at: '2024-01-01T00:00:00Z', // Fixed date to prevent re-renders
-              username: null,
-              website: null
-            } as UserProfile;
-            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
-          }
-          
-          setUserData(mockUserData);
-        } else {
-          if (isMounted) {
-            setUserData(null);
-          }
-        }
-      } finally {
-        setIsLoading(false);
-        isUserFetching = false;
-      }
-    }
-
-    fetchUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Skip initial session event to prevent duplicate fetch
-        if (event === 'INITIAL_SESSION') {
-          return;
-        }
-        
-        if (event === 'SIGNED_IN' && session && !userData) {
-          // User signed in and we don't have user data yet
-          fetchUser();
-        } else if (event === 'SIGNED_OUT') {
-          // User signed out
-          if (isMounted) {
-            setUserData(null);
-          }
-          setOriginalUserData(null);
-          setIsImpersonating(false);
-          // Clear all impersonation data
-          clearImpersonationData();
-        }
-      }
-    );
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const signOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUserData(null);
-      setOriginalUserData(null);
-      setIsImpersonating(false);
-      // Clear all impersonation data
-      clearImpersonationData();
-      // Clear audit context
-      clearAuditContext();
-    } catch (error) {
-      logger.error('Error signing out:', error);
-      // Force clear user data even if signOut fails
-      setUserData(null);
-      setOriginalUserData(null);
-      setIsImpersonating(false);
-      clearImpersonationData();
-      clearAuditContext();
-    }
-  };
-
-  const handleStopImpersonation = async () => {
-    try {
-      await stopImpersonating();
-    } catch (error) {
-      logger.error('Error stopping impersonation:', error);
-    }
-  };
-
-  // If we're in view mode, we need to fetch and return the viewed user's data instead
-  const [viewedUserData, setViewedUserData] = useState<UserProfile | null>(null);
-  
-  useEffect(() => {
-    if (viewModeContext?.isViewMode && viewModeContext?.viewedUser) {
-      // Fetch the viewed user's full profile data
-      const fetchViewedUser = async () => {
-        const { data, error } = await (supabase as any)
+      // Try to fetch original user data
+      if (originalUserId && originalUserId !== auth.userId) {
+        supabase
           .from('profiles')
           .select('*')
-          .eq('id', viewModeContext.viewedUser.id)
-          .single();
-        
-        if (data && !error) {
-          setViewedUserData(data);
-        }
-      };
-      
-      fetchViewedUser();
+          .eq('id', originalUserId)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setOriginalUserData(data);
+            }
+          })
+          .catch(error => {
+            logger.warn('Could not fetch original user data:', error);
+          });
+      }
     } else {
-      setViewedUserData(null);
+      clearAuditContext();
     }
-  }, [viewModeContext?.isViewMode, viewModeContext?.viewedUser?.id]);
+  }, [auth.userId]);
 
+  // Return data from AuthContext with additional impersonation info
   return {
-    userData: viewModeContext?.isViewMode && viewedUserData ? viewedUserData : userData,
-    originalUserData,
-    isLoading,
-    error,
-    signOut,
-    isAuthenticated: !!userData,
+    userData: auth.userProfile,
+    isLoading: auth.loading,
+    error: null, // AuthContext doesn't expose errors, so we return null for compatibility
     isImpersonating,
-    stopImpersonating: handleStopImpersonation,
-    isViewMode: viewModeContext?.isViewMode || false,
-    actualUser: userData // Always the actual logged-in user
+    originalUserData,
+    signOut: auth.signOut,
+    refreshUser: auth.refreshProfile,
+    // Legacy properties for backwards compatibility
+    isAuthenticated: auth.isAuthenticated,
+    userId: auth.userId,
+    session: auth.session
   };
 }
