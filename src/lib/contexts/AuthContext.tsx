@@ -54,92 +54,108 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
   const profileFetchInProgress = useRef(false);
   const mockUserInitialized = useRef(false);
+  
+  // Profile cache to prevent repeated fetches
+  const profileCache = useRef<{ 
+    profile: UserProfile | null; 
+    timestamp: number; 
+    email: string | null 
+  }>({ 
+    profile: null, 
+    timestamp: 0,
+    email: null 
+  });
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  // Fetch user profile helper
+  // Fetch user profile helper - ALWAYS use email as primary lookup
   const fetchUserProfile = useCallback(async (userId: string, force: boolean = false): Promise<UserProfile | null> => {
-    if (profileFetchInProgress.current && !force) {
-      logger.log('Profile fetch already in progress, skipping');
-      return null;
-    }
-    
-    profileFetchInProgress.current = true;
-    logger.log('🔍 Fetching profile for user:', userId);
-    
     try {
-      // Try with service role key for better access
+      // Get current user email first - this is the most reliable identifier
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const userEmail = currentUser?.email;
+      
+      if (!userEmail) {
+        logger.error('❌ No email found for authenticated user');
+        return null;
+      }
+
+      // Check cache first (unless forced refresh)
+      const now = Date.now();
+      if (!force && 
+          profileCache.current.email === userEmail && 
+          profileCache.current.profile && 
+          (now - profileCache.current.timestamp) < CACHE_DURATION) {
+        logger.log('📦 Using cached profile for:', userEmail);
+        return profileCache.current.profile;
+      }
+      
+      logger.log('🔍 Fetching fresh profile for email:', userEmail);
+      
+      // Use admin client if available for better access
       const client = supabaseAdmin || supabase;
       
-      logger.log('🔎 Attempting to fetch profile for userId:', userId);
-      logger.log('Using admin client:', !!supabaseAdmin);
-      
-      const { data: profile, error } = await client
+      // ALWAYS fetch by email first - it's the most reliable
+      let { data: profile, error } = await client
         .from('profiles')
         .select('*')
-        .eq('id', userId)
-        .maybeSingle(); // Use maybeSingle instead of single to handle no rows gracefully
-
-      logger.log('Profile fetch result:', { profile, error });
+        .eq('email', userEmail)
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        logger.error('❌ Error fetching profile:', error);
-        toast.error('Failed to load user profile. Please try refreshing the page.');
-        return null;
+        logger.error('❌ Error fetching profile by email:', error);
+        
+        // Fallback: try by ID only if email fails
+        logger.log('🔄 Attempting fallback fetch by ID:', userId);
+        const { data: profileById, error: idError } = await client
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+          
+        if (profileById) {
+          logger.log('✅ Found profile by ID fallback');
+          profile = profileById;
+        } else if (idError) {
+          logger.error('❌ Could not fetch profile by ID either:', idError);
+        }
       }
 
-      // If no profile exists, try to fetch it directly by email
-      if (!profile) {
-        logger.log('📝 No profile found by ID, trying by email...');
+      if (profile) {
+        logger.log('✅ Profile fetched successfully:', {
+          id: profile.id,
+          email: profile.email,
+          name: `${profile.first_name} ${profile.last_name}`,
+          stage: profile.stage,
+          isAdmin: profile.is_admin
+        });
         
-        // Get current user data
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        // Cache the result
+        profileCache.current = { 
+          profile, 
+          timestamp: now,
+          email: userEmail 
+        };
         
-        if (currentUser?.email) {
-          const { data: profileByEmail } = await client
-            .from('profiles')
-            .select('*')
-            .eq('email', currentUser.email)
-            .maybeSingle();
-            
-          if (profileByEmail) {
-            logger.log('✅ Found profile by email:', profileByEmail);
-            
-            // Update the profile ID to match the auth user ID if different
-            if (profileByEmail.id !== userId) {
-              logger.log('🔄 Updating profile ID to match auth user ID');
-              const { data: updatedProfile, error: updateError } = await client
-                .from('profiles')
-                .update({ id: userId })
-                .eq('email', currentUser.email)
-                .select()
-                .single();
-                
-              if (updateError) {
-                logger.error('Failed to update profile ID:', updateError);
-                return profileByEmail; // Return the profile anyway
-              }
-              
-              return updatedProfile;
-            }
-            
-            return profileByEmail;
-          }
+        // Ensure all required fields are present
+        if (!profile.first_name || !profile.last_name || !profile.stage) {
+          logger.warn('⚠️ Profile missing required fields, may need update');
         }
         
-        // Don't create a new profile - just log that we couldn't find one
-        logger.log('⚠️ No profile found for user:', userId, 'email:', currentUser?.email);
-        return null;
+        return profile;
       }
 
-      logger.log('✅ Profile fetched successfully:', profile);
-      return profile;
+      logger.warn('⚠️ No profile found for email:', userEmail);
+      
+      // Clear cache if no profile found
+      profileCache.current = { profile: null, timestamp: 0, email: null };
+      
+      return null;
     } catch (err) {
       logger.error('❌ Unexpected error fetching profile:', err);
-      toast.error('An unexpected error occurred. Please try refreshing the page.');
+      // Don't show toast for every error - too noisy
       return null;
-    } finally {
-      profileFetchInProgress.current = false;
     }
-  }, [user]);
+  }, []);
 
   // Add retry mechanism for profile fetch
   useEffect(() => {
@@ -164,6 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
+        logger.log('🚀 Initializing auth...');
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (mounted) {
@@ -182,7 +199,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               logger.log('📋 Profile fetch result:', profile);
               if (mounted) {
                 if (profile) {
-                  logger.log('✅ Setting user profile:', profile);
+                  logger.log('✅ Setting user profile in state:', {
+                    id: profile.id,
+                    email: profile.email,
+                    firstName: profile.first_name,
+                    lastName: profile.last_name,
+                    stage: profile.stage,
+                    isAdmin: profile.is_admin
+                  });
                   setUserProfile(profile);
                 } else {
                   // Don't set fallback data - wait for proper profile
@@ -363,8 +387,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Refresh profile function
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
-      const profile = await fetchUserProfile(user.id, true); // Force refresh
-      setUserProfile(profile);
+      logger.log('🔄 Manual profile refresh requested');
+      
+      // Clear cache first to ensure fresh fetch
+      profileCache.current = { profile: null, timestamp: 0, email: null };
+      
+      // Force refresh the profile
+      const profile = await fetchUserProfile(user.id, true);
+      
+      if (profile) {
+        logger.log('✅ Profile refreshed successfully:', {
+          name: `${profile.first_name} ${profile.last_name}`,
+          stage: profile.stage,
+          isAdmin: profile.is_admin
+        });
+        setUserProfile(profile);
+        
+        // Also update the user metadata if needed
+        if (user && (!user.user_metadata?.full_name || !user.user_metadata?.stage)) {
+          const fullName = `${profile.first_name} ${profile.last_name}`;
+          await supabase.auth.updateUser({
+            data: {
+              full_name: fullName,
+              stage: profile.stage,
+              is_admin: profile.is_admin
+            }
+          });
+        }
+      } else {
+        logger.warn('⚠️ Profile refresh failed - no profile found');
+        setUserProfile(null);
+      }
+    } else {
+      logger.warn('⚠️ Cannot refresh profile - no user logged in');
     }
   }, [user, fetchUserProfile]);
 
