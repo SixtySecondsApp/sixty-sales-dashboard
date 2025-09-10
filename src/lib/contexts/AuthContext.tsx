@@ -134,6 +134,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const isDevelopment = import.meta.env.MODE === 'development';
               const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
               
+              logger.log('🔍 Checking mock user:', { isDevelopment, allowMockUser, mockUserInitialized: mockUserInitialized.current });
+              
               if ((isDevelopment || allowMockUser) && !mockUserInitialized.current) {
                 mockUserInitialized.current = true;
                 
@@ -157,7 +159,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 
                 // Store in localStorage for consistency
                 localStorage.setItem('sixty_mock_users', JSON.stringify([mockProfile]));
-                logger.log('⚠️ Using mock user for development');
+                logger.log('⚠️ Setting mock user for development:', mockProfile);
                 
                 if (mounted) {
                   setUserProfile(mockProfile);
@@ -174,6 +176,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     aud: 'authenticated',
                     created_at: mockProfile.created_at
                   } as User);
+                  logger.log('✅ Mock user set successfully');
+                }
+              } else if ((isDevelopment || allowMockUser) && mockUserInitialized.current) {
+                // Already initialized, just load from localStorage
+                const existingMockUser = localStorage.getItem('sixty_mock_users');
+                if (existingMockUser) {
+                  try {
+                    const mockProfile = JSON.parse(existingMockUser)[0];
+                    if (mounted && !userProfile) {
+                      setUserProfile(mockProfile);
+                      setUser({
+                        id: mockProfile.id,
+                        email: mockProfile.email || '',
+                        app_metadata: {},
+                        user_metadata: {
+                          full_name: mockProfile.full_name,
+                          first_name: mockProfile.first_name,
+                          last_name: mockProfile.last_name
+                        },
+                        aud: 'authenticated',
+                        created_at: mockProfile.created_at
+                      } as User);
+                      logger.log('✅ Mock user restored from localStorage');
+                    }
+                  } catch (e) {
+                    logger.error('Failed to parse mock user from localStorage:', e);
+                  }
                 }
               }
             }
