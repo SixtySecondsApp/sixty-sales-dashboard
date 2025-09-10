@@ -34,7 +34,7 @@ import {
   Zap,
   History,
   Workflow,
-  Link as LinkIcon
+  ExternalLink as LinkIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
