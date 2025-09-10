@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Profile Fetch</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Test Profile Fetch</h1>
+    
+    <div class="section">
+        <h2>Test Controls</h2>
+        <button onclick="testDirectFetch()">Test Direct Fetch</button>
+        <button onclick="testWithRLS()">Test with RLS</button>
+        <button onclick="testServiceRole()">Test Service Role</button>
+        <button onclick="createProfile()">Create/Update Profile</button>
+    </div>
+
+    <div class="section">
+        <h2>Results</h2>
+        <pre id="results"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        function log(message, data = null) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.innerHTML += `[${timestamp}] ${message}\n`;
+            if (data) {
+                results.innerHTML += JSON.stringify(data, null, 2) + '\n\n';
+            }
+            console.log(message, data);
+        }
+        
+        window.testDirectFetch = async function() {
+            log('Testing direct profile fetch...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                log('❌ No session found', 'error');
+                return;
+            }
+            
+            log('Session user:', { id: session.user.id, email: session.user.email });
+            
+            // Try by email
+            log('Attempting fetch by email...');
+            const { data: byEmail, error: emailError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('email', session.user.email)
+                .maybeSingle();
+            
+            if (byEmail) {
+                log('✅ Found by email:', byEmail);
+            } else {
+                log('❌ Email fetch failed:', emailError);
+            }
+            
+            // Try by ID
+            log('Attempting fetch by ID...');
+            const { data: byId, error: idError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .maybeSingle();
+            
+            if (byId) {
+                log('✅ Found by ID:', byId);
+            } else {
+                log('❌ ID fetch failed:', idError);
+            }
+        }
+        
+        window.testWithRLS = async function() {
+            log('Testing RLS policies...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                log('❌ No session found');
+                return;
+            }
+            
+            // Test if we can read any profiles
+            const { data: allProfiles, error: allError } = await supabase
+                .from('profiles')
+                .select('id, email')
+                .limit(5);
+            
+            if (allProfiles) {
+                log(`✅ Can read ${allProfiles.length} profiles (RLS allows)`, allProfiles);
+            } else {
+                log('❌ Cannot read profiles (RLS blocks):', allError);
+            }
+            
+            // Test if we can read our own profile
+            const { data: ownProfile, error: ownError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+            
+            if (ownProfile) {
+                log('✅ Can read own profile:', ownProfile);
+            } else {
+                log('❌ Cannot read own profile:', ownError);
+            }
+        }
+        
+        window.testServiceRole = async function() {
+            log('⚠️ Service role key not available in browser (security)');
+            log('This would need to be tested server-side');
+        }
+        
+        window.createProfile = async function() {
+            log('Attempting to create/update profile...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                log('❌ No session found');
+                return;
+            }
+            
+            const profileData = {
+                id: session.user.id,
+                email: session.user.email,
+                first_name: 'Andrew',
+                last_name: 'Bryce',
+                stage: 'Director',
+                is_admin: true,
+                updated_at: new Date().toISOString()
+            };
+            
+            log('Attempting upsert with:', profileData);
+            
+            const { data, error } = await supabase
+                .from('profiles')
+                .upsert(profileData, {
+                    onConflict: 'id'
+                })
+                .select()
+                .single();
+            
+            if (data) {
+                log('✅ Profile created/updated:', data);
+            } else {
+                log('❌ Upsert failed:', error);
+                
+                // Try just an update
+                log('Attempting update instead...');
+                const { data: updateData, error: updateError } = await supabase
+                    .from('profiles')
+                    .update({
+                        first_name: 'Andrew',
+                        last_name: 'Bryce',
+                        stage: 'Director',
+                        is_admin: true,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', session.user.id)
+                    .select()
+                    .single();
+                
+                if (updateData) {
+                    log('✅ Profile updated:', updateData);
+                } else {
+                    log('❌ Update failed:', updateError);
+                }
+            }
+        }
+        
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            testDirectFetch();
+        });
+    </script>
+</body>
+</html>

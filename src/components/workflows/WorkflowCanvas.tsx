@@ -632,6 +632,133 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       })
     );
   };
+
+  // Get available variables from previous nodes in the workflow
+  const getAvailableVariables = (currentNodeId: string): { label: string; value: string; source: string }[] => {
+    const variables: { label: string; value: string; source: string }[] = [];
+    
+    // Find all nodes that come before the current node
+    const getPreviousNodes = (nodeId: string, visited = new Set<string>()): string[] => {
+      if (visited.has(nodeId)) return [];
+      visited.add(nodeId);
+      
+      const incomingEdges = edges.filter(e => e.target === nodeId);
+      const previousNodeIds: string[] = [];
+      
+      for (const edge of incomingEdges) {
+        previousNodeIds.push(edge.source);
+        previousNodeIds.push(...getPreviousNodes(edge.source, visited));
+      }
+      
+      return [...new Set(previousNodeIds)];
+    };
+    
+    const previousNodeIds = getPreviousNodes(currentNodeId);
+    const previousNodes = nodes.filter(n => previousNodeIds.includes(n.id));
+    
+    // Add trigger node variables
+    const triggerNode = previousNodes.find(n => n.type === 'trigger' || n.data?.type?.includes('trigger'));
+    if (triggerNode) {
+      const triggerType = triggerNode.data?.type || triggerNode.data?.triggerType;
+      
+      if (triggerType === 'deal_created' || triggerType === 'stage_changed') {
+        variables.push(
+          { label: 'Deal ID', value: '{{deal.id}}', source: 'Deal' },
+          { label: 'Deal Name', value: '{{deal.name}}', source: 'Deal' },
+          { label: 'Deal Value', value: '{{deal.value}}', source: 'Deal' },
+          { label: 'Deal Stage', value: '{{deal.stage}}', source: 'Deal' },
+          { label: 'Company Name', value: '{{deal.company}}', source: 'Deal' },
+          { label: 'Contact Name', value: '{{deal.contact}}', source: 'Deal' },
+          { label: 'Owner Name', value: '{{deal.owner}}', source: 'Deal' }
+        );
+      } else if (triggerType === 'task_completed' || triggerType === 'task_overdue') {
+        variables.push(
+          { label: 'Task ID', value: '{{task.id}}', source: 'Task' },
+          { label: 'Task Title', value: '{{task.title}}', source: 'Task' },
+          { label: 'Task Description', value: '{{task.description}}', source: 'Task' },
+          { label: 'Task Due Date', value: '{{task.due_date}}', source: 'Task' },
+          { label: 'Task Priority', value: '{{task.priority}}', source: 'Task' },
+          { label: 'Assigned To', value: '{{task.assigned_to}}', source: 'Task' }
+        );
+      } else if (triggerType === 'activity_created') {
+        variables.push(
+          { label: 'Activity ID', value: '{{activity.id}}', source: 'Activity' },
+          { label: 'Activity Type', value: '{{activity.type}}', source: 'Activity' },
+          { label: 'Activity Notes', value: '{{activity.notes}}', source: 'Activity' },
+          { label: 'Activity Date', value: '{{activity.date}}', source: 'Activity' },
+          { label: 'Related Deal', value: '{{activity.deal_name}}', source: 'Activity' },
+          { label: 'Created By', value: '{{activity.created_by}}', source: 'Activity' }
+        );
+      } else if (triggerType === 'form_submission') {
+        variables.push(
+          { label: 'Form Name', value: '{{form.name}}', source: 'Form' },
+          { label: 'Submission ID', value: '{{form.submission_id}}', source: 'Form' },
+          { label: 'Submitted At', value: '{{form.submitted_at}}', source: 'Form' },
+          { label: 'Form Fields', value: '{{form.fields}}', source: 'Form' }
+        );
+      }
+      
+      // Add common variables
+      variables.push(
+        { label: 'Current Date', value: '{{current_date}}', source: 'System' },
+        { label: 'Current Time', value: '{{current_time}}', source: 'System' },
+        { label: 'Workflow Name', value: '{{workflow.name}}', source: 'System' },
+        { label: 'User Email', value: '{{user.email}}', source: 'System' },
+        { label: 'User Name', value: '{{user.name}}', source: 'System' }
+      );
+    }
+    
+    // Add variables from condition nodes
+    previousNodes.filter(n => n.data?.type === 'condition').forEach(node => {
+      if (node.data?.conditionField) {
+        variables.push({
+          label: `Condition: ${node.data.label || node.data.conditionField}`,
+          value: `{{${node.data.conditionField}}}`,
+          source: node.data.label || 'Condition'
+        });
+      }
+    });
+    
+    // Add variables from form nodes
+    previousNodes.filter(n => n.data?.type === 'form').forEach(node => {
+      if (node.data?.formFields) {
+        node.data.formFields.forEach((field: any) => {
+          variables.push({
+            label: field.label || field.name,
+            value: `{{form.${field.name}}}`,
+            source: node.data.label || 'Form'
+          });
+        });
+      }
+    });
+    
+    return variables;
+  };
+
+  // Insert variable at cursor position in textarea
+  const insertVariable = (nodeId: string, field: 'slackMessage' | 'slackCustomMessage' | 'slackBlocks', variable: string) => {
+    const node = nodes.find(n => n.id === nodeId);
+    if (!node) return;
+    
+    const currentValue = node.data[field] || '';
+    const textarea = document.querySelector(`#${field}-${nodeId}`) as HTMLTextAreaElement;
+    
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end);
+      updateNodeData(nodeId, { [field]: newValue });
+      
+      // Restore cursor position after the inserted variable
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + variable.length, start + variable.length);
+      }, 0);
+    } else {
+      // Fallback: append to the end if we can't find the textarea
+      updateNodeData(nodeId, { [field]: currentValue + variable });
+    }
+  };
   
   // Handle AI configuration save
   const handleAIConfigSave = (config: AINodeConfig) => {
@@ -3471,49 +3598,121 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         {selectedNode.data.slackMessageType === 'simple' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
-                            <textarea
-                              value={selectedNode.data.slackMessage || ''}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                updateNodeData(selectedNode.id, { slackMessage: e.target.value });
-                              }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                              placeholder="🎉 New deal created: {{deal_name}}"
-                              rows={2}
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Use variables: {{deal_name}}, {{company}}, {{value}}</p>
+                            <div className="relative">
+                              <textarea
+                                id={`slackMessage-${selectedNode.id}`}
+                                value={selectedNode.data.slackMessage || ''}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { slackMessage: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="🎉 New deal created: {{deal_name}}"
+                                rows={2}
+                              />
+                              <div className="mt-2">
+                                <details className="group">
+                                  <summary className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-300 select-none">
+                                    <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                                    Insert Variable
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-gray-800/50 border border-gray-700 rounded-lg max-h-48 overflow-y-auto">
+                                    {getAvailableVariables(selectedNode.id).length > 0 ? (
+                                      <div className="space-y-1">
+                                        {getAvailableVariables(selectedNode.id).map((variable, index) => (
+                                          <button
+                                            key={index}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              insertVariable(selectedNode.id, 'slackMessage', variable.value);
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            className="w-full text-left px-2 py-1 text-xs hover:bg-gray-700/50 rounded transition-colors flex items-center justify-between group"
+                                          >
+                                            <span className="text-gray-300">{variable.label}</span>
+                                            <span className="text-gray-500 text-[10px] group-hover:text-gray-400">
+                                              {variable.source}
+                                            </span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-500">No variables available. Connect to a trigger node first.</p>
+                                    )}
+                                  </div>
+                                </details>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Click "Insert Variable" to add dynamic content</p>
                           </div>
                         )}
                         
                         {selectedNode.data.slackMessageType === 'custom' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Custom Message</label>
-                            <textarea
-                              value={selectedNode.data.slackCustomMessage || ''}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                updateNodeData(selectedNode.id, { slackCustomMessage: e.target.value });
-                              }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
-                              placeholder="Use {{deal_name}}, {{company}}, {{value}}, {{stage}}"
-                              rows={3}
-                            />
+                            <div className="relative">
+                              <textarea
+                                id={`slackCustomMessage-${selectedNode.id}`}
+                                value={selectedNode.data.slackCustomMessage || ''}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { slackCustomMessage: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                                placeholder="Use {{deal_name}}, {{company}}, {{value}}, {{stage}}"
+                                rows={3}
+                              />
+                              <div className="mt-2">
+                                <details className="group">
+                                  <summary className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-300 select-none">
+                                    <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                                    Insert Variable
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-gray-800/50 border border-gray-700 rounded-lg max-h-48 overflow-y-auto">
+                                    {getAvailableVariables(selectedNode.id).length > 0 ? (
+                                      <div className="space-y-1">
+                                        {getAvailableVariables(selectedNode.id).map((variable, index) => (
+                                          <button
+                                            key={index}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              insertVariable(selectedNode.id, 'slackCustomMessage', variable.value);
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            className="w-full text-left px-2 py-1 text-xs hover:bg-gray-700/50 rounded transition-colors flex items-center justify-between group"
+                                          >
+                                            <span className="text-gray-300">{variable.label}</span>
+                                            <span className="text-gray-500 text-[10px] group-hover:text-gray-400">
+                                              {variable.source}
+                                            </span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-500">No variables available. Connect to a trigger node first.</p>
+                                    )}
+                                  </div>
+                                </details>
+                              </div>
+                            </div>
                           </div>
                         )}
 
                         {selectedNode.data.slackMessageType === 'blocks' && (
                           <div>
                             <label className="block text-sm font-medium text-gray-300 mb-2">Slack Blocks JSON</label>
-                            <textarea
-                              value={selectedNode.data.slackBlocks || ''}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                updateNodeData(selectedNode.id, { slackBlocks: e.target.value });
-                              }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors font-mono"
+                            <div className="relative">
+                              <textarea
+                                id={`slackBlocks-${selectedNode.id}`}
+                                value={selectedNode.data.slackBlocks || ''}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  updateNodeData(selectedNode.id, { slackBlocks: e.target.value });
+                                }}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors font-mono"
                               placeholder={`[
   {
     "type": "section",
@@ -3525,6 +3724,39 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 ]`}
                               rows={8}
                             />
+                              <div className="mt-2">
+                                <details className="group">
+                                  <summary className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-gray-300 select-none">
+                                    <ChevronDown className="w-3 h-3 group-open:rotate-180 transition-transform" />
+                                    Insert Variable
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-gray-800/50 border border-gray-700 rounded-lg max-h-48 overflow-y-auto">
+                                    {getAvailableVariables(selectedNode.id).length > 0 ? (
+                                      <div className="space-y-1">
+                                        {getAvailableVariables(selectedNode.id).map((variable, index) => (
+                                          <button
+                                            key={index}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              insertVariable(selectedNode.id, 'slackBlocks', variable.value);
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            className="w-full text-left px-2 py-1 text-xs hover:bg-gray-700/50 rounded transition-colors flex items-center justify-between group"
+                                          >
+                                            <span className="text-gray-300">{variable.label}</span>
+                                            <span className="text-gray-500 text-[10px] group-hover:text-gray-400">
+                                              {variable.source}
+                                            </span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-gray-500">No variables available. Connect to a trigger node first.</p>
+                                    )}
+                                  </div>
+                                </details>
+                              </div>
+                            </div>
                             <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                               <h4 className="text-xs font-medium text-blue-400 mb-1">💡 Slack Blocks Tips</h4>
                               <div className="text-xs text-gray-400 space-y-1">

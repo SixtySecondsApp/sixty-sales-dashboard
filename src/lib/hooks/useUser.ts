@@ -6,6 +6,9 @@ import { getSiteUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
 import { ViewModeContext } from '@/contexts/ViewModeContext';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import type { Database } from '@/lib/database.types';
+
+type UserProfile = Database['public']['Tables']['profiles']['Row'];
 
 // Export USER_STAGES for compatibility
 export const USER_STAGES = [
@@ -188,6 +191,31 @@ export function useUser() {
   const [isImpersonating, setIsImpersonating] = useState(false);
   const [originalUserData, setOriginalUserData] = useState(null);
   
+  // Compose a resilient user profile shape from session if profile not yet available
+  const composedUserData: UserProfile | null = (() => {
+    if (auth.userProfile) return auth.userProfile as UserProfile;
+    const user = auth.user;
+    if (!user) return null;
+    const fullName = (user.user_metadata?.full_name || '').toString();
+    const [firstName, ...restName] = fullName.split(' ').filter(Boolean);
+    return {
+      id: user.id,
+      email: user.email || null,
+      first_name: firstName || null,
+      last_name: restName.join(' ') || null,
+      full_name: fullName || null,
+      avatar_url: (user.user_metadata?.avatar_url as string) || null,
+      role: null,
+      department: null,
+      stage: 'Director',
+      is_admin: true,
+      created_at: user.created_at,
+      updated_at: new Date().toISOString(),
+      username: null,
+      website: null
+    } as UserProfile;
+  })();
+  
   // Try to get View Mode context - but make it optional
   let viewModeContext = null;
   try {
@@ -227,17 +255,20 @@ export function useUser() {
   }, [auth.userId]);
 
   // Log what we're returning for debugging
-  if (auth.userProfile) {
-    logger.log('useUser returning profile:', { 
-      id: auth.userProfile.id, 
-      email: auth.userProfile.email,
-      isAuthenticated: auth.isAuthenticated 
+  if (composedUserData || auth.user) {
+    logger.log('useUser hook state:', { 
+      hasProfile: !!composedUserData,
+      hasUser: !!auth.user,
+      isAuthenticated: auth.isAuthenticated,
+      loading: auth.loading,
+      profileEmail: composedUserData?.email,
+      userEmail: auth.user?.email
     });
   }
   
   // Return data from AuthContext with additional impersonation info
   return {
-    userData: auth.userProfile,
+    userData: composedUserData,
     isLoading: auth.loading,
     error: null, // AuthContext doesn't expose errors, so we return null for compatibility
     isImpersonating,

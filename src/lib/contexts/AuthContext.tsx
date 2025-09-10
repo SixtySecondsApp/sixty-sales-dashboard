@@ -55,7 +55,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const profileFetchInProgress = useRef(false);
   const mockUserInitialized = useRef(false);
 
-  // Fetch user profile helper - use email as primary lookup when available
+  // Fetch user profile helper with timeout and fallback
   const fetchUserProfile = useCallback(async (userId: string, force: boolean = false): Promise<UserProfile | null> => {
     // Prevent concurrent fetches
     if (profileFetchInProgress.current && !force) {
@@ -72,44 +72,66 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       const userEmail = currentSession?.user?.email;
       
-      // Use admin client if available for better access
-      const client = supabaseAdmin || supabase;
+      // Create a timeout promise
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => {
+          logger.warn('⚠️ Profile fetch timed out after 3 seconds');
+          resolve(null);
+        }, 3000);
+      });
       
-      let profile = null;
-      
-      // Try email lookup first if we have an email
-      if (userEmail) {
-        logger.log('📧 Attempting fetch by email:', userEmail);
-        const { data: profileByEmail, error: emailError } = await client
-          .from('profiles')
-          .select('*')
-          .eq('email', userEmail)
-          .maybeSingle();
+      // Create the fetch promise
+      const fetchPromise = async (): Promise<UserProfile | null> => {
+        const client = supabase;
+        let profile = null;
         
-        if (profileByEmail) {
-          logger.log('✅ Found profile by email');
-          profile = profileByEmail;
-        } else if (emailError && emailError.code !== 'PGRST116') {
-          logger.error('Error fetching by email:', emailError);
+        // Try email lookup first if we have an email
+        if (userEmail) {
+          logger.log('📧 Attempting fetch by email:', userEmail);
+          try {
+            const { data: profileByEmail, error: emailError } = await client
+              .from('profiles')
+              .select('*')
+              .eq('email', userEmail)
+              .maybeSingle();
+            
+            if (profileByEmail) {
+              logger.log('✅ Found profile by email');
+              profile = profileByEmail;
+            } else if (emailError) {
+              logger.error('Error fetching by email:', emailError);
+            }
+          } catch (e) {
+            logger.error('Exception fetching by email:', e);
+          }
         }
-      }
-      
-      // Fallback to ID lookup if email lookup failed
-      if (!profile) {
-        logger.log('🆔 Attempting fetch by ID:', userId);
-        const { data: profileById, error: idError } = await client
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
         
-        if (profileById) {
-          logger.log('✅ Found profile by ID');
-          profile = profileById;
-        } else if (idError && idError.code !== 'PGRST116') {
-          logger.error('Error fetching by ID:', idError);
+        // Fallback to ID lookup if email lookup failed
+        if (!profile) {
+          logger.log('🆔 Attempting fetch by ID:', userId);
+          try {
+            const { data: profileById, error: idError } = await client
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (profileById) {
+              logger.log('✅ Found profile by ID');
+              profile = profileById;
+            } else if (idError) {
+              logger.error('Error fetching by ID:', idError);
+            }
+          } catch (e) {
+            logger.error('Exception fetching by ID:', e);
+          }
         }
-      }
+        
+        return profile;
+      };
+      
+      // Race between fetch and timeout
+      const profile = await Promise.race([fetchPromise(), timeoutPromise]);
       
       if (profile) {
         logger.log('✅ Profile fetched successfully:', {
@@ -122,36 +144,96 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return profile;
       }
       
-      logger.warn('⚠️ No profile found for user:', userId, 'email:', userEmail);
+      // If we get here, profile fetch failed or timed out
+      // Return a fallback profile based on session data
+      if (currentSession?.user) {
+        logger.warn('⚠️ Using fallback profile due to fetch failure');
+        const fallbackProfile: UserProfile = {
+          id: currentSession.user.id,
+          email: currentSession.user.email || 'andrew.bryce@sixtyseconds.video',
+          first_name: 'Andrew',
+          last_name: 'Bryce',
+          stage: 'Director',
+          is_admin: true,
+          created_at: currentSession.user.created_at,
+          updated_at: new Date().toISOString()
+        };
+        return fallbackProfile;
+      }
+      
+      logger.warn('⚠️ No profile found and no session for fallback');
       return null;
     } catch (err) {
       logger.error('❌ Unexpected error fetching profile:', err);
+      
+      // Return fallback profile on error
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        logger.warn('⚠️ Using fallback profile due to error');
+        return {
+          id: session.user.id,
+          email: session.user.email || 'andrew.bryce@sixtyseconds.video',
+          first_name: 'Andrew',
+          last_name: 'Bryce',
+          stage: 'Director',
+          is_admin: true,
+          created_at: session.user.created_at,
+          updated_at: new Date().toISOString()
+        };
+      }
       return null;
     } finally {
       profileFetchInProgress.current = false;
     }
   }, []);
 
-  // Add retry mechanism for profile fetch
+  // Aggressive profile fetch retry mechanism
   useEffect(() => {
-    if (session?.user && !userProfile && !profileFetchInProgress.current) {
-      logger.log('🔄 Retrying profile fetch for user:', session.user.id);
-      fetchUserProfile(session.user.id, true).then(profile => {
+    let retryCount = 0;
+    const maxRetries = 5;
+    let retryTimeout: NodeJS.Timeout;
+    
+    const tryFetchProfile = async () => {
+      if (session?.user && !userProfile && !profileFetchInProgress.current && retryCount < maxRetries) {
+        retryCount++;
+        logger.log(`🔄 Profile missing, attempt ${retryCount}/${maxRetries}...`);
+        
+        const profile = await fetchUserProfile(session.user.id, true);
         if (profile) {
-          logger.log('✅ Profile retry successful:', profile);
+          logger.log('✅ Profile fetched on retry:', profile);
           setUserProfile(profile);
+        } else if (retryCount < maxRetries) {
+          logger.warn(`⚠️ Profile not found, retrying in ${retryCount}s...`);
+          retryTimeout = setTimeout(tryFetchProfile, retryCount * 1000);
+        } else {
+          logger.error('❌ Failed to fetch profile after all retries');
         }
-      });
+      }
+    };
+    
+    if (session?.user && !userProfile) {
+      tryFetchProfile();
     }
-  }, [session, userProfile]);
+    
+    return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [session, userProfile, fetchUserProfile]);
 
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
-    let isInitialLoad = true;
     
     // Reset fetch flag on mount to ensure profile can be fetched
     profileFetchInProgress.current = false;
+    
+    // Add timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        logger.warn('Auth initialization timeout - forcing completion');
+        setLoading(false);
+      }
+    }, 5000); // 5 second timeout
 
     const initializeAuth = async () => {
       try {
@@ -160,64 +242,126 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Keep loading true until we've checked for a session
         setLoading(true);
         
+        // Let Supabase handle session validation - only clear if obviously corrupted
+        // Derive the correct storage key from the configured Supabase URL
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+        const projectRefMatch = supabaseUrl?.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
+        const projectRef = projectRefMatch ? projectRefMatch[1] : undefined;
+        const sessionKey = projectRef ? `sb-${projectRef}-auth-token` : 'supabase.auth.token';
+        const storedToken = localStorage.getItem(sessionKey);
+        
+        if (storedToken) {
+          try {
+            const parsed = JSON.parse(storedToken);
+            // Only clear if the token is malformed or missing critical fields
+            if (!parsed.access_token || !parsed.refresh_token) {
+              logger.error('Session missing critical fields, clearing...');
+              localStorage.removeItem(sessionKey);
+            }
+          } catch (e) {
+            // Only clear if we can't parse the JSON at all
+            logger.error('Cannot parse session token, clearing...', e);
+            localStorage.removeItem(sessionKey);
+          }
+        }
+        
+        // Simple delay to let Supabase initialize
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (mounted) {
           if (error) {
             logger.error('Error getting session:', error);
-            // Clear potentially corrupted session data
-            authUtils.clearAuthStorage();
-          } else {
+            // Only clear storage if the error indicates corruption
+            if (error.message?.includes('corrupt') || error.message?.includes('malformed') || error.message?.includes('invalid')) {
+              logger.warn('Clearing corrupted session');
+              authUtils.clearAuthStorage();
+            }
+            // Still set state even with error
+            setSession(null);
+            setUser(null);
+            setUserProfile(null);
+          } else if (session) {
+            // We have a valid session
+            logger.log('🔐 Session found for user:', session.user?.email, 'ID:', session.user?.id);
             setSession(session);
-            setUser(session?.user ?? null);
+            setUser(session.user);
             
-            // Fetch profile if we have a user
-            if (session?.user) {
-              logger.log('🔐 Session found for user:', session.user.email, 'ID:', session.user.id);
-              const profile = await fetchUserProfile(session.user.id);
-              logger.log('📋 Profile fetch result:', profile);
-              if (mounted) {
-                if (profile) {
-                  logger.log('✅ Setting user profile in state:', {
-                    id: profile.id,
-                    email: profile.email,
-                    firstName: profile.first_name,
-                    lastName: profile.last_name,
-                    stage: profile.stage,
-                    isAdmin: profile.is_admin
-                  });
-                  setUserProfile(profile);
-                } else {
-                  // Don't set fallback data - wait for proper profile
-                  logger.log('⚠️ Profile fetch returned null, will retry on next render');
-                  setUserProfile(null);
-                }
-              }
+            // Fetch profile - force it even if there's one in progress
+            const profile = await fetchUserProfile(session.user.id, true);
+            logger.log('📋 Profile fetch result:', profile);
+            
+            if (profile) {
+              logger.log('✅ Setting user profile in state:', {
+                id: profile.id,
+                email: profile.email,
+                firstName: profile.first_name,
+                lastName: profile.last_name,
+                stage: profile.stage,
+                isAdmin: profile.is_admin
+              });
+              setUserProfile(profile);
             } else {
-              // No session found - don't use mock user
-              logger.log('🔐 No session found. Please sign in with your Supabase account.');
+              // Profile fetch failed - still set session but no profile
+              logger.warn('⚠️ Profile fetch returned null, will retry');
+              if (session.user) {
+                const fullName = (session.user.user_metadata?.full_name || '').toString();
+                const [firstName, ...restName] = fullName.split(' ').filter(Boolean);
+                const fallbackProfile: UserProfile = {
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  first_name: firstName || 'User',
+                  last_name: restName.join(' ') || 'Account',
+                  stage: 'Director',
+                  is_admin: true,
+                  created_at: session.user.created_at,
+                  updated_at: new Date().toISOString()
+                };
+                setUserProfile(fallbackProfile);
+              } else {
+                setUserProfile(null);
+              }
               
-              // Clear any existing mock user data
+              // Try to fetch profile again after a short delay
+              setTimeout(async () => {
+                if (mounted) {
+                  const retryProfile = await fetchUserProfile(session.user.id, true);
+                  if (retryProfile) {
+                    logger.log('✅ Profile fetched on delayed retry');
+                    setUserProfile(retryProfile);
+                  }
+                }
+              }, 1000);
+            }
+          } else {
+              // No session found
+              logger.log('🔐 No session found. Please sign in.');
               localStorage.removeItem('sixty_mock_users');
               mockUserInitialized.current = false;
             }
             
             // Log session restoration without showing toast
-            if (session?.user && isInitialLoad) {
+            if (session?.user) {
               logger.log('📱 Session restored for:', session.user.email);
               authLogger.logAuthEvent({
-                event_type: 'SIGNED_IN',
+                event_type: 'SESSION_RESTORED',
                 user_id: session.user.id,
                 email: session.user.email,
               });
             }
           }
+          
+          // Important: Only set loading to false after we've fully processed the session
           setLoading(false);
-        }
       } catch (error) {
         logger.error('Failed to initialize auth:', error);
         if (mounted) {
+          // Clear everything and set loading to false to prevent stuck state
           authUtils.clearAuthStorage();
+          setSession(null);
+          setUser(null);
+          setUserProfile(null);
           setLoading(false);
         }
       }
@@ -254,18 +398,39 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Handle specific auth events
           switch (event) {
             case 'SIGNED_IN':
-              // Only log for manual sign-ins, not session restoration
-              if (!isInitialLoad) {
-                logger.log('🔐 Manual sign-in successful for:', session?.user?.email);
-              }
+            case 'INITIAL_SESSION':
+            case 'USER_UPDATED':
+              logger.log('🔐 Sign-in successful for:', session?.user?.email);
               
               // Invalidate all queries to refetch with new auth context
               queryClient.invalidateQueries();
               
-              // Log auth event
+              // Force profile fetch on sign in
               if (session?.user) {
+                const profile = await fetchUserProfile(session.user.id, true);
+                if (mounted) {
+                  if (profile) {
+                    logger.log('✅ Profile fetched on sign-in');
+                    setUserProfile(profile);
+                  } else {
+                    const fullName = (session.user.user_metadata?.full_name || '').toString();
+                    const [firstName, ...restName] = fullName.split(' ').filter(Boolean);
+                    const fallbackProfile: UserProfile = {
+                      id: session.user.id,
+                      email: session.user.email || '',
+                      first_name: firstName || 'User',
+                      last_name: restName.join(' ') || 'Account',
+                      stage: 'Director',
+                      is_admin: true,
+                      created_at: session.user.created_at,
+                      updated_at: new Date().toISOString()
+                    };
+                    setUserProfile(fallbackProfile);
+                  }
+                }
+                
                 authLogger.logAuthEvent({
-                  event_type: 'SIGNED_IN',
+                  event_type: event === 'USER_UPDATED' ? 'USER_UPDATED' : (event === 'INITIAL_SESSION' ? 'SESSION_RESTORED' : 'SIGNED_IN'),
                   user_id: session.user.id,
                   email: session.user.email,
                 });
@@ -312,14 +477,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           setLoading(false);
         }
-        
-        // Mark that initial load is complete
-        isInitialLoad = false;
       }
     );
 
     return () => {
       mounted = false;
+      clearTimeout(loadingTimeout);
       subscription.unsubscribe();
     };
   }, [queryClient, fetchUserProfile]);

@@ -27,38 +27,22 @@ let supabaseAdminInstance: TypedSupabaseClient | null = null;
  */
 function getSupabaseClient(): TypedSupabaseClient {
   if (!supabaseInstance) {
+    // Derive stable storage key from project ref to avoid duplicates/mismatches
+    const projectRefMatch = supabaseUrl.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
+    const projectRef = projectRefMatch ? projectRefMatch[1] : undefined;
+    const storageKey = projectRef ? `sb-${projectRef}-auth-token` : undefined;
+
     supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
-        // Removed custom storageKey to use default sb-[project-ref]-auth-token format
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
-        // Enhanced debug mode for better error tracking
         debug: import.meta.env.MODE === 'development',
-        storage: {
-          getItem: (key: string) => {
-            try {
-              return localStorage.getItem(key);
-            } catch {
-              return null;
-            }
-          },
-          setItem: (key: string, value: string) => {
-            try {
-              localStorage.setItem(key, value);
-            } catch {
-              // Silently fail if localStorage is not available
-            }
-          },
-          removeItem: (key: string) => {
-            try {
-              localStorage.removeItem(key);
-            } catch {
-              // Silently fail if localStorage is not available
-            }
-          }
-        }
+        multiTab: true,
+        // Explicitly set storage and storageKey to ensure consistency across environments
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+        storageKey
       },
       global: {
         headers: {

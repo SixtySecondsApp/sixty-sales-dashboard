@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fix Session Issues</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .key-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Fix Session Issues</h1>
+    
+    <div class="section">
+        <h2>Quick Fixes</h2>
+        <button onclick="diagnoseSession()">🔍 Diagnose Session</button>
+        <button onclick="cleanupDuplicates()">🧹 Cleanup Duplicates</button>
+        <button onclick="refreshSession()">🔄 Refresh Session</button>
+        <button onclick="validateAndFix()">✅ Validate & Fix</button>
+        <button class="danger" onclick="clearAllSessions()">❌ Clear All Sessions</button>
+    </div>
+
+    <div class="section">
+        <h2>Session Status</h2>
+        <div id="session-status"></div>
+    </div>
+
+    <div class="section">
+        <h2>Storage Analysis</h2>
+        <div id="storage-analysis"></div>
+    </div>
+
+    <div class="section">
+        <h2>Diagnostic Results</h2>
+        <pre id="diagnostic-log"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('diagnostic-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+        
+        function clearLog() {
+            document.getElementById('diagnostic-log').innerHTML = '';
+        }
+        
+        window.diagnoseSession = async function() {
+            clearLog();
+            log('Starting session diagnosis...');
+            
+            // Check all possible session keys
+            const possibleKeys = [
+                'sb-ewtuefzeogytgmsnkpmb-auth-token', // Correct key
+                'sb-ewtuefeogytgmsnkpmb-auth-token',  // Typo version
+                'sb.auth.v2',
+                'sb.auth.admin.v2',
+                'supabase.auth.token',
+                'sb-refresh-token',
+                'sb-access-token'
+            ];
+            
+            log('Checking localStorage for session keys...');
+            const foundKeys = [];
+            
+            possibleKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    foundKeys.push(key);
+                    log(`Found: ${key}`, 'warning');
+                    
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (parsed.expires_at) {
+                            const expires = new Date(parsed.expires_at * 1000);
+                            const now = new Date();
+                            if (expires < now) {
+                                log(`  ⚠️ Session expired at ${expires.toLocaleString()}`, 'error');
+                            } else {
+                                log(`  ✅ Session valid until ${expires.toLocaleString()}`, 'success');
+                            }
+                        }
+                    } catch (e) {
+                        log(`  ❌ Could not parse session data`, 'error');
+                    }
+                }
+            });
+            
+            if (foundKeys.length === 0) {
+                log('No session keys found in localStorage', 'warning');
+            } else if (foundKeys.length > 1) {
+                log(`⚠️ Multiple session keys found (${foundKeys.length}), this may cause conflicts!`, 'error');
+            }
+            
+            // Check current Supabase session
+            log('Checking Supabase client session...');
+            const supabase = createClient(supabaseUrl, supabaseAnonKey);
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                log(`Supabase error: ${error.message}`, 'error');
+            } else if (session) {
+                log('✅ Active Supabase session found', 'success');
+                log(`User: ${session.user.email}`, 'info');
+                updateSessionStatus(session);
+            } else {
+                log('❌ No active Supabase session', 'error');
+            }
+            
+            // Check for cookies
+            log('Checking cookies...');
+            const cookies = document.cookie.split(';');
+            const supabaseCookies = cookies.filter(c => c.includes('supabase') || c.includes('sb-'));
+            if (supabaseCookies.length > 0) {
+                log(`Found ${supabaseCookies.length} Supabase-related cookies`, 'info');
+            }
+            
+            updateStorageAnalysis();
+        }
+        
+        window.cleanupDuplicates = function() {
+            clearLog();
+            log('Cleaning up duplicate/obsolete session keys...');
+            
+            const obsoleteKeys = [
+                'sb-ewtuefeogytgmsnkpmb-auth-token',  // Typo version
+                'sb.auth.v2',                          // Old format
+                'sb.auth.admin.v2',                    // Admin key
+                'supabase.auth.token',                 // Legacy
+                'sb-refresh-token',                    // Old format
+                'sb-access-token',                     // Old format
+                'sixty_mock_users'                     // Mock user data
+            ];
+            
+            let removed = 0;
+            obsoleteKeys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key);
+                    log(`Removed: ${key}`, 'success');
+                    removed++;
+                }
+            });
+            
+            if (removed > 0) {
+                log(`✅ Removed ${removed} obsolete keys`, 'success');
+            } else {
+                log('No obsolete keys found', 'info');
+            }
+            
+            updateStorageAnalysis();
+        }
+        
+        window.refreshSession = async function() {
+            clearLog();
+            log('Attempting to refresh session...');
+            
+            const supabase = createClient(supabaseUrl, supabaseAnonKey);
+            const { data, error } = await supabase.auth.refreshSession();
+            
+            if (error) {
+                log(`Failed to refresh: ${error.message}`, 'error');
+            } else if (data.session) {
+                log('✅ Session refreshed successfully!', 'success');
+                log(`New expiry: ${new Date(data.session.expires_at * 1000).toLocaleString()}`, 'info');
+                updateSessionStatus(data.session);
+            } else {
+                log('No session to refresh', 'warning');
+            }
+            
+            updateStorageAnalysis();
+        }
+        
+        window.validateAndFix = async function() {
+            clearLog();
+            log('Starting validation and fix process...');
+            
+            // Step 1: Clean up duplicates
+            log('Step 1: Cleaning duplicates...');
+            cleanupDuplicates();
+            
+            // Step 2: Wait for cleanup
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Step 3: Check current session
+            log('Step 2: Checking current session...');
+            const supabase = createClient(supabaseUrl, supabaseAnonKey);
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (session) {
+                log('✅ Valid session exists', 'success');
+                
+                // Ensure it's properly stored
+                const projectRef = 'ewtuefzeogytgmsnkpmb';
+                const sessionKey = `sb-${projectRef}-auth-token`;
+                const storedSession = localStorage.getItem(sessionKey);
+                
+                if (!storedSession) {
+                    log('⚠️ Session not properly stored, fixing...', 'warning');
+                    // Force a refresh to properly store it
+                    const { data: refreshData } = await supabase.auth.refreshSession();
+                    if (refreshData.session) {
+                        log('✅ Session storage fixed', 'success');
+                    }
+                }
+            } else {
+                log('❌ No valid session, please login again', 'error');
+                setTimeout(() => {
+                    if (confirm('No valid session found. Redirect to login?')) {
+                        window.location.href = '/auth/login';
+                    }
+                }, 1000);
+            }
+            
+            updateStorageAnalysis();
+        }
+        
+        window.clearAllSessions = function() {
+            if (!confirm('This will log you out completely. Continue?')) return;
+            
+            clearLog();
+            log('Clearing all session data...');
+            
+            // Clear all localStorage items related to auth
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('supabase') || key.includes('auth') || key.includes('sb-'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`, 'success');
+            });
+            
+            // Clear cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+            });
+            
+            log(`✅ Cleared ${keysToRemove.length} items`, 'success');
+            log('Redirecting to login...', 'info');
+            
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        }
+        
+        function updateSessionStatus(session) {
+            const statusDiv = document.getElementById('session-status');
+            if (session) {
+                const expiresAt = new Date(session.expires_at * 1000);
+                const now = new Date();
+                const minutesLeft = Math.floor((expiresAt - now) / 1000 / 60);
+                
+                statusDiv.innerHTML = `
+                    <div class="success">✅ Active Session</div>
+                    <div><strong>User:</strong> ${session.user.email}</div>
+                    <div><strong>User ID:</strong> ${session.user.id}</div>
+                    <div><strong>Expires:</strong> ${expiresAt.toLocaleString()}</div>
+                    <div><strong>Time Left:</strong> ${minutesLeft} minutes</div>
+                    <div><strong>Provider:</strong> ${session.user.app_metadata?.provider || 'email'}</div>
+                `;
+            } else {
+                statusDiv.innerHTML = '<div class="error">❌ No Active Session</div>';
+            }
+        }
+        
+        function updateStorageAnalysis() {
+            const analysisDiv = document.getElementById('storage-analysis');
+            let html = '';
+            
+            const authKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('supabase') || key.includes('auth') || key.includes('sb-'))) {
+                    authKeys.push(key);
+                }
+            }
+            
+            if (authKeys.length > 0) {
+                authKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    const size = value ? value.length : 0;
+                    const isCorrectKey = key === 'sb-ewtuefzeogytgmsnkpmb-auth-token';
+                    
+                    html += `
+                        <div class="key-item">
+                            <div>
+                                <span class="${isCorrectKey ? 'success' : 'warning'}">${key}</span>
+                                <span class="info"> (${size} bytes)</span>
+                                ${isCorrectKey ? ' ✅' : ' ⚠️'}
+                            </div>
+                            <button onclick="removeKey('${key}')">Remove</button>
+                        </div>
+                    `;
+                });
+            } else {
+                html = '<div class="warning">No authentication keys in localStorage</div>';
+            }
+            
+            analysisDiv.innerHTML = html;
+        }
+        
+        window.removeKey = function(key) {
+            if (confirm(`Remove ${key}?`)) {
+                localStorage.removeItem(key);
+                log(`Removed: ${key}`, 'success');
+                updateStorageAnalysis();
+            }
+        }
+        
+        // Auto-run diagnosis on load
+        window.addEventListener('load', () => {
+            diagnoseSession();
+        });
+    </script>
+</body>
+</html>
