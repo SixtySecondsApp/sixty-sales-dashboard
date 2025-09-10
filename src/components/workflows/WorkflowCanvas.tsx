@@ -73,6 +73,8 @@ import AssistantManagerNode from './nodes/AssistantManagerNode';
 import AssistantManagerConfigModal from './AssistantManagerConfigModal';
 import type { AssistantManagerNodeConfig } from './AssistantManagerConfigModal';
 import FormNode from './nodes/FormNode';
+import GoogleEmailNode from './nodes/GoogleEmailNode';
+import GoogleDocsNode from './nodes/GoogleDocsNode';
 import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
@@ -295,7 +297,9 @@ const nodeTypes: NodeTypes = {
   aiAgent: AIAgentNode,
   customGPT: CustomGPTNode,
   assistantManager: AssistantManagerNode,
-  form: FormNode
+  form: FormNode,
+  googleEmail: GoogleEmailNode,
+  googleDocs: GoogleDocsNode
 };
 
 const edgeTypes = {

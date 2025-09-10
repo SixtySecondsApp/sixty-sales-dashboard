@@ -260,3 +260,286 @@ async function getLabels(accessToken: string): Promise<any> {
     labels: data.labels || []
   };
 }
+
+async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
+  console.log('[Google Gmail] Refreshing access token...');
+  
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[Google Gmail] Token refresh error:', errorData);
+    throw new Error('Failed to refresh access token');
+  }
+
+  const data = await response.json();
+  const newAccessToken = data.access_token;
+  const expiresIn = data.expires_in || 3600;
+  
+  // Update the integration with new token
+  const expiresAt = new Date(Date.now() + (expiresIn * 1000));
+  await supabase
+    .from('google_integrations')
+    .update({
+      access_token: newAccessToken,
+      expires_at: expiresAt.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+  
+  console.log('[Google Gmail] Access token refreshed successfully');
+  return newAccessToken;
+}
+
+async function syncEmailsToContacts(
+  accessToken: string, 
+  supabase: any, 
+  userId: string, 
+  integrationId: string
+): Promise<any> {
+  console.log('[Google Gmail] Syncing emails to contacts...');
+  
+  try {
+    // Get or create sync status
+    let { data: syncStatus, error: statusError } = await supabase
+      .from('email_sync_status')
+      .select('*')
+      .eq('integration_id', integrationId)
+      .single();
+    
+    if (statusError || !syncStatus) {
+      // Create new sync status
+      const { data: newStatus, error: createError } = await supabase
+        .from('email_sync_status')
+        .insert({
+          integration_id: integrationId,
+          sync_enabled: true,
+          sync_interval_minutes: 15,
+          sync_direction: 'both',
+        })
+        .select()
+        .single();
+      
+      if (createError) {
+        console.error('[Google Gmail] Failed to create sync status:', createError);
+        throw new Error('Failed to initialize sync status');
+      }
+      
+      syncStatus = newStatus;
+    }
+    
+    // Get user's contacts
+    const { data: contacts, error: contactsError } = await supabase
+      .from('contacts')
+      .select('id, email')
+      .eq('owner_id', userId);
+    
+    if (contactsError || !contacts || contacts.length === 0) {
+      console.log('[Google Gmail] No contacts found for user');
+      return {
+        success: true,
+        message: 'No contacts to sync',
+        syncedCount: 0,
+      };
+    }
+    
+    // Build email search query
+    const emailAddresses = contacts.map(c => c.email).filter(Boolean);
+    const query = emailAddresses.map(email => `from:${email} OR to:${email}`).join(' OR ');
+    
+    // Fetch emails from Gmail
+    const params = new URLSearchParams({
+      q: query,
+      maxResults: '50', // Limit for initial sync
+    });
+    
+    if (syncStatus.next_page_token) {
+      params.set('pageToken', syncStatus.next_page_token);
+    }
+    
+    const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('[Google Gmail] List emails error:', errorData);
+      throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
+    }
+    
+    const data = await response.json();
+    const messages = data.messages || [];
+    let syncedCount = 0;
+    
+    // Process each message
+    for (const message of messages.slice(0, 10)) { // Limit to 10 for now
+      try {
+        // Get full message details
+        const msgResponse = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+            },
+          }
+        );
+        
+        if (!msgResponse.ok) continue;
+        
+        const msgData = await msgResponse.json();
+        
+        // Extract email details
+        const headers = msgData.payload?.headers || [];
+        const fromHeader = headers.find((h: any) => h.name === 'From');
+        const toHeader = headers.find((h: any) => h.name === 'To');
+        const subjectHeader = headers.find((h: any) => h.name === 'Subject');
+        const dateHeader = headers.find((h: any) => h.name === 'Date');
+        
+        if (!fromHeader || !toHeader) continue;
+        
+        // Parse email addresses
+        const fromEmail = extractEmail(fromHeader.value);
+        const toEmails = extractEmails(toHeader.value);
+        
+        // Determine direction and find matching contact
+        let contactId = null;
+        let direction = 'inbound';
+        
+        // Check if from email matches a contact
+        const fromContact = contacts.find(c => c.email?.toLowerCase() === fromEmail.toLowerCase());
+        if (fromContact) {
+          contactId = fromContact.id;
+          direction = 'inbound';
+        } else {
+          // Check if any to email matches a contact
+          for (const toEmail of toEmails) {
+            const toContact = contacts.find(c => c.email?.toLowerCase() === toEmail.toLowerCase());
+            if (toContact) {
+              contactId = toContact.id;
+              direction = 'outbound';
+              break;
+            }
+          }
+        }
+        
+        if (!contactId) continue;
+        
+        // Extract body
+        const body = extractBody(msgData.payload);
+        
+        // Store in database
+        const { error: insertError } = await supabase
+          .from('contact_emails')
+          .upsert({
+            contact_id: contactId,
+            integration_id: integrationId,
+            gmail_message_id: message.id,
+            gmail_thread_id: message.threadId || '',
+            subject: subjectHeader?.value || '',
+            snippet: msgData.snippet || '',
+            from_email: fromEmail,
+            from_name: extractName(fromHeader.value),
+            to_emails: toEmails,
+            body_plain: body,
+            sent_at: dateHeader ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
+            direction,
+            labels: msgData.labelIds || [],
+          }, {
+            onConflict: 'gmail_message_id',
+          });
+        
+        if (!insertError) {
+          syncedCount++;
+        }
+      } catch (err) {
+        console.error(`[Google Gmail] Error processing message ${message.id}:`, err);
+      }
+    }
+    
+    // Update sync status
+    await supabase
+      .from('email_sync_status')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        next_page_token: data.nextPageToken || null,
+        total_emails_synced: (syncStatus.total_emails_synced || 0) + syncedCount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('integration_id', integrationId);
+    
+    console.log(`[Google Gmail] Synced ${syncedCount} emails`);
+    
+    return {
+      success: true,
+      syncedCount,
+      totalMessages: messages.length,
+      hasMore: !!data.nextPageToken,
+    };
+  } catch (error) {
+    console.error('[Google Gmail] Sync error:', error);
+    
+    // Update sync status with error
+    await supabase
+      .from('email_sync_status')
+      .update({
+        last_error: error.message,
+        last_error_at: new Date().toISOString(),
+        consecutive_errors: supabase.sql`consecutive_errors + 1`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('integration_id', integrationId);
+    
+    throw error;
+  }
+}
+
+// Helper functions
+function extractEmail(emailString: string): string {
+  const match = emailString.match(/<(.+)>/);
+  return match ? match[1] : emailString.trim();
+}
+
+function extractEmails(emailString: string): string[] {
+  return emailString.split(',').map(e => extractEmail(e.trim()));
+}
+
+function extractName(emailString: string): string {
+  const match = emailString.match(/^(.+) </);
+  return match ? match[1].trim() : '';
+}
+
+function extractBody(payload: any): string {
+  if (!payload) return '';
+  
+  // Try to find plain text part
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/plain' && part.body?.data) {
+        return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+      }
+    }
+  }
+  
+  // Fallback to body data if no parts
+  if (payload.body?.data) {
+    return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+  }
+  
+  return '';
+}
