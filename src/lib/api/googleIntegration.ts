@@ -92,7 +92,7 @@ export class GoogleIntegrationAPI {
     }
 
     // Also clean up any cached data (calendars, labels, folders)
-    await this.cleanupCachedData();
+    await GoogleIntegrationAPI.cleanupCachedData();
   }
 
   /**
@@ -136,7 +136,7 @@ export class GoogleIntegrationAPI {
    * For now, returns basic status based on integration existence
    */
   static async getServiceStatus(): Promise<GoogleServiceStatus> {
-    const integration = await this.getIntegrationStatus();
+    const integration = await GoogleIntegrationAPI.getIntegrationStatus();
     
     if (!integration) {
       return { gmail: false, calendar: false, drive: false };
@@ -169,7 +169,7 @@ export class GoogleIntegrationAPI {
    * This will be called automatically by service proxy functions
    */
   static async refreshTokensIfNeeded(): Promise<boolean> {
-    const integration = await this.getIntegrationStatus();
+    const integration = await GoogleIntegrationAPI.getIntegrationStatus();
     
     if (!integration) {
       return false;
@@ -200,7 +200,7 @@ export class GoogleIntegrationAPI {
     email: string | null;
     lastSync: string | null;
   }> {
-    const integration = await this.getIntegrationStatus();
+    const integration = await GoogleIntegrationAPI.getIntegrationStatus();
     
     if (!integration) {
       return {
@@ -212,7 +212,7 @@ export class GoogleIntegrationAPI {
       };
     }
 
-    const hasValidTokens = await this.refreshTokensIfNeeded();
+    const hasValidTokens = await GoogleIntegrationAPI.refreshTokensIfNeeded();
     
     return {
       isConnected: integration.is_active,
