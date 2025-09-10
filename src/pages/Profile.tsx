@@ -9,8 +9,8 @@ import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
 
 export default function Profile() {
-  const { userData } = useUser();
-  const { user, updatePassword } = useAuth();
+  const { userData, isLoading: userLoading } = useUser();
+  const { user, userProfile, updatePassword } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -24,17 +24,31 @@ export default function Profile() {
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
 
+  // Debug logging
+  useEffect(() => {
+    logger.log('Profile page mounted:', { 
+      userData, 
+      userProfile,
+      user,
+      userLoading 
+    });
+  }, [userData, userProfile, user, userLoading]);
+
   // Update form data when user data is loaded
   useEffect(() => {
-    if (userData) {
+    // Use userProfile from AuthContext if userData from useUser is not available
+    const profileData = userData || userProfile;
+    
+    if (profileData) {
+      logger.log('Setting form data from profile:', profileData);
       setFormData(prev => ({
         ...prev,
-        firstName: userData.first_name || '',
-        lastName: userData.last_name || '',
-        email: userData.email || ''
+        firstName: profileData.first_name || '',
+        lastName: profileData.last_name || '',
+        email: profileData.email || ''
       }));
     }
-  }, [userData]);
+  }, [userData, userProfile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,6 +168,19 @@ export default function Profile() {
     }
   };
 
+  // Show loading state while user data is loading
+  if (userLoading) {
+    return (
+      <div className="p-4 sm:p-8 mt-12 lg:mt-0">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#37bd7e]"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-8 mt-12 lg:mt-0">
       <div className="max-w-2xl mx-auto space-y-8">
@@ -170,16 +197,16 @@ export default function Profile() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative group">
                 <div className="w-24 h-24 rounded-xl overflow-hidden bg-[#37bd7e]/20 border-2 border-[#37bd7e]/30 group-hover:border-[#37bd7e]/50 transition-all duration-300">
-                  {userData?.avatar_url ? (
+                  {(userData?.avatar_url || userProfile?.avatar_url) ? (
                     <img
-                      src={userData.avatar_url}
+                      src={userData?.avatar_url || userProfile?.avatar_url}
                       alt="Profile"
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <span className="text-2xl font-medium text-[#37bd7e]">
-                        {formData.firstName[0]}{formData.lastName[0]}
+                        {formData.firstName?.[0] || 'A'}{formData.lastName?.[0] || 'B'}
                       </span>
                     </div>
                   )}
