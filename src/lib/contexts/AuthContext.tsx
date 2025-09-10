@@ -54,72 +54,63 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const queryClient = useQueryClient();
   const profileFetchInProgress = useRef(false);
   const mockUserInitialized = useRef(false);
-  
-  // Profile cache to prevent repeated fetches
-  const profileCache = useRef<{ 
-    profile: UserProfile | null; 
-    timestamp: number; 
-    email: string | null 
-  }>({ 
-    profile: null, 
-    timestamp: 0,
-    email: null 
-  });
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-  // Fetch user profile helper - ALWAYS use email as primary lookup
+  // Fetch user profile helper - use email as primary lookup when available
   const fetchUserProfile = useCallback(async (userId: string, force: boolean = false): Promise<UserProfile | null> => {
+    // Prevent concurrent fetches
+    if (profileFetchInProgress.current && !force) {
+      logger.log('⏳ Profile fetch already in progress, skipping...');
+      return null;
+    }
+    
+    profileFetchInProgress.current = true;
+    
     try {
-      // Get current user email first - this is the most reliable identifier
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const userEmail = currentUser?.email;
+      logger.log('🔍 Fetching profile for userId:', userId);
       
-      if (!userEmail) {
-        logger.error('❌ No email found for authenticated user');
-        return null;
-      }
-
-      // Check cache first (unless forced refresh)
-      const now = Date.now();
-      if (!force && 
-          profileCache.current.email === userEmail && 
-          profileCache.current.profile && 
-          (now - profileCache.current.timestamp) < CACHE_DURATION) {
-        logger.log('📦 Using cached profile for:', userEmail);
-        return profileCache.current.profile;
-      }
-      
-      logger.log('🔍 Fetching fresh profile for email:', userEmail);
+      // Get current session to get email
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const userEmail = currentSession?.user?.email;
       
       // Use admin client if available for better access
       const client = supabaseAdmin || supabase;
       
-      // ALWAYS fetch by email first - it's the most reliable
-      let { data: profile, error } = await client
-        .from('profiles')
-        .select('*')
-        .eq('email', userEmail)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        logger.error('❌ Error fetching profile by email:', error);
+      let profile = null;
+      
+      // Try email lookup first if we have an email
+      if (userEmail) {
+        logger.log('📧 Attempting fetch by email:', userEmail);
+        const { data: profileByEmail, error: emailError } = await client
+          .from('profiles')
+          .select('*')
+          .eq('email', userEmail)
+          .maybeSingle();
         
-        // Fallback: try by ID only if email fails
-        logger.log('🔄 Attempting fallback fetch by ID:', userId);
+        if (profileByEmail) {
+          logger.log('✅ Found profile by email');
+          profile = profileByEmail;
+        } else if (emailError && emailError.code !== 'PGRST116') {
+          logger.error('Error fetching by email:', emailError);
+        }
+      }
+      
+      // Fallback to ID lookup if email lookup failed
+      if (!profile) {
+        logger.log('🆔 Attempting fetch by ID:', userId);
         const { data: profileById, error: idError } = await client
           .from('profiles')
           .select('*')
           .eq('id', userId)
           .maybeSingle();
-          
+        
         if (profileById) {
-          logger.log('✅ Found profile by ID fallback');
+          logger.log('✅ Found profile by ID');
           profile = profileById;
-        } else if (idError) {
-          logger.error('❌ Could not fetch profile by ID either:', idError);
+        } else if (idError && idError.code !== 'PGRST116') {
+          logger.error('Error fetching by ID:', idError);
         }
       }
-
+      
       if (profile) {
         logger.log('✅ Profile fetched successfully:', {
           id: profile.id,
@@ -128,32 +119,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           stage: profile.stage,
           isAdmin: profile.is_admin
         });
-        
-        // Cache the result
-        profileCache.current = { 
-          profile, 
-          timestamp: now,
-          email: userEmail 
-        };
-        
-        // Ensure all required fields are present
-        if (!profile.first_name || !profile.last_name || !profile.stage) {
-          logger.warn('⚠️ Profile missing required fields, may need update');
-        }
-        
         return profile;
       }
-
-      logger.warn('⚠️ No profile found for email:', userEmail);
       
-      // Clear cache if no profile found
-      profileCache.current = { profile: null, timestamp: 0, email: null };
-      
+      logger.warn('⚠️ No profile found for user:', userId, 'email:', userEmail);
       return null;
     } catch (err) {
       logger.error('❌ Unexpected error fetching profile:', err);
-      // Don't show toast for every error - too noisy
       return null;
+    } finally {
+      profileFetchInProgress.current = false;
     }
   }, []);
 
@@ -389,9 +364,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user?.id) {
       logger.log('🔄 Manual profile refresh requested');
       
-      // Clear cache first to ensure fresh fetch
-      profileCache.current = { profile: null, timestamp: 0, email: null };
-      
       // Force refresh the profile
       const profile = await fetchUserProfile(user.id, true);
       
@@ -402,18 +374,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           isAdmin: profile.is_admin
         });
         setUserProfile(profile);
-        
-        // Also update the user metadata if needed
-        if (user && (!user.user_metadata?.full_name || !user.user_metadata?.stage)) {
-          const fullName = `${profile.first_name} ${profile.last_name}`;
-          await supabase.auth.updateUser({
-            data: {
-              full_name: fullName,
-              stage: profile.stage,
-              is_admin: profile.is_admin
-            }
-          });
-        }
       } else {
         logger.warn('⚠️ Profile refresh failed - no profile found');
         setUserProfile(null);

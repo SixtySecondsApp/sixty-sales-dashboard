@@ -3469,7 +3469,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
                             <textarea
                               value={selectedNode.data.slackMessage || ''}
-                              onChange={(e) => updateNodeData(selectedNode.id, { slackMessage: e.target.value })}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { slackMessage: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
                               className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                               placeholder="🎉 New deal created: {{deal_name}}"
                               rows={2}
@@ -3483,7 +3487,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             <label className="block text-sm font-medium text-gray-300 mb-2">Custom Message</label>
                             <textarea
                               value={selectedNode.data.slackCustomMessage || ''}
-                              onChange={(e) => updateNodeData(selectedNode.id, { slackCustomMessage: e.target.value })}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { slackCustomMessage: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
                               className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                               placeholder="Use {{deal_name}}, {{company}}, {{value}}, {{stage}}"
                               rows={3}
