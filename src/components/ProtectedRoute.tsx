@@ -37,8 +37,12 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       isPublicRoute
     });
     
-    // Don't redirect while loading
-    if (loading) return;
+    // Always wait for loading to complete before making any redirect decisions
+    // This prevents premature redirects while the session is being restored
+    if (loading) {
+      console.log('Still loading auth state, waiting...');
+      return;
+    }
 
     // If user is authenticated and on a public route (except password recovery), redirect to app
     if (isAuthenticated && isPublicRoute && !isPasswordRecovery) {

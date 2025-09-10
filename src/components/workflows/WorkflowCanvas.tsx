@@ -3118,11 +3118,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <label className="block text-sm font-medium text-gray-300 mb-2">Payload (JSON)</label>
                           <textarea
                             value={selectedNode.data.webhookPayload || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { webhookPayload: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { webhookPayload: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24 font-mono"
-                            placeholder='{"deal_id": "{{deal_id}}", "value": "{{value}}"}'
+                            placeholder={'{"deal_id": "{{deal_id}}", "value": "{{value}}"}'}
                           />
-                          <p className="text-xs text-gray-500 mt-1">Use variables: {{deal_id}}, {{deal_name}}, {{value}}, {{stage}}</p>
+                          <p className="text-xs text-gray-500 mt-1">Use variables: {`{{deal_id}}, {{deal_name}}, {{value}}, {{stage}}`}</p>
                         </div>
                       </>
                     )}
@@ -5424,18 +5428,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <label className="block text-sm font-medium text-gray-300 mb-2">Headers (JSON)</label>
                           <textarea
                             value={selectedNode.data.webhookHeaders || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { webhookHeaders: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { webhookHeaders: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-16 font-mono text-xs"
-                            placeholder='{"Authorization": "Bearer {{api_key}}", "Content-Type": "application/json"}'
+                            placeholder={'{"Authorization": "Bearer {{api_key}}", "Content-Type": "application/json"}'}
                           />
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-2">Body (JSON)</label>
                           <textarea
                             value={selectedNode.data.webhookBody || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { webhookBody: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { webhookBody: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24 font-mono text-xs"
-                            placeholder='{"deal_id": "{{deal.id}}", "stage": "{{deal.stage}}", "value": {{deal.value}}}'
+                            placeholder={'{"deal_id": "{{deal.id}}", "stage": "{{deal.stage}}", "value": {{deal.value}}}'}
                           />
                         </div>
                       </>

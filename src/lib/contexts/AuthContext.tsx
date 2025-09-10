@@ -156,6 +156,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       try {
         logger.log('🚀 Initializing auth...');
+        
+        // Keep loading true until we've checked for a session
+        setLoading(true);
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (mounted) {
