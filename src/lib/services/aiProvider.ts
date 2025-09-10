@@ -447,42 +447,26 @@ export class AIProviderService {
       throw new Error('OpenAI API key not configured. Please add it in settings.');
     }
 
-    // Map invalid model names to valid ones
+    // Try to use the model as-is first, then check if it needs mapping
     let model = config.model;
-    const modelMapping: Record<string, string> = {
-      // GPT-5 variations (doesn't exist, map to GPT-4o equivalents)
-      'gpt-5-mini': 'gpt-4o-mini',
-      'gpt-5': 'gpt-4o',
-      'Gpt 5': 'gpt-4o',
-      'Gpt 5 Mini': 'gpt-4o-mini',
-      'Gpt 5 2025 08 07': 'gpt-4o-2024-08-06',
-      'Gpt 5 Chat Latest': 'gpt-4o',
-      'Gpt 5 Mini 2025 08 07': 'gpt-4o-mini',
-      'Gpt 5 Nano': 'gpt-4o-mini',
-      'Gpt 5 Nano 2025 08 07': 'gpt-4o-mini',
-      
-      // GPT-4 variations
-      'Gpt 4.1': 'gpt-4-turbo',
-      'Gpt 4.1 2025 04 14': 'gpt-4-turbo-2024-04-09',
-      'Gpt 4.1 Mini': 'gpt-4o-mini',
-      'Gpt 4.1 Mini 2025 04 14': 'gpt-4o-mini',
-      'Gpt 4.1 Nano': 'gpt-4o-mini',
-      'Gpt 4.1 Nano 2025 04 14': 'gpt-4o-mini',
-      'Chatgpt 4o Latest': 'gpt-4o',
-      'Gpt 4': 'gpt-4',
-      'Gpt 4 0125 Preview': 'gpt-4-0125-preview',
-      'Gpt 4 0613': 'gpt-4-0613',
-      'Gpt 4 1106 Preview': 'gpt-4-1106-preview',
-      'Gpt 4 Turbo': 'gpt-4-turbo',
-      
-      // Simple mappings
+    
+    // Log the model being used
+    console.log(`[OpenAI] Attempting to use model: ${model}`);
+    
+    // Only map models that we know don't exist or have issues
+    // Let OpenAI's API handle validation for models that might exist
+    const fallbackMapping: Record<string, string> = {
+      // Common typos or alternative names
       'gpt-3.5': 'gpt-3.5-turbo',
       'gpt-4': 'gpt-4-turbo',
+      'gpt4': 'gpt-4-turbo',
+      'gpt3.5': 'gpt-3.5-turbo',
     };
     
-    if (modelMapping[model]) {
-      console.warn(`Model "${model}" is not valid. Using "${modelMapping[model]}" instead.`);
-      model = modelMapping[model];
+    // Only use fallback if the exact model is in our fallback list
+    if (fallbackMapping[model]) {
+      console.warn(`Model "${model}" mapped to "${fallbackMapping[model]}"`);
+      model = fallbackMapping[model];
     }
 
     try {
@@ -507,6 +491,45 @@ export class AIProviderService {
         const error = await response.json();
         const errorMessage = error.error?.message || response.statusText;
         console.error('OpenAI API error:', errorMessage);
+        
+        // If the model doesn't exist, try with a fallback
+        if (errorMessage.includes('does not exist') || errorMessage.includes('invalid model')) {
+          console.warn(`Model "${model}" not found, trying fallback to gpt-4o-mini`);
+          
+          // Retry with a known good model
+          const fallbackResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              temperature: config.temperature || 0.7,
+              max_tokens: config.maxTokens || 1000,
+            }),
+          });
+          
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            return {
+              content: fallbackData.choices[0].message.content || '',
+              usage: {
+                promptTokens: fallbackData.usage?.prompt_tokens || 0,
+                completionTokens: fallbackData.usage?.completion_tokens || 0,
+                totalTokens: fallbackData.usage?.total_tokens || 0,
+              },
+              provider: 'openai',
+              model: 'gpt-4o-mini',
+              error: `Note: Model "${model}" not available, used gpt-4o-mini instead`,
+            };
+          }
+        }
+        
         throw new Error(`OpenAI API error: ${errorMessage}`);
       }
 
@@ -785,39 +808,46 @@ export class AIProviderService {
 
       const data = await response.json();
       
-      // List of valid OpenAI model prefixes
-      const validModelPrefixes = [
-        'gpt-4o',
-        'gpt-4-turbo',
-        'gpt-4-1106',
-        'gpt-4-0125',
-        'gpt-4-0613',
-        'gpt-4',
-        'gpt-3.5-turbo',
-        'o1-preview',
-        'o1-mini'
-      ];
+      // Log all models to see what OpenAI is actually returning
+      console.log('[AIProvider] All OpenAI models:', data.data.map((m: any) => m.id));
       
+      // Filter for chat models (including GPT-5 if it exists)
       const chatModels = data.data
         .filter((model: any) => {
-          // Only include valid OpenAI models, not fake GPT-5 models
-          return validModelPrefixes.some(prefix => model.id.startsWith(prefix));
+          const id = model.id.toLowerCase();
+          // Include all GPT models, o1 models, and chatgpt models
+          return id.includes('gpt') || id.includes('o1') || id.includes('chatgpt');
         })
         .map((model: any) => ({
           value: model.id,
-          label: model.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
+          label: model.id
+            .replace(/-/g, ' ')
+            .replace(/gpt/gi, 'GPT')
+            .replace(/\b\w/g, (l: string) => l.toUpperCase())
+            .replace(/Gpt/g, 'GPT'), // Ensure GPT is always uppercase
         }))
         .sort((a: any, b: any) => {
-          // Sort to put newer models first (4o > 4-turbo > 4 > 3.5)
-          if (a.value.includes('gpt-4o') && !b.value.includes('gpt-4o')) return -1;
-          if (!a.value.includes('gpt-4o') && b.value.includes('gpt-4o')) return 1;
-          if (a.value.includes('gpt-4-turbo') && !b.value.includes('gpt-4-turbo')) return -1;
-          if (!a.value.includes('gpt-4-turbo') && b.value.includes('gpt-4-turbo')) return 1;
-          if (a.value.includes('gpt-4') && !b.value.includes('gpt-4')) return -1;
-          if (!a.value.includes('gpt-4') && b.value.includes('gpt-4')) return 1;
-          if (a.value.includes('o1') && !b.value.includes('o1')) return -1;
-          if (!a.value.includes('o1') && b.value.includes('o1')) return 1;
-          return b.value.localeCompare(a.value); // Reverse sort for newer dates
+          // Sort to put newer models first
+          const getPriority = (model: string) => {
+            if (model.includes('gpt-5')) return 10;
+            if (model.includes('gpt-4o')) return 9;
+            if (model.includes('gpt-4.1')) return 8;
+            if (model.includes('gpt-4-turbo')) return 7;
+            if (model.includes('gpt-4')) return 6;
+            if (model.includes('o1')) return 5;
+            if (model.includes('gpt-3.5')) return 4;
+            return 0;
+          };
+          
+          const aPriority = getPriority(a.value);
+          const bPriority = getPriority(b.value);
+          
+          if (aPriority !== bPriority) {
+            return bPriority - aPriority;
+          }
+          
+          // Within same priority, sort by version/date
+          return b.value.localeCompare(a.value);
         });
 
       const models = chatModels.length > 0 ? chatModels : [
