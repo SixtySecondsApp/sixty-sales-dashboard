@@ -99,9 +99,6 @@ declare global {
 window.queryClient = queryClient;
 
 function App() {
-  // Initialize audit session tracking
-  useInitializeAuditSession();
-  
   // Initialize performance optimizations
   const { performanceMetrics, measurePerformance, addCleanup } = usePerformanceOptimization({
     enableResourcePreloading: true,
@@ -175,8 +172,24 @@ function App() {
         <AuthProvider>
           <ViewModeProvider>
             <StateProvider>
-            <IntelligentPreloader />
-            <ProtectedRoute>
+            <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
+            </StateProvider>
+          </ViewModeProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+}
+
+// Separate component that can use auth context
+function AppContent({ performanceMetrics, measurePerformance }: any) {
+  // Initialize audit session tracking - now inside AuthProvider
+  useInitializeAuditSession();
+  
+  return (
+    <>
+      <IntelligentPreloader />
+      <ProtectedRoute>
               <Suspense fallback={<RouteLoader />}>
                 <Routes>
                 <Route path="/auth/login" element={<Login />} />
@@ -237,15 +250,11 @@ function App() {
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
               </Routes>
             </Suspense>
-          </ProtectedRoute>
-          <Toaster />
-          <VersionManager />
-          <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
-            </StateProvider>
-          </ViewModeProvider>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ErrorBoundary>
+      </ProtectedRoute>
+      <Toaster />
+      <VersionManager />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
+    </>
   );
 }
 
