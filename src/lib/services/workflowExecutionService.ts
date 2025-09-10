@@ -331,25 +331,67 @@ class WorkflowExecutionService {
     const systemPrompt = interpolateVariables(config.systemPrompt || '', context.variables);
     const userPrompt = interpolateVariables(config.userPrompt || '', context.variables);
 
+    // Auto-detect CRM queries and enable tools
+    const crmKeywords = ['crm', 'contact', 'deal', 'company', 'record', 'database', 'search', 'find', 'lookup'];
+    const isCRMQuery = crmKeywords.some(keyword => 
+      userPrompt.toLowerCase().includes(keyword) || 
+      systemPrompt.toLowerCase().includes(keyword)
+    );
+
+    // Enhanced configuration with auto-enabled tools for CRM queries
+    let enhancedConfig = { ...config };
+    if (isCRMQuery && !config.enableTools) {
+      console.log('[WorkflowExecution] Auto-enabling CRM tools for CRM query');
+      enhancedConfig = {
+        ...config,
+        enableTools: true,
+        selectedTools: ['search_contacts', 'search_companies', 'search_deals'],
+        autoExecuteTools: true
+      };
+    }
+
     try {
-      // Call AI service
-      const response = await this.aiService.complete({
-        provider: config.modelProvider || 'openai',
-        model: config.model || 'gpt-3.5-turbo',
-        systemPrompt,
-        userPrompt,
-        temperature: config.temperature || 0.7,
-        maxTokens: config.maxTokens || 1000
+      console.log('[WorkflowExecution] Executing AI node with config:', {
+        model: config.model,
+        provider: config.modelProvider,
+        enableTools: enhancedConfig.enableTools,
+        selectedTools: enhancedConfig.selectedTools,
+        userPrompt: userPrompt.substring(0, 100) + '...'
+      });
+
+      // Get user ID from context or use default
+      const userId = context.variables.userId as string || undefined;
+      
+      // Call AI service with enhanced configuration and variables
+      const response = await this.aiService.complete(
+        enhancedConfig,
+        context.variables,
+        userId
+      );
+
+      // Check for errors in the response
+      if (response.error) {
+        console.error('[WorkflowExecution] AI node error:', response.error);
+        throw new Error(response.error);
+      }
+
+      console.log('[WorkflowExecution] AI node response received:', {
+        contentLength: response.content?.length || 0,
+        model: response.model,
+        provider: response.provider,
+        hasToolCalls: response.toolCalls ? response.toolCalls.length : 0
       });
 
       return {
         prompt: userPrompt,
-        response: response.content,
-        model: config.model,
+        response: response.content || '',
+        model: response.model || config.model,
         tokensUsed: response.usage?.totalTokens,
+        toolCalls: response.toolCalls,
         timestamp: new Date().toISOString()
       };
     } catch (error) {
+      console.error('[WorkflowExecution] AI generation failed:', error);
       throw new Error(`AI generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

@@ -166,6 +166,19 @@ export class AIProviderService {
         enhancedSystemPrompt += '\n\nPlease think step-by-step through your reasoning before providing the final answer.';
       }
 
+      // Auto-enhance system prompt for CRM queries
+      const crmKeywords = ['crm', 'contact', 'deal', 'company', 'record', 'database', 'search', 'find', 'lookup'];
+      const isCRMQuery = crmKeywords.some(keyword => 
+        userPrompt.toLowerCase().includes(keyword) || 
+        systemPrompt.toLowerCase().includes(keyword)
+      );
+      
+      if (isCRMQuery && !systemPrompt.includes('CRM access')) {
+        enhancedSystemPrompt += '\n\nYou have direct access to the CRM database and can search for contacts, companies, and deals. ';
+        enhancedSystemPrompt += 'When asked about CRM records, always use the available tools to search the actual database. ';
+        enhancedSystemPrompt += 'Provide specific information and links when records are found.';
+      }
+
       // Add tool instructions if enabled
       if (config.enableTools && config.selectedTools && config.selectedTools.length > 0) {
         const toolRegistry = ToolRegistry.getInstance();
@@ -403,40 +416,70 @@ export class AIProviderService {
       throw new Error('OpenAI API key not configured. Please add it in settings.');
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: config.temperature || 0.7,
-        max_tokens: config.maxTokens || 1000,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`OpenAI API error: ${error.error?.message || response.statusText}`);
+    // Map invalid model names to valid ones
+    let model = config.model;
+    const modelMapping: Record<string, string> = {
+      'gpt-5-mini': 'gpt-4o-mini',
+      'gpt-5': 'gpt-4o',
+      'gpt-3.5': 'gpt-3.5-turbo',
+      'gpt-4': 'gpt-4-turbo',
+    };
+    
+    if (modelMapping[model]) {
+      console.warn(`Model "${model}" is not valid. Using "${modelMapping[model]}" instead.`);
+      model = modelMapping[model];
     }
 
-    const data = await response.json();
-    
-    return {
-      content: data.choices[0].message.content,
-      usage: {
-        promptTokens: data.usage.prompt_tokens,
-        completionTokens: data.usage.completion_tokens,
-        totalTokens: data.usage.total_tokens,
-      },
-      provider: 'openai',
-      model: config.model,
-    };
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: config.temperature || 0.7,
+          max_tokens: config.maxTokens || 1000,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        const errorMessage = error.error?.message || response.statusText;
+        console.error('OpenAI API error:', errorMessage);
+        throw new Error(`OpenAI API error: ${errorMessage}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.choices || data.choices.length === 0) {
+        throw new Error('No response from OpenAI API');
+      }
+      
+      return {
+        content: data.choices[0].message.content || '',
+        usage: {
+          promptTokens: data.usage?.prompt_tokens || 0,
+          completionTokens: data.usage?.completion_tokens || 0,
+          totalTokens: data.usage?.total_tokens || 0,
+        },
+        provider: 'openai',
+        model: model,
+      };
+    } catch (error) {
+      console.error('Error calling OpenAI API:', error);
+      return {
+        content: '',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        provider: 'openai',
+        model: model,
+      };
+    }
   }
 
   /**

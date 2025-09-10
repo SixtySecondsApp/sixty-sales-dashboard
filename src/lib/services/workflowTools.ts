@@ -435,11 +435,26 @@ export class SearchContactsTool extends CRMTool {
       
       if (error) throw error;
       
+      // Add CRM links to the results
+      // Use the app's base URL - in production this would be your actual domain
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : 'http://localhost:5173'; // Default for server-side execution
+      
+      const enhancedData = data?.map((contact: any) => ({
+        ...contact,
+        crm_link: `${baseUrl}/crm/contacts/${contact.id}`,
+        view_url: `${baseUrl}/crm/contacts/${contact.id}`
+      })) || [];
+      
       return {
         success: true,
-        data,
+        data: enhancedData,
         metadata: {
           recordsAffected: data?.length || 0,
+          message: data?.length > 0 
+            ? `Found ${data.length} contact(s). Links provided for each record.`
+            : 'No contacts found matching the search criteria.',
         },
       };
     } catch (error) {
