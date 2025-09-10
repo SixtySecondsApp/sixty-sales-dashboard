@@ -470,27 +470,74 @@ export class AIProviderService {
     }
 
     try {
+      // Determine which parameter to use based on model
+      const tokenParam = model.includes('o1') || model.includes('o3') 
+        ? 'max_completion_tokens' 
+        : 'max_tokens';
+      
+      const requestBody: any = {
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: config.temperature || 0.7,
+      };
+      
+      // Add the appropriate token parameter
+      requestBody[tokenParam] = config.maxTokens || 1000;
+      
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: config.temperature || 0.7,
-          max_tokens: config.maxTokens || 1000,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
         const error = await response.json();
         const errorMessage = error.error?.message || response.statusText;
         console.error('OpenAI API error:', errorMessage);
+        
+        // If the error is about max_tokens vs max_completion_tokens, retry with the correct parameter
+        if (errorMessage.includes('max_tokens') && errorMessage.includes('max_completion_tokens')) {
+          console.warn(`Retrying with max_completion_tokens for model ${model}`);
+          
+          const retryBody: any = {
+            model: model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt },
+            ],
+            temperature: config.temperature || 0.7,
+            max_completion_tokens: config.maxTokens || 1000,
+          };
+          
+          const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(retryBody),
+          });
+          
+          if (retryResponse.ok) {
+            const retryData = await retryResponse.json();
+            return {
+              content: retryData.choices[0].message.content || '',
+              usage: {
+                promptTokens: retryData.usage?.prompt_tokens || 0,
+                completionTokens: retryData.usage?.completion_tokens || 0,
+                totalTokens: retryData.usage?.total_tokens || 0,
+              },
+              provider: 'openai',
+              model: model,
+            };
+          }
+        }
         
         // If the model doesn't exist, try with a fallback
         if (errorMessage.includes('does not exist') || errorMessage.includes('invalid model')) {
@@ -510,7 +557,7 @@ export class AIProviderService {
                 { role: 'user', content: userPrompt },
               ],
               temperature: config.temperature || 0.7,
-              max_tokens: config.maxTokens || 1000,
+              max_tokens: config.maxTokens || 1000, // gpt-4o-mini uses max_tokens
             }),
           });
           
