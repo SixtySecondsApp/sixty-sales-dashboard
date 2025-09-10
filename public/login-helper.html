@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Helper</title>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: system-ui;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+        h1 {
+            margin: 0 0 30px 0;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #5a67d8;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            display: none;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        .session-info {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: none;
+        }
+        .session-info.active {
+            display: block;
+        }
+        .quick-login {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+        .quick-btn {
+            background: #37bd7e;
+            margin-bottom: 10px;
+        }
+        .quick-btn:hover {
+            background: #2da76c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Login to Sixty Sales</h1>
+        
+        <div id="session-info" class="session-info"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" required placeholder="your@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="Enter your password">
+            </div>
+            
+            <button type="submit">Sign In</button>
+        </form>
+        
+        <div class="quick-login">
+            <h3>Quick Login</h3>
+            <button class="quick-btn" onclick="quickLogin('andrew.bryce@sixtyseconds.video')">
+                Login as Andrew Bryce (Admin)
+            </button>
+        </div>
+        
+        <div id="status" class="status"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.AX7kU-PKsG1z7OE1_qVHuXaKj5EKw-Ws71Sax1gZ7GU';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        
+        async function checkSession() {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (session) {
+                const sessionInfo = document.getElementById('session-info');
+                sessionInfo.innerHTML = `
+                    <h3>✅ Already Logged In</h3>
+                    <p><strong>Email:</strong> ${session.user.email}</p>
+                    <p><strong>User ID:</strong> ${session.user.id}</p>
+                    <button onclick="signOut()" style="background: #dc3545;">Sign Out</button>
+                `;
+                sessionInfo.classList.add('active');
+                
+                // Hide login form
+                document.getElementById('login-form').style.display = 'none';
+                document.querySelector('.quick-login').style.display = 'none';
+                
+                // Fetch and display profile
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('email', session.user.email)
+                    .maybeSingle();
+                
+                if (profile) {
+                    sessionInfo.innerHTML += `
+                        <h4>Profile Details:</h4>
+                        <p><strong>Name:</strong> ${profile.first_name} ${profile.last_name}</p>
+                        <p><strong>Stage:</strong> ${profile.stage || 'Not set'}</p>
+                        <p><strong>Admin:</strong> ${profile.is_admin ? 'Yes ✅' : 'No ❌'}</p>
+                    `;
+                }
+                
+                showStatus('You are logged in! You can now use the dashboard.', 'success');
+            }
+        }
+        
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            showStatus('Signing in...', 'success');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: email.toLowerCase().trim(),
+                    password: password
+                });
+                
+                if (error) {
+                    showStatus(`Error: ${error.message}`, 'error');
+                } else {
+                    showStatus('Success! Redirecting to dashboard...', 'success');
+                    
+                    // Wait a moment then redirect
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 1500);
+                }
+            } catch (err) {
+                showStatus(`Error: ${err.message}`, 'error');
+            }
+        });
+        
+        window.quickLogin = async function(email) {
+            document.getElementById('email').value = email;
+            showStatus('Enter your password for ' + email, 'success');
+            document.getElementById('password').focus();
+        }
+        
+        window.signOut = async function() {
+            const { error } = await supabase.auth.signOut();
+            if (!error) {
+                showStatus('Signed out successfully', 'success');
+                window.location.reload();
+            }
+        }
+        
+        // Check session on load
+        checkSession();
+    </script>
+</body>
+</html>

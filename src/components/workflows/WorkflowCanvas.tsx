@@ -3504,7 +3504,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                             <label className="block text-sm font-medium text-gray-300 mb-2">Slack Blocks JSON</label>
                             <textarea
                               value={selectedNode.data.slackBlocks || ''}
-                              onChange={(e) => updateNodeData(selectedNode.id, { slackBlocks: e.target.value })}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateNodeData(selectedNode.id, { slackBlocks: e.target.value });
+                              }}
+                              onMouseDown={(e) => e.stopPropagation()}
                               className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors font-mono"
                               placeholder={`[
   {
@@ -5235,7 +5239,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <input
                             type="text"
                             value={selectedNode.data.slackChannel || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { slackChannel: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { slackChannel: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                             placeholder="#sales-team or @username"
                           />
@@ -5244,7 +5252,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
                           <textarea
                             value={selectedNode.data.slackMessage || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { slackMessage: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { slackMessage: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-24"
                             placeholder=":tada: Deal {{deal.name}} closed for ${{deal.value}}!"
                           />
@@ -5254,7 +5266,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <input
                             type="url"
                             value={selectedNode.data.slackWebhook || ''}
-                            onChange={(e) => updateNodeData(selectedNode.id, { slackWebhook: e.target.value })}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { slackWebhook: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                             placeholder="https://hooks.slack.com/services/..."
                           />
