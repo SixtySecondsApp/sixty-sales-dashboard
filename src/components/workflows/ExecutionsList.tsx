@@ -31,15 +31,31 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
   const loadExecutions = async () => {
     setLoading(true);
     try {
-      // Load executions from database first to populate cache
-      await workflowExecutionService.loadAllExecutionsFromDatabase();
+      let allExecutions: WorkflowExecution[] = [];
       
-      // Get all executions and filter by mode and workflowId
-      const allExecutions = workflowExecutionService.getAllExecutions();
+      if (workflowId) {
+        // Load executions for specific workflow only
+        const dbExecutions = await workflowExecutionService.loadExecutionsFromDatabase(workflowId);
+        
+        // Also get any in-memory executions for this workflow
+        const memoryExecutions = workflowExecutionService.getWorkflowExecutions(workflowId);
+        
+        // Combine and deduplicate (prefer memory version if exists)
+        const executionMap = new Map<string, WorkflowExecution>();
+        dbExecutions.forEach(exec => executionMap.set(exec.id, exec));
+        memoryExecutions.forEach(exec => executionMap.set(exec.id, exec)); // Memory overwrites DB
+        
+        allExecutions = Array.from(executionMap.values());
+      } else {
+        // Load all executions from database if no specific workflow
+        await workflowExecutionService.loadAllExecutionsFromDatabase();
+        allExecutions = workflowExecutionService.getAllExecutions();
+      }
+      
+      // Filter by mode (test vs production)
       const filtered = allExecutions.filter(exec => {
-        const matchesMode = activeMode === 'test' ? exec.isTestMode : !exec.isTestMode;
-        const matchesWorkflow = workflowId ? exec.workflowId === workflowId : true;
-        return matchesMode && matchesWorkflow;
+        const matchesMode = activeMode === 'test' ? exec.isTestMode === true : exec.isTestMode !== true;
+        return matchesMode;
       });
       
       // Sort by most recent first
@@ -178,7 +194,12 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
   return (
     <div className="h-full flex flex-col bg-gray-900/50 backdrop-blur-sm">
       <div className="p-4 border-b border-gray-700/50">
-        <h3 className="text-lg font-semibold text-white mb-3">Executions</h3>
+        <h3 className="text-lg font-semibold text-white mb-1">
+          {workflowId ? 'Workflow Jobs' : 'All Workflow Jobs'}
+        </h3>
+        {workflowId && (
+          <p className="text-xs text-gray-400 mb-3">Showing executions for current workflow only</p>
+        )}
         
         <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as 'production' | 'test')}>
           <TabsList className="w-full bg-gray-800/50 border border-gray-700/50">

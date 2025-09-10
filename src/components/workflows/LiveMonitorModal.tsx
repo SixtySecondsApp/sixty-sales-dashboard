@@ -106,18 +106,32 @@ const LiveMonitorModal: React.FC<LiveMonitorModalProps> = ({
   // Load executions
   const loadExecutions = async () => {
     try {
-      // Load all executions from database
-      await workflowExecutionService.loadAllExecutionsFromDatabase();
-      
-      // Get executions (filter by workflow if specified)
-      let allExecutions = workflowExecutionService.getAllExecutions();
+      let allExecutions: WorkflowExecution[] = [];
       
       if (workflowId) {
-        allExecutions = allExecutions.filter(exec => exec.workflowId === workflowId);
+        // Load executions for specific workflow only
+        const dbExecutions = await workflowExecutionService.loadExecutionsFromDatabase(workflowId);
+        
+        // Also get any in-memory executions for this workflow
+        const memoryExecutions = workflowExecutionService.getWorkflowExecutions(workflowId);
+        
+        // Combine and deduplicate (prefer memory version if exists)
+        const executionMap = new Map<string, WorkflowExecution>();
+        dbExecutions.forEach(exec => executionMap.set(exec.id, exec));
+        memoryExecutions.forEach(exec => executionMap.set(exec.id, exec)); // Memory overwrites DB
+        
+        allExecutions = Array.from(executionMap.values());
+      } else {
+        // Load all executions from database if no specific workflow
+        await workflowExecutionService.loadAllExecutionsFromDatabase();
+        allExecutions = workflowExecutionService.getAllExecutions();
       }
       
       // Filter for production only (not test mode)
       allExecutions = allExecutions.filter(exec => !exec.isTestMode);
+      
+      // Sort by start time (most recent first)
+      allExecutions.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
       
       setExecutions(allExecutions);
       calculateStats(allExecutions);
@@ -288,9 +302,9 @@ const LiveMonitorModal: React.FC<LiveMonitorModalProps> = ({
                   )}
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-white">📡 Live Monitor</h2>
+                  <h2 className="text-xl font-semibold text-white">📡 Workflow Jobs Monitor</h2>
                   <p className="text-sm text-green-200">
-                    {workflowName ? `${workflowName} - Production Jobs` : 'All Production Jobs'}
+                    {workflowId ? `${workflowName || 'Current Workflow'} - Production Jobs Only` : 'All Workflows - Production Jobs'}
                   </p>
                 </div>
               </div>
