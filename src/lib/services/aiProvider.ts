@@ -450,8 +450,32 @@ export class AIProviderService {
     // Map invalid model names to valid ones
     let model = config.model;
     const modelMapping: Record<string, string> = {
+      // GPT-5 variations (doesn't exist, map to GPT-4o equivalents)
       'gpt-5-mini': 'gpt-4o-mini',
       'gpt-5': 'gpt-4o',
+      'Gpt 5': 'gpt-4o',
+      'Gpt 5 Mini': 'gpt-4o-mini',
+      'Gpt 5 2025 08 07': 'gpt-4o-2024-08-06',
+      'Gpt 5 Chat Latest': 'gpt-4o',
+      'Gpt 5 Mini 2025 08 07': 'gpt-4o-mini',
+      'Gpt 5 Nano': 'gpt-4o-mini',
+      'Gpt 5 Nano 2025 08 07': 'gpt-4o-mini',
+      
+      // GPT-4 variations
+      'Gpt 4.1': 'gpt-4-turbo',
+      'Gpt 4.1 2025 04 14': 'gpt-4-turbo-2024-04-09',
+      'Gpt 4.1 Mini': 'gpt-4o-mini',
+      'Gpt 4.1 Mini 2025 04 14': 'gpt-4o-mini',
+      'Gpt 4.1 Nano': 'gpt-4o-mini',
+      'Gpt 4.1 Nano 2025 04 14': 'gpt-4o-mini',
+      'Chatgpt 4o Latest': 'gpt-4o',
+      'Gpt 4': 'gpt-4',
+      'Gpt 4 0125 Preview': 'gpt-4-0125-preview',
+      'Gpt 4 0613': 'gpt-4-0613',
+      'Gpt 4 1106 Preview': 'gpt-4-1106-preview',
+      'Gpt 4 Turbo': 'gpt-4-turbo',
+      
+      // Simple mappings
       'gpt-3.5': 'gpt-3.5-turbo',
       'gpt-4': 'gpt-4-turbo',
     };
@@ -760,25 +784,40 @@ export class AIProviderService {
       }
 
       const data = await response.json();
+      
+      // List of valid OpenAI model prefixes
+      const validModelPrefixes = [
+        'gpt-4o',
+        'gpt-4-turbo',
+        'gpt-4-1106',
+        'gpt-4-0125',
+        'gpt-4-0613',
+        'gpt-4',
+        'gpt-3.5-turbo',
+        'o1-preview',
+        'o1-mini'
+      ];
+      
       const chatModels = data.data
-        .filter((model: any) => 
-          model.id.includes('gpt') || model.id.includes('o1')
-        )
+        .filter((model: any) => {
+          // Only include valid OpenAI models, not fake GPT-5 models
+          return validModelPrefixes.some(prefix => model.id.startsWith(prefix));
+        })
         .map((model: any) => ({
           value: model.id,
           label: model.id.replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
         }))
         .sort((a: any, b: any) => {
-          // Sort to put newer models first
-          if (a.value.includes('gpt-5') && !b.value.includes('gpt-5')) return -1;
-          if (!a.value.includes('gpt-5') && b.value.includes('gpt-5')) return 1;
-          if (a.value.includes('gpt-4.1') && !b.value.includes('gpt-4.1')) return -1;
-          if (!a.value.includes('gpt-4.1') && b.value.includes('gpt-4.1')) return 1;
+          // Sort to put newer models first (4o > 4-turbo > 4 > 3.5)
+          if (a.value.includes('gpt-4o') && !b.value.includes('gpt-4o')) return -1;
+          if (!a.value.includes('gpt-4o') && b.value.includes('gpt-4o')) return 1;
+          if (a.value.includes('gpt-4-turbo') && !b.value.includes('gpt-4-turbo')) return -1;
+          if (!a.value.includes('gpt-4-turbo') && b.value.includes('gpt-4-turbo')) return 1;
           if (a.value.includes('gpt-4') && !b.value.includes('gpt-4')) return -1;
           if (!a.value.includes('gpt-4') && b.value.includes('gpt-4')) return 1;
           if (a.value.includes('o1') && !b.value.includes('o1')) return -1;
           if (!a.value.includes('o1') && b.value.includes('o1')) return 1;
-          return a.value.localeCompare(b.value);
+          return b.value.localeCompare(a.value); // Reverse sort for newer dates
         });
 
       const models = chatModels.length > 0 ? chatModels : [
