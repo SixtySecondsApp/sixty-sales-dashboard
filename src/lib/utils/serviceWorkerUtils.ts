@@ -5,12 +5,6 @@
 
 import logger from '@/lib/utils/logger';
 
-// Derive Supabase project auth storage key for accurate cache conflict detection
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const projectRefMatch = supabaseUrl?.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
-const projectRef = projectRefMatch ? projectRefMatch[1] : undefined;
-const SUPABASE_AUTH_STORAGE_KEY = projectRef ? `sb-${projectRef}-auth-token` : 'supabase.auth.token';
-
 export class ServiceWorkerManager {
   private static instance: ServiceWorkerManager;
   private registration: ServiceWorkerRegistration | null = null;
@@ -129,9 +123,9 @@ export class ServiceWorkerManager {
 
   // Check for authentication-related cache issues
   private checkForAuthCacheIssues(): boolean {
-    // Check localStorage for auth token changes using correct Supabase key
+    // Check localStorage for auth token changes
     const lastAuthCheck = localStorage.getItem('sw_last_auth_check');
-    const currentAuthState = localStorage.getItem(SUPABASE_AUTH_STORAGE_KEY);
+    const currentAuthState = localStorage.getItem('supabase.auth.token');
     
     if (lastAuthCheck !== currentAuthState) {
       localStorage.setItem('sw_last_auth_check', currentAuthState || '');

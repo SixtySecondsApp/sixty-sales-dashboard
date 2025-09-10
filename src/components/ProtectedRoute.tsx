@@ -34,17 +34,11 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       pathname: location.pathname,
       isAuthenticated,
       loading,
-      isPublicRoute,
-      timestamp: new Date().toISOString()
+      isPublicRoute
     });
     
-    // Always wait for loading to complete before making any redirect decisions
-    // This prevents premature redirects while the session is being restored
-    // This is especially important on hard refresh where session restoration takes time
-    if (loading) {
-      console.log('Still loading auth state, waiting... (this is normal on hard refresh)');
-      return;
-    }
+    // Don't redirect while loading
+    if (loading) return;
 
     // If user is authenticated and on a public route (except password recovery), redirect to app
     if (isAuthenticated && isPublicRoute && !isPasswordRecovery) {

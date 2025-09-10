@@ -27,30 +27,43 @@ let supabaseAdminInstance: TypedSupabaseClient | null = null;
  */
 function getSupabaseClient(): TypedSupabaseClient {
   if (!supabaseInstance) {
-    // Derive stable storage key from project ref to avoid duplicates/mismatches
-    const projectRefMatch = supabaseUrl.match(/^https?:\/\/([a-z0-9-]+)\.supabase\.co/i);
-    const projectRef = projectRefMatch ? projectRefMatch[1] : undefined;
-    const storageKey = projectRef ? `sb-${projectRef}-auth-token` : undefined;
-
     supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
+        // Removed custom storageKey to use default sb-[project-ref]-auth-token format
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
+        // Enhanced debug mode for better error tracking
         debug: import.meta.env.MODE === 'development',
-        multiTab: true,
-        // Explicitly set storage and storageKey to ensure consistency across environments
-        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
-        storageKey
+        storage: {
+          getItem: (key: string) => {
+            try {
+              return localStorage.getItem(key);
+            } catch {
+              return null;
+            }
+          },
+          setItem: (key: string, value: string) => {
+            try {
+              localStorage.setItem(key, value);
+            } catch {
+              // Silently fail if localStorage is not available
+            }
+          },
+          removeItem: (key: string) => {
+            try {
+              localStorage.removeItem(key);
+            } catch {
+              // Silently fail if localStorage is not available
+            }
+          }
+        }
       },
       global: {
         headers: {
           'X-Client-Info': 'sales-dashboard-v2'
         }
-      },
-      db: {
-        schema: 'public'
       }
     });
   }
@@ -130,8 +143,26 @@ export const authUtils = {
    * Check if user is authenticated
    */
   isAuthenticated: (session: Session | null): boolean => {
-    // Only check real Supabase authentication
-    return !!session?.user && !!session?.access_token;
+    // Check real Supabase authentication first
+    if (!!session?.user && !!session?.access_token) {
+      return true;
+    }
+    
+    // In development mode, allow mock user authentication
+    if (process.env.NODE_ENV === 'development') {
+      // Check if mock user data exists in localStorage
+      const mockUsers = localStorage.getItem('sixty_mock_users');
+      if (mockUsers) {
+        try {
+          const users = JSON.parse(mockUsers);
+          return users.length > 0;
+        } catch (e) {
+          // If parsing fails, fall back to false
+        }
+      }
+    }
+    
+    return false;
   },
 
   /**
