@@ -142,6 +142,7 @@ CREATE POLICY "Users can delete their own Google integrations"
   USING (auth.uid() = user_id);
 
 -- RLS Policies for google_calendars
+DROP POLICY IF EXISTS "Users can view their own Google calendars" ON google_calendars;
 CREATE POLICY "Users can view their own Google calendars"
   ON google_calendars FOR SELECT
   USING (EXISTS (
@@ -150,6 +151,7 @@ CREATE POLICY "Users can view their own Google calendars"
     AND gi.user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Users can manage their own Google calendars" ON google_calendars;
 CREATE POLICY "Users can manage their own Google calendars"
   ON google_calendars FOR ALL
   USING (EXISTS (
@@ -159,6 +161,7 @@ CREATE POLICY "Users can manage their own Google calendars"
   ));
 
 -- RLS Policies for google_drive_folders
+DROP POLICY IF EXISTS "Users can view their own Google Drive folders" ON google_drive_folders;
 CREATE POLICY "Users can view their own Google Drive folders"
   ON google_drive_folders FOR SELECT
   USING (EXISTS (
@@ -167,6 +170,7 @@ CREATE POLICY "Users can view their own Google Drive folders"
     AND gi.user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Users can manage their own Google Drive folders" ON google_drive_folders;
 CREATE POLICY "Users can manage their own Google Drive folders"
   ON google_drive_folders FOR ALL
   USING (EXISTS (
@@ -176,6 +180,7 @@ CREATE POLICY "Users can manage their own Google Drive folders"
   ));
 
 -- RLS Policies for google_email_labels
+DROP POLICY IF EXISTS "Users can view their own Gmail labels" ON google_email_labels;
 CREATE POLICY "Users can view their own Gmail labels"
   ON google_email_labels FOR SELECT
   USING (EXISTS (
@@ -184,6 +189,7 @@ CREATE POLICY "Users can view their own Gmail labels"
     AND gi.user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Users can manage their own Gmail labels" ON google_email_labels;
 CREATE POLICY "Users can manage their own Gmail labels"
   ON google_email_labels FOR ALL
   USING (EXISTS (
@@ -193,23 +199,28 @@ CREATE POLICY "Users can manage their own Gmail labels"
   ));
 
 -- RLS Policies for google_docs_templates
+DROP POLICY IF EXISTS "Users can view their own templates or global templates" ON google_docs_templates;
 CREATE POLICY "Users can view their own templates or global templates"
   ON google_docs_templates FOR SELECT
   USING (user_id = auth.uid() OR is_global = true);
 
+DROP POLICY IF EXISTS "Users can insert their own templates" ON google_docs_templates;
 CREATE POLICY "Users can insert their own templates"
   ON google_docs_templates FOR INSERT
   WITH CHECK (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update their own templates" ON google_docs_templates;
 CREATE POLICY "Users can update their own templates"
   ON google_docs_templates FOR UPDATE
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete their own templates" ON google_docs_templates;
 CREATE POLICY "Users can delete their own templates"
   ON google_docs_templates FOR DELETE
   USING (user_id = auth.uid());
 
 -- RLS Policies for google_service_logs
+DROP POLICY IF EXISTS "Users can view their own service logs" ON google_service_logs;
 CREATE POLICY "Users can view their own service logs"
   ON google_service_logs FOR SELECT
   USING (EXISTS (
@@ -218,19 +229,23 @@ CREATE POLICY "Users can view their own service logs"
     AND gi.user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Service functions can insert logs" ON google_service_logs;
 CREATE POLICY "Service functions can insert logs"
   ON google_service_logs FOR INSERT
   WITH CHECK (true); -- Edge functions will handle this
 
 -- RLS Policies for google_oauth_states
+DROP POLICY IF EXISTS "Users can view their own OAuth states" ON google_oauth_states;
 CREATE POLICY "Users can view their own OAuth states"
   ON google_oauth_states FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own OAuth states" ON google_oauth_states;
 CREATE POLICY "Users can insert their own OAuth states"
   ON google_oauth_states FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own OAuth states" ON google_oauth_states;
 CREATE POLICY "Users can delete their own OAuth states"
   ON google_oauth_states FOR DELETE
   USING (auth.uid() = user_id);
