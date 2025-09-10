@@ -161,6 +161,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 
                 if (mounted) {
                   setUserProfile(mockProfile);
+                  // Also set a mock user object for consistency
+                  setUser({
+                    id: mockProfile.id,
+                    email: mockProfile.email || '',
+                    app_metadata: {},
+                    user_metadata: {
+                      full_name: mockProfile.full_name,
+                      first_name: mockProfile.first_name,
+                      last_name: mockProfile.last_name
+                    },
+                    aud: 'authenticated',
+                    created_at: mockProfile.created_at
+                  } as User);
                 }
               }
             }
@@ -406,8 +419,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Computed values
-  const isAuthenticated = authUtils.isAuthenticated(session);
-  const userId = authUtils.getUserId(session);
+  // Check both real session and mock user profile
+  const isAuthenticated = authUtils.isAuthenticated(session) || !!userProfile;
+  const userId = authUtils.getUserId(session) || userProfile?.id || null;
 
   const value: AuthContextType = {
     // State
