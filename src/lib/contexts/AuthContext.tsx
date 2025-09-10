@@ -130,80 +130,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 setUserProfile(profile);
               }
             } else {
-              // Check for mock user in development
-              const isDevelopment = import.meta.env.MODE === 'development';
-              const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+              // No session found - don't use mock user
+              logger.log('🔐 No session found. Please sign in with your Supabase account.');
               
-              logger.log('🔍 Checking mock user:', { 
-                isDevelopment, 
-                allowMockUser, 
-                mockUserInitialized: mockUserInitialized.current,
-                hasUserProfile: !!userProfile 
-              });
-              
-              if (isDevelopment || allowMockUser) {
-                // Always try to load/create mock user in development mode
-                let mockProfile: UserProfile | null = null;
-                
-                // First, try to load from localStorage
-                const existingMockUser = localStorage.getItem('sixty_mock_users');
-                if (existingMockUser) {
-                  try {
-                    mockProfile = JSON.parse(existingMockUser)[0];
-                    logger.log('📦 Found existing mock user in localStorage');
-                  } catch (e) {
-                    logger.error('Failed to parse mock user from localStorage:', e);
-                  }
-                }
-                
-                // If no mock user in localStorage, create one
-                if (!mockProfile) {
-                  mockProfile = {
-                    id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
-                    email: 'andrew.bryce@sixtyseconds.video',
-                    first_name: 'Andrew',
-                    last_name: 'Bryce',
-                    full_name: 'Andrew Bryce',
-                    avatar_url: null,
-                    role: 'Senior',
-                    department: 'Sales',
-                    stage: 'Senior',
-                    is_admin: true,
-                    created_at: '2024-01-01T00:00:00Z',
-                    updated_at: '2024-01-01T00:00:00Z',
-                    username: null,
-                    website: null
-                  } as UserProfile;
-                  
-                  // Store in localStorage for persistence
-                  localStorage.setItem('sixty_mock_users', JSON.stringify([mockProfile]));
-                  logger.log('⚠️ Created new mock user for development');
-                }
-                
-                // Always set the mock user if we don't have a userProfile
-                if (mounted && mockProfile) {
-                  setUserProfile(mockProfile);
-                  // Also set a mock user object for consistency
-                  setUser({
-                    id: mockProfile.id,
-                    email: mockProfile.email || '',
-                    app_metadata: {},
-                    user_metadata: {
-                      full_name: mockProfile.full_name,
-                      first_name: mockProfile.first_name,
-                      last_name: mockProfile.last_name
-                    },
-                    aud: 'authenticated',
-                    created_at: mockProfile.created_at
-                  } as User);
-                  logger.log('✅ Mock user profile set:', { 
-                    id: mockProfile.id, 
-                    email: mockProfile.email,
-                    role: mockProfile.role 
-                  });
-                  mockUserInitialized.current = true;
-                }
-              }
+              // Clear any existing mock user data
+              localStorage.removeItem('sixty_mock_users');
+              mockUserInitialized.current = false;
             }
             
             // Log session restoration without showing toast
@@ -447,9 +379,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Computed values
-  // Check both real session and mock user profile
-  const isAuthenticated = authUtils.isAuthenticated(session) || !!userProfile;
-  const userId = authUtils.getUserId(session) || userProfile?.id || null;
+  // Only check real session for authentication
+  const isAuthenticated = authUtils.isAuthenticated(session);
+  const userId = authUtils.getUserId(session);
 
   const value: AuthContextType = {
     // State
