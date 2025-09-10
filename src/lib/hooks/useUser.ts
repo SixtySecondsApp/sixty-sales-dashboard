@@ -226,6 +226,15 @@ export function useUser() {
     }
   }, [auth.userId]);
 
+  // Log what we're returning for debugging
+  if (auth.userProfile) {
+    logger.log('useUser returning profile:', { 
+      id: auth.userProfile.id, 
+      email: auth.userProfile.email,
+      isAuthenticated: auth.isAuthenticated 
+    });
+  }
+  
   // Return data from AuthContext with additional impersonation info
   return {
     userData: auth.userProfile,

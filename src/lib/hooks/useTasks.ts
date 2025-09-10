@@ -62,12 +62,18 @@ export function useTasks(filters?: TaskFilters) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const { userData } = useUser();
+  const { userData, isLoading: userLoading } = useUser();
 
   // Memoize filters to prevent infinite loops in useEffect.
   const filtersString = JSON.stringify(filters);
 
   const fetchTasks = useCallback(async () => {
+    // Don't fetch if user is still loading
+    if (userLoading) {
+      logger.log('fetchTasks: User still loading, waiting...');
+      return;
+    }
+    
     // Ensure we have user data before proceeding
     if (!userData?.id) {
       logger.log('fetchTasks: No userData.id available, skipping fetch');
@@ -188,7 +194,7 @@ export function useTasks(filters?: TaskFilters) {
     } finally {
       setIsLoading(false);
     }
-  }, [userData?.id, filtersString]);
+  }, [userData?.id, filtersString, userLoading]);
 
   useEffect(() => {
     fetchTasks();
