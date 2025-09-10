@@ -27,19 +27,34 @@ export default function ExecutionViewer({
 
   useEffect(() => {
     if (workflowId) {
-      // Load executions filtered by the active tab
-      const filteredExecutions = workflowExecutionService.getWorkflowExecutionsByMode(
+      // First, get any in-memory executions
+      const memoryExecutions = workflowExecutionService.getWorkflowExecutionsByMode(
         workflowId, 
         activeTab === 'test' ? true : false
       );
-      setExecutions(filteredExecutions);
       
-      // Reset selected execution when changing tabs
-      if (filteredExecutions.length > 0) {
-        setSelectedExecutionId(filteredExecutions[0].id);
+      // If we have executions in memory, use them
+      if (memoryExecutions.length > 0) {
+        setExecutions(memoryExecutions);
+        setSelectedExecutionId(memoryExecutions[0].id);
       } else {
-        setSelectedExecutionId(undefined);
-        setExecution(null);
+        // Otherwise, load from database
+        workflowExecutionService.loadExecutionsFromDatabase(workflowId).then(dbExecutions => {
+          // Filter by mode
+          const filteredExecutions = dbExecutions.filter(exec => 
+            activeTab === 'test' ? exec.isTestMode === true : exec.isTestMode !== true
+          );
+          
+          setExecutions(filteredExecutions);
+          
+          // Reset selected execution when changing tabs
+          if (filteredExecutions.length > 0) {
+            setSelectedExecutionId(filteredExecutions[0].id);
+          } else {
+            setSelectedExecutionId(undefined);
+            setExecution(null);
+          }
+        });
       }
     }
   }, [workflowId, activeTab]);

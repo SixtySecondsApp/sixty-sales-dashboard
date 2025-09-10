@@ -1254,7 +1254,7 @@ class WorkflowExecutionService {
         .from('workflow_executions')
         .select('*')
         .order('started_at', { ascending: false })
-        .limit(25);
+        .limit(100); // Increased limit to show more history
 
       if (error) {
         console.error('[WorkflowExecution] Error loading all executions from database:', error);

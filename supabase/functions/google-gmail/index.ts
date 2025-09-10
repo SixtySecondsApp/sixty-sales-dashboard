@@ -81,9 +81,11 @@ serve(async (req) => {
     // Check if token needs refresh
     const expiresAt = new Date(integration.expires_at);
     const now = new Date();
+    let accessToken = integration.access_token;
+    
     if (expiresAt <= now) {
-      // TODO: Implement token refresh logic
-      throw new Error('Access token expired. Token refresh not yet implemented.');
+      console.log('[Google Gmail] Token expired, refreshing...');
+      accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
     // Parse request based on method and URL
@@ -99,15 +101,19 @@ serve(async (req) => {
 
     switch (action) {
       case 'send':
-        response = await sendEmail(integration.access_token, requestBody as SendEmailRequest);
+        response = await sendEmail(accessToken, requestBody as SendEmailRequest);
         break;
       
       case 'list':
-        response = await listEmails(integration.access_token, requestBody as ListEmailsRequest);
+        response = await listEmails(accessToken, requestBody as ListEmailsRequest);
         break;
       
       case 'labels':
-        response = await getLabels(integration.access_token);
+        response = await getLabels(accessToken);
+        break;
+      
+      case 'sync':
+        response = await syncEmailsToContacts(accessToken, supabase, user.id, integration.id);
         break;
       
       default:
