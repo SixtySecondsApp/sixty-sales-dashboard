@@ -279,18 +279,23 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create triggers for updated_at
+DROP TRIGGER IF EXISTS update_google_integrations_updated_at ON google_integrations;
 CREATE TRIGGER update_google_integrations_updated_at BEFORE UPDATE ON google_integrations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_google_calendars_updated_at ON google_calendars;
 CREATE TRIGGER update_google_calendars_updated_at BEFORE UPDATE ON google_calendars
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_google_drive_folders_updated_at ON google_drive_folders;
 CREATE TRIGGER update_google_drive_folders_updated_at BEFORE UPDATE ON google_drive_folders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_google_email_labels_updated_at ON google_email_labels;
 CREATE TRIGGER update_google_email_labels_updated_at BEFORE UPDATE ON google_email_labels
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_google_docs_templates_updated_at ON google_docs_templates;
 CREATE TRIGGER update_google_docs_templates_updated_at BEFORE UPDATE ON google_docs_templates
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
