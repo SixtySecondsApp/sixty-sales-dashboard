@@ -2188,6 +2188,27 @@ export function parseToolCall(aiResponse: string): {
     return {};
   }
   
+  let toolName = toolMatch[1].trim();
+  
+  // Normalize tool names - convert display names to actual tool names
+  const toolNameMapping: Record<string, string> = {
+    'Search Contacts': 'search_contacts',
+    'Search Companies': 'search_companies',
+    'Search Deals': 'search_deals',
+    'Create Contact': 'create_contact',
+    'Create Deal': 'create_deal',
+    'Create Task': 'create_task',
+    'Update Deal Stage': 'update_deal_stage',
+  };
+  
+  // Check if it's a display name that needs mapping
+  if (toolNameMapping[toolName]) {
+    toolName = toolNameMapping[toolName];
+  } else if (toolName.includes(' ')) {
+    // Convert to snake_case if it has spaces
+    toolName = toolName.toLowerCase().replace(/\s+/g, '_');
+  }
+  
   let parameters: Record<string, any> = {};
   if (paramsMatch) {
     try {
@@ -2206,7 +2227,7 @@ export function parseToolCall(aiResponse: string): {
   }
   
   return {
-    toolName: toolMatch[1],
+    toolName,
     parameters,
   };
 }

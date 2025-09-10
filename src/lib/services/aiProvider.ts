@@ -323,8 +323,9 @@ export class AIProviderService {
     // Check for tool calls in the response
     if (config.enableTools && config.autoExecuteTools) {
       const toolCall = parseToolCall(response.content);
+      console.log('[AIProvider] Parsed tool call:', toolCall);
       
-      if (toolCall.toolName && userId) {
+      if (toolCall.toolName) {
         const toolRegistry = ToolRegistry.getInstance();
         const context: ToolExecutionContext = {
           userId: effectiveUserId,
@@ -332,27 +333,57 @@ export class AIProviderService {
           nodeId: undefined, // Will be set by workflow engine
         };
         
-        const toolResult = await toolRegistry.executeTool(
-          toolCall.toolName,
-          toolCall.parameters || {},
-          context
-        );
+        console.log('[AIProvider] Executing tool:', toolCall.toolName, 'with params:', toolCall.parameters);
         
-        if (!response.toolCalls) {
-          response.toolCalls = [];
-        }
-        
-        response.toolCalls.push({
-          toolName: toolCall.toolName,
-          parameters: toolCall.parameters || {},
-          result: toolResult,
-        });
-        
-        // If tool execution was successful, append results to content
-        if (toolResult.success) {
-          response.content += `\n\nTool Result: ${JSON.stringify(toolResult.data, null, 2)}`;
-        } else {
-          response.content += `\n\nTool Error: ${toolResult.error}`;
+        try {
+          const toolResult = await toolRegistry.executeTool(
+            toolCall.toolName,
+            toolCall.parameters || {},
+            context
+          );
+          
+          console.log('[AIProvider] Tool execution result:', toolResult);
+          
+          if (!response.toolCalls) {
+            response.toolCalls = [];
+          }
+          
+          response.toolCalls.push({
+            toolName: toolCall.toolName,
+            parameters: toolCall.parameters || {},
+            result: toolResult,
+          });
+          
+          // Format the response based on tool results
+          if (toolResult.success && toolResult.data) {
+            const data = Array.isArray(toolResult.data) ? toolResult.data : [toolResult.data];
+            
+            if (data.length > 0) {
+              // For contact search, format a user-friendly response
+              if (toolCall.toolName === 'search_contacts') {
+                const contacts = data;
+                response.content = `Found ${contacts.length} contact(s) matching your search:\n\n`;
+                contacts.forEach((contact: any) => {
+                  response.content += `**${contact.name}**\n`;
+                  response.content += `- Email: ${contact.email}\n`;
+                  if (contact.company) response.content += `- Company: ${contact.company}\n`;
+                  response.content += `- CRM Link: ${contact.crm_link || contact.view_url}\n\n`;
+                });
+              } else {
+                // Generic tool result formatting
+                response.content = `Tool executed successfully. Results:\n\n${JSON.stringify(data, null, 2)}`;
+              }
+            } else {
+              response.content = 'No records found matching your search criteria.';
+            }
+          } else if (toolResult.error) {
+            response.content = `I encountered an error while searching: ${toolResult.error}`;
+          } else {
+            response.content = 'The search completed but returned no results.';
+          }
+        } catch (error) {
+          console.error('[AIProvider] Tool execution error:', error);
+          response.content = `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`;
         }
       }
     }
