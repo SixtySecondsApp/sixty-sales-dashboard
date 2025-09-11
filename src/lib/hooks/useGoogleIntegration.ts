@@ -96,8 +96,9 @@ export function useGmailLabels(enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.labels,
     queryFn: async () => {
-      const response = await supabase.functions.invoke('google-gmail', {
-        body: { action: 'labels' }
+      // The Edge Function expects action as a query parameter
+      const response = await supabase.functions.invoke('google-gmail?action=list-labels', {
+        body: {}
       });
       
       if (response.error) throw response.error;
@@ -113,9 +114,9 @@ export function useGmailEmails(query?: string, enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.emails(query),
     queryFn: async () => {
-      const response = await supabase.functions.invoke('google-gmail', {
+      // The Edge Function expects action as a query parameter
+      const response = await supabase.functions.invoke('google-gmail?action=list', {
         body: { 
-          action: 'list',
           query,
           maxResults: 50
         }
@@ -134,12 +135,9 @@ export function useGmailSend() {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (emailData: { to: string; subject: string; body: string; isHtml?: boolean }) => {
-      const response = await supabase.functions.invoke('google-gmail', {
-        body: {
-          action: 'send',
-          ...emailData
-        }
+    mutationFn: async (emailData: { to: string; subject: string; body: string; isHtml?: boolean; cc?: string; bcc?: string; attachments?: any[] }) => {
+      const response = await supabase.functions.invoke('google-gmail?action=send', {
+        body: emailData
       });
       
       if (response.error) throw response.error;
@@ -157,9 +155,9 @@ export function useCalendarEvents(timeMin?: string, timeMax?: string, enabled = 
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.calendar.events(timeMin, timeMax),
     queryFn: async () => {
-      const response = await supabase.functions.invoke('google-calendar', {
+      // The Edge Function expects action as a query parameter
+      const response = await supabase.functions.invoke('google-calendar?action=list-events', {
         body: {
-          action: 'list-events',
           timeMin,
           timeMax,
           maxResults: 100
@@ -179,8 +177,9 @@ export function useCalendarList(enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.calendar.calendars,
     queryFn: async () => {
-      const response = await supabase.functions.invoke('google-calendar', {
-        body: { action: 'list-calendars' }
+      // The Edge Function expects action as a query parameter
+      const response = await supabase.functions.invoke('google-calendar?action=list-calendars', {
+        body: {}
       });
       
       if (response.error) throw response.error;
@@ -193,6 +192,60 @@ export function useCalendarList(enabled = true) {
 }
 
 export function useCreateCalendarEvent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (eventData: any) => {
+      const response = await supabase.functions.invoke('google-calendar?action=create-event', {
+        body: eventData
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GOOGLE_QUERY_KEYS.calendar.events() });
+    },
+  });
+}
+
+export function useUpdateCalendarEvent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ eventId, ...eventData }: any) => {
+      const response = await supabase.functions.invoke('google-calendar?action=update-event', {
+        body: { eventId, ...eventData }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GOOGLE_QUERY_KEYS.calendar.events() });
+    },
+  });
+}
+
+export function useDeleteCalendarEvent() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (eventId: string) => {
+      const response = await supabase.functions.invoke('google-calendar?action=delete-event', {
+        body: { eventId, calendarId: 'primary' }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GOOGLE_QUERY_KEYS.calendar.events() });
+    },
+  });
+}
+
+export function useCreateCalendarEventOld() {
   const queryClient = useQueryClient();
   
   return useMutation({
@@ -219,6 +272,24 @@ export function useCreateCalendarEvent() {
       // Invalidate calendar events to show the new event
       queryClient.invalidateQueries({ queryKey: ['google', 'calendar', 'events'] });
     },
+  });
+}
+
+// Calendar Availability hook
+export function useCheckCalendarAvailability() {
+  return useMutation({
+    mutationFn: async ({ timeMin, timeMax, calendarId }: { 
+      timeMin: string; 
+      timeMax: string; 
+      calendarId?: string 
+    }) => {
+      const response = await supabase.functions.invoke('google-calendar?action=availability', {
+        body: { timeMin, timeMax, calendarId }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    }
   });
 }
 
@@ -314,4 +385,81 @@ export function useGoogleServiceEnabled(service: 'gmail' | 'calendar' | 'drive')
   const { isEnabled: isIntegrationEnabled } = useGoogleIntegrationEnabled();
   
   return isIntegrationEnabled && services?.[service];
+}
+
+// Gmail Action Hooks
+export function useGmailMarkAsRead() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ messageId, read }: { messageId: string; read: boolean }) => {
+      const response = await supabase.functions.invoke('google-gmail?action=mark-as-read', {
+        body: { messageId, read }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate Gmail queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['google', 'gmail', 'emails'] });
+    },
+  });
+}
+
+export function useGmailStar() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ messageId, starred }: { messageId: string; starred: boolean }) => {
+      const response = await supabase.functions.invoke('google-gmail?action=star', {
+        body: { messageId, starred }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate Gmail queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['google', 'gmail', 'emails'] });
+    },
+  });
+}
+
+export function useGmailArchive() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await supabase.functions.invoke('google-gmail?action=archive', {
+        body: { messageId }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate Gmail queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['google', 'gmail', 'emails'] });
+    },
+  });
+}
+
+export function useGmailTrash() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const response = await supabase.functions.invoke('google-gmail?action=delete', {
+        body: { messageId }
+      });
+      
+      if (response.error) throw response.error;
+      return response.data;
+    },
+    onSuccess: () => {
+      // Invalidate Gmail queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: ['google', 'gmail', 'emails'] });
+    },
+  });
 }

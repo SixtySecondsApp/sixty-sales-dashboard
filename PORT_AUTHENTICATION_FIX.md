@@ -18,10 +18,10 @@ When running the dev server on port 5174 (or any port other than 5173), authenti
 - Works with any port automatically
 - No hardcoded localhost:5173 references
 
-### 3. **Mock User System**
-- Works on any port in development mode
-- Controlled by `VITE_ALLOW_MOCK_USER=true` in `.env.local`
-- Falls back to mock user when no auth session exists
+### 3. **Per-Origin Sessions (No mock fallback)**
+- Sessions are per-origin (protocol + host + port). Changing ports requires re-login.
+- Run a single dev server (5173) to avoid confusion.
+- Do not rely on mock authentication; only real Supabase sessions are considered authenticated.
 
 ### 4. **Enhanced Diagnostics**
 - Shows current port in diagnostic tool
@@ -60,16 +60,14 @@ VITE_ALLOW_MOCK_USER=true
 2. Look for:
    - ✅ Environment Variables configured
    - ✅ Supabase Connection successful
-   - ⚠️ No active session (expected, using mock user)
-   - ✅ Mock User active for development
    - ✅ LocalStorage accessible
+   - ℹ️ If you changed ports, re-login is expected due to per-origin sessions
 
 ## Important Notes
 
-- **Development**: Mock user is automatically enabled
-- **Production**: Real authentication required
+- **No mock fallback**: Guards should only trust real Supabase sessions
 - **Port Conflicts**: Kill duplicate servers to avoid issues
-- **Supabase Dashboard**: Add all development ports to redirect URLs if using real auth
+- **Supabase Dashboard**: Add your dev origin(s) to redirect URLs if needed
 
 ## Commands
 

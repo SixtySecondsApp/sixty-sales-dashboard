@@ -30,6 +30,7 @@ const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
 const Heatmap = lazyWithRetry(() => import('@/pages/Heatmap'));
 const SalesFunnel = lazyWithRetry(() => import('@/pages/SalesFunnel'));
 const Profile = lazyWithRetry(() => import('@/pages/Profile'));
+const Calendar = lazyWithRetry(() => import('@/pages/Calendar'));
 
 // Admin routes - lazy load with retry (infrequently accessed, more prone to cache issues)
 const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
@@ -71,6 +72,7 @@ const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
 const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
 const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
 const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
+const Email = lazy(() => import('@/pages/Email'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -205,9 +207,11 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
                 <Route path="/workflows" element={<AppLayout><Workflows /></AppLayout>} />
                 <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
+                <Route path="/email" element={<AppLayout><Email /></AppLayout>} />
                 <Route path="/auth/google/callback" element={<GoogleCallback />} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
+                <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
                 
                 {/* Form Display Routes */}
                 <Route path="/form/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />

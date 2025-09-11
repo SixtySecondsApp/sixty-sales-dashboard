@@ -1,0 +1,82 @@
+{
+  "mcpVersion": "0.1.0",
+  "name": "calendar-mcp-server",
+  "version": "1.0.0",
+  "description": "Google Calendar integration for scheduling, meeting management, and calendar operations",
+  "author": "Calendar MCP Team",
+  "license": "MIT",
+  "homepage": "https://github.com/your-org/calendar-mcp-server",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/calendar-mcp-server.git"
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "calendar_create_event",
+        "description": "Create a new calendar event with attendees, location, and recurrence options"
+      },
+      {
+        "name": "calendar_update_event",
+        "description": "Update an existing calendar event's details"
+      },
+      {
+        "name": "calendar_delete_event",
+        "description": "Delete a calendar event"
+      },
+      {
+        "name": "calendar_get_event",
+        "description": "Get detailed information about a specific calendar event"
+      },
+      {
+        "name": "calendar_list_events",
+        "description": "List calendar events within a date range with filtering options"
+      },
+      {
+        "name": "calendar_find_free_slots",
+        "description": "Find available time slots for scheduling meetings"
+      },
+      {
+        "name": "calendar_check_availability",
+        "description": "Check if attendees are available at a specific time"
+      },
+      {
+        "name": "calendar_schedule_meeting",
+        "description": "Intelligently schedule a meeting with optimal time selection"
+      },
+      {
+        "name": "calendar_reschedule_event",
+        "description": "Reschedule an existing event to a new time"
+      },
+      {
+        "name": "calendar_send_invites",
+        "description": "Send calendar invitations to attendees"
+      },
+      {
+        "name": "calendar_respond_to_invite",
+        "description": "Respond to a calendar invitation (accept, decline, tentative)"
+      },
+      {
+        "name": "calendar_create_recurring",
+        "description": "Create recurring calendar events with flexible patterns"
+      },
+      {
+        "name": "calendar_find_optimal_time",
+        "description": "Find the optimal meeting time considering all attendees' availability"
+      },
+      {
+        "name": "calendar_block_time",
+        "description": "Block time slots for focus work or unavailability"
+      },
+      {
+        "name": "calendar_sync_with_crm",
+        "description": "Synchronize calendar events with CRM activities and contacts"
+      }
+    ],
+    "resources": [],
+    "prompts": []
+  },
+  "runtime": {
+    "node": ">=18.0.0"
+  }
+}

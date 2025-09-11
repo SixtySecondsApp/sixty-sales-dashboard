@@ -1,5 +1,61 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { 
+  modifyEmail,
+  archiveEmail,
+  trashEmail,
+  starEmail,
+  markAsRead,
+  getFullLabel
+} from './gmail-actions.ts';
+
+async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
+  console.log('[Google Gmail] Refreshing access token...');
+  
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[Google Gmail] Token refresh failed:', errorData);
+    throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  
+  // Update the stored access token
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 3600));
+  
+  const { error: updateError } = await supabase
+    .from('google_integrations')
+    .update({
+      access_token: data.access_token,
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq('user_id', userId);
+  
+  if (updateError) {
+    console.error('[Google Gmail] Failed to update access token:', updateError);
+    throw new Error('Failed to update access token in database');
+  }
+  
+  console.log('[Google Gmail] Access token refreshed successfully');
+  return data.access_token;
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -108,8 +164,42 @@ serve(async (req) => {
         response = await listEmails(accessToken, requestBody as ListEmailsRequest);
         break;
       
+      case 'list-labels':
+        response = await getLabels(accessToken);
+        break;
+      
       case 'labels':
         response = await getLabels(accessToken);
+        break;
+      
+      case 'modify':
+        response = await modifyEmail(accessToken, requestBody);
+        break;
+      
+      case 'archive':
+        response = await archiveEmail(accessToken, requestBody.messageId);
+        break;
+      
+      case 'delete':
+        response = await trashEmail(accessToken, requestBody.messageId);
+        break;
+      
+      case 'trash':
+        // Keep for backward compatibility
+        response = await trashEmail(accessToken, requestBody.messageId);
+        break;
+      
+      case 'star':
+        response = await starEmail(accessToken, requestBody.messageId, requestBody.starred);
+        break;
+      
+      case 'mark-as-read':
+        response = await markAsRead(accessToken, requestBody.messageId, requestBody.read);
+        break;
+      
+      case 'markAsRead':
+        // Keep for backward compatibility
+        response = await markAsRead(accessToken, requestBody.messageId, requestBody.read);
         break;
       
       case 'sync':
@@ -216,25 +306,63 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
   if (request.maxResults) params.set('maxResults', request.maxResults.toString());
   if (request.pageToken) params.set('pageToken', request.pageToken);
 
-  const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
+  // First, get the list of message IDs
+  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
     },
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
+  if (!listResponse.ok) {
+    const errorData = await listResponse.json();
     console.error('[Google Gmail] List emails error:', errorData);
     throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
-  const data = await response.json();
-  console.log('[Google Gmail] Found', data.messages?.length || 0, 'emails');
+  const listData = await listResponse.json();
+  console.log('[Google Gmail] Found', listData.messages?.length || 0, 'email IDs');
+  
+  // If no messages, return empty array
+  if (!listData.messages || listData.messages.length === 0) {
+    return {
+      messages: [],
+      nextPageToken: listData.nextPageToken,
+      resultSizeEstimate: listData.resultSizeEstimate
+    };
+  }
+  
+  // Now fetch full details for each message (limit to first 10 for performance)
+  const messagePromises = listData.messages.slice(0, 10).map(async (msg: any) => {
+    try {
+      const messageResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+      
+      if (!messageResponse.ok) {
+        console.error(`[Google Gmail] Failed to fetch message ${msg.id}`);
+        return msg; // Return the basic message if fetch fails
+      }
+      
+      const fullMessage = await messageResponse.json();
+      return fullMessage;
+    } catch (error) {
+      console.error(`[Google Gmail] Error fetching message ${msg.id}:`, error);
+      return msg; // Return the basic message if error occurs
+    }
+  });
+  
+  const fullMessages = await Promise.all(messagePromises);
+  console.log('[Google Gmail] Fetched full details for', fullMessages.length, 'messages');
   
   return {
-    messages: data.messages || [],
-    nextPageToken: data.nextPageToken,
-    resultSizeEstimate: data.resultSizeEstimate
+    messages: fullMessages,
+    nextPageToken: listData.nextPageToken,
+    resultSizeEstimate: listData.resultSizeEstimate
   };
 }
 
@@ -256,8 +384,21 @@ async function getLabels(accessToken: string): Promise<any> {
   const data = await response.json();
   console.log('[Google Gmail] Found', data.labels?.length || 0, 'labels');
   
+  // Fetch full details for each label to get colors and other metadata
+  const labelPromises = data.labels?.map(async (label: any) => {
+    try {
+      const fullLabel = await getFullLabel(accessToken, label.id);
+      return fullLabel;
+    } catch (error) {
+      console.error(`Failed to fetch label ${label.id}:`, error);
+      return label; // Return basic label if fetch fails
+    }
+  }) || [];
+  
+  const fullLabels = await Promise.all(labelPromises);
+  
   return {
-    labels: data.labels || []
+    labels: fullLabels
   };
 }
 

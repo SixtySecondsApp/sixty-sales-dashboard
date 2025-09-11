@@ -7,6 +7,54 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
+async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
+  console.log('[Google Calendar] Refreshing access token...');
+  
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+  
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('[Google Calendar] Token refresh failed:', errorData);
+    throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  
+  // Update the stored access token
+  const expiresAt = new Date();
+  expiresAt.setSeconds(expiresAt.getSeconds() + (data.expires_in || 3600));
+  
+  const { error: updateError } = await supabase
+    .from('google_integrations')
+    .update({
+      access_token: data.access_token,
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq('user_id', userId);
+  
+  if (updateError) {
+    console.error('[Google Calendar] Failed to update access token:', updateError);
+    throw new Error('Failed to update access token in database');
+  }
+  
+  console.log('[Google Calendar] Access token refreshed successfully');
+  return data.access_token;
+}
+
 interface CreateEventRequest {
   calendarId?: string;
   summary: string;
@@ -96,45 +144,51 @@ serve(async (req) => {
     // Check if token needs refresh
     const expiresAt = new Date(integration.expires_at);
     const now = new Date();
+    let accessToken = integration.access_token;
+    
     if (expiresAt <= now) {
-      // TODO: Implement token refresh logic
-      throw new Error('Access token expired. Token refresh not yet implemented.');
+      console.log('[Google Calendar] Token expired, refreshing...');
+      accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
     // Parse request based on method and URL
     const url = new URL(req.url);
-    const action = url.searchParams.get('action');
+    let action = url.searchParams.get('action');
 
     let requestBody: any = {};
     if (req.method === 'POST') {
       requestBody = await req.json();
+      // Backward compatibility: allow action in request body if not passed as query param
+      if (!action && requestBody?.action) {
+        action = requestBody.action;
+      }
     }
 
     let response;
 
     switch (action) {
       case 'create-event':
-        response = await createEvent(integration.access_token, requestBody as CreateEventRequest);
+        response = await createEvent(accessToken, requestBody as CreateEventRequest);
         break;
       
       case 'list-events':
-        response = await listEvents(integration.access_token, requestBody as ListEventsRequest);
+        response = await listEvents(accessToken, requestBody as ListEventsRequest);
         break;
       
       case 'update-event':
-        response = await updateEvent(integration.access_token, requestBody as UpdateEventRequest);
+        response = await updateEvent(accessToken, requestBody as UpdateEventRequest);
         break;
       
       case 'delete-event':
-        response = await deleteEvent(integration.access_token, requestBody.calendarId, requestBody.eventId);
+        response = await deleteEvent(accessToken, requestBody.calendarId, requestBody.eventId);
         break;
       
       case 'list-calendars':
-        response = await listCalendars(integration.access_token);
+        response = await listCalendars(accessToken);
         break;
       
       case 'availability':
-        response = await checkAvailability(integration.access_token, requestBody);
+        response = await checkAvailability(accessToken, requestBody);
         break;
       
       default:

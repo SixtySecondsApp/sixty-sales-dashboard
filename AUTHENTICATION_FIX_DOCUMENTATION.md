@@ -230,3 +230,9 @@ If authentication issues persist:
 ## Version History
 - **2025-01-10**: Implemented permanent fix using email-based lookup
 - **Previous**: Used ID-based lookup (unreliable, deprecated)
+
+---
+
+### See Also
+- `docs/AUTH_RUNBOOK.md` — consolidated setup, events, per-origin behavior, and diagnostics
+- `PORT_AUTHENTICATION_FIX.md` — guidance on running the dev server and port-related auth behavior

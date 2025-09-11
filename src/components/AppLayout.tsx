@@ -34,7 +34,9 @@ import {
   Zap,
   History,
   Workflow,
-  ExternalLink as LinkIcon
+  ExternalLink as LinkIcon,
+  Mail,
+  Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -76,7 +78,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
+    { icon: Calendar, label: 'Calendar', href: '/calendar' },
     { icon: Building2, label: 'CRM', href: '/crm' },
+    { icon: Mail, label: 'Email', href: '/email' },
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },

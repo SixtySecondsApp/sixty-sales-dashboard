@@ -11,7 +11,9 @@
       "WebSearch",
       "Bash(node:*)",
       "Bash(git log:*)",
-      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_6AhxmE/**)"
+      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_6AhxmE/**)",
+      "Bash(git checkout:*)",
+      "Bash(npm run build:check:*)"
     ],
     "deny": [],
     "ask": []

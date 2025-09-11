@@ -1,0 +1,497 @@
+{
+  "name": "@sixty-sales/gmail-mcp",
+  "version": "1.0.0",
+  "description": "Gmail MCP server for comprehensive email management and automation",
+  "author": "Sixty Sales Dashboard",
+  "license": "MIT",
+  "runtime": {
+    "type": "node",
+    "version": ">=18.0.0"
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "gmail_list_emails",
+        "description": "List emails from Gmail with filtering options",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Gmail search query (e.g., 'is:unread', 'from:user@example.com')"
+            },
+            "maxResults": {
+              "type": "number",
+              "default": 10,
+              "description": "Maximum number of emails to retrieve (1-500)"
+            },
+            "labelIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of label IDs to filter by"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_get_email",
+        "description": "Get a specific email by ID with full content",
+        "parameters": {
+          "type": "object",
+          "required": ["messageId"],
+          "properties": {
+            "messageId": {
+              "type": "string",
+              "description": "Gmail message ID"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["minimal", "full", "raw", "metadata"],
+              "default": "full",
+              "description": "Format of the message response"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_get_thread",
+        "description": "Get email thread with all messages",
+        "parameters": {
+          "type": "object",
+          "required": ["threadId"],
+          "properties": {
+            "threadId": {
+              "type": "string",
+              "description": "Gmail thread ID"
+            },
+            "format": {
+              "type": "string",
+              "enum": ["minimal", "full", "metadata"],
+              "default": "full",
+              "description": "Format of the thread response"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_search",
+        "description": "Advanced Gmail search with multiple criteria",
+        "parameters": {
+          "type": "object",
+          "required": ["query"],
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Advanced search query using Gmail operators"
+            },
+            "maxResults": {
+              "type": "number",
+              "default": 20,
+              "description": "Maximum results to return"
+            },
+            "includeSpamTrash": {
+              "type": "boolean",
+              "default": false,
+              "description": "Include spam and trash in search"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_send_email",
+        "description": "Send a new email",
+        "parameters": {
+          "type": "object",
+          "required": ["to", "subject", "body"],
+          "properties": {
+            "to": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Recipient email addresses"
+            },
+            "cc": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CC email addresses"
+            },
+            "bcc": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "BCC email addresses"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject"
+            },
+            "body": {
+              "type": "string",
+              "description": "Email body content"
+            },
+            "isHtml": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether body contains HTML"
+            },
+            "attachments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "filename": { "type": "string" },
+                  "content": { "type": "string" },
+                  "contentType": { "type": "string" }
+                }
+              },
+              "description": "File attachments (base64 encoded)"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_reply_to_email",
+        "description": "Reply to an existing email",
+        "parameters": {
+          "type": "object",
+          "required": ["messageId", "body"],
+          "properties": {
+            "messageId": {
+              "type": "string",
+              "description": "ID of the message to reply to"
+            },
+            "body": {
+              "type": "string",
+              "description": "Reply content"
+            },
+            "replyAll": {
+              "type": "boolean",
+              "default": false,
+              "description": "Reply to all recipients"
+            },
+            "isHtml": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether body contains HTML"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_forward_email",
+        "description": "Forward an email to other recipients",
+        "parameters": {
+          "type": "object",
+          "required": ["messageId", "to"],
+          "properties": {
+            "messageId": {
+              "type": "string",
+              "description": "ID of the message to forward"
+            },
+            "to": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Recipients to forward to"
+            },
+            "additionalMessage": {
+              "type": "string",
+              "description": "Additional message to include"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_archive_email",
+        "description": "Archive one or more emails",
+        "parameters": {
+          "type": "object",
+          "required": ["messageIds"],
+          "properties": {
+            "messageIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of message IDs to archive"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_delete_email",
+        "description": "Delete emails (move to trash)",
+        "parameters": {
+          "type": "object",
+          "required": ["messageIds"],
+          "properties": {
+            "messageIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of message IDs to delete"
+            },
+            "permanent": {
+              "type": "boolean",
+              "default": false,
+              "description": "Permanently delete (requires admin privileges)"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_mark_as_read",
+        "description": "Mark emails as read or unread",
+        "parameters": {
+          "type": "object",
+          "required": ["messageIds"],
+          "properties": {
+            "messageIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of message IDs"
+            },
+            "read": {
+              "type": "boolean",
+              "default": true,
+              "description": "Mark as read (true) or unread (false)"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_star_email",
+        "description": "Star or unstar emails",
+        "parameters": {
+          "type": "object",
+          "required": ["messageIds"],
+          "properties": {
+            "messageIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of message IDs"
+            },
+            "starred": {
+              "type": "boolean",
+              "default": true,
+              "description": "Add star (true) or remove star (false)"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_apply_label",
+        "description": "Apply or remove labels from emails",
+        "parameters": {
+          "type": "object",
+          "required": ["messageIds", "labelIds"],
+          "properties": {
+            "messageIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of message IDs"
+            },
+            "labelIds": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Array of label IDs to apply"
+            },
+            "action": {
+              "type": "string",
+              "enum": ["add", "remove"],
+              "default": "add",
+              "description": "Add or remove labels"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_create_label",
+        "description": "Create a new Gmail label",
+        "parameters": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Label name"
+            },
+            "messageListVisibility": {
+              "type": "string",
+              "enum": ["show", "hide"],
+              "default": "show",
+              "description": "Visibility in message list"
+            },
+            "labelListVisibility": {
+              "type": "string",
+              "enum": ["labelShow", "labelHide", "labelShowIfUnread"],
+              "default": "labelShow",
+              "description": "Visibility in label list"
+            },
+            "color": {
+              "type": "object",
+              "properties": {
+                "textColor": { "type": "string" },
+                "backgroundColor": { "type": "string" }
+              },
+              "description": "Label color settings"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_get_labels",
+        "description": "Get all Gmail labels",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "includeSystem": {
+              "type": "boolean",
+              "default": true,
+              "description": "Include system labels (INBOX, SENT, etc.)"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_schedule_send",
+        "description": "Schedule an email to be sent later",
+        "parameters": {
+          "type": "object",
+          "required": ["to", "subject", "body", "scheduledTime"],
+          "properties": {
+            "to": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Recipient email addresses"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject"
+            },
+            "body": {
+              "type": "string",
+              "description": "Email body content"
+            },
+            "scheduledTime": {
+              "type": "string",
+              "description": "ISO 8601 timestamp for when to send"
+            },
+            "isHtml": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether body contains HTML"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_create_draft",
+        "description": "Create a draft email",
+        "parameters": {
+          "type": "object",
+          "required": ["to", "subject", "body"],
+          "properties": {
+            "to": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Recipient email addresses"
+            },
+            "cc": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CC email addresses"
+            },
+            "bcc": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "BCC email addresses"
+            },
+            "subject": {
+              "type": "string",
+              "description": "Email subject"
+            },
+            "body": {
+              "type": "string",
+              "description": "Email body content"
+            },
+            "isHtml": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether body contains HTML"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_extract_attachments",
+        "description": "Extract and download attachments from an email",
+        "parameters": {
+          "type": "object",
+          "required": ["messageId"],
+          "properties": {
+            "messageId": {
+              "type": "string",
+              "description": "Gmail message ID"
+            },
+            "downloadPath": {
+              "type": "string",
+              "description": "Local path to save attachments"
+            },
+            "filenameFilter": {
+              "type": "string",
+              "description": "Regex pattern to filter filenames"
+            }
+          }
+        }
+      },
+      {
+        "name": "gmail_summarize_thread",
+        "description": "Generate AI summary of email thread",
+        "parameters": {
+          "type": "object",
+          "required": ["threadId"],
+          "properties": {
+            "threadId": {
+              "type": "string",
+              "description": "Gmail thread ID"
+            },
+            "summaryType": {
+              "type": "string",
+              "enum": ["brief", "detailed", "action_items"],
+              "default": "brief",
+              "description": "Type of summary to generate"
+            },
+            "maxMessages": {
+              "type": "number",
+              "default": 20,
+              "description": "Maximum messages to include in summary"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "configuration": {
+    "oauth": {
+      "required": true,
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.compose",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.labels",
+        "https://www.googleapis.com/auth/gmail.metadata"
+      ],
+      "redirectUri": "http://localhost:3000/auth/callback"
+    },
+    "environment": {
+      "GOOGLE_CLIENT_ID": {
+        "required": true,
+        "description": "Google OAuth Client ID"
+      },
+      "GOOGLE_CLIENT_SECRET": {
+        "required": true,
+        "description": "Google OAuth Client Secret"
+      },
+      "GOOGLE_REDIRECT_URI": {
+        "default": "http://localhost:3000/auth/callback",
+        "description": "OAuth redirect URI"
+      }
+    }
+  }
+}
