@@ -109,6 +109,13 @@ serve(async (req) => {
       .single();
 
     const calendarRecordId = calRecord?.id || null;
+    
+    if (!calendarRecordId) {
+      console.error('Failed to get/create calendar record');
+      throw new Error('Calendar record not found');
+    }
+    
+    console.log('Using calendar record:', { calendarId, calendarRecordId });
 
     // Create sync log (started)
     const { data: logRow } = await sb
@@ -188,6 +195,7 @@ serve(async (req) => {
 
           const payload: any = {
             user_id: user.id,
+            calendar_id: calendarRecordId, // CRITICAL: Add the calendar reference!
             external_id: ev.id,
             title: ev.summary || '(No title)',
             description: ev.description || null,
@@ -210,19 +218,25 @@ serve(async (req) => {
 
           const { data: upserted, error: upsertError } = await sb
             .from('calendar_events')
-            .upsert(payload, { onConflict: 'user_id,external_id' })
+            .upsert(payload, { onConflict: 'external_id,user_id' })
             .select('id');
 
           if (upsertError) {
-            // continue but log
-            console.error('Upsert error:', upsertError.message);
+            // Log detailed error for debugging
+            console.error('Failed to upsert event:', {
+              eventId: ev.id,
+              title: ev.summary,
+              error: upsertError.message,
+              details: upsertError
+            });
             continue;
           }
 
           // Count stats roughly (created vs updated not perfectly known without inspect)
           stats.created += 1;
-        } catch (_) {
-          // ignore individual item errors
+        } catch (err) {
+          // Log individual item errors for debugging
+          console.error('Error processing event:', err);
         }
       }
 
