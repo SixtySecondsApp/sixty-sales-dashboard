@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { calendarService, CalendarSyncStatus } from '@/lib/services/calendarService';
 import { CalendarEvent } from '@/pages/Calendar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 
 // Query keys for calendar data
@@ -90,15 +90,20 @@ export function useAutoCalendarSync(enabled = true, intervalMinutes = 5) {
   const syncCalendar = useSyncCalendar();
   const { data: syncStatus } = useCalendarSyncStatus(enabled);
   const { data: historicalSyncCompleted } = useHistoricalSyncStatus(enabled);
+  const hasTriggeredHistorical = useRef(false);
 
   useEffect(() => {
     if (!enabled) return;
 
-    // Perform initial historical sync if not completed
-    if (historicalSyncCompleted === false && !syncStatus?.isRunning) {
+    // Perform initial historical sync once if not completed
+    if (
+      historicalSyncCompleted === false &&
+      !syncStatus?.isRunning &&
+      !hasTriggeredHistorical.current
+    ) {
+      hasTriggeredHistorical.current = true;
       console.log('Starting initial historical calendar sync...');
       syncCalendar.mutate({ action: 'sync-historical' });
-      return;
     }
 
     // Set up periodic incremental sync
@@ -126,7 +131,7 @@ export function useAutoCalendarSync(enabled = true, intervalMinutes = 5) {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [enabled, intervalMinutes, syncStatus?.isRunning, historicalSyncCompleted, syncCalendar]);
+  }, [enabled, intervalMinutes, !!syncStatus?.isRunning, !!historicalSyncCompleted, syncCalendar]);
 }
 
 /**

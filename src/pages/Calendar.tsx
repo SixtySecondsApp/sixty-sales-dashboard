@@ -105,7 +105,8 @@ const Calendar: React.FC = () => {
   const syncCalendar = useSyncCalendar();
   
   // Enable auto-sync to keep data fresh
-  useAutoCalendarSync(isCalendarEnabled, 5); // Sync every 5 minutes
+  // Disabled auto-sync - users control when to sync via UI buttons
+  // useAutoCalendarSync(isCalendarEnabled, 5);
   
   // Debug logging for sync status
   useEffect(() => {
@@ -191,16 +192,12 @@ const Calendar: React.FC = () => {
       return mockEvents;
     }
     
-    // If no events in database and historical sync not completed, trigger it
-    if (historicalSyncCompleted === false && !syncStatus?.isRunning) {
-      console.log('Triggering historical sync...');
-      syncCalendar.mutate({ action: 'sync-historical' });
-      return [];
-    }
-    
     // Default to empty array if nothing else matches
     return [];
   }, [dbEvents, dbEventsLoading, dbError, isCalendarEnabled, historicalSyncCompleted, syncStatus, syncCalendar]);
+
+  // Don't automatically sync on load - let user control when to sync
+  // This prevents unnecessary API calls and lets users sync only what they need
   
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -414,16 +411,96 @@ const Calendar: React.FC = () => {
               )}
             </div>
             
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => syncCalendar.mutate({ action: 'sync-incremental' })}
-              disabled={syncStatus.isRunning || syncCalendar.isPending}
-              className="text-gray-400 hover:text-white"
-            >
-              <RefreshCw className={`w-3 h-3 mr-1 ${syncStatus.isRunning || syncCalendar.isPending ? 'animate-spin' : ''}`} />
-              Sync Now
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Sync Current View Button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const start = new Date(selectedDate);
+                  start.setDate(1);
+                  const end = new Date(selectedDate);
+                  end.setMonth(end.getMonth() + 1);
+                  end.setDate(0);
+                  syncCalendar.mutate({ 
+                    action: 'sync-incremental',
+                    startDate: start.toISOString(),
+                    endDate: end.toISOString()
+                  });
+                }}
+                disabled={syncStatus.isRunning || syncCalendar.isPending}
+                className="text-gray-400 hover:text-white"
+              >
+                <RefreshCw className={`w-3 h-3 mr-1 ${syncStatus.isRunning || syncCalendar.isPending ? 'animate-spin' : ''}`} />
+                Sync Current Month
+              </Button>
+              
+              {/* Sync History Dropdown */}
+              <div className="relative group">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={syncStatus.isRunning || syncCalendar.isPending}
+                  className="text-gray-400 hover:text-white"
+                >
+                  Sync History
+                </Button>
+                <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                  <button
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setMonth(start.getMonth() - 3);
+                      syncCalendar.mutate({ 
+                        action: 'sync-historical',
+                        startDate: start.toISOString(),
+                        endDate: end.toISOString()
+                      });
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                  >
+                    This Quarter
+                  </button>
+                  <button
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date(end.getFullYear(), 0, 1);
+                      syncCalendar.mutate({ 
+                        action: 'sync-historical',
+                        startDate: start.toISOString(),
+                        endDate: end.toISOString()
+                      });
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                  >
+                    This Year
+                  </button>
+                  <button
+                    onClick={() => {
+                      const end = new Date();
+                      const start = new Date();
+                      start.setFullYear(start.getFullYear() - 2);
+                      syncCalendar.mutate({ 
+                        action: 'sync-historical',
+                        startDate: start.toISOString(),
+                        endDate: end.toISOString()
+                      });
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                  >
+                    Last 2 Years
+                  </button>
+                  <button
+                    onClick={() => {
+                      syncCalendar.mutate({ action: 'sync-historical' });
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
+                  >
+                    All Time
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

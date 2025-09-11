@@ -189,7 +189,7 @@ class CalendarService {
         .eq('user_id', user.user.id)
         .order('started_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         // PGRST116 is "no rows returned"
@@ -235,14 +235,14 @@ class CalendarService {
         .select('historical_sync_completed')
         .eq('user_id', user.user.id)
         .eq('external_id', calendarId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Failed to check historical sync status:', error);
         return false;
       }
 
-      return data?.historical_sync_completed || false;
+      return !!data?.historical_sync_completed;
     } catch (error) {
       console.error('Failed to check historical sync status:', error);
       return false;
