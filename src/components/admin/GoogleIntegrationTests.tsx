@@ -57,11 +57,24 @@ export function GoogleIntegrationTests() {
     } catch (error: any) {
       const duration = Date.now() - startTime;
       
+      // Extract more detailed error information
+      let errorMessage = error.message || 'Test failed';
+      let errorData = null;
+      
+      // If it's a Supabase function error, get more details
+      if (error.details) {
+        errorData = error.details;
+      }
+      if (error.hint) {
+        errorMessage += ` (Hint: ${error.hint})`;
+      }
+      
       return {
         name,
         category,
         status: 'failed',
-        message: error.message || 'Test failed',
+        message: errorMessage,
+        data: errorData,
         duration
       };
     }
