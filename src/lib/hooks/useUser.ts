@@ -242,20 +242,31 @@ export function useUser() {
           const user = session.user;
           logger.log('✅ Authenticated user found:', { id: user.id, email: user.email });
           
-          // Get or create user profile
+          // Get or create user profile - USE EMAIL AS PRIMARY LOOKUP (see AUTHENTICATION_FIX_DOCUMENTATION.md)
+          logger.log('🔍 Fetching profile by email:', user.email);
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', user.id)
-            .single();
+            .eq('email', user.email)
+            .maybeSingle();
 
-          if (profileError && profileError.code !== 'PGRST116') {
-            // PGRST116 is "not found" error, which is fine for new users
-            throw profileError;
+          if (profileError) {
+            logger.warn('Profile fetch error:', profileError);
+            // Don't throw error, we'll handle it below
+          }
+
+          if (profile) {
+            logger.log('✅ Profile fetched successfully:', {
+              name: `${profile.first_name} ${profile.last_name}`,
+              email: profile.email,
+              stage: profile.stage,
+              isAdmin: profile.is_admin
+            });
           }
 
           // If no profile exists, create a default one
           if (!profile) {
+            logger.log('📝 No profile found, creating new one for:', user.email);
             const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert({
