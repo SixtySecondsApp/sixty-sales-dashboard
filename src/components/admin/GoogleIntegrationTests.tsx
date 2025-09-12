@@ -11,7 +11,8 @@ import {
   Shield,
   AlertTriangle,
   Database,
-  ArrowLeft
+  ArrowLeft,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -409,6 +410,47 @@ export function GoogleIntegrationTests() {
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
             <span className="text-sm text-blue-400">Running: {currentTest}</span>
+          </div>
+        </div>
+      )}
+
+      {results.length === 0 && !isRunning && (
+        <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-12">
+          <div className="flex flex-col items-center justify-center text-center">
+            <Settings className="w-16 h-16 text-gray-500 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">No Tests Run Yet</h3>
+            <p className="text-gray-400 max-w-md mb-6">
+              Click "Run All Tests" to verify your Google Calendar, Gmail, and OAuth integrations are working correctly.
+            </p>
+            <div className="grid grid-cols-3 gap-8 text-center mb-8">
+              <div>
+                <Shield className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">OAuth</p>
+              </div>
+              <div>
+                <Calendar className="w-8 h-8 text-green-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">Calendar</p>
+              </div>
+              <div>
+                <Mail className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-400">Gmail</p>
+              </div>
+            </div>
+            <div className="text-left bg-gray-900/50 rounded-lg p-4 max-w-lg">
+              <h4 className="text-sm font-semibold text-gray-300 mb-2">Tests that will run:</h4>
+              <ul className="space-y-1 text-xs text-gray-400">
+                <li>• Check Google Integration Status</li>
+                <li>• Verify OAuth Tokens</li>
+                <li>• Check Calendar Sync Status</li>
+                <li>• Verify Calendar Events in Database</li>
+                <li>• Test Calendar Database Structure</li>
+                <li>• Execute Calendar Sync Function</li>
+                <li>• Fetch Gmail Labels</li>
+                <li>• List Gmail Messages</li>
+                <li>• Test Google Calendar Edge Function</li>
+                <li>• System Health Check</li>
+              </ul>
+            </div>
           </div>
         </div>
       )}
