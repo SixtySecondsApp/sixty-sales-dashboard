@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Play, 
   CheckCircle, 
@@ -9,7 +10,8 @@ import {
   FolderOpen,
   Shield,
   AlertTriangle,
-  Database
+  Database,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +28,7 @@ interface TestResult {
 }
 
 export function GoogleIntegrationTests() {
+  const navigate = useNavigate();
   const [isRunning, setIsRunning] = useState(false);
   const [currentTest, setCurrentTest] = useState('');
   const [results, setResults] = useState<TestResult[]>([]);
@@ -364,32 +367,42 @@ export function GoogleIntegrationTests() {
   const failedCount = results.filter(r => r.status === 'failed').length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-100">Google Integration Tests</h2>
-          <p className="text-sm text-gray-400 mt-1">
-            Test calendar sync, email integration, and Google Auth functionality
-          </p>
-        </div>
-        <Button
-          onClick={runAllTests}
-          disabled={isRunning}
-          className="bg-blue-500 hover:bg-blue-600"
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Running Tests...
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4 mr-2" />
-              Run All Tests
-            </>
-          )}
-        </Button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={() => navigate('/admin')}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="flex-1 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-100">Google Integration Tests</h2>
+                <p className="text-sm text-gray-400 mt-1">
+                  Test calendar sync, email integration, and Google Auth functionality
+                </p>
+              </div>
+              <Button
+                onClick={runAllTests}
+                disabled={isRunning}
+                className="bg-blue-500 hover:bg-blue-600"
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Running Tests...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 mr-2" />
+                    Run All Tests
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
 
       {currentTest && (
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
@@ -467,6 +480,8 @@ export function GoogleIntegrationTests() {
           </div>
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }
