@@ -325,8 +325,9 @@ export function useUser() {
           const isDevelopment = import.meta.env.MODE === 'development';
           const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
           
-          if (isDevelopment || allowMockUser) {
-            logger.log('⚠️ No authenticated user found. Using mock user for development.');
+          // Only use mock user if explicitly allowed, not just because we're in development
+          if (allowMockUser) {
+            logger.log('⚠️ No authenticated user found. Mock user is enabled.');
             logger.log('Session details:', { session, sessionError });
             
             const mockUserData = {
@@ -367,11 +368,10 @@ export function useUser() {
         }
         setError(err);
         
-        // In development, fall back to mock user if there's an error
-        const isDevelopment = import.meta.env.MODE === 'development';
+        // Only use mock user if explicitly allowed
         const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
         
-        if (isDevelopment || allowMockUser) {
+        if (allowMockUser) {
           logger.log('⚠️ Falling back to mock user due to authentication error');
           const mockUserData = {
             id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
