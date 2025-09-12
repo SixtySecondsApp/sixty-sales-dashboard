@@ -9,6 +9,7 @@ import ApiTesting from '@/pages/ApiTesting';
 import FunctionTesting from '@/pages/admin/FunctionTesting';
 import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
 import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
+import { GoogleIntegrationTests } from '@/components/admin/GoogleIntegrationTests';
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
 import { 
   UsersIcon, 
@@ -20,7 +21,8 @@ import {
   Workflow,
   TestTube,
   FlaskConical,
-  Sparkles
+  Sparkles,
+  Settings
 } from 'lucide-react';
 
 export default function Admin() {
@@ -111,6 +113,13 @@ export default function Admin() {
                 <FlaskConical className="w-4 h-4" />
                 E2E Tests
               </TabsTrigger>
+              <TabsTrigger 
+                value="google-integration" 
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"
+              >
+                <Settings className="w-4 h-4" />
+                Google Tests
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="users" className="space-y-0">
@@ -151,6 +160,10 @@ export default function Admin() {
 
             <TabsContent value="workflows-e2e" className="space-y-0">
               <WorkflowsE2ETestSuite />
+            </TabsContent>
+
+            <TabsContent value="google-integration" className="space-y-0">
+              <GoogleIntegrationTests />
             </TabsContent>
           </Tabs>
         </div>
