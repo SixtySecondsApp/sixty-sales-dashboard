@@ -84,6 +84,42 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   }, [view]);
 
+  // Force FullCalendar to respect container bounds
+  useEffect(() => {
+    const fixCalendarWidth = () => {
+      const elements = document.querySelectorAll('.fc-scrollgrid-sync-inner');
+      elements.forEach(el => {
+        if (el instanceof HTMLElement) {
+          el.style.minWidth = '0';
+          el.style.width = '100%';
+        }
+      });
+    };
+
+    // Initial fix
+    fixCalendarWidth();
+
+    // Fix on window resize
+    window.addEventListener('resize', fixCalendarWidth);
+
+    // Use MutationObserver to fix any dynamic changes
+    const observer = new MutationObserver(fixCalendarWidth);
+    const calendarEl = document.querySelector('.fc');
+    if (calendarEl) {
+      observer.observe(calendarEl, { 
+        childList: true, 
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style']
+      });
+    }
+
+    return () => {
+      window.removeEventListener('resize', fixCalendarWidth);
+      observer.disconnect();
+    };
+  }, [view, events]);
+
   const handleEventClick = (clickInfo: any) => {
     const originalEvent = clickInfo.event.extendedProps.originalEvent;
     if (originalEvent) {
@@ -103,23 +139,96 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     onEventDrop(eventId, newStart, newEnd);
   };
 
-  const customEventContent = (eventInfo: any) => {
-    return <CalendarEventComponent event={eventInfo.event.extendedProps.originalEvent} />;
-  };
+  // Temporarily disable custom event content to fix the error
+  // const customEventContent = (eventInfo: any) => {
+  //   return <CalendarEventComponent event={eventInfo.event.extendedProps.originalEvent} />;
+  // };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="h-full p-4"
+      className="h-full w-full p-4 overflow-hidden"
+      style={{ 
+        isolation: 'isolate',
+        maxWidth: '100%',
+        position: 'relative'
+      }}
     >
       <style jsx global>{`
-        /* FullCalendar Dark Theme Styles */
+        /* Aggressive Reset of FullCalendar inline styles */
+        .fc-scrollgrid-sync-inner {
+          min-width: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          flex-shrink: 1 !important;
+        }
+        
+        /* Ensure FullCalendar container doesn't expand */
+        .fc-view-harness-active {
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+        }
+        
+        .fc-daygrid-body,
+        .fc-scrollgrid-sync-table,
+        .fc-col-header,
+        .fc-daygrid-body-unbalanced,
+        .fc-daygrid-body-natural {
+          min-width: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        
+        /* Override any inline styles */
+        .fc [style*="min-width"] {
+          min-width: 0 !important;
+        }
+        
+        /* Target the specific structure causing overflow */
+        .fc-scrollgrid-section > table,
+        .fc-scrollgrid-section > div > table {
+          min-width: 0 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        
+        /* Prevent horizontal scrolling */
+        .fc-scroller {
+          overflow-x: hidden !important;
+          overflow-y: auto !important;
+        }
+        
+        .fc-scroller-liquid,
+        .fc-scroller-liquid-absolute {
+          overflow-x: hidden !important;
+        }
+        
+        /* FullCalendar Dark Theme Styles - Aggressive Containment */
         .fc {
           background: transparent;
           color: #f3f4f6;
           font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+          position: relative !important;
+          box-sizing: border-box !important;
+        }
+        
+        .fc-media-screen {
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
+        }
+        
+        /* Prevent any element from stretching beyond viewport */
+        .fc * {
+          max-width: 100% !important;
+          box-sizing: border-box !important;
         }
 
         .fc .fc-view-harness {
@@ -128,6 +237,74 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           border-radius: 12px;
           border: 1px solid rgba(75, 85, 99, 0.3);
           overflow: hidden;
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        
+        .fc-scrollgrid {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+        
+        .fc-scrollgrid-sync-table {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+        
+        .fc-daygrid-body {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+        
+        .fc-scrollgrid-section > * {
+          width: 100% !important;
+          max-width: 100% !important;
+        }
+        
+        .fc table {
+          width: 100% !important;
+          max-width: 100% !important;
+          table-layout: fixed !important;
+        }
+        
+        /* Force day cells to have equal width */
+        .fc-daygrid-day {
+          width: calc(100% / 7) !important;
+          max-width: calc(100% / 7) !important;
+          min-width: 0 !important;
+          overflow: hidden !important;
+          position: relative !important;
+        }
+        
+        /* Constrain day cell content */
+        .fc-daygrid-day-events {
+          min-width: 0 !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+        }
+        
+        .fc-daygrid-day-frame {
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: hidden !important;
+        }
+        
+        .fc-col-header-cell {
+          width: calc(100% / 7) !important;
+          max-width: calc(100% / 7) !important;
+        }
+        
+        /* Prevent content from expanding cells */
+        .fc-daygrid-event-harness {
+          overflow: hidden !important;
+        }
+        
+        .fc-daygrid-more-link {
+          max-width: 100% !important;
+          overflow: hidden !important;
         }
 
         .fc-theme-standard .fc-scrollgrid {
@@ -184,6 +361,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           backdrop-filter: blur(4px);
           transition: all 0.2s ease;
           cursor: pointer;
+          max-width: 100% !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
 
         .fc-event:hover {
@@ -325,15 +505,95 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           from { opacity: 0; transform: scale(0.9); }
           to { opacity: 1; transform: scale(1); }
         }
+        /* Viewport height constraints for calendar grid */
+        .fc-daygrid {
+          height: 100% !important;
+        }
+        
+        .fc-daygrid-body {
+          height: 100% !important;
+        }
+        
+        /* Make week rows distribute evenly */
+        .fc-daygrid-week {
+          min-height: 0 !important;
+          flex: 1 1 0 !important;
+        }
+        
+        .fc-daygrid-day-frame {
+          min-height: 0 !important;
+          height: 100% !important;
+        }
+        
+        /* Compact event display */
+        .fc-daygrid-event {
+          font-size: 0.75rem !important;
+          line-height: 1.2 !important;
+          padding: 1px 2px !important;
+          margin: 1px 0 !important;
+        }
+        
+        .fc-daygrid-event-harness {
+          margin: 0 1px !important;
+        }
+        
+        /* More link styling */
+        .fc-daygrid-more-link {
+          font-size: 0.7rem !important;
+          padding: 0 2px !important;
+          margin-top: 1px !important;
+        }
+        
+        /* Hide event time in month view for space */
+        .fc-daygrid-event-time {
+          display: none !important;
+        }
+        
+        /* Limit day cell height */
+        .fc-daygrid-day {
+          max-height: calc((100vh - 350px) / 6) !important;
+          overflow: hidden !important;
+        }
+        
+        .fc-daygrid-day-events {
+          max-height: calc((100vh - 400px) / 6) !important;
+          overflow: hidden !important;
+        }
+        
+        /* Ensure scrollgrid fills container */
+        .fc-scrollgrid {
+          height: 100% !important;
+        }
+        
+        .fc-scrollgrid-section-body > td {
+          height: 100% !important;
+        }
       `}</style>
 
-      <FullCalendar
-        ref={calendarRef}
-        plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-        initialView={view}
+      <div className="h-full w-full relative overflow-hidden" 
+        style={{ 
+          contain: 'layout', 
+          minWidth: 0, 
+          maxWidth: '100%',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        <div className="flex-1 relative overflow-hidden" 
+          style={{ 
+            minWidth: 0, 
+            maxWidth: '100%',
+            height: '100%'
+          }}
+        >
+          <FullCalendar
+            ref={calendarRef}
+            plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+            initialView={view}
         views={{
           dayGridMonth: {
-            titleFormat: { year: 'numeric', month: 'long' }
+            titleFormat: { year: 'numeric', month: 'long' },
+            fixedWeekCount: false
           },
           timeGridWeek: {
             titleFormat: { month: 'short', day: 'numeric' },
@@ -351,6 +611,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }}
         headerToolbar={false}
         height="100%"
+        contentHeight="100%"
+        expandRows={false}
+        stickyHeaderDates={false}
         events={fullCalendarEvents}
         eventClick={handleEventClick}
         dateClick={handleDateClick}
@@ -366,10 +629,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         editable={true}
         selectable={true}
         selectMirror={true}
-        dayMaxEvents={true}
+        dayMaxEvents={2}
+        dayMaxEventRows={2}
         weekends={true}
         nowIndicator={true}
-        eventContent={view !== 'listWeek' ? customEventContent : undefined}
+        // eventContent={view !== 'listWeek' ? customEventContent : undefined}
         dayHeaderFormat={{ weekday: 'short' }}
         eventDisplay="block"
         displayEventTime={true}
@@ -405,6 +669,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           mouseLeaveInfo.el.style.zIndex = 'auto';
         }}
       />
+        </div>
+      </div>
     </motion.div>
   );
 };

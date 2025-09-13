@@ -42,38 +42,41 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({
 
   if (isInList) {
     return (
-      <div className="flex items-center space-x-3 p-3 hover:bg-gray-800/50 rounded-lg transition-colors group">
+      <div className="flex items-center gap-2 p-2.5 hover:bg-gray-800/50 rounded-lg transition-colors group overflow-hidden">
         <div className="flex-shrink-0">
-          <div className="w-3 h-3 rounded-full" style={{
+          <div className="w-2 h-2 rounded-full" style={{
             backgroundColor: event.color || getCategoryColor(event.category)
           }} />
         </div>
         
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2">
-            <Icon className="w-4 h-4 text-gray-400" />
-            <h4 className="text-sm font-medium text-gray-200 truncate">
-              {event.title}
-            </h4>
-            {event.priority && (
-              <AlertTriangle className={`w-3 h-3 ${priorityColor}`} />
-            )}
-          </div>
-          
-          <div className="flex items-center space-x-4 mt-1">
-            <span className="text-xs text-gray-400">
-              {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              {event.end && ` - ${event.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-            </span>
-            
-            {event.location && (
-              <div className="flex items-center space-x-1">
-                <MapPin className="w-3 h-3 text-gray-500" />
-                <span className="text-xs text-gray-500 truncate max-w-32">
-                  {event.location}
-                </span>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex items-start gap-1.5">
+            <Icon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start gap-1">
+                <h4 className="text-xs font-medium text-gray-200 flex-1 line-clamp-2 leading-relaxed break-words">
+                  {event.title}
+                </h4>
+                {event.priority === 'high' && (
+                  <AlertTriangle className="w-3 h-3 text-red-400 flex-shrink-0 mt-0.5" />
+                )}
               </div>
-            )}
+              
+              <div className="mt-1 space-y-0.5">
+                <div className="text-xs text-gray-400">
+                  {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                
+                {event.location && (
+                  <div className="flex items-start gap-1">
+                    <MapPin className="w-3 h-3 text-gray-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-xs text-gray-500 line-clamp-2 break-words">
+                      {event.location}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           
           {event.description && showDetails && (
@@ -92,9 +95,9 @@ export const CalendarEvent: React.FC<CalendarEventProps> = ({
           )}
         </div>
         
-        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex-shrink-0 hidden group-hover:block transition-all">
           <div className="text-xs text-gray-500 capitalize">
-            {event.category}
+            {event.category.slice(0, 3)}
           </div>
         </div>
       </div>
