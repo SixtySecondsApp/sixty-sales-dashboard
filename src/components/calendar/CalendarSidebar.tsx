@@ -45,6 +45,7 @@ interface CalendarSidebarProps {
   onToggleCollapsed: (collapsed: boolean) => void;
   selectedCategories: string[];
   onCategoriesChange: (categories: string[]) => void;
+  onEventClick?: (event: CalendarEvent) => void;
 }
 
 const categoryOptions = [
@@ -66,6 +67,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   onToggleCollapsed,
   selectedCategories,
   onCategoriesChange,
+  onEventClick,
 }) => {
   const [miniCalendarDate, setMiniCalendarDate] = useState(selectedDate);
   const [showUpcoming, setShowUpcoming] = useState(true);
@@ -163,9 +165,9 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   }
 
   return (
-    <div className="h-full flex flex-col bg-transparent">
+    <div className="h-full w-full flex flex-col bg-transparent overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800/50">
+      <div className="p-4 border-b border-gray-800/50 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Calendar className="w-5 h-5 text-emerald-400" />
@@ -182,8 +184,8 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-6">
+      <ScrollArea className="flex-1 min-h-0 overflow-hidden">
+        <div className="p-3 space-y-4 overflow-hidden">
           {/* Mini Calendar */}
           <Card className="bg-gray-800/30 border-gray-700/50">
             <CardHeader className="pb-2">
@@ -214,9 +216,9 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
             
             <CardContent className="p-2">
               {/* Days of week header */}
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid grid-cols-7 gap-1 mb-3">
                 {DAYS_OF_WEEK.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-gray-400 p-1">
+                  <div key={day} className="text-center text-xs font-medium text-gray-400 py-2">
                     {day}
                   </div>
                 ))}
@@ -237,7 +239,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                       whileTap={{ scale: 0.95 }}
                       onClick={() => onDateSelect(day)}
                       className={`
-                        relative p-1 text-xs rounded-md transition-colors
+                        relative py-2 px-1 text-sm rounded-md transition-colors h-8 flex items-center justify-center
                         ${isSelected 
                           ? 'bg-emerald-600 text-white' 
                           : isToday(day)
@@ -364,16 +366,17 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                   exit={{ height: 0, opacity: 0 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <CardContent className="pt-0">
+                  <CardContent className="pt-0 overflow-hidden">
                     {upcomingEvents.length > 0 ? (
-                      <div className="space-y-1">
+                      <div className="space-y-1 overflow-hidden">
                         {upcomingEvents.map((event, index) => (
                           <motion.div
                             key={event.id}
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className="hover:bg-gray-700/30 rounded-md transition-colors"
+                            className="hover:bg-gray-700/30 rounded-md transition-colors cursor-pointer"
+                            onClick={() => onEventClick?.(event)}
                           >
                             <CalendarEventComponent
                               event={event}
