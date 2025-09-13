@@ -42,7 +42,7 @@ export function useSyncCalendar() {
       startDate,
       endDate,
     }: {
-      action?: 'sync-full' | 'sync-incremental' | 'sync-historical';
+      action?: 'sync-full' | 'sync-incremental' | 'sync-historical' | 'sync-single';
       calendarId?: string;
       startDate?: string;
       endDate?: string;
@@ -82,57 +82,8 @@ export function useHistoricalSyncStatus(enabled = true) {
   });
 }
 
-/**
- * Hook to auto-sync calendar events in the background
- * This runs periodically to keep the calendar data fresh
- */
-export function useAutoCalendarSync(enabled = true, intervalMinutes = 5) {
-  const syncCalendar = useSyncCalendar();
-  const { data: syncStatus } = useCalendarSyncStatus(enabled);
-  const { data: historicalSyncCompleted } = useHistoricalSyncStatus(enabled);
-  const hasTriggeredHistorical = useRef(false);
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    // Perform initial historical sync once if not completed
-    if (
-      historicalSyncCompleted === false &&
-      !syncStatus?.isRunning &&
-      !hasTriggeredHistorical.current
-    ) {
-      hasTriggeredHistorical.current = true;
-      console.log('Starting initial historical calendar sync...');
-      syncCalendar.mutate({ action: 'sync-historical' });
-    }
-
-    // Set up periodic incremental sync
-    const interval = setInterval(() => {
-      if (!syncStatus?.isRunning) {
-        console.log('Running periodic calendar sync...');
-        syncCalendar.mutate({ action: 'sync-incremental' });
-      }
-    }, intervalMinutes * 60 * 1000);
-
-    // Also sync when the tab becomes visible
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && !syncStatus?.isRunning) {
-        const lastSync = syncStatus?.lastSyncedAt;
-        if (!lastSync || new Date().getTime() - lastSync.getTime() > 5 * 60 * 1000) {
-          console.log('Syncing calendar after tab became visible...');
-          syncCalendar.mutate({ action: 'sync-incremental' });
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [enabled, intervalMinutes, !!syncStatus?.isRunning, !!historicalSyncCompleted, syncCalendar]);
-}
+// Auto-sync functionality has been permanently removed
+// All calendar syncing is now manual and user-initiated
 
 /**
  * Hook to link calendar event to a contact

@@ -18,6 +18,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
+import { CalendarSyncTest } from './CalendarSyncTest';
+import { CalendarE2ETest } from './CalendarE2ETest';
+import { CalendarDatabaseViewer } from './CalendarDatabaseViewer';
+import { CalendarDebugger } from './CalendarDebugger';
 
 interface TestResult {
   name: string;
@@ -231,19 +235,20 @@ export function GoogleIntegrationTests() {
         'Test Calendar Sync Function',
         'Calendar',
         async () => {
-          const { data, error } = await supabase.functions.invoke('calendar-sync', {
-            body: { 
-              action: 'sync-incremental',
-              calendarId: 'primary'
+          const { data, error } = await supabase.functions.invoke('google-calendar?action=list-events', {
+            body: {
+              timeMin: new Date().toISOString(),
+              timeMax: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              maxResults: 5
             }
           });
           
           if (error) throw error;
           
           return {
-            success: data?.success || false,
-            stats: data?.stats || {},
-            message: data?.error || 'Sync completed'
+            success: !!data,
+            eventCount: data?.events?.length || 0,
+            message: data?.error || 'Calendar test completed'
           };
         }
       ));
@@ -256,10 +261,8 @@ export function GoogleIntegrationTests() {
         'Fetch Gmail Labels',
         'Gmail',
         async () => {
-          const { data, error } = await supabase.functions.invoke('google-gmail', {
-            body: { 
-              action: 'list-labels'
-            }
+          const { data, error } = await supabase.functions.invoke('google-gmail?action=labels', {
+            body: {}
           });
           
           if (error) throw error;
@@ -278,9 +281,8 @@ export function GoogleIntegrationTests() {
         'Fetch Gmail Messages',
         'Gmail',
         async () => {
-          const { data, error } = await supabase.functions.invoke('google-gmail', {
-            body: { 
-              action: 'list',
+          const { data, error } = await supabase.functions.invoke('google-gmail?action=list', {
+            body: {
               maxResults: 5
             }
           });
@@ -303,10 +305,8 @@ export function GoogleIntegrationTests() {
         'Google Calendar Edge Function',
         'Edge Functions',
         async () => {
-          const { data, error } = await supabase.functions.invoke('google-calendar', {
-            body: { 
-              action: 'list'
-            }
+          const { data, error } = await supabase.functions.invoke('google-calendar?action=list-calendars', {
+            body: {}
           });
           
           if (error) throw error;
@@ -324,14 +324,31 @@ export function GoogleIntegrationTests() {
         'Health Check',
         'System',
         async () => {
-          const { data, error } = await supabase.functions.invoke('health');
+          // First check if we can hit any Edge Function
+          const { data, error } = await supabase.functions.invoke('google-calendar?action=list-calendars', {
+            body: {}
+          });
           
-          if (error) throw error;
-          
-          return {
-            status: data?.status || 'unknown',
-            timestamp: data?.timestamp || new Date().toISOString()
-          };
+          // Even if it errors due to auth, we can still check if the function is deployed
+          if (error && error.message && error.message.includes('Google integration not found')) {
+            // This is actually good - the function is running, just no Google account connected
+            return {
+              status: 'operational',
+              message: 'Edge Functions deployed (Google account not connected)',
+              timestamp: new Date().toISOString()
+            };
+          } else if (error && (error.message?.includes('FunctionInvokeError') || error.message?.includes('non-2xx'))) {
+            // Function might not be deployed or configured
+            throw new Error('Edge Functions may not be deployed or GOOGLE_CLIENT_ID/SECRET not configured');
+          } else if (data) {
+            return {
+              status: 'healthy',
+              message: 'Edge Functions operational and Google connected',
+              timestamp: new Date().toISOString()
+            };
+          } else {
+            throw error || new Error('Unknown status');
+          }
         }
       ));
       setResults([...testResults]);
@@ -535,6 +552,38 @@ export function GoogleIntegrationTests() {
           </div>
         </>
       )}
+
+      {/* Add Calendar Test Components */}
+      <div className="mt-6 space-y-6">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-200 mb-4">🔍 Calendar API Debugger</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Debug why events aren't being returned from Google Calendar. Tests different date ranges and calendars.
+          </p>
+          <CalendarDebugger />
+        </div>
+        
+        <div>
+          <h3 className="text-lg font-semibold text-gray-200 mb-4">Comprehensive E2E Test</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            Run this test to sync your Google Calendar and verify everything is working correctly.
+          </p>
+          <CalendarE2ETest />
+        </div>
+        
+        <div>
+          <h3 className="text-lg font-semibold text-gray-200 mb-4">Database Events Viewer</h3>
+          <p className="text-sm text-gray-400 mb-4">
+            View the actual events stored in your database after syncing.
+          </p>
+          <CalendarDatabaseViewer />
+        </div>
+        
+        <div>
+          <h3 className="text-lg font-semibold text-gray-200 mb-4">Quick Sync Test</h3>
+          <CalendarSyncTest />
+        </div>
+      </div>
         </div>
       </div>
     </div>

@@ -33,6 +33,15 @@ Enterprise-grade sales CRM and analytics platform featuring a streamlined 4-stag
 - **Contact Management**: Integrated contact system with fuzzy matching and normalization
 - **Task Management**: Automated task creation with smart follow-up scheduling
 
+### 📅 Google Calendar Integration
+- **Manual Sync Control**: User-initiated calendar synchronization (no automatic syncing)
+- **Smart Event Import**: Sync last 7 days of calendar events for testing
+- **Database-First Architecture**: Events stored locally for instant loading
+- **Conflict Resolution**: Intelligent handling of duplicate events with composite keys
+- **Event Linking**: Automatic association with contacts based on email matching
+- **Real-time Updates**: Live calendar data synchronization when requested
+- **Error Recovery**: Robust error handling with detailed logging
+
 ### 🎨 User Experience
 - **Consolidated Navigation**: Unified /admin, /crm, and /insights hubs with legacy redirects
 - **Responsive Design**: Mobile-first approach with touch-optimized interactions
@@ -113,6 +122,16 @@ Comprehensive deal creation system:
 - **Stage Management**: Intelligent default stage assignment to SQL stage
 - **Activity Tracking**: Automatic activity logging for deal creation
 - **Pipeline Integration**: Seamless integration with 4-stage pipeline workflow
+
+### Calendar Service (`/src/lib/services/calendarService.ts`)
+Google Calendar synchronization service:
+- **Manual Sync Operations**: User-controlled sync with no automatic operations
+- **Flexible Sync Options**: Single event test, incremental updates, or historical sync
+- **Database Integration**: Direct storage to PostgreSQL with conflict resolution
+- **Event Processing**: Smart handling of recurring events and all-day events
+- **Contact Linking**: Automatic association with CRM contacts via email matching
+- **Error Handling**: Comprehensive error recovery and logging
+- **Performance Optimized**: Batch processing with efficient database operations
 
 ## 🛡️ Security Model
 
@@ -342,6 +361,10 @@ For questions about admin functionality, revenue splitting, or performance optim
 - `/src/components/ProposalConfirmationModal.tsx` - Proposal workflow automation
 - `/src/components/admin/SmartTasks.tsx` - Automated task management
 - `/src/components/DealWizard.tsx` - Deal creation workflow
+- `/src/lib/services/calendarService.ts` - Google Calendar sync service
+- `/src/lib/hooks/useCalendarEvents.ts` - Calendar event React hooks
+- `/src/lib/hooks/useGoogleIntegration.ts` - Google integration hooks
+- `/src/pages/Calendar.tsx` - Calendar page component
 - `/test-admin-permissions.html` - Admin functionality testing
 - `/MEMORY_OPTIMIZATION_COMPLETE.md` - Performance optimization details
 
@@ -350,6 +373,9 @@ For questions about admin functionality, revenue splitting, or performance optim
 - `stage_migration_notes` field - Migration audit tracking
 - PostgreSQL triggers for automated task creation
 - 4-stage pipeline constraints and validations
+- `calendar_events` table - Google Calendar event storage
+- `auto_link_calendar_event_to_contact` trigger - Fixed to use `owner_id` for contact linking
+- Composite unique index on `(external_id, user_id)` for calendar events
 
 **Route Structure:**
 - `/admin` - Consolidated admin hub with smart task management

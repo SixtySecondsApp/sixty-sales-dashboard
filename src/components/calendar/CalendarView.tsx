@@ -77,6 +77,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     }
   }, [selectedDate]);
 
+  useEffect(() => {
+    if (calendarRef.current) {
+      const calendarApi = calendarRef.current.getApi();
+      calendarApi.changeView(view);
+    }
+  }, [view]);
+
   const handleEventClick = (clickInfo: any) => {
     const originalEvent = clickInfo.event.extendedProps.originalEvent;
     if (originalEvent) {
@@ -342,11 +349,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             titleFormat: { month: 'long', year: 'numeric' }
           }
         }}
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
-        }}
+        headerToolbar={false}
         height="100%"
         events={fullCalendarEvents}
         eventClick={handleEventClick}

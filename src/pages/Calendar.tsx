@@ -25,6 +25,8 @@ import { Input } from '@/components/ui/input';
 import { 
   useGoogleIntegration,
   useGoogleOAuthInitiate,
+  useGoogleServiceStatus,
+  useGoogleIntegrationHealth,
   useCalendarEvents,
   useCalendarList,
   useCreateCalendarEvent,
@@ -36,7 +38,6 @@ import {
   useCalendarEventsFromDB,
   useSyncCalendar,
   useCalendarSyncStatus,
-  useAutoCalendarSync,
   useHistoricalSyncStatus
 } from '@/lib/hooks/useCalendarEvents';
 import { useNavigate } from 'react-router-dom';
@@ -75,8 +76,21 @@ const Calendar: React.FC = () => {
   
   // Google Integration
   const { data: integration } = useGoogleIntegration();
+  const { data: services } = useGoogleServiceStatus();
+  const { data: health } = useGoogleIntegrationHealth();
   const isCalendarEnabled = useGoogleServiceEnabled('calendar');
   const connectGoogle = useGoogleOAuthInitiate();
+  
+  // Debug logging for calendar enable status
+  console.log('[Calendar] Integration Debug:', {
+    integration: !!integration,
+    health: health?.isConnected,
+    services,
+    calendarService: services?.calendar,
+    isCalendarEnabled,
+    fullIntegration: integration,
+    fullHealth: health
+  });
   
   // Calculate time range for calendar events (wider range for better UX)
   const timeRange = useMemo(() => {
@@ -104,9 +118,12 @@ const Calendar: React.FC = () => {
   const { data: historicalSyncCompleted } = useHistoricalSyncStatus(isCalendarEnabled);
   const syncCalendar = useSyncCalendar();
   
-  // Enable auto-sync to keep data fresh
-  // Disabled auto-sync - users control when to sync via UI buttons
-  // useAutoCalendarSync(isCalendarEnabled, 5);
+  // Prevent multiple concurrent syncs
+  const isSyncing = syncCalendar.isPending;
+  
+  // IMPORTANT: Ignore syncStatus.isRunning to prevent stuck database states
+  // Only check if our current mutation is pending
+  // Auto-sync is permanently disabled - users have full control over syncing
   
   // Debug logging for sync status
   useEffect(() => {
@@ -133,68 +150,48 @@ const Calendar: React.FC = () => {
   const deleteEvent = useDeleteCalendarEvent();
   
   // Default mock events for when Google is not connected
-  const mockEvents: CalendarEvent[] = [
-    // Sample data
-    {
-      id: '1',
-      title: 'Sales Team Meeting',
-      start: new Date(2024, 2, 15, 10, 0),
-      end: new Date(2024, 2, 15, 11, 0),
-      category: 'meeting',
-      description: 'Weekly sales team sync',
-      attendees: ['john@company.com', 'sarah@company.com'],
-      location: 'Conference Room A',
-      priority: 'high',
-      createdBy: 'user-1',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: '2',
-      title: 'Follow up with ABC Corp',
-      start: new Date(2024, 2, 16, 14, 0),
-      end: new Date(2024, 2, 16, 14, 30),
-      category: 'follow-up',
-      description: 'Follow up on proposal sent last week',
-      companyId: 'company-1',
-      priority: 'medium',
-      createdBy: 'user-1',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-  ];
+  // No mock events - show empty state when no real data
+  const mockEvents: CalendarEvent[] = [];
   
   // Process calendar events from database
   const events = useMemo(() => {
-    console.log('Database events received:', dbEvents?.length || 0);
+    console.log('[Calendar] Processing events:', {
+      dbEventsCount: dbEvents?.length || 0,
+      isLoading: dbEventsLoading,
+      hasError: !!dbError,
+      isEnabled: isCalendarEnabled,
+      dateRange: timeRange
+    });
+    
+    // If database events are available, ALWAYS use them first (instant load)
+    if (dbEvents && dbEvents.length > 0) {
+      console.log('[Calendar] Using database events:', dbEvents.length);
+      console.log('[Calendar] Sample events:', dbEvents.slice(0, 3));
+      return dbEvents;
+    }
     
     // If Google Calendar is not enabled, show mock data
     if (!isCalendarEnabled) {
-      console.log('Calendar not enabled, showing mock data');
+      console.log('[Calendar] Not enabled, showing mock data');
       return mockEvents;
-    }
-    
-    // If database events are available, use them (instant load)
-    if (dbEvents && dbEvents.length > 0) {
-      console.log('Using database events:', dbEvents.length);
-      return dbEvents;
     }
     
     // If data is still loading from database, show empty array (no loading state needed)
     if (dbEventsLoading) {
-      console.log('Loading events from database...');
+      console.log('[Calendar] Loading events from database...');
       return [];
     }
     
-    // If there's an error, show mock data
+    // If there's an error, show empty array and log it
     if (dbError) {
-      console.error('Database error, showing mock data:', dbError);
-      return mockEvents;
+      console.error('[Calendar] Database error:', dbError);
+      return [];
     }
     
     // Default to empty array if nothing else matches
+    console.log('[Calendar] No events available');
     return [];
-  }, [dbEvents, dbEventsLoading, dbError, isCalendarEnabled, historicalSyncCompleted, syncStatus, syncCalendar]);
+  }, [dbEvents, dbEventsLoading, dbError, isCalendarEnabled, timeRange]);
 
   // Don't automatically sync on load - let user control when to sync
   // This prevents unnecessary API calls and lets users sync only what they need
@@ -207,6 +204,43 @@ const Calendar: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
+
+  const handleSync = (period: string, start: Date, end: Date) => {
+    if (isSyncing) {
+      console.log('[Calendar] Sync already in progress');
+      return;
+    }
+    
+    setSyncFeedback(`Syncing ${period.toLowerCase()}...`);
+    toast.info(`Syncing ${period.toLowerCase()} from Google Calendar...`);
+    
+    syncCalendar.mutate({ 
+      action: period === 'All Events' ? 'sync-historical' : 'sync-incremental',
+      startDate: start.toISOString(),
+      endDate: end.toISOString()
+    }, {
+      onSuccess: (result) => {
+        console.log(`[Calendar] ${period} sync result:`, result);
+        if (result.eventsCreated && result.eventsCreated > 0) {
+          setSyncFeedback(`✅ Successfully synced ${result.eventsCreated} events from ${period}!`);
+          toast.success(`Great! Found and synced ${result.eventsCreated} events from ${period}.`);
+          refetchEvents();
+        } else if (result.error) {
+          setSyncFeedback(`❌ Error: ${result.error}`);
+          toast.error(`Sync failed: ${result.error}`);
+        } else {
+          setSyncFeedback(`No events found for ${period}.`);
+          toast.info(`No events found for ${period}. Try syncing a different time period.`);
+        }
+      },
+      onError: (error) => {
+        console.error('[Calendar] Sync error:', error);
+        setSyncFeedback('❌ Failed to sync calendar');
+        toast.error('Failed to sync calendar. Please check your Google connection.');
+      }
+    });
+  };
 
   const handleEventClick = (event: CalendarEvent) => {
     setSelectedEvent(event);
@@ -216,10 +250,13 @@ const Calendar: React.FC = () => {
 
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
+    const endDate = new Date(date);
+    endDate.setHours(date.getHours() + 1);
     setSelectedEvent({
       id: '',
       title: '',
       start: date,
+      end: endDate,
       category: 'meeting',
       createdBy: 'current-user',
       createdAt: new Date(),
@@ -231,10 +268,13 @@ const Calendar: React.FC = () => {
 
   const handleCreateEvent = () => {
     const now = new Date();
+    const endTime = new Date(now);
+    endTime.setHours(now.getHours() + 1);
     setSelectedEvent({
       id: '',
       title: '',
       start: now,
+      end: endTime,
       category: 'meeting',
       createdBy: 'current-user',
       createdAt: now,
@@ -371,12 +411,12 @@ const Calendar: React.FC = () => {
         </div>
       )}
       
-      {/* Sync Status Indicator */}
+      {/* Sync Status Indicator - Simplified */}
       {integration && isCalendarEnabled && syncStatus && (
         <div className="bg-gray-800/50 border-b border-gray-700/50 px-6 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {syncStatus.isRunning ? (
+              {isSyncing ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
                   <span className="text-xs text-blue-400">Syncing calendar...</span>
@@ -385,9 +425,9 @@ const Calendar: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <RefreshCw className="w-4 h-4 text-gray-400" />
                   <span className="text-xs text-gray-400">
-                    {syncStatus.lastSyncedAt
+                    {syncStatus?.lastSyncedAt
                       ? `Last synced ${formatDistanceToNow(syncStatus.lastSyncedAt, { addSuffix: true })}`
-                      : 'Not synced yet'}
+                      : 'Not synced yet - click below to start'}
                   </span>
                 </div>
               )}
@@ -411,96 +451,12 @@ const Calendar: React.FC = () => {
               )}
             </div>
             
-            <div className="flex items-center gap-2">
-              {/* Sync Current View Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const start = new Date(selectedDate);
-                  start.setDate(1);
-                  const end = new Date(selectedDate);
-                  end.setMonth(end.getMonth() + 1);
-                  end.setDate(0);
-                  syncCalendar.mutate({ 
-                    action: 'sync-incremental',
-                    startDate: start.toISOString(),
-                    endDate: end.toISOString()
-                  });
-                }}
-                disabled={syncStatus.isRunning || syncCalendar.isPending}
-                className="text-gray-400 hover:text-white"
-              >
-                <RefreshCw className={`w-3 h-3 mr-1 ${syncStatus.isRunning || syncCalendar.isPending ? 'animate-spin' : ''}`} />
-                Sync Current Month
-              </Button>
-              
-              {/* Sync History Dropdown */}
-              <div className="relative group">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={syncStatus.isRunning || syncCalendar.isPending}
-                  className="text-gray-400 hover:text-white"
-                >
-                  Sync History
-                </Button>
-                <div className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                  <button
-                    onClick={() => {
-                      const end = new Date();
-                      const start = new Date();
-                      start.setMonth(start.getMonth() - 3);
-                      syncCalendar.mutate({ 
-                        action: 'sync-historical',
-                        startDate: start.toISOString(),
-                        endDate: end.toISOString()
-                      });
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
-                  >
-                    This Quarter
-                  </button>
-                  <button
-                    onClick={() => {
-                      const end = new Date();
-                      const start = new Date(end.getFullYear(), 0, 1);
-                      syncCalendar.mutate({ 
-                        action: 'sync-historical',
-                        startDate: start.toISOString(),
-                        endDate: end.toISOString()
-                      });
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
-                  >
-                    This Year
-                  </button>
-                  <button
-                    onClick={() => {
-                      const end = new Date();
-                      const start = new Date();
-                      start.setFullYear(start.getFullYear() - 2);
-                      syncCalendar.mutate({ 
-                        action: 'sync-historical',
-                        startDate: start.toISOString(),
-                        endDate: end.toISOString()
-                      });
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
-                  >
-                    Last 2 Years
-                  </button>
-                  <button
-                    onClick={() => {
-                      syncCalendar.mutate({ action: 'sync-historical' });
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-gray-700 hover:text-white"
-                  >
-                    All Time
-                  </button>
-                </div>
+            {/* Sync feedback if present */}
+            {syncFeedback && (
+              <div className="text-sm text-gray-400">
+                {syncFeedback}
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -630,13 +586,196 @@ const Calendar: React.FC = () => {
 
           {/* Quick Add */}
           <div className="p-4 border-b border-gray-800/50">
-            <CalendarQuickAdd onEventCreate={handleQuickAdd} />
+            <div className="flex items-center gap-2">
+              <CalendarQuickAdd onEventCreate={handleQuickAdd} />
+              
+              {/* Manual sync button */}
+              {isCalendarEnabled && !isSyncing && (
+                <Button
+                  onClick={() => {
+                    const now = new Date();
+                    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                    handleSync('This Month', start, end);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-gray-400 hover:text-white"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Sync Calendar
+                </Button>
+              )}
+            </div>
           </div>
         </Card>
 
         {/* Calendar View */}
         <div className="flex-1 m-4 mt-0 overflow-hidden">
           <Card className="h-full">
+            {/* Show sync prompt if no events and no database events */}
+            {events.length === 0 && !dbEventsLoading && (!dbEvents || dbEvents.length === 0) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm z-10">
+                <div className="text-center p-8 bg-gray-800 rounded-lg border border-gray-700 max-w-md">
+                  <CalendarIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-100 mb-2">
+                    {!syncStatus?.lastSyncedAt ? 'Welcome to Calendar' : 'No Events to Display'}
+                  </h3>
+                  <p className="text-gray-400 mb-6">
+                    {!syncStatus?.lastSyncedAt 
+                      ? "Let's first test the connection by syncing last week's events from your Google Calendar."
+                      : "Your calendar is empty. Try syncing a different time period."}
+                  </p>
+                  
+                  <div className="flex flex-col gap-3">
+                    {/* Show sync feedback if available */}
+                    {syncFeedback && (
+                      <div className="p-3 rounded bg-blue-500/10 border border-blue-500/20">
+                        <p className="text-sm text-blue-400">{syncFeedback}</p>
+                      </div>
+                    )}
+                    
+                    {/* Primary action: Test sync with last week's events first */}
+                    {!syncStatus?.lastSyncedAt ? (
+                      <Button
+                        onClick={() => {
+                          if (isSyncing) {
+                            console.log('[Calendar] Sync already in progress');
+                            return;
+                          }
+                          
+                          setSyncFeedback('🔍 Testing connection with last week\'s activity...');
+                          toast.info('Testing calendar sync with last week\'s events...');
+                          
+                          syncCalendar.mutate({ 
+                            action: 'sync-single'
+                          }, {
+                            onSuccess: (result) => {
+                              console.log('[Calendar] Test sync result:', result);
+                              if (result.eventsCreated && result.eventsCreated > 0) {
+                                setSyncFeedback(`✅ Success! Connection works - found ${result.eventsCreated} events from last week.`);
+                                toast.success('Great! Connection verified. Now you can sync more events.');
+                                refetchEvents();
+                                // The UI will automatically update to show more sync options
+                              } else if (result.error) {
+                                setSyncFeedback(`❌ Connection error: ${result.error}`);
+                                toast.error(`Test failed: ${result.error}`);
+                              } else {
+                                setSyncFeedback('⚠️ No events found. Your calendar might be empty or try syncing a wider date range.');
+                                toast.warning('No events found. Check if you have events in Google Calendar.');
+                              }
+                            },
+                            onError: (error) => {
+                              console.error('[Calendar] Test sync error:', error);
+                              setSyncFeedback('❌ Failed to connect to Google Calendar');
+                              toast.error('Connection failed. Please check your Google integration.');
+                            }
+                          });
+                        }}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        size="lg"
+                        disabled={isSyncing}
+                      >
+                        {isSyncing ? (
+                          <>
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                            Testing Connection...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="w-5 h-5 mr-2" />
+                            Test with Last Week
+                          </>
+                        )}
+                      </Button>
+                    ) : (
+                      /* After successful test, show progressive sync options */
+                      <>
+                        <div className="space-y-2">
+                          <p className="text-xs text-emerald-500 mb-2">✓ Connection verified!</p>
+                          <p className="text-sm text-gray-500 mb-3">Now sync more events:</p>
+                          
+                          {/* Primary action: Current month */}
+                          <Button
+                            onClick={() => {
+                              const now = new Date();
+                              const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                              const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                              handleSync('This Month', start, end);
+                            }}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                            disabled={isSyncing}
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            Sync This Month
+                          </Button>
+                          
+                          {/* Secondary options */}
+                          <Button
+                            onClick={() => {
+                              const now = new Date();
+                              const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                              const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                              handleSync('Last Month', start, end);
+                            }}
+                            variant="outline"
+                            className="w-full"
+                            disabled={isSyncing}
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            Last Month
+                          </Button>
+                          
+                          <Button
+                            onClick={() => {
+                              const now = new Date();
+                              const start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+                              const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                              handleSync('Last 3 Months', start, end);
+                            }}
+                            variant="outline"
+                            className="w-full"
+                            disabled={isSyncing}
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            Last 3 Months
+                          </Button>
+                          
+                          <Button
+                            onClick={() => {
+                              const now = new Date();
+                              const start = new Date(now.getFullYear(), 0, 1);
+                              const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+                              handleSync('This Year', start, end);
+                            }}
+                            variant="outline"
+                            className="w-full"
+                            disabled={isSyncing}
+                          >
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            This Year ({new Date().getFullYear()})
+                          </Button>
+                          
+                          <Button
+                            onClick={() => {
+                              const start = new Date(2024, 0, 1);
+                              const end = new Date(2025, 11, 31, 23, 59, 59);
+                              handleSync('All Events', start, end);
+                            }}
+                            className="w-full bg-gray-700 hover:bg-gray-600"
+                            disabled={isSyncing}
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" />
+                            Sync All (2024-2025)
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <CalendarView
               view={currentView}
               events={filteredEvents}

@@ -143,3 +143,4 @@ create trigger on_auth_user_created
 - Add a minimal e2e that logs in, hard refreshes, verifies user data present, and visits a protected route.
 
 
+
