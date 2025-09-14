@@ -480,7 +480,7 @@ export default function SmartTasksAdmin() {
                   <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => handleToggleActive(template.id!, template.is_active)}
-                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                       title={template.is_active ? 'Deactivate' : 'Activate'}
                     >
                       {template.is_active ? (
@@ -491,14 +491,14 @@ export default function SmartTasksAdmin() {
                     </button>
                     <button
                       onClick={() => startEdit(template)}
-                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Edit2 className="w-4 h-4 text-blue-400" />
                     </button>
                     <button
                       onClick={() => handleDelete(template.id!)}
-                      className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                      className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="w-4 h-4 text-red-400" />

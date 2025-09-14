@@ -6,9 +6,15 @@ setup('authenticate', async ({ page }) => {
   // Navigate to the login page
   await page.goto('/auth');
 
-  // Fill login form with test credentials (adjust based on your auth system)
-  await page.fill('input[type="email"]', process.env.TEST_USER_EMAIL || 'test@example.com');
-  await page.fill('input[type="password"]', process.env.TEST_USER_PASSWORD || 'testpassword123');
+  // Use Playwright test user credentials that mirror andrew.bryce's access
+  const testEmail = process.env.TEST_USER_EMAIL || 'playwright@test.com';
+  const testPassword = process.env.TEST_USER_PASSWORD || 'TestPassword123!';
+  
+  console.log(`Authenticating as Playwright test user: ${testEmail}`);
+
+  // Fill login form with test credentials
+  await page.fill('input[type="email"]', testEmail);
+  await page.fill('input[type="password"]', testPassword);
   
   // Click login button
   await page.click('button[type="submit"]');
@@ -21,4 +27,6 @@ setup('authenticate', async ({ page }) => {
 
   // Save authentication state
   await page.context().storageState({ path: authFile });
+  
+  console.log('✅ Playwright test user authenticated successfully');
 });

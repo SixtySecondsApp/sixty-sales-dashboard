@@ -421,3 +421,44 @@
 .breadcrumb-current {
   @apply text-white font-medium;
 }
+
+/* Calendar-specific layout fixes */
+.fc-daygrid-event {
+  @apply text-xs;
+  font-size: 11px !important;
+  padding: 1px 2px !important;
+}
+
+.fc-daygrid-event-harness {
+  margin-bottom: 1px !important;
+}
+
+.fc-daygrid-day-events {
+  margin-top: 1px !important;
+}
+
+.fc-daygrid-more-link {
+  @apply text-xs text-blue-400 hover:text-blue-300;
+  font-size: 11px !important;
+}
+
+/* Ensure calendar container respects height constraints */
+.fc-scroller {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.fc-daygrid-body {
+  width: 100% !important;
+}
+
+/* Responsive calendar adjustments */
+@media (max-height: 800px) {
+  .fc-daygrid-event {
+    font-size: 10px !important;
+  }
+  
+  .fc-daygrid-day-number {
+    font-size: 12px !important;
+  }
+}

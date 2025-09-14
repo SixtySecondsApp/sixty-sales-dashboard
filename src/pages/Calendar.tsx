@@ -150,8 +150,57 @@ const Calendar: React.FC = () => {
   const deleteEvent = useDeleteCalendarEvent();
   
   // Default mock events for when Google is not connected
-  // No mock events - show empty state when no real data
-  const mockEvents: CalendarEvent[] = [];
+  // Load from localStorage or generate many events for testing
+  const mockEvents: CalendarEvent[] = useMemo(() => {
+    // Try to load from localStorage first
+    const stored = localStorage.getItem('mockCalendarEvents');
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch (e) {
+        console.error('Failed to parse stored events:', e);
+      }
+    }
+    
+    // Generate many events for testing if not in localStorage
+    const events: CalendarEvent[] = [];
+    const categories = ['Meetings', 'Calls', 'Tasks', 'Deals', 'Personal', 'Follow-ups'];
+    const colors = {
+      'Meetings': '#3B82F6',
+      'Calls': '#10B981', 
+      'Tasks': '#F59E0B',
+      'Deals': '#8B5CF6',
+      'Personal': '#EC4899',
+      'Follow-ups': '#F97316'
+    };
+    
+    // Generate 60+ events for the current month (for testing sidebar with full calendar)
+    for (let day = 1; day <= 30; day++) {
+      // Add 2-3 events per day for busy days
+      const numEvents = day % 3 === 0 ? 3 : day % 2 === 0 ? 2 : 1;
+      
+      for (let i = 0; i < numEvents; i++) {
+        const category = categories[Math.floor(Math.random() * categories.length)];
+        const hour = 9 + Math.floor(Math.random() * 8);
+        const duration = 1 + Math.floor(Math.random() * 2);
+        
+        events.push({
+          id: `event-${day}-${i}`,
+          title: `${category.slice(0, -1)} with Client ${day}-${i}`,
+          start: new Date(`2025-09-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00`),
+          end: new Date(`2025-09-${String(day).padStart(2, '0')}T${String(hour + duration).padStart(2, '0')}:00:00`),
+          category: category.toLowerCase() as any,
+          color: colors[category],
+          description: `Important ${category.toLowerCase()} for project ${day}`,
+          location: i % 2 === 0 ? 'Conference Room A' : 'Virtual'
+        });
+      }
+    }
+    
+    // Store for next time
+    localStorage.setItem('mockCalendarEvents', JSON.stringify(events));
+    return events;
+  }, []);
   
   // Process calendar events from database
   const events = useMemo(() => {
@@ -356,10 +405,10 @@ const Calendar: React.FC = () => {
   console.log('Events after filtering:', filteredEvents.length, filteredEvents);
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-950">
+    <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
       {/* Google Connection Banner */}
       {!isCalendarEnabled && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-6 py-3">
+        <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-6 py-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-yellow-500" />
@@ -392,7 +441,7 @@ const Calendar: React.FC = () => {
       
       {/* Connected Status */}
       {integration && isCalendarEnabled && (
-        <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2">
+        <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-6 py-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-500" />
@@ -413,7 +462,7 @@ const Calendar: React.FC = () => {
       
       {/* Sync Status Indicator - Simplified */}
       {integration && isCalendarEnabled && syncStatus && (
-        <div className="bg-gray-800/50 border-b border-gray-700/50 px-6 py-2">
+        <div className="bg-gray-800/50 border-b border-gray-700/50 px-6 py-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {isSyncing ? (
@@ -461,29 +510,33 @@ const Calendar: React.FC = () => {
         </div>
       )}
       
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <motion.div
-        initial={{ width: sidebarCollapsed ? 60 : 320 }}
-        animate={{ width: sidebarCollapsed ? 60 : 320 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-        className="bg-gray-900/50 border-r border-gray-800/50 backdrop-blur-sm"
-      >
-        <CalendarSidebar
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
-          events={events}
-          collapsed={sidebarCollapsed}
-          onToggleCollapsed={setSidebarCollapsed}
-          selectedCategories={selectedCategories}
-          onCategoriesChange={setSelectedCategories}
-        />
-      </motion.div>
+      <div className="flex-1 flex overflow-hidden">
+        {/* Fixed Sidebar Container */}
+        <div 
+          className="relative bg-gray-900/50 border-r border-gray-800/50 backdrop-blur-sm z-10 flex-shrink-0 overflow-hidden"
+          style={{ 
+            width: sidebarCollapsed ? '60px' : '320px',
+            minWidth: sidebarCollapsed ? '60px' : '320px',
+            maxWidth: sidebarCollapsed ? '60px' : '320px',
+            transition: 'width 0.3s ease-in-out'
+          }}
+        >
+          <CalendarSidebar
+            selectedDate={selectedDate}
+            onDateSelect={setSelectedDate}
+            events={events}
+            collapsed={sidebarCollapsed}
+            onToggleCollapsed={setSidebarCollapsed}
+            selectedCategories={selectedCategories}
+            onCategoriesChange={setSelectedCategories}
+            onEventClick={handleEventClick}
+          />
+        </div>
 
-        {/* Main Calendar Area */}
-        <div className="flex-1 flex flex-col">
+        {/* Main Calendar Area with Flex-1 */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <Card className="m-4 mb-0">
+        <Card className="m-4 mb-0 flex-shrink-0">
           <div className="p-4 border-b border-gray-800/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -611,8 +664,8 @@ const Calendar: React.FC = () => {
         </Card>
 
         {/* Calendar View */}
-        <div className="flex-1 m-4 mt-0 overflow-hidden">
-          <Card className="h-full">
+        <div className="flex-1 m-4 mt-0 min-h-0 overflow-hidden" style={{ minWidth: 0 }}>
+          <Card className="h-full flex flex-col overflow-hidden" style={{ contain: 'layout', minWidth: 0, maxWidth: '100%' }}>
             {/* Show sync prompt if no events and no database events */}
             {events.length === 0 && !dbEventsLoading && (!dbEvents || dbEvents.length === 0) && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 backdrop-blur-sm z-10">
@@ -776,14 +829,15 @@ const Calendar: React.FC = () => {
               </div>
             )}
             
-            <CalendarView
-              view={currentView}
-              events={filteredEvents}
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-              onEventClick={handleEventClick}
-              onDateClick={handleDateClick}
-              onEventDrop={async (eventId, newStart, newEnd) => {
+            <div className="flex-1 overflow-hidden relative" style={{ minWidth: 0, maxWidth: '100%' }}>
+              <CalendarView
+                view={currentView}
+                events={filteredEvents}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+                onEventClick={handleEventClick}
+                onDateClick={handleDateClick}
+                onEventDrop={async (eventId, newStart, newEnd) => {
                 // Update event via Google Calendar API
                 if (isCalendarEnabled) {
                   try {
@@ -801,8 +855,9 @@ const Calendar: React.FC = () => {
                 } else {
                   toast.info('Connect Google Calendar to reschedule events');
                 }
-              }}
-            />
+                }}
+              />
+            </div>
           </Card>
         </div>
       </div>

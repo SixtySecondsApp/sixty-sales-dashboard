@@ -21,11 +21,14 @@ import {
   Palette,
   Tag,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  User,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addDays, addWeeks, addMonths, setHours, setMinutes } from 'date-fns';
 import { useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '@/lib/hooks/useGoogleIntegration';
+import { ContactSearchModal } from '@/components/ContactSearchModal';
 import { toast } from 'sonner';
 
 interface CalendarEventEditorProps {
@@ -119,6 +122,8 @@ export function CalendarEventEditor({
   const [location, setLocation] = useState('');
   const [attendees, setAttendees] = useState<string[]>([]);
   const [newAttendee, setNewAttendee] = useState('');
+  const [selectedContact, setSelectedContact] = useState<any>(null);
+  const [showContactSearch, setShowContactSearch] = useState(false);
   const [category, setCategory] = useState<CalendarEvent['category']>('meeting');
   const [color, setColor] = useState(eventColors[0].value);
   const [reminders, setReminders] = useState<Reminder[]>([
@@ -177,34 +182,58 @@ export function CalendarEventEditor({
     }
 
     try {
-      // Format data for Google Calendar API
-      const startDateTime = allDay 
-        ? new Date(startDate)
-        : new Date(`${startDate}T${startTime}`);
-      const endDateTime = allDay
-        ? new Date(endDate || startDate)
-        : new Date(`${endDate || startDate}T${endTime}`);
+      // Format data for Google Calendar API with proper date handling
+      let startDateTime: Date;
+      let endDateTime: Date;
+
+      if (allDay) {
+        // For all-day events, use proper date without time
+        startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+        endDateTime = new Date(`${endDate || startDate}T23:59:59.999Z`);
+      } else {
+        // For timed events, ensure proper timezone handling
+        const startDateStr = `${startDate}T${startTime || '09:00'}:00`;
+        const endDateStr = `${endDate || startDate}T${endTime || '10:00'}:00`;
+        
+        startDateTime = new Date(startDateStr);
+        endDateTime = new Date(endDateStr);
+        
+        // Validate dates
+        if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+          toast.error('Invalid date or time format');
+          return;
+        }
+        
+        // Ensure end time is after start time
+        if (endDateTime <= startDateTime) {
+          endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
+        }
+      }
 
       const googleEventData = {
         summary: title,
-        description,
-        location,
+        description: description || '',
+        location: location || '',
         startTime: startDateTime.toISOString(),
         endTime: endDateTime.toISOString(),
         attendees: attendees.filter(email => email.trim() !== ''),
-        calendarId: 'primary'
+        calendarId: 'primary',
+        allDay
       };
+
+      console.log('Creating event with data:', googleEventData);
 
       if (event?.id) {
         await updateEvent.mutateAsync({
           eventId: event.id,
           calendarId: 'primary',
           summary: title,
-          description,
-          location,
+          description: description || '',
+          location: location || '',
           startTime: startDateTime.toISOString(),
           endTime: endDateTime.toISOString(),
-          attendees: attendees.filter(email => email.trim() !== '')
+          attendees: attendees.filter(email => email.trim() !== ''),
+          allDay
         });
         toast.success('Event updated successfully');
       } else {
@@ -233,7 +262,8 @@ export function CalendarEventEditor({
       
       handleClose();
     } catch (error) {
-      toast.error('Failed to save event');
+      console.error('Event save error:', error);
+      toast.error(`Failed to save event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

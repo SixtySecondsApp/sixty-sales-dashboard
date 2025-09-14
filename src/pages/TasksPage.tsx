@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, List, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react';
+import { LayoutGrid, List, RefreshCw, CheckCircle, AlertCircle, Settings } from 'lucide-react';
 import TaskList from '@/components/TaskList';
 import TaskForm from '@/components/TaskForm';
 import TaskKanban from '@/components/TaskKanban';
@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Task } from '@/lib/database/models';
 import { googleTasksSync } from '@/lib/services/googleTasksSync';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const TasksPage: React.FC = () => {
+  const navigate = useNavigate();
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [view, setView] = useState<'list' | 'kanban'>('kanban');
@@ -107,42 +109,53 @@ const TasksPage: React.FC = () => {
         <div className="flex items-center gap-4">
           {/* Sync Button */}
           {isGoogleConnected && (
-            <Button
-              onClick={handleSync}
-              disabled={isSyncing}
-              variant="outline"
-              className={`
-                ${syncStatus === 'success' 
-                  ? 'border-green-500 text-green-500 hover:bg-green-500/10' 
-                  : syncStatus === 'error'
-                  ? 'border-red-500 text-red-500 hover:bg-red-500/10'
-                  : 'border-gray-600 text-gray-300 hover:bg-gray-800'
-                }
-                transition-all duration-300
-              `}
-            >
-              {syncStatus === 'syncing' ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  Syncing...
-                </>
-              ) : syncStatus === 'success' ? (
-                <>
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Synced
-                </>
-              ) : syncStatus === 'error' ? (
-                <>
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                  Sync Failed
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Sync with Google
-                </>
-              )}
-            </Button>
+            <>
+              <Button
+                onClick={handleSync}
+                disabled={isSyncing}
+                variant="outline"
+                className={`
+                  ${syncStatus === 'success' 
+                    ? 'border-green-500 text-green-500 hover:bg-green-500/10' 
+                    : syncStatus === 'error'
+                    ? 'border-red-500 text-red-500 hover:bg-red-500/10'
+                    : 'border-gray-600 text-gray-300 hover:bg-gray-800'
+                  }
+                  transition-all duration-300
+                `}
+              >
+                {syncStatus === 'syncing' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : syncStatus === 'success' ? (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Synced
+                  </>
+                ) : syncStatus === 'error' ? (
+                  <>
+                    <AlertCircle className="w-4 h-4 mr-2" />
+                    Sync Failed
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Sync with Google
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={() => navigate('/tasks/settings')}
+                variant="outline"
+                size="icon"
+                className="border-gray-600 text-gray-300 hover:bg-gray-800"
+                title="Google Tasks Settings"
+              >
+                <Settings className="w-4 h-4" />
+              </Button>
+            </>
           )}
 
           {/* View Toggle */}

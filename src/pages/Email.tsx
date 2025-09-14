@@ -551,7 +551,7 @@ export default function Email() {
               whileTap={{ scale: 0.95 }}
               onClick={() => connectGoogle.mutate()}
               disabled={connectGoogle.isPending}
-              className="px-4 py-2 bg-[#37bd7e] hover:bg-[#2da76c] text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
             >
               {connectGoogle.isPending ? (
                 <>
@@ -569,27 +569,6 @@ export default function Email() {
         </div>
       )}
       
-      {/* Connected Status */}
-      {integration && isGmailEnabled && (
-        <div className="bg-[#37bd7e]/10 border-b border-[#37bd7e]/20 px-6 py-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#37bd7e]" />
-              <p className="text-xs text-[#37bd7e]">Connected to {integration.email}</p>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/integrations')}
-              className="text-xs text-gray-400 hover:text-white transition-colors flex items-center gap-1"
-            >
-              <Settings className="w-3 h-3" />
-              Manage
-            </motion.button>
-          </div>
-        </div>
-      )}
-      
       {/* Header */}
       <div className="h-16 border-b border-gray-800/50 bg-gray-900/50 backdrop-blur-xl flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
@@ -597,19 +576,19 @@ export default function Email() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 transition-colors"
+            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
           >
             {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </motion.button>
           
           <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6 text-[#37bd7e]" />
+            <Mail className="w-6 h-6 text-blue-500" />
             <h1 className="text-xl font-semibold">Email</h1>
             {unreadCount > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="px-2 py-1 text-xs font-medium bg-[#37bd7e] text-white rounded-full"
+                className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded-full"
               >
                 {unreadCount}
               </motion.span>
@@ -627,7 +606,7 @@ export default function Email() {
               placeholder="Search emails..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-80 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#37bd7e]/50 focus:border-transparent"
+              className="pl-10 pr-4 py-2 w-80 bg-gray-700 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
             />
           </div>
 
@@ -637,7 +616,7 @@ export default function Email() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowFilters(true)}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 transition-colors"
+              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
               title="Email filters"
             >
               <Filter className="w-5 h-5" />
@@ -646,7 +625,7 @@ export default function Email() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsComposerOpen(true)}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 transition-colors"
+              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
               title="Compose email"
             >
               <Edit className="w-5 h-5" />
@@ -656,7 +635,7 @@ export default function Email() {
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
               disabled={isRefreshing || emailsLoading}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 transition-colors disabled:opacity-50"
+              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors disabled:opacity-50"
               title="Refresh emails"
             >
               <RefreshCw className={cn("w-5 h-5", (isRefreshing || emailsLoading) && "animate-spin")} />
@@ -712,7 +691,7 @@ export default function Email() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsComposerOpen(true)}
-              className="px-4 py-2 bg-[#37bd7e] hover:bg-[#2da76c] text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               Compose
@@ -748,8 +727,8 @@ export default function Email() {
                       className={cn(
                         'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                         selectedFolder === folder.id
-                          ? 'bg-[#37bd7e]/10 text-[#37bd7e] border border-[#37bd7e]/20'
-                          : 'text-gray-400 hover:bg-gray-800/50'
+                          ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                          : 'text-gray-400 hover:bg-gray-700'
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -781,8 +760,8 @@ export default function Email() {
                         className={cn(
                           'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                           readFilter === filter.id
-                            ? 'bg-[#37bd7e]/10 text-[#37bd7e] border border-[#37bd7e]/20'
-                            : 'text-gray-400 hover:bg-gray-800/50'
+                            ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                            : 'text-gray-400 hover:bg-gray-700'
                         )}
                       >
                         <filter.icon className="w-4 h-4" />
@@ -814,8 +793,8 @@ export default function Email() {
                           className={cn(
                             'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                             selectedCategory === category.id
-                              ? 'bg-[#37bd7e]/10 text-[#37bd7e] border border-[#37bd7e]/20'
-                              : 'text-gray-400 hover:bg-gray-800/50'
+                              ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                              : 'text-gray-400 hover:bg-gray-700'
                           )}
                         >
                           <div className="flex items-center gap-3">
@@ -856,8 +835,8 @@ export default function Email() {
                             className={cn(
                               'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                               selectedLabel === label.id
-                                ? 'bg-[#37bd7e]/10 text-[#37bd7e] border border-[#37bd7e]/20'
-                                : 'text-gray-400 hover:bg-gray-800/50'
+                                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
+                                : 'text-gray-400 hover:bg-gray-700'
                             )}
                           >
                             <div className="flex items-center gap-3">
@@ -886,14 +865,14 @@ export default function Email() {
                   <div className="space-y-1">
                     <motion.button
                       whileHover={{ x: 4 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-700 transition-colors"
                     >
                       <Zap className="w-4 h-4" />
                       Smart Replies
                     </motion.button>
                     <motion.button
                       whileHover={{ x: 4 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-700 transition-colors"
                     >
                       <Clock className="w-4 h-4" />
                       Send Later
@@ -959,6 +938,27 @@ export default function Email() {
 
       {/* Quick Actions Guide */}
       <EmailQuickActions />
+
+      {/* Connection Status - Moved to bottom */}
+      {integration && isGmailEnabled && (
+        <div className="bg-blue-600/10 border-t border-blue-500/20 px-6 py-3 mt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-[#37bd7e]" />
+              <p className="text-sm text-[#37bd7e]">Connected to {integration.email}</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/integrations')}
+              className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              Manage
+            </motion.button>
+          </div>
+        </div>
+      )}
 
       {/* Background Effects */}
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(74,74,117,0.15),transparent)] pointer-events-none" />

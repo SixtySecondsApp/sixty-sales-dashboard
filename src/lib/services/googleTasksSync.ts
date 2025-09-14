@@ -42,6 +42,19 @@ export interface SyncResult {
   error?: string;
 }
 
+export interface ListConfig {
+  id: string;
+  google_list_id: string;
+  list_title: string;
+  sync_direction: 'bidirectional' | 'to_google' | 'from_google';
+  is_primary: boolean;
+  priority_filter: string[];
+  task_categories: string[];
+  status_filter: string[];
+  auto_create_in_list: boolean;
+  sync_enabled: boolean;
+}
+
 export class GoogleTasksSyncService {
   private static instance: GoogleTasksSyncService;
 
@@ -192,7 +205,64 @@ export class GoogleTasksSyncService {
   }
 
   /**
-   * Perform full bidirectional sync
+   * Get all list configurations for a user
+   */
+  async getListConfigs(userId: string): Promise<ListConfig[]> {
+    try {
+      const { data, error } = await supabase
+        .from('google_tasks_list_configs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('sync_enabled', true)
+        .order('is_primary', { ascending: false })
+        .order('display_order');
+      
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Failed to get list configs:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Determine which lists a task should sync to based on priority
+   */
+  getTargetListsForTask(task: Task, configs: ListConfig[]): ListConfig[] {
+    const targetLists: ListConfig[] = [];
+    
+    for (const config of configs) {
+      // Check priority filter
+      if (config.priority_filter && config.priority_filter.length > 0) {
+        if (!task.priority || !config.priority_filter.includes(task.priority)) {
+          continue; // Skip this list if priority doesn't match
+        }
+      }
+      
+      // Check status filter
+      if (config.status_filter && config.status_filter.length > 0) {
+        if (!task.status || !config.status_filter.includes(task.status)) {
+          continue;
+        }
+      }
+      
+      // If we get here, task matches this list's criteria
+      targetLists.push(config);
+    }
+    
+    // If no lists matched and we have a primary list, use that
+    if (targetLists.length === 0) {
+      const primaryList = configs.find(c => c.is_primary);
+      if (primaryList) {
+        targetLists.push(primaryList);
+      }
+    }
+    
+    return targetLists;
+  }
+
+  /**
+   * Perform full bidirectional sync with multiple lists
    */
   async performSync(userId: string): Promise<SyncResult> {
     const result: SyncResult = {
@@ -207,6 +277,50 @@ export class GoogleTasksSyncService {
       // Update sync status
       await this.updateSyncStatus(userId, 'syncing');
 
+      // Get all list configurations
+      const listConfigs = await this.getListConfigs(userId);
+      
+      if (listConfigs.length === 0) {
+        // Fall back to old single-list behavior
+        const selectedList = await this.getSelectedTaskList(userId);
+        const taskListId = selectedList?.id || '@default';
+        
+        // Sync with single list
+        const googleResult = await this.syncFromGoogle(userId, null, taskListId);
+        result.tasksCreated += googleResult.tasksCreated;
+        result.tasksUpdated += googleResult.tasksUpdated;
+        result.tasksDeleted += googleResult.tasksDeleted;
+        result.conflicts.push(...googleResult.conflicts);
+
+        const localResult = await this.syncToGoogle(userId, taskListId);
+        result.tasksCreated += localResult.tasksCreated;
+        result.tasksUpdated += localResult.tasksUpdated;
+        result.conflicts.push(...localResult.conflicts);
+      } else {
+        // Sync with multiple lists
+        for (const config of listConfigs) {
+          // Skip if sync is disabled for this list
+          if (!config.sync_enabled) continue;
+          
+          // Sync from Google to Local (if enabled)
+          if (config.sync_direction === 'bidirectional' || config.sync_direction === 'from_google') {
+            const googleResult = await this.syncFromGoogle(userId, null, config.google_list_id);
+            result.tasksCreated += googleResult.tasksCreated;
+            result.tasksUpdated += googleResult.tasksUpdated;
+            result.tasksDeleted += googleResult.tasksDeleted;
+            result.conflicts.push(...googleResult.conflicts);
+          }
+          
+          // Sync from Local to Google (if enabled)
+          if (config.sync_direction === 'bidirectional' || config.sync_direction === 'to_google') {
+            const localResult = await this.syncToGoogleWithConfig(userId, config);
+            result.tasksCreated += localResult.tasksCreated;
+            result.tasksUpdated += localResult.tasksUpdated;
+            result.conflicts.push(...localResult.conflicts);
+          }
+        }
+      }
+
       // Get last sync time for incremental sync
       const { data: syncStatus } = await supabase
         .from('google_tasks_sync_status')
@@ -215,23 +329,6 @@ export class GoogleTasksSyncService {
         .single();
 
       const lastSyncTime = syncStatus?.last_incremental_sync_at;
-
-      // Get the selected task list
-      const selectedList = await this.getSelectedTaskList(userId);
-      const taskListId = selectedList?.id || '@default';
-      
-      // Step 1: Sync from Google to Local
-      const googleResult = await this.syncFromGoogle(userId, lastSyncTime, taskListId);
-      result.tasksCreated += googleResult.tasksCreated;
-      result.tasksUpdated += googleResult.tasksUpdated;
-      result.tasksDeleted += googleResult.tasksDeleted;
-      result.conflicts.push(...googleResult.conflicts);
-
-      // Step 2: Sync from Local to Google
-      const localResult = await this.syncToGoogle(userId, taskListId);
-      result.tasksCreated += localResult.tasksCreated;
-      result.tasksUpdated += localResult.tasksUpdated;
-      result.conflicts.push(...localResult.conflicts);
 
       // Update sync status with success
       await this.updateSyncStatus(userId, 'idle', {
@@ -333,7 +430,83 @@ export class GoogleTasksSyncService {
   }
 
   /**
-   * Sync tasks from local database to Google
+   * Sync tasks from local database to Google with specific list config
+   */
+  private async syncToGoogleWithConfig(userId: string, config: ListConfig): Promise<SyncResult> {
+    const result: SyncResult = {
+      success: false,
+      tasksCreated: 0,
+      tasksUpdated: 0,
+      tasksDeleted: 0,
+      conflicts: []
+    };
+
+    try {
+      // Get local tasks that match this list's filters
+      let query = supabase
+        .from('tasks')
+        .select('*')
+        .eq('assigned_to', userId)
+        .in('sync_status', ['pending_sync', 'local_only'])
+        .order('created_at', { ascending: true });
+      
+      // Apply priority filter if configured
+      if (config.priority_filter && config.priority_filter.length > 0) {
+        query = query.in('priority', config.priority_filter);
+      }
+      
+      // Apply status filter if configured
+      if (config.status_filter && config.status_filter.length > 0) {
+        query = query.in('status', config.status_filter);
+      }
+      
+      const { data: tasks } = await query;
+
+      if (!tasks) return result;
+
+      for (const task of tasks) {
+        try {
+          // Check if task already exists in this specific list
+          const syncedLists = task.synced_to_lists || [];
+          const isInList = syncedLists.some((l: any) => l.list_id === config.google_list_id);
+          
+          if (isInList && task.google_task_id) {
+            // Update existing Google task
+            const conflict = await this.updateGoogleTask(task);
+            if (conflict) {
+              result.conflicts.push(conflict);
+            } else {
+              result.tasksUpdated++;
+            }
+          } else if (config.auto_create_in_list) {
+            // Create new Google task in this list
+            await this.createGoogleTask(task, userId, config.google_list_id);
+            
+            // Update synced_to_lists
+            const updatedLists = [...syncedLists, { list_id: config.google_list_id, list_title: config.list_title }];
+            await supabase
+              .from('tasks')
+              .update({ synced_to_lists: updatedLists })
+              .eq('id', task.id);
+            
+            result.tasksCreated++;
+          }
+        } catch (error) {
+          console.error(`Failed to sync task ${task.id} to Google list ${config.list_title}:`, error);
+        }
+      }
+
+      result.success = true;
+    } catch (error) {
+      console.error('Failed to sync to Google:', error);
+      throw error;
+    }
+
+    return result;
+  }
+  
+  /**
+   * Sync tasks from local database to Google (legacy single list)
    */
   private async syncToGoogle(userId: string, taskListId: string = '@default'): Promise<SyncResult> {
     const result: SyncResult = {
