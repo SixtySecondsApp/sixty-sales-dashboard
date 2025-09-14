@@ -24,6 +24,7 @@ import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
+import TestGoogleTasks from '@/pages/TestGoogleTasks';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -278,6 +279,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
+                <Route path="/test-google-tasks" element={<AppLayout><TestGoogleTasks /></AppLayout>} />
               </Routes>
             </Suspense>
       </ProtectedRoute>

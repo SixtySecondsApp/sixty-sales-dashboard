@@ -151,6 +151,9 @@ serve(async (req) => {
       'https://www.googleapis.com/auth/calendar',
       'https://www.googleapis.com/auth/calendar.events',
       
+      // Google Tasks
+      'https://www.googleapis.com/auth/tasks',
+      
       // User info
       'https://www.googleapis.com/auth/userinfo.email',
       'https://www.googleapis.com/auth/userinfo.profile'

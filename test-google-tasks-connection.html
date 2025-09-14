@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Google Tasks Connection</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+    .container {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      color: #60a5fa;
+    }
+    .status {
+      padding: 1rem;
+      border-radius: 4px;
+      margin: 1rem 0;
+      background: #3a3a3a;
+      border: 1px solid #4a4a4a;
+    }
+    .success {
+      background: #10b98133;
+      border-color: #10b981;
+    }
+    .error {
+      background: #ef444433;
+      border-color: #ef4444;
+    }
+    .info {
+      background: #3b82f633;
+      border-color: #3b82f6;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 0.5rem;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    pre {
+      background: #1a1a1a;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Google Tasks Connection Test</h1>
+    
+    <div id="status" class="status">
+      Initializing...
+    </div>
+
+    <div style="margin-top: 1rem;">
+      <button onclick="checkConnection()">Check Connection</button>
+      <button onclick="checkIntegration()">Check Integration Details</button>
+      <button onclick="clearOnboarding()">Clear Onboarding Flag</button>
+      <button onclick="testSync()">Test Sync</button>
+    </div>
+
+    <div id="results" style="margin-top: 2rem;"></div>
+  </div>
+
+  <script>
+    // Initialize Supabase
+    const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI0Njc2MjAsImV4cCI6MjA0ODA0MzYyMH0.gJz_dVP-2dV5GRJU0ExH-i7iMCyBjlfMpW7MA5ubSIY';
+    const { createClient } = supabase;
+    const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+    function setStatus(message, type = 'info') {
+      const status = document.getElementById('status');
+      status.textContent = message;
+      status.className = `status ${type}`;
+    }
+
+    function addResult(title, content, type = 'info') {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = `status ${type}`;
+      div.innerHTML = `<h3>${title}</h3><pre>${typeof content === 'object' ? JSON.stringify(content, null, 2) : content}</pre>`;
+      results.appendChild(div);
+    }
+
+    async function checkConnection() {
+      document.getElementById('results').innerHTML = '';
+      setStatus('Checking connection...', 'info');
+      
+      try {
+        // Check user
+        const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+        if (userError || !user) {
+          setStatus('Not logged in', 'error');
+          addResult('User Status', 'No user logged in', 'error');
+          return;
+        }
+        
+        addResult('User', { id: user.id, email: user.email }, 'success');
+
+        // Check Google integration
+        const { data: integration, error: intError } = await supabaseClient
+          .from('google_integrations')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (intError) {
+          setStatus('No Google integration found', 'error');
+          addResult('Integration Error', intError, 'error');
+          return;
+        }
+
+        if (!integration) {
+          setStatus('No active Google integration', 'error');
+          addResult('Integration', 'No integration found', 'error');
+          return;
+        }
+
+        // Check scopes
+        const scopes = integration.scopes || '';
+        const hasTasksScope = scopes.includes('https://www.googleapis.com/auth/tasks') || 
+                             scopes.includes('tasks');
+
+        addResult('Integration', {
+          id: integration.id,
+          email: integration.email,
+          scopes: integration.scopes,
+          hasTasksScope: hasTasksScope,
+          expiresAt: integration.expires_at,
+          createdAt: integration.created_at
+        }, hasTasksScope ? 'success' : 'error');
+
+        if (hasTasksScope) {
+          setStatus('✓ Google Tasks is connected!', 'success');
+        } else {
+          setStatus('⚠️ Google Tasks scope not found - reconnect needed', 'error');
+          addResult('Required Scope', 'https://www.googleapis.com/auth/tasks', 'info');
+        }
+
+      } catch (error) {
+        setStatus('Error checking connection', 'error');
+        addResult('Error', error.message, 'error');
+      }
+    }
+
+    async function checkIntegration() {
+      document.getElementById('results').innerHTML = '';
+      setStatus('Checking integration details...', 'info');
+      
+      try {
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (!user) {
+          setStatus('Not logged in', 'error');
+          return;
+        }
+
+        // Check all integrations
+        const { data: integrations, error } = await supabaseClient
+          .from('google_integrations')
+          .select('*')
+          .eq('user_id', user.id);
+
+        if (error) {
+          addResult('Error', error, 'error');
+          return;
+        }
+
+        addResult('All Integrations', integrations || [], 'info');
+
+        // Check Google Tasks sync tables
+        const { data: syncStatus } = await supabaseClient
+          .from('google_tasks_sync_status')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        addResult('Sync Status', syncStatus || 'No sync status found', syncStatus ? 'info' : 'error');
+
+        // Check task lists
+        const { data: taskLists } = await supabaseClient
+          .from('google_task_lists')
+          .select('*');
+
+        addResult('Task Lists', taskLists || [], taskLists?.length > 0 ? 'success' : 'info');
+
+        setStatus('Check complete', 'success');
+      } catch (error) {
+        setStatus('Error checking integration', 'error');
+        addResult('Error', error.message, 'error');
+      }
+    }
+
+    function clearOnboarding() {
+      localStorage.removeItem('googleTasksOnboardingSeen');
+      sessionStorage.removeItem('googleTasksConnecting');
+      setStatus('Onboarding flags cleared - refresh the page', 'success');
+      addResult('Local Storage', 'googleTasksOnboardingSeen removed', 'success');
+      addResult('Session Storage', 'googleTasksConnecting removed', 'success');
+    }
+
+    async function testSync() {
+      document.getElementById('results').innerHTML = '';
+      setStatus('Testing sync...', 'info');
+      
+      try {
+        // Test the Edge Function
+        const { data, error } = await supabaseClient.functions.invoke('google-tasks', {
+          body: { action: 'list-tasklists' }
+        });
+
+        if (error) {
+          setStatus('Sync test failed', 'error');
+          addResult('Edge Function Error', error, 'error');
+          return;
+        }
+
+        addResult('Edge Function Response', data, 'success');
+        setStatus('Sync test successful!', 'success');
+      } catch (error) {
+        setStatus('Sync test error', 'error');
+        addResult('Error', error.message, 'error');
+      }
+    }
+
+    // Initial check
+    checkConnection();
+  </script>
+</body>
+</html>
