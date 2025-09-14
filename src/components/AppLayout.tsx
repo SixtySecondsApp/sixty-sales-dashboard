@@ -84,11 +84,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },
+    { icon: Workflow, label: 'Workflows', href: '/workflows' },
     { icon: LinkIcon, label: 'Integrations', href: '/integrations' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
     { icon: History, label: 'Releases', href: '/releases' },
     ...(userData?.is_admin ? [
-      { icon: Workflow, label: 'Workflows', href: '/workflows' },
       { icon: UserCog, label: 'Admin', href: '/admin' }
     ] : []),
   ];
