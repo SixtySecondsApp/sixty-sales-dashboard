@@ -647,7 +647,7 @@ export class GoogleTasksSyncService {
           
           if (isInList && task.google_task_id) {
             // Update existing Google task
-            const conflict = await this.updateGoogleTask(task);
+            const conflict = await this.updateGoogleTaskSync(task);
             if (conflict) {
               result.conflicts.push(conflict);
             } else {
@@ -657,7 +657,7 @@ export class GoogleTasksSyncService {
             // Ensure we're using a valid list ID
             const listId = this.sanitizeListId(config.google_list_id);
             // Create new Google task in this list
-            await this.createGoogleTask(task, userId, listId);
+            await this.createGoogleTaskSync(task, userId, listId);
             
             // Update synced_to_lists
             const updatedLists = [...syncedLists, { list_id: config.google_list_id, list_title: config.list_title }];
@@ -713,7 +713,7 @@ export class GoogleTasksSyncService {
         try {
           if (task.google_task_id) {
             // Update existing Google task
-            const conflict = await this.updateGoogleTask(task);
+            const conflict = await this.updateGoogleTaskSync(task);
             if (conflict) {
               result.conflicts.push(conflict);
             } else {
@@ -721,7 +721,7 @@ export class GoogleTasksSyncService {
             }
           } else {
             // Create new Google task
-            await this.createGoogleTask(task, userId, taskListId);
+            await this.createGoogleTaskSync(task, userId, taskListId);
             result.tasksCreated++;
           }
         } catch (error) {
@@ -849,9 +849,9 @@ export class GoogleTasksSyncService {
   }
 
   /**
-   * Create a Google task from local task
+   * Create a Google task from local task (sync version)
    */
-  private async createGoogleTask(task: Task, userId: string, taskListId?: string): Promise<void> {
+  private async createGoogleTaskSync(task: Task, userId: string, taskListId?: string): Promise<void> {
     // Sanitize the provided list ID first
     let listId = this.sanitizeListId(taskListId);
     
@@ -904,9 +904,9 @@ export class GoogleTasksSyncService {
   }
 
   /**
-   * Update a Google task from local task
+   * Update a Google task from local task (sync version)
    */
-  private async updateGoogleTask(task: Task): Promise<SyncConflict | null> {
+  private async updateGoogleTaskSync(task: Task): Promise<SyncConflict | null> {
     try {
       // Sanitize the list ID before using it
       const listId = this.sanitizeListId(task.google_list_id);
@@ -1156,7 +1156,7 @@ export class GoogleTasksSyncService {
       case 'keep_local':
         // Update Google with local data
         if (conflict.task_id && conflict.local_data) {
-          await this.updateGoogleTask(conflict.local_data);
+          await this.updateGoogleTaskSync(conflict.local_data);
         }
         break;
       

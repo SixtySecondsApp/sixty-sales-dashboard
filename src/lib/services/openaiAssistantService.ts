@@ -525,12 +525,6 @@ class OpenAIAssistantService {
     }
   }
 
-  /**
-   * Set API key manually (useful for testing)
-   */
-  public setApiKey(apiKey: string): void {
-    this.apiKey = apiKey;
-  }
 
   /**
    * Create a new assistant
