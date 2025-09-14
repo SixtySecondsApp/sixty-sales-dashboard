@@ -48,6 +48,7 @@
     "test:memory:framework": "vitest run tests/memory/MemoryTestFramework.test.tsx",
     "test:memory:components": "vitest run tests/memory/ComponentSpecificMemoryTests.test.tsx",
     "test:memory:watch": "vitest tests/memory --watch",
+    "setup:playwright-user": "tsx scripts/setup-playwright-user.ts",
     "test:memory:coverage": "vitest run tests/memory --coverage",
     "playwright": "playwright test",
     "playwright:ui": "playwright test --ui",

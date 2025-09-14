@@ -268,7 +268,7 @@ export default function ResetPassword() {
             <p className="text-gray-400">Create a new password for your account</p>
             {debugInfo && (
               <details className="mt-4 text-left">
-                <summary className="text-sm text-gray-500 cursor-pointer hover:text-gray-400">
+                <summary className="text-sm text-gray-400 cursor-pointer hover:text-gray-200">
                   Show Debug Info
                 </summary>
                 <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono bg-gray-800/30 p-3 rounded mt-2 max-h-40 overflow-auto">
@@ -291,7 +291,7 @@ export default function ResetPassword() {
                   minLength={6}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors hover:bg-gray-600"
                   placeholder="••••••••"
                   disabled={isLoading}
                 />
@@ -310,7 +310,7 @@ export default function ResetPassword() {
                   minLength={6}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-colors hover:bg-gray-800/50"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors hover:bg-gray-600"
                   placeholder="••••••••"
                   disabled={isLoading}
                 />

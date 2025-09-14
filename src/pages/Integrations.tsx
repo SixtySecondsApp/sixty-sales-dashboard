@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,14 +15,17 @@ import {
   AlertCircle,
   ExternalLink,
   Shield,
-  RefreshCw
+  RefreshCw,
+  ListTodo
 } from 'lucide-react';
 import { useGoogleIntegration } from '@/lib/stores/integrationStore';
 import { GoogleServiceStatus } from '@/lib/api/googleIntegration';
+import { googleTasksSync } from '@/lib/services/googleTasksSync';
 
 export default function Integrations() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const [tasksConnected, setTasksConnected] = useState(false);
   
   // Use the Google integration store
   const {
@@ -64,7 +67,17 @@ export default function Integrations() {
   // Check current integration status on mount
   useEffect(() => {
     checkConnection();
+    checkTasksConnection();
   }, [checkConnection]);
+
+  const checkTasksConnection = async () => {
+    try {
+      const connected = await googleTasksSync.isConnected();
+      setTasksConnected(connected);
+    } catch (error) {
+      console.error('Failed to check Google Tasks connection:', error);
+    }
+  };
 
   // Clear error when user interacts
   useEffect(() => {
@@ -219,6 +232,13 @@ export default function Integrations() {
                       <p className="text-xs">Access and share files</p>
                     </div>
                   </div>
+                  <div className="flex items-center space-x-3 text-gray-400">
+                    <ListTodo className="w-5 h-5" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-300">Google Tasks</p>
+                      <p className="text-xs">Sync tasks across all your devices</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -317,6 +337,31 @@ export default function Integrations() {
                     checked={services.drive}
                     onCheckedChange={() => handleToggleService('drive')}
                   />
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <ListTodo className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm font-medium text-white">Google Tasks</p>
+                      <p className="text-xs text-gray-400">Sync tasks bidirectionally</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {tasksConnected ? (
+                      <span className="text-xs text-emerald-400 mr-2">Connected</span>
+                    ) : (
+                      <span className="text-xs text-gray-500 mr-2">Not connected</span>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={tasksConnected ? "outline" : "default"}
+                      onClick={() => navigate('/tasks')}
+                      className="text-xs"
+                    >
+                      {tasksConnected ? 'Manage' : 'Setup'}
+                    </Button>
+                  </div>
                 </div>
               </div>
 

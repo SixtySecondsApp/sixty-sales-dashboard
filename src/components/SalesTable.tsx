@@ -1470,7 +1470,7 @@ export function SalesTable() {
                       className={`relative border-b transition-all duration-300 cursor-pointer ${
                         selectedActivities.has(activity.id) && isSelectModeActive
                           ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
-                          : 'border-gray-800/50 hover:bg-gray-800/20 hover:border-gray-700/60'
+                          : 'border-gray-700 hover:bg-gray-700/50 hover:border-gray-600'
                       }`}
                     >
                       {columns.map(column => {
@@ -1517,7 +1517,7 @@ export function SalesTable() {
               type="button"
               variant="ghost"
               onClick={() => setDeleteDialogOpen(false)}
-              className="bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
@@ -1551,7 +1551,7 @@ export function SalesTable() {
               type="button"
               variant="ghost"
               onClick={() => setBulkDeleteDialogOpen(false)}
-              className="bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
@@ -1643,7 +1643,7 @@ export function SalesTable() {
                 setBulkEditDialogOpen(false);
                 setBulkEditData({});
               }}
-              className="bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>

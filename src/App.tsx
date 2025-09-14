@@ -24,6 +24,7 @@ import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
+import TestGoogleTasks from '@/pages/TestGoogleTasks';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -58,6 +59,7 @@ const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'))
 const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
 const ActivityProcessingPage = lazyWithRetry(() => import('@/pages/ActivityProcessingPage'));
 const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
+const GoogleTasksSettings = lazyWithRetry(() => import('@/pages/GoogleTasksSettings'));
 const Roadmap = lazyWithRetry(() => import('@/pages/Roadmap'));
 const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
@@ -239,6 +241,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/auth/google/callback" element={<GoogleCallback />} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
+                <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
                 <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
                 
                 {/* Form Display Routes */}
@@ -278,6 +281,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
+                <Route path="/test-google-tasks" element={<AppLayout><TestGoogleTasks /></AppLayout>} />
               </Routes>
             </Suspense>
       </ProtectedRoute>
