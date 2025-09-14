@@ -68,6 +68,182 @@ export class GoogleTasksSyncService {
   }
 
   /**
+   * Sync a single task immediately when created
+   */
+  async syncTaskImmediately(task: Task, userId: string): Promise<void> {
+    try {
+      // Check if sync is enabled
+      const { data: syncStatus } = await supabase
+        .from('google_tasks_sync_status')
+        .select('is_connected')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!syncStatus?.is_connected) return;
+
+      // Get the appropriate list for this task
+      const targetList = await this.getTargetListForTask(task, userId);
+      if (!targetList) return;
+
+      // Create the task in Google
+      const googleTask = await this.createGoogleTask(task, targetList, userId);
+      
+      if (googleTask) {
+        // Update the local task with Google ID
+        await supabase
+          .from('tasks')
+          .update({
+            google_task_id: googleTask.id,
+            sync_status: 'synced',
+            last_synced_at: new Date().toISOString()
+          })
+          .eq('id', task.id);
+      }
+    } catch (error) {
+      console.error('Error syncing task immediately:', error);
+      // Don't throw - we don't want to break task creation if sync fails
+    }
+  }
+
+  /**
+   * Sync task update immediately
+   */
+  async syncTaskUpdateImmediately(taskId: string, userId: string): Promise<void> {
+    try {
+      // Check if sync is enabled
+      const { data: syncStatus } = await supabase
+        .from('google_tasks_sync_status')
+        .select('is_connected')
+        .eq('user_id', userId)
+        .single();
+      
+      if (!syncStatus?.is_connected) return;
+
+      // Get the task with Google ID
+      const { data: task } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+
+      if (!task || !task.google_task_id) return;
+
+      // Get the list this task belongs to
+      const { data: mapping } = await supabase
+        .from('google_tasks_mappings')
+        .select('google_list_id')
+        .eq('task_id', taskId)
+        .single();
+
+      if (!mapping) return;
+
+      // Update the task in Google
+      await this.updateGoogleTask(task, mapping.google_list_id, userId);
+      
+      // Update sync status
+      await supabase
+        .from('tasks')
+        .update({
+          sync_status: 'synced',
+          last_synced_at: new Date().toISOString()
+        })
+        .eq('id', taskId);
+    } catch (error) {
+      console.error('Error syncing task update immediately:', error);
+    }
+  }
+
+  /**
+   * Get target Google list for a task based on priority and configuration
+   */
+  private async getTargetListForTask(task: Task, userId: string): Promise<string | null> {
+    // Get list configurations
+    const { data: configs } = await supabase
+      .from('google_tasks_list_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('sync_enabled', true);
+
+    if (!configs || configs.length === 0) {
+      // Fallback to default list
+      const selectedList = await this.getSelectedTaskList(userId);
+      return selectedList?.id || '@default';
+    }
+
+    // Find matching list based on priority
+    for (const config of configs) {
+      if (config.priority_filter?.includes(task.priority)) {
+        return config.google_list_id;
+      }
+    }
+
+    // Use primary list as fallback
+    const primaryConfig = configs.find(c => c.is_primary);
+    return primaryConfig?.google_list_id || '@default';
+  }
+
+  /**
+   * Create a task in Google Tasks
+   */
+  private async createGoogleTask(task: Task, listId: string, userId: string): Promise<GoogleTask | null> {
+    try {
+      const response = await supabase.functions.invoke('google-tasks-api', {
+        body: {
+          action: 'createTask',
+          taskListId: listId,
+          task: {
+            title: task.title,
+            notes: task.description || task.notes,
+            due: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] + 'T00:00:00.000Z' : undefined,
+            status: task.status === 'completed' ? 'completed' : 'needsAction'
+          }
+        }
+      });
+
+      if (response.error) throw response.error;
+      
+      // Store the mapping
+      await supabase
+        .from('google_tasks_mappings')
+        .insert({
+          task_id: task.id,
+          google_task_id: response.data.id,
+          google_list_id: listId,
+          user_id: userId
+        });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error creating Google task:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update a task in Google Tasks
+   */
+  private async updateGoogleTask(task: Task, listId: string, userId: string): Promise<void> {
+    try {
+      await supabase.functions.invoke('google-tasks-api', {
+        body: {
+          action: 'updateTask',
+          taskListId: listId,
+          taskId: task.google_task_id,
+          task: {
+            title: task.title,
+            notes: task.description || task.notes,
+            due: task.due_date ? new Date(task.due_date).toISOString().split('T')[0] + 'T00:00:00.000Z' : undefined,
+            status: task.status === 'completed' ? 'completed' : 'needsAction'
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error updating Google task:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Store user's task list preference
    */
   async setTaskListPreference(userId: string, listId: string, listTitle: string): Promise<void> {
@@ -394,23 +570,22 @@ export class GoogleTasksSyncService {
             await this.handleDeletedGoogleTask(googleTask);
             result.tasksDeleted++;
           } else {
-            // Check if task exists locally
-            const { data: existingMapping } = await supabase
-              .from('google_task_mappings')
-              .select('task_id, etag')
-              .eq('google_task_id', googleTask.id)
-              .single();
-
-            if (existingMapping) {
-              // Update existing task
-              const conflict = await this.updateLocalTask(existingMapping.task_id, googleTask, existingMapping.etag);
+            // Enhanced duplicate detection: check both mappings AND tasks table
+            const existingTask = await this.findExistingTaskForGoogleTask(googleTask.id, userId);
+            
+            if (existingTask) {
+              // Task already exists - update it if needed
+              const conflict = await this.updateLocalTask(existingTask.id, googleTask, existingTask.google_etag);
               if (conflict) {
                 result.conflicts.push(conflict);
               } else {
                 result.tasksUpdated++;
               }
+              
+              // Ensure mapping exists for this task
+              await this.ensureTaskMapping(existingTask.id, googleTask);
             } else {
-              // Create new local task
+              // Create new local task (with duplicate prevention)
               await this.createLocalTask(googleTask, userId);
               result.tasksCreated++;
             }
@@ -479,8 +654,10 @@ export class GoogleTasksSyncService {
               result.tasksUpdated++;
             }
           } else if (config.auto_create_in_list) {
+            // Ensure we're using a valid list ID
+            const listId = this.sanitizeListId(config.google_list_id);
             // Create new Google task in this list
-            await this.createGoogleTask(task, userId, config.google_list_id);
+            await this.createGoogleTask(task, userId, listId);
             
             // Update synced_to_lists
             const updatedLists = [...syncedLists, { list_id: config.google_list_id, list_title: config.list_title }];
@@ -492,7 +669,11 @@ export class GoogleTasksSyncService {
             result.tasksCreated++;
           }
         } catch (error) {
-          console.error(`Failed to sync task ${task.id} to Google list ${config.list_title}:`, error);
+          console.error(`Failed to sync task ${task.id} to Google list ${config.google_list_id} (${config.list_title}):`, error);
+          // Log the actual list ID being used for debugging
+          if (config.google_list_id === 'Business' || (config.google_list_id !== '@default' && config.google_list_id.length < 20)) {
+            console.error(`Invalid list ID detected: "${config.google_list_id}" - should be "@default" or a valid Google list ID`);
+          }
         }
       }
 
@@ -561,6 +742,13 @@ export class GoogleTasksSyncService {
    * Create a local task from Google task
    */
   private async createLocalTask(googleTask: GoogleTask, userId: string): Promise<void> {
+    // Double-check that task doesn't already exist (prevent race conditions)
+    const existingTask = await this.findExistingTaskForGoogleTask(googleTask.id, userId);
+    if (existingTask) {
+      console.log(`Task ${googleTask.id} already exists locally, skipping creation`);
+      return;
+    }
+
     // Map Google task to local task format
     const localTask = {
       title: googleTask.title,
@@ -571,7 +759,7 @@ export class GoogleTasksSyncService {
       assigned_to: userId,
       created_by: userId,
       google_task_id: googleTask.id,
-      google_list_id: googleTask.parent || '@default', // Use parent or default
+      google_list_id: '@default', // Always use @default for consistency
       sync_status: 'synced',
       last_synced_at: new Date().toISOString(),
       google_position: googleTask.position,
@@ -585,18 +773,31 @@ export class GoogleTasksSyncService {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Check if error is due to duplicate google_task_id
+      if (error.code === '23505' && error.message.includes('google_task_id')) {
+        console.log(`Task ${googleTask.id} was created by another process, skipping`);
+        return;
+      }
+      throw error;
+    }
 
-    // Create mapping
-    await supabase
-      .from('google_task_mappings')
-      .insert({
-        task_id: newTask.id,
-        google_task_id: googleTask.id,
-        google_list_id: '@default',
-        etag: googleTask.etag,
-        sync_direction: 'from_google'
-      });
+    // Create mapping with error handling
+    try {
+      await supabase
+        .from('google_task_mappings')
+        .insert({
+          task_id: newTask.id,
+          google_task_id: googleTask.id,
+          google_list_id: '@default',
+          etag: googleTask.etag,
+          sync_direction: 'from_google',
+          user_id: userId
+        });
+    } catch (mappingError) {
+      // If mapping creation fails but task was created, log and continue
+      console.error(`Failed to create mapping for task ${newTask.id}:`, mappingError);
+    }
   }
 
   /**
@@ -651,8 +852,8 @@ export class GoogleTasksSyncService {
    * Create a Google task from local task
    */
   private async createGoogleTask(task: Task, userId: string, taskListId?: string): Promise<void> {
-    // Use provided taskListId or get default task list
-    let listId = taskListId;
+    // Sanitize the provided list ID first
+    let listId = this.sanitizeListId(taskListId);
     
     if (!listId) {
       const { data: defaultList } = await supabase
@@ -707,10 +908,13 @@ export class GoogleTasksSyncService {
    */
   private async updateGoogleTask(task: Task): Promise<SyncConflict | null> {
     try {
+      // Sanitize the list ID before using it
+      const listId = this.sanitizeListId(task.google_list_id);
+      
       const { data, error } = await supabase.functions.invoke('google-tasks', {
         body: {
           action: 'update-task',
-          taskListId: task.google_list_id || '@default',
+          taskListId: listId,
           taskId: task.google_task_id,
           title: task.title,
           notes: task.description || undefined,
@@ -767,12 +971,86 @@ export class GoogleTasksSyncService {
   }
 
   /**
+   * Find existing local task for a Google task ID (comprehensive search)
+   */
+  private async findExistingTaskForGoogleTask(googleTaskId: string, userId: string): Promise<any | null> {
+    // First check mappings table
+    const { data: mapping } = await supabase
+      .from('google_task_mappings')
+      .select(`
+        task_id,
+        etag,
+        tasks!inner(id, google_task_id, google_etag, assigned_to)
+      `)
+      .eq('google_task_id', googleTaskId)
+      .eq('tasks.assigned_to', userId)
+      .single();
+
+    if (mapping?.tasks) {
+      return mapping.tasks;
+    }
+
+    // Also check tasks table directly (in case mapping is missing)
+    const { data: task } = await supabase
+      .from('tasks')
+      .select('id, google_task_id, google_etag, assigned_to')
+      .eq('google_task_id', googleTaskId)
+      .eq('assigned_to', userId)
+      .single();
+
+    return task || null;
+  }
+
+  /**
+   * Ensure task mapping exists (create if missing)
+   */
+  private async ensureTaskMapping(taskId: string, googleTask: GoogleTask): Promise<void> {
+    const { data: existingMapping } = await supabase
+      .from('google_task_mappings')
+      .select('id')
+      .eq('task_id', taskId)
+      .eq('google_task_id', googleTask.id)
+      .single();
+
+    if (!existingMapping) {
+      // Create missing mapping
+      await supabase
+        .from('google_task_mappings')
+        .insert({
+          task_id: taskId,
+          google_task_id: googleTask.id,
+          google_list_id: '@default',
+          etag: googleTask.etag,
+          sync_direction: 'from_google',
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+    }
+  }
+
+  /**
+   * Sanitize list ID to ensure it's valid for Google Tasks API
+   */
+  private sanitizeListId(listId: string | undefined): string {
+    // If no list ID or it's "Business" or another invalid short string, use @default
+    if (!listId || listId === 'Business' || (listId !== '@default' && listId.length < 20)) {
+      return '@default';
+    }
+    return listId;
+  }
+
+  /**
    * Store a Google task list
    */
   private async storeTaskList(taskList: GoogleTaskList, isDefault: boolean = false): Promise<void> {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    // Get the user's Google integration
     const { data: integration } = await supabase
       .from('google_integrations')
       .select('id')
+      .eq('user_id', user.id)
       .single();
 
     if (!integration) return;

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
   closestCorners,
+  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
@@ -41,8 +43,10 @@ import {
 } from 'lucide-react';
 
 import { useTasks } from '@/lib/hooks/useTasks';
+import { useSubtasks } from '@/lib/hooks/useSubtasks';
 import { useUser } from '@/lib/hooks/useUser';
 import { Task } from '@/lib/database/models';
+import { handleRelatedRecordClick, handleRelatedRecordKeyDown, isRelatedRecordNavigable } from '@/lib/utils/navigationUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -59,6 +63,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import TaskForm from './TaskForm';
+import TaskDetailModal from './TaskDetailModal';
 import logger from '@/lib/utils/logger';
 
 interface TaskKanbanProps {
@@ -84,13 +89,6 @@ const taskStages: TaskStage[] = [
     color: '#6B7280',
     icon: <Circle className="w-4 h-4" />,
     description: 'Tasks that are planned but not yet started'
-  },
-  {
-    id: 'overdue',
-    name: 'Overdue',
-    color: '#EF4444',
-    icon: <AlertTriangle className="w-4 h-4" />,
-    description: 'Tasks that are past their due date'
   },
   {
     id: 'started',
@@ -121,15 +119,8 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [initialStage, setInitialStage] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [overdueConfirm, setOverdueConfirm] = useState<{
-    isOpen: boolean;
-    taskId: string;
-    taskTitle: string;
-  }>({
-    isOpen: false,
-    taskId: '',
-    taskTitle: ''
-  });
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isTaskDetailModalOpen, setIsTaskDetailModalOpen] = useState(false);
 
   // Build filters for the hook
   const filters = useMemo(() => {
@@ -167,7 +158,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   const tasksByStage = useMemo(() => {
     const grouped: Record<string, Task[]> = {
       planned: [],
-      overdue: [],
       started: [],
       complete: []
     };
@@ -175,25 +165,19 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     logger.log('Re-grouping tasks, total count:', tasks.length);
 
     tasks.forEach(task => {
-      // Ensure we're working with current date calculations
-      const now = new Date();
-      const dueDate = task.due_date ? new Date(task.due_date) : null;
-      const isPastDue = dueDate && dueDate < now;
-      
       if (task.completed || task.status === 'completed') {
         grouped.complete.push(task);
       } else if (task.status === 'in_progress') {
         grouped.started.push(task);
-      } else if (isPastDue && !task.completed) {
-        grouped.overdue.push(task);
       } else {
+        // All pending tasks go to planned, including overdue ones
+        // The overdue styling will be handled by the TaskCard component
         grouped.planned.push(task);
       }
     });
 
     logger.log('Task grouping completed:', {
       planned: grouped.planned.length,
-      overdue: grouped.overdue.length,
       started: grouped.started.length,
       complete: grouped.complete.length
     });
@@ -204,7 +188,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3, // Reduced from 8 to make dragging more sensitive
       },
     })
   );
@@ -217,48 +201,67 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     const { active, over } = event;
     setActiveDragId(null);
 
-    if (!over || active.id === over.id) return;
+    // Enhanced debugging
+    console.log('Drag end event:', { 
+      activeId: active.id, 
+      overId: over?.id,
+      overData: over?.data
+    });
+
+    if (!over || active.id === over.id) {
+      console.log('Drag cancelled - no valid drop target');
+      return;
+    }
 
     const taskId = String(active.id);
     const newStage = String(over.id);
     const task = tasks.find(t => t.id === taskId);
 
-    if (!task) return;
-
-    // Check if moving to 'overdue' column
-    if (newStage === 'overdue') {
-      const isAlreadyOverdue = task.due_date && isPast(new Date(task.due_date));
-      if (!isAlreadyOverdue) {
-        setOverdueConfirm({
-          isOpen: true,
-          taskId: task.id,
-          taskTitle: task.title
-        });
-        // We stop here and let the dialog handle the update
-        return;
-      }
+    if (!task) {
+      console.log('Task not found:', taskId);
+      return;
     }
-    
+
+    // Get current stage for comparison
+    const currentStage = task.completed || task.status === 'completed' ? 'complete' 
+      : task.status === 'in_progress' ? 'started' 
+      : 'planned';
+
+    console.log(`Moving task "${task.title}" from ${currentStage} to ${newStage}`);
+
+    // Prepare updates
+    let updates: any = {};
+    switch (newStage) {
+      case 'planned':
+        updates = { status: 'pending', completed: false, completed_at: null };
+        break;
+      case 'started':
+        updates = { status: 'in_progress', completed: false, completed_at: null };
+        break;
+      case 'complete':
+        updates = { status: 'completed', completed: true, completed_at: new Date().toISOString() };
+        break;
+    }
+
+    console.log('Applying updates:', updates);
+
     try {
-      let updates: any = {};
+      // Optimistic update - immediately update local state
+      setTasks((prevTasks: Task[]) => 
+        prevTasks.map((t: Task) => 
+          t.id === taskId 
+            ? { ...t, ...updates }
+            : t
+        )
+      );
 
-      switch (newStage) {
-        case 'planned':
-          updates = { status: 'pending', completed: false, completed_at: null };
-          break;
-        case 'overdue':
-          // Keep as pending but ensure it's not completed
-          updates = { status: 'pending', completed: false, completed_at: null };
-          break;
-        case 'started':
-          updates = { status: 'in_progress', completed: false, completed_at: null };
-          break;
-        case 'complete':
-          updates = { status: 'completed', completed: true, completed_at: new Date().toISOString() };
-          break;
-      }
-
+      // Then perform the database update
       await updateTask(taskId, updates);
+      
+      // Force a small delay and refresh to ensure drag state is reset
+      setTimeout(() => {
+        setRefreshKey(prev => prev + 1);
+      }, 100);
       
       if (newStage === 'complete') {
         toast.success('Task completed!');
@@ -266,26 +269,22 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         toast.success(`Task moved to ${taskStages.find(s => s.id === newStage)?.name}`);
       }
     } catch (error) {
+      console.error('Failed to update task:', error);
+      
+      // Revert optimistic update on error
+      const originalTask = tasks.find(t => t.id === taskId);
+      if (originalTask) {
+        setTasks((prevTasks: Task[]) => 
+          prevTasks.map((t: Task) => 
+            t.id === taskId ? originalTask : t
+          )
+        );
+      }
+      
       toast.error('Failed to update task');
     }
   };
 
-  const handleConfirmOverdue = async () => {
-    if (!overdueConfirm.taskId) return;
-
-    try {
-      await updateTask(overdueConfirm.taskId, {
-        due_date: new Date().toISOString(),
-        status: 'pending' // Ensure it's not marked as complete
-      });
-      toast.success(`Task "${overdueConfirm.taskTitle}" marked as overdue.`);
-      setRefreshKey(prev => prev + 1); // Refresh the board
-    } catch (error) {
-      toast.error('Failed to update task.');
-    } finally {
-      setOverdueConfirm({ isOpen: false, taskId: '', taskTitle: '' });
-    }
-  };
 
   const handleCreateTask = (stageId?: string) => {
     setEditingTask(undefined);
@@ -324,6 +323,37 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     }
   };
 
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setIsTaskDetailModalOpen(true);
+  };
+
+  const handleTaskDetailModalClose = () => {
+    setIsTaskDetailModalOpen(false);
+    setSelectedTask(null);
+  };
+
+  const handleTaskDetailEdit = (task: Task) => {
+    handleTaskDetailModalClose();
+    handleEditTask(task);
+  };
+
+  const handleTaskDetailDelete = async (taskId: string) => {
+    handleTaskDetailModalClose();
+    await handleDeleteTask(taskId);
+  };
+
+  const handleTaskDetailToggleComplete = async (task: Task) => {
+    await handleCompleteTask(task);
+    // Refresh the selected task data if it's still the same task
+    if (selectedTask && selectedTask.id === task.id) {
+      const updatedTask = tasks.find(t => t.id === task.id);
+      if (updatedTask) {
+        setSelectedTask(updatedTask);
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -332,7 +362,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
           <div className="h-4 bg-gray-800 rounded-lg w-80" />
         </div>
         <div className="flex gap-4 overflow-x-auto pb-6">
-          {[1, 2, 3, 4].map(i => (
+          {[1, 2, 3].map(i => (
             <div
               key={i}
               className="min-w-[320px] bg-gray-900/50 rounded-xl border border-gray-800/50 flex flex-col h-[600px]"
@@ -386,7 +416,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
       {/* Kanban Board */}
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={closestCenter} // Changed from closestCorners for better accuracy
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
@@ -400,6 +430,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
               onDeleteTask={handleDeleteTask}
               onCompleteTask={handleCompleteTask}
               onAddTask={() => handleCreateTask(stage.id)}
+              onTaskClick={handleTaskClick}
             />
           ))}
         </div>
@@ -414,30 +445,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         </DragOverlay>
       </DndContext>
 
-      {/* Overdue Confirmation Dialog */}
-      <AlertDialog open={overdueConfirm.isOpen} onOpenChange={(isOpen) => !isOpen && setOverdueConfirm({ isOpen: false, taskId: '', taskTitle: ''})}>
-        <AlertDialogContent className="glassmorphism border-gray-700/50">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Mark Task as Overdue?</AlertDialogTitle>
-            <AlertDialogDescription className="text-gray-400">
-              You're moving "{overdueConfirm.taskTitle}" to the Overdue column. Do you want to set its due date to now?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => {
-                fetchTasks(); // refetch to revert optimistic update from dnd-kit if any
-                setOverdueConfirm({ isOpen: false, taskId: '', taskTitle: '' })
-              }}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmOverdue} className="bg-red-600 hover:bg-red-700">
-              Yes, Mark as Overdue
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Task Form */}
       <TaskForm
@@ -457,6 +464,16 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         companyId={companyId}
         contactId={contactId}
       />
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        task={selectedTask}
+        isOpen={isTaskDetailModalOpen}
+        onClose={handleTaskDetailModalClose}
+        onEdit={handleTaskDetailEdit}
+        onDelete={handleTaskDetailDelete}
+        onToggleComplete={handleTaskDetailToggleComplete}
+      />
     </div>
   );
 };
@@ -469,6 +486,7 @@ interface TaskColumnProps {
   onEditTask?: (task: Task) => void;
   onDeleteTask: (taskId: string) => void;
   onCompleteTask: (task: Task) => void;
+  onTaskClick: (task: Task) => void;
 }
 
 const TaskColumn: React.FC<TaskColumnProps> = ({
@@ -477,13 +495,18 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
   onAddTask,
   onEditTask,
   onDeleteTask,
-  onCompleteTask
+  onCompleteTask,
+  onTaskClick
 }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id
   });
 
-  const taskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+  const taskIds = useMemo(() => {
+    const ids = tasks.map(t => t.id);
+    console.log('TaskColumn taskIds updated:', stage.id, ids);
+    return ids;
+  }, [tasks, stage.id]);
 
   return (
     <div
@@ -547,6 +570,7 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
                   onEdit={onEditTask ? () => onEditTask(task) : undefined}
                   onDelete={() => onDeleteTask(task.id)}
                   onComplete={() => onCompleteTask(task)}
+                  onClick={() => onTaskClick(task)}
                 />
               </motion.div>
             ))}
@@ -568,6 +592,28 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
   );
 };
 
+// Subtask Badge Component
+interface SubtaskBadgeProps {
+  taskId: string;
+}
+
+const SubtaskBadge: React.FC<SubtaskBadgeProps> = ({ taskId }) => {
+  const { subtaskStats, isLoading } = useSubtasks({ 
+    parentTaskId: taskId, 
+    enabled: true 
+  });
+
+  if (isLoading || !subtaskStats || subtaskStats.total === 0) {
+    return null;
+  }
+
+  return (
+    <Badge variant="outline" className="text-xs bg-gray-700/50 border-gray-600 text-gray-300 px-2 py-0">
+      {subtaskStats.completed}/{subtaskStats.total} subtasks
+    </Badge>
+  );
+};
+
 // Task Card Component
 interface TaskCardProps {
   task: Task;
@@ -575,6 +621,7 @@ interface TaskCardProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onComplete?: () => void;
+  onClick?: () => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -582,8 +629,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
   isDragging = false,
   onEdit,
   onDelete,
-  onComplete
+  onComplete,
+  onClick
 }) => {
+  const navigate = useNavigate();
   const getTaskIcon = (taskType: Task['task_type']) => {
     const icons = {
       call: Phone,
@@ -633,22 +682,33 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   return (
     <SortableTaskCard taskId={task.id} isDragging={isDragging}>
-      <Card className={`
-        bg-gray-800/50 border-gray-700/50 hover:bg-gray-800/70 
-        transition-all duration-200 cursor-grab active:cursor-grabbing
-        ${isDragging ? 'opacity-50 rotate-3 scale-105' : ''}
-        ${isOverdue() ? 'ring-1 ring-red-500/30' : ''}
-      `}>
+      <Card 
+        className={`
+          bg-gray-800/50 border-gray-700/50 hover:bg-gray-800/70 hover:border-gray-600/50
+          transition-all duration-200 cursor-grab active:cursor-grabbing
+          ${isDragging ? 'opacity-50 rotate-3 scale-105' : ''}
+          ${isOverdue() ? 'ring-1 ring-red-500/30' : ''}
+          ${onClick ? 'hover:shadow-lg hover:shadow-blue-500/10' : ''}
+        `}
+        onClick={onClick ? (e) => {
+          e.stopPropagation();
+          onClick();
+        } : undefined}
+      >
         <CardContent className="p-4">
           {/* Task Header */}
           <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center gap-2 flex-1">
-              <TaskIcon className="w-4 h-4 text-gray-400" />
-              <h4 className="font-medium text-white text-sm leading-tight line-clamp-2">
-                {task.title}
-              </h4>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <TaskIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <h4 className="font-medium text-white text-sm leading-tight line-clamp-2">
+                  {task.title}
+                </h4>
+              </div>
+              {/* Subtask Badge */}
+              <SubtaskBadge taskId={task.id} />
             </div>
-            <div className="flex items-center gap-1 ml-2">
+            <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {onEdit && (
                 <Button
                   size="sm"
@@ -726,15 +786,63 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {(task.contact_name || task.company) && (
             <div className="mt-2 pt-2 border-t border-gray-700/50">
               {task.contact_name && (
-                <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                <div 
+                  className={`flex items-center gap-1 text-xs mb-1 transition-colors ${
+                    isRelatedRecordNavigable(task.contact_id, task.contact_name)
+                      ? 'text-blue-400 hover:text-blue-300 cursor-pointer group'
+                      : 'text-gray-400'
+                  }`}
+                  onClick={
+                    isRelatedRecordNavigable(task.contact_id, task.contact_name)
+                      ? (e) => handleRelatedRecordClick(e, navigate, 'contact', task.contact_id, task.contact_name)
+                      : undefined
+                  }
+                  onKeyDown={
+                    isRelatedRecordNavigable(task.contact_id, task.contact_name)
+                      ? (e) => handleRelatedRecordKeyDown(e, navigate, 'contact', task.contact_id, task.contact_name)
+                      : undefined
+                  }
+                  tabIndex={isRelatedRecordNavigable(task.contact_id, task.contact_name) ? 0 : undefined}
+                  role={isRelatedRecordNavigable(task.contact_id, task.contact_name) ? "button" : undefined}
+                  aria-label={isRelatedRecordNavigable(task.contact_id, task.contact_name) ? `Navigate to contact ${task.contact_name}` : undefined}
+                >
                   <User className="w-3 h-3" />
-                  <span>{task.contact_name}</span>
+                  <span className={isRelatedRecordNavigable(task.contact_id, task.contact_name) ? 'underline decoration-dotted hover:decoration-solid' : ''}>
+                    {task.contact_name}
+                  </span>
+                  {isRelatedRecordNavigable(task.contact_id, task.contact_name) && (
+                    <ExternalLink className="w-2 h-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
                 </div>
               )}
               {task.company && (
-                <div className="flex items-center gap-1 text-xs text-gray-400">
+                <div 
+                  className={`flex items-center gap-1 text-xs transition-colors ${
+                    isRelatedRecordNavigable(task.company_id, task.company)
+                      ? 'text-blue-400 hover:text-blue-300 cursor-pointer group'
+                      : 'text-gray-400'
+                  }`}
+                  onClick={
+                    isRelatedRecordNavigable(task.company_id, task.company)
+                      ? (e) => handleRelatedRecordClick(e, navigate, 'company', task.company_id, task.company)
+                      : undefined
+                  }
+                  onKeyDown={
+                    isRelatedRecordNavigable(task.company_id, task.company)
+                      ? (e) => handleRelatedRecordKeyDown(e, navigate, 'company', task.company_id, task.company)
+                      : undefined
+                  }
+                  tabIndex={isRelatedRecordNavigable(task.company_id, task.company) ? 0 : undefined}
+                  role={isRelatedRecordNavigable(task.company_id, task.company) ? "button" : undefined}
+                  aria-label={isRelatedRecordNavigable(task.company_id, task.company) ? `Navigate to company ${task.company}` : undefined}
+                >
                   <Building2 className="w-3 h-3" />
-                  <span>{task.company}</span>
+                  <span className={isRelatedRecordNavigable(task.company_id, task.company) ? 'underline decoration-dotted hover:decoration-solid' : ''}>
+                    {task.company}
+                  </span>
+                  {isRelatedRecordNavigable(task.company_id, task.company) && (
+                    <ExternalLink className="w-2 h-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  )}
                 </div>
               )}
             </div>
@@ -742,16 +850,21 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Assignee */}
           {task.assignee && (
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-700/50">
-              <Avatar className="h-5 w-5">
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-700/50">
+              <Avatar className="h-6 w-6 ring-1 ring-gray-600/50">
                 <AvatarImage src={task.assignee.avatar_url} />
-                <AvatarFallback className="text-xs bg-gray-700">
+                <AvatarFallback className="text-xs bg-gradient-to-br from-blue-500 to-purple-500 text-white font-medium">
                   {(task.assignee.first_name?.[0] || '') + (task.assignee.last_name?.[0] || '')}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs text-gray-400">
-                {task.assignee.first_name} {task.assignee.last_name}
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-medium text-gray-300 truncate">
+                  {task.assignee.first_name} {task.assignee.last_name}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Assigned
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

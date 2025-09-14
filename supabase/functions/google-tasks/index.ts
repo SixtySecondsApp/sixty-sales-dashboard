@@ -236,6 +236,16 @@ serve(async (req) => {
         const params = await req.json() as CreateTaskRequest;
         const taskListId = params.taskListId || '@default';
         
+        // Log the exact parameters being used
+        console.log('[Google Tasks] Creating task with params:', {
+          taskListId,
+          title: params.title,
+          notes: params.notes?.substring(0, 100), // Log first 100 chars
+          due: params.due,
+          status: params.status,
+          position: params.position
+        });
+        
         const taskData: any = {
           title: params.title,
         };
@@ -247,21 +257,24 @@ serve(async (req) => {
         const queryParams = new URLSearchParams();
         if (params.position) queryParams.set('position', params.position);
         
-        const response = await fetch(
-          `https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks?${queryParams}`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(taskData),
-          }
-        );
+        const url = `https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks?${queryParams}`;
+        console.log('[Google Tasks] Request URL:', url);
+        console.log('[Google Tasks] Request body:', JSON.stringify(taskData));
+        
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(taskData),
+        });
 
         if (!response.ok) {
           const error = await response.json();
           console.error('[Google Tasks] Failed to create task:', error);
+          console.error('[Google Tasks] Task list ID was:', taskListId);
+          console.error('[Google Tasks] Task data was:', taskData);
           throw new Error(error.error?.message || 'Failed to create task');
         }
 
