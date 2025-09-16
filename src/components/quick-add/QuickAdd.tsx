@@ -454,9 +454,6 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           quantity: activityCount, // Use 'quantity' field that Dashboard expects for stats
           date: selectedDate.toISOString(),
           deal_id: formData.deal_id,
-          // Add required outbound_type field to satisfy database trigger
-          // Map QuickAdd values to database values (capitalized to lowercase)
-          outbound_type: (formData.outboundType || 'Email').toLowerCase().replace('linkedin', 'linkedin'),
           // Only include identifier fields if contact is selected
           ...(selectedContact
             ? {
