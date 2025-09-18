@@ -750,14 +750,24 @@ export function SalesTable() {
         cell: (info: CellContext<Activity, unknown>) => {
           const activity = info.row.original as Activity;
           if (!activity) return null;
-          const clientName = info.getValue() as string;
+          
+          // Ensure client_name is always treated as a string
+          let clientName = info.getValue();
+          if (typeof clientName === 'object' && clientName !== null) {
+            // If it's an object (shouldn't happen but handle it), try to extract the name
+            clientName = (clientName as any).name || (clientName as any).toString() || 'Unknown';
+          } else if (!clientName) {
+            clientName = 'Unknown';
+          }
+          const clientNameStr = String(clientName);
+          
           return (
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-800/50 flex items-center justify-center text-white text-xs sm:text-sm font-medium">
-                {clientName?.split(' ').map((n: string) => n?.[0]).join('') || '??'}
+                {clientNameStr.split(' ').map((n: string) => n?.[0]).join('') || '??'}
               </div>
               <div>
-                <div className="text-sm sm:text-base font-medium text-white">{clientName || 'Unknown'}</div>
+                <div className="text-sm sm:text-base font-medium text-white">{clientNameStr}</div>
                 <div className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1">
                   <LinkIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   {activity.details || 'No details'}

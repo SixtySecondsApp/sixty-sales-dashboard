@@ -26,7 +26,7 @@ import { OwnerFilter } from '@/components/OwnerFilter';
 import EditDealModal from '@/components/EditDealModal';
 import DealClosingModal from '@/components/DealClosingModal';
 import { ConvertDealModal } from '@/components/ConvertDealModal';
-import { ProposalConfirmationModal } from '@/components/ProposalConfirmationModal';
+// ProposalConfirmationModal removed - no longer needed
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -162,6 +162,7 @@ function PipelineContent() {
   const [draggedFromStage, setDraggedFromStage] = useState<string | null>(null);
   const [draggedOverStage, setDraggedOverStage] = useState<string | null>(null);
   const [draggedOverIndex, setDraggedOverIndex] = useState<number | null>(null);
+  const [isUpdatingDatabase, setIsUpdatingDatabase] = useState(false);
 
   // Keep a ref to the last valid over stage for drop fallback
   const lastValidOverStageRef = useRef<string | null>(null);
@@ -175,23 +176,21 @@ function PipelineContent() {
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [convertingDeal, setConvertingDeal] = useState<any>(null);
   
-  // Proposal confirmation modal state
-  const [proposalModalOpen, setProposalModalOpen] = useState(false);
-  const [pendingDealMove, setPendingDealMove] = useState<{
-    dealId: string;
-    fromStage: string;
-    toStage: string;
-    deal: any;
-    toIndex?: number;
-  } | null>(null);
+  // Removed proposal confirmation modal state - deals now move directly to Opportunity
 
   // Update local state when the context data changes
   useEffect(() => {
+    // Don't reset local state if we're in the middle of a drag operation or updating database
+    if (draggedId || isUpdatingDatabase) return;
+    
     setLocalDealsByStage(structuredClone(contextDealsByStage));
-  }, [contextDealsByStage, refreshKey]);
+  }, [contextDealsByStage, refreshKey, draggedId, isUpdatingDatabase]);
 
   // Apply sorting to the local state
   useEffect(() => {
+    // Don't apply sorting during drag operations or database updates
+    if (draggedId || isUpdatingDatabase) return;
+    
     if (sortBy === 'none') {
       setLocalDealsByStage(contextDealsByStage);
       return;
@@ -212,7 +211,7 @@ function PipelineContent() {
       });
     });
     setLocalDealsByStage(sortedDeals);
-  }, [sortBy, contextDealsByStage]);
+  }, [sortBy, contextDealsByStage, draggedId, isUpdatingDatabase]);
 
   useEffect(() => {
     return () => {
@@ -397,58 +396,7 @@ function PipelineContent() {
       return;
     }
     
-    // Check if moving to Opportunity stage (which now means Proposal)
-    const opportunityStage = stages.find(
-      stage => stage.name.toLowerCase() === 'opportunity'
-    );
-    
-    // Find the deal being moved
-    const movedDealForCheck = Object.values(localDealsByStage)
-      .flat()
-      .find((deal: any) => deal.id === activeId);
-    
-    // Debug logging
-    logger.log('🎯 Checking Opportunity stage move:', {
-      opportunityStageFound: !!opportunityStage,
-      opportunityStageName: opportunityStage?.name,
-      opportunityStageId: opportunityStage?.id,
-      toStage,
-      isMovingToOpportunity: opportunityStage && toStage === opportunityStage.id,
-      dealFound: !!movedDealForCheck,
-      dealName: movedDealForCheck?.name || movedDealForCheck?.company
-    });
-    
-    if (opportunityStage && toStage === opportunityStage.id && movedDealForCheck) {
-      // Store the move details for after confirmation
-      let toIndex = draggedOverIndex;
-      if (over) {
-        const overId = String(over.id);
-        toIndex = localDealsByStage[toStage].findIndex((d: any) => d.id === overId);
-        if (toIndex === -1 || overId === toStage) {
-          toIndex = localDealsByStage[toStage].length;
-        }
-      } else if (toIndex == null) {
-        toIndex = localDealsByStage[toStage].length;
-      }
-      
-      setPendingDealMove({
-        dealId: activeId,
-        fromStage,
-        toStage,
-        deal: movedDealForCheck,
-        toIndex
-      });
-      setProposalModalOpen(true);
-      
-      // Cleanup drag state
-      setDraggedId(null);
-      setDraggedFromStage(null);
-      setDraggedOverStage(null);
-      setDraggedOverIndex(null);
-      setActiveDeal(null);
-      lastValidOverStageRef.current = null;
-      return;
-    }
+    // Removed Opportunity stage check - deals now move directly without confirmation
 
     // Find the deal and its new index
     let toIndex = draggedOverIndex;
@@ -485,6 +433,7 @@ function PipelineContent() {
     });
 
     // Persist to DB
+    setIsUpdatingDatabase(true);
     try {
       const updatePayload = {
         stage_id: toStage,
@@ -549,21 +498,29 @@ function PipelineContent() {
         }
       }
       
-      setTimeout(() => {
-        setRefreshKey(prev => prev + 1);
-      }, 100);
+      // Don't refresh immediately - the state is already updated optimistically
+      // Just cleanup the drag state
     } catch (err) {
-      // Optionally: rollback UI or show error
+      // On error, revert the optimistic update
       toast.error('Failed to move deal. Please try again.');
+      
+      // Revert to the original state from context
+      setLocalDealsByStage(structuredClone(contextDealsByStage));
+      setIsUpdatingDatabase(false);
+    } finally {
+      // Cleanup drag state
+      setDraggedId(null);
+      setDraggedFromStage(null);
+      setDraggedOverStage(null);
+      setDraggedOverIndex(null);
+      setActiveDeal(null);
+      lastValidOverStageRef.current = null;
+      
+      // Allow context updates after a delay to ensure database is updated
+      setTimeout(() => {
+        setIsUpdatingDatabase(false);
+      }, 1000);
     }
-
-    // Cleanup
-    setDraggedId(null);
-    setDraggedFromStage(null);
-    setDraggedOverStage(null);
-    setDraggedOverIndex(null);
-    setActiveDeal(null);
-    lastValidOverStageRef.current = null;
   };
 
   const handleDeleteDeal = async (dealId: string) => {
@@ -598,7 +555,8 @@ function PipelineContent() {
     setIsConvertModalOpen(true);
   };
   
-  // Handle proposal confirmation
+  // Removed handleProposalConfirmation function - deals now move directly
+  /*
   const handleProposalConfirmation = async (sentProposal: boolean, notes?: string) => {
     logger.log('📄 Proposal confirmation handler called:', {
       sentProposal,
@@ -726,6 +684,7 @@ function PipelineContent() {
     // Clear pending move
     setPendingDealMove(null);
   };
+  */
 
   const handleDealClosure = async (firstBillingDate: string | null) => {
     if (!closingDeal) return;
@@ -899,18 +858,7 @@ function PipelineContent() {
         }}
       />
       
-      <ProposalConfirmationModal
-        isOpen={proposalModalOpen}
-        onClose={() => {
-          setProposalModalOpen(false);
-          setPendingDealMove(null);
-        }}
-        onConfirm={handleProposalConfirmation}
-        dealName={pendingDealMove?.deal?.name || (typeof pendingDealMove?.deal?.company === 'string' ? pendingDealMove?.deal?.company : pendingDealMove?.deal?.company?.name) || 'Deal'}
-        clientName={typeof pendingDealMove?.deal?.company === 'string' 
-          ? pendingDealMove?.deal?.company 
-          : pendingDealMove?.deal?.company?.name || undefined}
-      />
+      {/* ProposalConfirmationModal removed - deals now move directly to Opportunity */}
     </>
   );
 }

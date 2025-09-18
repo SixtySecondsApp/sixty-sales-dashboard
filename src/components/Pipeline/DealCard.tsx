@@ -236,17 +236,18 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
     <div
       ref={setNodeRef}
       {...attributes}
+      {...listeners}
       data-testid={`deal-card-${deal.id}`}
       onClick={(e) => {
         // Don't trigger click during dragging or if it's a button/link click
-        if (isDragging || (e.target as HTMLElement).closest('button, a, [data-drag-handle]')) return;
+        if (isDragging || (e.target as HTMLElement).closest('button, a')) return;
         onClick(deal);
       }}
       className={`
         bg-gray-800/50 rounded-xl p-4 hover:bg-gray-800/70
         transition-all border border-gray-800/80
         hover:border-gray-700 shadow-sm hover:shadow-md group cursor-pointer
-        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : ''}
+        ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : 'cursor-grab'}
         relative overflow-hidden
       `}
       style={style}
@@ -323,11 +324,9 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
               )}
             </div>
             
-            {/* Drag Handle */}
+            {/* Drag Handle Indicator */}
             <div 
-              {...listeners}
-              data-drag-handle
-              className="mt-1 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-700/50 opacity-60 hover:opacity-100 transition-opacity"
+              className="mt-1 p-1 rounded hover:bg-gray-700/50 opacity-60 hover:opacity-100 transition-opacity"
               title="Drag to move"
             >
               <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mb-1"></div>

@@ -312,17 +312,39 @@ export class ApiContactService {
       
       // Auto-create company if website is provided and no company_id is set
       let finalContactData = { ...contactData };
+      let websiteToUse = contactData.company_website;
       
-      if (contactData.company_website && !contactData.company_id && contactData.owner_id) {
-        logger.log('🏢 Auto-creating company from website:', contactData.company_website);
+      // Extract website from email if not provided
+      if (!websiteToUse && contactData.email) {
+        const emailDomain = contactData.email.split('@')[1];
+        if (emailDomain && !['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'protonmail.com'].includes(emailDomain.toLowerCase())) {
+          websiteToUse = `https://${emailDomain}`;
+          logger.log('🌐 Extracted website from email:', websiteToUse);
+        }
+      }
+      
+      // Fix: Ensure company_name is a string, not an object
+      if (typeof finalContactData.company_name === 'object' && finalContactData.company_name !== null) {
+        // If company_name is accidentally an object, extract the name property or convert to string
+        const companyObj = finalContactData.company_name as any;
+        finalContactData.company_name = companyObj.name || companyObj.toString() || '';
+        logger.warn('⚠️ Fixed company_name from object to string:', finalContactData.company_name);
+      }
+      
+      if (websiteToUse && !finalContactData.company_id && finalContactData.owner_id) {
+        logger.log('🏢 Auto-creating company from website:', websiteToUse);
         const company = await this.autoCreateCompanyFromWebsite(
-          contactData.company_website, 
-          contactData.email, 
-          contactData.owner_id
+          websiteToUse, 
+          finalContactData.email, 
+          finalContactData.owner_id
         );
         
         if (company) {
           finalContactData.company_id = company.id;
+          // Also set the company_name field if not already set
+          if (!finalContactData.company_name) {
+            finalContactData.company_name = company.name;
+          }
           logger.log('✅ Linked contact to company:', company.name);
           toast.success(`Contact linked to company "${company.name}"`);
         }

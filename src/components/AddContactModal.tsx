@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, User, Mail, Phone, Building2, Briefcase, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { useContacts } from '@/lib/hooks/useContacts';
+import { useUser } from '@/lib/hooks/useUser';
 
 interface AddContactModalProps {
   isOpen: boolean;
@@ -15,13 +17,16 @@ interface AddContactModalProps {
 }
 
 export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalProps) {
+  const { userData } = useUser();
+  const { createContact } = useContacts();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     title: '',
     email: '',
     website: '',
-    phone: ''
+    phone: '',
+    companyName: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -55,6 +60,27 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
       ...prev,
       [field]: value
     }));
+    
+    // Auto-extract website from email when email is entered
+    if (field === 'email' && value && !formData.website) {
+      const emailDomain = value.split('@')[1];
+      if (emailDomain && !['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'protonmail.com'].includes(emailDomain.toLowerCase())) {
+        setFormData(prev => ({
+          ...prev,
+          website: `https://${emailDomain}`
+        }));
+        
+        // Also suggest company name from domain if not set
+        if (!formData.companyName) {
+          const domainParts = emailDomain.split('.');
+          const suggestedName = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
+          setFormData(prev => ({
+            ...prev,
+            companyName: suggestedName
+          }));
+        }
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -80,13 +106,27 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
     setIsLoading(true);
     
     try {
-      // Here you would typically call your API to create the contact
-      // For now, we'll simulate the API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Create the contact using the API service
+      const contactData = {
+        first_name: formData.firstName.trim(),
+        last_name: formData.lastName.trim() || undefined,
+        title: formData.title || undefined,
+        email: formData.email.trim(),
+        phone: formData.phone.trim() || undefined,
+        company_name: formData.companyName.trim() || undefined,
+        company_website: formData.website.trim() || undefined,
+        owner_id: userData?.id || ''
+      };
       
-      toast.success('Contact added successfully');
-      onSuccess?.();
-      handleClose();
+      const newContact = await createContact(contactData);
+      
+      if (newContact) {
+        toast.success('Contact added successfully');
+        onSuccess?.();
+        handleClose();
+      } else {
+        throw new Error('Failed to create contact');
+      }
     } catch (error) {
       toast.error('Failed to add contact');
       console.error('Error adding contact:', error);
@@ -102,7 +142,8 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
       title: '',
       email: '',
       website: '',
-      phone: ''
+      phone: '',
+      companyName: ''
     });
     onClose();
   };
@@ -223,8 +264,27 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
                   onChange={(e) => handleInputChange('website', e.target.value)}
                   placeholder="https://website.com"
                   className="pl-10 bg-gray-800 border-gray-700 text-white"
+                  title="Auto-filled from email domain"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Company Name */}
+          <div>
+            <Label htmlFor="companyName" className="text-sm font-medium text-gray-300">
+              Company Name
+            </Label>
+            <div className="relative mt-1">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                id="companyName"
+                value={formData.companyName}
+                onChange={(e) => handleInputChange('companyName', e.target.value)}
+                placeholder="Company Name"
+                className="pl-10 bg-gray-800 border-gray-700 text-white"
+                title="Auto-suggested from email domain"
+              />
             </div>
           </div>
 

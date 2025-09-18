@@ -377,6 +377,51 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
                 </div>
               </div>
 
+              {/* Contact Information */}
+              {(deal.contact_name || deal.contact_email || deal.contact_phone) && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Contact Information
+                  </h3>
+                  <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {deal.contact_name && (
+                        <div className="flex items-center gap-2">
+                          <User className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-xs text-gray-400">Name</div>
+                            <div className="text-white">{deal.contact_name}</div>
+                          </div>
+                        </div>
+                      )}
+                      {deal.contact_email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-xs text-gray-400">Email</div>
+                            <a href={`mailto:${deal.contact_email}`} className="text-blue-400 hover:text-blue-300">
+                              {deal.contact_email}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                      {deal.contact_phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="text-xs text-gray-400">Phone</div>
+                            <a href={`tel:${deal.contact_phone}`} className="text-blue-400 hover:text-blue-300">
+                              {deal.contact_phone}
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Deal Details */}
               <div className="mb-8">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
