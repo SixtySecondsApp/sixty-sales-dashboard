@@ -182,7 +182,7 @@ serve(async (req) => {
         token_expires_at: tokenExpiresAt,
         fathom_user_id: fathomUserId,
         fathom_user_email: fathomUserEmail,
-        scopes: tokenData.scope?.split(' ') || ['calls:read', 'analytics:read', 'highlights:write'],
+        scopes: tokenData.scope?.split(' ') || ['read'],
         is_active: true,
         last_sync_at: null,
       }, {

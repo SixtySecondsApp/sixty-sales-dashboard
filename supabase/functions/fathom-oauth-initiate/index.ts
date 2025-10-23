@@ -99,11 +99,8 @@ serve(async (req) => {
     }
 
     // Required scopes for Fathom API
-    const scopes = [
-      'calls:read',        // Read meeting/call data
-      'analytics:read',    // Read analytics and insights
-      'highlights:write',  // Create highlights from CRM (future)
-    ]
+    // Fathom uses a single scope: 'read' for OAuth v2
+    const scopes = ['read']
 
     // Build OAuth authorization URL (updated to correct endpoint)
     const authUrl = new URL('https://fathom.video/external/v1/oauth2/authorize')
