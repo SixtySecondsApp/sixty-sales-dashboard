@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { GoogleConnect } from '@/components/GoogleConnect';
+import { FathomSettings } from '@/components/integrations/FathomSettings';
 import { toast } from 'sonner';
-import { 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  Mail, 
-  Calendar, 
+import {
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Mail,
+  Calendar,
   FolderOpen,
   AlertCircle,
   ExternalLink,
@@ -379,6 +380,11 @@ export default function Integrations() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fathom Integration */}
+      <div className="mt-6">
+        <FathomSettings />
+      </div>
 
       {/* Future Integrations Placeholder */}
       <div className="mt-6 p-4 bg-slate-800/30 border border-slate-700 rounded-lg">
