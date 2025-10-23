@@ -19,8 +19,8 @@ serve(async (req) => {
   }
 
   try {
-    // Get authenticated user
-    const supabase = createClient(
+    // Get authenticated user using anon key
+    const anonClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
@@ -30,13 +30,25 @@ serve(async (req) => {
       }
     )
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    const { data: { user }, error: userError } = await anonClient.auth.getUser()
 
     if (userError || !user) {
       throw new Error('Unauthorized: No valid session')
     }
 
     console.log('🔐 Initiating OAuth for user:', user.id)
+
+    // Create service role client for bypassing RLS when storing OAuth state
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        }
+      }
+    )
 
     // Check if user already has an active integration
     const { data: existingIntegration } = await supabase
