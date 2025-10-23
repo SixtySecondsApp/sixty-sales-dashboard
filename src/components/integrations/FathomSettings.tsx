@@ -78,7 +78,7 @@ export function FathomSettings() {
               </CardDescription>
             </div>
             {isConnected && (
-              <Badge variant="default" className="flex items-center gap-1">
+              <Badge variant="default" className="flex items-center gap-1 bg-green-500 hover:bg-green-600">
                 <CheckCircle2 className="h-3 w-3" />
                 Connected
               </Badge>
@@ -108,10 +108,10 @@ export function FathomSettings() {
           ) : (
             <div className="space-y-4">
               {/* Integration Details */}
-              <div className="grid grid-cols-2 gap-4 rounded-lg bg-muted p-4">
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border/50 bg-card/50 p-4">
                 <div>
                   <div className="text-sm text-muted-foreground">Connected As</div>
-                  <div className="font-medium">{integration.fathom_user_email || 'Unknown'}</div>
+                  <div className="font-medium text-foreground">{integration.fathom_user_email || 'Unknown'}</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Permissions</div>
@@ -125,13 +125,13 @@ export function FathomSettings() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Connected On</div>
-                  <div className="font-medium">
+                  <div className="font-medium text-foreground">
                     {new Date(integration.created_at).toLocaleDateString()}
                   </div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Token Expires</div>
-                  <div className="font-medium">
+                  <div className="font-medium text-foreground">
                     {new Date(integration.token_expires_at).toLocaleDateString()}
                   </div>
                 </div>
@@ -202,7 +202,7 @@ export function FathomSettings() {
                   disabled={isSyncing || syncing}
                   variant="outline"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 text-white hover:text-black"
                 >
                   <Calendar className="h-4 w-4" />
                   Custom Sync Range
@@ -280,7 +280,7 @@ export function FathomSettings() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowSyncModal(false)} disabled={syncing}>
+            <Button variant="outline" onClick={() => setShowSyncModal(false)} disabled={syncing} className="text-white hover:text-black">
               Cancel
             </Button>
             <Button onClick={handleSync} disabled={syncing} className="gap-2">
