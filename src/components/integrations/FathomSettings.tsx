@@ -72,11 +72,11 @@ export function FathomSettings() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-[#00BEFF] rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M4 18c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1s-1 .45-1 1v10c0 .55.45 1 1 1z"/>
-                  <path d="M9 18c.55 0 1-.45 1-1V11c0-.55-.45-1-1-1s-1 .45-1 1v6c0 .55.45 1 1 1z"/>
-                  <path d="M14 18c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1s-1 .45-1 1v8c0 .55.45 1 1 1z"/>
+              <div className="bg-[#1a1a1a] px-3 py-2 rounded-lg flex items-center space-x-2">
+                <span className="text-white font-bold text-lg tracking-wide">FATHOM</span>
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
+                  <path d="M4 16C4 14 4 12 6 10C8 8 10 8 12 6C14 4 16 4 18 6C20 8 20 10 20 12" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4 20C4 18 4 16 6 14C8 12 10 12 12 10C14 8 16 8 18 10C20 12 20 14 20 16" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
               <div>

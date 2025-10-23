@@ -128,11 +128,11 @@ export default function FathomCallback() {
       <div className="bg-[#2a2a2a] rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-[#00BEFF]/20">
         {status === 'processing' && (
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-[#00BEFF] rounded-lg mb-6">
-              <svg className="w-8 h-8 text-white animate-pulse" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 18c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1s-1 .45-1 1v10c0 .55.45 1 1 1z"/>
-                <path d="M9 18c.55 0 1-.45 1-1V11c0-.55-.45-1-1-1s-1 .45-1 1v6c0 .55.45 1 1 1z"/>
-                <path d="M14 18c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1s-1 .45-1 1v8c0 .55.45 1 1 1z"/>
+            <div className="inline-flex items-center space-x-2 bg-[#1a1a1a] px-4 py-3 rounded-lg mb-6">
+              <span className="text-white font-bold text-2xl tracking-wide">FATHOM</span>
+              <svg className="w-8 h-8 animate-pulse" viewBox="0 0 24 24" fill="none">
+                <path d="M4 16C4 14 4 12 6 10C8 8 10 8 12 6C14 4 16 4 18 6C20 8 20 10 20 12" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 20C4 18 4 16 6 14C8 12 10 12 12 10C14 8 16 8 18 10C20 12 20 14 20 16" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Connecting to Fathom</h1>
@@ -142,17 +142,17 @@ export default function FathomCallback() {
 
         {status === 'success' && (
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-[#00BEFF] rounded-lg mb-6">
-              <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 18c.55 0 1-.45 1-1V7c0-.55-.45-1-1-1s-1 .45-1 1v10c0 .55.45 1 1 1z"/>
-                <path d="M9 18c.55 0 1-.45 1-1V11c0-.55-.45-1-1-1s-1 .45-1 1v6c0 .55.45 1 1 1z"/>
-                <path d="M14 18c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1s-1 .45-1 1v8c0 .55.45 1 1 1z"/>
+            <div className="inline-flex items-center space-x-2 bg-[#1a1a1a] px-4 py-3 rounded-lg mb-6">
+              <span className="text-white font-bold text-2xl tracking-wide">FATHOM</span>
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none">
+                <path d="M4 16C4 14 4 12 6 10C8 8 10 8 12 6C14 4 16 4 18 6C20 8 20 10 20 12" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 20C4 18 4 16 6 14C8 12 10 12 12 10C14 8 16 8 18 10C20 12 20 14 20 16" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              <div className="absolute">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
+            </div>
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500 rounded-full mb-4">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Successfully Connected!</h1>
             <p className="text-gray-400">Your Fathom account has been successfully connected.</p>
@@ -162,7 +162,14 @@ export default function FathomCallback() {
 
         {status === 'error' && (
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/20 border-2 border-red-500 rounded-lg mb-6">
+            <div className="inline-flex items-center space-x-2 bg-[#1a1a1a] px-4 py-3 rounded-lg mb-6">
+              <span className="text-white font-bold text-2xl tracking-wide">FATHOM</span>
+              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none">
+                <path d="M4 16C4 14 4 12 6 10C8 8 10 8 12 6C14 4 16 4 18 6C20 8 20 10 20 12" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M4 20C4 18 4 16 6 14C8 12 10 12 12 10C14 8 16 8 18 10C20 12 20 14 20 16" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-500/20 border-2 border-red-500 rounded-lg mb-4">
               <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
