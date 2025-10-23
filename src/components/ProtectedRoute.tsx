@@ -9,11 +9,13 @@ interface ProtectedRouteProps {
 }
 
 const publicRoutes = [
-  '/auth/login', 
-  '/auth/signup', 
-  '/auth/forgot-password', 
+  '/auth/login',
+  '/auth/signup',
+  '/auth/forgot-password',
   '/auth/reset-password',
-  '/debug-auth'
+  '/debug-auth',
+  '/auth/google/callback',
+  '/oauth/fathom/callback'
 ];
 
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {

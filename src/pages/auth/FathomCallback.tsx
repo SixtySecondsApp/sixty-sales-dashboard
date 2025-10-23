@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 /**
  * Fathom OAuth Callback Page
@@ -11,12 +12,29 @@ import { supabase } from '@/lib/supabase/clientV2';
 export default function FathomCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        // Wait for auth to load
+        if (loading) {
+          return;
+        }
+
+        // Check if user is authenticated
+        if (!user) {
+          console.error('❌ User not authenticated');
+          setError('You must be logged in to connect Fathom');
+          setStatus('error');
+          setTimeout(() => {
+            navigate('/auth/login?redirect=/integrations');
+          }, 3000);
+          return;
+        }
+
         const code = searchParams.get('code');
         const state = searchParams.get('state');
         const errorParam = searchParams.get('error');
@@ -75,7 +93,7 @@ export default function FathomCallback() {
     };
 
     handleCallback();
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, user, loading]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600">
