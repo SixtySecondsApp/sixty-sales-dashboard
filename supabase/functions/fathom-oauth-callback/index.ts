@@ -269,7 +269,7 @@ serve(async (req) => {
               if (window.opener) {
                 window.close();
               } else {
-                window.location.href = '/integrations/fathom/sync-config';
+                window.location.href = '/integrations?fathom=connected';
               }
             }, 2000);
           </script>
