@@ -153,7 +153,8 @@ serve(async (req) => {
     let fathomUserEmail: string | null = null
 
     try {
-      const userInfoResponse = await fetch('https://api.fathom.video/v1/me', {
+      // Correct API base URL is api.fathom.ai (not api.fathom.video)
+      const userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
         },
@@ -164,6 +165,8 @@ serve(async (req) => {
         fathomUserId = userInfo.id
         fathomUserEmail = userInfo.email
         console.log('✅ Fathom user info retrieved:', fathomUserEmail)
+      } else {
+        console.warn('⚠️  User info request failed:', userInfoResponse.status, await userInfoResponse.text())
       }
     } catch (error) {
       console.warn('⚠️  Could not fetch Fathom user info:', error)
