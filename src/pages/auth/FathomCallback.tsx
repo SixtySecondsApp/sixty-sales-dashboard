@@ -42,6 +42,7 @@ export default function FathomCallback() {
         }
 
         console.log('🔐 Received OAuth callback, forwarding to Edge Function');
+        console.log('📤 Sending to Edge Function:', { code: code.substring(0, 10) + '...', state });
 
         // Call the Edge Function to handle token exchange
         const { data, error: functionError } = await supabase.functions.invoke(
@@ -51,12 +52,14 @@ export default function FathomCallback() {
           }
         );
 
+        console.log('📥 Edge Function response:', { data, error: functionError });
+
         if (functionError) {
           console.error('❌ Edge Function error:', functionError);
           throw new Error(functionError.message || 'Failed to complete OAuth flow');
         }
 
-        console.log('✅ OAuth flow completed successfully');
+        console.log('✅ OAuth flow completed successfully', data);
         setStatus('success');
 
         // Send success message to parent window if opened in popup
