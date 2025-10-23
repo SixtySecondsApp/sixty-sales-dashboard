@@ -19,22 +19,6 @@ export default function FathomCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Wait for auth to load
-        if (loading) {
-          return;
-        }
-
-        // Check if user is authenticated
-        if (!user) {
-          console.error('❌ User not authenticated');
-          setError('You must be logged in to connect Fathom');
-          setStatus('error');
-          setTimeout(() => {
-            navigate('/auth/login?redirect=/integrations');
-          }, 3000);
-          return;
-        }
-
         const code = searchParams.get('code');
         const state = searchParams.get('state');
         const errorParam = searchParams.get('error');
@@ -75,9 +59,16 @@ export default function FathomCallback() {
         console.log('✅ OAuth flow completed successfully');
         setStatus('success');
 
-        // Redirect to integrations page with success indicator
-        setTimeout(() => {
-          navigate('/integrations?fathom=connected');
+        // Check if user is still authenticated
+        // If session was lost during OAuth flow, redirect to login with message
+        // Otherwise redirect to integrations
+        setTimeout(async () => {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            navigate('/auth/login?message=fathom-connected&redirect=/integrations');
+          } else {
+            navigate('/integrations?fathom=connected');
+          }
         }, 2000);
 
       } catch (err) {
@@ -93,7 +84,7 @@ export default function FathomCallback() {
     };
 
     handleCallback();
-  }, [searchParams, navigate, user, loading]);
+  }, [searchParams, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-blue-600">
@@ -115,7 +106,7 @@ export default function FathomCallback() {
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">Fathom Connected!</h1>
             <p className="text-white/80">Your Fathom account has been successfully connected.</p>
-            <p className="text-white/60 text-sm mt-2">Redirecting to integrations...</p>
+            <p className="text-white/60 text-sm mt-2">Redirecting...</p>
           </div>
         )}
 
