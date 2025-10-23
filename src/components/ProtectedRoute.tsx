@@ -24,11 +24,12 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const location = useLocation();
 
   const isPublicRoute = publicRoutes.includes(location.pathname);
-  const isPasswordRecovery = location.pathname === '/auth/reset-password' && 
+  const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
     location.hash.includes('type=recovery');
-  
+  const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
+
   // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
-  const isDevModeBypass = process.env.NODE_ENV === 'development' && 
+  const isDevModeBypass = process.env.NODE_ENV === 'development' &&
     location.pathname.startsWith('/roadmap');
 
   useEffect(() => {
@@ -36,14 +37,15 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       pathname: location.pathname,
       isAuthenticated,
       loading,
-      isPublicRoute
+      isPublicRoute,
+      isOAuthCallback
     });
-    
+
     // Don't redirect while loading
     if (loading) return;
 
-    // If user is authenticated and on a public route (except password recovery), redirect to app
-    if (isAuthenticated && isPublicRoute && !isPasswordRecovery) {
+    // If user is authenticated and on a public route (except password recovery and OAuth callbacks), redirect to app
+    if (isAuthenticated && isPublicRoute && !isPasswordRecovery && !isOAuthCallback) {
       navigate('/');
       return;
     }
