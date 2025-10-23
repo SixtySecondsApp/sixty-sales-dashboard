@@ -17,6 +17,10 @@ export default function FathomCallback() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
+    console.log('🚀 FathomCallback component mounted!');
+    console.log('📍 Current URL:', window.location.href);
+    console.log('🔑 Search params:', Object.fromEntries(searchParams));
+
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
