@@ -24,7 +24,7 @@ export function FathomSettings() {
   } = useFathomIntegration();
 
   const [showSyncModal, setShowSyncModal] = useState(false);
-  const [syncType, setSyncType] = useState<'initial' | 'incremental' | 'manual'>('manual');
+  const [syncType, setSyncType] = useState<'initial' | 'incremental' | 'manual' | 'all_time'>('manual');
   const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({});
   const [syncing, setSyncing] = useState(false);
 
@@ -71,11 +71,19 @@ export function FathomSettings() {
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-white">Fathom Integration</CardTitle>
-              <CardDescription className="text-gray-400">
-                Connect your Fathom account to automatically sync meeting recordings and insights
-              </CardDescription>
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18.5c-3.86-.96-6.5-4.66-6.5-8.5V8.5l6.5-3.25L18.5 8.5V12c0 3.84-2.64 7.54-6.5 8.5z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </div>
+              <div>
+                <CardTitle className="text-white">Fathom Integration</CardTitle>
+                <CardDescription className="text-gray-400">
+                  Connect your Fathom account to automatically sync meeting recordings and insights
+                </CardDescription>
+              </div>
             </div>
             {isConnected && (
               <Badge variant="default" className="flex items-center gap-1 bg-green-500 hover:bg-green-600">
@@ -241,7 +249,8 @@ export function FathomSettings() {
                 <SelectContent>
                   <SelectItem value="manual">Manual (Last 30 days)</SelectItem>
                   <SelectItem value="incremental">Incremental (Last 24 hours)</SelectItem>
-                  <SelectItem value="initial">Initial (Custom range)</SelectItem>
+                  <SelectItem value="all_time">All Time (Complete history)</SelectItem>
+                  <SelectItem value="initial">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -274,6 +283,7 @@ export function FathomSettings() {
               <AlertDescription className="text-xs">
                 {syncType === 'manual' && 'Syncs meetings from the last 30 days'}
                 {syncType === 'incremental' && 'Syncs new/updated meetings from the last 24 hours'}
+                {syncType === 'all_time' && 'Syncs all meetings from your entire Fathom history. This may take several minutes.'}
                 {syncType === 'initial' && 'Syncs all meetings within the specified date range'}
               </AlertDescription>
             </Alert>

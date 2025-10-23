@@ -11,14 +11,15 @@ const corsHeaders = {
  *
  * Purpose: Sync meetings from Fathom API to CRM database
  * Sync Types:
- *   - initial: User-initiated with date range
+ *   - initial: User-initiated with custom date range
  *   - incremental: Hourly cron job (last 24h)
- *   - manual: User-triggered refresh
+ *   - manual: User-triggered refresh (last 30 days)
+ *   - all_time: Complete historical sync (all meetings ever)
  *   - webhook: Immediate sync on webhook notification
  */
 
 interface SyncRequest {
-  sync_type: 'initial' | 'incremental' | 'manual' | 'webhook'
+  sync_type: 'initial' | 'incremental' | 'manual' | 'webhook' | 'all_time'
   start_date?: string // ISO 8601
   end_date?: string
   call_id?: string // For webhook-triggered single call sync
@@ -166,6 +167,11 @@ serve(async (req) => {
           case 'incremental':
             // Last 24 hours for incremental sync
             apiStartDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
+            apiEndDate = now.toISOString()
+            break
+          case 'all_time':
+            // All time - no start date filter (Fathom API will return all historical calls)
+            apiStartDate = undefined
             apiEndDate = now.toISOString()
             break
           case 'initial':
