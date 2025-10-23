@@ -122,7 +122,7 @@ serve(async (req) => {
     console.log('🔄 Exchanging authorization code for tokens')
 
     // Exchange authorization code for access token
-    const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
+    const tokenResponse = await fetch('https://app.fathom.video/oauth/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
