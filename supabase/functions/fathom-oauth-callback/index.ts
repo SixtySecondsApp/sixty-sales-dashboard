@@ -19,11 +19,23 @@ serve(async (req) => {
   }
 
   try {
-    const url = new URL(req.url)
-    const code = url.searchParams.get('code')
-    const state = url.searchParams.get('state')
-    const error = url.searchParams.get('error')
-    const errorDescription = url.searchParams.get('error_description')
+    // Get code and state from request body (POST) or URL params (GET redirect)
+    let code: string | null = null
+    let state: string | null = null
+    let error: string | null = null
+    let errorDescription: string | null = null
+
+    if (req.method === 'POST') {
+      const body = await req.json()
+      code = body.code
+      state = body.state
+    } else {
+      const url = new URL(req.url)
+      code = url.searchParams.get('code')
+      state = url.searchParams.get('state')
+      error = url.searchParams.get('error')
+      errorDescription = url.searchParams.get('error_description')
+    }
 
     // Check for OAuth errors from Fathom
     if (error) {
@@ -206,7 +218,23 @@ serve(async (req) => {
 
     console.log('🎉 OAuth flow completed successfully')
 
-    // Redirect to sync configuration page
+    // Return JSON response for POST requests, HTML for GET redirects
+    if (req.method === 'POST') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          integration_id: integration.id,
+          user_id: userId,
+          message: 'Fathom integration connected successfully'
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      )
+    }
+
+    // HTML response for GET redirects (if Fathom redirects directly to Edge Function)
     return new Response(
       `<!DOCTYPE html>
       <html>
@@ -251,26 +279,13 @@ serve(async (req) => {
           <div class="container">
             <h1>✅ Fathom Connected!</h1>
             <p>Your Fathom account has been successfully connected.</p>
-            <p>Redirecting to sync configuration...</p>
+            <p>Redirecting to integrations...</p>
             <div class="spinner"></div>
           </div>
           <script>
-            // Send message to parent window if opened in popup
-            if (window.opener) {
-              window.opener.postMessage({
-                type: 'fathom-oauth-success',
-                integrationId: '${integration.id}',
-                userId: '${userId}'
-              }, '*');
-            }
-
             // Redirect after 2 seconds
             setTimeout(() => {
-              if (window.opener) {
-                window.close();
-              } else {
-                window.location.href = '/integrations?fathom=connected';
-              }
+              window.location.href = '/integrations?fathom=connected';
             }, 2000);
           </script>
         </body>

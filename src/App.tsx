@@ -65,6 +65,7 @@ const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const MeetingDetail = lazy(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
 const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
@@ -79,6 +80,7 @@ const Insights = lazy(() => import('@/pages/Insights'));
 const Workflows = lazy(() => import('@/pages/Workflows'));
 const Integrations = lazy(() => import('@/pages/Integrations'));
 const GoogleCallback = lazy(() => import('@/pages/GoogleCallback'));
+const FathomCallback = lazy(() => import('@/pages/auth/FathomCallback'));
 const FormDisplay = lazy(() => import('@/pages/FormDisplay'));
 const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
 const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
@@ -239,6 +241,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
                 <Route path="/email" element={<AppLayout><Email /></AppLayout>} />
                 <Route path="/auth/google/callback" element={<GoogleCallback />} />
+                <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
                 <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
@@ -277,7 +280,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
-                <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
