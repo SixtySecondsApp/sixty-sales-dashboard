@@ -48,6 +48,8 @@ export function useFathomIntegration() {
         setLoading(true);
         setError(null);
 
+        console.log('🔍 Fetching Fathom integration for user:', user.id);
+
         // Get active integration
         const { data: integrationData, error: integrationError } = await supabase
           .from('fathom_integrations')
@@ -55,6 +57,11 @@ export function useFathomIntegration() {
           .eq('user_id', user.id)
           .eq('is_active', true)
           .single();
+
+        console.log('📊 Integration query result:', {
+          data: integrationData,
+          error: integrationError
+        });
 
         if (integrationError && integrationError.code !== 'PGRST116') {
           throw integrationError;

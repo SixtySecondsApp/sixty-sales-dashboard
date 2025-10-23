@@ -121,7 +121,7 @@ const MeetingsList: React.FC = () => {
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
   const [scope, setScope] = useState<'me' | 'team'>('me')
-  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [view, setView] = useState<'list' | 'grid'>('grid')
   const [stats, setStats] = useState({
     meetingsThisMonth: 0,
     avgDuration: 0,
@@ -143,7 +143,7 @@ const MeetingsList: React.FC = () => {
         .from('meetings')
         .select(`
           *,
-          company:companies(name, domain),
+          company:companies!fk_meetings_company_id(name, domain),
           action_items:meeting_action_items(completed)
         `)
         .order('meeting_start', { ascending: false })

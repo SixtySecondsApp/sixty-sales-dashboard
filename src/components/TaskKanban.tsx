@@ -707,6 +707,20 @@ const TaskCard: React.FC<TaskCardProps> = ({
               </div>
               {/* Subtask Badge */}
               <SubtaskBadge taskId={task.id} />
+              
+              {/* Category and Fathom Badges */}
+              <div className="flex flex-wrap gap-1 mt-2">
+                {task.category && (
+                  <Badge className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 border-purple-700">
+                    {task.category}
+                  </Badge>
+                )}
+                {task.meeting_id && (
+                  <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700">
+                    From Fathom
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1 ml-2 flex-shrink-0">
               {onEdit && (

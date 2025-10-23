@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useUser } from '@/lib/hooks/useUser';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
-import { Camera, Save, Lock } from 'lucide-react';
+import { Camera, Save, Lock, UserCog, Link2, History, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { userData, isLoading: userLoading } = useUser();
   const { user, userProfile, updatePassword } = useAuth();
   const [formData, setFormData] = useState({
@@ -298,6 +300,61 @@ export default function Profile() {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Quick Links Section */}
+        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
+          <div className="p-6">
+            <h2 className="text-xl font-bold mb-4">Quick Links</h2>
+            <div className="space-y-2">
+              {/* Admin Section - Only show if user is admin */}
+              {userData?.is_admin && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+                >
+                  <div className="flex items-center gap-3">
+                    <UserCog className="w-5 h-5 text-[#37bd7e]" />
+                    <div className="text-left">
+                      <p className="font-medium">Admin Dashboard</p>
+                      <p className="text-sm text-gray-400">Manage users, permissions, and system settings</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                </button>
+              )}
+
+              {/* Integrations */}
+              <button
+                onClick={() => navigate('/integrations')}
+                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+              >
+                <div className="flex items-center gap-3">
+                  <Link2 className="w-5 h-5 text-[#37bd7e]" />
+                  <div className="text-left">
+                    <p className="font-medium">Integrations</p>
+                    <p className="text-sm text-gray-400">Connect with Google, Fathom, and other services</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+              </button>
+
+              {/* Releases */}
+              <button
+                onClick={() => navigate('/releases')}
+                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+              >
+                <div className="flex items-center gap-3">
+                  <History className="w-5 h-5 text-[#37bd7e]" />
+                  <div className="text-left">
+                    <p className="font-medium">Release Notes</p>
+                    <p className="text-sm text-gray-400">See what's new and upcoming features</p>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Password Change Modal */}

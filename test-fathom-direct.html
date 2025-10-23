@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Fathom Webhook Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">🎬 Direct Fathom Webhook Test</h1>
+        
+        <div class="bg-gray-800 rounded-lg p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Enter Your Workflow ID</h2>
+            <p class="text-gray-400 mb-4">Get this from your Supabase SQL query results</p>
+            <input id="workflowId" type="text" placeholder="e.g., 123e4567-e89b-12d3-a456-426614174000" 
+                   class="w-full px-4 py-2 bg-gray-700 rounded-md text-white mb-4">
+            <button onclick="runTests()" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-md font-semibold">
+                🚀 Run All Tests
+            </button>
+        </div>
+
+        <div id="results" class="space-y-4"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+
+        // Your original test payloads
+        const payloads = {
+            summary: {
+                topic: "Sales Demo with Acme Corp",
+                meetingUrl: "https://fathom.video/share/abc123",
+                shareId: "abc123",
+                participants: [
+                    { name: "John Doe", email: "john@acme.com" },
+                    { name: "Jane Smith", email: "jane@yourcompany.com" }
+                ],
+                startedAt: "2024-01-15T10:00:00Z",
+                endedAt: "2024-01-15T10:30:00Z",
+                duration: 1800,
+                chapters: [
+                    { topic: "Introduction", start: 0, end: 300 },
+                    { topic: "Product Demo", start: 300, end: 1200 }
+                ],
+                action_items: [
+                    { item: "Send proposal", owner: "Jane Smith" },
+                    { item: "Schedule follow-up", owner: "John Doe" }
+                ],
+                ai_summary: "Successful product demo with strong interest in enterprise features."
+            },
+            
+            transcript: {
+                transcript: `00:00:00 Jane Smith: Good morning everyone, thanks for joining today's demo.
+00:00:15 John Doe: Thanks for having us. We're excited to see what you've built.
+00:05:30 Jane Smith: Let me show you our key features...
+00:10:45 John Doe: This looks great. Can you show us the API integration?
+00:15:20 Jane Smith: Absolutely, let me pull that up...
+00:25:00 John Doe: Excellent. We'll need to discuss this with our team.
+00:29:30 Jane Smith: I'll send over a proposal today and we can schedule a follow-up.`,
+                meetingUrl: "https://fathom.video/share/abc123",
+                shareId: "abc123",
+                duration: 1800
+            },
+            
+            actionItems: {
+                action_item: [
+                    {
+                        item: "Send proposal to John",
+                        owner: "Jane Smith",
+                        due_date: "2024-01-18"
+                    },
+                    {
+                        item: "Prepare API documentation",
+                        owner: "Tech Team",
+                        due_date: "2024-01-20"
+                    },
+                    {
+                        item: "Schedule follow-up meeting",
+                        owner: "John Doe",
+                        due_date: "2024-01-22"
+                    }
+                ],
+                meetingUrl: "https://fathom.video/share/abc123",
+                shareId: "abc123"
+            }
+        };
+
+        async function testWebhook(workflowId, payloadType, payload) {
+            const webhookUrl = `${SUPABASE_URL}/functions/v1/workflow-webhook/${workflowId}`;
+            
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'bg-gray-800 rounded-lg p-6';
+            
+            try {
+                resultDiv.innerHTML = `<h3 class="text-lg font-semibold mb-2">Testing ${payloadType}...</h3>`;
+                document.getElementById('results').appendChild(resultDiv);
+                
+                const response = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'apikey': SUPABASE_KEY
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const responseText = await response.text();
+                let responseData;
+                
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch {
+                    responseData = responseText;
+                }
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3 class="text-lg font-semibold mb-2">✅ ${payloadType} - SUCCESS</h3>
+                        <div class="bg-green-900/30 p-3 rounded">
+                            <p class="text-sm text-gray-300">Status: ${response.status}</p>
+                            <details class="mt-2">
+                                <summary class="cursor-pointer text-blue-400">View Response</summary>
+                                <pre class="mt-2 text-xs overflow-x-auto">${JSON.stringify(responseData, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3 class="text-lg font-semibold mb-2">❌ ${payloadType} - FAILED</h3>
+                        <div class="bg-red-900/30 p-3 rounded">
+                            <p class="text-sm text-gray-300">Status: ${response.status} ${response.statusText}</p>
+                            <details class="mt-2">
+                                <summary class="cursor-pointer text-red-400">View Error</summary>
+                                <pre class="mt-2 text-xs overflow-x-auto">${JSON.stringify(responseData, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3 class="text-lg font-semibold mb-2">❌ ${payloadType} - ERROR</h3>
+                    <div class="bg-red-900/30 p-3 rounded">
+                        <p class="text-sm text-gray-300">Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function runTests() {
+            const workflowId = document.getElementById('workflowId').value.trim();
+            
+            if (!workflowId) {
+                alert('Please enter your workflow ID first!');
+                return;
+            }
+            
+            // Clear previous results
+            document.getElementById('results').innerHTML = '';
+            
+            // Show webhook URL
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'bg-blue-900/30 rounded-lg p-4 mb-4';
+            infoDiv.innerHTML = `
+                <p class="text-sm">🔗 Webhook URL:</p>
+                <code class="text-xs text-blue-400">${SUPABASE_URL}/functions/v1/workflow-webhook/${workflowId}</code>
+            `;
+            document.getElementById('results').appendChild(infoDiv);
+            
+            // Run tests with delay between them
+            await testWebhook(workflowId, 'Summary Payload', payloads.summary);
+            await new Promise(r => setTimeout(r, 1000));
+            
+            await testWebhook(workflowId, 'Transcript Payload', payloads.transcript);
+            await new Promise(r => setTimeout(r, 1000));
+            
+            await testWebhook(workflowId, 'Action Items Payload', payloads.actionItems);
+            
+            // Add summary
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'bg-gray-800 rounded-lg p-6 mt-6';
+            summaryDiv.innerHTML = `
+                <h3 class="text-xl font-semibold">📊 Test Complete</h3>
+                <p class="text-gray-400 mt-2">Check the results above. If all three tests passed, your Fathom integration is working!</p>
+                <p class="text-gray-400 mt-2">Next step: Configure this webhook URL in your Fathom account settings.</p>
+            `;
+            document.getElementById('results').appendChild(summaryDiv);
+        }
+        
+        // Allow Enter key to trigger tests
+        document.getElementById('workflowId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') runTests();
+        });
+    </script>
+</body>
+</html>

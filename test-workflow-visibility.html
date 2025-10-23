@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Workflow Visibility</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .workflow {
+            background: #2a2a2a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border: 1px solid #444;
+        }
+        .success {
+            color: #4ade80;
+        }
+        .error {
+            color: #f87171;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Fathom Workflow Visibility</h1>
+    <div id="output"></div>
+    
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjEwMDkwMTUsImV4cCI6MjAzNjU4NTAxNX0.OBPWDT5L5CuK3v26LGCHgcO_i8sOen7oWhJpeu36xvY';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = message;
+            output.appendChild(div);
+        }
+        
+        async function testWorkflowVisibility() {
+            log('<h2>Testing Workflow Visibility...</h2>');
+            
+            // Get current user
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            
+            if (userError || !user) {
+                log('❌ User not logged in. Please log in first.', 'error');
+                return;
+            }
+            
+            log(`✅ Logged in as: ${user.email} (${user.id})`, 'success');
+            
+            // Test 1: Get all workflows without filtering
+            log('<h3>Test 1: All workflows in database</h3>');
+            const { data: allWorkflows, error: allError } = await supabase
+                .from('user_automation_rules')
+                .select('id, rule_name, user_id, is_active, created_at')
+                .order('created_at', { ascending: false });
+            
+            if (allError) {
+                log(`❌ Error fetching all workflows: ${allError.message}`, 'error');
+            } else {
+                log(`Found ${allWorkflows.length} total workflows`, 'success');
+                if (allWorkflows.length > 0) {
+                    log('<pre>' + JSON.stringify(allWorkflows.slice(0, 5), null, 2) + '</pre>');
+                }
+            }
+            
+            // Test 2: Get workflows for current user
+            log('<h3>Test 2: Workflows for current user</h3>');
+            const { data: userWorkflows, error: userError2 } = await supabase
+                .from('user_automation_rules')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false });
+            
+            if (userError2) {
+                log(`❌ Error fetching user workflows: ${userError2.message}`, 'error');
+            } else {
+                log(`Found ${userWorkflows.length} workflows for current user`, 'success');
+                if (userWorkflows.length > 0) {
+                    userWorkflows.forEach(w => {
+                        log(`<div class="workflow">
+                            <strong>${w.rule_name}</strong><br>
+                            ID: ${w.id}<br>
+                            Active: ${w.is_active}<br>
+                            Created: ${new Date(w.created_at).toLocaleString()}
+                        </div>`);
+                    });
+                }
+            }
+            
+            // Test 3: Check for Fathom workflow specifically
+            log('<h3>Test 3: Fathom workflow specifically</h3>');
+            const { data: fathomWorkflow, error: fathomError } = await supabase
+                .from('user_automation_rules')
+                .select('*')
+                .eq('id', 'c914a0af-7cd4-43b8-97f2-863e6a4abf9f')
+                .single();
+            
+            if (fathomError) {
+                log(`❌ Error fetching Fathom workflow: ${fathomError.message}`, 'error');
+            } else if (fathomWorkflow) {
+                log('✅ Fathom workflow found!', 'success');
+                log(`<div class="workflow">
+                    <strong>${fathomWorkflow.rule_name}</strong><br>
+                    ID: ${fathomWorkflow.id}<br>
+                    User ID: ${fathomWorkflow.user_id}<br>
+                    Active: ${fathomWorkflow.is_active}<br>
+                    Current User ID: ${user.id}<br>
+                    Match: ${fathomWorkflow.user_id === user.id ? '✅ YES' : '❌ NO'}
+                </div>`);
+                
+                if (fathomWorkflow.user_id !== user.id) {
+                    log(`<div class="error">
+                        ⚠️ The Fathom workflow exists but is assigned to a different user.<br>
+                        Workflow user: ${fathomWorkflow.user_id}<br>
+                        Your user ID: ${user.id}<br>
+                        <br>
+                        To fix this, run this SQL in Supabase:<br>
+                        <pre>UPDATE user_automation_rules 
+SET user_id = '${user.id}'
+WHERE id = 'c914a0af-7cd4-43b8-97f2-863e6a4abf9f';</pre>
+                    </div>`, 'error');
+                }
+                
+                // Check if canvas_data exists
+                if (fathomWorkflow.canvas_data && fathomWorkflow.canvas_data.nodes) {
+                    log(`✅ Canvas data exists with ${fathomWorkflow.canvas_data.nodes.length} nodes`, 'success');
+                } else {
+                    log('⚠️ Canvas data is missing or incomplete', 'error');
+                }
+            } else {
+                log('❌ Fathom workflow not found', 'error');
+            }
+            
+            // Test 4: Check RLS policies
+            log('<h3>Test 4: RLS Policy Check</h3>');
+            const { data: rlsCheck, error: rlsError } = await supabase.rpc('check_rls_policies', {
+                table_name: 'user_automation_rules'
+            }).maybeSingle();
+            
+            if (!rlsError && rlsCheck === null) {
+                // RPC doesn't exist, that's okay
+                log('RLS check function not available (this is normal)', 'info');
+            } else if (rlsError) {
+                log('Could not check RLS policies: ' + rlsError.message, 'info');
+            } else {
+                log('RLS check result: ' + JSON.stringify(rlsCheck), 'info');
+            }
+        }
+        
+        // Run test immediately
+        testWorkflowVisibility();
+        
+        // Add refresh button
+        const button = document.createElement('button');
+        button.textContent = 'Run Test Again';
+        button.onclick = () => {
+            output.innerHTML = '';
+            testWorkflowVisibility();
+        };
+        document.body.insertBefore(button, output);
+    </script>
+</body>
+</html>

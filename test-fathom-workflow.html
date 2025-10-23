@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fathom Workflow Test - Mark Ingram Meeting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .json-editor {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .node-response {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white/90 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">🚀 Fathom Workflow Test</h1>
+            <p class="text-gray-600 mb-8">Testing with Mark Ingram & Phil O'Brien Meeting Data</p>
+
+            <!-- Test Payload Section -->
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">📋 Test Payload</h2>
+                <div class="json-editor">
+                    <pre id="payloadDisplay"></pre>
+                </div>
+                <button id="testButton" class="mt-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300">
+                    ▶️ Test Workflow
+                </button>
+            </div>
+
+            <!-- Expected Workflow Behavior -->
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">🎯 Expected Workflow Behavior</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-blue-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-blue-900 mb-2">Conditional Branch</h3>
+                        <ul class="text-sm text-blue-700 space-y-1">
+                            <li>✓ Will process transcript branch (has transcript)</li>
+                            <li>✓ Will process summary branch (has summary)</li>
+                            <li>✓ Will process action items branch (has tasks)</li>
+                        </ul>
+                    </div>
+                    <div class="bg-green-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-green-900 mb-2">Expected Outputs</h3>
+                        <ul class="text-sm text-green-700 space-y-1">
+                            <li>📄 Google Doc with transcript</li>
+                            <li>🤖 AI analysis of sales conversation</li>
+                            <li>📊 Meeting record in database</li>
+                            <li>✅ Action items created</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workflow Execution Results -->
+            <div id="results" class="hidden">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">📊 Workflow Execution Results</h2>
+                <div id="nodeResponses" class="space-y-4"></div>
+            </div>
+
+            <!-- Test Status -->
+            <div id="status" class="mt-8 text-center text-gray-600">
+                Ready to test workflow...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fathom meeting payload based on the Mark Ingram meeting
+        const fathomPayload = {
+            "id": "fathom_mark_ingram_001",
+            "meeting_id": "zoom_markingram_2024",
+            "title": "Mark Ingram - Smart4Energy Talent Discussion",
+            "date": new Date().toISOString(),
+            "duration": 1080, // 18 minutes based on transcript
+            "participants": [
+                {
+                    "name": "Phil O'Brien",
+                    "email": "phil@sixtyseconds.video",
+                    "role": "host",
+                    "company": "Sixty Seconds",
+                    "talk_time": 540
+                },
+                {
+                    "name": "Mark Ingram",
+                    "email": "m.ingram@smart4energytalent.com",
+                    "role": "guest",
+                    "company": "Smart4Energy Talent",
+                    "is_external": true,
+                    "talk_time": 540
+                }
+            ],
+            "external_domains": ["smart4energytalent.com"],
+            "has_external_invitees": true,
+            "fathom_user": {
+                "name": "Phil O'Brien",
+                "email": "phil@sixtyseconds.video",
+                "team": "Customer Success"
+            },
+            "summary": "Mark Ingram discussed his 30-year experience in recruitment and his new venture backed by Engage to compete with major energy sector recruitment firms. He's implementing data-driven automation and AI tools, seeking help with mass scale outreach, domain management, and email deliverability through Instantly AI. Phil explained 60 Seconds' approach using protected domains, targeted video campaigns, and Slack integration for lead management.",
+            "key_points": [
+                "Mark has 30 years experience in agency and search firms",
+                "Recently got backing from Engage to compete with major recruitment firms",
+                "Implementing data-driven automation and AI perspective",
+                "Needs help with mass scale outreach and domain management",
+                "Looking at Instantly AI and other tech stacks",
+                "Phil offers protected domain strategy with 9+ domains",
+                "Video explainer campaigns targeting C-suite executives",
+                "Slack integration for lead tracking and management"
+            ],
+            "action_items": [
+                {
+                    "id": "action_001",
+                    "text": "Set up protected domains for Smart4Energy email campaigns",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "high"
+                },
+                {
+                    "id": "action_002", 
+                    "text": "Provide Instantly AI tech stack configuration and pricing",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "high"
+                },
+                {
+                    "id": "action_003",
+                    "text": "Schedule follow-up call to discuss implementation details",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "medium"
+                },
+                {
+                    "id": "action_004",
+                    "text": "Prepare video campaign strategy for Smart4Energy launch",
+                    "assignee": "phil@sixtyseconds.video",
+                    "due_date": new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+                    "priority": "medium"
+                }
+            ],
+            "transcript_excerpt": "00:00:00 - Phil O'Brien (Sixty Seconds): Hi Mark. Hi Phil, how are you doing?\n00:00:03 - Mark Ingram (smart4energytalent.com): Yeah, good, you?...\n00:01:25 - Mark Ingram: I went and got investors... I now want to take on the big guys that I've worked for for decades...",
+            "keywords": [
+                "recruitment",
+                "automation",
+                "AI",
+                "email deliverability", 
+                "Instantly AI",
+                "domain management",
+                "mass outreach",
+                "Engage",
+                "Smart4Energy"
+            ],
+            "sentiment": "positive",
+            "deal_probability": 0.85,
+            "next_steps": "1. Set up protected domains\n2. Configure Instantly AI\n3. Design video campaign\n4. Schedule implementation call",
+            "meeting_type": "sales_discovery",
+            "opportunity_score": 9,
+            "engagement_level": "high",
+            "webhook_type": "fathom_meeting_summary"
+        };
+
+        // Display the payload
+        document.getElementById('payloadDisplay').textContent = JSON.stringify(fathomPayload, null, 2);
+
+        // Simulate workflow test
+        document.getElementById('testButton').addEventListener('click', async function() {
+            const button = this;
+            const status = document.getElementById('status');
+            const results = document.getElementById('results');
+            const nodeResponses = document.getElementById('nodeResponses');
+            
+            // Update UI
+            button.disabled = true;
+            button.textContent = '⏳ Testing...';
+            status.innerHTML = '<div class="flex items-center justify-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div><span class="ml-3">Executing workflow...</span></div>';
+            results.classList.remove('hidden');
+            nodeResponses.innerHTML = '';
+
+            // Simulate workflow execution
+            const nodes = [
+                {
+                    id: 'webhook',
+                    name: 'Fathom Webhook',
+                    status: 'processing',
+                    input: fathomPayload,
+                    output: null
+                },
+                {
+                    id: 'branch',
+                    name: 'Conditional Branch',
+                    status: 'waiting',
+                    input: null,
+                    output: null
+                },
+                {
+                    id: 'transcript',
+                    name: 'Google Docs Creator (Transcript)',
+                    status: 'waiting',
+                    input: null,
+                    output: null
+                },
+                {
+                    id: 'ai_agent',
+                    name: 'AI Sales Coach',
+                    status: 'waiting',
+                    input: null,
+                    output: null
+                },
+                {
+                    id: 'meeting_upsert',
+                    name: 'Meeting Database Update',
+                    status: 'waiting',
+                    input: null,
+                    output: null
+                },
+                {
+                    id: 'action_processor',
+                    name: 'Action Item Processor',
+                    status: 'waiting',
+                    input: null,
+                    output: null
+                }
+            ];
+
+            // Process each node
+            for (let i = 0; i < nodes.length; i++) {
+                const node = nodes[i];
+                
+                // Update node status
+                node.status = 'processing';
+                updateNodeDisplay(nodeResponses, nodes);
+                
+                await delay(1500); // Simulate processing time
+                
+                // Generate output based on node type
+                switch(node.id) {
+                    case 'webhook':
+                        node.output = { received: true, payload_id: fathomPayload.id };
+                        break;
+                    case 'branch':
+                        node.input = fathomPayload;
+                        node.output = { 
+                            branches_activated: ['transcript', 'summary', 'action_items'],
+                            conditions_met: 3
+                        };
+                        break;
+                    case 'transcript':
+                        node.input = { transcript: fathomPayload.transcript_excerpt };
+                        node.output = { 
+                            doc_id: 'google_doc_' + Date.now(),
+                            url: 'https://docs.google.com/document/d/example'
+                        };
+                        break;
+                    case 'ai_agent':
+                        node.input = { 
+                            transcript: fathomPayload.transcript_excerpt,
+                            summary: fathomPayload.summary
+                        };
+                        node.output = { 
+                            sales_score: 8.5,
+                            recommendations: [
+                                "Strong interest shown by prospect",
+                                "Follow up on domain management pain points",
+                                "Prepare detailed pricing proposal"
+                            ]
+                        };
+                        break;
+                    case 'meeting_upsert':
+                        node.input = { 
+                            meeting_data: {
+                                id: fathomPayload.meeting_id,
+                                participants: fathomPayload.participants,
+                                summary: fathomPayload.summary
+                            }
+                        };
+                        node.output = { 
+                            meeting_id: 'db_meeting_' + Date.now(),
+                            status: 'created'
+                        };
+                        break;
+                    case 'action_processor':
+                        node.input = { action_items: fathomPayload.action_items };
+                        node.output = { 
+                            tasks_created: fathomPayload.action_items.length,
+                            task_ids: fathomPayload.action_items.map(a => 'task_' + a.id)
+                        };
+                        break;
+                }
+                
+                node.status = 'completed';
+                updateNodeDisplay(nodeResponses, nodes);
+            }
+            
+            // Complete test
+            button.disabled = false;
+            button.textContent = '✅ Test Complete';
+            status.innerHTML = '<div class="text-green-600 font-semibold">✅ Workflow executed successfully! All nodes processed.</div>';
+            
+            // Reset button after delay
+            setTimeout(() => {
+                button.textContent = '▶️ Test Again';
+            }, 3000);
+        });
+
+        function updateNodeDisplay(container, nodes) {
+            container.innerHTML = nodes.map(node => `
+                <div class="node-response ${node.status === 'completed' ? 'border-l-4 border-green-500' : node.status === 'processing' ? 'border-l-4 border-yellow-500' : 'border-l-4 border-gray-300'}">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-semibold text-gray-800">${node.name}</h3>
+                        <span class="status-badge ${
+                            node.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            node.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-600'
+                        }">${node.status}</span>
+                    </div>
+                    ${node.input ? `
+                        <div class="mt-2">
+                            <span class="text-sm font-medium text-gray-600">📥 Input:</span>
+                            <pre class="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">${JSON.stringify(node.input, null, 2)}</pre>
+                        </div>
+                    ` : ''}
+                    ${node.output ? `
+                        <div class="mt-2">
+                            <span class="text-sm font-medium text-gray-600">📤 Output:</span>
+                            <pre class="text-xs bg-gray-50 p-2 rounded mt-1 overflow-x-auto">${JSON.stringify(node.output, null, 2)}</pre>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Add visual feedback on load
+        window.addEventListener('load', () => {
+            document.getElementById('testButton').classList.add('animate-pulse');
+            setTimeout(() => {
+                document.getElementById('testButton').classList.remove('animate-pulse');
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

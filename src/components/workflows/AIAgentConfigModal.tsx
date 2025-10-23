@@ -168,7 +168,7 @@ Always provide helpful, accurate information and take appropriate actions using 
 
   const handleProviderChange = async (provider: AINodeConfig['modelProvider']) => {
     await fetchModelsForProvider(provider);
-    const defaultModel = modelOptions[provider]?.[0]?.value || DEFAULT_MODEL_OPTIONS[provider][0].value;
+    const defaultModel = modelOptions[provider]?.[0]?.value || DEFAULT_MODEL_OPTIONS[provider]?.[0]?.value || '';
     setFormData({ ...formData, modelProvider: provider, model: defaultModel });
   };
 
@@ -302,7 +302,7 @@ Always provide helpful, accurate information and take appropriate actions using 
                       className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       disabled={loadingModels}
                     >
-                      {(modelOptions[formData.modelProvider] || DEFAULT_MODEL_OPTIONS[formData.modelProvider]).map((option) => (
+                      {(modelOptions[formData.modelProvider] || DEFAULT_MODEL_OPTIONS[formData.modelProvider] || []).map((option) => (
                         <option key={option.value} value={option.value}>
                           {option.label}
                         </option>

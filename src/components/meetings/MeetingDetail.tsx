@@ -91,7 +91,8 @@ interface ActionItem {
   ai_generated: boolean
   timestamp_seconds: number | null
   playback_url: string | null
-  task_id: string | null
+  linked_task_id: string | null  // Changed from task_id to match new column name
+  is_sales_rep_task: boolean | null  // New field to identify sales rep tasks
 }
 
 function sentimentLabel(score: number | null): string {
@@ -152,18 +153,48 @@ const MeetingDetail: React.FC = () => {
     
     setLoading(true)
     try {
-      // Fetch meeting details
+      // Fetch meeting details - using left joins for optional relationships
       const { data: meetingData, error: meetingError } = await supabase
         .from('meetings')
-        .select(`
-          *,
-          company:companies(id, name, domain),
-          contact:contacts(id, first_name, last_name, email)
-        `)
+        .select('*')
         .eq('id', id)
         .single()
 
-      if (meetingError) throw meetingError
+      if (meetingError) {
+        console.error('Meeting fetch error:', meetingError)
+        throw meetingError
+      }
+      
+      if (!meetingData) {
+        console.error('No meeting found with id:', id)
+        return
+      }
+      
+      // Fetch company if exists
+      if (meetingData.company_id) {
+        const { data: companyData } = await supabase
+          .from('companies')
+          .select('id, name, domain')
+          .eq('id', meetingData.company_id)
+          .single()
+        
+        if (companyData) {
+          meetingData.company = companyData
+        }
+      }
+      
+      // Fetch contact if exists
+      if (meetingData.primary_contact_id) {
+        const { data: contactData } = await supabase
+          .from('contacts')
+          .select('id, first_name, last_name, email')
+          .eq('id', meetingData.primary_contact_id)
+          .single()
+        
+        if (contactData) {
+          meetingData.contact = contactData
+        }
+      }
       
       // Fetch meeting metrics
       const { data: metricsData } = await supabase
@@ -271,14 +302,22 @@ const MeetingDetail: React.FC = () => {
     )
   }
 
+  // Use the is_sales_rep_task field if available, otherwise fall back to email detection
   const salesRepActionItems = actionItems.filter(item => 
-    item.category === 'Sales' || !item.assignee_email?.includes('@') || 
-    item.assignee_email?.endsWith('@sixtyseconds.video')
+    item.is_sales_rep_task === true || 
+    (item.is_sales_rep_task === null && (
+      item.category === 'Sales' || 
+      !item.assignee_email?.includes('@') || 
+      item.assignee_email?.endsWith('@sixtyseconds.video')
+    ))
   )
   
   const prospectActionItems = actionItems.filter(item => 
-    item.category === 'Customer' || 
-    (item.assignee_email?.includes('@') && !item.assignee_email?.endsWith('@sixtyseconds.video'))
+    item.is_sales_rep_task === false || 
+    (item.is_sales_rep_task === null && (
+      item.category === 'Customer' || 
+      (item.assignee_email?.includes('@') && !item.assignee_email?.endsWith('@sixtyseconds.video'))
+    ))
   )
 
   const talkTimeIdeal = meeting.summary?.toLowerCase().includes('demo') 

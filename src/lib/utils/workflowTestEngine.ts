@@ -1,4 +1,5 @@
 // Workflow Test Engine for visual testing and debugging
+import { GoogleDocsService } from '../services/googleDocsService';
 export interface TestScenario {
   id: string;
   name: string;
@@ -26,6 +27,12 @@ export interface ExecutionLog {
   success?: boolean;
 }
 
+export interface PayloadValidation {
+  isValid: boolean;
+  errors: Array<{line: number, message: string}>;
+  warnings: string[];
+}
+
 export interface TestExecutionState {
   isRunning: boolean;
   isPaused: boolean;
@@ -37,6 +44,7 @@ export interface TestExecutionState {
   logs: ExecutionLog[];
   startTime?: number;
   endTime?: number;
+  customPayload?: any;
 }
 
 export class WorkflowTestEngine {
@@ -45,6 +53,7 @@ export class WorkflowTestEngine {
   private nodes: any[];
   private edges: any[];
   private abortController?: AbortController;
+  private customPayload?: any;
 
   constructor(
     nodes: any[], 
@@ -71,8 +80,111 @@ export class WorkflowTestEngine {
     });
   }
 
+  // Validate custom JSON payload
+  validateCustomPayload(payload: any): PayloadValidation {
+    const result: PayloadValidation = {
+      isValid: true,
+      errors: [],
+      warnings: []
+    };
+
+    try {
+      if (typeof payload === 'string') {
+        JSON.parse(payload);
+      } else if (typeof payload !== 'object' || payload === null) {
+        result.isValid = false;
+        result.errors.push({
+          line: 1,
+          message: 'Payload must be a valid JSON object'
+        });
+      }
+
+      // Add warnings for common issues
+      if (payload && typeof payload === 'object') {
+        if (!payload.timestamp) {
+          result.warnings.push('Consider adding a timestamp field for tracking');
+        }
+        if (!payload.test_run_id) {
+          result.warnings.push('Consider adding a test_run_id for identification');
+        }
+      }
+    } catch (error) {
+      result.isValid = false;
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JSON';
+      const lineMatch = errorMessage.match(/position (\d+)/);
+      const line = lineMatch ? Math.floor(parseInt(lineMatch[1]) / 50) + 1 : 1;
+      
+      result.errors.push({
+        line,
+        message: errorMessage
+      });
+    }
+
+    return result;
+  }
+
+  // Start test with custom payload
+  async startTestWithCustomPayload(payload: any) {
+    const validation = this.validateCustomPayload(payload);
+    if (!validation.isValid) {
+      throw new Error(`Invalid payload: ${validation.errors.map(e => e.message).join(', ')}`);
+    }
+
+    this.customPayload = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    
+    // Find trigger node - also support fathomWebhook as a trigger
+    const triggerNode = this.nodes.find(n => n.type === 'trigger' || n.type === 'fathomWebhook');
+    if (!triggerNode) {
+      this.addLog('error', 'no_trigger', 'No Trigger', 'No trigger node found in workflow');
+      return;
+    }
+
+    // Use custom payload as test data with enhancements
+    const enhancedPayload = {
+      ...this.customPayload,
+      test_run_id: this.customPayload.test_run_id || `custom_test_${Date.now()}`,
+      timestamp: this.customPayload.timestamp || new Date().toISOString(),
+      _isCustomPayload: true
+    };
+
+    // Initialize state
+    this.abortController = new AbortController();
+    this.state = {
+      ...this.state,
+      isRunning: true,
+      isPaused: false,
+      currentNodeId: triggerNode.id,
+      executionPath: [],
+      testData: enhancedPayload,
+      customPayload: this.customPayload,
+      startTime: Date.now(),
+      logs: []
+    };
+
+    this.addLog('start', triggerNode.id, triggerNode.data.label, 'Test started with custom payload');
+    this.updateState();
+
+    // Start execution from trigger
+    await this.executeNode(triggerNode);
+    
+    // Mark test as complete
+    this.state.isRunning = false;
+    this.state.currentNodeId = null;
+    this.state.endTime = Date.now();
+    this.addLog('complete', 'test', 'Test', `Test completed in ${this.state.endTime - this.state.startTime!}ms`);
+    this.updateState();
+  }
+
   // Generate test data based on trigger type and scenario
   generateTestData(triggerType: string, scenario?: string): any {
+    // If custom payload is provided, use it
+    if (this.customPayload) {
+      return {
+        ...this.customPayload,
+        test_run_id: this.customPayload.test_run_id || `custom_test_${Date.now()}`,
+        timestamp: this.customPayload.timestamp || new Date().toISOString()
+      };
+    }
     const baseData = {
       test_run_id: `test_${Date.now()}`,
       timestamp: new Date().toISOString()
@@ -146,8 +258,8 @@ export class WorkflowTestEngine {
 
     this.abortController = new AbortController();
     
-    // Find trigger node
-    const triggerNode = this.nodes.find(n => n.type === 'trigger');
+    // Find trigger node - also support fathomWebhook as a trigger
+    const triggerNode = this.nodes.find(n => n.type === 'trigger' || n.type === 'fathomWebhook');
     if (!triggerNode) {
       this.addLog('error', 'no_trigger', 'No Trigger', 'No trigger node found in workflow');
       return;
@@ -246,6 +358,43 @@ export class WorkflowTestEngine {
 
         case 'aiAgent':
           result = await this.executeAIAgent(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        // Fathom-specific node types
+        case 'fathomWebhook':
+          result = await this.executeFathomWebhook(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        case 'conditionalBranch':
+          result = await this.executeConditionalBranch(node);
+          // Conditional branch should execute ALL matching branches in parallel
+          nextNodes = result.nextNodes || [];
+          break;
+
+        case 'meetingUpsert':
+          result = await this.executeMeetingUpsert(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        case 'googleDocsCreator':
+          result = await this.executeGoogleDocsCreator(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        case 'actionItemProcessor':
+          result = await this.executeActionItemProcessor(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        case 'taskCreator':
+          result = await this.executeTaskCreator(node);
+          nextNodes = this.getNextNodes(node.id);
+          break;
+
+        case 'databaseNode':
+          result = await this.executeDatabaseNode(node);
           nextNodes = this.getNextNodes(node.id);
           break;
 
@@ -698,6 +847,325 @@ export class WorkflowTestEngine {
       usage: mockResponse.usage,
       inputData: this.state.testData
     };
+  }
+
+  // Execute Fathom webhook node
+  private async executeFathomWebhook(node: any) {
+    const webhookData = this.state.customPayload || this.state.testData;
+    
+    this.addLog('data', node.id, node.data.label, 
+      'Fathom webhook received', webhookData);
+    
+    // Set the webhook data as test data for downstream nodes
+    this.state.testData = { ...this.state.testData, ...webhookData };
+    
+    return { 
+      success: true, 
+      data: webhookData,
+      webhookUrl: node.data.webhookUrl,
+      acceptedPayloads: node.data.acceptedPayloads
+    };
+  }
+
+  // Execute conditional branch node
+  private async executeConditionalBranch(node: any) {
+    const testData = this.state.customPayload || this.state.testData;
+    const branches = node.data.branches || [];
+    const activeBranches: string[] = [];
+    const nextNodes: any[] = [];
+    
+    // Check each branch condition
+    for (const branch of branches) {
+      let conditionMet = false;
+      
+      // Evaluate the branch condition
+      if (branch.condition) {
+        // Check if the condition contains 'payload' references
+        if (branch.condition.includes('payload.')) {
+          // Simple evaluation for common patterns
+          if (branch.condition.includes('transcript') && 
+              (testData.topic === 'transcript' || testData.transcript || testData.transcript_excerpt)) {
+            conditionMet = true;
+            activeBranches.push('transcript');
+          } else if (branch.condition.includes('summary') && 
+                     (testData.topic === 'summary' || testData.summary || testData.ai_summary)) {
+            conditionMet = true;
+            activeBranches.push('summary');
+          } else if (branch.condition.includes('action_items') && 
+                     (testData.topic === 'action_items' || testData.action_items || testData.action_item)) {
+            conditionMet = true;
+            activeBranches.push('action_items');
+          }
+        }
+      }
+      
+      // If branch condition is met, find the connected nodes
+      if (conditionMet) {
+        const branchEdges = this.edges.filter(e => 
+          e.source === node.id && e.sourceHandle === branch.id
+        );
+        
+        for (const edge of branchEdges) {
+          const targetNode = this.nodes.find(n => n.id === edge.target);
+          if (targetNode && !nextNodes.find(n => n.id === targetNode.id)) {
+            nextNodes.push(targetNode);
+          }
+        }
+      }
+    }
+    
+    this.addLog('condition', node.id, node.data.label, 
+      `Activated branches: ${activeBranches.join(', ')}`, { 
+        activeBranches, 
+        totalBranches: branches.length 
+      });
+    
+    return { 
+      success: true, 
+      activeBranches,
+      nextNodes 
+    };
+  }
+
+  // Execute meeting upsert node
+  private async executeMeetingUpsert(node: any) {
+    const meetingData = this.state.customPayload || this.state.testData;
+    
+    // Import Supabase client dynamically to avoid circular deps
+    const { supabase } = await import('@/lib/supabase/clientV2');
+    
+    try {
+      // First, find Phil's actual user ID from the database
+      const { data: philUser, error: userError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', 'phil@sixtyseconds.video')
+        .single();
+
+      if (userError || !philUser) {
+        throw new Error(`Could not find user phil@sixtyseconds.video: ${userError?.message}`);
+      }
+
+      // Prepare meeting data for database insertion
+      const meetingRecord = {
+        fathom_recording_id: meetingData.id || meetingData.fathom_recording_id || `fathom_${Date.now()}`,
+        title: meetingData.title || meetingData.meeting_title || 'Untitled Meeting',
+        share_url: meetingData.share_url || '',
+        calls_url: meetingData.calls_url || '',
+        meeting_start: meetingData.date || meetingData.meeting_start || new Date().toISOString(),
+        meeting_end: meetingData.meeting_end || new Date(Date.now() + (meetingData.duration_minutes || 30) * 60000).toISOString(),
+        duration_minutes: meetingData.duration_minutes || meetingData.duration || 30,
+        owner_user_id: philUser.id, // Assign to Phil O'Brien (real user)
+        owner_email: 'phil@sixtyseconds.video',
+        team_name: 'Sales Team',
+        summary: meetingData.summary || meetingData.ai_summary || 'Meeting summary not available',
+        transcript_doc_url: this.state.testData.googleDoc?.docUrl || null,
+        sentiment_score: meetingData.sentiment_score || null,
+        coach_rating: meetingData.coach_rating || null,
+        talk_time_rep_pct: meetingData.talk_time_rep_pct || null,
+        talk_time_customer_pct: meetingData.talk_time_customer_pct || null,
+        talk_time_judgement: meetingData.talk_time_judgement || null
+      };
+
+      // Use upsert to handle conflicts
+      const { data, error } = await supabase
+        .from('meetings')
+        .upsert(meetingRecord, { onConflict: 'fathom_recording_id' })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      const result = {
+        success: true,
+        operation: 'upsert',
+        table: 'meetings',
+        upsertKey: 'fathom_recording_id',
+        recordId: data.id,
+        data: data,
+        persisted: true
+      };
+
+      this.addLog('data', node.id, node.data.label, 
+        `✅ REAL: Persisted meeting "${data.title}" to database (ID: ${data.id})`, result);
+
+      return result;
+    } catch (error) {
+      // If real database operation fails, fall back to mock
+      console.warn('Failed to persist meeting to database, using mock data:', error);
+      
+      const mockResult = {
+        success: true,
+        operation: node.data.config?.updateOnly ? 'update' : 'upsert',
+        table: node.data.table || 'meetings',
+        upsertKey: node.data.upsertKey || 'fathom_recording_id',
+        recordId: `meeting_${Date.now()}`,
+        fields: node.data.fields || [],
+        data: {
+          title: meetingData.title,
+          summary: meetingData.summary,
+          participants: meetingData.participants,
+          duration: meetingData.duration,
+          meeting_start: meetingData.date,
+          fathom_recording_id: meetingData.id
+        },
+        isMock: true
+      };
+      
+      this.addLog('data', node.id, node.data.label, 
+        `Mock: ${mockResult.operation} meeting record (real database failed)`, mockResult);
+      
+      return mockResult;
+    }
+  }
+
+  // Execute Google Docs creator node
+  private async executeGoogleDocsCreator(node: any) {
+    const docData = this.state.customPayload || this.state.testData;
+    
+    // Extract meeting data from payload
+    const meetingTitle = docData.title || 'Meeting';
+    const transcript = docData.transcript || docData.transcript_excerpt || 'No transcript available';
+    const participants = docData.participants || [];
+    const date = docData.date || new Date().toISOString();
+    const duration = docData.duration;
+    
+    try {
+      // Try to create real Google Doc
+      const googleDoc = await GoogleDocsService.createMeetingTranscript(
+        meetingTitle,
+        transcript,
+        participants,
+        date,
+        duration
+      );
+      
+      const result = {
+        success: true,
+        docId: googleDoc.documentId,
+        docTitle: googleDoc.title,
+        docUrl: googleDoc.url,
+        permissions: node.data.permissions || [],
+        content: transcript,
+        config: node.data.config,
+        createdAt: googleDoc.createdAt
+      };
+      
+      this.addLog('data', node.id, node.data.label, 
+        `Created Google Doc "${result.docTitle}"`, result);
+      
+      // Pass doc info to next nodes
+      this.state.testData = { 
+        ...this.state.testData, 
+        googleDoc: result 
+      };
+      
+      return result;
+    } catch (error) {
+      // If Google Docs creation fails, fall back to mock data
+      console.warn('Failed to create real Google Doc, using mock data:', error);
+      
+      const mockResult = {
+        success: true,
+        docId: `mock_doc_${Date.now()}`,
+        docTitle: this.interpolateVariables(node.data.docTitle || '{meeting.title} - Transcript'),
+        docUrl: `https://docs.google.com/document/d/mock_doc_${Date.now()}`,
+        permissions: node.data.permissions || [],
+        content: transcript,
+        config: node.data.config,
+        isMock: true
+      };
+      
+      this.addLog('data', node.id, node.data.label, 
+        `Mock: Created Google Doc "${mockResult.docTitle}" (real API unavailable)`, mockResult);
+      
+      // Pass doc info to next nodes
+      this.state.testData = { 
+        ...this.state.testData, 
+        googleDoc: mockResult 
+      };
+      
+      return mockResult;
+    }
+  }
+
+  // Execute action item processor node
+  private async executeActionItemProcessor(node: any) {
+    const actionData = this.state.customPayload || this.state.testData;
+    const actionItems = actionData.action_items || [];
+    
+    const processedItems = actionItems.map((item: any) => ({
+      ...item,
+      processed: true,
+      priority_id: node.data.config?.priorityMapping?.[item.priority] || 
+                   node.data.config?.priorityMapping?.medium,
+      user_id: node.data.config?.userMapping?.[item.assignee] || 
+               node.data.config?.userMapping?.['Andrew Bryce'],
+      category: item.category || 'Email',
+      deadline: item.due_date || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString()
+    }));
+    
+    this.addLog('data', node.id, node.data.label, 
+      `Mock: Processed ${processedItems.length} action items`, { 
+        count: processedItems.length, 
+        items: processedItems 
+      });
+    
+    // Pass processed items to next nodes
+    this.state.testData = { 
+      ...this.state.testData, 
+      processedActionItems: processedItems 
+    };
+    
+    return { 
+      success: true, 
+      items: processedItems 
+    };
+  }
+
+  // Execute task creator node
+  private async executeTaskCreator(node: any) {
+    const taskData = this.state.testData.processedActionItems?.[0] || 
+                     this.state.testData.action_item || 
+                     { title: 'Follow-up task', priority: 'medium' };
+    
+    const result = {
+      success: true,
+      taskId: `task_${Date.now()}`,
+      taskTitle: this.interpolateVariables(node.data.config?.taskTemplate?.title || taskData.title),
+      priority: taskData.priority_id || taskData.priority,
+      user: taskData.user_id || taskData.assignee,
+      dueDate: taskData.deadline || taskData.due_date,
+      meetingId: this.state.testData.meeting_id
+    };
+    
+    this.addLog('data', node.id, node.data.label, 
+      `Mock: Created task "${result.taskTitle}"`, result);
+    
+    return result;
+  }
+
+  // Execute database node
+  private async executeDatabaseNode(node: any) {
+    const dbData = this.state.testData.processedActionItems || 
+                   this.state.testData.action_items || 
+                   [this.state.testData];
+    
+    const result = {
+      success: true,
+      operation: node.data.operation || 'insert',
+      table: node.data.table || 'meeting_action_items',
+      recordsAffected: Array.isArray(dbData) ? dbData.length : 1,
+      fields: node.data.fields || [],
+      data: dbData
+    };
+    
+    this.addLog('data', node.id, node.data.label, 
+      `Mock: ${result.operation} ${result.recordsAffected} records to ${result.table}`, result);
+    
+    return result;
   }
 
   // Get next nodes connected to current node

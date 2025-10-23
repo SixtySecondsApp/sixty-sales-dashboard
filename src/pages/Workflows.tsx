@@ -24,6 +24,7 @@ import WorkflowCanvas from '@/components/workflows/WorkflowCanvas';
 import TemplateLibrary from '@/components/workflows/TemplateLibrary';
 import MyWorkflows from '@/components/workflows/MyWorkflows';
 import TestingLabNew from '@/components/workflows/TestingLabNew';
+import TestingLabCustomPayload from '@/components/workflows/TestingLabCustomPayload';
 import WorkflowInsights from '@/components/workflows/WorkflowInsights';
 import ExecutionsList from '@/components/workflows/ExecutionsList';
 import { type WorkflowExecution } from '@/lib/services/workflowExecutionService';
@@ -33,6 +34,7 @@ export default function Workflows() {
   const [loading, setLoading] = useState(false); // Set to false initially since we don't need to check admin
   const [isAdmin, setIsAdmin] = useState(true); // Allow all users to use workflows
   const [activeTab, setActiveTab] = useState<'builder' | 'templates' | 'my-workflows' | 'testing' | 'insights' | 'jobs'>('builder');
+  const [testingMode, setTestingMode] = useState<'executions' | 'custom-payload'>('executions');
   const [selectedWorkflow, setSelectedWorkflow] = useState<any>(null);
   const [selectedExecution, setSelectedExecution] = useState<any>(null);
   const [showSlackSuccess, setShowSlackSuccess] = useState(false);
@@ -199,12 +201,12 @@ export default function Workflows() {
         action_config: workflow.action_config || {},
         template_id: workflow.template_id,
         is_active: workflow.is_active || false,
-        priority_level: 1,
+        priority_level: 1
         // test_scenarios: testScenarios // Commented out until migration is applied
       };
       
-      // Add test scenarios after migration is applied
-      workflowData.test_scenarios = testScenarios;
+      // Don't add test scenarios - column doesn't exist yet
+      // workflowData.test_scenarios = testScenarios;
 
       console.log('🚨 Workflow received from canvas:', workflow);
       console.log('🚨 trigger_type from canvas:', workflow.trigger_type);
@@ -539,11 +541,70 @@ export default function Workflows() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="h-full p-6"
+              className="h-full flex flex-col"
             >
-              <TestingLabNew 
-                workflow={selectedWorkflow}
-              />
+              {/* Testing Mode Selector */}
+              <div className="px-6 py-4 border-b border-gray-800/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-lg font-semibold text-white">Workflow Testing Lab</h2>
+                  <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg p-1">
+                    <button
+                      onClick={() => setTestingMode('executions')}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        testingMode === 'executions'
+                          ? 'bg-[#37bd7e] text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <PlayCircle className="w-4 h-4 inline mr-1" />
+                      Real Executions
+                    </button>
+                    <button
+                      onClick={() => setTestingMode('custom-payload')}
+                      className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                        testingMode === 'custom-payload'
+                          ? 'bg-[#37bd7e] text-white'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      <TestTube className="w-4 h-4 inline mr-1" />
+                      Custom Payload
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-400">
+                  {testingMode === 'executions'
+                    ? 'Test workflows with real execution environment and live data'
+                    : 'Test workflows with custom JSON payloads for debugging and validation'
+                  }
+                </p>
+              </div>
+
+              {/* Testing Content */}
+              <div className="flex-1 overflow-hidden">
+                {testingMode === 'executions' ? (
+                  <div className="h-full p-6">
+                    <TestingLabNew workflow={selectedWorkflow} />
+                  </div>
+                ) : (
+                  <div className="h-full">
+                    {selectedWorkflow ? (
+                      <TestingLabCustomPayload 
+                        workflow={selectedWorkflow}
+                        nodes={selectedWorkflow?.canvas_data?.nodes || []}
+                        edges={selectedWorkflow?.canvas_data?.edges || []}
+                        testEngine={null} // Will be initialized inside the component
+                        executionState={null} // Will be managed inside the component
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                        <TestTube className="w-12 h-12 mb-3" />
+                        <p className="text-sm">Select a workflow to test with custom payloads</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
           

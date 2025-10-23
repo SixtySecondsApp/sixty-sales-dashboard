@@ -75,6 +75,11 @@ import type { AssistantManagerNodeConfig } from './AssistantManagerConfigModal';
 import FormNode from './nodes/FormNode';
 import GoogleEmailNode from './nodes/GoogleEmailNode';
 import GoogleDocsNode from './nodes/GoogleDocsNode';
+import FathomWebhookNode from './nodes/FathomWebhookNode';
+import ConditionalBranchNode from './nodes/ConditionalBranchNode';
+import GoogleDocsCreatorNode from './nodes/GoogleDocsCreatorNode';
+import MeetingUpsertNode from './nodes/MeetingUpsertNode';
+import ActionItemProcessorNode from './nodes/ActionItemProcessorNode';
 import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
@@ -299,7 +304,12 @@ const nodeTypes: NodeTypes = {
   assistantManager: AssistantManagerNode,
   form: FormNode,
   googleEmail: GoogleEmailNode,
-  googleDocs: GoogleDocsNode
+  googleDocs: GoogleDocsNode,
+  fathomWebhook: FathomWebhookNode,
+  conditionalBranch: ConditionalBranchNode,
+  googleDocsCreator: GoogleDocsCreatorNode,
+  meetingUpsert: MeetingUpsertNode,
+  actionItemProcessor: ActionItemProcessorNode
 };
 
 const edgeTypes = {
@@ -319,9 +329,28 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   executionMode = false, 
   executionData 
 }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
+  
+  // Track if user has manually moved nodes or tidied them
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
+  const [hasTidied, setHasTidied] = useState(false);
+  
+  // Custom onNodesChange to track user interactions
+  const onNodesChange = useCallback((changes: any) => {
+    // Check if user is dragging nodes (position changes)
+    const hasPositionChange = changes.some((change: any) => 
+      change.type === 'position' && change.dragging === false
+    );
+    
+    if (hasPositionChange) {
+      setUserHasInteracted(true);
+    }
+    
+    // Call the base handler
+    onNodesChangeBase(changes);
+  }, [onNodesChangeBase]);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -335,6 +364,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [nodeSearchQuery, setNodeSearchQuery] = useState('');
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
   const [showNodeEditor, setShowNodeEditor] = useState(false);
   const [slackConnected, setSlackConnected] = useState(false);
   const [slackChannels, setSlackChannels] = useState<any[]>([]);
@@ -405,6 +435,145 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       if (selectedWorkflow.canvas_data) {
         let nodesData = selectedWorkflow.canvas_data.nodes || [];
         
+        // Check if positions look like they've been tidied (aligned coordinates)
+        const isTidied = hasTidied || nodesData.some(node => 
+          node.position && 
+          (node.position.x % 100 === 0 || node.position.x % 400 === 0) && 
+          (node.position.y % 100 === 0 || node.position.y % 250 === 0)
+        );
+        
+        // Only apply automatic positioning if the layout isn't already tidy or user has manually tidied or moved nodes
+        const shouldAutoPosition = !isTidied && !hasTidied && !userHasInteracted && nodesData.length > 0;
+        
+        // Fix AI Agent positioning to be after Google Docs Creator in the transcript branch
+        // Only adjust positions if nodes seem to be in wrong places AND not tidied
+        const hasAIAgent = nodesData.some(n => n.type === 'aiAgent');
+        const hasGoogleDocs = nodesData.some(n => n.type === 'googleDocsCreator');
+        
+        if (shouldAutoPosition && hasAIAgent && hasGoogleDocs) {
+          // Find the Google Docs node to use as reference
+          const googleDocsNode = nodesData.find(n => n.type === 'googleDocsCreator');
+          const aiAgentNode = nodesData.find(n => n.type === 'aiAgent');
+          
+          if (googleDocsNode && aiAgentNode) {
+            // Only fix if AI Agent is not already to the right of Google Docs
+            if (aiAgentNode.position.x <= googleDocsNode.position.x) {
+              nodesData = nodesData.map(node => {
+                // Position AI Agent to the right of Google Docs Creator
+                if (node.type === 'aiAgent') {
+                  return {
+                    ...node,
+                    position: { 
+                      x: googleDocsNode.position.x + 250, 
+                      y: googleDocsNode.position.y 
+                    }
+                  };
+                }
+                return node;
+              });
+            }
+          }
+        }
+        
+        // Only apply comprehensive positioning if not tidied
+        if (shouldAutoPosition) {
+          // Comprehensive node positioning for clean layout
+          const webhookNode = nodesData.find(n => n.type === 'fathomWebhook');
+          const branchNode = nodesData.find(n => n.type === 'conditionalBranch');
+          
+          if (branchNode) {
+          const baseX = 100;  // Starting X position
+          const branchX = 350;  // Branch X position
+          const nodeDistance = 300; // Distance between columns
+          
+          nodesData = nodesData.map(node => {
+            // Webhook node - leftmost
+            if (node.type === 'fathomWebhook') {
+              return {
+                ...node,
+                position: { x: baseX, y: 200 }
+              };
+            }
+            // Branch node - second column
+            else if (node.type === 'conditionalBranch') {
+              // Also fix the branch order in the data
+              const updatedNode = {
+                ...node,
+                position: { x: branchX, y: 200 }
+              };
+              
+              // Ensure branches are in correct order: Transcript (1), Summary (2), Actions (3)
+              if (node.data?.branches) {
+                updatedNode.data = {
+                  ...node.data,
+                  branches: [
+                    { id: 'transcript', label: 'Transcript', condition: 'payload.topic === "transcript" || payload.transcript' },
+                    { id: 'summary', label: 'Summary', condition: 'payload.topic === "summary" || payload.ai_summary' },
+                    { id: 'action_items', label: 'Action Items', condition: 'payload.topic === "action_items" || payload.action_item' }
+                  ]
+                };
+              }
+              
+              return updatedNode;
+            }
+            // Google Docs Creator - Transcript branch (top - position 1)
+            else if (node.type === 'googleDocsCreator') {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance, y: 100 }
+              };
+            }
+            // Process Summary - Summary branch (middle - position 2)
+            else if (node.type === 'meetingUpsert' && (node.data?.label === 'Process Summary' || node.data?.table === 'meetings')) {
+              // Check if this is the summary processor (not the transcript update)
+              if (!node.data?.label?.includes('Update') && !node.data?.label?.includes('Upsert Meeting')) {
+                return {
+                  ...node,
+                  position: { x: branchX + nodeDistance, y: 200 }
+                };
+              }
+            }
+            // Action Item Processor - Action Items branch (bottom - position 3)
+            else if (node.type === 'actionItemProcessor' || (node.type === 'action' && node.data?.label?.includes('Process Actions'))) {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance, y: 350 }
+              };
+            }
+            // AI Agent - after Google Docs
+            else if (node.type === 'aiAgent') {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance + 250, y: 100 }
+              };
+            }
+            // Upsert Meeting - after AI Agent
+            else if (node.type === 'meetingUpsert' && (node.data?.label === 'Upsert Meeting' || node.data?.label?.includes('Update'))) {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance + 500, y: 100 }
+              };
+            }
+            // Create Tasks - right side
+            else if (node.type === 'taskCreator' || (node.type === 'action' && node.data?.label?.includes('Create Tasks'))) {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance + 250, y: 350 }
+              };
+            }
+            // Send Notifications - bottom right
+            else if (node.type === 'notification' || (node.type === 'action' && node.data?.label?.includes('Send Notifications'))) {
+              return {
+                ...node,
+                position: { x: branchX + nodeDistance, y: 450 }
+              };
+            }
+            
+            return node;
+          });
+          } // End of branchNode check
+        } // End of shouldAutoPosition check
+        
         // If in execution mode, enhance nodes with execution data
         if (executionMode && executionData) {
           nodesData = nodesData.map(node => {
@@ -422,8 +591,39 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           });
         }
         
+        // Clean up edges - remove unnecessary labels
+        let edgesData = selectedWorkflow.canvas_data.edges || [];
+        edgesData = edgesData.map(edge => {
+          // Remove "Payload" label from webhook to branch connection
+          if ((edge.source === 'webhook-trigger' || edge.source?.includes('webhook')) && 
+              (edge.target === 'payload-router' || edge.target?.includes('router') || edge.target?.includes('branch'))) {
+            return {
+              ...edge,
+              label: undefined,  // Remove any label
+              data: {
+                ...edge.data,
+                label: undefined
+              }
+            };
+          }
+          return edge;
+        });
+        
         setNodes(nodesData);
-        setEdges(selectedWorkflow.canvas_data.edges || []);
+        setEdges(edgesData);
+        
+        // Auto-fit view after loading workflow with a slight delay
+        // Commented out to prevent auto-repositioning when loading workflow
+        // setTimeout(() => {
+        //   if (reactFlowInstance.current && nodesData.length > 0) {
+        //     reactFlowInstance.current.fitView({ 
+        //       padding: 0.15,
+        //       duration: 500,
+        //       maxZoom: 1.0,
+        //       minZoom: 0.5
+        //     });
+        //   }
+        // }, 100);
       }
     } else {
       // Reset for new workflow
@@ -602,6 +802,17 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     [executionMode]
   );
 
+  const onEdgeClick = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      if (executionMode) return; // Don't allow edge editing in execution mode
+      
+      setSelectedEdge(edge);
+      setSelectedNode(null); // Clear node selection
+      setShowNodeEditor(true); // Reuse the editor panel for edges
+    },
+    [executionMode]
+  );
+
   // Update node data when edited
   const updateNodeData = (nodeId: string, newData: any) => {
     setNodes((nds) =>
@@ -629,6 +840,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           return updatedNode;
         }
         return node;
+      })
+    );
+    
+    // Mark workflow as modified to trigger autosave when node data changes
+    setHasUnsavedChanges(true);
+  };
+
+  // Update edge data when edited
+  const updateEdgeData = (edgeId: string, newData: any) => {
+    setEdges((eds) =>
+      eds.map((edge) => {
+        if (edge.id === edgeId) {
+          const updatedEdge = { ...edge, ...newData };
+          // Also update selectedEdge if it's the one being edited
+          if (selectedEdge && selectedEdge.id === edgeId) {
+            setSelectedEdge(updatedEdge);
+          }
+          return updatedEdge;
+        }
+        return edge;
       })
     );
   };
@@ -1468,6 +1699,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           action_config.multiple_owners = actionNode.data.multipleOwners || false;
           action_config.owner_list = Array.isArray(actionNode.data.ownerId) ? actionNode.data.ownerId : [];
           break;
+        case 'create_or_update_deal':
+          action_config.deal_name = actionNode.data.dealName || '{{payload.title}} - {{payload.date}}';
+          action_config.deal_value = actionNode.data.dealValue || '{{aiAnalysis.coaching.opportunity_score * 1000}}';
+          action_config.deal_company = actionNode.data.dealCompany || '{{payload.participants[0].company}}';
+          action_config.deal_stage = actionNode.data.dealStage || 'SQL';
+          action_config.deal_probability = actionNode.data.dealProbability || '{{aiAnalysis.coaching.opportunity_score}}';
+          action_config.owner_id = actionNode.data.ownerId || '{{payload.organizer_id}}';
+          action_config.score_threshold = actionNode.data.scoreThreshold || 60;
+          action_config.auto_create_enabled = actionNode.data.autoCreateEnabled || true;
+          action_config.update_existing = actionNode.data.updateExisting || true;
+          action_config.upsert_key = actionNode.data.upsertKey || 'meeting_id';
+          action_config.progression_rules = actionNode.data.progressionRules || {
+            sql_to_opportunity: 60,
+            opportunity_to_verbal: 75,
+            verbal_to_signed: 85
+          };
+          break;
         case 'create_company':
           action_config.company_name = actionNode.data.companyName || '';
           action_config.company_domain = actionNode.data.companyDomain || '';
@@ -1578,7 +1826,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     
     // Map action types to valid database values
     // Based on testing, only 'create_task' and 'update_deal_stage' are currently valid
-    const validActionTypes = ['create_task', 'update_deal_stage', 'create_contact', 'create_deal', 'create_company'];
+    const validActionTypes = ['create_task', 'update_deal_stage', 'create_contact', 'create_deal', 'create_or_update_deal', 'create_company'];
     let mappedActionType = actionNode?.data?.type || 'create_task';
     
     if (actionNode?.type === 'aiAgent' || mappedActionType === 'ai_agent') {
@@ -1692,17 +1940,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     console.log('Testing workflow with nodes:', nodes, 'edges:', edges);
   };
 
+  
   // Tidy nodes - arrange them in a clean layout
   const tidyNodes = () => {
     if (nodes.length === 0) return;
-
-    // Group nodes by type
-    const triggers = nodes.filter(n => n.type === 'trigger');
-    const routers = nodes.filter(n => n.type === 'router');
-    const conditions = nodes.filter(n => n.type === 'condition');
-    const actions = nodes.filter(n => n.type === 'action');
-
-    // Create a map of node connections
+    
+    // Mark as tidied to prevent auto-repositioning
+    setHasTidied(true);
+    
+    // Create connection maps for graph traversal
     const nodeConnections = new Map<string, string[]>();
     const nodeIncoming = new Map<string, string[]>();
     
@@ -1717,67 +1963,154 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       }
       nodeIncoming.get(edge.target)!.push(edge.source);
     });
-
-    // Find root nodes (triggers or nodes with no incoming edges)
+    
+    // Find root nodes (triggers, webhooks, or nodes with no incoming edges)
     const rootNodes = nodes.filter(node => 
-      node.type === 'trigger' || !nodeIncoming.has(node.id) || nodeIncoming.get(node.id)!.length === 0
+      node.type === 'trigger' || 
+      node.type === 'fathomWebhook' ||
+      !nodeIncoming.has(node.id) || 
+      nodeIncoming.get(node.id)!.length === 0
     );
-
-    // Build a level-based layout
+    
+    // Calculate node levels and track branch paths
     const levels = new Map<string, number>();
     const visited = new Set<string>();
-    const nodePositions = new Map<string, { x: number, y: number }>();
-
-    // BFS to assign levels
-    const queue: { node: Node, level: number }[] = rootNodes.map(n => ({ node: n, level: 0 }));
-    rootNodes.forEach(n => levels.set(n.id, 0));
-
+    const branchPaths = new Map<string, string>(); // Track which branch each node belongs to
+    
+    // BFS with branch tracking
+    const queue: { id: string, level: number, path: string }[] = [];
+    rootNodes.forEach((node, idx) => {
+      queue.push({ id: node.id, level: 0, path: `root${idx}` });
+      levels.set(node.id, 0);
+      branchPaths.set(node.id, `root${idx}`);
+    });
+    
     while (queue.length > 0) {
-      const item = queue.shift();
-      if (!item) continue;
-      const { node, level } = item;
-      if (visited.has(node.id)) continue;
-      visited.add(node.id);
-
-      const children = nodeConnections.get(node.id) || [];
-      children.forEach(childId => {
-        const childNode = nodes.find(n => n.id === childId);
-        if (childNode && !levels.has(childId)) {
-          levels.set(childId, level + 1);
-          queue.push({ node: childNode, level: level + 1 });
+      const item = queue.shift()!;
+      if (visited.has(item.id)) continue;
+      visited.add(item.id);
+      
+      const children = nodeConnections.get(item.id) || [];
+      const node = nodes.find(n => n.id === item.id);
+      
+      // Detect branching nodes
+      const isBranching = node && (
+        node.type === 'conditionalBranch' ||
+        node.type === 'router' ||
+        node.type === 'condition' ||
+        children.length > 1
+      );
+      
+      children.forEach((childId, idx) => {
+        const currentLevel = levels.get(childId);
+        const newLevel = item.level + 1;
+        
+        // Update level to maximum encountered
+        if (!currentLevel || newLevel > currentLevel) {
+          levels.set(childId, newLevel);
+        }
+        
+        // Create unique branch paths for each child of a branching node
+        const childPath = isBranching ? `${item.path}-branch${idx}` : item.path;
+        branchPaths.set(childId, childPath);
+        
+        if (!visited.has(childId)) {
+          queue.push({ id: childId, level: newLevel, path: childPath });
         }
       });
     }
-
+    
     // Group nodes by level
-    const nodesByLevel = new Map<number, Node[]>();
+    const nodesByLevel = new Map<number, { node: Node, path: string }[]>();
     nodes.forEach(node => {
       const level = levels.get(node.id) || 0;
+      const path = branchPaths.get(node.id) || 'root0';
+      
       if (!nodesByLevel.has(level)) {
         nodesByLevel.set(level, []);
       }
-      nodesByLevel.get(level)!.push(node);
+      nodesByLevel.get(level)!.push({ node, path });
     });
-
-    // Calculate positions
-    const horizontalSpacing = 250;
-    const verticalSpacing = 120;
-    const startX = 100;
-    const startY = 100;
-
+    
+    // Professional layout parameters
+    const HORIZONTAL_SPACING = 400; // Wide spacing for clarity
+    const VERTICAL_SPACING = 250;   // Good vertical separation
+    const START_X = 100;
+    const CENTER_Y = 400; // Center line for main flow
+    
+    // Calculate positions with professional spacing
+    const nodePositions = new Map<string, { x: number, y: number }>();
+    
     nodesByLevel.forEach((levelNodes, level) => {
-      const totalHeight = levelNodes.length * verticalSpacing;
-      const startYForLevel = startY + (400 - totalHeight) / 2; // Center vertically
-
-      levelNodes.forEach((node, index) => {
-        nodePositions.set(node.id, {
-          x: startX + level * horizontalSpacing,
-          y: startYForLevel + index * verticalSpacing
+      const x = START_X + level * HORIZONTAL_SPACING;
+      
+      // Sort nodes by their branch path for consistent ordering
+      levelNodes.sort((a, b) => a.path.localeCompare(b.path));
+      
+      if (levelNodes.length === 1) {
+        // Single node at this level - place on center line
+        nodePositions.set(levelNodes[0].node.id, { x, y: CENTER_Y });
+      } else {
+        // Multiple nodes - create professional branch layout
+        // Identify unique branch roots
+        const uniqueBranches = new Set(levelNodes.map(n => n.path.split('-')[0]));
+        const branchGroups = new Map<string, typeof levelNodes>();
+        
+        // Group nodes by their root branch
+        levelNodes.forEach(item => {
+          const rootBranch = item.path.split('-')[0];
+          if (!branchGroups.has(rootBranch)) {
+            branchGroups.set(rootBranch, []);
+          }
+          branchGroups.get(rootBranch)!.push(item);
         });
-      });
+        
+        // Position branches with professional spacing
+        if (levelNodes.length === 2) {
+          // Two branches - one above, one below center
+          levelNodes[0] && nodePositions.set(levelNodes[0].node.id, { x, y: CENTER_Y - VERTICAL_SPACING * 0.8 });
+          levelNodes[1] && nodePositions.set(levelNodes[1].node.id, { x, y: CENTER_Y + VERTICAL_SPACING * 0.8 });
+        } else if (levelNodes.length === 3) {
+          // Three branches - top, center, bottom
+          levelNodes[0] && nodePositions.set(levelNodes[0].node.id, { x, y: CENTER_Y - VERTICAL_SPACING });
+          levelNodes[1] && nodePositions.set(levelNodes[1].node.id, { x, y: CENTER_Y });
+          levelNodes[2] && nodePositions.set(levelNodes[2].node.id, { x, y: CENTER_Y + VERTICAL_SPACING });
+        } else {
+          // More than 3 nodes - distribute evenly with good spacing
+          const totalHeight = (levelNodes.length - 1) * VERTICAL_SPACING * 0.8;
+          const startY = CENTER_Y - totalHeight / 2;
+          
+          levelNodes.forEach((item, idx) => {
+            nodePositions.set(item.node.id, {
+              x,
+              y: startY + idx * VERTICAL_SPACING * 0.8
+            });
+          });
+        }
+      }
+    });
+    
+    // Handle convergence nodes (multiple incoming edges)
+    nodes.forEach(node => {
+      const incoming = nodeIncoming.get(node.id) || [];
+      if (incoming.length > 1) {
+        // This is a convergence point - center it between source nodes
+        const sourcePositions = incoming
+          .map(sourceId => nodePositions.get(sourceId))
+          .filter(pos => pos !== undefined) as { x: number, y: number }[];
+        
+        if (sourcePositions.length > 0) {
+          const avgY = sourcePositions.reduce((sum, pos) => sum + pos.y, 0) / sourcePositions.length;
+          const currentPos = nodePositions.get(node.id);
+          if (currentPos) {
+            // Keep x position but center y between sources
+            nodePositions.set(node.id, { x: currentPos.x, y: avgY });
+          }
+        }
+      }
     });
 
-    // Update all node positions
+    // Apply positions with smooth animation
     setNodes((nds) => 
       nds.map(node => {
         const newPosition = nodePositions.get(node.id);
@@ -1791,10 +2124,15 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       })
     );
 
-    // Fit view after tidying
+    // Fit view after tidying with smooth animation
     setTimeout(() => {
       if (reactFlowInstance.current) {
-        reactFlowInstance.current.fitView({ padding: 0.2, duration: 800 });
+        reactFlowInstance.current.fitView({ 
+          padding: 0.15, 
+          duration: 800,
+          maxZoom: 1.0,
+          minZoom: 0.5 
+        });
       }
     }, 100);
   };
@@ -2004,6 +2342,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               { type: 'create_recurring_task', label: 'Recurring Task', iconName: 'CheckSquare', description: 'Scheduled tasks' },
               { type: 'send_webhook', label: 'Send Webhook', iconName: 'Zap', description: 'Call external API' },
               { type: 'send_notification', label: 'Send Notification', iconName: 'Bell', description: 'Send alert' },
+              { type: 'multi_channel_notify', label: 'Send Notifications', iconName: 'Bell', description: 'Multi-channel notifications' },
               { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack', description: 'Post to Slack channel' },
               { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
               { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText', description: 'Add activity note' },
@@ -2012,6 +2351,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
               { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
               { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
+              { type: 'create_or_update_deal', label: 'Create/Update Deal', iconName: 'TrendingUp', description: 'Auto-create/update deal from meeting insights' },
               { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
               { type: 'meeting', label: 'Meeting', iconName: 'Calendar', description: 'Create/update meetings and add details' }
             ];
@@ -2180,6 +2520,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 { type: 'create_recurring_task', label: 'Recurring Task', iconName: 'CheckSquare', description: 'Scheduled tasks' },
                 { type: 'send_webhook', label: 'Send Webhook', iconName: 'Zap', description: 'Call external API' },
                 { type: 'send_notification', label: 'Send Notification', iconName: 'Bell', description: 'Send alert' },
+                { type: 'multi_channel_notify', label: 'Send Notifications', iconName: 'Bell', description: 'Multi-channel notifications' },
                 { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack', description: 'Post to Slack channel' },
                 { type: 'send_email', label: 'Send Email', iconName: 'Mail', description: 'Email notification' },
                 { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText', description: 'Add activity note' },
@@ -2188,6 +2529,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 { type: 'create_activity', label: 'Create Activity', iconName: 'Calendar', description: 'Log activity' },
                 { type: 'create_contact', label: 'Create Contact', iconName: 'Users', description: 'Create new contact' },
                 { type: 'create_deal', label: 'Create Deal', iconName: 'Database', description: 'Create new deal' },
+                { type: 'create_or_update_deal', label: 'Create/Update Deal', iconName: 'TrendingUp', description: 'Auto-create/update deal from meeting insights' },
                 { type: 'create_company', label: 'Create Company', iconName: 'Briefcase', description: 'Create new company' },
                 { type: 'meeting', label: 'Meeting', iconName: 'Calendar', description: 'Create/update meetings and add details' }
             ].filter(action => 
@@ -2421,6 +2763,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
           onDrop={onDrop}
           onDragOver={onDragOver}
           onInit={(instance) => { reactFlowInstance.current = instance; }}
@@ -2433,6 +2776,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             type: 'smoothstep'
           }}
           fitView
+          fitViewOptions={{
+            padding: 0.2,
+            maxZoom: 0.8,
+            minZoom: 0.4
+          }}
+          defaultViewport={{ x: 0, y: 0, zoom: 0.7 }}
+          minZoom={0.3}
+          maxZoom={1.5}
           className="bg-gray-950 h-full"
           style={{ height: '100%' }}
         >
@@ -2917,6 +3268,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                       >
                         <option value="create_task">Create Task</option>
                         <option value="send_notification">Send Notification</option>
+                        <option value="multi_channel_notify">Send Notifications</option>
                         <option value="send_slack">Send Slack Message</option>
                         <option value="create_activity">Create Activity</option>
                         <option value="update_deal_stage">Update Deal Stage</option>
@@ -2924,6 +3276,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         <option value="assign_owner">Assign Owner</option>
                         <option value="create_contact">Create Contact</option>
                         <option value="create_deal">Create Deal</option>
+                        <option value="create_or_update_deal">Create/Update Deal</option>
                         <option value="create_company">Create Company</option>
                         <option value="send_email">Send Email</option>
                         <option value="multi_action">Multiple Actions</option>
@@ -4602,6 +4955,174 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                       </>
                     )}
 
+                    {selectedNode.data.type === 'create_or_update_deal' && (
+                      <>
+                        <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 p-3 rounded-lg border border-blue-500/30 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-blue-400 text-sm">🤖</span>
+                            <span className="text-blue-300 text-sm font-medium">AI-Powered Deal Management</span>
+                          </div>
+                          <div className="text-xs text-blue-200">
+                            Automatically creates deals when opportunity score {'>'} threshold, or updates existing deals based on meeting insights.
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Auto-Create Threshold</label>
+                          <input
+                            type="number"
+                            value={selectedNode.data.scoreThreshold || 60}
+                            onChange={(e) => updateNodeData(selectedNode.id, { scoreThreshold: parseInt(e.target.value) })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="60"
+                            min="0"
+                            max="100"
+                            step="5"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Create deals when AI opportunity score exceeds this value</div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="flex items-center gap-2 text-sm text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.autoCreateEnabled !== false}
+                                onChange={(e) => updateNodeData(selectedNode.id, { autoCreateEnabled: e.target.checked })}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Auto-create deals
+                            </label>
+                          </div>
+                          <div>
+                            <label className="flex items-center gap-2 text-sm text-gray-300">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.updateExisting !== false}
+                                onChange={(e) => updateNodeData(selectedNode.id, { updateExisting: e.target.checked })}
+                                className="rounded border-gray-600 bg-gray-800/50 text-[#37bd7e] focus:ring-[#37bd7e]/30"
+                              />
+                              Update existing
+                            </label>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Name Template</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealName || '{{payload.title}} - {{payload.date}}'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealName: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{payload.title}} - {{payload.date}}"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Use variables like {'{{payload.title}}'}, {'{{payload.date}}'}</div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Deal Value Formula</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealValue || '{{aiAnalysis.coaching.opportunity_score * 1000}}'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealValue: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{aiAnalysis.coaching.opportunity_score * 1000}}"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Formula based on AI analysis or fixed value</div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Company Mapping</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.dealCompany || '{{payload.participants[0].company}}'}
+                            onChange={(e) => updateNodeData(selectedNode.id, { dealCompany: e.target.value })}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                            placeholder="{{payload.participants[0].company}}"
+                          />
+                          <div className="text-xs text-gray-500 mt-1">Extract company from meeting participants</div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Initial Stage</label>
+                          <select
+                            value={selectedNode.data.dealStage || 'SQL'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { dealStage: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="SQL">SQL</option>
+                            <option value="Opportunity">Opportunity</option>
+                            <option value="Verbal">Verbal</option>
+                            <option value="Signed">Signed</option>
+                          </select>
+                          <div className="text-xs text-gray-500 mt-1">Starting stage for new deals</div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Stage Progression Rules</label>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400">SQL → Opportunity:</span>
+                              <input
+                                type="number"
+                                value={selectedNode.data.sqlToOpportunity || 60}
+                                onChange={(e) => updateNodeData(selectedNode.id, { sqlToOpportunity: parseInt(e.target.value) })}
+                                className="w-16 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-xs"
+                                min="0"
+                                max="100"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400">Opportunity → Verbal:</span>
+                              <input
+                                type="number"
+                                value={selectedNode.data.opportunityToVerbal || 75}
+                                onChange={(e) => updateNodeData(selectedNode.id, { opportunityToVerbal: parseInt(e.target.value) })}
+                                className="w-16 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-xs"
+                                min="0"
+                                max="100"
+                              />
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400">Verbal → Signed:</span>
+                              <input
+                                type="number"
+                                value={selectedNode.data.verbalToSigned || 85}
+                                onChange={(e) => updateNodeData(selectedNode.id, { verbalToSigned: parseInt(e.target.value) })}
+                                className="w-16 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-xs"
+                                min="0"
+                                max="100"
+                              />
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">AI scores needed to progress deal stages</div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">Upsert Key</label>
+                          <select
+                            value={selectedNode.data.upsertKey || 'meeting_id'}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              updateNodeData(selectedNode.id, { upsertKey: e.target.value });
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                          >
+                            <option value="meeting_id">Meeting ID</option>
+                            <option value="company_name">Company Name</option>
+                            <option value="contact_email">Contact Email</option>
+                            <option value="deal_name">Deal Name</option>
+                          </select>
+                          <div className="text-xs text-gray-500 mt-1">How to identify existing deals for updates</div>
+                        </div>
+                      </>
+                    )}
+
                     {selectedNode.data.type === 'create_company' && (
                       <>
                         <div>
@@ -5164,6 +5685,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                               { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare' },
                               { type: 'send_email', label: 'Send Email', iconName: 'Mail' },
                               { type: 'send_notification', label: 'Send Notification', iconName: 'Bell' },
+                              { type: 'multi_channel_notify', label: 'Send Notifications', iconName: 'Bell' },
                               { type: 'send_slack', label: 'Send to Slack', iconName: 'Slack' },
                               { type: 'add_note', label: 'Add Note/Comment', iconName: 'FileText' },
                               { type: 'update_fields', label: 'Update Fields', iconName: 'TrendingUp' },
@@ -5787,6 +6309,1846 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         </div>
                       </>
                     )}
+                  </>
+                )}
+
+                {/* Fathom Webhook-specific settings */}
+                {selectedNode.type === 'fathomWebhook' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Webhook URL</label>
+                        <div className="bg-gray-800/50 rounded-lg p-3">
+                          <code className="text-xs text-purple-400 break-all">
+                            {window.location.origin}/api/workflows/webhook/{workflowId || selectedWorkflow?.id || '[save-workflow-first]'}
+                          </code>
+                          <button
+                            onClick={() => {
+                              const webhookUrl = `${window.location.origin}/api/workflows/webhook/${workflowId || selectedWorkflow?.id || '[save-workflow-first]'}`;
+                              navigator.clipboard.writeText(webhookUrl);
+                              // Show a quick toast or feedback
+                              const btn = event.currentTarget as HTMLButtonElement;
+                              const originalText = btn.textContent;
+                              btn.textContent = 'Copied!';
+                              setTimeout(() => {
+                                btn.textContent = originalText;
+                              }, 2000);
+                            }}
+                            className="mt-2 px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded transition-colors"
+                          >
+                            Copy URL
+                          </button>
+                          {(!workflowId && !selectedWorkflow?.id) && (
+                            <p className="text-xs text-amber-400 mt-2">
+                              ⚠️ Save the workflow first to get your unique webhook URL
+                            </p>
+                          )}
+                          <p className="text-[10px] text-gray-500 mt-2">
+                            Copy this URL to your Fathom webhook settings
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Accepted Event Types</label>
+                        <div className="space-y-2">
+                          {['transcript', 'summary', 'action_items', 'coaching_summary'].map((eventType) => (
+                            <label key={eventType} className="flex items-center gap-2 cursor-pointer hover:bg-gray-800/30 p-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.payloadTypes?.includes(eventType) || false}
+                                onChange={(e) => {
+                                  const currentTypes = selectedNode.data.payloadTypes || [];
+                                  const newTypes = e.target.checked
+                                    ? [...currentTypes, eventType]
+                                    : currentTypes.filter(t => t !== eventType);
+                                  updateNodeData(selectedNode.id, { 
+                                    payloadTypes: newTypes,
+                                    isConfigured: newTypes.length > 0
+                                  });
+                                }}
+                                className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded focus:ring-purple-500"
+                              />
+                              <span className="text-sm text-gray-300 capitalize">{eventType.replace('_', ' ')}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Processing Configuration</label>
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.extractFathomId || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    extractFathomId: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Extract Fathom Meeting ID</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.validatePayload || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    validatePayload: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Validate Payload Structure</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-blue-400 mb-2">Available Variables</h4>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-blue-300">
+                          <div>• {'{{payload.title}}'}</div>
+                          <div>• {'{{payload.date}}'}</div>
+                          <div>• {'{{payload.transcript}}'}</div>
+                          <div>• {'{{payload.duration}}'}</div>
+                          <div>• {'{{payload.summary}}'}</div>
+                          <div>• {'{{payload.participants}}'}</div>
+                          <div>• {'{{payload.action_items}}'}</div>
+                          <div>• {'{{payload.organizer_email}}'}</div>
+                          <div>• {'{{payload.attendees}}'}</div>
+                          <div>• {'{{payload.key_points}}'}</div>
+                          <div>• {'{{payload.fathom_id}}'}</div>
+                          <div>• {'{{payload.decisions}}'}</div>
+                          <div>• {'{{payload.recording_url}}'}</div>
+                          <div>• {'{{payload.next_steps}}'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Action Item Processor Configuration */}
+                {selectedNode.type === 'actionItemProcessor' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Task Categories</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.categorizeByRole || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, { 
+                                config: { ...selectedNode.data.config, categorizeByRole: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Categorize tasks by role (Sales Rep / Client)</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Priority Mapping</label>
+                        <div className="space-y-2">
+                          {['urgent', 'high', 'medium', 'low'].map(priority => (
+                            <div key={priority} className="flex items-center gap-2">
+                              <span className="text-sm text-gray-400 capitalize w-20">{priority}:</span>
+                              <select
+                                value={selectedNode.data.config?.deadlineCalculation?.[priority] || (priority === 'urgent' ? 1 : priority === 'high' ? 3 : priority === 'medium' ? 7 : 14)}
+                                onChange={(e) => updateNodeData(selectedNode.id, {
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    deadlineCalculation: {
+                                      ...selectedNode.data.config?.deadlineCalculation,
+                                      [priority]: parseInt(e.target.value)
+                                    }
+                                  }
+                                })}
+                                className="flex-1 px-2 py-1 bg-gray-800/50 border border-gray-700 rounded text-white text-xs"
+                              >
+                                <option value="1">1 day</option>
+                                <option value="3">3 days</option>
+                                <option value="7">1 week</option>
+                                <option value="14">2 weeks</option>
+                                <option value="30">1 month</option>
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-purple-400 mb-2">Processing Features</h4>
+                        <ul className="text-[10px] text-purple-300 space-y-1">
+                          <li>• Extracts action items from meeting data</li>
+                          <li>• Categorizes by role and priority</li>
+                          <li>• Sets automatic deadlines based on priority</li>
+                          <li>• Accounts for weekends in deadline calculation</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Metrics Calculator Configuration */}
+                {selectedNode.type === 'metricsCalculator' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Metrics to Calculate</label>
+                        <div className="space-y-2">
+                          {[
+                            { id: 'talkTime', label: 'Talk Time Distribution' },
+                            { id: 'engagement', label: 'Engagement Score' },
+                            { id: 'nextSteps', label: 'Next Steps Clarity' },
+                            { id: 'sentiment', label: 'Overall Sentiment' }
+                          ].map(metric => (
+                            <label key={metric.id} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.config?.metrics?.[metric.id] !== false}
+                                onChange={(e) => updateNodeData(selectedNode.id, {
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    metrics: {
+                                      ...selectedNode.data.config?.metrics,
+                                      [metric.id]: e.target.checked
+                                    }
+                                  }
+                                })}
+                                className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-300">{metric.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-blue-400 mb-2">Calculated Metrics</h4>
+                        <ul className="text-[10px] text-blue-300 space-y-1">
+                          <li>• Talk time ratio (rep vs customer)</li>
+                          <li>• Engagement level based on interaction</li>
+                          <li>• Next steps clarity score</li>
+                          <li>• Overall sentiment analysis</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Sales Coach Configuration */}
+                {selectedNode.type === 'salesCoach' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Coaching Areas</label>
+                        <div className="space-y-2">
+                          {[
+                            { id: 'objectionHandling', label: 'Objection Handling' },
+                            { id: 'closingTechniques', label: 'Closing Techniques' },
+                            { id: 'discovery', label: 'Discovery Questions' },
+                            { id: 'valueProposition', label: 'Value Proposition' }
+                          ].map(area => (
+                            <label key={area.id} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedNode.data.config?.coachingAreas?.[area.id] !== false}
+                                onChange={(e) => updateNodeData(selectedNode.id, {
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    coachingAreas: {
+                                      ...selectedNode.data.config?.coachingAreas,
+                                      [area.id]: e.target.checked
+                                    }
+                                  }
+                                })}
+                                className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                              />
+                              <span className="text-sm text-gray-300">{area.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Coaching Intensity</label>
+                        <select
+                          value={selectedNode.data.config?.intensity || 'balanced'}
+                          onChange={(e) => updateNodeData(selectedNode.id, {
+                            config: { ...selectedNode.data.config, intensity: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm"
+                        >
+                          <option value="light">Light - Key highlights only</option>
+                          <option value="balanced">Balanced - Main areas for improvement</option>
+                          <option value="detailed">Detailed - Comprehensive feedback</option>
+                        </select>
+                      </div>
+
+                      <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-green-400 mb-2">Coaching Insights</h4>
+                        <ul className="text-[10px] text-green-300 space-y-1">
+                          <li>• Personalized feedback based on call performance</li>
+                          <li>• Specific improvement suggestions</li>
+                          <li>• Best practices reinforcement</li>
+                          <li>• Action items for skill development</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Google Doc Creator Configuration */}
+                {selectedNode.type === 'googleDocCreator' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Document Template</label>
+                        <select
+                          value={selectedNode.data.config?.template || 'meeting_summary'}
+                          onChange={(e) => updateNodeData(selectedNode.id, {
+                            config: { ...selectedNode.data.config, template: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm"
+                        >
+                          <option value="meeting_summary">Meeting Summary</option>
+                          <option value="call_notes">Call Notes</option>
+                          <option value="action_items">Action Items List</option>
+                          <option value="comprehensive">Comprehensive Report</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Google Drive Folder ID</label>
+                        <input
+                          type="text"
+                          value={selectedNode.data.config?.folderId || ''}
+                          onChange={(e) => updateNodeData(selectedNode.id, {
+                            config: { ...selectedNode.data.config, folderId: e.target.value }
+                          })}
+                          placeholder="Optional: Specific folder ID"
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.shareWithTeam || false}
+                            onChange={(e) => updateNodeData(selectedNode.id, {
+                              config: { ...selectedNode.data.config, shareWithTeam: e.target.checked }
+                            })}
+                            className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                          />
+                          <span className="text-sm text-gray-300">Share with team members</span>
+                        </label>
+                      </div>
+
+                      <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-yellow-400 mb-2">Document Features</h4>
+                        <ul className="text-[10px] text-yellow-300 space-y-1">
+                          <li>• Creates formatted Google Docs</li>
+                          <li>• Includes meeting summary and action items</li>
+                          <li>• Links to original Fathom recording</li>
+                          <li>• Automatically shares with specified users</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Database Saver Configuration */}
+                {selectedNode.type === 'databaseSaver' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Save Options</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.saveMeeting !== false}
+                              onChange={(e) => updateNodeData(selectedNode.id, {
+                                config: { ...selectedNode.data.config, saveMeeting: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Save meeting data</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.saveActionItems !== false}
+                              onChange={(e) => updateNodeData(selectedNode.id, {
+                                config: { ...selectedNode.data.config, saveActionItems: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Save action items</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.saveMetrics || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, {
+                                config: { ...selectedNode.data.config, saveMetrics: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Save performance metrics</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-800/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-gray-400 mb-2">Database Tables</h4>
+                        <ul className="text-[10px] text-gray-300 space-y-1">
+                          <li>• meetings - Main meeting records</li>
+                          <li>• meeting_action_items - Task tracking</li>
+                          <li>• meeting_metrics - Performance data</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Task Creator Configuration */}
+                {selectedNode.type === 'taskCreator' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Task Creation Settings</label>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.autoAssign !== false}
+                              onChange={(e) => updateNodeData(selectedNode.id, {
+                                config: { ...selectedNode.data.config, autoAssign: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Auto-assign based on role</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.sendNotifications || false}
+                              onChange={(e) => updateNodeData(selectedNode.id, {
+                                config: { ...selectedNode.data.config, sendNotifications: e.target.checked }
+                              })}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Send notifications to assignees</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Default Priority</label>
+                        <select
+                          value={selectedNode.data.config?.defaultPriority || 'medium'}
+                          onChange={(e) => updateNodeData(selectedNode.id, {
+                            config: { ...selectedNode.data.config, defaultPriority: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="urgent">Urgent</option>
+                        </select>
+                      </div>
+
+                      <div className="bg-indigo-900/20 border border-indigo-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-indigo-400 mb-2">Task Features</h4>
+                        <ul className="text-[10px] text-indigo-300 space-y-1">
+                          <li>• Creates tasks from action items</li>
+                          <li>• Sets deadlines based on priority</li>
+                          <li>• Links tasks to meeting records</li>
+                          <li>• Triggers follow-up automation</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* AI Agent Node Configuration */}
+                {selectedNode.type === 'aiAgent' && (
+                  <>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Model Provider</label>
+                        <select
+                          value={selectedNode.data.aiProvider || 'openai'}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { aiProvider: e.target.value });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-600 outline-none"
+                        >
+                          <option value="openai">OpenAI</option>
+                          <option value="anthropic">Anthropic</option>
+                          <option value="openrouter">OpenRouter</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Model</label>
+                        <select
+                          value={selectedNode.data.model || 'gpt-4'}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { model: e.target.value });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-600 outline-none"
+                        >
+                          {selectedNode.data.aiProvider === 'openai' && (
+                            <>
+                              <option value="gpt-4">GPT-4</option>
+                              <option value="gpt-4-turbo-preview">GPT-4 Turbo</option>
+                              <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                            </>
+                          )}
+                          {selectedNode.data.aiProvider === 'anthropic' && (
+                            <>
+                              <option value="claude-3-opus">Claude 3 Opus</option>
+                              <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                              <option value="claude-3-haiku">Claude 3 Haiku</option>
+                            </>
+                          )}
+                          {selectedNode.data.aiProvider === 'openrouter' && (
+                            <>
+                              <option value="meta-llama/llama-2-70b-chat">Llama 2 70B</option>
+                              <option value="mistralai/mixtral-8x7b">Mixtral 8x7B</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">System Prompt</label>
+                        <textarea
+                          value={selectedNode.data.systemPrompt || ''}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { systemPrompt: e.target.value });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-600 outline-none resize-none h-24 font-mono text-xs"
+                          placeholder="You are a meeting analyst. Extract key insights, decisions, and next steps from meeting summaries."
+                        />
+                        <div className="flex gap-2 mt-1">
+                          <button
+                            onClick={() => {
+                              updateNodeData(selectedNode.id, { 
+                                systemPrompt: 'You are a meeting analyst specializing in extracting actionable insights from meeting transcripts and summaries. Your role is to identify key decisions, risks, follow-up requirements, and strategic insights that help teams stay aligned and productive.'
+                              });
+                            }}
+                            className="text-xs text-purple-400 hover:text-purple-300"
+                          >
+                            Use meeting analyst prompt
+                          </button>
+                          {selectedNode.data.label === 'Analyze Summary' && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  updateNodeData(selectedNode.id, { 
+                                    systemPrompt: 'You are an expert meeting analyst for the Fathom integration workflow. Your primary responsibility is to analyze meeting summaries and extract structured, actionable insights that will be used to automatically create tasks, update CRM records, and notify team members. You must provide clear, categorized output that downstream workflow nodes can process effectively. Focus on identifying concrete action items, key decisions with clear owners, potential risks that need mitigation, and strategic insights that impact the business.'
+                                  });
+                                }}
+                                className="text-xs text-green-400 hover:text-green-300"
+                              >
+                                Use Fathom workflow prompt ✓
+                              </button>
+                              <button
+                                onClick={() => {
+                                  updateNodeData(selectedNode.id, { 
+                                    systemPrompt: 'You are an expert B2B sales coach analyzing meeting transcripts to provide actionable coaching insights. Your analysis helps sales teams improve performance and close more deals.\n\nFocus areas:\n- Talk time ratio (ideal: customer 60-70%, rep 30-40%)\n- Discovery question quality and effectiveness\n- Objection handling techniques\n- Closing attempts and effectiveness\n- Next steps clarity and ownership\n- Buyer engagement signals\n- Risk factor identification\n- Deal progression likelihood\n\nProvide structured, measurable coaching insights that drive improvement.'
+                                  });
+                                }}
+                                className="text-xs text-blue-400 hover:text-blue-300"
+                              >
+                                Use Sales Coaching prompt ⭐
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">User Prompt Template</label>
+                        <textarea
+                          value={selectedNode.data.userPrompt || ''}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { userPrompt: e.target.value });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-purple-600 outline-none resize-none h-32 font-mono text-xs"
+                          placeholder="Analyze the meeting data and extract insights..."
+                        />
+                        {!selectedNode.data.userPrompt ? (
+                          <div className="flex gap-2 mt-1">
+                            <button
+                              onClick={() => {
+                                updateNodeData(selectedNode.id, { 
+                                  userPrompt: `Analyze this meeting summary from Fathom and extract the following:
+
+## 1. KEY DECISIONS MADE
+List all concrete decisions reached during the meeting with decision owners.
+
+## 2. IMPORTANT TOPICS DISCUSSED  
+Summarize the main discussion points and their outcomes.
+
+## 3. RISKS OR CONCERNS RAISED
+Identify any risks, blockers, or concerns mentioned that need attention.
+
+## 4. FOLLOW-UP REQUIREMENTS
+List all action items, next steps, and follow-ups with assigned owners and deadlines.
+
+## 5. STRATEGIC INSIGHTS
+Extract high-level insights and strategic implications from the discussion.
+
+Meeting Summary:
+${'{{payload.summary}}'}
+
+Meeting Title: ${'{{payload.title}}'}
+Participants: ${'{{payload.participants}}'}
+Duration: ${'{{payload.duration}}'} minutes
+Date: ${'{{payload.date}}'}
+
+Additional Context:
+- Fathom Recording ID: ${'{{payload.fathom_id}}'}
+- Share URL: ${'{{payload.share_url}}'}
+
+Return your analysis as structured JSON with the following format:
+{
+  "decisions": [{"decision": "...", "owner": "...", "context": "..."}],
+  "topics": [{"topic": "...", "summary": "...", "outcome": "..."}],
+  "risks": [{"risk": "...", "severity": "high/medium/low", "mitigation": "..."}],
+  "followUps": [{"action": "...", "owner": "...", "deadline": "...", "priority": "..."}],
+  "insights": [{"insight": "...", "impact": "...", "recommendation": "..."}],
+  "tags": ["tag1", "tag2", "tag3"]
+}`
+                              });
+                            }}
+                            className="text-xs text-purple-400 hover:text-purple-300"
+                          >
+                            Use general analysis prompt
+                          </button>
+                          {selectedNode.data.label === 'Analyze Summary' && (
+                            <>
+                            <button
+                              onClick={() => {
+                                updateNodeData(selectedNode.id, { 
+                                  userPrompt: `You are analyzing a meeting summary that has been processed by Fathom. Your analysis will be used by the workflow to:
+1. Create actionable tasks in the CRM
+2. Update the meeting record in the database
+3. Send notifications to relevant team members
+4. Generate follow-up actions
+
+Please analyze the following meeting data and provide a comprehensive, structured response:
+
+**Meeting Summary:**
+${'{{payload.summary}}'}
+
+**Meeting Context:**
+- Title: ${'{{payload.title}}'}
+- Date: ${'{{payload.date}}'}
+- Duration: ${'{{payload.duration}}'} minutes
+- Participants: ${'{{payload.participants}}'}
+- Organizer: ${'{{payload.organizer}}'}
+
+**Additional Data Available:**
+- Transcript available: ${'{{payload.transcript ? "Yes" : "No"}}'}
+- Action items provided: ${'{{payload.action_items ? "Yes" : "No"}}'}
+- Recording URL: ${'{{payload.share_url}}'}
+
+**REQUIRED OUTPUT STRUCTURE:**
+
+Return a JSON object with the following structure that will be used by downstream workflow nodes:
+
+{
+  "decisions": [
+    {
+      "decision": "Clear description of the decision",
+      "owner": "Person responsible",
+      "deadline": "When it needs to be implemented",
+      "impact": "Business impact of this decision"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Description of the risk or concern",
+      "severity": "critical|high|medium|low",
+      "owner": "Person who should address this",
+      "mitigation": "Suggested mitigation strategy",
+      "deadline": "When this needs attention"
+    }
+  ],
+  "action_items": [
+    {
+      "title": "Clear, actionable task title",
+      "description": "Detailed description of what needs to be done",
+      "assignee": "Person responsible (match with participants)",
+      "priority": "urgent|high|medium|low",
+      "due_date": "Suggested deadline in ISO format or relative days",
+      "category": "Follow-up|Technical|Administrative|Review|Decision",
+      "dependencies": ["List any dependencies mentioned"]
+    }
+  ],
+  "key_topics": [
+    {
+      "topic": "Main discussion topic",
+      "summary": "What was discussed",
+      "outcome": "What was decided or next steps",
+      "owner": "Who is driving this forward"
+    }
+  ],
+  "insights": [
+    {
+      "insight": "Strategic observation or learning",
+      "impact": "Why this matters to the business",
+      "recommendation": "What should be done about it",
+      "priority": "How urgent is this"
+    }
+  ],
+  "follow_up_required": {
+    "next_meeting": "Suggested date/timeframe for follow-up",
+    "attendees_needed": ["List of people who should attend"],
+    "agenda_items": ["Topics that need to be discussed"]
+  },
+  "tags": ["meeting-type", "department", "project", "strategic-initiative"],
+  "sentiment": "positive|neutral|concerning|critical",
+  "meeting_effectiveness": "highly-productive|productive|average|needs-improvement",
+  "summary_for_notification": "2-3 sentence summary suitable for Slack/email notifications"
+}`
+                                });
+                              }}
+                              className="text-xs text-green-400 hover:text-green-300"
+                            >
+                              Use Fathom workflow prompt ✓
+                            </button>
+                            <button
+                              onClick={() => {
+                                updateNodeData(selectedNode.id, { 
+                                  userPrompt: `Analyze this sales meeting transcript for coaching opportunities:
+
+**Transcript:** ${'{{googleDoc.content || payload.transcript}}'}
+**Participants:** ${'{{payload.participants}}'}
+**Duration:** ${'{{payload.duration}}'} minutes
+**Deal Stage:** ${'{{deal.stage || "Unknown"}}'}
+**Meeting Type:** ${'{{payload.title}}'}
+
+**Required Analysis:**
+Provide your coaching analysis as structured JSON:
+
+{
+  "talk_time_analysis": {
+    "customer_percentage": 0,
+    "rep_percentage": 0,
+    "coaching_note": "Assessment of talk time ratio and recommendations"
+  },
+  "discovery_score": {
+    "score": 0,
+    "strengths": ["effective discovery techniques used"],
+    "improvements": ["specific areas to improve questioning"]
+  },
+  "objection_handling": {
+    "score": 0,
+    "objections_raised": ["objection 1", "objection 2"],
+    "handling_effectiveness": "Assessment of how objections were addressed",
+    "missed_opportunities": ["areas where objections could have been better handled"]
+  },
+  "engagement_level": {
+    "score": 0,
+    "positive_signals": ["signs of customer interest and engagement"],
+    "concerning_signals": ["red flags or disengagement indicators"]
+  },
+  "opportunity_score": 0,
+  "buying_signals": ["explicit or implicit buying interest shown"],
+  "risk_factors": ["concerns that could derail the deal"],
+  "next_steps_clarity": {
+    "score": 0,
+    "defined_next_steps": ["specific next steps with owners"],
+    "missing_elements": ["what should have been clarified"]
+  },
+  "coaching_priorities": ["top 3 coaching areas for this rep"],
+  "manager_review_needed": false,
+  "stage_progression_recommendation": "advance|maintain|regress",
+  "follow_up_suggestions": ["specific recommended follow-up actions"]
+}`
+                                });
+                              }}
+                              className="text-xs text-blue-400 hover:text-blue-300"
+                            >
+                              Use Sales Coaching prompt ⭐
+                            </button>
+                            </>
+                          )}
+                        </div>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Temperature</label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.1"
+                          value={selectedNode.data.temperature || 0.3}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { temperature: parseFloat(e.target.value) });
+                          }}
+                          className="w-full"
+                        />
+                        <div className="text-xs text-gray-400 mt-1">
+                          Value: {selectedNode.data.temperature || 0.3} (Lower = More focused, Higher = More creative)
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Max Tokens</label>
+                        <input
+                          type="number"
+                          min="100"
+                          max="4000"
+                          value={selectedNode.data.maxTokens || 1500}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { maxTokens: parseInt(e.target.value) });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-600 outline-none"
+                          placeholder="1500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Output Format</label>
+                        <select
+                          value={selectedNode.data.outputFormat || 'structured_json'}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, { outputFormat: e.target.value });
+                          }}
+                          className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-purple-600 outline-none"
+                        >
+                          <option value="text">Plain Text</option>
+                          <option value="structured_json">Structured JSON</option>
+                          <option value="markdown">Markdown</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">Advanced Options</label>
+                        <div className="space-y-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.extractKeyPoints || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    extractKeyPoints: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Extract Key Points</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.identifyRisks || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    identifyRisks: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Identify Risks</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.suggestFollowUps || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    suggestFollowUps: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Suggest Follow-ups</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.generateTags || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    generateTags: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Generate Tags</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedNode.data.config?.sentimentAnalysis || false}
+                              onChange={(e) => {
+                                updateNodeData(selectedNode.id, { 
+                                  config: {
+                                    ...selectedNode.data.config,
+                                    sentimentAnalysis: e.target.checked
+                                  }
+                                });
+                              }}
+                              className="w-4 h-4 text-purple-600 bg-gray-800 border-gray-600 rounded"
+                            />
+                            <span className="text-sm text-gray-300">Sentiment Analysis</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-3">
+                        <h4 className="text-xs font-semibold text-purple-400 mb-2">Available Variables</h4>
+                        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-purple-300">
+                          <div>• {'{{payload.summary}}'}</div>
+                          <div>• {'{{payload.title}}'}</div>
+                          <div>• {'{{payload.participants}}'}</div>
+                          <div>• {'{{payload.duration}}'}</div>
+                          <div>• {'{{payload.action_items}}'}</div>
+                          <div>• {'{{payload.transcript}}'}</div>
+                          <div>• {'{{aiAnalysis.output}}'}</div>
+                          <div>• {'{{aiAnalysis.decisions}}'}</div>
+                          <div>• {'{{aiAnalysis.tags}}'}</div>
+                          <div>• {'{{processedActions.items}}'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ConditionalBranch node configuration */}
+                {selectedNode.type === 'conditionalBranch' && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Conditional Branch Configuration</h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Branch Description
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedNode.data.label || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { label: e.target.value });
+                        }}
+                        placeholder="Route by Content Type"
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Conditions
+                      </label>
+                      <div className="space-y-3">
+                        {(selectedNode.data.conditions || []).map((condition: any, index: number) => (
+                          <div key={condition.id || index} className="bg-gray-800/30 p-3 rounded-lg">
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={condition.field || ''}
+                                onChange={(e) => {
+                                  const newConditions = [...(selectedNode.data.conditions || [])];
+                                  newConditions[index] = { ...condition, field: e.target.value };
+                                  updateNodeData(selectedNode.id, { conditions: newConditions });
+                                }}
+                                placeholder="Field (e.g., {'{{payload.transcript}}'})"
+                                className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                              />
+                              
+                              <select
+                                value={condition.operator || 'exists'}
+                                onChange={(e) => {
+                                  const newConditions = [...(selectedNode.data.conditions || [])];
+                                  newConditions[index] = { ...condition, operator: e.target.value };
+                                  updateNodeData(selectedNode.id, { conditions: newConditions });
+                                }}
+                                className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white"
+                              >
+                                <option value="exists">Exists</option>
+                                <option value="equals">Equals</option>
+                                <option value="contains">Contains</option>
+                                <option value="greater_than">Greater Than</option>
+                                <option value="less_than">Less Than</option>
+                                <option value="not_equals">Not Equals</option>
+                                <option value="is_empty">Is Empty</option>
+                              </select>
+                              
+                              {condition.operator !== 'exists' && condition.operator !== 'is_empty' && (
+                                <input
+                                  type="text"
+                                  value={condition.value || ''}
+                                  onChange={(e) => {
+                                    const newConditions = [...(selectedNode.data.conditions || [])];
+                                    newConditions[index] = { ...condition, value: e.target.value };
+                                    updateNodeData(selectedNode.id, { conditions: newConditions });
+                                  }}
+                                  placeholder="Value"
+                                  className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                                />
+                              )}
+                              
+                              <input
+                                type="text"
+                                value={condition.output || ''}
+                                onChange={(e) => {
+                                  const newConditions = [...(selectedNode.data.conditions || [])];
+                                  newConditions[index] = { ...condition, output: e.target.value };
+                                  updateNodeData(selectedNode.id, { conditions: newConditions });
+                                }}
+                                placeholder="Output branch name (e.g., transcript)"
+                                className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        
+                        <button
+                          onClick={() => {
+                            const newCondition = {
+                              id: `condition-${Date.now()}`,
+                              field: '',
+                              operator: 'exists',
+                              value: '',
+                              output: ''
+                            };
+                            updateNodeData(selectedNode.id, {
+                              conditions: [...(selectedNode.data.conditions || []), newCondition]
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded-lg text-sm transition-colors"
+                        >
+                          + Add Condition
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800/30 p-3 rounded-lg">
+                      <p className="text-xs text-gray-400 mb-2">Available Variables:</p>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>• {'{{payload}}'} - Incoming webhook data</div>
+                        <div>• {'{{payload.transcript}}'} - Meeting transcript</div>
+                        <div>• {'{{payload.action_items}}'} - Action items</div>
+                        <div>• {'{{payload.summary}}'} - Meeting summary</div>
+                        <div>• {'{{payload.participants}}'} - Participant list</div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* GoogleDocsCreator node configuration */}
+                {selectedNode.type === 'googleDocsCreator' && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Google Docs Creator Configuration</h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Document Title
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedNode.data.docTitle || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { docTitle: e.target.value });
+                        }}
+                        placeholder="Meeting Transcript - {'{{payload.title}}'}"
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Document Content
+                      </label>
+                      <textarea
+                        value={selectedNode.data.config?.content || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), content: e.target.value }
+                          });
+                        }}
+                        placeholder="# Meeting: {'{{payload.title}}'}\n\n**Date**: {'{{payload.date}}'}\n**Duration**: {'{{payload.duration}}'} minutes\n**Participants**: {'{{payload.participants}}'}\n\n## Transcript\n\n{'{{payload.transcript}}'}"
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors h-32 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Google Drive Folder ID
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedNode.data.config?.folderId || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), folderId: e.target.value }
+                          });
+                        }}
+                        placeholder="{'{{env.GOOGLE_DRIVE_FOLDER_ID}}'}"
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.formatTranscript || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), formatTranscript: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Format transcript for readability
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.addTimestamps || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), addTimestamps: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Add timestamps to transcript
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.shareWithAI || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), shareWithAI: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Share with AI for analysis
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.vectorDbReady || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), vectorDbReady: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Prepare for vector database
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* ActionItemProcessor node configuration */}
+                {selectedNode.type === 'actionItemProcessor' && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Action Item Processor Configuration</h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        AI Model
+                      </label>
+                      <select
+                        value={selectedNode.data.config?.aiModel || 'gpt-4'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), aiModel: e.target.value }
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                      >
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        <option value="claude-3-opus">Claude 3 Opus</option>
+                        <option value="claude-3-sonnet">Claude 3 Sonnet</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        AI Prompt
+                      </label>
+                      <textarea
+                        value={selectedNode.data.config?.aiPrompt || ''}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), aiPrompt: e.target.value }
+                          });
+                        }}
+                        placeholder="Analyze these action items from the meeting:\n\n{'{{payload.action_items}}'}\n\nFor each action item:\n1. Classify priority (urgent/high/medium/low) based on context\n2. Identify the responsible person from: {'{{payload.participants}}'}\n3. Suggest a reasonable deadline (in business days)\n4. Add relevant tags and categories\n5. Extract any dependencies\n\nReturn as structured JSON."
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors h-32 font-mono text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Default Deadline (days)
+                      </label>
+                      <input
+                        type="number"
+                        value={selectedNode.data.config?.defaultDeadlineDays || 3}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), defaultDeadlineDays: parseInt(e.target.value) }
+                          });
+                        }}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Category Options
+                      </label>
+                      <input
+                        type="text"
+                        value={(selectedNode.data.config?.categoryOptions || []).join(', ')}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const categories = e.target.value.split(',').map(s => s.trim()).filter(s => s);
+                          updateNodeData(selectedNode.id, {
+                            config: { ...(selectedNode.data.config || {}), categoryOptions: categories }
+                          });
+                        }}
+                        placeholder="Follow-up, Technical, Administrative, Review, Decision"
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.aiEnabled || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), aiEnabled: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Enable AI processing
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.calculateDeadlines || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), calculateDeadlines: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Calculate deadlines automatically
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.accountForWeekends || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), accountForWeekends: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Account for weekends in deadlines
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {/* MeetingUpsert node configuration */}
+                {selectedNode.type === 'meetingUpsert' && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Meeting Upsert Configuration</h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Upsert Key
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedNode.data.upsertKey || 'fathom_recording_id'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          updateNodeData(selectedNode.id, { upsertKey: e.target.value });
+                        }}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Field Mappings
+                      </label>
+                      <div className="space-y-2 bg-gray-800/30 p-3 rounded-lg max-h-64 overflow-y-auto">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <span className="text-gray-400">title:</span>
+                          <span className="text-gray-300">{'{{payload.title}}'}</span>
+                          
+                          <span className="text-gray-400">fathom_recording_id:</span>
+                          <span className="text-gray-300">{'{{payload.fathom_id}}'}</span>
+                          
+                          <span className="text-gray-400">share_url:</span>
+                          <span className="text-gray-300">{'{{payload.share_url}}'}</span>
+                          
+                          <span className="text-gray-400">video_url:</span>
+                          <span className="text-gray-300">{'{{payload.video_url}}'}</span>
+                          
+                          <span className="text-gray-400">meeting_date:</span>
+                          <span className="text-gray-300">{'{{payload.date}}'}</span>
+                          
+                          <span className="text-gray-400">duration_minutes:</span>
+                          <span className="text-gray-300">{'{{payload.duration}}'}</span>
+                          
+                          <span className="text-gray-400">transcript:</span>
+                          <span className="text-gray-300">{'{{payload.transcript}}'}</span>
+                          
+                          <span className="text-gray-400">transcript_doc_url:</span>
+                          <span className="text-gray-300">{'{{googleDoc.url}}'}</span>
+                          
+                          <span className="text-gray-400">summary:</span>
+                          <span className="text-gray-300">{'{{payload.summary}}'}</span>
+                          
+                          <span className="text-gray-400">ai_analysis:</span>
+                          <span className="text-gray-300">{'{{aiAnalysis.output}}'}</span>
+                          
+                          <span className="text-gray-400">action_items:</span>
+                          <span className="text-gray-300">{'{{processedActions.items}}'}</span>
+                          
+                          <span className="text-gray-400">tasks_created:</span>
+                          <span className="text-gray-300">{'{{createdTasks.ids}}'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.createIfNotExists || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), createIfNotExists: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Create if not exists
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.updateExisting || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), updateExisting: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Update existing records
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.mergeArrays || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), mergeArrays: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Merge array fields
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.timestampFields || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), timestampFields: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Add timestamp fields
+                      </label>
+
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedNode.data.config?.auditLog || false}
+                          onChange={(e) => {
+                            updateNodeData(selectedNode.id, {
+                              config: { ...(selectedNode.data.config || {}), auditLog: e.target.checked }
+                            });
+                          }}
+                          className="mr-2 rounded bg-gray-700 border-gray-600"
+                        />
+                        Enable audit logging
+                      </label>
+
+                      {/* Contact & Company Enrichment Section */}
+                      <div className="mt-4 p-3 bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-lg border border-green-500/30">
+                        <h4 className="text-sm font-medium text-green-300 mb-3">🔗 Contact & Company Enrichment</h4>
+                        
+                        <label className="flex items-center text-sm text-gray-300 mb-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.linkContacts || false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), linkContacts: e.target.checked }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Link meeting participants to CRM contacts
+                        </label>
+
+                        <label className="flex items-center text-sm text-gray-300 mb-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.enrichContacts || false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), enrichContacts: e.target.checked }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Create new contacts for unknown participants
+                        </label>
+
+                        <label className="flex items-center text-sm text-gray-300 mb-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.createCompanies || false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), createCompanies: e.target.checked }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Auto-create companies from email domains
+                        </label>
+
+                        <label className="flex items-center text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.updateEngagement || false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), updateEngagement: e.target.checked }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Update contact engagement scores and interaction dates
+                        </label>
+
+                        <div className="mt-3 text-xs text-green-200 bg-green-900/20 p-2 rounded">
+                          <div className="font-medium mb-1">Contact Enrichment Process:</div>
+                          <div>• Match participants by email to existing contacts</div>
+                          <div>• Create new contacts for unknown participants</div>
+                          <div>• Extract company from email domain (@company.com)</div>
+                          <div>• Update last interaction date and engagement score</div>
+                          <div>• Link key topics discussed and next steps owned</div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Multi-channel Notification Action configuration */}
+                {selectedNode.type === 'action' && selectedNode.data.action === 'multi_channel_notify' && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-400 mb-3">Multi-Channel Notification Configuration</h3>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Notification Channels
+                      </label>
+                      <div className="space-y-2">
+                        <label className="flex items-center text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={(selectedNode.data.config?.channels || []).includes('slack')}
+                            onChange={(e) => {
+                              const channels = selectedNode.data.config?.channels || [];
+                              const newChannels = e.target.checked 
+                                ? [...channels, 'slack'].filter((v, i, a) => a.indexOf(v) === i)
+                                : channels.filter(c => c !== 'slack');
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), channels: newChannels }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Slack
+                        </label>
+                        <label className="flex items-center text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={(selectedNode.data.config?.channels || []).includes('email')}
+                            onChange={(e) => {
+                              const channels = selectedNode.data.config?.channels || [];
+                              const newChannels = e.target.checked 
+                                ? [...channels, 'email'].filter((v, i, a) => a.indexOf(v) === i)
+                                : channels.filter(c => c !== 'email');
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), channels: newChannels }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Email
+                        </label>
+                        <label className="flex items-center text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={(selectedNode.data.config?.channels || []).includes('in_app')}
+                            onChange={(e) => {
+                              const channels = selectedNode.data.config?.channels || [];
+                              const newChannels = e.target.checked 
+                                ? [...channels, 'in_app'].filter((v, i, a) => a.indexOf(v) === i)
+                                : channels.filter(c => c !== 'in_app');
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), channels: newChannels }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          In-App Notification
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Slack Configuration */}
+                    {(selectedNode.data.config?.channels || []).includes('slack') && (
+                      <div className="bg-gray-800/30 p-3 rounded-lg space-y-2">
+                        <h4 className="text-xs font-semibold text-gray-400 mb-2">Slack Configuration</h4>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Channel</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.config?.slackConfig?.channel || ''}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  slackConfig: {
+                                    ...(selectedNode.data.config?.slackConfig || {}),
+                                    channel: e.target.value
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder="#meetings"
+                            className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Message</label>
+                          <textarea
+                            value={selectedNode.data.config?.slackConfig?.message || ''}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  slackConfig: {
+                                    ...(selectedNode.data.config?.slackConfig || {}),
+                                    message: e.target.value
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder=":white_check_mark: Meeting &quot;{'{{payload.title}}'}&quot; has been processed\n\n:memo: Summary: {'{{payload.summary|truncate:200}}'}\n:clipboard: Action Items: {'{{processedActions.count}}'}"
+                            className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500 h-24 font-mono"
+                          />
+                        </div>
+                        
+                        <label className="flex items-center text-xs text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.slackConfig?.unfurlLinks === false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  slackConfig: {
+                                    ...(selectedNode.data.config?.slackConfig || {}),
+                                    unfurlLinks: !e.target.checked
+                                  }
+                                }
+                              });
+                            }}
+                            className="mr-1 rounded bg-gray-700 border-gray-600"
+                          />
+                          Disable link previews
+                        </label>
+                      </div>
+                    )}
+
+                    {/* Email Configuration */}
+                    {(selectedNode.data.config?.channels || []).includes('email') && (
+                      <div className="bg-gray-800/30 p-3 rounded-lg space-y-2">
+                        <h4 className="text-xs font-semibold text-gray-400 mb-2">Email Configuration</h4>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Recipients</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.config?.emailConfig?.to || ''}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  emailConfig: {
+                                    ...(selectedNode.data.config?.emailConfig || {}),
+                                    to: e.target.value
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder="{'{{payload.participants}}'}"
+                            className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Subject</label>
+                          <input
+                            type="text"
+                            value={selectedNode.data.config?.emailConfig?.subject || ''}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  emailConfig: {
+                                    ...(selectedNode.data.config?.emailConfig || {}),
+                                    subject: e.target.value
+                                  }
+                                }
+                              });
+                            }}
+                            placeholder="Meeting Processed: {'{{payload.title}}'}"
+                            className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">Template</label>
+                          <select
+                            value={selectedNode.data.config?.emailConfig?.template || 'meeting_processed'}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: {
+                                  ...(selectedNode.data.config || {}),
+                                  emailConfig: {
+                                    ...(selectedNode.data.config?.emailConfig || {}),
+                                    template: e.target.value
+                                  }
+                                }
+                              });
+                            }}
+                            className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white"
+                          >
+                            <option value="meeting_processed">Meeting Processed</option>
+                            <option value="action_items">Action Items</option>
+                            <option value="summary">Meeting Summary</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Conditional Notifications */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Conditional Notifications
+                      </label>
+                      <div className="space-y-2">
+                        {(selectedNode.data.config?.conditions || []).map((condition: any, index: number) => (
+                          <div key={index} className="bg-gray-800/30 p-2 rounded space-y-1">
+                            <input
+                              type="text"
+                              value={condition.if || ''}
+                              onChange={(e) => {
+                                const newConditions = [...(selectedNode.data.config?.conditions || [])];
+                                newConditions[index] = { ...condition, if: e.target.value };
+                                updateNodeData(selectedNode.id, {
+                                  config: { ...(selectedNode.data.config || {}), conditions: newConditions }
+                                });
+                              }}
+                              placeholder="Condition (e.g., processedActions.count > 0)"
+                              className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                            />
+                            <input
+                              type="text"
+                              value={condition.notify || ''}
+                              onChange={(e) => {
+                                const newConditions = [...(selectedNode.data.config?.conditions || [])];
+                                newConditions[index] = { ...condition, notify: e.target.value };
+                                updateNodeData(selectedNode.id, {
+                                  config: { ...(selectedNode.data.config || {}), conditions: newConditions }
+                                });
+                              }}
+                              placeholder="Notify (e.g., action_owners)"
+                              className="w-full px-2 py-1 bg-gray-900/50 border border-gray-700 rounded text-xs text-white placeholder-gray-500"
+                            />
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => {
+                            const newCondition = { if: '', notify: '' };
+                            updateNodeData(selectedNode.id, {
+                              config: {
+                                ...(selectedNode.data.config || {}),
+                                conditions: [...(selectedNode.data.config?.conditions || []), newCondition]
+                              }
+                            });
+                          }}
+                          className="w-full px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 rounded text-xs transition-colors"
+                        >
+                          + Add Condition
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Enhanced Conditional Routing for CRM Integration */}
+                    <div className="mt-4 p-3 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-lg border border-purple-500/30">
+                      <h4 className="text-sm font-medium text-purple-300 mb-3">🚀 CRM Integration Routing</h4>
+                      
+                      <div className="space-y-2 text-xs">
+                        <div className="bg-purple-900/20 p-2 rounded">
+                          <div className="font-medium text-purple-200 mb-1">Opportunity Score Based Routing:</div>
+                          <div className="text-purple-300">• High Score ({'>'}75): Notify sales team + managers</div>
+                          <div className="text-purple-300">• Medium Score (40-75): Notify deal owners</div>
+                          <div className="text-purple-300">• Low Score ({'<'}40): Escalate to sales managers</div>
+                        </div>
+                        
+                        <div className="bg-blue-900/20 p-2 rounded">
+                          <div className="font-medium text-blue-200 mb-1">Manager Escalation Rules:</div>
+                          <div className="text-blue-300">• Risk factors {'>'}2: Alert senior sales team</div>
+                          <div className="text-blue-300">• Manager review needed: Direct supervisor notification</div>
+                          <div className="text-blue-300">• Deal value {'>'}$50k: Executive team CC</div>
+                        </div>
+                        
+                        <div className="bg-green-900/20 p-2 rounded">
+                          <div className="font-medium text-green-200 mb-1">Coaching Insights Integration:</div>
+                          <div className="text-green-300">• Include talk time ratio in notifications</div>
+                          <div className="text-green-300">• Add discovery score and objection handling</div>
+                          <div className="text-green-300">• Embed coaching priorities for follow-up</div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3">
+                        <label className="flex items-center text-sm text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.data.config?.enhancedRouting || false}
+                            onChange={(e) => {
+                              updateNodeData(selectedNode.id, {
+                                config: { ...(selectedNode.data.config || {}), enhancedRouting: e.target.checked }
+                              });
+                            }}
+                            className="mr-2 rounded bg-gray-700 border-gray-600"
+                          />
+                          Enable CRM-driven conditional routing
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800/30 p-3 rounded-lg">
+                      <p className="text-xs text-gray-400 mb-2">Available Variables:</p>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>• {'{{payload.title}}'} - Meeting title</div>
+                        <div>• {'{{payload.summary}}'} - Meeting summary</div>
+                        <div>• {'{{processedActions.count}}'} - Action items count</div>
+                        <div>• {'{{googleDoc.url}}'} - Transcript document URL</div>
+                        <div>• {'{{payload.share_url}}'} - Recording URL</div>
+                        <div>• {'{{aiAnalysis.risks}}'} - Identified risks</div>
+                        <div className="mt-2 font-medium text-blue-400">CRM Integration Variables:</div>
+                        <div>• {'{{aiAnalysis.coaching.opportunity_score}}'} - AI opportunity score (0-100)</div>
+                        <div>• {'{{aiAnalysis.coaching.talk_time_analysis}}'} - Talk time breakdown</div>
+                        <div>• {'{{aiAnalysis.coaching.discovery_score}}'} - Discovery effectiveness score</div>
+                        <div>• {'{{aiAnalysis.coaching.manager_review_needed}}'} - Manager escalation flag</div>
+                        <div>• {'{{aiAnalysis.coaching.risk_factors}}'} - Array of risk factors</div>
+                        <div>• {'{{aiAnalysis.coaching.buying_signals}}'} - Positive buying indicators</div>
+                        <div>• {'{{deal.value}}'} - Deal value (if deal created)</div>
+                        <div>• {'{{deal.stage}}'} - Deal stage (if deal created)</div>
+                        <div>• {'{{contacts.enriched_count}}'} - Number of contacts enriched</div>
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -6477,16 +8839,97 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                     )}
                   </>
                 )}
+
+                {/* Edge Configuration */}
+                {selectedEdge && (
+                  <>
+                    <div className="mb-4 p-3 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                      <h3 className="text-sm font-semibold text-blue-300 mb-2">Edge Configuration</h3>
+                      <p className="text-xs text-blue-200/80">Configure connection properties and labels</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Edge Label</label>
+                      <input
+                        type="text"
+                        value={selectedEdge.label || ''}
+                        onChange={(e) => updateEdgeData(selectedEdge.id, { label: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                        placeholder="Enter edge label..."
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Display name for this connection</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Edge Type</label>
+                      <select
+                        value={selectedEdge.type || 'default'}
+                        onChange={(e) => updateEdgeData(selectedEdge.id, { type: e.target.value })}
+                        className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm focus:border-[#37bd7e] outline-none transition-colors cursor-pointer hover:bg-gray-800/70"
+                      >
+                        <option value="default">Default</option>
+                        <option value="smoothstep">Smooth Step</option>
+                        <option value="step">Step</option>
+                        <option value="straight">Straight</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Animation</label>
+                      <label className="flex items-center text-sm text-gray-300">
+                        <input
+                          type="checkbox"
+                          checked={selectedEdge.animated || false}
+                          onChange={(e) => updateEdgeData(selectedEdge.id, { animated: e.target.checked })}
+                          className="w-4 h-4 bg-gray-700 border-gray-600 rounded text-[#37bd7e] focus:ring-[#37bd7e] focus:ring-2"
+                        />
+                        <span className="ml-2">Enable animation</span>
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Edge Color</label>
+                      <div className="flex gap-2">
+                        {['#37bd7e', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#6b7280'].map((color) => (
+                          <button
+                            key={color}
+                            onClick={() => updateEdgeData(selectedEdge.id, { 
+                              style: { ...selectedEdge.style, stroke: color }
+                            })}
+                            className={`w-6 h-6 rounded border-2 transition-all ${
+                              selectedEdge.style?.stroke === color ? 'border-white' : 'border-gray-600'
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Actions */}
               <div className="pt-4 border-t border-gray-800">
-                <button
-                  onClick={deleteSelectedNode}
-                  className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                >
-                  Delete Node
-                </button>
+                {selectedNode && (
+                  <button
+                    onClick={deleteSelectedNode}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Delete Node
+                  </button>
+                )}
+                {selectedEdge && (
+                  <button
+                    onClick={() => {
+                      setEdges((eds) => eds.filter((edge) => edge.id !== selectedEdge.id));
+                      setSelectedEdge(null);
+                      setShowNodeEditor(false);
+                    }}
+                    className="w-full px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Delete Edge
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

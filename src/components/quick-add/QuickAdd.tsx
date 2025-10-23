@@ -738,8 +738,15 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           const monthly = sanitizeNumber(formData.monthlyMrr, { min: 0, decimals: 2 }) || 0;
           const saleAmount = (monthly * 3) + oneOff; // LTV calculation
           
+          // Ensure client_name is always a string for sales too
+          const saleClientName = typeof sanitizedFormData.client_name === 'string' 
+            ? sanitizedFormData.client_name 
+            : (typeof sanitizedFormData.client_name === 'object' && sanitizedFormData.client_name !== null
+                ? (sanitizedFormData.client_name as any).name || String(sanitizedFormData.client_name)
+                : (sanitizedFormData.contact_name || 'Unknown'));
+          
           await addSale({
-            client_name: sanitizedFormData.client_name || sanitizedFormData.contact_name || 'Unknown',
+            client_name: saleClientName,
             amount: saleAmount,
             details: sanitizedFormData.details || (monthly > 0 && oneOff > 0 ? 'Subscription + One-off Sale' : monthly > 0 ? 'Subscription Sale' : 'One-off Sale'),
             saleType: monthly > 0 ? 'subscription' : 'one-off',
@@ -757,9 +764,16 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           const sanitizedProposalAmount = selectedAction === 'proposal' ? 
             sanitizeNumber(formData.amount, { min: 0, decimals: 2 }) : undefined;
             
+          // Ensure client_name is always a string, not an object
+          const clientNameString = typeof sanitizedFormData.client_name === 'string' 
+            ? sanitizedFormData.client_name 
+            : (typeof sanitizedFormData.client_name === 'object' && sanitizedFormData.client_name !== null
+                ? (sanitizedFormData.client_name as any).name || String(sanitizedFormData.client_name)
+                : 'Unknown');
+          
           await addActivity({
             type: selectedAction as 'meeting' | 'proposal',
-            client_name: sanitizedFormData.client_name || 'Unknown',
+            client_name: clientNameString,
             details: sanitizedFormData.details,
             amount: sanitizedProposalAmount,
             date: selectedDate.toISOString(),

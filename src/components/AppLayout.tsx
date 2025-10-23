@@ -77,20 +77,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
+    { icon: Video, label: 'Meetings', href: '/meetings' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
-    { icon: Calendar, label: 'Calendar', href: '/calendar' },
     { icon: Building2, label: 'CRM', href: '/crm' },
+    { icon: Calendar, label: 'Calendar', href: '/calendar' },
     { icon: Mail, label: 'Email', href: '/email' },
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },
     { icon: Workflow, label: 'Workflows', href: '/workflows' },
-    { icon: LinkIcon, label: 'Integrations', href: '/integrations' },
     { icon: Map, label: 'Roadmap', href: '/roadmap' },
-    { icon: History, label: 'Releases', href: '/releases' },
-    ...(userData?.is_admin ? [
-      { icon: UserCog, label: 'Admin', href: '/admin' }
-    ] : []),
   ];
 
   return (

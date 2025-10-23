@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Video, 
@@ -82,6 +83,7 @@ export function MeetingsView({
   viewMode: externalViewMode,
   onViewModeChange: externalOnViewModeChange
 }: MeetingsViewProps) {
+  const navigate = useNavigate();
   const { userData, isLoading: isUserLoading } = useUser();
   
   // State management
@@ -117,44 +119,60 @@ export function MeetingsView({
         setIsLoading(true);
         setError(null);
         
-        // For now, return empty array as meetings table may not exist yet
-        // This prevents the API error while keeping the UI functional
-        logger.info('Meetings API is not fully configured yet - returning empty data');
-        setMeetings([]);
-        setIsLoading(false);
+        const { data: { user } } = await supabase.auth.getUser();
+        console.log('🔍 Fetching meetings for user:', user?.id);
+        console.log('🔍 Selected owner ID:', selectedOwnerId);
+        console.log('🔍 Search query:', searchQuery);
         
-        // TODO: Uncomment when meetings table is available
-        // const { data: { user } } = await supabase.auth.getUser();
-        // 
-        // let query = supabase
-        //   .from('meetings')
-        //   .select(`
-        //     *,
-        //     company:companies(name, domain),
-        //     action_items:meeting_action_items(completed)
-        //   `)
-        //   .order('meeting_start', { ascending: false });
-        //
-        // // Apply search filter
-        // if (searchQuery && searchQuery.trim()) {
-        //   const searchPattern = `%${searchQuery.trim()}%`;
-        //   query = query.or(`title.ilike.${searchPattern},summary.ilike.${searchPattern}`);
-        // }
-        //
-        // // Apply owner filter
-        // if (selectedOwnerId) {
-        //   query = query.eq('owner_user_id', selectedOwnerId);
-        // }
-        //
-        // const { data: meetingsData, error: meetingsError } = await query;
-        //
-        // if (meetingsError) {
-        //   logger.error('❌ Meetings query failed:', meetingsError);
-        //   throw meetingsError;
-        // }
-        //
-        // setMeetings(meetingsData || []);
-        // setIsLoading(false);
+        // First, let's check if there are ANY meetings in the table
+        const { data: allMeetings, error: allError } = await supabase
+          .from('meetings')
+          .select('id, title, owner_user_id')
+          .limit(5);
+        
+        console.log('📊 Sample meetings in database:', allMeetings, allError);
+        
+        let query = supabase
+          .from('meetings')
+          .select(`
+            *,
+            company:companies!fk_meetings_company_id(name, domain),
+            action_items:meeting_action_items(completed)
+          `)
+          .order('meeting_start', { ascending: false });
+
+        // Apply search filter
+        if (searchQuery && searchQuery.trim()) {
+          const searchPattern = `%${searchQuery.trim()}%`;
+          query = query.or(`title.ilike.${searchPattern},summary.ilike.${searchPattern}`);
+        }
+
+        // Apply owner filter
+        if (selectedOwnerId) {
+          console.log('🔍 Applying owner filter:', selectedOwnerId);
+          query = query.eq('owner_user_id', selectedOwnerId);
+        } else {
+          console.log('🔍 No owner filter applied - showing all meetings');
+        }
+
+        const { data: meetingsData, error: meetingsError } = await query;
+        console.log('📊 Final meetings query result:', { 
+          count: meetingsData?.length || 0,
+          data: meetingsData, 
+          error: meetingsError 
+        });
+
+        if (meetingsError) {
+          logger.error('❌ Meetings query failed:', meetingsError);
+          // Don't throw error, just log it and show empty state
+          console.error('Meetings fetch error:', meetingsError);
+          setMeetings([]);
+        } else {
+          console.log(`✅ Found ${meetingsData?.length || 0} meetings`);
+          setMeetings(meetingsData || []);
+        }
+        
+        setIsLoading(false);
       } catch (error) {
         console.error('Error fetching meetings:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch meetings');
@@ -336,8 +354,7 @@ export function MeetingsView({
 
   // Navigation and action handlers
   const handleMeetingNavigate = (meeting: Meeting) => {
-    // Navigate to meeting details page when available
-    console.log('Navigate to meeting:', meeting.id);
+    navigate(`/meetings/${meeting.id}`);
   };
 
   const handleEditMeeting = (meeting: Meeting) => {

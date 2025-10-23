@@ -464,6 +464,16 @@ const TaskList: React.FC<TaskListProps> = ({
                                         <Badge className={`px-2 py-0.5 text-xs ${getStatusColor(task.status)}`}>
                                           {task.status.replace('_', ' ')}
                                         </Badge>
+                                        {task.category && (
+                                          <Badge className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 border-purple-700">
+                                            {task.category}
+                                          </Badge>
+                                        )}
+                                        {task.meeting_id && (
+                                          <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700">
+                                            From Fathom
+                                          </Badge>
+                                        )}
                                       </div>
 
                                       {task.description && (

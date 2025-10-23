@@ -377,6 +377,22 @@ For questions about admin functionality, revenue splitting, or performance optim
 - `auto_link_calendar_event_to_contact` trigger - Fixed to use `owner_id` for contact linking
 - Composite unique index on `(external_id, user_id)` for calendar events
 
+**IMPORTANT DATABASE COLUMN NAMES:**
+- **meetings table**: Uses `owner_user_id` NOT `user_id` (common integration error!)
+- **calendar_events table**: Uses `user_id` for the owner
+- **tasks table**: Uses `user_id` for assignment
+- **deals table**: Uses `user_id` for the owner
+- **activities table**: Uses `user_id` for the owner
+- **contacts table**: Uses `user_id` for the owner
+- **workflow_executions table**: Uses `user_id` for the owner
+- **user_automation_rules table**: Uses `user_id` (references auth.users(id))
+- Always verify the correct column name before writing migrations or queries!
+
+**Edge Function Notes:**
+- Edge functions use service role key which bypasses RLS
+- When querying tables, explicitly select needed columns rather than using `select('*')`
+- Add error logging to help debug column name issues
+
 **Route Structure:**
 - `/admin` - Consolidated admin hub with smart task management
 - `/crm` - Unified CRM features with 4-stage pipeline
