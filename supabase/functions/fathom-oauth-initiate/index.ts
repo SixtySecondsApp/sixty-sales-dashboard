@@ -99,13 +99,13 @@ serve(async (req) => {
     }
 
     // Build OAuth authorization URL
-    // Note: Fathom OAuth doesn't require scope parameter - scopes are defined in the OAuth app settings
-    const authUrl = new URL('https://app.fathom.video/oauth/authorize')
+    // Using Fathom's OAuth 2.0 endpoints
+    const authUrl = new URL('https://fathom.video/external/v1/oauth2/authorize')
     authUrl.searchParams.set('client_id', clientId)
     authUrl.searchParams.set('redirect_uri', redirectUri)
     authUrl.searchParams.set('response_type', 'code')
+    authUrl.searchParams.set('scope', 'public_api') // Only supported scope
     authUrl.searchParams.set('state', state)
-    // Scope is NOT included - Fathom uses app-level permissions instead
 
     console.log('✅ OAuth URL generated successfully')
 

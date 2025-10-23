@@ -122,18 +122,20 @@ serve(async (req) => {
     console.log('🔄 Exchanging authorization code for tokens')
 
     // Exchange authorization code for access token
-    const tokenResponse = await fetch('https://app.fathom.video/oauth/token', {
+    const tokenParams = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+    })
+
+    const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        grant_type: 'authorization_code',
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-      }),
+      body: tokenParams.toString(),
     })
 
     if (!tokenResponse.ok) {
@@ -182,7 +184,7 @@ serve(async (req) => {
         token_expires_at: tokenExpiresAt,
         fathom_user_id: fathomUserId,
         fathom_user_email: fathomUserEmail,
-        scopes: tokenData.scope?.split(' ') || ['read'],
+        scopes: tokenData.scope?.split(' ') || ['public_api'],
         is_active: true,
         last_sync_at: null,
       }, {
