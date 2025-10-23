@@ -60,10 +60,20 @@ export default function FathomCallback() {
         }
 
         console.log('✅ OAuth flow completed successfully', data);
+        console.log('🔍 Checking popup status:', {
+          hasOpener: !!window.opener,
+          windowName: window.name,
+          outerWidth: window.outerWidth
+        });
         setStatus('success');
 
-        // Send success message to parent window if opened in popup
-        if (window.opener) {
+        // Check if we're in a popup window (multiple detection methods)
+        const isPopup = !!(window.opener || window.name === 'Fathom OAuth' || window.outerWidth < 700);
+
+        console.log('📊 Is popup?', isPopup);
+
+        if (isPopup && window.opener) {
+          console.log('📤 Sending success message to parent window');
           window.opener.postMessage({
             type: 'fathom-oauth-success',
             integrationId: data.integration_id,
@@ -72,10 +82,18 @@ export default function FathomCallback() {
 
           // Close popup after 1 second
           setTimeout(() => {
+            console.log('🚪 Closing popup window');
+            window.close();
+          }, 1000);
+        } else if (isPopup && !window.opener) {
+          // Popup but no opener (security restriction) - try to close anyway
+          console.log('⚠️  Popup detected but no window.opener - attempting to close');
+          setTimeout(() => {
             window.close();
           }, 1000);
         } else {
           // If not in popup, check session and redirect
+          console.log('🔄 Not in popup, redirecting...');
           setTimeout(async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
