@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { toast } from 'sonner';
 
 export interface FathomIntegration {
   id: string;
@@ -169,13 +170,39 @@ export function useFathomIntegration() {
       );
 
       // Listen for OAuth completion
-      const handleMessage = (event: MessageEvent) => {
+      const handleMessage = async (event: MessageEvent) => {
         if (event.data.type === 'fathom-oauth-success') {
-          console.log('OAuth success:', event.data);
+          console.log('✅ Fathom OAuth success:', event.data);
           popup?.close();
           window.removeEventListener('message', handleMessage);
+
+          // Show success notification
+          toast.success('Fathom Connected!', {
+            description: 'Your Fathom account has been successfully connected. Starting initial sync...'
+          });
+
           // Refresh integration data
-          window.location.reload();
+          try {
+            const { data: integrationData } = await supabase
+              .from('fathom_integrations')
+              .select('*')
+              .eq('user_id', user!.id)
+              .eq('is_active', true)
+              .single();
+
+            setIntegration(integrationData);
+
+            // Get sync state
+            const { data: syncData } = await supabase
+              .from('fathom_sync_state')
+              .select('*')
+              .eq('user_id', user!.id)
+              .single();
+
+            setSyncState(syncData);
+          } catch (err) {
+            console.error('Error refreshing integration:', err);
+          }
         }
       };
 

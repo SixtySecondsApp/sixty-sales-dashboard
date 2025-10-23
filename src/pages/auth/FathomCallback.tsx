@@ -59,17 +59,29 @@ export default function FathomCallback() {
         console.log('✅ OAuth flow completed successfully');
         setStatus('success');
 
-        // Check if user is still authenticated
-        // If session was lost during OAuth flow, redirect to login with message
-        // Otherwise redirect to integrations
-        setTimeout(async () => {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            navigate('/auth/login?message=fathom-connected&redirect=/integrations');
-          } else {
-            navigate('/integrations?fathom=connected');
-          }
-        }, 2000);
+        // Send success message to parent window if opened in popup
+        if (window.opener) {
+          window.opener.postMessage({
+            type: 'fathom-oauth-success',
+            integrationId: data.integration_id,
+            userId: data.user_id
+          }, '*');
+
+          // Close popup after 1 second
+          setTimeout(() => {
+            window.close();
+          }, 1000);
+        } else {
+          // If not in popup, check session and redirect
+          setTimeout(async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              navigate('/auth/login?message=fathom-connected&redirect=/integrations');
+            } else {
+              navigate('/integrations?fathom=connected');
+            }
+          }, 2000);
+        }
 
       } catch (err) {
         console.error('❌ OAuth callback error:', err);
