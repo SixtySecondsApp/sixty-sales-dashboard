@@ -1,242 +1,108 @@
-# Fathom API Integration - Complete Implementation
+# Fathom OAuth Integration - Implementation Complete ✅
 
-**Status**: ✅ Complete (All 8 Phases)
-**Date**: January 24, 2025
-**Architecture**: OAuth 2.0 + API Sync + Webhook Hybrid
+## Overview
+Successfully implemented and deployed Fathom OAuth 2.0 integration for the Sixty Sales Dashboard CRM.
 
----
+## Final Configuration
 
-## 🎯 Implementation Summary
+### OAuth Endpoints
+- **Authorization**: `https://fathom.video/external/v1/oauth2/authorize`
+- **Token Exchange**: `https://fathom.video/external/v1/oauth2/token`
+- **User Info**: `https://api.fathom.ai/external/v1/me`
+- **Scope**: `public_api`
 
-Successfully migrated Fathom integration from webhook-only to a comprehensive OAuth 2.0 + API-based architecture with real-time webhook updates and automated hourly sync.
+### Redirect URI
+- **Production**: `https://sales.sixtyseconds.video/oauth/fathom/callback`
 
-### Key Achievements
-
-✅ **OAuth 2.0 Flow**: Per-user authentication with automatic token refresh
-✅ **API Integration**: Full Fathom API v1 client with retry logic
-✅ **Sync Engine**: 4 sync types (initial, incremental, manual, webhook)
-✅ **Webhook Enhancement**: Real-time updates trigger API sync
-✅ **Frontend Components**: React hooks and UI for OAuth/sync management
-✅ **Cron Jobs**: Automated hourly sync for all active integrations
-✅ **Deep Linking**: Meeting detail pages for notifications
-
----
-
-## 📦 Files Created
-
-### Database Migrations (3 files)
-- `supabase/migrations/20250124000001_create_fathom_integrations.sql`
-- `supabase/migrations/20250124000002_create_fathom_oauth_states.sql`
-- `supabase/migrations/20250124000003_setup_fathom_cron_sync.sql`
-
-### Edge Functions (4 files)
-- `supabase/functions/fathom-oauth-initiate/index.ts`
-- `supabase/functions/fathom-oauth-callback/index.ts`
-- `supabase/functions/fathom-sync/index.ts`
-- `supabase/functions/fathom-cron-sync/index.ts`
-
-### Services & Hooks (2 files)
-- `src/lib/services/fathomApiService.ts`
-- `src/lib/hooks/useFathomIntegration.ts`
-
-### Components (2 files)
-- `src/components/integrations/FathomSettings.tsx`
-- `src/pages/MeetingDetail.tsx`
-
-### Configuration (1 file)
-- `.env.example` (updated with Fathom OAuth vars)
-
-**Total**: 12 new files, ~2,500 lines of code
-
----
-
-## 🚀 Quick Start
-
-### 1. Environment Setup
-
+### Environment Variables (Edge Function Secrets)
 ```bash
-# Add to .env
-VITE_FATHOM_CLIENT_ID=your_fathom_client_id
-VITE_FATHOM_CLIENT_SECRET=your_fathom_client_secret
-VITE_FATHOM_REDIRECT_URI=http://localhost:5173/oauth/fathom/callback
-FATHOM_API_BASE_URL=https://api.fathom.video/v1
+VITE_FATHOM_CLIENT_ID=vYFyd39_UUYJWJVbxj_Q4GXp06UDUjZWM3SQZBp9KWM
+VITE_FATHOM_CLIENT_SECRET=yB3nh8FsDt-c73-dYrUoErBsACx1e6ZYvNE4uMKyKW4
+VITE_FATHOM_REDIRECT_URI=https://sales.sixtyseconds.video/oauth/fathom/callback
+FATHOM_API_BASE_URL=https://api.fathom.ai
 ```
 
-### 2. Run Migrations
+## Issues Resolved
 
-```bash
-supabase migration up 20250124000001_create_fathom_integrations
-supabase migration up 20250124000002_create_fathom_oauth_states
-supabase migration up 20250124000003_setup_fathom_cron_sync
-```
+### 1. Invalid Scope Error
+**Problem**: Initial scopes (`calls:read`, `analytics:read`, `highlights:write`) were invalid
+**Solution**: Changed to `public_api` (the only valid scope per Fathom OAuth v2 docs)
 
-### 3. Deploy Edge Functions
+### 2. DNS Resolution Error
+**Problem**: Tried using `app.fathom.video` domain which doesn't exist
+**Solution**: Corrected to use `fathom.video` for OAuth and `api.fathom.ai` for API calls
 
-```bash
-supabase functions deploy fathom-oauth-initiate
-supabase functions deploy fathom-oauth-callback
-supabase functions deploy fathom-sync
-supabase functions deploy fathom-cron-sync
-```
+### 3. Token Exchange Format Error
+**Problem**: Sending token request as JSON
+**Solution**: Changed to `application/x-www-form-urlencoded` format as required by Fathom
 
-### 4. Configure Cron (In Supabase SQL Editor)
+### 4. Query Method Error (406 Not Acceptable)
+**Problem**: Using `.single()` which throws error when no integration exists
+**Solution**: Changed to `.maybeSingle()` which returns null gracefully
 
-```sql
--- Set environment variables for cron function
-ALTER DATABASE postgres SET app.supabase_url = 'https://your-project.supabase.co';
-ALTER DATABASE postgres SET app.supabase_service_role_key = 'your-service-role-key';
-```
+### 5. OAuth Callback Redirect Issue
+**Problem**: Authenticated users being redirected from callback page to homepage immediately
+**Solution**: Added `isOAuthCallback` check in ProtectedRoute to exclude OAuth routes from auto-redirect
 
-### 5. Add Frontend Routes
+### 6. RLS Policy Violation
+**Problem**: Edge Function couldn't store OAuth state due to RLS
+**Solution**: Used separate Supabase clients - anon for auth, service role for data operations
 
-```typescript
-// In your router
-import { MeetingDetail } from '@/pages/MeetingDetail';
+## Architecture
 
-<Route path="/meetings/:id" element={<MeetingDetail />} />
-```
+### Frontend Flow
+1. User clicks "Connect Fathom Account" on `/integrations` page
+2. `useFathomIntegration` hook calls `fathom-oauth-initiate` Edge Function
+3. Opens popup window with Fathom authorization URL
+4. User authorizes on Fathom
+5. Fathom redirects to `/oauth/fathom/callback` in popup
+6. `FathomCallback.tsx` component calls `fathom-oauth-callback` Edge Function
+7. Edge Function exchanges code for tokens and stores integration
+8. Popup sends success message to parent window via postMessage
+9. Parent window displays success toast and refreshes integration data
+10. Popup closes automatically
 
----
+### Backend Components
 
-## 🔐 Security Features
+**Edge Functions**:
+- `fathom-oauth-initiate` - Generates authorization URL and stores state
+- `fathom-oauth-callback` - Exchanges code for tokens, stores integration
+- `fathom-sync` - Manual sync trigger (to be implemented)
+- `fathom-cron-sync` - Scheduled background sync (to be implemented)
 
-- **CSRF Protection**: OAuth state parameter validation
-- **Token Auto-Refresh**: 5-minute buffer before expiry
-- **Row Level Security**: User-isolated data access
-- **Service Role Auth**: Secure cron job execution
-- **Encrypted Storage**: OAuth tokens in Supabase vault
-- **Audit Logging**: Complete cron job audit trail
+**Database Tables**:
+- `fathom_integrations` - Stores OAuth tokens and integration metadata
+- `fathom_oauth_states` - CSRF protection for OAuth flow
+- `fathom_sync_state` - Tracks sync status and progress
 
----
+**React Components**:
+- `src/lib/hooks/useFathomIntegration.ts` - Integration state and OAuth flow management
+- `src/pages/auth/FathomCallback.tsx` - OAuth callback handler
+- `src/components/ProtectedRoute.tsx` - Route protection with OAuth callback support
 
-## 📊 Sync Architecture
+## Testing
+✅ OAuth authorization flow
+✅ Token exchange and storage
+✅ Integration display in UI
+✅ Popup window management
+✅ Error handling and user feedback
+✅ RLS policies and security
+✅ Production deployment
 
-```
-┌──────────────┐
-│   User       │
-│   Action     │
-└──────┬───────┘
-       │
-       ├─── Manual Sync ────► fathom-sync (API pull)
-       │
-       ├─── OAuth Flow ─────► fathom-oauth-* (token exchange)
-       │
-       └─── Page View ──────► MeetingDetail (display)
+## Next Steps
+- [ ] Implement meeting sync functionality
+- [ ] Add meeting transcription access
+- [ ] Configure webhook for real-time updates
+- [ ] Add sync schedule configuration UI
+- [ ] Implement meeting-to-CRM mapping logic
 
-┌──────────────┐
-│   Fathom     │
-│   Webhook    │
-└──────┬───────┘
-       │
-       └─── call.ready ─────► workflow-webhook → fathom-sync
+## Deployment Status
+- ✅ Edge Functions deployed
+- ✅ Environment variables configured
+- ✅ Frontend code deployed
+- ✅ Database tables created
+- ✅ RLS policies configured
+- ✅ OAuth app registered with Fathom
 
-┌──────────────┐
-│   pg_cron    │
-│   (Hourly)   │
-└──────┬───────┘
-       │
-       └─── Scheduled ──────► fathom-cron-sync → fathom-sync (all users)
-```
-
----
-
-## 🧪 Testing Checklist
-
-### OAuth Flow
-- [ ] Connect Fathom opens OAuth popup
-- [ ] Callback stores tokens correctly
-- [ ] Token auto-refresh works
-- [ ] Disconnect removes integration
-
-### Sync Engine
-- [ ] Manual sync pulls meetings
-- [ ] Attendees and action items created
-- [ ] Analytics data stored correctly
-- [ ] Custom date range sync works
-
-### Webhook
-- [ ] `call.ready` triggers sync
-- [ ] Single call updated immediately
-- [ ] Webhook logs created
-
-### Cron Job
-- [ ] Hourly sync runs automatically
-- [ ] All active users synced
-- [ ] Failed syncs logged
-- [ ] Old logs cleaned up
-
-### Meeting Detail
-- [ ] Page loads with meeting data
-- [ ] Recording player works
-- [ ] Action items display correctly
-- [ ] Deep links from notifications work
-
----
-
-## 📈 Performance
-
-**Sync Speed**
-- Initial sync (30 days, 50 meetings): ~5-10 minutes
-- Incremental sync (24h, 5 meetings): ~30 seconds
-- Webhook sync (1 call): ~2-3 seconds
-
-**API Efficiency**
-- Batch requests with pagination
-- Rate limit handling (429 responses)
-- Exponential backoff retry logic
-- Token caching prevents redundant calls
-
----
-
-## 🔧 Troubleshooting
-
-### "No active Fathom integration found"
-**Solution**: User needs to connect Fathom via OAuth flow in settings
-
-### "Token expired" errors
-**Solution**: Auto-refresh should handle this. If not, check token expiry:
-```sql
-SELECT user_id, token_expires_at, NOW()
-FROM fathom_integrations WHERE is_active = true;
-```
-
-### Cron not running
-**Solution**: Verify pg_cron schedule and pg_net configuration:
-```sql
-SELECT * FROM cron.job WHERE jobname = 'fathom-hourly-sync';
-SELECT current_setting('app.supabase_url', true);
-```
-
-### Webhooks not triggering
-**Solution**: Check workflow is active and Fathom webhook URL is correct
-
----
-
-## 🎯 Next Steps
-
-### Immediate (Production Ready)
-1. Deploy to staging environment
-2. Test OAuth flow end-to-end
-3. Verify cron job execution
-4. Load test with 100+ meetings
-5. Deploy to production
-
-### Short-term Enhancements
-- [ ] Email notifications for new meetings
-- [ ] Slack integration for action items
-- [ ] Auto-link meetings to deals via participants
-- [ ] Advanced analytics dashboard
-
-### Long-term Vision
-- [ ] Two-way sync (CRM → Fathom highlights)
-- [ ] AI coaching insights from call analytics
-- [ ] Full-text transcript search
-- [ ] Custom webhook event handlers
-
----
-
-**Implementation Status**: 🟢 Production Ready
-**Documentation**: ✅ Complete
-**Test Coverage**: Manual testing required
-
-All 8 phases completed successfully!
+**Status**: Production Ready ✅
+**Date Completed**: 2025-10-23
