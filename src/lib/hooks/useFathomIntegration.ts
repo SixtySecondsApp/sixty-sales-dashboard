@@ -50,20 +50,21 @@ export function useFathomIntegration() {
 
         console.log('🔍 Fetching Fathom integration for user:', user.id);
 
-        // Get active integration
+        // Get active integration - use maybeSingle() instead of single() to handle no results
         const { data: integrationData, error: integrationError } = await supabase
           .from('fathom_integrations')
           .select('*')
           .eq('user_id', user.id)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
 
         console.log('📊 Integration query result:', {
           data: integrationData,
           error: integrationError
         });
 
-        if (integrationError && integrationError.code !== 'PGRST116') {
+        if (integrationError) {
+          console.error('❌ Error fetching integration:', integrationError);
           throw integrationError;
         }
 
@@ -75,9 +76,10 @@ export function useFathomIntegration() {
             .from('fathom_sync_state')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
 
-          if (syncError && syncError.code !== 'PGRST116') {
+          if (syncError) {
+            console.error('❌ Error fetching sync state:', syncError);
             throw syncError;
           }
 
@@ -195,7 +197,7 @@ export function useFathomIntegration() {
               .select('*')
               .eq('user_id', user!.id)
               .eq('is_active', true)
-              .single();
+              .maybeSingle();
 
             setIntegration(integrationData);
 
@@ -204,7 +206,7 @@ export function useFathomIntegration() {
               .from('fathom_sync_state')
               .select('*')
               .eq('user_id', user!.id)
-              .single();
+              .maybeSingle();
 
             setSyncState(syncData);
           } catch (err) {
