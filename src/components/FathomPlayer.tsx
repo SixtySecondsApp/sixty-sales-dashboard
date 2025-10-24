@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react'
 interface FathomPlayerProps {
   shareUrl?: string
   id?: string
+  recordingId?: string
   autoplay?: boolean
   startSeconds?: number
   aspectRatio?: string | number
@@ -25,23 +26,30 @@ function extractId(input?: string): string | null {
   }
 }
 
-function toEmbedSrc(id: string, opts?: { autoplay?: boolean; timestamp?: number }) {
-  const url = new URL(`https://fathom.video/embed/${id}`)
-  
+function toEmbedSrc(id: string, opts?: { autoplay?: boolean; timestamp?: number; recordingId?: string }) {
+  // If we have a recording_id (numeric), use the share URL format
+  // Otherwise use the share token from the URL
+  const embedPath = opts?.recordingId
+    ? `https://app.fathom.video/recording/${opts.recordingId}`
+    : `https://fathom.video/embed/${id}`
+
+  const url = new URL(embedPath)
+
   if (opts && typeof opts.autoplay === 'boolean') {
     url.searchParams.set('autoplay', opts.autoplay ? '1' : '0')
   }
-  
+
   if (opts && typeof opts.timestamp === 'number' && !Number.isNaN(opts.timestamp) && opts.timestamp > 0) {
     url.searchParams.set('timestamp', String(Math.floor(opts.timestamp)))
   }
-  
+
   return url.toString()
 }
 
 const FathomPlayer: React.FC<FathomPlayerProps> = ({
   shareUrl,
   id,
+  recordingId,
   autoplay = false,
   startSeconds = 0,
   aspectRatio = '16 / 9',
@@ -50,15 +58,19 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
 }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [currentSrc, setCurrentSrc] = useState<string>('')
-  
+
   const resolvedId = id ?? extractId(shareUrl)
-  
+
   useEffect(() => {
-    if (resolvedId) {
-      const src = toEmbedSrc(resolvedId, { autoplay, timestamp: startSeconds })
+    if (resolvedId || recordingId) {
+      const src = toEmbedSrc(resolvedId || '', {
+        autoplay,
+        timestamp: startSeconds,
+        recordingId
+      })
       setCurrentSrc(src)
     }
-  }, [resolvedId, autoplay, startSeconds])
+  }, [resolvedId, recordingId, autoplay, startSeconds])
   
   // Method to update timestamp programmatically
   const seekToTimestamp = (seconds: number) => {

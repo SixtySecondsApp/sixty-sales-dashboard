@@ -386,7 +386,7 @@ const MeetingDetail: React.FC = () => {
         {/* Main Content */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
           {/* Video Player */}
-          {meeting.share_url && (
+          {(meeting.share_url || meeting.fathom_recording_id) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -395,36 +395,29 @@ const MeetingDetail: React.FC = () => {
             >
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-50" />
 
-              {/* Fathom Recording Preview */}
-              <div className="relative z-10 aspect-video bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-2xl overflow-hidden flex items-center justify-center">
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent" />
+              <FathomPlayer
+                ref={playerRef}
+                recordingId={meeting.fathom_recording_id}
+                shareUrl={meeting.share_url}
+                autoplay={false}
+                startSeconds={startSeconds}
+                className="relative z-10 rounded-2xl overflow-hidden"
+              />
 
-                {/* Play button overlay */}
-                <div className="relative z-10 text-center space-y-4">
-                  <div className="mx-auto w-20 h-20 bg-emerald-500/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-emerald-500/30">
-                    <Play className="h-10 w-10 text-emerald-400 ml-1" />
-                  </div>
-
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-100 mb-2">Fathom Recording</h3>
-                    <p className="text-sm text-gray-400 mb-4">View this meeting recording on Fathom</p>
-
-                    <Button
-                      onClick={() => window.open(meeting.share_url, '_blank')}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-white"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open in Fathom
-                    </Button>
-                  </div>
+              {/* Fallback link if embed doesn't work */}
+              {meeting.share_url && (
+                <div className="relative z-10 p-4 text-center">
+                  <Button
+                    onClick={() => window.open(meeting.share_url, '_blank')}
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-400 hover:text-emerald-400"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open in Fathom (if video doesn't load)
+                  </Button>
                 </div>
-
-                {/* Duration badge */}
-                <div className="absolute bottom-4 right-4 px-3 py-1.5 bg-gray-900/80 backdrop-blur-sm rounded-lg text-sm text-gray-300 flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  {meeting.duration_minutes || 0} minutes
-                </div>
-              </div>
+              )}
             </motion.div>
           )}
 
