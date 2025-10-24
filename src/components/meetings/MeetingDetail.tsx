@@ -385,39 +385,53 @@ const MeetingDetail: React.FC = () => {
       <div className="grid grid-cols-12 gap-6">
         {/* Main Content */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
-          {/* Video Player */}
+          {/* Video Player - Fathom Recording */}
           {(meeting.share_url || meeting.fathom_recording_id) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, delay: 0.1 }}
-              className="relative overflow-hidden bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl border border-gray-800/50 shadow-2xl"
+              className="relative overflow-hidden bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl border border-gray-800/50 shadow-2xl p-8"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-50" />
 
-              <FathomPlayer
-                ref={playerRef}
-                recordingId={meeting.fathom_recording_id}
-                shareUrl={meeting.share_url}
-                autoplay={false}
-                startSeconds={startSeconds}
-                className="relative z-10 rounded-2xl overflow-hidden"
-              />
-
-              {/* Fallback link if embed doesn't work */}
-              {meeting.share_url && (
-                <div className="relative z-10 p-4 text-center">
-                  <Button
-                    onClick={() => window.open(meeting.share_url, '_blank')}
-                    variant="ghost"
-                    size="sm"
-                    className="text-gray-400 hover:text-emerald-400"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in Fathom (if video doesn't load)
-                  </Button>
+              <div className="relative z-10 text-center space-y-6">
+                {/* Fathom Logo/Icon */}
+                <div className="flex justify-center">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                    <Video className="h-8 w-8 text-emerald-400" />
+                  </div>
                 </div>
-              )}
+
+                {/* Title */}
+                <div>
+                  <h3 className="text-xl font-semibold text-white mb-2">
+                    Meeting Recording Available
+                  </h3>
+                  <p className="text-gray-400 text-sm">
+                    Watch the full recording and review AI-generated insights in Fathom
+                  </p>
+                </div>
+
+                {/* Open Button */}
+                <Button
+                  onClick={() => {
+                    const url = meeting.fathom_recording_id
+                      ? `https://app.fathom.video/recording/${meeting.fathom_recording_id}`
+                      : meeting.share_url
+                    window.open(url, '_blank', 'noopener,noreferrer')
+                  }}
+                  className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-8 py-6 text-lg font-semibold rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all duration-300"
+                >
+                  <ExternalLink className="h-5 w-5 mr-3" />
+                  Open Recording in Fathom
+                </Button>
+
+                {/* Info Text */}
+                <p className="text-xs text-gray-500">
+                  Opens in a new tab • Includes transcript, summary, and highlights
+                </p>
+              </div>
             </motion.div>
           )}
 
