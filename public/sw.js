@@ -3,7 +3,7 @@
  * Provides offline support and caching for production
  */
 
-const CACHE_NAME = 'sixty-sales-v2-audit-optimized';
+const CACHE_NAME = 'sixty-sales-v3-fathom-fix-20251024';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -110,20 +110,21 @@ self.addEventListener('fetch', event => {
             return response;
           }
           
-          // Only cache static assets, not dynamic content
-          const isStatic = url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
-          const isHTML = url.pathname === '/' || url.pathname.endsWith('.html') || !url.pathname.includes('.');
-          
-          if (isStatic || isHTML) {
+          // Only cache images and fonts, NOT JS/CSS to prevent stale code
+          const isCacheable = url.pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/);
+
+          if (isCacheable) {
             // Clone the response
             const responseToCache = response.clone();
-            
+
             // Cache the response for future use
             caches.open(CACHE_NAME)
               .then(cache => {
                 cache.put(request, responseToCache);
               });
           }
+
+          // Never cache HTML, JS, or CSS files - always fetch fresh
           
           return response;
         });
