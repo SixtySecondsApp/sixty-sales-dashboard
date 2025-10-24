@@ -253,6 +253,7 @@ export function useFathomIntegration() {
     sync_type?: 'initial' | 'incremental' | 'manual';
     start_date?: string;
     end_date?: string;
+    limit?: number; // Optional limit for test syncs
   }) => {
     try {
       setError(null);
@@ -274,6 +275,7 @@ export function useFathomIntegration() {
           sync_type: params?.sync_type || 'manual',
           start_date: params?.start_date,
           end_date: params?.end_date,
+          limit: params?.limit, // Pass limit to Edge Function
         },
       });
 

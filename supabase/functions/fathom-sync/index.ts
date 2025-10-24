@@ -24,6 +24,7 @@ interface SyncRequest {
   end_date?: string
   call_id?: string // For webhook-triggered single call sync
   user_id?: string // For webhook calls that explicitly pass user ID
+  limit?: number // Optional limit for test syncs (e.g., only sync last 5 calls)
 }
 
 interface FathomCall {
@@ -113,7 +114,7 @@ serve(async (req) => {
       userId = user.id
       console.log('🔄 Starting Fathom sync for user (authenticated):', userId)
     }
-    const { sync_type, start_date, end_date, call_id } = body
+    const { sync_type, start_date, end_date, call_id, limit } = body
 
     // Get active Fathom integration
     const { data: integration, error: integrationError } = await supabase
@@ -187,14 +188,17 @@ serve(async (req) => {
 
       // Fetch calls from Fathom API with pagination
       let offset = 0
-      const limit = 100
+      const apiLimit = limit || 100 // Use provided limit or default to 100
       let hasMore = true
+
+      // If user specified a limit, we only fetch one batch
+      const isLimitedSync = !!limit
 
       while (hasMore) {
         const calls = await fetchFathomCalls(integration, {
           start_date: apiStartDate,
           end_date: apiEndDate,
-          limit,
+          limit: apiLimit,
           offset,
         })
 
@@ -221,13 +225,19 @@ serve(async (req) => {
         }
 
         // Check if there are more results
-        hasMore = calls.length === limit
-        offset += limit
+        // If this is a limited sync (test mode), stop after first batch
+        if (isLimitedSync) {
+          hasMore = false
+          console.log(`✅ Test sync complete: Limited to ${apiLimit} calls`)
+        } else {
+          hasMore = calls.length === apiLimit
+          offset += apiLimit
 
-        // Safety limit to prevent infinite loops
-        if (offset > 10000) {
-          console.warn('⚠️  Reached safety limit of 10,000 calls')
-          break
+          // Safety limit to prevent infinite loops
+          if (offset > 10000) {
+            console.warn('⚠️  Reached safety limit of 10,000 calls')
+            break
+          }
         }
       }
     }

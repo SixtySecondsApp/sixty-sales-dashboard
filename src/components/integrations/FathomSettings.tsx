@@ -56,6 +56,22 @@ export function FathomSettings() {
     }
   };
 
+  const handleTestSync = async () => {
+    setSyncing(true);
+    try {
+      // Test sync with only last 5 calls
+      const result = await triggerSync({
+        sync_type: 'manual',
+        limit: 5
+      });
+      console.log('Test sync result:', result);
+    } catch (err) {
+      console.error('Test sync error:', err);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -191,7 +207,22 @@ export function FathomSettings() {
               )}
 
               {/* Actions */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  onClick={handleTestSync}
+                  disabled={isSyncing || syncing}
+                  variant="secondary"
+                  className="gap-2"
+                  size="sm"
+                >
+                  {(isSyncing || syncing) ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                  Test Sync (Last 5)
+                </Button>
+
                 <Button
                   onClick={handleQuickSync}
                   disabled={isSyncing || syncing}
