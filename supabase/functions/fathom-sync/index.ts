@@ -388,14 +388,28 @@ async function fetchFathomCalls(
     console.log(`📡 Fetching from: ${url}`)
     console.log(`🔑 Using token: ${integration.access_token?.substring(0, 10)}...`)
 
-    const response = await fetch(url, {
+    // OAuth tokens typically use Authorization: Bearer, not X-Api-Key
+    // Try Bearer first (standard for OAuth), then fallback to X-Api-Key
+    let response = await fetch(url, {
       headers: {
-        'X-Api-Key': integration.access_token,
+        'Authorization': `Bearer ${integration.access_token}`,
         'Content-Type': 'application/json',
       },
     })
 
-    console.log(`📊 Response status: ${response.status}`)
+    console.log(`📊 Response status (Bearer): ${response.status}`)
+
+    // If Bearer fails with 401, try X-Api-Key (for API keys)
+    if (response.status === 401) {
+      console.log(`⚠️  Bearer auth failed, trying X-Api-Key...`)
+      response = await fetch(url, {
+        headers: {
+          'X-Api-Key': integration.access_token,
+          'Content-Type': 'application/json',
+        },
+      })
+      console.log(`📊 Response status (X-Api-Key): ${response.status}`)
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -405,9 +419,32 @@ async function fetchFathomCalls(
 
     const data = await response.json()
     console.log(`📦 Response data structure:`, Object.keys(data))
+    console.log(`📦 Full response data:`, JSON.stringify(data, null, 2))
 
     // Fathom API returns meetings array directly or in a data wrapper
-    return data.meetings || data.data || data || []
+    // Handle different possible response structures
+    let meetings = []
+
+    if (Array.isArray(data)) {
+      // Response is directly an array
+      meetings = data
+    } else if (data.meetings && Array.isArray(data.meetings)) {
+      // Response has a meetings property that's an array
+      meetings = data.meetings
+    } else if (data.data && Array.isArray(data.data)) {
+      // Response has a data property that's an array
+      meetings = data.data
+    } else if (data.calls && Array.isArray(data.calls)) {
+      // Response has a calls property that's an array
+      meetings = data.calls
+    } else {
+      // Unknown structure, log it and return empty array
+      console.warn(`⚠️  Unknown API response structure:`, data)
+      meetings = []
+    }
+
+    console.log(`📊 Parsed ${meetings.length} meetings from response`)
+    return meetings
   })
 }
 
@@ -424,12 +461,23 @@ async function syncSingleCall(
     // Fetch call details with retry logic
     // Note: Fathom API may use /recordings/{id} or /meetings/{id} endpoint
     const call: FathomCall = await retryWithBackoff(async () => {
-      const callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
+      // Try Bearer auth first (OAuth standard)
+      let callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
         headers: {
-          'X-Api-Key': integration.access_token,
+          'Authorization': `Bearer ${integration.access_token}`,
           'Content-Type': 'application/json',
         },
       })
+
+      // Fallback to X-Api-Key if Bearer fails
+      if (callResponse.status === 401) {
+        callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
+          headers: {
+            'X-Api-Key': integration.access_token,
+            'Content-Type': 'application/json',
+          },
+        })
+      }
 
       if (!callResponse.ok) {
         const errorText = await callResponse.text()
