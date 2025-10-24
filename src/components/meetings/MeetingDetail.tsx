@@ -384,7 +384,7 @@ const MeetingDetail: React.FC = () => {
       <div className="grid grid-cols-12 gap-6">
         {/* Main Content */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
-          {/* Video Player - Fathom Recording */}
+          {/* Fathom Recording Card - Opens in new tab due to X-Frame-Options restriction */}
           {(meeting.share_url || meeting.fathom_recording_id) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
