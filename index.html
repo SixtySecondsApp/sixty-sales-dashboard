@@ -72,10 +72,14 @@
       
       if ('serviceWorker' in navigator && !isDevelopment) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
+          // Force update check on every page load
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
             .then((registration) => {
               console.log('SW registered: ', registration);
-              
+
+              // Force immediate update check
+              registration.update();
+
               // Store registration for cache management
               window.swRegistration = registration;
               
