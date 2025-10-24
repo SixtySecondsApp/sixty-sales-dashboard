@@ -153,12 +153,23 @@ serve(async (req) => {
     let fathomUserEmail: string | null = null
 
     try {
-      // Use correct Fathom API base URL (api.fathom.ai)
-      const userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
+      // OAuth tokens may use Bearer authentication instead of X-Api-Key
+      // Try Bearer first (standard OAuth), then fallback to X-Api-Key
+      let userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
         headers: {
-          'X-Api-Key': tokenData.access_token,
+          'Authorization': `Bearer ${tokenData.access_token}`,
         },
       })
+
+      if (!userInfoResponse.ok) {
+        console.warn('⚠️  Bearer auth failed, trying X-Api-Key...', userInfoResponse.status)
+        // Try with X-Api-Key instead
+        userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
+          headers: {
+            'X-Api-Key': tokenData.access_token,
+          },
+        })
+      }
 
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json()
@@ -166,7 +177,8 @@ serve(async (req) => {
         fathomUserEmail = userInfo.email
         console.log('✅ Fathom user info retrieved:', fathomUserEmail)
       } else {
-        console.warn('⚠️  User info request failed:', userInfoResponse.status, await userInfoResponse.text())
+        const errorText = await userInfoResponse.text()
+        console.warn('⚠️  User info request failed:', userInfoResponse.status, errorText)
       }
     } catch (error) {
       console.warn('⚠️  Could not fetch Fathom user info:', error)

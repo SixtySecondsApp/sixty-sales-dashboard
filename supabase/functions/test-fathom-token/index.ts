@@ -64,13 +64,27 @@ serve(async (req) => {
     const testUrl = 'https://api.fathom.ai/external/v1/meetings'
     console.log('📡 Calling:', testUrl)
 
-    const response = await fetch(testUrl, {
+    // OAuth tokens typically use Bearer, API keys use X-Api-Key
+    // Try Bearer first (standard OAuth)
+    let response = await fetch(testUrl, {
       headers: {
-        'X-Api-Key': integration.access_token,
+        'Authorization': `Bearer ${integration.access_token}`,
       },
     })
 
-    console.log('📊 Response status:', response.status)
+    console.log('📊 Response status (Bearer):', response.status)
+
+    // If Bearer fails with 401, try X-Api-Key
+    if (response.status === 401) {
+      console.log('⚠️  Bearer auth failed, trying X-Api-Key...')
+      response = await fetch(testUrl, {
+        headers: {
+          'X-Api-Key': integration.access_token,
+        },
+      })
+      console.log('📊 Response status (X-Api-Key):', response.status)
+    }
+
     console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()))
 
     let responseData
