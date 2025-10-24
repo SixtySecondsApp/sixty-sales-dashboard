@@ -217,17 +217,17 @@ serve(async (req) => {
         // Process each call
         for (const call of calls) {
           try {
-            const result = await syncSingleCall(supabase, userId, integration, call.id)
+            const result = await syncSingleCall(supabase, userId, integration, call)
 
             if (result.success) {
               meetingsSynced++
             } else {
-              errors.push({ call_id: call.id, error: result.error || 'Unknown error' })
+              errors.push({ call_id: call.recording_id || call.id, error: result.error || 'Unknown error' })
             }
           } catch (error) {
-            console.error(`❌ Error syncing call ${call.id}:`, error)
+            console.error(`❌ Error syncing call ${call.recording_id || call.id}:`, error)
             errors.push({
-              call_id: call.id,
+              call_id: call.recording_id || call.id,
               error: error instanceof Error ? error.message : 'Unknown error',
             })
           }
@@ -428,6 +428,9 @@ async function fetchFathomCalls(
     if (Array.isArray(data)) {
       // Response is directly an array
       meetings = data
+    } else if (data.items && Array.isArray(data.items)) {
+      // Response has an items property that's an array (actual Fathom API structure)
+      meetings = data.items
     } else if (data.meetings && Array.isArray(data.meetings)) {
       // Response has a meetings property that's an array
       meetings = data.meetings
@@ -455,84 +458,39 @@ async function syncSingleCall(
   supabase: any,
   userId: string,
   integration: any,
-  callId: string
+  call: any // Directly receive the call object from bulk API
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Fetch call details with retry logic
-    // Note: Fathom API may use /recordings/{id} or /meetings/{id} endpoint
-    const call: FathomCall = await retryWithBackoff(async () => {
-      // Try Bearer auth first (OAuth standard)
-      let callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
-        headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
+    // Call object already contains all necessary data from bulk API
+    console.log(`🔄 Syncing call: ${call.title} (${call.recording_id})`)
 
-      // Fallback to X-Api-Key if Bearer fails
-      if (callResponse.status === 401) {
-        callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
-          headers: {
-            'X-Api-Key': integration.access_token,
-            'Content-Type': 'application/json',
-          },
-        })
-      }
+    // Note: Analytics data (transcript, action_items, default_summary) is included in call object
+    // No need to fetch separately - it's already in the API response
 
-      if (!callResponse.ok) {
-        const errorText = await callResponse.text()
-        throw new Error(`Failed to fetch call details: ${callResponse.status} - ${errorText}`)
-      }
+    // Calculate duration in minutes from recording start/end times
+    const startTime = new Date(call.recording_start_time || call.scheduled_start_time)
+    const endTime = new Date(call.recording_end_time || call.scheduled_end_time)
+    const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60))
 
-      return await callResponse.json()
-    })
-
-    // Fetch transcript/analytics if needed
-    // Note: Fathom API may include analytics in the main meeting response
-    let analytics: FathomAnalytics | null = null
-    try {
-      // Try to fetch transcript separately if not included
-      analytics = await retryWithBackoff(async () => {
-        const analyticsResponse = await fetch(`https://api.fathom.ai/external/v1/recordings/${callId}/transcript`, {
-          headers: {
-            'X-Api-Key': integration.access_token,
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (!analyticsResponse.ok) {
-          // Analytics may not be available yet, this is not an error
-          return null
-        }
-
-        return await analyticsResponse.json()
-      }, 2, 500) // Fewer retries for analytics, shorter delay
-    } catch (error) {
-      console.warn(`⚠️  Analytics not available for call ${callId}:`, error)
-    }
-
-    // Map to meetings table schema
+    // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
       owner_user_id: userId,
-      fathom_recording_id: call.id,
+      fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
       fathom_user_id: integration.fathom_user_id,
-      title: call.title,
-      meeting_start: call.start_time,
-      meeting_end: call.end_time,
-      duration_minutes: Math.round(call.duration / 60),
-      owner_email: call.host_email,
+      title: call.title || call.meeting_title,
+      meeting_start: call.recording_start_time || call.scheduled_start_time,
+      meeting_end: call.recording_end_time || call.scheduled_end_time,
+      duration_minutes: durationMinutes,
+      owner_email: call.recorded_by?.email,
       share_url: call.share_url,
-      calls_url: call.app_url,
-      transcript_doc_url: call.transcript_url,
-      summary: call.ai_summary?.text,
-      sentiment_score: analytics?.sentiment?.score,
-      coach_summary: analytics?.sentiment?.label,
-      talk_time_rep_pct: analytics?.talk_time_analysis?.rep_percentage,
-      talk_time_customer_pct: analytics?.talk_time_analysis?.customer_percentage,
-      talk_time_judgement: analytics?.talk_time_analysis?.rep_percentage
-        ? (analytics.talk_time_analysis.rep_percentage > 70 ? 'high' :
-           analytics.talk_time_analysis.rep_percentage < 30 ? 'low' : 'good')
-        : null,
+      calls_url: call.url,
+      transcript_doc_url: call.transcript, // May be null if not yet processed
+      summary: call.default_summary, // May be null if not yet processed
+      sentiment_score: null, // Not available in bulk API response
+      coach_summary: null, // Not available in bulk API response
+      talk_time_rep_pct: null, // Not available in bulk API response
+      talk_time_customer_pct: null, // Not available in bulk API response
+      talk_time_judgement: null, // Not available in bulk API response
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
     }
@@ -550,29 +508,29 @@ async function syncSingleCall(
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)
     }
 
-    console.log(`✅ Synced meeting: ${call.title} (${call.id})`)
+    console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
 
-    // Process participants (if available)
-    if (call.participants && call.participants.length > 0) {
-      for (const participant of call.participants) {
+    // Process participants (use calendar_invitees from actual API)
+    if (call.calendar_invitees && call.calendar_invitees.length > 0) {
+      for (const invitee of call.calendar_invitees) {
         // Create meeting attendee record
         await supabase
           .from('meeting_attendees')
           .insert({
             meeting_id: meeting.id,
-            name: participant.name,
-            email: participant.email || null,
-            is_external: !participant.is_host,
-            role: participant.is_host ? 'host' : 'attendee',
+            name: invitee.name,
+            email: invitee.email || null,
+            is_external: invitee.is_external,
+            role: invitee.is_external ? 'attendee' : 'host',
           })
 
         // Also try to find/create contact for internal tracking
-        if (participant.email && !participant.is_host) {
+        if (invitee.email && invitee.is_external) {
           const { data: existingContact } = await supabase
             .from('contacts')
             .select('id')
             .eq('user_id', userId)
-            .eq('email', participant.email)
+            .eq('email', invitee.email)
             .single()
 
           if (!existingContact) {
@@ -581,8 +539,8 @@ async function syncSingleCall(
               .from('contacts')
               .insert({
                 user_id: userId,
-                name: participant.name,
-                email: participant.email,
+                name: invitee.name,
+                email: invitee.email,
                 source: 'fathom_sync',
               })
           }
@@ -590,17 +548,17 @@ async function syncSingleCall(
       }
     }
 
-    // Process key moments as action items
-    if (analytics?.key_moments && analytics.key_moments.length > 0) {
-      for (const moment of analytics.key_moments) {
+    // Process action items from API response
+    if (call.action_items && Array.isArray(call.action_items) && call.action_items.length > 0) {
+      for (const actionItem of call.action_items) {
         await supabase
           .from('meeting_action_items')
           .insert({
             meeting_id: meeting.id,
-            title: moment.description,
-            timestamp_seconds: moment.timestamp,
-            category: moment.type,
-            priority: moment.type === 'objection' ? 'high' : 'medium',
+            title: actionItem.description || actionItem.title || actionItem,
+            timestamp_seconds: actionItem.timestamp || null,
+            category: actionItem.type || 'action_item',
+            priority: actionItem.priority || 'medium',
             ai_generated: true,
             completed: false,
           })
@@ -609,7 +567,7 @@ async function syncSingleCall(
 
     return { success: true }
   } catch (error) {
-    console.error(`❌ Error syncing call ${callId}:`, error)
+    console.error(`❌ Error syncing call ${call?.recording_id || 'unknown'}:`, error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
