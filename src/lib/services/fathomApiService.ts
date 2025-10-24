@@ -127,7 +127,7 @@ export class FathomAPIService {
   private retryDelay: number = 1000; // ms
 
   constructor() {
-    this.baseUrl = import.meta.env.FATHOM_API_BASE_URL || 'https://api.fathom.video/v1';
+    this.baseUrl = import.meta.env.FATHOM_API_BASE_URL || 'https://api.fathom.ai/external/v1';
   }
 
   // ==========================================================================
@@ -189,17 +189,17 @@ export class FathomAPIService {
       throw new Error('No integration found to refresh');
     }
 
-    const response = await fetch('https://app.fathom.video/oauth/token', {
+    const response = await fetch('https://fathom.video/external/v1/oauth2/token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
+      body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: integration.refresh_token,
-        client_id: import.meta.env.VITE_FATHOM_CLIENT_ID,
-        client_secret: import.meta.env.VITE_FATHOM_CLIENT_SECRET,
-      }),
+        client_id: import.meta.env.VITE_FATHOM_CLIENT_ID || '',
+        client_secret: import.meta.env.VITE_FATHOM_CLIENT_SECRET || '',
+      }).toString(),
     });
 
     if (!response.ok) {
@@ -243,7 +243,7 @@ export class FathomAPIService {
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'X-Api-Key': token,
           'Content-Type': 'application/json',
           ...options.headers,
         },
@@ -309,29 +309,26 @@ export class FathomAPIService {
   // ==========================================================================
 
   /**
-   * List all calls with pagination and filtering
+   * List all meetings with pagination and filtering
+   * Note: Fathom API uses cursor-based pagination
    */
   async listCalls(userId: string, params: ListCallsParams = {}): Promise<{ data: FathomCall[]; pagination: any }> {
     const queryParams = new URLSearchParams();
 
-    if (params.limit) queryParams.set('limit', params.limit.toString());
-    if (params.offset) queryParams.set('offset', params.offset.toString());
-    if (params.start_date) queryParams.set('start_date', params.start_date);
-    if (params.end_date) queryParams.set('end_date', params.end_date);
-    if (params.host_email) queryParams.set('host_email', params.host_email);
-    if (params.status) queryParams.set('status', params.status);
-    if (params.sort_by) queryParams.set('sort_by', params.sort_by);
-    if (params.sort_order) queryParams.set('sort_order', params.sort_order);
+    // Fathom API uses created_after/created_before instead of start_date/end_date
+    if (params.start_date) queryParams.set('created_after', params.start_date);
+    if (params.end_date) queryParams.set('created_before', params.end_date);
+    if (params.host_email) queryParams.set('recorded_by[]', params.host_email);
 
-    const endpoint = `/calls?${queryParams.toString()}`;
+    const endpoint = `/meetings?${queryParams.toString()}`;
     return this.request<{ data: FathomCall[]; pagination: any }>(userId, endpoint);
   }
 
   /**
-   * Get detailed information about a specific call
+   * Get detailed information about a specific meeting
    */
   async getCallDetails(userId: string, callId: string): Promise<FathomCall> {
-    return this.request<FathomCall>(userId, `/calls/${callId}`);
+    return this.request<FathomCall>(userId, `/meetings/${callId}`);
   }
 
   /**
@@ -349,10 +346,11 @@ export class FathomAPIService {
   // ==========================================================================
 
   /**
-   * Get analytics for a specific call
+   * Get transcript for a specific meeting
+   * Note: Fathom API may include this in the main meeting response
    */
   async getCallAnalytics(userId: string, callId: string): Promise<FathomAnalytics> {
-    return this.request<FathomAnalytics>(userId, `/calls/${callId}/analytics`);
+    return this.request<FathomAnalytics>(userId, `/recordings/${callId}/transcript`);
   }
 
   // ==========================================================================

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FathomTokenTest } from '@/components/FathomTokenTest';
 
 export function FathomSettings() {
   const {
@@ -205,6 +206,12 @@ export function FathomSettings() {
                   )}
                 </div>
               )}
+
+              {/* Token Test */}
+              <div className="rounded-lg border border-slate-700 p-4 space-y-3">
+                <h4 className="font-semibold text-sm text-gray-300">Connection Diagnostics</h4>
+                <FathomTokenTest />
+              </div>
 
               {/* Actions */}
               <div className="flex gap-2 flex-wrap">

@@ -125,8 +125,17 @@ serve(async (req) => {
       .single()
 
     if (integrationError || !integration) {
+      console.error('❌ Integration error:', integrationError)
       throw new Error('No active Fathom integration found. Please connect your Fathom account first.')
     }
+
+    console.log('✅ Found integration:', {
+      id: integration.id,
+      fathom_user_email: integration.fathom_user_email,
+      token_expires_at: integration.token_expires_at,
+      is_active: integration.is_active,
+      scopes: integration.scopes,
+    })
 
     // Update sync state to 'syncing'
     await supabase
@@ -312,7 +321,46 @@ serve(async (req) => {
 })
 
 /**
- * Fetch calls from Fathom API
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | undefined
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+
+      // Don't retry on authentication errors (401, 403)
+      if (lastError.message.includes('401') || lastError.message.includes('403')) {
+        throw lastError
+      }
+
+      // If this is the last attempt, throw the error
+      if (attempt === maxRetries - 1) {
+        throw lastError
+      }
+
+      // Calculate backoff delay with jitter
+      const delay = initialDelayMs * Math.pow(2, attempt) + Math.random() * 1000
+      console.log(`⚠️  Attempt ${attempt + 1} failed, retrying in ${Math.round(delay)}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastError
+}
+
+/**
+ * Fetch calls from Fathom API with retry logic
+ *
+ * Note: Fathom API uses cursor-based pagination, not offset-based
+ * We'll need to adapt this to use cursors properly
  */
 async function fetchFathomCalls(
   integration: any,
@@ -324,28 +372,43 @@ async function fetchFathomCalls(
   }
 ): Promise<FathomCall[]> {
   const queryParams = new URLSearchParams()
-  if (params.start_date) queryParams.set('start_date', params.start_date)
-  if (params.end_date) queryParams.set('end_date', params.end_date)
-  queryParams.set('limit', params.limit.toString())
-  queryParams.set('offset', params.offset.toString())
-  queryParams.set('sort_by', 'start_time')
-  queryParams.set('sort_order', 'desc')
 
-  const url = `https://api.fathom.video/v1/calls?${queryParams.toString()}`
+  // Fathom API uses created_after/created_before instead of start_date/end_date
+  if (params.start_date) queryParams.set('created_after', params.start_date)
+  if (params.end_date) queryParams.set('created_before', params.end_date)
 
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${integration.access_token}`,
-      'Content-Type': 'application/json',
-    },
+  // Note: Fathom API uses cursor-based pagination, offset may not work
+  // For now, we'll implement basic pagination support
+  // TODO: Implement proper cursor-based pagination
+
+  // Correct API base URL
+  const url = `https://api.fathom.ai/external/v1/meetings?${queryParams.toString()}`
+
+  return await retryWithBackoff(async () => {
+    console.log(`📡 Fetching from: ${url}`)
+    console.log(`🔑 Using token: ${integration.access_token?.substring(0, 10)}...`)
+
+    const response = await fetch(url, {
+      headers: {
+        'X-Api-Key': integration.access_token,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    console.log(`📊 Response status: ${response.status}`)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ API Error Response: ${errorText}`)
+      throw new Error(`Fathom API error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+    console.log(`📦 Response data structure:`, Object.keys(data))
+
+    // Fathom API returns meetings array directly or in a data wrapper
+    return data.meetings || data.data || data || []
   })
-
-  if (!response.ok) {
-    throw new Error(`Fathom API error: ${response.status} - ${await response.text()}`)
-  }
-
-  const data = await response.json()
-  return data.data || []
 }
 
 /**
@@ -358,33 +421,44 @@ async function syncSingleCall(
   callId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Fetch call details
-    const callResponse = await fetch(`https://api.fathom.video/v1/calls/${callId}`, {
-      headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!callResponse.ok) {
-      throw new Error(`Failed to fetch call details: ${callResponse.status}`)
-    }
-
-    const call: FathomCall = await callResponse.json()
-
-    // Fetch analytics (may not be available for new calls)
-    let analytics: FathomAnalytics | null = null
-    try {
-      const analyticsResponse = await fetch(`https://api.fathom.video/v1/calls/${callId}/analytics`, {
+    // Fetch call details with retry logic
+    // Note: Fathom API may use /recordings/{id} or /meetings/{id} endpoint
+    const call: FathomCall = await retryWithBackoff(async () => {
+      const callResponse = await fetch(`https://api.fathom.ai/external/v1/meetings/${callId}`, {
         headers: {
-          'Authorization': `Bearer ${integration.access_token}`,
+          'X-Api-Key': integration.access_token,
           'Content-Type': 'application/json',
         },
       })
 
-      if (analyticsResponse.ok) {
-        analytics = await analyticsResponse.json()
+      if (!callResponse.ok) {
+        const errorText = await callResponse.text()
+        throw new Error(`Failed to fetch call details: ${callResponse.status} - ${errorText}`)
       }
+
+      return await callResponse.json()
+    })
+
+    // Fetch transcript/analytics if needed
+    // Note: Fathom API may include analytics in the main meeting response
+    let analytics: FathomAnalytics | null = null
+    try {
+      // Try to fetch transcript separately if not included
+      analytics = await retryWithBackoff(async () => {
+        const analyticsResponse = await fetch(`https://api.fathom.ai/external/v1/recordings/${callId}/transcript`, {
+          headers: {
+            'X-Api-Key': integration.access_token,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!analyticsResponse.ok) {
+          // Analytics may not be available yet, this is not an error
+          return null
+        }
+
+        return await analyticsResponse.json()
+      }, 2, 500) // Fewer retries for analytics, shorter delay
     } catch (error) {
       console.warn(`⚠️  Analytics not available for call ${callId}:`, error)
     }
