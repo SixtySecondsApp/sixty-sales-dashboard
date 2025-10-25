@@ -469,9 +469,10 @@ const TaskList: React.FC<TaskListProps> = ({
                                             {task.category}
                                           </Badge>
                                         )}
-                                        {task.meeting_id && (
-                                          <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700">
-                                            From Fathom
+                                        {task.meeting_action_item_id && (
+                                          <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700 hover:bg-blue-800/50 cursor-pointer transition-colors">
+                                            <Calendar className="w-3 h-3 mr-1" />
+                                            From Meeting
                                           </Badge>
                                         )}
                                       </div>
