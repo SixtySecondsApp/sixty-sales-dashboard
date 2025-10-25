@@ -61,7 +61,7 @@ serve(async (req) => {
     // Test the token with Fathom API
     console.log('🧪 Testing token with Fathom API...')
 
-    const testUrl = 'https://api.fathom.ai/external/v1/meetings'
+    const testUrl = 'https://api.fathom.ai/external/v1/meetings?limit=1'
     console.log('📡 Calling:', testUrl)
 
     // OAuth tokens typically use Bearer, API keys use X-Api-Key
@@ -99,6 +99,25 @@ serve(async (req) => {
     console.log('📦 Response body:', responseData)
 
     if (response.ok) {
+      // Normalize count across possible shapes: items | meetings | data | calls | array directly
+      let meetingsCount = 0
+      let firstId: string | number | undefined
+      if (Array.isArray(responseData)) {
+        meetingsCount = responseData.length
+        firstId = responseData[0]?.id || responseData[0]?.recording_id
+      } else if (responseData?.items && Array.isArray(responseData.items)) {
+        meetingsCount = responseData.items.length
+        firstId = responseData.items[0]?.id || responseData.items[0]?.recording_id
+      } else if (responseData?.meetings && Array.isArray(responseData.meetings)) {
+        meetingsCount = responseData.meetings.length
+        firstId = responseData.meetings[0]?.id || responseData.meetings[0]?.recording_id
+      } else if (responseData?.data && Array.isArray(responseData.data)) {
+        meetingsCount = responseData.data.length
+        firstId = responseData.data[0]?.id || responseData.data[0]?.recording_id
+      } else if (responseData?.calls && Array.isArray(responseData.calls)) {
+        meetingsCount = responseData.calls.length
+        firstId = responseData.calls[0]?.id || responseData.calls[0]?.recording_id
+      }
       return new Response(
         JSON.stringify({
           success: true,
@@ -111,7 +130,8 @@ serve(async (req) => {
           },
           api_test: {
             status: response.status,
-            meetings_count: responseData?.meetings?.length || 0,
+            meetings_count: meetingsCount,
+            first_id: firstId,
             has_cursor: !!responseData?.cursor,
           },
         }),

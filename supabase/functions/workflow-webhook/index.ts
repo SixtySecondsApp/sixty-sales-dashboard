@@ -773,6 +773,7 @@ async function processCallReadyWebhook(supabase: any, payload: any, callId: stri
         sync_type: 'webhook',
         call_id: callId,
         user_id: userId, // Explicitly pass user ID
+        limit: 1,
       }),
     })
 

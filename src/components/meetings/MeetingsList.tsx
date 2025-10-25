@@ -45,6 +45,7 @@ interface Meeting {
   primary_contact_id: string | null
   summary: string
   transcript_doc_url: string | null
+  thumbnail_url: string | null
   sentiment_score: number | null
   coach_rating: number | null
   talk_time_rep_pct: number | null
@@ -461,12 +462,24 @@ const MeetingsList: React.FC = () => {
                 >
                   {/* Video Thumbnail Area */}
                   <div className="relative aspect-video bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl mb-4 overflow-hidden">
+                    {meeting.thumbnail_url ? (
+                      <img
+                        src={meeting.thumbnail_url}
+                        alt={meeting.title}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          // Fallback to placeholder if image fails to load
+                          e.currentTarget.style.display = 'none'
+                        }}
+                      />
+                    ) : null}
+                    {/* Fallback icon (always rendered behind image) */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Video className="h-8 w-8 text-gray-600" />
                     </div>
                     {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    
                     {/* Duration badge */}
                     <div className="absolute bottom-2 right-2 px-2 py-1 bg-gray-900/80 backdrop-blur-sm rounded-lg text-xs text-gray-300 flex items-center gap-1">
                       <Clock className="h-3 w-3" />

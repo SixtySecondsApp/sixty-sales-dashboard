@@ -1,24 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  ArrowLeft,
-  Calendar,
-  Clock,
-  ExternalLink,
-  FileText,
-  Loader2,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  MessageSquare,
-} from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play } from 'lucide-react';
+import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 
 interface Meeting {
   id: string;
@@ -36,6 +23,8 @@ interface Meeting {
   talk_time_customer_pct: number | null;
   talk_time_judgement: string | null;
   owner_email: string | null;
+  fathom_embed_url?: string | null;
+  thumbnail_url?: string | null;
 }
 
 interface MeetingAttendee {
@@ -56,15 +45,42 @@ interface ActionItem {
   playback_url: string | null;
 }
 
+// Helper functions
+function labelSentiment(score: number | null): string {
+  if (score == null) return '—';
+  if (score <= -0.25) return 'Challenging';
+  if (score < 0.25) return 'Neutral';
+  return 'Positive';
+}
+
+function getSentimentColor(score: number | null): string {
+  if (score == null) return 'bg-zinc-800 text-zinc-200';
+  if (score > 0.25) return 'bg-emerald-900/60 text-emerald-300';
+  if (score < -0.25) return 'bg-rose-900/60 text-rose-300';
+  return 'bg-zinc-800 text-zinc-200';
+}
+
+function formatTimestamp(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const playerRef = useRef<FathomPlayerV2Handle>(null);
 
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [attendees, setAttendees] = useState<MeetingAttendee[]>([]);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentTimestamp, setCurrentTimestamp] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -113,6 +129,14 @@ export function MeetingDetail() {
     fetchMeetingDetails();
   }, [id]);
 
+  const handleTimestampJump = (seconds: number) => {
+    console.log('[Timestamp Jump] Seeking to', seconds, 's');
+    setCurrentTimestamp(seconds);
+    if (playerRef.current) {
+      playerRef.current.seekToTimestamp(seconds);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -126,7 +150,9 @@ export function MeetingDetail() {
       <div className="container mx-auto py-8">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error || 'Meeting not found'}</AlertDescription>
+          <AlertDescription>
+            {error || 'Meeting not found'}
+          </AlertDescription>
         </Alert>
         <Button onClick={() => navigate('/meetings')} className="mt-4" variant="outline">
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -136,10 +162,8 @@ export function MeetingDetail() {
     );
   }
 
-  const meetingDuration = `${Math.floor(meeting.duration_minutes / 60)}h ${meeting.duration_minutes % 60}m`;
-
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
@@ -156,302 +180,237 @@ export function MeetingDetail() {
               year: 'numeric',
               month: 'long',
               day: 'numeric',
-            })}
+            })} • {Math.round(meeting.duration_minutes)} minutes
           </p>
         </div>
 
         <div className="flex gap-2">
-          {meeting.share_url && (
-            <Button asChild variant="outline">
-              <a href={meeting.share_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Watch Recording
-              </a>
-            </Button>
-          )}
-          {meeting.transcript_doc_url && (
-            <Button asChild variant="outline">
-              <a href={meeting.transcript_doc_url} target="_blank" rel="noopener noreferrer">
-                <FileText className="h-4 w-4 mr-2" />
-                View Transcript
-              </a>
-            </Button>
+          {meeting.sentiment_score !== null && (
+            <Badge className={getSentimentColor(meeting.sentiment_score)}>
+              {labelSentiment(meeting.sentiment_score)}
+            </Badge>
           )}
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Duration
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{meetingDuration}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Attendees
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{attendees.length}</div>
-          </CardContent>
-        </Card>
-
-        {meeting.sentiment_score !== null && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Sentiment
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-2">
-                <div className="text-2xl font-bold">
-                  {(meeting.sentiment_score * 100).toFixed(0)}%
-                </div>
-                <Badge variant={meeting.sentiment_score > 0.5 ? 'default' : 'secondary'}>
-                  {meeting.sentiment_score > 0.5 ? 'Positive' : meeting.sentiment_score > 0 ? 'Neutral' : 'Negative'}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Action Items
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {actionItems.filter((item) => item.completed).length} / {actionItems.length}
+      {/* Main Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column - Video & Content */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Video Player */}
+          {(meeting.fathom_recording_id || meeting.share_url) && (
+            <div className="glassmorphism-card overflow-hidden">
+              <FathomPlayerV2
+                ref={playerRef}
+                shareUrl={meeting.share_url}
+                title={meeting.title}
+                startSeconds={currentTimestamp}
+                timeoutMs={10000}
+                className="aspect-video"
+                onLoad={() => console.log('[MeetingDetail] Video loaded successfully')}
+                onError={() => console.error('[MeetingDetail] Video failed to load')}
+              />
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Tabs */}
-      <Tabs defaultValue="summary" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="summary">Summary</TabsTrigger>
-          <TabsTrigger value="attendees">Attendees ({attendees.length})</TabsTrigger>
-          <TabsTrigger value="action-items">Action Items ({actionItems.length})</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="summary" className="space-y-4">
-          {meeting.summary ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="prose max-w-none">
-                  <p className="whitespace-pre-wrap">{meeting.summary}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Alert>
-              <AlertDescription>No summary available for this meeting.</AlertDescription>
-            </Alert>
           )}
 
-          {meeting.share_url && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Recording</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <iframe
-                  src={meeting.share_url}
-                  className="w-full aspect-video rounded-lg border"
-                  allow="autoplay; fullscreen"
-                  allowFullScreen
-                />
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+          {/* Summary & Action Items Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* AI Summary */}
+            <div className="section-card">
+              <div className="font-semibold mb-2">AI Summary</div>
+              {meeting.summary ? (
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {meeting.summary}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No summary available for this meeting.</p>
+              )}
 
-        <TabsContent value="attendees">
-          <Card>
-            <CardHeader>
-              <CardTitle>Meeting Attendees</CardTitle>
-              <CardDescription>People who attended this meeting</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {attendees.map((attendee) => (
-                  <div
-                    key={attendee.id}
-                    className="flex items-center justify-between p-3 rounded-lg border"
-                  >
-                    <div>
-                      <div className="font-medium">{attendee.name}</div>
-                      {attendee.email && (
-                        <div className="text-sm text-muted-foreground">{attendee.email}</div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      {attendee.role && <Badge variant="outline">{attendee.role}</Badge>}
-                      {attendee.is_external && <Badge>External</Badge>}
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-3 flex gap-2">
+                {meeting.transcript_doc_url && (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={meeting.transcript_doc_url} target="_blank" rel="noopener noreferrer">
+                      Open transcript
+                      <ExternalLink className="h-3 w-3 ml-2" />
+                    </a>
+                  </Button>
+                )}
+                {meeting.share_url && (
+                  <Button asChild variant="outline" size="sm">
+                    <a href={meeting.share_url} target="_blank" rel="noopener noreferrer">
+                      Open in Fathom
+                      <ExternalLink className="h-3 w-3 ml-2" />
+                    </a>
+                  </Button>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
 
-        <TabsContent value="action-items">
-          <Card>
-            <CardHeader>
-              <CardTitle>Action Items</CardTitle>
-              <CardDescription>Tasks and follow-ups from this meeting</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
+            {/* Action Items */}
+            <div className="section-card">
+              <div className="font-semibold mb-2">
+                Action Items ({actionItems.length})
+              </div>
+              <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-none">
                 {actionItems.length > 0 ? (
                   actionItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-start justify-between p-3 rounded-lg border"
+                      className="glassmorphism-light p-3 rounded-xl"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium">{item.title}</div>
-                          {item.completed && (
-                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          )}
+                      <div className="font-medium text-sm">{item.title}</div>
+                      {item.category && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Category: {item.category}
                         </div>
-                        {item.category && (
-                          <div className="text-sm text-muted-foreground mt-1">
-                            Category: {item.category}
-                          </div>
-                        )}
-                        {item.timestamp_seconds !== null && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Mentioned at: {Math.floor(item.timestamp_seconds / 60)}:
-                            {(item.timestamp_seconds % 60).toString().padStart(2, '0')}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
                         <Badge
                           variant={
-                            item.priority === 'urgent'
+                            item.priority === 'urgent' || item.priority === 'high'
                               ? 'destructive'
-                              : item.priority === 'high'
-                              ? 'default'
                               : 'secondary'
                           }
                         >
                           {item.priority}
                         </Badge>
-                        {item.playback_url && (
-                          <Button asChild size="sm" variant="ghost">
-                            <a href={item.playback_url} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </Button>
+                        {item.completed && (
+                          <Badge className="bg-green-900/60 text-green-300">
+                            Completed
+                          </Badge>
                         )}
                       </div>
+
+                      {item.timestamp_seconds !== null && (
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleTimestampJump(item.timestamp_seconds!)}
+                          >
+                            <Play className="h-3 w-3 mr-1" />
+                            Play from {formatTimestamp(item.timestamp_seconds)}
+                          </Button>
+                          {item.playback_url && (
+                            <Button asChild size="sm" variant="ghost">
+                              <a href={item.playback_url} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (
-                  <Alert>
-                    <AlertDescription>No action items identified for this meeting.</AlertDescription>
-                  </Alert>
+                  <p className="text-sm text-muted-foreground">
+                    No action items identified for this meeting.
+                  </p>
                 )}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </div>
+        </div>
 
-        <TabsContent value="analytics">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {meeting.talk_time_rep_pct !== null && meeting.talk_time_customer_pct !== null && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Talk Time Distribution</CardTitle>
-                  <CardDescription>Speaking time breakdown</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+        {/* Right Column - Sidebar */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* Attendees */}
+          <div className="section-card">
+            <div className="font-semibold mb-2">Attendees</div>
+            <div className="space-y-2">
+              {attendees.length > 0 ? (
+                attendees.map((attendee) => (
+                  <div key={attendee.id} className="flex items-center justify-between text-sm">
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Rep</span>
-                        <span className="text-sm font-bold">{meeting.talk_time_rep_pct.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-primary rounded-full h-2"
-                          style={{ width: `${meeting.talk_time_rep_pct}%` }}
-                        />
-                      </div>
+                      <div className="font-medium">{attendee.name}</div>
+                      {attendee.email && (
+                        <div className="text-muted-foreground text-xs">{attendee.email}</div>
+                      )}
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">Customer</span>
-                        <span className="text-sm font-bold">{meeting.talk_time_customer_pct.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-blue-500 rounded-full h-2"
-                          style={{ width: `${meeting.talk_time_customer_pct}%` }}
-                        />
-                      </div>
-                    </div>
-                    {meeting.talk_time_judgement && (
-                      <Badge variant={meeting.talk_time_judgement === 'good' ? 'default' : 'secondary'}>
-                        {meeting.talk_time_judgement.toUpperCase()}
+                    {attendee.is_external ? (
+                      <Badge className="bg-amber-900/60 text-amber-300">
+                        External
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">
+                        Internal
                       </Badge>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Meeting Metadata</CardTitle>
-                <CardDescription>Technical details</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Recording ID:</span>
-                  <span className="font-mono text-xs">{meeting.fathom_recording_id}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Host:</span>
-                  <span>{meeting.owner_email || 'Unknown'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Start Time:</span>
-                  <span>{new Date(meeting.meeting_start).toLocaleTimeString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">End Time:</span>
-                  <span>{new Date(meeting.meeting_end).toLocaleTimeString()}</span>
-                </div>
-              </CardContent>
-            </Card>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">No attendees recorded</p>
+              )}
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {/* Talk Time */}
+          {meeting.talk_time_rep_pct !== null && meeting.talk_time_customer_pct !== null && (
+            <div className="section-card">
+              <div className="font-semibold mb-2">Talk Time</div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Rep:</span>
+                  <span className="font-semibold">
+                    {meeting.talk_time_rep_pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Customer:</span>
+                  <span className="font-semibold">
+                    {meeting.talk_time_customer_pct.toFixed(1)}%
+                  </span>
+                </div>
+                {meeting.talk_time_judgement && (
+                  <div className="text-xs text-muted-foreground mt-2">
+                    Judgement: {meeting.talk_time_judgement}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Meeting Info */}
+          <div className="section-card">
+            <div className="font-semibold mb-2">Meeting Info</div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Duration:</span>
+                <span>{Math.round(meeting.duration_minutes)} minutes</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Host:</span>
+                <span className="truncate ml-2">{meeting.owner_email || 'Unknown'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Start:</span>
+                <span>{new Date(meeting.meeting_start).toLocaleTimeString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">End:</span>
+                <span>{new Date(meeting.meeting_end).toLocaleTimeString()}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Debug Info */}
+          <div className="section-card">
+            <div className="font-semibold mb-2">Debug Info</div>
+            <div className="text-xs font-mono text-muted-foreground space-y-1 break-all">
+              <div>
+                <span className="text-muted-foreground/70">Recording ID:</span>
+                <br />
+                {meeting.fathom_recording_id}
+              </div>
+              <div>
+                <span className="text-muted-foreground/70">Share URL:</span>
+                <br />
+                {meeting.share_url}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

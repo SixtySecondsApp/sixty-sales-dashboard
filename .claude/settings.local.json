@@ -29,7 +29,9 @@
       "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_7zZ4QN/**)",
       "Bash(awk:*)",
       "Bash(find:*)",
-      "Bash(psql:*)"
+      "Bash(psql:*)",
+      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_dTZhpD/**)",
+      "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_nX37rF/**)"
     ],
     "deny": [],
     "ask": []

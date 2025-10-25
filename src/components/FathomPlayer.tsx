@@ -11,7 +11,11 @@ interface FathomPlayerProps {
   title?: string
 }
 
-function extractId(input?: string): string | null {
+export interface FathomPlayerHandle {
+  seekToTimestamp: (seconds: number) => void
+}
+
+export function extractId(input?: string): string | null {
   if (!input) return null
   
   try {
@@ -26,7 +30,7 @@ function extractId(input?: string): string | null {
   }
 }
 
-function toEmbedSrc(id: string, opts?: { autoplay?: boolean; timestamp?: number; recordingId?: string }) {
+export function toEmbedSrc(id: string, opts?: { autoplay?: boolean; timestamp?: number; recordingId?: string }) {
   // If we have a recording_id (numeric), use the share URL format
   // Otherwise use the share token from the URL
   const embedPath = opts?.recordingId
@@ -46,7 +50,7 @@ function toEmbedSrc(id: string, opts?: { autoplay?: boolean; timestamp?: number;
   return url.toString()
 }
 
-const FathomPlayer: React.FC<FathomPlayerProps> = ({
+const FathomPlayer = React.forwardRef<FathomPlayerHandle, FathomPlayerProps>(({
   shareUrl,
   id,
   recordingId,
@@ -55,7 +59,7 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
   aspectRatio = '16 / 9',
   className = '',
   title = 'Fathom video'
-}) => {
+}, ref) => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [currentSrc, setCurrentSrc] = useState<string>('')
 
@@ -71,7 +75,7 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
       setCurrentSrc(src)
     }
   }, [resolvedId, recordingId, autoplay, startSeconds])
-  
+
   // Method to update timestamp programmatically
   const seekToTimestamp = (seconds: number) => {
     if (resolvedId) {
@@ -79,16 +83,12 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
       setCurrentSrc(src)
     }
   }
-  
-  // Expose seekToTimestamp method via ref
-  React.useImperativeHandle(
-    React.forwardRef((props, ref) => ref),
-    () => ({ seekToTimestamp }),
-    [resolvedId]
-  )
-  
-  if (!resolvedId) return null
-  
+
+  // Expose seekToTimestamp method via ref to parent components
+  React.useImperativeHandle(ref, () => ({ seekToTimestamp }), [resolvedId])
+
+  if (!resolvedId && !recordingId && !shareUrl) return null
+
   return (
     <div 
       className={`relative w-full bg-black rounded-2xl overflow-hidden ${className}`}
@@ -100,7 +100,7 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
     >
       <iframe
         ref={iframeRef}
-        src={currentSrc}
+        src={currentSrc || (shareUrl ? toEmbedSrc(extractId(shareUrl) || '', { autoplay, timestamp: startSeconds, recordingId }) : '')}
         title={title}
         className="absolute inset-0 w-full h-full border-0"
         loading="lazy"
@@ -109,6 +109,6 @@ const FathomPlayer: React.FC<FathomPlayerProps> = ({
       />
     </div>
   )
-}
+})
 
 export default FathomPlayer

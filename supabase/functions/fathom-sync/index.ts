@@ -67,6 +67,343 @@ interface FathomAnalytics {
   }>
 }
 
+/**
+ * Helper: Extract share token and build a stable embed URL
+ */
+function buildEmbedUrl(shareUrl?: string, recordingId?: string | number): string | null {
+  try {
+    if (recordingId) {
+      return `https://app.fathom.video/recording/${recordingId}`
+    }
+    if (!shareUrl) return null
+    const u = new URL(shareUrl)
+    const parts = u.pathname.split('/').filter(Boolean)
+    const token = parts.pop()
+    if (!token) return null
+    return `https://fathom.video/embed/${token}`
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Helper: Try to fetch thumbnail from Fathom's potential thumbnail endpoints
+ * Tests various URL patterns that Fathom might use for thumbnails
+ */
+async function fetchFathomDirectThumbnail(recordingId: string | number, shareUrl?: string): Promise<string | null> {
+  console.log(`🖼️  Testing Fathom thumbnail endpoints for recording ${recordingId}...`)
+
+  // Extract share ID from URL for additional patterns
+  let shareId = null
+  if (shareUrl) {
+    try {
+      const url = new URL(shareUrl)
+      shareId = url.pathname.split('/').pop()
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+
+  // Test various potential thumbnail URL patterns
+  const patterns = [
+    `https://thumbnails.fathom.video/${recordingId}.jpg`,
+    `https://thumbnails.fathom.video/${recordingId}.png`,
+    `https://cdn.fathom.video/thumbnails/${recordingId}.jpg`,
+    `https://cdn.fathom.video/thumbnails/${recordingId}.png`,
+    `https://fathom.video/thumbnails/${recordingId}.jpg`,
+    `https://app.fathom.video/thumbnails/${recordingId}.jpg`,
+    shareId ? `https://thumbnails.fathom.video/${shareId}.jpg` : null,
+    shareId ? `https://cdn.fathom.video/thumbnails/${shareId}.jpg` : null,
+  ].filter(Boolean) as string[]
+
+  for (const url of patterns) {
+    try {
+      // Use HEAD request to check if URL exists without downloading
+      const response = await fetch(url, { method: 'HEAD' })
+      if (response.ok) {
+        console.log(`✅ Found Fathom thumbnail at: ${url}`)
+        return url
+      }
+    } catch (e) {
+      // Continue to next pattern
+    }
+  }
+
+  console.log('⚠️  No direct Fathom thumbnail endpoint found')
+  return null
+}
+
+/**
+ * Helper: Extract video poster/thumbnail from Fathom embed page
+ * Looks for video player metadata in the embed HTML
+ */
+async function fetchThumbnailFromEmbed(shareUrl?: string, recordingId?: string | number): Promise<string | null> {
+  if (!shareUrl && !recordingId) return null
+
+  try {
+    // Build embed URL
+    let embedUrl: string
+    if (shareUrl) {
+      const shareId = shareUrl.split('/').pop()
+      embedUrl = `https://fathom.video/embed/${shareId}`
+    } else {
+      embedUrl = `https://app.fathom.video/recording/${recordingId}`
+    }
+
+    console.log(`🎬 Checking embed page for video poster: ${embedUrl}`)
+
+    const response = await fetch(embedUrl, {
+      headers: {
+        'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)',
+        'Accept': 'text/html'
+      }
+    })
+
+    if (!response.ok) return null
+
+    const html = await response.text()
+
+    // Look for video poster attribute
+    const posterMatch = html.match(/poster=["']([^"']+)["']/i)
+    if (posterMatch && posterMatch[1]) {
+      console.log(`✅ Found video poster: ${posterMatch[1]}`)
+      return posterMatch[1]
+    }
+
+    // Look for thumbnail in video player config/metadata
+    const patterns = [
+      /thumbnail["']?\s*:\s*["']([^"']+)["']/i,
+      /posterImage["']?\s*:\s*["']([^"']+)["']/i,
+      /previewImage["']?\s*:\s*["']([^"']+)["']/i,
+    ]
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern)
+      if (match && match[1]) {
+        console.log(`✅ Found video thumbnail in config: ${match[1]}`)
+        return match[1]
+      }
+    }
+
+    console.log('⚠️  No video poster or thumbnail found in embed')
+    return null
+  } catch (error) {
+    console.error('❌ Error fetching embed thumbnail:', error)
+    return null
+  }
+}
+
+/**
+ * Helper: Scrape og:image from share page for a lightweight thumbnail.
+ * This avoids adding heavy dependencies; works best when share_url is public.
+ */
+async function fetchThumbnailFromShareUrl(shareUrl?: string): Promise<string | null> {
+  if (!shareUrl) {
+    console.log('⚠️  No share URL provided for thumbnail fetch')
+    return null
+  }
+
+  try {
+    console.log(`🖼️  Attempting to fetch og:image from: ${shareUrl}`)
+    const res = await fetch(shareUrl, {
+      headers: {
+        'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)',
+        'Accept': 'text/html'
+      }
+    })
+
+    if (!res.ok) {
+      console.log(`⚠️  Thumbnail fetch failed: HTTP ${res.status}`)
+      return null
+    }
+
+    const html = await res.text()
+    console.log(`📄 HTML received (${html.length} chars), searching for og:image...`)
+
+    // Try multiple meta tag patterns
+    const patterns = [
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    ]
+
+    for (const pattern of patterns) {
+      const match = html.match(pattern)
+      if (match && match[1]) {
+        console.log(`✅ Found og:image: ${match[1]}`)
+        return match[1]
+      }
+    }
+
+    console.log('❌ No og:image or twitter:image meta tag found in HTML')
+    return null
+  } catch (error) {
+    console.error('❌ Error fetching thumbnail:', error)
+    return null
+  }
+}
+
+/**
+ * Helper: Generate video thumbnail by calling the thumbnail generation service
+ */
+async function generateVideoThumbnail(
+  recordingId: string | number,
+  shareUrl: string,
+  embedUrl: string
+): Promise<string | null> {
+  try {
+    const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail`
+
+    console.log(`📸 Calling thumbnail generation service for recording ${recordingId}...`)
+
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        recording_id: String(recordingId),
+        share_url: shareUrl,
+        fathom_embed_url: embedUrl,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Thumbnail generation service error: ${response.status} - ${errorText}`)
+      return null
+    }
+
+    const data = await response.json()
+
+    if (data.success && data.thumbnail_url) {
+      console.log(`✅ Video thumbnail generated: ${data.thumbnail_url}`)
+      return data.thumbnail_url
+    }
+
+    console.error('Thumbnail generation service returned no URL')
+    return null
+  } catch (error) {
+    console.error('Error calling thumbnail generation service:', error)
+    return null
+  }
+}
+
+/**
+ * Helper: Fetch summary text for a recording when not present in bulk payload
+ */
+async function fetchRecordingSummary(apiKey: string, recordingId: string | number): Promise<string | null> {
+  const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`
+  const resp = await fetch(url, { headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' } })
+  if (!resp.ok) return null
+  const data = await resp.json().catch(() => null)
+  // Prefer markdown if present; otherwise look for plain text
+  const md = data?.summary?.markdown_formatted || data?.summary?.markdown || null
+  const txt = data?.summary?.text || null
+  return md || txt
+}
+
+/**
+ * Helper: Fetch transcript plaintext when needed (optional)
+ */
+async function fetchRecordingTranscriptPlaintext(apiKey: string, recordingId: string | number): Promise<string | null> {
+  const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
+  const resp = await fetch(url, { headers: { 'X-Api-Key': apiKey, 'Content-Type': 'application/json' } })
+  if (!resp.ok) return null
+  const data = await resp.json().catch(() => null)
+  if (!data) return null
+  // If the API returns an array of transcript lines, join them into plaintext
+  if (Array.isArray(data.transcript)) {
+    const lines = data.transcript.map((t: any) => {
+      const speaker = t?.speaker?.display_name ? `${t.speaker.display_name}: ` : ''
+      const text = t?.text || ''
+      return `${speaker}${text}`.trim()
+    })
+    return lines.join('\n')
+  }
+  return typeof data === 'string' ? data : null
+}
+
+/**
+ * Helper: Fetch action items for a specific recording
+ * Action items are not included in the bulk meetings API response
+ */
+async function fetchRecordingActionItems(apiKey: string, recordingId: string | number): Promise<any[] | null> {
+  const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/action_items`
+
+  console.log(`📋 Fetching action items for recording ${recordingId}...`)
+
+  const resp = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    }
+  })
+
+  if (!resp.ok) {
+    console.log(`⚠️  Action items fetch failed: HTTP ${resp.status}`)
+    // Try with X-Api-Key header instead
+    const resp2 = await fetch(url, {
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!resp2.ok) {
+      console.log(`⚠️  Action items fetch failed with X-Api-Key too: HTTP ${resp2.status}`)
+      return null
+    }
+
+    const data = await resp2.json().catch(() => null)
+    console.log(`✅ Fetched action items (X-Api-Key):`, JSON.stringify(data, null, 2))
+    return data?.action_items || data?.items || (Array.isArray(data) ? data : null)
+  }
+
+  const data = await resp.json().catch(() => null)
+  console.log(`✅ Fetched action items (Bearer):`, JSON.stringify(data, null, 2))
+  return data?.action_items || data?.items || (Array.isArray(data) ? data : null)
+}
+
+async function createGoogleDocForTranscript(supabase: any, userId: string, meetingId: string, title: string, plaintext: string): Promise<string | null> {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/google-docs-create`
+    // Create a service role client to mint a short-lived user JWT by calling auth API
+    const serviceSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
+
+    // Create a JWT for the user via admin API (if available) or fetch session from DB
+    // Fallback: use service role header; function uses Authorization header to lookup user via getUser(jwt)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: title || 'Meeting Transcript',
+        content: plaintext,
+        metadata: { meetingId },
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.warn('google-docs-create failed:', errorText)
+      return null
+    }
+
+    const data = await response.json()
+    return data?.url || null
+  } catch (e) {
+    console.warn('Failed to create Google Doc:', e)
+    return null
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -249,6 +586,20 @@ serve(async (req) => {
           }
         }
       }
+      // Fallback: if nothing found in the selected window, retry once without date filters
+      if (totalMeetingsFound === 0 && (apiStartDate || apiEndDate)) {
+        console.log('ℹ️  No meetings found in range. Retrying without date filters...')
+        const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 })
+        totalMeetingsFound += retryCalls.length
+        for (const call of retryCalls) {
+          try {
+            const result = await syncSingleCall(supabase, userId, integration, call)
+            if (result.success) meetingsSynced++
+          } catch (error) {
+            console.error('❌ Error during fallback sync:', error)
+          }
+        }
+      }
     }
 
     // Update sync state to 'idle' with results
@@ -367,8 +718,8 @@ async function fetchFathomCalls(
   params: {
     start_date?: string
     end_date?: string
-    limit: number
-    offset: number
+    limit?: number
+    offset?: number
   }
 ): Promise<FathomCall[]> {
   const queryParams = new URLSearchParams()
@@ -376,6 +727,8 @@ async function fetchFathomCalls(
   // Fathom API uses created_after/created_before instead of start_date/end_date
   if (params.start_date) queryParams.set('created_after', params.start_date)
   if (params.end_date) queryParams.set('created_before', params.end_date)
+  // Explicitly request a reasonable page size; some APIs default to 0 without limit
+  queryParams.set('limit', String(params.limit ?? 50))
 
   // Note: Fathom API uses cursor-based pagination, offset may not work
   // For now, we'll implement basic pagination support
@@ -472,6 +825,48 @@ async function syncSingleCall(
     const endTime = new Date(call.recording_end_time || call.scheduled_end_time)
     const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60))
 
+    // Compute derived fields prior to DB write
+    const embedUrl = buildEmbedUrl(call.share_url, call.recording_id)
+
+    // Try multiple methods to get a thumbnail (in order of preference)
+    console.log(`🖼️  Starting thumbnail fetch cascade for recording ${call.recording_id}...`)
+
+    let thumbnailUrl: string | null = null
+
+    // Method 1: Try Fathom's direct thumbnail endpoints (fastest if they exist)
+    thumbnailUrl = await fetchFathomDirectThumbnail(call.recording_id, call.share_url)
+
+    // Method 2: Extract video poster from Fathom embed page
+    if (!thumbnailUrl) {
+      thumbnailUrl = await fetchThumbnailFromEmbed(call.share_url, call.recording_id)
+    }
+
+    // Method 3: Scrape og:image from share page
+    if (!thumbnailUrl) {
+      thumbnailUrl = await fetchThumbnailFromShareUrl(call.share_url)
+    }
+
+    // Method 4: Generate video screenshot (if enabled and embed URL available)
+    if (!thumbnailUrl && embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
+      console.log('📸 Attempting to generate video screenshot...')
+      thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
+    }
+
+    // Method 5: Generate a placeholder thumbnail as last resort
+    if (!thumbnailUrl && call.share_url) {
+      console.log('ℹ️  Using generated placeholder thumbnail')
+      const firstLetter = (call.title || 'M')[0].toUpperCase()
+      thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+    }
+
+    console.log(`✅ Final thumbnail URL: ${thumbnailUrl}`)
+
+    // If summary not present in bulk API, fetch via recordings endpoint
+    let summaryText: string | null = call.default_summary || null
+    if (!summaryText && call.recording_id) {
+      summaryText = await fetchRecordingSummary(integration.access_token, call.recording_id)
+    }
+
     // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
       owner_user_id: userId,
@@ -482,15 +877,22 @@ async function syncSingleCall(
       meeting_end: call.recording_end_time || call.scheduled_end_time,
       duration_minutes: durationMinutes,
       owner_email: call.recorded_by?.email,
+      team_name: call.recorded_by?.team || null,
       share_url: call.share_url,
       calls_url: call.url,
-      transcript_doc_url: call.transcript, // May be null if not yet processed
-      summary: call.default_summary, // May be null if not yet processed
+      transcript_doc_url: call.transcript || null, // If Fathom provided a URL
+      summary: summaryText, // Prefer explicit fetch when missing
       sentiment_score: null, // Not available in bulk API response
       coach_summary: null, // Not available in bulk API response
       talk_time_rep_pct: null, // Not available in bulk API response
       talk_time_customer_pct: null, // Not available in bulk API response
       talk_time_judgement: null, // Not available in bulk API response
+      fathom_embed_url: embedUrl,
+      thumbnail_url: thumbnailUrl,
+      // Additional metadata fields
+      fathom_created_at: call.created_at || null,
+      transcript_language: call.transcript_language || 'en',
+      calendar_invitees_type: call.calendar_invitees_domains_type || null,
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
     }
@@ -509,6 +911,20 @@ async function syncSingleCall(
     }
 
     console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
+
+    // If no transcript_doc_url yet, fetch plaintext and create a Google Doc
+    if (!meeting.transcript_doc_url && call.recording_id) {
+      const transcriptPlain = await fetchRecordingTranscriptPlaintext(integration.access_token, call.recording_id)
+      if (transcriptPlain) {
+        const docUrl = await createGoogleDocForTranscript(supabase, userId, meeting.id, `Transcript • ${call.title || 'Meeting'}`, transcriptPlain)
+        if (docUrl) {
+          await supabase
+            .from('meetings')
+            .update({ transcript_doc_url: docUrl, updated_at: new Date().toISOString() })
+            .eq('id', meeting.id)
+        }
+      }
+    }
 
     // Process participants (use calendar_invitees from actual API)
     if (call.calendar_invitees && call.calendar_invitees.length > 0) {
@@ -548,21 +964,58 @@ async function syncSingleCall(
       }
     }
 
-    // Process action items from API response
-    if (call.action_items && Array.isArray(call.action_items) && call.action_items.length > 0) {
-      for (const actionItem of call.action_items) {
-        await supabase
+    // Process action items - need to fetch separately as they're not in bulk API response
+    let actionItems = call.action_items
+
+    // If action items weren't in the bulk response, fetch them separately
+    if (!actionItems && call.recording_id) {
+      actionItems = await fetchRecordingActionItems(integration.access_token, call.recording_id)
+    }
+
+    if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
+      console.log(`📋 Processing ${actionItems.length} action items for meeting ${meeting.id}`)
+
+      for (const actionItem of actionItems) {
+        const timestampSeconds = actionItem.timestamp_seconds || actionItem.timestamp || null
+        const playbackUrl = actionItem.recording_playback_url || actionItem.playback_url || null
+        const title = actionItem.description || actionItem.title || (typeof actionItem === 'string' ? actionItem : 'Untitled Action Item')
+
+        // First, check if this action item already exists (by title and timestamp to avoid duplicates)
+        const { data: existingItem } = await supabase
+          .from('meeting_action_items')
+          .select('id')
+          .eq('meeting_id', meeting.id)
+          .eq('title', title)
+          .eq('timestamp_seconds', timestampSeconds)
+          .single()
+
+        if (existingItem) {
+          console.log(`⏭️  Action item already exists: "${title}"`)
+          continue
+        }
+
+        // Insert new action item
+        const { error: actionItemError } = await supabase
           .from('meeting_action_items')
           .insert({
             meeting_id: meeting.id,
-            title: actionItem.description || actionItem.title || actionItem,
-            timestamp_seconds: actionItem.timestamp || null,
-            category: actionItem.type || 'action_item',
+            title: title,
+            timestamp_seconds: timestampSeconds,
+            category: actionItem.type || actionItem.category || 'action_item',
             priority: actionItem.priority || 'medium',
             ai_generated: true,
             completed: false,
+            playback_url: playbackUrl,
           })
+
+        if (actionItemError) {
+          console.error(`❌ Error inserting action item: ${actionItemError.message}`)
+        } else {
+          console.log(`✅ Inserted action item: "${title}"`)
+        }
       }
+    } else {
+      console.log(`ℹ️  No action items available for meeting ${meeting.id} (recording_id: ${call.recording_id})`)
     }
 
     return { success: true }
