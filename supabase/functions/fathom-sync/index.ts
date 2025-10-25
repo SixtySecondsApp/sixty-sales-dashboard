@@ -863,10 +863,40 @@ async function syncSingleCall(
 
     console.log(`✅ Final thumbnail URL: ${thumbnailUrl}`)
 
-    // If summary not present in bulk API, fetch via recordings endpoint
+    // Fetch summary from Fathom API - always try API call for most up-to-date data
+    console.log(`📝 Fetching summary for recording ${call.recording_id}...`)
     let summaryText: string | null = call.default_summary || null
-    if (!summaryText && call.recording_id) {
-      summaryText = await fetchRecordingSummary(integration.access_token, call.recording_id)
+
+    // Always attempt to fetch from API for complete summary (fallback to bulk data if API fails)
+    if (call.recording_id) {
+      try {
+        const apiSummary = await fetchRecordingSummary(integration.access_token, call.recording_id)
+        if (apiSummary) {
+          summaryText = apiSummary
+          console.log(`✅ Summary fetched from API (${apiSummary.length} chars)`)
+        } else {
+          console.log(`⚠️  No summary returned from API, using bulk data: ${summaryText ? 'available' : 'not available'}`)
+        }
+      } catch (error) {
+        console.error(`❌ Error fetching summary: ${error}`)
+        console.log(`📝 Falling back to bulk API summary: ${summaryText ? 'available' : 'not available'}`)
+      }
+    }
+
+    // Fetch transcript plaintext for storage and analysis
+    console.log(`📄 Fetching transcript for recording ${call.recording_id}...`)
+    let transcriptText: string | null = null
+    if (call.recording_id) {
+      try {
+        transcriptText = await fetchRecordingTranscriptPlaintext(integration.access_token, call.recording_id)
+        if (transcriptText) {
+          console.log(`✅ Transcript fetched from API (${transcriptText.length} chars)`)
+        } else {
+          console.log(`⚠️  No transcript returned from API`)
+        }
+      } catch (error) {
+        console.error(`❌ Error fetching transcript: ${error}`)
+      }
     }
 
     // Map to meetings table schema using actual Fathom API fields
@@ -883,7 +913,8 @@ async function syncSingleCall(
       share_url: call.share_url,
       calls_url: call.url,
       transcript_doc_url: call.transcript || null, // If Fathom provided a URL
-      summary: summaryText, // Prefer explicit fetch when missing
+      transcript_text: transcriptText, // Raw transcript plaintext for search and analysis
+      summary: summaryText, // Complete summary from API
       sentiment_score: null, // Not available in bulk API response
       coach_summary: null, // Not available in bulk API response
       talk_time_rep_pct: null, // Not available in bulk API response
@@ -914,17 +945,26 @@ async function syncSingleCall(
 
     console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
 
-    // If no transcript_doc_url yet, fetch plaintext and create a Google Doc
-    if (!meeting.transcript_doc_url && call.recording_id) {
-      const transcriptPlain = await fetchRecordingTranscriptPlaintext(integration.access_token, call.recording_id)
-      if (transcriptPlain) {
-        const docUrl = await createGoogleDocForTranscript(supabase, userId, meeting.id, `Transcript • ${call.title || 'Meeting'}`, transcriptPlain)
+    // Create Google Doc for transcript if we have transcript text and no doc URL yet
+    if (!meeting.transcript_doc_url && transcriptText) {
+      console.log(`📄 Creating Google Doc for transcript...`)
+      try {
+        const docUrl = await createGoogleDocForTranscript(
+          supabase,
+          userId,
+          meeting.id,
+          `Transcript • ${call.title || 'Meeting'}`,
+          transcriptText
+        )
         if (docUrl) {
+          console.log(`✅ Google Doc created: ${docUrl}`)
           await supabase
             .from('meetings')
             .update({ transcript_doc_url: docUrl, updated_at: new Date().toISOString() })
             .eq('id', meeting.id)
         }
+      } catch (error) {
+        console.error(`❌ Error creating Google Doc: ${error}`)
       }
     }
 
