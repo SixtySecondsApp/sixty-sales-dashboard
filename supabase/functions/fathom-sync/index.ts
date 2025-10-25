@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { matchOrCreateCompany } from '../_shared/companyMatching.ts'
+import { selectPrimaryContact, determineMeetingCompany } from '../_shared/primaryContactSelection.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -927,6 +929,8 @@ async function syncSingleCall(
     }
 
     // Process participants (use calendar_invitees from actual API)
+    const externalContactIds: string[] = []
+
     if (call.calendar_invitees && call.calendar_invitees.length > 0) {
       for (const invitee of call.calendar_invitees) {
         // Create meeting attendee record
@@ -940,26 +944,144 @@ async function syncSingleCall(
             role: invitee.is_external ? 'attendee' : 'host',
           })
 
-        // Also try to find/create contact for internal tracking
+        // Process external contacts - match/create company and contact
         if (invitee.email && invitee.is_external) {
+          console.log(`👤 Processing external contact: ${invitee.name} (${invitee.email})`)
+
+          // 1. Match or create company from email domain
+          const company = await matchOrCreateCompany(supabase, invitee.email, userId, invitee.name)
+          if (company) {
+            console.log(`🏢 Matched/created company: ${company.name} (${company.domain})`)
+          }
+
+          // 2. Check for existing contact
           const { data: existingContact } = await supabase
             .from('contacts')
-            .select('id')
+            .select('id, company_id')
             .eq('user_id', userId)
             .eq('email', invitee.email)
             .single()
 
-          if (!existingContact) {
-            // Create new contact
-            await supabase
+          if (existingContact) {
+            console.log(`✅ Found existing contact: ${invitee.name}`)
+
+            // Update existing contact with company if not set
+            if (!existingContact.company_id && company) {
+              await supabase
+                .from('contacts')
+                .update({
+                  company_id: company.id,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingContact.id)
+
+              console.log(`🔗 Linked contact to company: ${company.name}`)
+            }
+
+            externalContactIds.push(existingContact.id)
+          } else {
+            // Create new contact with company link
+            const { data: newContact, error: contactError } = await supabase
               .from('contacts')
               .insert({
                 user_id: userId,
                 name: invitee.name,
                 email: invitee.email,
+                company_id: company?.id || null,
                 source: 'fathom_sync',
+                first_seen_at: new Date().toISOString()
               })
+              .select('id')
+              .single()
+
+            if (contactError) {
+              console.error(`❌ Error creating contact: ${contactError.message}`)
+            } else if (newContact) {
+              console.log(`✅ Created new contact: ${invitee.name}`)
+              if (company) {
+                console.log(`🔗 Linked to company: ${company.name}`)
+              }
+              externalContactIds.push(newContact.id)
+            }
           }
+        }
+      }
+    }
+
+    // After processing all contacts, determine primary contact and company
+    if (externalContactIds.length > 0) {
+      console.log(`🎯 Determining primary contact from ${externalContactIds.length} external contacts...`)
+
+      // Select primary contact using smart logic
+      const primaryContactId = await selectPrimaryContact(supabase, externalContactIds, userId)
+
+      if (primaryContactId) {
+        console.log(`✅ Selected primary contact: ${primaryContactId}`)
+
+        // Determine meeting company (use primary contact's company)
+        const meetingCompanyId = await determineMeetingCompany(supabase, externalContactIds, primaryContactId, userId)
+
+        if (meetingCompanyId) {
+          console.log(`🏢 Meeting linked to company: ${meetingCompanyId}`)
+        }
+
+        // Update meeting with primary contact and company
+        await supabase
+          .from('meetings')
+          .update({
+            primary_contact_id: primaryContactId,
+            company_id: meetingCompanyId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', meeting.id)
+
+        // Create meeting_contacts junction records
+        const meetingContactRecords = externalContactIds.map((contactId, idx) => ({
+          meeting_id: meeting.id,
+          contact_id: contactId,
+          is_primary: contactId === primaryContactId,
+          role: 'attendee'
+        }))
+
+        const { error: junctionError } = await supabase
+          .from('meeting_contacts')
+          .upsert(meetingContactRecords, { onConflict: 'meeting_id,contact_id' })
+
+        if (junctionError) {
+          console.error(`❌ Error creating meeting_contacts records: ${junctionError.message}`)
+        } else {
+          console.log(`✅ Created ${meetingContactRecords.length} meeting_contacts records`)
+        }
+
+        // Create activity record for CRM integration
+        console.log(`📝 Creating activity record for Fathom meeting...`)
+
+        // Determine outcome based on sentiment score (if available)
+        let outcome = 'neutral'
+        if (meeting.sentiment_score) {
+          if (meeting.sentiment_score >= 0.3) outcome = 'positive'
+          else if (meeting.sentiment_score <= -0.3) outcome = 'negative'
+        }
+
+        const { error: activityError } = await supabase.from('activities').insert({
+          user_id: userId,
+          meeting_id: meeting.id,
+          contact_id: primaryContactId,
+          company_id: meetingCompanyId,
+          type: 'meeting', // Use 'meeting' or 'fathom_meeting' if enum supports it
+          status: 'completed',
+          client_name: meetingData.title || 'Fathom Meeting',
+          details: meetingData.summary || `Meeting with ${externalContactIds.length} external contact${externalContactIds.length > 1 ? 's' : ''}`,
+          date: meetingData.meeting_start,
+          outcome: outcome,
+          duration_minutes: meetingData.duration_minutes,
+          created_at: new Date().toISOString()
+        })
+
+        if (activityError) {
+          console.error(`❌ Error creating activity: ${activityError.message}`)
+        } else {
+          console.log(`✅ Created activity record for meeting`)
         }
       }
     }
