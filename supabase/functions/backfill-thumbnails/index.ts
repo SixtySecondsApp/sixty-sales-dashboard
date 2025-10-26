@@ -34,10 +34,9 @@ serve(async (req) => {
     // Query meetings without thumbnails
     const { data: meetings, error: queryError } = await supabase
       .from('meetings')
-      .select('id, fathom_recording_id, share_url, title')
+      .select('id, fathom_recording_id, share_url, title, duration_minutes')
       .is('thumbnail_url', null)
       .not('fathom_recording_id', 'is', null)
-      .not('share_url', 'is', null)
       .limit(batchSize)
 
     if (queryError) {
@@ -74,18 +73,109 @@ serve(async (req) => {
       errors: []
     }
 
+    // Helper: Build embed URL from share_url or recording_id
+    function buildEmbedUrl(shareUrl?: string | null, recordingId?: string | null): string | null {
+      try {
+        if (recordingId) {
+          return `https://app.fathom.video/recording/${recordingId}`
+        }
+        if (!shareUrl) return null
+        const u = new URL(shareUrl)
+        const parts = u.pathname.split('/').filter(Boolean)
+        const token = parts.pop()
+        if (!token) return null
+        return `https://fathom.video/embed/${token}`
+      } catch {
+        return null
+      }
+    }
+
+    // Helper: Try common direct thumbnail endpoints
+    async function fetchFathomDirectThumbnail(recordingId: string | null, shareUrl?: string | null): Promise<string | null> {
+      let shareId: string | null = null
+      if (shareUrl) {
+        try {
+          const url = new URL(shareUrl)
+          shareId = url.pathname.split('/').pop() || null
+        } catch {}
+      }
+      const patterns = [
+        recordingId ? `https://thumbnails.fathom.video/${recordingId}.jpg` : null,
+        recordingId ? `https://thumbnails.fathom.video/${recordingId}.png` : null,
+        recordingId ? `https://cdn.fathom.video/thumbnails/${recordingId}.jpg` : null,
+        recordingId ? `https://cdn.fathom.video/thumbnails/${recordingId}.png` : null,
+        recordingId ? `https://fathom.video/thumbnails/${recordingId}.jpg` : null,
+        recordingId ? `https://app.fathom.video/thumbnails/${recordingId}.jpg` : null,
+        shareId ? `https://thumbnails.fathom.video/${shareId}.jpg` : null,
+        shareId ? `https://cdn.fathom.video/thumbnails/${shareId}.jpg` : null,
+      ].filter(Boolean) as string[]
+
+      for (const url of patterns) {
+        try {
+          const response = await fetch(url, { method: 'HEAD' })
+          if (response.ok) return url
+        } catch {}
+      }
+      return null
+    }
+
+    // Helper: Extract poster/thumbnail from embed HTML
+    async function fetchThumbnailFromEmbed(shareUrl?: string | null, recordingId?: string | null): Promise<string | null> {
+      const embedUrl = shareUrl
+        ? (() => { try { const id = new URL(shareUrl).pathname.split('/').pop(); return id ? `https://fathom.video/embed/${id}` : null } catch { return null } })()
+        : (recordingId ? `https://app.fathom.video/recording/${recordingId}` : null)
+      if (!embedUrl) return null
+      try {
+        const response = await fetch(embedUrl, { headers: { 'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)', 'Accept': 'text/html' } })
+        if (!response.ok) return null
+        const html = await response.text()
+        const patterns = [
+          /poster=["']([^"']+)["']/i,
+          /thumbnail["']?\s*:\s*["']([^"']+)["']/i,
+          /posterImage["']?\s*:\s*["']([^"']+)["']/i,
+          /previewImage["']?\s*:\s*["']([^"']+)["']/i,
+        ]
+        for (const p of patterns) {
+          const m = html.match(p)
+          if (m && m[1]) return m[1]
+        }
+        return null
+      } catch {
+        return null
+      }
+    }
+
+    // Helper: Scrape og:image from share page
+    async function fetchThumbnailFromShareUrl(shareUrl?: string | null): Promise<string | null> {
+      if (!shareUrl) return null
+      try {
+        const res = await fetch(shareUrl, { headers: { 'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)', 'Accept': 'text/html' } })
+        if (!res.ok) return null
+        const html = await res.text()
+        const patterns = [
+          /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+          /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+          /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+        ]
+        for (const p of patterns) {
+          const m = html.match(p)
+          if (m && m[1]) return m[1]
+        }
+        return null
+      } catch {
+        return null
+      }
+    }
+
     // Process each meeting
     for (const meeting of meetings) {
       try {
         console.log(`\n📸 Processing: ${meeting.title} (ID: ${meeting.id})`)
 
-        // Construct embed URL
-        const shareUrlMatch = meeting.share_url.match(/\/share\/([^/]+)/)
-        if (!shareUrlMatch) {
-          throw new Error('Could not extract share ID from share_url')
+        const embedUrl = buildEmbedUrl(meeting.share_url, meeting.fathom_recording_id)
+        if (!embedUrl) {
+          console.warn('⚠️  Could not construct embed URL from share_url or recording id')
         }
-        const shareId = shareUrlMatch[1]
-        const embedUrl = `https://fathom.video/embed/${shareId}`
 
         if (dryRun) {
           console.log(`🧪 [DRY RUN] Would generate thumbnail for: ${embedUrl}`)
@@ -94,40 +184,70 @@ serve(async (req) => {
           continue
         }
 
-        // Call thumbnail generation function
-        const thumbnailResponse = await fetch(
-          `${supabaseUrl}/functions/v1/generate-video-thumbnail`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              recording_id: meeting.fathom_recording_id,
-              share_url: meeting.share_url,
-              fathom_embed_url: embedUrl,
-            }),
+        // Cascade attempts
+        let thumbnailUrl: string | null = null
+
+        // 1) Try direct endpoints
+        thumbnailUrl = await fetchFathomDirectThumbnail(meeting.fathom_recording_id, meeting.share_url)
+
+        // 2) Try embed poster
+        if (!thumbnailUrl) {
+          thumbnailUrl = await fetchThumbnailFromEmbed(meeting.share_url, meeting.fathom_recording_id)
+        }
+
+        // 3) Try share page og:image
+        if (!thumbnailUrl) {
+          thumbnailUrl = await fetchThumbnailFromShareUrl(meeting.share_url)
+        }
+
+        // 4) Generate via thumbnail service
+        if (!thumbnailUrl && embedUrl) {
+          // Choose a representative timestamp: midpoint, clamped to >=5s
+          const midpointSeconds = Math.max(5, Math.floor(((meeting as any).duration_minutes || 0) * 60 / 2))
+          const thumbnailResponse = await fetch(
+            `${supabaseUrl}/functions/v1/generate-video-thumbnail`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                recording_id: meeting.fathom_recording_id,
+                share_url: meeting.share_url,
+                fathom_embed_url: embedUrl,
+                timestamp_seconds: midpointSeconds,
+              }),
+            }
+          )
+          if (thumbnailResponse.ok) {
+            const thumbnailData = await thumbnailResponse.json().catch(() => null)
+            if (thumbnailData?.success && thumbnailData.thumbnail_url) {
+              thumbnailUrl = thumbnailData.thumbnail_url
+            }
+          } else {
+            const errText = await thumbnailResponse.text().catch(() => '')
+            console.warn(`Thumbnail service error: ${thumbnailResponse.status} ${errText}`)
           }
-        )
+        }
 
-        const thumbnailData = await thumbnailResponse.json()
-
-        if (!thumbnailData.success || !thumbnailData.thumbnail_url) {
-          throw new Error(thumbnailData.error || 'Failed to generate thumbnail')
+        // 5) Placeholder as last resort
+        if (!thumbnailUrl) {
+          const firstLetter = (meeting.title || 'M')[0].toUpperCase()
+          thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
         }
 
         // Update meeting with thumbnail URL
         const { error: updateError } = await supabase
           .from('meetings')
-          .update({ thumbnail_url: thumbnailData.thumbnail_url })
+          .update({ thumbnail_url: thumbnailUrl })
           .eq('id', meeting.id)
 
         if (updateError) {
           throw new Error(`Failed to update meeting: ${updateError.message}`)
         }
 
-        console.log(`✅ Success: ${thumbnailData.thumbnail_url}`)
+        console.log(`✅ Success: ${thumbnailUrl}`)
         progress.successful++
 
         // Rate limiting: wait 1 second between requests to avoid overwhelming Microlink free tier

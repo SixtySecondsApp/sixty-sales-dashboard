@@ -146,6 +146,39 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
   const [selectedContact, setSelectedContact] = useState<any>(null);
   const [showContactSearch, setShowContactSearch] = useState(false);
 
+  // Prefill from external trigger
+  useEventListener('modal:opened', ({ type, context }) => {
+    if (type !== 'quick-add' || !context) return;
+    if (context.preselectAction) {
+      setSelectedAction(context.preselectAction);
+    }
+    if (context.initialData) {
+      // Merge initial data into form
+      updateFormData({
+        ...(formData || {}),
+        ...context.initialData
+      });
+    }
+
+    // Best-effort: preselect contact if provided, otherwise do NOT force contact search.
+    // We'll allow proceeding when meeting_id or company is present and show inline change contact.
+    const initial = context.initialData || {};
+    if (initial.contact_id) {
+      (async () => {
+        try {
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('id, full_name, first_name, last_name, email')
+            .eq('id', initial.contact_id)
+            .single();
+          if (contact) setSelectedContact(contact);
+        } catch {
+          // ignore; user can proceed without explicit contact
+        }
+      })();
+    }
+  }, [formData]);
+
   // Event-driven communication for decoupling
   useEventListener('contact:selected', ({ contact, context }) => {
     if (context === 'quick-add' || !context) {

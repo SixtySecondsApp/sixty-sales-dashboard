@@ -44,125 +44,6 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 // import { emailAIService } from '@/lib/services/emailAIService'; // TODO: Add AI categorization
 
-// Default mock email data for when Google is not connected
-const mockEmails = [
-  {
-    id: '1',
-    from: 'sarah.chen@techcorp.com',
-    fromName: 'Sarah Chen',
-    subject: 'Q4 Revenue Projections & Strategy Meeting',
-    preview: 'Hi team, I wanted to discuss our Q4 projections and schedule a strategy meeting. The numbers look promising...',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    read: false,
-    starred: true,
-    important: true,
-    labels: ['work', 'urgent'],
-    attachments: 2,
-    thread: [
-      {
-        id: '1-1',
-        from: 'sarah.chen@techcorp.com',
-        fromName: 'Sarah Chen',
-        content: 'Hi team,\n\nI wanted to discuss our Q4 projections and schedule a strategy meeting. The numbers look promising and I think we should capitalize on this momentum.\n\nCould we schedule a meeting for this week? I have some exciting updates to share.',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        attachments: ['Q4_Projections.pdf', 'Strategy_Draft.docx']
-      }
-    ]
-  },
-  {
-    id: '2',
-    from: 'marcus.johnson@venture.co',
-    fromName: 'Marcus Johnson',
-    subject: 'Investment Opportunity - Series A Discussion',
-    preview: 'Following up on our conversation last week about the Series A round. I have some questions about your...',
-    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-    read: true,
-    starred: false,
-    important: true,
-    labels: ['investment', 'follow-up'],
-    attachments: 1,
-    thread: [
-      {
-        id: '2-1',
-        from: 'marcus.johnson@venture.co',
-        fromName: 'Marcus Johnson',
-        content: 'Hi there,\n\nFollowing up on our conversation last week about the Series A round. I have some questions about your current runway and growth projections.\n\nWould you be available for a call this week?',
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
-        attachments: ['Term_Sheet_Draft.pdf']
-      }
-    ]
-  },
-  {
-    id: '3',
-    from: 'notifications@github.com',
-    fromName: 'GitHub',
-    subject: '[sixty-sales-dashboard] New pull request: Feature/email-interface',
-    preview: 'A new pull request has been created in your repository. The changes include a new email interface...',
-    timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-    read: true,
-    starred: false,
-    important: false,
-    labels: ['github', 'notifications'],
-    attachments: 0,
-    thread: [
-      {
-        id: '3-1',
-        from: 'notifications@github.com',
-        fromName: 'GitHub',
-        content: 'A new pull request has been created in your repository.\n\nTitle: Feature/email-interface\nAuthor: andrewbryce\n\nThe changes include a new email interface with Superhuman-inspired design.',
-        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
-        attachments: []
-      }
-    ]
-  },
-  {
-    id: '4',
-    from: 'lisa.rodriguez@client.com',
-    fromName: 'Lisa Rodriguez',
-    subject: 'Contract Review and Next Steps',
-    preview: 'Thank you for sending over the proposal. I\'ve reviewed it with our legal team and have a few questions...',
-    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8 hours ago
-    read: false,
-    starred: true,
-    important: true,
-    labels: ['client', 'contract'],
-    attachments: 3,
-    thread: [
-      {
-        id: '4-1',
-        from: 'lisa.rodriguez@client.com',
-        fromName: 'Lisa Rodriguez',
-        content: 'Thank you for sending over the proposal. I\'ve reviewed it with our legal team and have a few questions about the deliverables timeline.\n\nCould we schedule a call to discuss?',
-        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000),
-        attachments: ['Legal_Review.pdf', 'Questions.docx', 'Timeline_Notes.txt']
-      }
-    ]
-  },
-  {
-    id: '5',
-    from: 'team@supabase.com',
-    fromName: 'Supabase',
-    subject: 'Your database backup completed successfully',
-    preview: 'Your scheduled database backup for project sixty-sales-dashboard completed at 02:00 UTC...',
-    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
-    read: true,
-    starred: false,
-    important: false,
-    labels: ['supabase', 'backup'],
-    attachments: 0,
-    thread: [
-      {
-        id: '5-1',
-        from: 'team@supabase.com',
-        fromName: 'Supabase',
-        content: 'Your scheduled database backup for project sixty-sales-dashboard completed successfully at 02:00 UTC.\n\nBackup size: 2.3 GB\nLocation: us-east-1\nRetention: 30 days',
-        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
-        attachments: []
-      }
-    ]
-  }
-];
-
 export default function Email() {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -171,7 +52,6 @@ export default function Email() {
   const [selectedFolder, setSelectedFolder] = useState('INBOX');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const [localEmails, setLocalEmails] = useState(mockEmails);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [showFilters, setShowFilters] = useState(false);
@@ -238,16 +118,14 @@ export default function Email() {
   
   // Process Gmail data into our format with robust error handling
   const emails = useMemo(() => {
-    // If Gmail is not enabled or still loading, show mock data
+    // If Gmail is not enabled or still loading, do not show any mock data
     if (!isGmailEnabled || emailsLoading) {
-      console.log('Gmail not enabled or loading, showing mock data');
-      return localEmails;
+      return [];
     }
     
-    // If there's an error, show mock data
+    // If there's an error, do not show any mock data
     if (gmailError) {
-      console.error('Gmail error, showing mock data:', gmailError);
-      return localEmails;
+      return [];
     }
     
     try {
@@ -397,9 +275,9 @@ export default function Email() {
       });
     } catch (error) {
       console.error('Error processing Gmail data:', error);
-      return localEmails;
+      return [];
     }
-  }, [gmailData, isGmailEnabled, localEmails, labelsData, emailsLoading, gmailError]);
+  }, [gmailData, isGmailEnabled, labelsData, emailsLoading, gmailError]);
 
   // Keyboard shortcuts
   const handleKeyPress = useCallback((e: KeyboardEvent) => {
@@ -469,7 +347,7 @@ export default function Email() {
         toast.error('Failed to archive email');
       }
     } else {
-      setLocalEmails(prev => prev.filter(email => email.id !== emailId));
+      toast.info('Connect Gmail to archive emails');
     }
     if (selectedEmail === emailId) {
       setSelectedEmail(null);
@@ -485,9 +363,7 @@ export default function Email() {
         toast.error('Failed to update star status');
       }
     } else {
-      setLocalEmails(prev => prev.map(email => 
-        email.id === emailId ? { ...email, starred } : email
-      ));
+      toast.info('Connect Gmail to star emails');
     }
   };
 
@@ -500,9 +376,7 @@ export default function Email() {
         toast.error('Failed to update read status');
       }
     } else {
-      setLocalEmails(prev => prev.map(email => 
-        email.id === emailId ? { ...email, read } : email
-      ));
+      toast.info('Connect Gmail to update read status');
     }
   };
 
@@ -512,8 +386,7 @@ export default function Email() {
       await refetchEmails();
       toast.success('Emails refreshed');
     } else {
-      // Simulate refresh for mock data
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      toast.info('Connect Gmail to refresh');
     }
     setIsRefreshing(false);
   };

@@ -22,6 +22,8 @@ interface ThumbnailRequest {
   recording_id: string
   share_url: string
   fathom_embed_url: string
+  // Optional: capture at a specific second in the video if supported by the player
+  timestamp_seconds?: number
 }
 
 serve(async (req) => {
@@ -30,7 +32,7 @@ serve(async (req) => {
   }
 
   try {
-    const { recording_id, share_url, fathom_embed_url }: ThumbnailRequest = await req.json()
+    const { recording_id, share_url, fathom_embed_url, timestamp_seconds }: ThumbnailRequest = await req.json()
 
     if (!recording_id || !fathom_embed_url) {
       throw new Error('Missing required fields: recording_id and fathom_embed_url')
@@ -40,7 +42,22 @@ serve(async (req) => {
     console.log(`📺 Embed URL: ${fathom_embed_url}`)
 
     // Capture screenshot and upload to storage (AWS S3 or Supabase)
-    const thumbnailUrl = await captureVideoThumbnail(fathom_embed_url, recording_id)
+    // Append timestamp param if provided to jump the embed to a specific time
+    const embedWithTs = typeof timestamp_seconds === 'number' && timestamp_seconds > 0
+      ? (() => {
+          try {
+            const u = new URL(fathom_embed_url)
+            u.searchParams.set('timestamp', String(Math.floor(timestamp_seconds)))
+            // Nudge player to show frame at timestamp without starting playback
+            u.searchParams.set('autoplay', '0')
+            return u.toString()
+          } catch {
+            return fathom_embed_url
+          }
+        })()
+      : fathom_embed_url
+
+    const thumbnailUrl = await captureVideoThumbnail(embedWithTs, recording_id)
 
     if (!thumbnailUrl) {
       throw new Error('Failed to capture video thumbnail')
@@ -84,11 +101,21 @@ async function captureVideoThumbnail(
   try {
     console.log('📸 Capturing screenshot...')
 
-    // Try Microlink API (free tier, no API key needed)
-    const imageBuffer = await captureWithMicrolink(embedUrl)
+    // Try Microlink API first (no key required)
+    let imageBuffer: ArrayBuffer | null = await captureWithMicrolink(embedUrl)
+
+    // Fallback 1: ScreenshotOne if API key configured
+    if (!imageBuffer) {
+      imageBuffer = await captureWithScreenshotOne(embedUrl)
+    }
+
+    // Fallback 2: APIFLASH if API key configured
+    if (!imageBuffer) {
+      imageBuffer = await captureWithApiFlash(embedUrl)
+    }
 
     if (!imageBuffer) {
-      throw new Error('Failed to capture screenshot')
+      throw new Error('Failed to capture screenshot with all providers')
     }
 
     // Upload to AWS S3
@@ -114,7 +141,8 @@ async function captureWithMicrolink(
       'viewport.width': '1920',
       'viewport.height': '1080',
       'viewport.deviceScaleFactor': '1',
-      waitFor: '5000', // Wait 5 seconds for video to load
+      // Give the player time to seek to the timestamp and render a frame
+      waitFor: '7000',
     }).toString()
 
     console.log(`📡 Fetching screenshot from Microlink...`)
@@ -158,6 +186,69 @@ async function captureWithMicrolink(
 }
 
 /**
+ * Capture screenshot using ScreenshotOne (requires SCREENSHOTONE_API_KEY)
+ */
+async function captureWithScreenshotOne(embedUrl: string): Promise<ArrayBuffer | null> {
+  try {
+    const key = Deno.env.get('SCREENSHOTONE_API_KEY')
+    if (!key) return null
+
+    const params = new URLSearchParams({
+      access_key: key,
+      url: embedUrl,
+      format: 'jpeg',
+      jpeg_quality: '85',
+      block_banners: 'true',
+      viewport_width: '1920',
+      viewport_height: '1080',
+      delay: '7000', // wait for timestamp seek
+      cache: 'false',
+    })
+
+    const url = `https://api.screenshotone.com/take?${params.toString()}`
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const buf = await resp.arrayBuffer()
+    return buf.byteLength > 0 ? buf : null
+  } catch (e) {
+    console.error('❌ ScreenshotOne error:', e)
+    return null
+  }
+}
+
+/**
+ * Capture screenshot using APIFLASH (requires APIFLASH_API_KEY)
+ */
+async function captureWithApiFlash(embedUrl: string): Promise<ArrayBuffer | null> {
+  try {
+    const key = Deno.env.get('APIFLASH_API_KEY')
+    if (!key) return null
+
+    const params = new URLSearchParams({
+      access_key: key,
+      url: embedUrl,
+      format: 'jpeg',
+      quality: '85',
+      width: '1920',
+      height: '1080',
+      response_type: 'binary',
+      delay: '7', // seconds
+      no_ads: 'true',
+      fresh: 'true',
+    })
+
+    const url = `https://api.apiflash.com/v1/urltoimage?${params.toString()}`
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const buf = await resp.arrayBuffer()
+    return buf.byteLength > 0 ? buf : null
+  } catch (e) {
+    console.error('❌ APIFLASH error:', e)
+    return null
+  }
+}
+
+/**
  * Upload image to AWS S3
  */
 async function uploadToStorage(
@@ -165,7 +256,8 @@ async function uploadToStorage(
   recordingId: string
 ): Promise<string | null> {
   try {
-    const fileName = `fathom-screenshots/${recordingId}.jpg`
+    const folder = (Deno.env.get('AWS_S3_FOLDER') || Deno.env.get('AWS_S3_THUMBNAILS_PREFIX') || 'meeting-thumbnails').replace(/\/+$/,'')
+    const fileName = `${folder}/${recordingId}.jpg`
 
     // Get AWS credentials
     const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')

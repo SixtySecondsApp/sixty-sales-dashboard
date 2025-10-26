@@ -19,6 +19,7 @@ export function FathomSettings() {
     error,
     isConnected,
     isSyncing,
+    lifetimeMeetingsCount,
     connectFathom,
     disconnectFathom,
     triggerSync,
@@ -182,7 +183,7 @@ export function FathomSettings() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-3 gap-3 text-sm">
                     <div>
                       <div className="text-gray-400">Meetings Synced</div>
                       <div className="font-medium text-lg text-white">{syncState.meetings_synced}</div>
@@ -190,6 +191,10 @@ export function FathomSettings() {
                     <div>
                       <div className="text-gray-400">Total Found</div>
                       <div className="font-medium text-lg text-white">{syncState.total_meetings_found}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Lifetime Meetings</div>
+                      <div className="font-medium text-lg text-white">{lifetimeMeetingsCount}</div>
                     </div>
                   </div>
 

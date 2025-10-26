@@ -280,8 +280,37 @@ serve(async (req) => {
       confidence: analysis.confidence_score,
     });
 
+    // Save analysis results to database
+    const { data: saveResult, error: saveError } = await supabase.rpc(
+      'apply_ai_analysis_to_task',
+      {
+        p_action_item_id: action_item_id,
+        p_task_type: analysis.task_type,
+        p_ideal_deadline: analysis.ideal_deadline,
+        p_confidence_score: analysis.confidence_score,
+        p_reasoning: analysis.reasoning,
+      }
+    );
+
+    if (saveError) {
+      console.error('[Save Error]', saveError);
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to save analysis results',
+          details: saveError.message,
+          analysis // Still return the analysis even if save failed
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[Save Result]', saveResult);
+
     return new Response(
-      JSON.stringify(analysis),
+      JSON.stringify({
+        ...analysis,
+        saved: true,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

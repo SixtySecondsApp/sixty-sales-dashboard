@@ -21,6 +21,9 @@ export function useActivitiesActions() {
     contactIdentifierType?: string;
     status?: string;
     deal_id?: string | null;
+    meeting_id?: string | null;
+    company_id?: string | null;
+    contact_id?: string | null;
   }) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -82,6 +85,17 @@ export function useActivitiesActions() {
         }
       } else {
         console.log(`Skipping deal_id (invalid or null): ${activity.deal_id}`);
+      }
+
+      // Link meeting/company/contact if provided (best-effort, no extra validation to avoid latency)
+      if (activity.meeting_id) {
+        insertData.meeting_id = activity.meeting_id;
+      }
+      if (activity.company_id) {
+        insertData.company_id = activity.company_id;
+      }
+      if (activity.contact_id) {
+        insertData.contact_id = activity.contact_id;
       }
       if (activity.contactIdentifier !== undefined && activity.contactIdentifier !== null && activity.contactIdentifier !== '') {
         insertData.contact_identifier = activity.contactIdentifier;

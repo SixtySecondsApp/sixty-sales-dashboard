@@ -130,10 +130,76 @@ const MeetingsList: React.FC = () => {
     avgSentiment: 0,
     avgCoachRating: 0
   })
+  const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
 
   useEffect(() => {
     fetchMeetings()
   }, [scope, user])
+
+  // Ensure thumbnails exist for any listed meeting with a video
+  useEffect(() => {
+    const ensureThumbnails = async () => {
+      if (thumbnailsEnsured || meetings.length === 0) return
+      try {
+        for (const m of meetings) {
+          if (m.thumbnail_url || !(m.share_url || m.fathom_recording_id)) continue
+
+          // Build embed URL from share_url or recording id
+          let embedUrl: string | null = null
+          if (m.share_url) {
+            try {
+              const u = new URL(m.share_url)
+              const token = u.pathname.split('/').filter(Boolean).pop()
+              if (token) embedUrl = `https://fathom.video/embed/${token}`
+            } catch {
+              // ignore parse errors
+            }
+          }
+          if (!embedUrl && m.fathom_recording_id) {
+            embedUrl = `https://app.fathom.video/recording/${m.fathom_recording_id}`
+          }
+
+          let thumbnailUrl: string | null = null
+          if (embedUrl) {
+            // Choose a representative timestamp: midpoint, clamped to >=5s
+            const midpointSeconds = Math.max(5, Math.floor((m.duration_minutes || 0) * 60 / 2))
+            const { data, error } = await supabase.functions.invoke('generate-video-thumbnail', {
+              body: {
+                recording_id: m.fathom_recording_id,
+                share_url: m.share_url,
+                fathom_embed_url: embedUrl,
+                timestamp_seconds: midpointSeconds,
+              },
+            })
+            if (!error && (data as any)?.success && (data as any)?.thumbnail_url) {
+              thumbnailUrl = (data as any).thumbnail_url as string
+            }
+          }
+
+          // Fallback placeholder if generation not possible
+          if (!thumbnailUrl) {
+            const firstLetter = (m.title || 'M')[0].toUpperCase()
+            thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+          }
+
+          // Persist and update local state
+          await supabase
+            .from('meetings')
+            .update({ thumbnail_url: thumbnailUrl })
+            .eq('id', m.id)
+
+          setMeetings(prev => prev.map(x => x.id === m.id ? { ...x, thumbnail_url: thumbnailUrl } : x))
+
+          // Small delay to avoid overwhelming screenshot provider
+          await new Promise(resolve => setTimeout(resolve, 500))
+        }
+      } finally {
+        setThumbnailsEnsured(true)
+      }
+    }
+
+    ensureThumbnails()
+  }, [meetings, thumbnailsEnsured])
 
   const fetchMeetings = async () => {
     if (!user) return
@@ -150,7 +216,9 @@ const MeetingsList: React.FC = () => {
         .order('meeting_start', { ascending: false })
 
       if (scope === 'me') {
-        query = query.eq('owner_user_id', user.id)
+        // Show only meetings conducted by the current user
+        // Use email as the primary lookup to align with authentication model
+        query = query.eq('owner_email', user.email)
       } else {
         // Get team meetings - for now just show all meetings the user can see
         // In production, you'd filter by team_name or organization
@@ -161,6 +229,8 @@ const MeetingsList: React.FC = () => {
       if (error) throw error
 
       setMeetings(data || [])
+      // Reset to allow ensureThumbnails to run for the new list
+      setThumbnailsEnsured(false)
       calculateStats(data || [])
     } catch (error) {
       console.error('Error fetching meetings:', error)

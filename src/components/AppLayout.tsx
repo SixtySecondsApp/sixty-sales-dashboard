@@ -41,6 +41,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
 import logger from '@/lib/utils/logger';
+import { useEventListener } from '@/lib/communication/EventBus';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -50,6 +51,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  // Open/close QuickAdd via global modal events
+  useEventListener('modal:opened', ({ type, context }) => {
+    if (type === 'quick-add') {
+      setIsQuickAddOpen(true);
+    }
+  }, []);
+  useEventListener('modal:closed', ({ type }) => {
+    if (type === 'quick-add') {
+      setIsQuickAddOpen(false);
+    }
+  }, []);
 
   const handleLogout = async () => {
     try {

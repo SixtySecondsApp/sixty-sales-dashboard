@@ -138,7 +138,6 @@ const FathomPlayerV2 = React.forwardRef<FathomPlayerV2Handle, FathomPlayerV2Prop
   React.useImperativeHandle(ref, () => ({ seekToTimestamp }), [resolvedId, recordingId])
 
   const handleIframeLoad = () => {
-    console.log('[FathomPlayerV2] Iframe loaded successfully')
     setLoaded(true)
     setFailed(false)
 

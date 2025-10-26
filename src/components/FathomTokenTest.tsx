@@ -75,7 +75,7 @@ export function FathomTokenTest() {
           result.success
             ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
             : 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
-        }`}>
+        } text-gray-900 dark:text-gray-100`}>
           {/* Success/Failure Header */}
           <div className="flex items-center gap-2 mb-3">
             {result.success ? (
@@ -117,7 +117,9 @@ export function FathomTokenTest() {
           {result.error && (
             <div className="mb-3 text-sm">
               <p className="font-semibold text-red-700 dark:text-red-300">Error:</p>
-              <p className="text-red-600 dark:text-red-400">{JSON.stringify(result.error, null, 2)}</p>
+              <pre className="mt-1 p-2 rounded bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 whitespace-pre-wrap overflow-auto max-h-48">
+                {JSON.stringify(result.error, null, 2)}
+              </pre>
             </div>
           )}
 
@@ -135,7 +137,7 @@ export function FathomTokenTest() {
             <summary className="cursor-pointer text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
               Show Raw Response
             </summary>
-            <pre className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto max-h-64">
+            <pre className="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-auto max-h-64 text-gray-900 dark:text-gray-100">
               {JSON.stringify(result, null, 2)}
             </pre>
           </details>

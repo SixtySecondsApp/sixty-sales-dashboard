@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { matchOrCreateCompany } from '../_shared/companyMatching.ts'
 import { selectPrimaryContact, determineMeetingCompany } from '../_shared/primaryContactSelection.ts'
+import { analyzeTranscriptWithClaude, deduplicateActionItems, type TranscriptAnalysis } from './aiAnalysis.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -328,13 +329,15 @@ async function fetchRecordingTranscriptPlaintext(apiKey: string, recordingId: st
 }
 
 /**
- * Helper: Fetch action items for a specific recording
+ * Helper: Fetch full recording details including action items
  * Action items are not included in the bulk meetings API response
+ * We must fetch the full recording details to get action items
  */
 async function fetchRecordingActionItems(apiKey: string, recordingId: string | number): Promise<any[] | null> {
-  const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/action_items`
+  // Use the full recording details endpoint, not the separate action_items endpoint
+  const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}`
 
-  console.log(`📋 Fetching action items for recording ${recordingId}...`)
+  console.log(`📋 Fetching full recording details for ${recordingId} to get action items...`)
 
   const resp = await fetch(url, {
     headers: {
@@ -344,7 +347,7 @@ async function fetchRecordingActionItems(apiKey: string, recordingId: string | n
   })
 
   if (!resp.ok) {
-    console.log(`⚠️  Action items fetch failed: HTTP ${resp.status}`)
+    console.log(`⚠️  Recording details fetch failed: HTTP ${resp.status}`)
     // Try with X-Api-Key header instead
     const resp2 = await fetch(url, {
       headers: {
@@ -354,18 +357,50 @@ async function fetchRecordingActionItems(apiKey: string, recordingId: string | n
     })
 
     if (!resp2.ok) {
-      console.log(`⚠️  Action items fetch failed with X-Api-Key too: HTTP ${resp2.status}`)
+      console.log(`⚠️  Recording details fetch failed with X-Api-Key too: HTTP ${resp2.status}`)
       return null
     }
 
-    const data = await resp2.json().catch(() => null)
-    console.log(`✅ Fetched action items (X-Api-Key):`, JSON.stringify(data, null, 2))
-    return data?.action_items || data?.items || (Array.isArray(data) ? data : null)
+    console.log(`🔍 Response status (X-Api-Key): ${resp2.status}, Content-Type: ${resp2.headers.get('content-type')}`)
+
+    const data = await resp2.json().catch((err) => {
+      console.error(`❌ Failed to parse JSON response (X-Api-Key): ${err.message}`)
+      return null
+    })
+
+    // Log the actual response for debugging
+    console.log(`📦 API Response keys (X-Api-Key): ${data ? Object.keys(data).join(', ') : 'null'}`)
+    if (data?.action_items !== undefined) {
+      console.log(`📋 action_items field type: ${typeof data.action_items}, value: ${JSON.stringify(data.action_items)}`)
+    }
+
+    if (data?.action_items && Array.isArray(data.action_items)) {
+      console.log(`✅ Found ${data.action_items.length} action items in recording details (X-Api-Key)`)
+      return data.action_items
+    }
+    console.log(`ℹ️  No action items in recording details (X-Api-Key)`)
+    return null
   }
 
-  const data = await resp.json().catch(() => null)
-  console.log(`✅ Fetched action items (Bearer):`, JSON.stringify(data, null, 2))
-  return data?.action_items || data?.items || (Array.isArray(data) ? data : null)
+  console.log(`🔍 Response status: ${resp.status}, Content-Type: ${resp.headers.get('content-type')}`)
+
+  const data = await resp.json().catch((err) => {
+    console.error(`❌ Failed to parse JSON response: ${err.message}`)
+    return null
+  })
+
+  // Log the actual response for debugging
+  console.log(`📦 API Response keys: ${data ? Object.keys(data).join(', ') : 'null'}`)
+  if (data?.action_items !== undefined) {
+    console.log(`📋 action_items field type: ${typeof data.action_items}, value: ${JSON.stringify(data.action_items)}`)
+  }
+
+  if (data?.action_items && Array.isArray(data.action_items)) {
+    console.log(`✅ Found ${data.action_items.length} action items in recording details (Bearer)`)
+    return data.action_items
+  }
+  console.log(`ℹ️  No action items in recording details (Bearer)`)
+  return null
 }
 
 async function createGoogleDocForTranscript(supabase: any, userId: string, meetingId: string, title: string, plaintext: string): Promise<string | null> {
@@ -465,7 +500,10 @@ serve(async (req) => {
 
     if (integrationError || !integration) {
       console.error('❌ Integration error:', integrationError)
-      throw new Error('No active Fathom integration found. Please connect your Fathom account first.')
+      const errorMessage = integration === null
+        ? 'No active Fathom integration found. Please go to Settings → Integrations and connect your Fathom account.'
+        : `Fathom integration error: ${integrationError?.message || 'Unknown error'}`
+      throw new Error(errorMessage)
     }
 
     console.log('✅ Found integration:', {
@@ -590,15 +628,27 @@ serve(async (req) => {
       }
       // Fallback: if nothing found in the selected window, retry once without date filters
       if (totalMeetingsFound === 0 && (apiStartDate || apiEndDate)) {
-        console.log('ℹ️  No meetings found in range. Retrying without date filters...')
+        console.log('⚠️  No meetings found in date range.')
+        console.log(`   Date range: ${apiStartDate} to ${apiEndDate}`)
+        console.log('ℹ️  Retrying without date filters to check if any meetings exist...')
         const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 })
         totalMeetingsFound += retryCalls.length
-        for (const call of retryCalls) {
-          try {
-            const result = await syncSingleCall(supabase, userId, integration, call)
-            if (result.success) meetingsSynced++
-          } catch (error) {
-            console.error('❌ Error during fallback sync:', error)
+
+        if (retryCalls.length === 0) {
+          console.log('❌ No meetings found at all in your Fathom account.')
+          console.log('   Possible reasons:')
+          console.log('   1. No recordings have been created yet')
+          console.log('   2. All recordings are still processing')
+          console.log('   3. OAuth token may have expired or been revoked')
+        } else {
+          console.log(`✅ Found ${retryCalls.length} meetings outside the date range`)
+          for (const call of retryCalls) {
+            try {
+              const result = await syncSingleCall(supabase, userId, integration, call)
+              if (result.success) meetingsSynced++
+            } catch (error) {
+              console.error('❌ Error during fallback sync:', error)
+            }
           }
         }
       }
@@ -807,6 +857,280 @@ async function fetchFathomCalls(
 }
 
 /**
+ * Auto-fetch transcript and summary, then analyze with Claude AI
+ * Includes smart retry logic for Fathom's async processing
+ */
+async function autoFetchTranscriptAndAnalyze(
+  supabase: any,
+  userId: string,
+  integration: any,
+  meeting: any,
+  call: any
+): Promise<void> {
+  try {
+    const recordingId = call.recording_id
+
+    // Check retry attempts - don't try more than 3 times
+    const fetchAttempts = meeting.transcript_fetch_attempts || 0
+    if (fetchAttempts >= 3) {
+      console.log(`⏭️  Skipping transcript fetch for ${recordingId} - max attempts (3) reached`)
+      return
+    }
+
+    // Check if we already have transcript
+    if (meeting.transcript_text) {
+      console.log(`⏭️  Transcript already exists for ${recordingId}`)
+      return
+    }
+
+    // Check last attempt time - wait at least 5 minutes between attempts
+    if (meeting.last_transcript_fetch_at) {
+      const lastAttempt = new Date(meeting.last_transcript_fetch_at)
+      const now = new Date()
+      const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
+
+      if (minutesSinceLastAttempt < 5) {
+        console.log(`⏭️  Skipping transcript fetch for ${recordingId} - last attempt was ${Math.round(minutesSinceLastAttempt)} min ago (waiting 5 min)`)
+        return
+      }
+    }
+
+    console.log(`📄 Auto-fetching transcript for ${recordingId} (attempt ${fetchAttempts + 1}/3)...`)
+
+    // Update fetch tracking
+    await supabase
+      .from('meetings')
+      .update({
+        transcript_fetch_attempts: fetchAttempts + 1,
+        last_transcript_fetch_at: new Date().toISOString(),
+      })
+      .eq('id', meeting.id)
+
+    // Fetch transcript
+    const transcript = await fetchTranscriptFromFathom(integration.access_token, recordingId)
+
+    if (!transcript) {
+      console.log(`ℹ️  Transcript not yet available for ${recordingId} - will retry next sync`)
+      return
+    }
+
+    console.log(`✅ Transcript fetched: ${transcript.length} characters`)
+
+    // Fetch enhanced summary
+    let summaryData: any = null
+    try {
+      summaryData = await fetchSummaryFromFathom(integration.access_token, recordingId)
+      if (summaryData) {
+        console.log(`✅ Enhanced summary fetched`)
+      }
+    } catch (error) {
+      console.log(`⚠️  Summary fetch failed (non-fatal): ${error.message}`)
+    }
+
+    // Store transcript immediately
+    await supabase
+      .from('meetings')
+      .update({
+        transcript_text: transcript,
+        summary: summaryData?.summary || meeting.summary, // Keep existing summary if new one not available
+      })
+      .eq('id', meeting.id)
+
+    // Run AI analysis on transcript
+    console.log(`🤖 Running Claude AI analysis on transcript...`)
+
+    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(transcript, {
+      id: meeting.id,
+      title: meeting.title,
+      meeting_start: meeting.meeting_start,
+      owner_email: meeting.owner_email,
+    })
+
+    // Update meeting with AI metrics
+    console.log(`📊 Attempting to store AI metrics for meeting ${meeting.id}:`, {
+      talk_time_rep_pct: analysis.talkTime.repPct,
+      talk_time_customer_pct: analysis.talkTime.customerPct,
+      talk_time_judgement: analysis.talkTime.assessment,
+      sentiment_score: analysis.sentiment.score,
+      sentiment_reasoning: analysis.sentiment.reasoning?.substring(0, 50) + '...',
+    })
+
+    const { data: updateResult, error: updateError } = await supabase
+      .from('meetings')
+      .update({
+        talk_time_rep_pct: analysis.talkTime.repPct,
+        talk_time_customer_pct: analysis.talkTime.customerPct,
+        talk_time_judgement: analysis.talkTime.assessment,
+        sentiment_score: analysis.sentiment.score,
+        sentiment_reasoning: analysis.sentiment.reasoning,
+      })
+      .eq('id', meeting.id)
+      .select() // CRITICAL: Add .select() to get confirmation of what was updated
+
+    if (updateError) {
+      console.error(`❌ Error updating AI metrics:`, updateError)
+      throw new Error(`Failed to store AI metrics: ${updateError.message}`)
+    }
+
+    if (!updateResult || updateResult.length === 0) {
+      console.error(`❌ No rows updated for meeting ${meeting.id} - meeting may not exist or RLS blocked update`)
+      throw new Error(`Failed to update meeting ${meeting.id} - no rows affected`)
+    }
+
+    console.log(`✅ AI metrics stored successfully:`, {
+      meeting_id: meeting.id,
+      fathom_recording_id: meeting.fathom_recording_id,
+      sentiment: analysis.sentiment.score,
+      rep_pct: analysis.talkTime.repPct,
+      customer_pct: analysis.talkTime.customerPct,
+      rows_updated: updateResult.length
+    })
+
+    // Get existing Fathom action items
+    const existingActionItems = call.action_items || []
+
+    // Deduplicate AI action items against Fathom's
+    const uniqueAIActionItems = deduplicateActionItems(analysis.actionItems, existingActionItems)
+
+    // Store AI-generated action items
+    if (uniqueAIActionItems.length > 0) {
+      console.log(`💾 Storing ${uniqueAIActionItems.length} AI-generated action items...`)
+
+      for (const item of uniqueAIActionItems) {
+        await supabase
+          .from('meeting_action_items')
+          .insert({
+            meeting_id: meeting.id,
+            title: item.title,
+            description: item.title,
+            priority: item.priority,
+            category: item.category,
+            assigned_to_name: item.assignedTo,
+            assigned_to_email: item.assignedToEmail,
+            deadline_date: item.deadline,
+            ai_generated: true,
+            ai_confidence: item.confidence,
+            needs_review: item.confidence < 0.8, // Low confidence items need review
+            completed: false,
+          })
+      }
+
+      console.log(`✅ Stored ${uniqueAIActionItems.length} AI action items`)
+    } else {
+      console.log(`ℹ️  No unique AI action items to store (${analysis.actionItems.length} total, all duplicates)`)
+    }
+
+  } catch (error) {
+    console.error(`❌ Error in auto-fetch and analyze: ${error.message}`)
+    console.error(error.stack)
+    // Don't throw - allow meeting sync to continue even if AI analysis fails
+  }
+}
+
+/**
+ * Fetch transcript from Fathom API
+ */
+async function fetchTranscriptFromFathom(
+  accessToken: string,
+  recordingId: string
+): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (response.status === 404) {
+      // Transcript not yet available - Fathom still processing
+      return null
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    }
+
+    const data = await response.json()
+
+    // CRITICAL FIX: Fathom returns an array of transcript objects, not a string
+    // Format: { transcript: [{ speaker: { display_name: "..." }, text: "..." }] }
+    if (!data) {
+      console.log(`⚠️  Empty response from Fathom transcript API`)
+      return null
+    }
+
+    // Handle array format (most common)
+    if (Array.isArray(data.transcript)) {
+      console.log(`📝 Parsing ${data.transcript.length} transcript segments...`)
+      const lines = data.transcript.map((segment: any) => {
+        const speaker = segment?.speaker?.display_name ? `${segment.speaker.display_name}: ` : ''
+        const text = segment?.text || ''
+        return `${speaker}${text}`.trim()
+      })
+      const plaintext = lines.join('\n')
+      console.log(`✅ Formatted transcript: ${plaintext.length} characters`)
+      return plaintext
+    }
+
+    // Handle string format (fallback)
+    if (typeof data.transcript === 'string') {
+      console.log(`✅ Transcript already in string format: ${data.transcript.length} characters`)
+      return data.transcript
+    }
+
+    // If data itself is a string
+    if (typeof data === 'string') {
+      console.log(`✅ Response is direct string: ${data.length} characters`)
+      return data
+    }
+
+    console.error(`❌ Unexpected transcript format:`, typeof data.transcript, data.transcript)
+    return null
+  } catch (error) {
+    console.error(`❌ Error fetching transcript: ${error.message}`)
+    return null
+  }
+}
+
+/**
+ * Fetch enhanced summary from Fathom API
+ */
+async function fetchSummaryFromFathom(
+  accessToken: string,
+  recordingId: string
+): Promise<any | null> {
+  try {
+    const response = await fetch(
+      `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    if (response.status === 404) {
+      // Summary not yet available
+      return null
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error(`❌ Error fetching summary: ${error.message}`)
+    return null
+  }
+}
+
+/**
  * Sync a single call from Fathom to database
  */
 async function syncSingleCall(
@@ -819,8 +1143,23 @@ async function syncSingleCall(
     // Call object already contains all necessary data from bulk API
     console.log(`🔄 Syncing call: ${call.title} (${call.recording_id})`)
 
-    // Note: Analytics data (transcript, action_items, default_summary) is included in call object
-    // No need to fetch separately - it's already in the API response
+    // Resolve meeting owner by recorded_by.email if possible
+    let ownerUserId = userId
+    const recordedByEmail = call?.recorded_by?.email
+    if (recordedByEmail) {
+      try {
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .eq('email', recordedByEmail)
+          .single()
+        if (ownerProfile?.id) {
+          ownerUserId = ownerProfile.id
+        }
+      } catch {
+        // keep default
+      }
+    }
 
     // Calculate duration in minutes from recording start/end times
     const startTime = new Date(call.recording_start_time || call.scheduled_start_time)
@@ -855,7 +1194,7 @@ async function syncSingleCall(
     }
 
     // Method 5: Generate a placeholder thumbnail as last resort
-    if (!thumbnailUrl && call.share_url) {
+    if (!thumbnailUrl) {
       console.log('ℹ️  Using generated placeholder thumbnail')
       const firstLetter = (call.title || 'M')[0].toUpperCase()
       thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
@@ -863,45 +1202,17 @@ async function syncSingleCall(
 
     console.log(`✅ Final thumbnail URL: ${thumbnailUrl}`)
 
-    // Fetch summary from Fathom API - always try API call for most up-to-date data
-    console.log(`📝 Fetching summary for recording ${call.recording_id}...`)
+    // Use summary from bulk API response only (don't fetch separately)
+    // Summary and transcript should be fetched on-demand via separate endpoint
     let summaryText: string | null = call.default_summary || null
-
-    // Always attempt to fetch from API for complete summary (fallback to bulk data if API fails)
-    if (call.recording_id) {
-      try {
-        const apiSummary = await fetchRecordingSummary(integration.access_token, call.recording_id)
-        if (apiSummary) {
-          summaryText = apiSummary
-          console.log(`✅ Summary fetched from API (${apiSummary.length} chars)`)
-        } else {
-          console.log(`⚠️  No summary returned from API, using bulk data: ${summaryText ? 'available' : 'not available'}`)
-        }
-      } catch (error) {
-        console.error(`❌ Error fetching summary: ${error}`)
-        console.log(`📝 Falling back to bulk API summary: ${summaryText ? 'available' : 'not available'}`)
-      }
-    }
-
-    // Fetch transcript plaintext for storage and analysis
-    console.log(`📄 Fetching transcript for recording ${call.recording_id}...`)
     let transcriptText: string | null = null
-    if (call.recording_id) {
-      try {
-        transcriptText = await fetchRecordingTranscriptPlaintext(integration.access_token, call.recording_id)
-        if (transcriptText) {
-          console.log(`✅ Transcript fetched from API (${transcriptText.length} chars)`)
-        } else {
-          console.log(`⚠️  No transcript returned from API`)
-        }
-      } catch (error) {
-        console.error(`❌ Error fetching transcript: ${error}`)
-      }
-    }
+
+    console.log(`📝 Summary from bulk API: ${summaryText ? `available (${summaryText.length} chars)` : 'not available'}`)
+    console.log(`📄 Transcript: Not fetched during sync (use separate endpoint for on-demand fetching)`)
 
     // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
-      owner_user_id: userId,
+      owner_user_id: ownerUserId,
       fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
       fathom_user_id: integration.fathom_user_id,
       title: call.title || call.meeting_title,
@@ -945,46 +1256,51 @@ async function syncSingleCall(
 
     console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
 
-    // Create Google Doc for transcript if we have transcript text and no doc URL yet
-    if (!meeting.transcript_doc_url && transcriptText) {
-      console.log(`📄 Creating Google Doc for transcript...`)
-      try {
-        const docUrl = await createGoogleDocForTranscript(
-          supabase,
-          userId,
-          meeting.id,
-          `Transcript • ${call.title || 'Meeting'}`,
-          transcriptText
-        )
-        if (docUrl) {
-          console.log(`✅ Google Doc created: ${docUrl}`)
-          await supabase
-            .from('meetings')
-            .update({ transcript_doc_url: docUrl, updated_at: new Date().toISOString() })
-            .eq('id', meeting.id)
-        }
-      } catch (error) {
-        console.error(`❌ Error creating Google Doc: ${error}`)
-      }
-    }
+    // AUTO-FETCH TRANSCRIPT AND SUMMARY
+    // Attempt to fetch transcript and summary automatically for AI analysis
+    await autoFetchTranscriptAndAnalyze(supabase, ownerUserId, integration, meeting, call)
 
     // Process participants (use calendar_invitees from actual API)
+    // IMPORTANT: Separate handling for internal vs external participants to avoid duplication
+    // - Internal users: Create meeting_attendees entry only (no contact creation)
+    // - External users: Create/update contacts + meeting_contacts junction (no meeting_attendees)
     const externalContactIds: string[] = []
 
     if (call.calendar_invitees && call.calendar_invitees.length > 0) {
-      for (const invitee of call.calendar_invitees) {
-        // Create meeting attendee record
-        await supabase
-          .from('meeting_attendees')
-          .insert({
-            meeting_id: meeting.id,
-            name: invitee.name,
-            email: invitee.email || null,
-            is_external: invitee.is_external,
-            role: invitee.is_external ? 'attendee' : 'host',
-          })
+      console.log(`👥 Processing ${call.calendar_invitees.length} participants for meeting ${meeting.id}`)
 
-        // Process external contacts - match/create company and contact
+      for (const invitee of call.calendar_invitees) {
+        // Handle internal participants (team members) - store in meeting_attendees only
+        if (!invitee.is_external) {
+          console.log(`👤 Internal participant: ${invitee.name} (${invitee.email || 'no email'})`)
+
+          // Check if already exists to avoid duplicates
+          const { data: existingAttendee } = await supabase
+            .from('meeting_attendees')
+            .select('id')
+            .eq('meeting_id', meeting.id)
+            .eq('email', invitee.email || invitee.name) // Use name as fallback if no email
+            .single()
+
+          if (!existingAttendee) {
+            await supabase
+              .from('meeting_attendees')
+              .insert({
+                meeting_id: meeting.id,
+                name: invitee.name,
+                email: invitee.email || null,
+                is_external: false,
+                role: 'host',
+              })
+            console.log(`✅ Created meeting_attendees entry for internal user: ${invitee.name}`)
+          } else {
+            console.log(`⏭️  Internal attendee already exists: ${invitee.name}`)
+          }
+
+          continue // Skip to next participant
+        }
+
+        // Handle external participants (customers/prospects) - create contacts + meeting_contacts
         if (invitee.email && invitee.is_external) {
           console.log(`👤 Processing external contact: ${invitee.name} (${invitee.email})`)
 
@@ -994,11 +1310,10 @@ async function syncSingleCall(
             console.log(`🏢 Matched/created company: ${company.name} (${company.domain})`)
           }
 
-          // 2. Check for existing contact
+          // 2. Check for existing contact (email is unique globally, not per owner)
           const { data: existingContact } = await supabase
             .from('contacts')
-            .select('id, company_id')
-            .eq('user_id', userId)
+            .select('id, company_id, owner_id')
             .eq('email', invitee.email)
             .single()
 
@@ -1021,11 +1336,17 @@ async function syncSingleCall(
             externalContactIds.push(existingContact.id)
           } else {
             // Create new contact with company link
+            // FIXED: Use owner_id (not user_id) and first_name/last_name (not name)
+            const nameParts = invitee.name.split(' ')
+            const firstName = nameParts[0] || invitee.name
+            const lastName = nameParts.slice(1).join(' ') || null
+
             const { data: newContact, error: contactError } = await supabase
               .from('contacts')
               .insert({
-                user_id: userId,
-                name: invitee.name,
+                owner_id: userId, // FIXED: Use owner_id not user_id
+                first_name: firstName, // FIXED: Use first_name not name
+                last_name: lastName, // FIXED: Use last_name
                 email: invitee.email,
                 company_id: company?.id || null,
                 source: 'fathom_sync',
@@ -1053,13 +1374,13 @@ async function syncSingleCall(
       console.log(`🎯 Determining primary contact from ${externalContactIds.length} external contacts...`)
 
       // Select primary contact using smart logic
-      const primaryContactId = await selectPrimaryContact(supabase, externalContactIds, userId)
+      const primaryContactId = await selectPrimaryContact(supabase, externalContactIds, ownerUserId)
 
       if (primaryContactId) {
         console.log(`✅ Selected primary contact: ${primaryContactId}`)
 
         // Determine meeting company (use primary contact's company)
-        const meetingCompanyId = await determineMeetingCompany(supabase, externalContactIds, primaryContactId, userId)
+        const meetingCompanyId = await determineMeetingCompany(supabase, externalContactIds, primaryContactId, ownerUserId)
 
         if (meetingCompanyId) {
           console.log(`🏢 Meeting linked to company: ${meetingCompanyId}`)
@@ -1093,54 +1414,93 @@ async function syncSingleCall(
           console.log(`✅ Created ${meetingContactRecords.length} meeting_contacts records`)
         }
 
-        // Create activity record for CRM integration
-        console.log(`📝 Creating activity record for Fathom meeting...`)
+        // Conditional activity creation based on per-user preference and meeting date
+        try {
+          // Load user preference
+          const { data: settings } = await supabase
+            .from('user_settings')
+            .select('preferences')
+            .eq('user_id', ownerUserId)
+            .single()
 
-        // Determine outcome based on sentiment score (if available)
-        let outcome = 'neutral'
-        if (meeting.sentiment_score) {
-          if (meeting.sentiment_score >= 0.3) outcome = 'positive'
-          else if (meeting.sentiment_score <= -0.3) outcome = 'negative'
-        }
+          const prefs = (settings?.preferences || {}) as any
+          const autoPref = prefs.auto_fathom_activity || {}
+          const enabled = !!autoPref.enabled
+          const fromDateStr = typeof autoPref.from_date === 'string' ? autoPref.from_date : null
 
-        const { error: activityError } = await supabase.from('activities').insert({
-          user_id: userId,
-          meeting_id: meeting.id,
-          contact_id: primaryContactId,
-          company_id: meetingCompanyId,
-          type: 'meeting', // Use 'meeting' or 'fathom_meeting' if enum supports it
-          status: 'completed',
-          client_name: meetingData.title || 'Fathom Meeting',
-          details: meetingData.summary || `Meeting with ${externalContactIds.length} external contact${externalContactIds.length > 1 ? 's' : ''}`,
-          date: meetingData.meeting_start,
-          outcome: outcome,
-          duration_minutes: meetingData.duration_minutes,
-          created_at: new Date().toISOString()
-        })
+          if (!enabled || !fromDateStr) {
+            console.log(`📝 Skipping activity creation (preference disabled or no from_date)`)
+          } else {
+            // Only log if meeting_start is on/after from_date (user-locality not known; use ISO date)
+            const meetingDateOnly = new Date(meetingData.meeting_start)
+            const fromDateOnly = new Date(`${fromDateStr}T00:00:00.000Z`)
 
-        if (activityError) {
-          console.error(`❌ Error creating activity: ${activityError.message}`)
-        } else {
-          console.log(`✅ Created activity record for meeting`)
+            if (isNaN(meetingDateOnly.getTime()) || isNaN(fromDateOnly.getTime())) {
+              console.log('⚠️  Invalid dates - skipping auto activity creation')
+            } else if (meetingDateOnly >= fromDateOnly) {
+              console.log('📝 Auto-logging meeting activity per user preference (new meetings only)')
+
+              const { error: activityError } = await supabase.from('activities').insert({
+                user_id: ownerUserId,
+                sales_rep: ownerUserId,
+                meeting_id: meeting.id,
+                contact_id: primaryContactId,
+                company_id: meetingCompanyId,
+                type: 'meeting',
+                status: 'completed',
+                client_name: meetingData.title || 'Fathom Meeting',
+                details: meetingData.summary || `Meeting with ${externalContactIds.length} external contact${externalContactIds.length > 1 ? 's' : ''}`,
+                date: meetingData.meeting_start,
+                created_at: new Date().toISOString()
+              })
+
+              if (activityError) {
+                console.error(`❌ Error creating activity: ${activityError.message}`)
+              } else {
+                console.log('✅ Created activity record for meeting')
+              }
+            } else {
+              console.log('📝 Meeting before preference start date - skipping auto activity creation')
+            }
+          }
+        } catch (e) {
+          console.log('⚠️  Preference check failed, skipping auto activity creation')
         }
       }
     }
 
-    // Process action items - need to fetch separately as they're not in bulk API response
+    // Process action items - they're included in the bulk meetings API response
+    // Note: action_items will be null until Fathom processes the recording (can take several minutes)
     let actionItems = call.action_items
 
-    // If action items weren't in the bulk response, fetch them separately
-    if (!actionItems && call.recording_id) {
-      actionItems = await fetchRecordingActionItems(integration.access_token, call.recording_id)
+    if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
+      console.log(`✅ Found ${actionItems.length} action items in bulk response for recording ${call.recording_id}`)
+    } else if (actionItems === null) {
+      console.log(`ℹ️  Action items not yet processed by Fathom for recording ${call.recording_id} (action_items: null)`)
+    } else if (Array.isArray(actionItems) && actionItems.length === 0) {
+      console.log(`ℹ️  No action items detected in this meeting (action_items: [])`)
+    } else {
+      console.log(`⚠️  Unexpected action_items format: ${typeof actionItems}`)
     }
 
     if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
       console.log(`📋 Processing ${actionItems.length} action items for meeting ${meeting.id}`)
 
       for (const actionItem of actionItems) {
-        const timestampSeconds = actionItem.timestamp_seconds || actionItem.timestamp || null
+        // Parse the new Fathom API format
+        // recording_timestamp is in format "HH:MM:SS", we need to convert to seconds
+        let timestampSeconds = null
+        if (actionItem.recording_timestamp) {
+          const parts = actionItem.recording_timestamp.split(':')
+          if (parts.length === 3) {
+            timestampSeconds = (parseInt(parts[0]) * 3600) + (parseInt(parts[1]) * 60) + parseInt(parts[2])
+          }
+        }
+
         const playbackUrl = actionItem.recording_playback_url || actionItem.playback_url || null
         const title = actionItem.description || actionItem.title || (typeof actionItem === 'string' ? actionItem : 'Untitled Action Item')
+        const completed = actionItem.completed || false
+        const userGenerated = actionItem.user_generated || false
 
         // First, check if this action item already exists (by title and timestamp to avoid duplicates)
         const { data: existingItem } = await supabase
@@ -1165,8 +1525,8 @@ async function syncSingleCall(
             timestamp_seconds: timestampSeconds,
             category: actionItem.type || actionItem.category || 'action_item',
             priority: actionItem.priority || 'medium',
-            ai_generated: true,
-            completed: false,
+            ai_generated: !userGenerated, // Inverted: user_generated=false means AI generated
+            completed: completed,
             playback_url: playbackUrl,
           })
 

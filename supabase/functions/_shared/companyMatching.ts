@@ -279,6 +279,12 @@ export async function createCompanyFromDomain(
     .single()
 
   if (error) {
+    // If duplicate domain, try to fetch it (race condition)
+    if (error.code === '23505' && error.message?.includes('domain')) {
+      console.log(`Company domain ${domain} already exists (race condition), fetching...`)
+      return await findCompanyByDomain(supabase, domain, userId)
+    }
+
     console.error('Error creating company from domain:', error)
     return null
   }

@@ -49,6 +49,7 @@ interface Meeting {
   primary_contact_id: string | null
   summary: string
   transcript_doc_url: string | null
+  thumbnail_url?: string | null
   sentiment_score: number | null
   coach_rating: number | null
   coach_summary: string | null
@@ -140,6 +141,7 @@ const MeetingDetail: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [startSeconds, setStartSeconds] = useState(0)
+  const [thumbnailEnsured, setThumbnailEnsured] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -237,6 +239,74 @@ const MeetingDetail: React.FC = () => {
       setLoading(false)
     }
   }
+
+  // Ensure a thumbnail exists for this meeting (best-effort)
+  useEffect(() => {
+    const ensureThumbnail = async () => {
+      if (!meeting || thumbnailEnsured) return
+      if (meeting.thumbnail_url) {
+        setThumbnailEnsured(true)
+        return
+      }
+
+      try {
+        // Build embed URL from share_url or recording id
+        let embedUrl: string | null = null
+        if (meeting.share_url) {
+          try {
+            const u = new URL(meeting.share_url)
+            const token = u.pathname.split('/').filter(Boolean).pop()
+            if (token) embedUrl = `https://fathom.video/embed/${token}`
+          } catch {
+            // ignore
+          }
+        }
+        if (!embedUrl && meeting.fathom_recording_id) {
+          embedUrl = `https://app.fathom.video/recording/${meeting.fathom_recording_id}`
+        }
+
+        let thumbnailUrl: string | null = null
+
+        if (embedUrl) {
+          // Choose a representative timestamp: midpoint, clamped to >=5s
+          const midpointSeconds = Math.max(5, Math.floor((meeting.duration_minutes || 0) * 60 / 2))
+          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail', {
+            body: {
+              recording_id: meeting.fathom_recording_id,
+              share_url: meeting.share_url,
+              fathom_embed_url: embedUrl,
+              timestamp_seconds: midpointSeconds,
+            },
+          })
+
+          if (!error && (data as any)?.success && (data as any)?.thumbnail_url) {
+            thumbnailUrl = (data as any).thumbnail_url as string
+          }
+        }
+
+        // Fallback: placeholder
+        if (!thumbnailUrl) {
+          const firstLetter = (meeting.title || 'M')[0].toUpperCase()
+          thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+        }
+
+        // Persist (may be blocked by RLS for team meetings)
+        try {
+          await supabase
+            .from('meetings')
+            .update({ thumbnail_url: thumbnailUrl })
+            .eq('id', meeting.id)
+        } catch {}
+
+        // Update local state so UI shows the thumbnail immediately
+        setMeeting({ ...meeting, thumbnail_url: thumbnailUrl })
+      } finally {
+        setThumbnailEnsured(true)
+      }
+    }
+
+    ensureThumbnail()
+  }, [meeting, thumbnailEnsured])
 
   const toggleActionItemComplete = async (itemId: string, currentStatus: boolean) => {
     try {
@@ -849,7 +919,7 @@ const MeetingDetail: React.FC = () => {
                 )}
                 {meeting.contact && (
                   <Link 
-                    to={`/contacts/${meeting.contact.id}`} 
+                    to={`/crm/contacts/${meeting.contact.id}`} 
                     className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50 hover:bg-gray-700/30 transition-all group/link"
                   >
                     <div className="flex items-center gap-2">

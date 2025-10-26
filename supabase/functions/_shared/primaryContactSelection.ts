@@ -7,7 +7,9 @@ import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 export interface Contact {
   id: string
-  name: string
+  first_name: string
+  last_name: string
+  full_name: string | null
   email: string
   company_id: string | null
   title: string | null
@@ -92,9 +94,9 @@ export async function selectPrimaryContact(
   // Fetch all contacts
   const { data: contacts, error } = await supabase
     .from('contacts')
-    .select('id, name, email, company_id, title, total_meetings_count')
+    .select('id, first_name, last_name, full_name, email, company_id, title, total_meetings_count')
     .in('id', contactIds)
-    .eq('user_id', userId)
+    .eq('owner_id', userId)
 
   if (error || !contacts || contacts.length === 0) {
     console.error('Error fetching contacts for primary selection:', error)
@@ -174,9 +176,11 @@ export async function selectPrimaryContact(
 
   const winner = scores[0]
 
+  const displayName = winner.contact.full_name || `${winner.contact.first_name} ${winner.contact.last_name}`.trim()
+
   console.log('Primary contact selection:', {
     winner: {
-      name: winner.contact.name,
+      name: displayName,
       email: winner.contact.email,
       score: winner.score.toFixed(2),
       reasons: winner.reasons,
@@ -205,7 +209,7 @@ export async function determineMeetingCompany(
       .from('contacts')
       .select('company_id')
       .eq('id', primaryContactId)
-      .eq('user_id', userId)
+      .eq('owner_id', userId)
       .single()
 
     if (primaryContact?.company_id) {
@@ -218,7 +222,7 @@ export async function determineMeetingCompany(
     .from('contacts')
     .select('company_id')
     .in('id', contactIds)
-    .eq('user_id', userId)
+    .eq('owner_id', userId)
 
   if (!contacts || contacts.length === 0) {
     return null

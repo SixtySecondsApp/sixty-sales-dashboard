@@ -27,12 +27,14 @@ export interface RoadmapSuggestion {
   updated_at: string;
   submitted_by_profile?: {
     id: string;
-    full_name: string;
+    first_name: string | null;
+    last_name: string | null;
     email: string;
   };
   assigned_to_profile?: {
     id: string;
-    full_name: string;
+    first_name: string | null;
+    last_name: string | null;
     email: string;
   };
   hasUserVoted: boolean;
@@ -53,8 +55,8 @@ async function fetchRoadmapSuggestions(enabled: boolean, limit?: number): Promis
     .from('roadmap_suggestions')
     .select(`
       *,
-      submitted_by_profile:profiles!roadmap_suggestions_submitted_by_fkey(id, full_name, email),
-      assigned_to_profile:profiles!roadmap_suggestions_assigned_to_fkey(id, full_name, email)
+      submitted_by_profile:profiles!roadmap_suggestions_submitted_by_fkey(id, first_name, last_name, email),
+      assigned_to_profile:profiles!roadmap_suggestions_assigned_to_fkey(id, first_name, last_name, email)
     `);
 
   // Apply limit if provided
@@ -97,8 +99,17 @@ async function fetchRoadmapSuggestions(enabled: boolean, limit?: number): Promis
   // Map the data with vote information
   const suggestions: RoadmapSuggestion[] = suggestionsData.map(suggestion => ({
     ...suggestion,
-    submitted_by_profile: suggestion.submitted_by_profile || undefined,
-    assigned_to_profile: suggestion.assigned_to_profile || undefined,
+    submitted_by_profile: suggestion.submitted_by_profile
+      ? {
+          ...suggestion.submitted_by_profile,
+          // compute display name on use site if needed
+        }
+      : undefined,
+    assigned_to_profile: suggestion.assigned_to_profile
+      ? {
+          ...suggestion.assigned_to_profile,
+        }
+      : undefined,
     hasUserVoted: votedSuggestionIds.has(suggestion.id)
   }));
 

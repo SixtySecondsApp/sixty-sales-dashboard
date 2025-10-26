@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Camera, Save, Lock, UserCog, Link2, History, ChevronRight } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
 
@@ -25,6 +26,8 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
+  const [autoFathomEnabled, setAutoFathomEnabled] = useState(false);
+  const [autoFathomFromDate, setAutoFathomFromDate] = useState<string>('');
 
   // Debug logging
   useEffect(() => {
@@ -52,6 +55,27 @@ export default function Profile() {
     }
   }, [userData, userProfile]);
 
+  // Load existing auto Fathom preference
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('user_settings')
+          .select('preferences')
+          .eq('user_id', user.id)
+          .single();
+        const pref = (data?.preferences || {}) as any;
+        const auto = pref.auto_fathom_activity || {};
+        setAutoFathomEnabled(!!auto.enabled);
+        setAutoFathomFromDate(typeof auto.from_date === 'string' ? auto.from_date : '');
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -72,11 +96,32 @@ export default function Profile() {
 
       // Update profile record if we have a user ID
       if (user?.id) {
+        // Upsert user_settings.preferences for auto Fathom activity
+        const { data: existingSettings } = await supabase
+          .from('user_settings')
+          .select('preferences')
+          .eq('user_id', user.id)
+          .single();
+        const existingPrefs = (existingSettings?.preferences || {}) as any;
+        const nextPrefs = {
+          ...existingPrefs,
+          auto_fathom_activity: {
+            enabled: autoFathomEnabled,
+            from_date: autoFathomEnabled
+              ? (autoFathomFromDate || new Date().toISOString().slice(0, 10))
+              : null
+          }
+        };
+        await supabase
+          .from('user_settings')
+          .upsert({ user_id: user.id, preferences: nextPrefs }, { onConflict: 'user_id' });
+
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
-            full_name: `${formData.firstName} ${formData.lastName}`,
-            username: formData.email // or whatever field maps to email
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            email: formData.email
           })
           .eq('id', user.id);
 
@@ -286,6 +331,33 @@ export default function Profile() {
                 <Lock className="w-4 h-4" />
                 Change Password
               </button>
+            </div>
+
+            {/* Preferences */}
+            <div className="pt-6 border-t border-gray-800/50 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Auto-log new Fathom meetings as activities</div>
+                  <div className="text-sm text-gray-400">Only meetings from the day you enable onward</div>
+                </div>
+                <Switch
+                  checked={autoFathomEnabled}
+                  onCheckedChange={setAutoFathomEnabled}
+                />
+              </div>
+              {autoFathomEnabled && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-400">Start date</label>
+                    <input
+                      type="date"
+                      value={autoFathomFromDate || ''}
+                      onChange={(e) => setAutoFathomFromDate(e.target.value)}
+                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Save Button */}
