@@ -90,82 +90,6 @@ serve(async (req) => {
       }
     }
 
-    // Helper: Try common direct thumbnail endpoints
-    async function fetchFathomDirectThumbnail(recordingId: string | null, shareUrl?: string | null): Promise<string | null> {
-      let shareId: string | null = null
-      if (shareUrl) {
-        try {
-          const url = new URL(shareUrl)
-          shareId = url.pathname.split('/').pop() || null
-        } catch {}
-      }
-      const patterns = [
-        recordingId ? `https://thumbnails.fathom.video/${recordingId}.jpg` : null,
-        recordingId ? `https://thumbnails.fathom.video/${recordingId}.png` : null,
-        recordingId ? `https://cdn.fathom.video/thumbnails/${recordingId}.jpg` : null,
-        recordingId ? `https://cdn.fathom.video/thumbnails/${recordingId}.png` : null,
-        recordingId ? `https://fathom.video/thumbnails/${recordingId}.jpg` : null,
-        recordingId ? `https://app.fathom.video/thumbnails/${recordingId}.jpg` : null,
-        shareId ? `https://thumbnails.fathom.video/${shareId}.jpg` : null,
-        shareId ? `https://cdn.fathom.video/thumbnails/${shareId}.jpg` : null,
-      ].filter(Boolean) as string[]
-
-      for (const url of patterns) {
-        try {
-          const response = await fetch(url, { method: 'HEAD' })
-          if (response.ok) return url
-        } catch {}
-      }
-      return null
-    }
-
-    // Helper: Extract poster/thumbnail from embed HTML
-    async function fetchThumbnailFromEmbed(shareUrl?: string | null, recordingId?: string | null): Promise<string | null> {
-      const embedUrl = shareUrl
-        ? (() => { try { const id = new URL(shareUrl).pathname.split('/').pop(); return id ? `https://fathom.video/embed/${id}` : null } catch { return null } })()
-        : (recordingId ? `https://app.fathom.video/recording/${recordingId}` : null)
-      if (!embedUrl) return null
-      try {
-        const response = await fetch(embedUrl, { headers: { 'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)', 'Accept': 'text/html' } })
-        if (!response.ok) return null
-        const html = await response.text()
-        const patterns = [
-          /poster=["']([^"']+)["']/i,
-          /thumbnail["']?\s*:\s*["']([^"']+)["']/i,
-          /posterImage["']?\s*:\s*["']([^"']+)["']/i,
-          /previewImage["']?\s*:\s*["']([^"']+)["']/i,
-        ]
-        for (const p of patterns) {
-          const m = html.match(p)
-          if (m && m[1]) return m[1]
-        }
-        return null
-      } catch {
-        return null
-      }
-    }
-
-    // Helper: Scrape og:image from share page
-    async function fetchThumbnailFromShareUrl(shareUrl?: string | null): Promise<string | null> {
-      if (!shareUrl) return null
-      try {
-        const res = await fetch(shareUrl, { headers: { 'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)', 'Accept': 'text/html' } })
-        if (!res.ok) return null
-        const html = await res.text()
-        const patterns = [
-          /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-          /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
-          /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-        ]
-        for (const p of patterns) {
-          const m = html.match(p)
-          if (m && m[1]) return m[1]
-        }
-        return null
-      } catch {
-        return null
-      }
-    }
 
     // Process each meeting
     for (const meeting of meetings) {
@@ -184,24 +108,11 @@ serve(async (req) => {
           continue
         }
 
-        // Cascade attempts
+        // Only use thumbnail service - direct endpoints don't work
         let thumbnailUrl: string | null = null
 
-        // 1) Try direct endpoints
-        thumbnailUrl = await fetchFathomDirectThumbnail(meeting.fathom_recording_id, meeting.share_url)
-
-        // 2) Try embed poster
-        if (!thumbnailUrl) {
-          thumbnailUrl = await fetchThumbnailFromEmbed(meeting.share_url, meeting.fathom_recording_id)
-        }
-
-        // 3) Try share page og:image
-        if (!thumbnailUrl) {
-          thumbnailUrl = await fetchThumbnailFromShareUrl(meeting.share_url)
-        }
-
-        // 4) Generate via thumbnail service
-        if (!thumbnailUrl && embedUrl) {
+        // Generate via thumbnail service
+        if (embedUrl) {
           // Choose a representative timestamp: midpoint, clamped to >=5s
           const midpointSeconds = Math.max(5, Math.floor(((meeting as any).duration_minutes || 0) * 60 / 2))
           const thumbnailResponse = await fetch(
@@ -231,7 +142,7 @@ serve(async (req) => {
           }
         }
 
-        // 5) Placeholder as last resort
+        // Fallback to placeholder if thumbnail service failed
         if (!thumbnailUrl) {
           const firstLetter = (meeting.title || 'M')[0].toUpperCase()
           thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
