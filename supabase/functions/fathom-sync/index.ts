@@ -89,162 +89,6 @@ function buildEmbedUrl(shareUrl?: string, recordingId?: string | number): string
   }
 }
 
-/**
- * Helper: Try to fetch thumbnail from Fathom's potential thumbnail endpoints
- * Tests various URL patterns that Fathom might use for thumbnails
- */
-async function fetchFathomDirectThumbnail(recordingId: string | number, shareUrl?: string): Promise<string | null> {
-  console.log(`🖼️  Testing Fathom thumbnail endpoints for recording ${recordingId}...`)
-
-  // Extract share ID from URL for additional patterns
-  let shareId = null
-  if (shareUrl) {
-    try {
-      const url = new URL(shareUrl)
-      shareId = url.pathname.split('/').pop()
-    } catch (e) {
-      // Ignore parse errors
-    }
-  }
-
-  // Test various potential thumbnail URL patterns
-  const patterns = [
-    `https://thumbnails.fathom.video/${recordingId}.jpg`,
-    `https://thumbnails.fathom.video/${recordingId}.png`,
-    `https://cdn.fathom.video/thumbnails/${recordingId}.jpg`,
-    `https://cdn.fathom.video/thumbnails/${recordingId}.png`,
-    `https://fathom.video/thumbnails/${recordingId}.jpg`,
-    `https://app.fathom.video/thumbnails/${recordingId}.jpg`,
-    shareId ? `https://thumbnails.fathom.video/${shareId}.jpg` : null,
-    shareId ? `https://cdn.fathom.video/thumbnails/${shareId}.jpg` : null,
-  ].filter(Boolean) as string[]
-
-  for (const url of patterns) {
-    try {
-      // Use HEAD request to check if URL exists without downloading
-      const response = await fetch(url, { method: 'HEAD' })
-      if (response.ok) {
-        console.log(`✅ Found Fathom thumbnail at: ${url}`)
-        return url
-      }
-    } catch (e) {
-      // Continue to next pattern
-    }
-  }
-
-  console.log('⚠️  No direct Fathom thumbnail endpoint found')
-  return null
-}
-
-/**
- * Helper: Extract video poster/thumbnail from Fathom embed page
- * Looks for video player metadata in the embed HTML
- */
-async function fetchThumbnailFromEmbed(shareUrl?: string, recordingId?: string | number): Promise<string | null> {
-  if (!shareUrl && !recordingId) return null
-
-  try {
-    // Build embed URL
-    let embedUrl: string
-    if (shareUrl) {
-      const shareId = shareUrl.split('/').pop()
-      embedUrl = `https://fathom.video/embed/${shareId}`
-    } else {
-      embedUrl = `https://app.fathom.video/recording/${recordingId}`
-    }
-
-    console.log(`🎬 Checking embed page for video poster: ${embedUrl}`)
-
-    const response = await fetch(embedUrl, {
-      headers: {
-        'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)',
-        'Accept': 'text/html'
-      }
-    })
-
-    if (!response.ok) return null
-
-    const html = await response.text()
-
-    // Look for video poster attribute
-    const posterMatch = html.match(/poster=["']([^"']+)["']/i)
-    if (posterMatch && posterMatch[1]) {
-      console.log(`✅ Found video poster: ${posterMatch[1]}`)
-      return posterMatch[1]
-    }
-
-    // Look for thumbnail in video player config/metadata
-    const patterns = [
-      /thumbnail["']?\s*:\s*["']([^"']+)["']/i,
-      /posterImage["']?\s*:\s*["']([^"']+)["']/i,
-      /previewImage["']?\s*:\s*["']([^"']+)["']/i,
-    ]
-
-    for (const pattern of patterns) {
-      const match = html.match(pattern)
-      if (match && match[1]) {
-        console.log(`✅ Found video thumbnail in config: ${match[1]}`)
-        return match[1]
-      }
-    }
-
-    console.log('⚠️  No video poster or thumbnail found in embed')
-    return null
-  } catch (error) {
-    console.error('❌ Error fetching embed thumbnail:', error)
-    return null
-  }
-}
-
-/**
- * Helper: Scrape og:image from share page for a lightweight thumbnail.
- * This avoids adding heavy dependencies; works best when share_url is public.
- */
-async function fetchThumbnailFromShareUrl(shareUrl?: string): Promise<string | null> {
-  if (!shareUrl) {
-    console.log('⚠️  No share URL provided for thumbnail fetch')
-    return null
-  }
-
-  try {
-    console.log(`🖼️  Attempting to fetch og:image from: ${shareUrl}`)
-    const res = await fetch(shareUrl, {
-      headers: {
-        'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)',
-        'Accept': 'text/html'
-      }
-    })
-
-    if (!res.ok) {
-      console.log(`⚠️  Thumbnail fetch failed: HTTP ${res.status}`)
-      return null
-    }
-
-    const html = await res.text()
-    console.log(`📄 HTML received (${html.length} chars), searching for og:image...`)
-
-    // Try multiple meta tag patterns
-    const patterns = [
-      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
-      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-    ]
-
-    for (const pattern of patterns) {
-      const match = html.match(pattern)
-      if (match && match[1]) {
-        console.log(`✅ Found og:image: ${match[1]}`)
-        return match[1]
-      }
-    }
-
-    console.log('❌ No og:image or twitter:image meta tag found in HTML')
-    return null
-  } catch (error) {
-    console.error('❌ Error fetching thumbnail:', error)
-    return null
-  }
-}
 
 /**
  * Helper: Generate video thumbnail by calling the thumbnail generation service
@@ -1169,33 +1013,20 @@ async function syncSingleCall(
     // Compute derived fields prior to DB write
     const embedUrl = buildEmbedUrl(call.share_url, call.recording_id)
 
-    // Try multiple methods to get a thumbnail (in order of preference)
-    console.log(`🖼️  Starting thumbnail fetch cascade for recording ${call.recording_id}...`)
+    // Generate thumbnail using thumbnail service only
+    console.log(`🖼️  Generating thumbnail for recording ${call.recording_id}...`)
 
     let thumbnailUrl: string | null = null
 
-    // Method 1: Try Fathom's direct thumbnail endpoints (fastest if they exist)
-    thumbnailUrl = await fetchFathomDirectThumbnail(call.recording_id, call.share_url)
-
-    // Method 2: Extract video poster from Fathom embed page
-    if (!thumbnailUrl) {
-      thumbnailUrl = await fetchThumbnailFromEmbed(call.share_url, call.recording_id)
-    }
-
-    // Method 3: Scrape og:image from share page
-    if (!thumbnailUrl) {
-      thumbnailUrl = await fetchThumbnailFromShareUrl(call.share_url)
-    }
-
-    // Method 4: Generate video screenshot (if enabled and embed URL available)
-    if (!thumbnailUrl && embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
-      console.log('📸 Attempting to generate video screenshot...')
+    // Generate video screenshot (if enabled and embed URL available)
+    if (embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
+      console.log('📸 Calling thumbnail generation service...')
       thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
     }
 
-    // Method 5: Generate a placeholder thumbnail as last resort
+    // Fallback to placeholder if thumbnail service failed or disabled
     if (!thumbnailUrl) {
-      console.log('ℹ️  Using generated placeholder thumbnail')
+      console.log('ℹ️  Using placeholder thumbnail')
       const firstLetter = (call.title || 'M')[0].toUpperCase()
       thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
     }
