@@ -187,7 +187,15 @@ async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
   // Strategy 1: Try to capture just the video element
-  const videoSelectors = ['video', 'iframe', '.fathom-player', '[class*="player"]', '[class*="video"]']
+  // Based on actual Fathom HTML structure: <video-player><video>
+  const videoSelectors = [
+    'video-player',              // Fathom's custom element (MOST LIKELY)
+    'video-player video',        // Video inside custom element
+    'video',                     // Direct video tag
+    'section video',             // Video inside section
+    '[class*="video-player"]',   // Any class with video-player
+    'div.relative video',        // Video in relative container
+  ]
 
   for (const selector of videoSelectors) {
     try {
@@ -197,11 +205,12 @@ async function captureWithMicrolink(
         meta: 'false',
         'viewport.width': '1920',
         'viewport.height': '1080',
-        'viewport.deviceScaleFactor': '1',
+        'viewport.deviceScaleFactor': '2', // Higher resolution for better quality
         // Give the player time to seek to the timestamp and render a frame
-        waitFor: '8000',
+        waitFor: '10000', // Increased wait time for video to fully load
         // Try to capture only the video element
         'screenshot.element': selector,
+        'screenshot.codeInject': 'document.querySelector("video")?.play()', // Ensure video is playing
       }).toString()
 
       console.log(`📡 Trying Microlink with selector: ${selector}`)
@@ -300,17 +309,16 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string)
   if (!base || !token) return null
 
   try {
-    // Try several selectors commonly used by video players (most specific first)
+    // Try several selectors based on actual Fathom HTML structure (most specific first)
     const selectors = [
+      'video-player',                   // Fathom's custom web component (PRIMARY TARGET)
+      'video-player video',             // Video inside custom element
       'video',                          // Standard HTML5 video element
-      'iframe[src*="fathom"]',         // Fathom embed iframe
+      'section video',                  // Video inside section tag
+      '[class*="video-player"]',        // Any class containing video-player
+      'div.relative video',             // Video in relative positioned div
+      'iframe[src*="fathom"]',         // Fathom embed iframe (fallback)
       'iframe',                         // Any iframe (video embeds)
-      '.fathom-player video',          // Fathom-specific player
-      '[class*="player"] video',       // Generic player with video
-      'canvas',                         // Canvas-based players
-      '.player',                        // Generic player class
-      '.vjs-tech',                      // Video.js player
-      '[class*="video"]',              // Any element with "video" in class
     ]
 
     for (const selector of selectors) {
