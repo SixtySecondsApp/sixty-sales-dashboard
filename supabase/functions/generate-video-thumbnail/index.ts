@@ -214,11 +214,7 @@ async function captureWithMicrolink(
         'screenshot.overlay.browser': 'false',
         'screenshot.overlay.background': 'transparent',
         // Remove scrollbars and UI chrome
-        'screenshot.scrollElement': 'false',
-        // Ensure video plays and settles on a frame
-        'scripts': JSON.stringify([
-          "const v = document.querySelector('video'); if(v){v.currentTime=5; v.pause();}"
-        ])
+        'screenshot.scrollElement': 'false'
       }).toString()
 
       console.log(`📡 Trying Microlink with selector: ${selector}`)
