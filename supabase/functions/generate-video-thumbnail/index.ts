@@ -71,15 +71,21 @@ serve(async (req) => {
           } catch { return share_url } })()
       : null
 
-    // Try screenshot providers (self-hosted preferred), then fallback to og:image
-    const targetUrl = shareWithTs || embedWithTs
+    // Use OUR application's meeting detail page for better control over screenshot
+    // This allows us to target the iframe element directly
+    const appUrl = Deno.env.get('APP_URL') || 'https://sixty-sales.com'
+    const targetUrl = meeting_id
+      ? `${appUrl}/meetings/${meeting_id}${timestamp_seconds ? `?t=${timestamp_seconds}` : ''}`
+      : (shareWithTs || embedWithTs)
 
     let thumbnailUrl: string | null = null
 
     const onlyBrowserless = (Deno.env.get('ONLY_BROWSERLESS') || Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')) === 'true'
 
     // A) Self-hosted Browserless (preferred, no per-call vendor cost)
-    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id)
+    // When meeting_id is provided, screenshot our app's meeting page (better control)
+    // Otherwise, screenshot Fathom's share page directly
+    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, meeting_id ? 'app' : 'fathom')
 
     if (!onlyBrowserless) {
       // B) Microlink screenshot
@@ -306,24 +312,29 @@ async function captureWithMicrolink(
 /**
  * Self-hosted Browserless: capture screenshot of video element if present
  * Improved selector strategy for Fathom video players
+ * @param mode 'app' = screenshot our app's meeting page (targets iframe), 'fathom' = screenshot Fathom page directly
  */
-async function captureWithBrowserlessAndUpload(url: string, recordingId: string): Promise<string | null> {
+async function captureWithBrowserlessAndUpload(url: string, recordingId: string, mode: 'app' | 'fathom' = 'fathom'): Promise<string | null> {
   const base = Deno.env.get('BROWSERLESS_URL') || 'https://chrome.browserless.io'
   const token = Deno.env.get('BROWSERLESS_TOKEN')
   if (!base || !token) return null
 
   try {
-    // Try several selectors - prioritize the actual <video> tag
-    const selectors = [
-      'video',                          // Direct HTML5 video element (PRIMARY)
-      'video-player video',             // Video inside custom element
-      'section video',                  // Video inside section tag
-      'div.relative video',             // Video in relative positioned div
-      '[class*="video-"]',              // Any class with video- prefix
-      'video-player',                   // Custom element (may capture whole page)
-      'iframe[src*="fathom"]',         // Fathom embed iframe (fallback)
-      'iframe',                         // Any iframe (last resort)
-    ]
+    // Different selectors based on what page we're screenshotting
+    const selectors = mode === 'app'
+      ? [
+          'iframe[src*="fathom"]',        // PRIMARY: Target the Fathom iframe in OUR app
+          'iframe',                       // Fallback: Any iframe
+          '.glassmorphism-card iframe',   // Our app's video container
+        ]
+      : [
+          'video',                        // Direct HTML5 video element (PRIMARY)
+          'video-player video',           // Video inside custom element
+          'section video',                // Video inside section tag
+          'div.relative video',           // Video in relative positioned div
+          '[class*="video-"]',            // Any class with video- prefix
+          'video-player',                 // Custom element (may capture whole page)
+        ]
 
     for (const selector of selectors) {
       console.log(`🎯 Trying Browserless with selector: ${selector}`)
