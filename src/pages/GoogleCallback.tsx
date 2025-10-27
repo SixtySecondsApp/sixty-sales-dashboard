@@ -13,6 +13,26 @@ export default function GoogleCallback() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        // Ensure auth session is available before calling Edge Function
+        let sessionAvailable = false;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            sessionAvailable = true;
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 200));
+        }
+
+        if (!sessionAvailable) {
+          setStatus('error');
+          setMessage('Authentication required. Please sign in and try again.');
+          setTimeout(() => {
+            navigate('/auth/login?next=/integrations');
+          }, 1500);
+          return;
+        }
+
         // Get the authorization code and state from URL
         const code = searchParams.get('code');
         const state = searchParams.get('state');
@@ -54,9 +74,16 @@ export default function GoogleCallback() {
         });
 
         if (exchangeError) {
-          console.error('Exchange error:', exchangeError);
+          // Try to surface deeper context if provided by supabase-js
+          // @ts-expect-error context may exist on the error
+          const context = (exchangeError as any)?.context;
+          console.error('Exchange error:', exchangeError, context);
           setStatus('error');
-          setMessage(exchangeError.message || 'Failed to complete authentication');
+          setMessage(
+            (context && (context.error || context.message)) ||
+            exchangeError.message ||
+            'Failed to complete authentication'
+          );
           
           setTimeout(() => {
             navigate(`/integrations?error=exchange_failed&error_description=${encodeURIComponent(exchangeError.message || '')}`);

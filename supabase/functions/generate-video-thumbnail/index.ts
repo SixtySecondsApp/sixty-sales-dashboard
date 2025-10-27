@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { S3Client, PutObjectCommand } from "https://deno.land/x/s3_lite_client@0.7.0/mod.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +25,8 @@ interface ThumbnailRequest {
   fathom_embed_url: string
   // Optional: capture at a specific second in the video if supported by the player
   timestamp_seconds?: number
+  // Optional: if provided, persist thumbnail_url directly to DB with service role
+  meeting_id?: string
 }
 
 serve(async (req) => {
@@ -32,7 +35,7 @@ serve(async (req) => {
   }
 
   try {
-    const { recording_id, share_url, fathom_embed_url, timestamp_seconds }: ThumbnailRequest = await req.json()
+    const { recording_id, share_url, fathom_embed_url, timestamp_seconds, meeting_id }: ThumbnailRequest = await req.json()
 
     if (!recording_id || !fathom_embed_url) {
       throw new Error('Missing required fields: recording_id and fathom_embed_url')
@@ -42,7 +45,7 @@ serve(async (req) => {
     console.log(`📺 Embed URL: ${fathom_embed_url}`)
 
     // Capture screenshot and upload to storage (AWS S3 or Supabase)
-    // Append timestamp param if provided to jump the embed to a specific time
+    // Append timestamp param if provided to jump the embed/share to a specific time
     const embedWithTs = typeof timestamp_seconds === 'number' && timestamp_seconds > 0
       ? (() => {
           try {
@@ -57,7 +60,48 @@ serve(async (req) => {
         })()
       : fathom_embed_url
 
-    const thumbnailUrl = await captureVideoThumbnail(embedWithTs, recording_id)
+    // Prefer the public share URL for both og:image and screenshots
+    const shareWithTs = share_url
+      ? (() => { try {
+            const u = new URL(share_url)
+            if (typeof timestamp_seconds === 'number' && timestamp_seconds > 0) {
+              u.searchParams.set('timestamp', String(Math.floor(timestamp_seconds)))
+            }
+            return u.toString()
+          } catch { return share_url } })()
+      : null
+
+    // Try screenshot providers (self-hosted preferred), then fallback to og:image
+    const targetUrl = shareWithTs || embedWithTs
+
+    let thumbnailUrl: string | null = null
+
+    const onlyBrowserless = (Deno.env.get('ONLY_BROWSERLESS') || Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')) === 'true'
+
+    // A) Self-hosted Browserless (preferred, no per-call vendor cost)
+    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id)
+
+    if (!onlyBrowserless) {
+      // B) Microlink screenshot
+      if (!thumbnailUrl) {
+        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
+      }
+
+      // C) ScreenshotOne
+      if (!thumbnailUrl) {
+        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
+      }
+
+      // D) APIFLASH
+      if (!thumbnailUrl) {
+        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
+      }
+    }
+
+    // E) Last resort: og:image (often unavailable per user)
+    if (!thumbnailUrl && shareWithTs) {
+      thumbnailUrl = await fetchThumbnailFromShareUrl(shareWithTs)
+    }
 
     if (!thumbnailUrl) {
       throw new Error('Failed to capture video thumbnail')
@@ -65,11 +109,29 @@ serve(async (req) => {
 
     console.log(`✅ Thumbnail generated: ${thumbnailUrl}`)
 
+    // If meeting_id is provided, persist to DB using service role
+    let dbUpdated = false
+    if (meeting_id) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        const { error: updateError } = await supabase
+          .from('meetings')
+          .update({ thumbnail_url: thumbnailUrl })
+          .eq('id', meeting_id)
+        if (!updateError) dbUpdated = true
+      } catch (e) {
+        console.warn('⚠️ Failed to persist thumbnail_url via service role:', e)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         thumbnail_url: thumbnailUrl,
         recording_id,
+        db_updated: dbUpdated,
       }),
       {
         status: 200,
@@ -95,24 +157,14 @@ serve(async (req) => {
  * Capture video thumbnail using screenshot service and upload to storage
  */
 async function captureVideoThumbnail(
-  embedUrl: string,
+  url: string,
   recordingId: string
 ): Promise<string | null> {
   try {
     console.log('📸 Capturing screenshot...')
 
-    // Try Microlink API first (no key required)
-    let imageBuffer: ArrayBuffer | null = await captureWithMicrolink(embedUrl)
-
-    // Fallback 1: ScreenshotOne if API key configured
-    if (!imageBuffer) {
-      imageBuffer = await captureWithScreenshotOne(embedUrl)
-    }
-
-    // Fallback 2: APIFLASH if API key configured
-    if (!imageBuffer) {
-      imageBuffer = await captureWithApiFlash(embedUrl)
-    }
+    // Try providers in code above instead
+    let imageBuffer: ArrayBuffer | null = await captureWithMicrolink(url)
 
     if (!imageBuffer) {
       throw new Error('Failed to capture screenshot with all providers')
@@ -131,11 +183,11 @@ async function captureVideoThumbnail(
  * Capture screenshot using Microlink API (free tier)
  */
 async function captureWithMicrolink(
-  embedUrl: string
+  url: string
 ): Promise<ArrayBuffer | null> {
   try {
     const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
-      url: embedUrl,
+      url,
       screenshot: 'true',
       meta: 'false',
       'viewport.width': '1920',
@@ -181,6 +233,81 @@ async function captureWithMicrolink(
     return imageBuffer
   } catch (error) {
     console.error(`❌ Microlink error:`, error)
+    return null
+  }
+}
+
+/**
+ * Self-hosted Browserless: capture screenshot of video element if present
+ */
+async function captureWithBrowserlessAndUpload(url: string, recordingId: string): Promise<string | null> {
+  const base = Deno.env.get('BROWSERLESS_URL') || 'https://chrome.browserless.io'
+  const token = Deno.env.get('BROWSERLESS_TOKEN')
+  if (!base || !token) return null
+
+  try {
+    // Try several selectors commonly used by video players
+    const selectors = ['video', 'canvas', '.player', '.vjs-poster', '.vjs-tech']
+    for (const selector of selectors) {
+      const params = new URLSearchParams({
+        token,
+        url,
+        format: 'jpeg',
+        quality: '85',
+        fullPage: 'false',
+        blockAds: 'true',
+        'viewport.width': '1920',
+        'viewport.height': '1080',
+        delay: '7000',
+        selector,
+      })
+      const endpoint = `${base.replace(/\/$/, '')}/screenshot?${params.toString()}`
+      const resp = await fetch(endpoint)
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer()
+        if (buf.byteLength > 0) {
+          return await uploadToStorage(buf, recordingId)
+        }
+      }
+    }
+    return null
+  } catch (e) {
+    console.error('❌ Browserless error:', e)
+    return null
+  }
+}
+
+/**
+ * Wrapper to capture via a provider and upload to S3
+ */
+async function captureViaProviderAndUpload(url: string, recordingId: string, provider: 'microlink' | 'screenshotone' | 'apiflash'): Promise<string | null> {
+  let buf: ArrayBuffer | null = null
+  if (provider === 'microlink') buf = await captureWithMicrolink(url)
+  if (provider === 'screenshotone') buf = await captureWithScreenshotOne(url)
+  if (provider === 'apiflash') buf = await captureWithApiFlash(url)
+  if (!buf) return null
+  return await uploadToStorage(buf, recordingId)
+}
+
+/**
+ * Scrape og:image from a public share page (preferred)
+ */
+async function fetchThumbnailFromShareUrl(shareUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(shareUrl, { headers: { 'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)', 'Accept': 'text/html' } })
+    if (!res.ok) return null
+    const html = await res.text()
+    const patterns = [
+      /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+      /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+      /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    ]
+    for (const p of patterns) {
+      const m = html.match(p)
+      if (m && m[1]) return m[1]
+    }
+    return null
+  } catch {
     return null
   }
 }

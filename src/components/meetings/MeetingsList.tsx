@@ -169,6 +169,7 @@ const MeetingsList: React.FC = () => {
                 share_url: m.share_url,
                 fathom_embed_url: embedUrl,
                 timestamp_seconds: midpointSeconds,
+                meeting_id: m.id,
               },
             })
             if (!error && (data as any)?.success && (data as any)?.thumbnail_url) {
@@ -183,10 +184,13 @@ const MeetingsList: React.FC = () => {
           }
 
           // Persist and update local state
-          await supabase
-            .from('meetings')
-            .update({ thumbnail_url: thumbnailUrl })
-            .eq('id', m.id)
+          // If function persisted it (db_updated), skip client-side write
+          if (!(data as any)?.db_updated) {
+            await supabase
+              .from('meetings')
+              .update({ thumbnail_url: thumbnailUrl })
+              .eq('id', m.id)
+          }
 
           setMeetings(prev => prev.map(x => x.id === m.id ? { ...x, thumbnail_url: thumbnailUrl } : x))
 

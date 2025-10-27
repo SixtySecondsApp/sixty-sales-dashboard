@@ -25,77 +25,46 @@ interface Logger {
 }
 
 export const logger: Logger = {
-  log: (...args: LogArgs) => {
-    if (isDevelopment) {
-      console.log(...args);
-    }
-  },
+  log: () => {},
   
-  warn: (...args: LogArgs) => {
-    if (isDevelopment) {
-      console.warn(...args);
-    }
-  },
+  warn: () => {},
   
   error: (...args: LogArgs) => {
-    // Always log errors, but in production send to error tracking service
-    if (isDevelopment) {
-      console.error(...args);
-    } else {
-      // In production, you might want to send to an error tracking service
-      // like Sentry, LogRocket, etc.
-      // For now, we'll use a minimal console.error
-      console.error(args[0]); // Only log the first argument (usually the message)
+    // Only surface errors; keep payload minimal to reduce memory
+    try {
+      if (args.length === 0) {
+        return;
+      }
+      const [first, ...rest] = args as unknown[];
+      if (first instanceof Error) {
+        console.error(first.message);
+      } else if (typeof first === 'string') {
+        console.error(first);
+      } else {
+        console.error(JSON.stringify(first));
+      }
+      // Drop verbose objects in rest to avoid memory bloat
+    } catch {
+      // Fallback to a simple error emission
+      console.error('Error');
     }
   },
   
-  info: (...args: LogArgs) => {
-    if (isDevelopment) {
-      console.info(...args);
-    }
-  },
+  info: () => {},
   
-  debug: (...args: LogArgs) => {
-    if (isDevelopment) {
-      console.debug(...args);
-    }
-  },
+  debug: () => {},
   
-  table: (data: TableData) => {
-    if (isDevelopment) {
-      console.table(data);
-    }
-  },
+  table: () => {},
   
-  time: (label: string) => {
-    if (isDevelopment) {
-      console.time(label);
-    }
-  },
+  time: () => {},
   
-  timeEnd: (label: string) => {
-    if (isDevelopment) {
-      console.timeEnd(label);
-    }
-  },
+  timeEnd: () => {},
   
-  group: (label?: string) => {
-    if (isDevelopment) {
-      console.group(label);
-    }
-  },
+  group: () => {},
   
-  groupEnd: () => {
-    if (isDevelopment) {
-      console.groupEnd();
-    }
-  },
+  groupEnd: () => {},
   
-  clear: () => {
-    if (isDevelopment) {
-      console.clear();
-    }
-  }
+  clear: () => {}
 };
 
 export default logger;

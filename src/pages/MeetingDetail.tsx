@@ -4,10 +4,13 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
+import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
 import { useEventEmitter } from '@/lib/communication/EventBus';
+import { toast } from 'sonner';
 
 interface Meeting {
   id: string;
@@ -120,6 +123,7 @@ export function MeetingDetail() {
   const [error, setError] = useState<string | null>(null);
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const [thumbnailEnsured, setThumbnailEnsured] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   const primaryExternal = attendees.find(a => a.is_external);
 
@@ -387,6 +391,51 @@ export function MeetingDetail() {
     );
   }
 
+  const handleGetActionItems = useCallback(async () => {
+    if (!meeting) return;
+    setIsExtracting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      // Call Edge Function to extract items
+      const res = await fetch(`${supabase.supabaseUrl}/functions/v1/extract-action-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ meetingId: meeting.id }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to extract action items');
+      }
+
+      // Refresh action items list
+      const { data: actionItemsData } = await supabase
+        .from('meeting_action_items')
+        .select('*')
+        .eq('meeting_id', meeting.id)
+        .order('timestamp_seconds', { ascending: true });
+      setActionItems(actionItemsData || []);
+
+      // Show empty state message if none created
+      const created = Number(json?.itemsCreated || 0);
+      if (created === 0) {
+        toast.info('No Action Items From Meeting');
+      } else {
+        toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`);
+      }
+    } catch (e) {
+      console.error('[Get Action Items] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to extract action items');
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [meeting]);
+
   return (
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
       {/* Header */}
@@ -415,6 +464,9 @@ export function MeetingDetail() {
               {labelSentiment(meeting.sentiment_score)}
             </Badge>
           )}
+          <Button size="sm" onClick={handleGetActionItems} disabled={isExtracting}>
+            {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
+          </Button>
         </div>
       </div>
 
@@ -500,87 +552,109 @@ export function MeetingDetail() {
               </div>
             )}
 
-            {/* AI Summary */}
+            {/* Tabbed Interface: Summary, Transcript, Ask AI */}
             <div className="section-card">
-              <div className="font-semibold mb-2">Meeting Summary</div>
-              {/* Quick Actions */}
-              <div className="mb-4 flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => handleQuickAdd('meeting')}>Add Meeting</Button>
-              <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('outbound')}>Add Outbound</Button>
-              <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('proposal')}>Add Proposal</Button>
-              </div>
-              {meeting.summary ? (
-                <div className="text-sm text-muted-foreground leading-relaxed">
-                  {(() => {
-                    try {
-                      // Try to parse as JSON first (Fathom format)
-                      const parsed = JSON.parse(meeting.summary);
-                      if (parsed.markdown_formatted) {
-                        // Parse and render markdown content
-                        const html = parseMarkdownSummary(parsed.markdown_formatted);
-                        return <div ref={summaryRef} dangerouslySetInnerHTML={{ __html: html }} />;
-                      }
-                      return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
-                    } catch {
-                      // If not JSON, just display as plain text
-                      return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
-                    }
-                  })()}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Summary will be available after Fathom processes the recording (5-10 minutes after meeting ends).
-                </p>
-              )}
+              <Tabs defaultValue="summary" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  <TabsTrigger value="summary">Summary</TabsTrigger>
+                  <TabsTrigger value="transcript">Transcript</TabsTrigger>
+                  <TabsTrigger value="ask-ai">
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Ask AI
+                  </TabsTrigger>
+                </TabsList>
 
-              <div className="mt-3 flex gap-2 flex-wrap">
-                {meeting.transcript_doc_url && (
-                  <Button asChild variant="outline" size="sm">
-                    <a href={meeting.transcript_doc_url} target="_blank" rel="noopener noreferrer">
-                      <FileText className="h-3 w-3 mr-2" />
-                      Open transcript
-                      <ExternalLink className="h-3 w-3 ml-2" />
-                    </a>
-                  </Button>
-                )}
-                {meeting.share_url && (
-                  <Button asChild variant="outline" size="sm">
-                    <a href={meeting.share_url} target="_blank" rel="noopener noreferrer">
-                      Open in Fathom
-                      <ExternalLink className="h-3 w-3 ml-2" />
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Transcript Display */}
-            {meeting.transcript_text && (
-              <div className="section-card">
-                <div className="font-semibold mb-3">Full Transcript</div>
-                <div className="glassmorphism-light p-4 rounded-lg max-h-[600px] overflow-y-auto">
-                  <div className="text-sm leading-relaxed space-y-3">
-                    {meeting.transcript_text.split('\n').map((line, idx) => {
-                      // Check if line starts with a speaker name (pattern: "Name: text")
-                      const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
-                      if (speakerMatch) {
-                        const [, speaker, text] = speakerMatch;
-                        return (
-                          <div key={idx} className="flex gap-3">
-                            <div className="font-semibold text-blue-400 min-w-[120px] shrink-0">{speaker}:</div>
-                            <div className="text-muted-foreground flex-1">{text}</div>
-                          </div>
-                        );
-                      }
-                      // Plain text line (no speaker)
-                      return line.trim() ? (
-                        <div key={idx} className="text-muted-foreground">{line}</div>
-                      ) : null;
-                    })}
+                {/* Summary Tab */}
+                <TabsContent value="summary" className="mt-0">
+                  {/* Quick Actions */}
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => handleQuickAdd('meeting')}>Add Meeting</Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('outbound')}>Add Outbound</Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('proposal')}>Add Proposal</Button>
                   </div>
-                </div>
-              </div>
-            )}
+
+                  {meeting.summary ? (
+                    <div className="text-sm text-muted-foreground leading-relaxed">
+                      {(() => {
+                        try {
+                          // Try to parse as JSON first (Fathom format)
+                          const parsed = JSON.parse(meeting.summary);
+                          if (parsed.markdown_formatted) {
+                            // Parse and render markdown content
+                            const html = parseMarkdownSummary(parsed.markdown_formatted);
+                            return <div ref={summaryRef} dangerouslySetInnerHTML={{ __html: html }} />;
+                          }
+                          return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
+                        } catch {
+                          // If not JSON, just display as plain text
+                          return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
+                        }
+                      })()}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Summary will be available after Fathom processes the recording (5-10 minutes after meeting ends).
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                    {meeting.transcript_doc_url && (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={meeting.transcript_doc_url} target="_blank" rel="noopener noreferrer">
+                          <FileText className="h-3 w-3 mr-2" />
+                          Open transcript
+                          <ExternalLink className="h-3 w-3 ml-2" />
+                        </a>
+                      </Button>
+                    )}
+                    {meeting.share_url && (
+                      <Button asChild variant="outline" size="sm">
+                        <a href={meeting.share_url} target="_blank" rel="noopener noreferrer">
+                          Open in Fathom
+                          <ExternalLink className="h-3 w-3 ml-2" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
+
+                {/* Transcript Tab */}
+                <TabsContent value="transcript" className="mt-0">
+                  {meeting.transcript_text ? (
+                    <div className="glassmorphism-light p-4 rounded-lg max-h-[600px] overflow-y-auto">
+                      <div className="text-sm leading-relaxed space-y-3">
+                        {meeting.transcript_text.split('\n').map((line, idx) => {
+                          // Check if line starts with a speaker name (pattern: "Name: text")
+                          const speakerMatch = line.match(/^([^:]+):\s*(.*)$/);
+                          if (speakerMatch) {
+                            const [, speaker, text] = speakerMatch;
+                            return (
+                              <div key={idx} className="flex gap-3">
+                                <div className="font-semibold text-blue-400 min-w-[120px] shrink-0">{speaker}:</div>
+                                <div className="text-muted-foreground flex-1">{text}</div>
+                              </div>
+                            );
+                          }
+                          // Plain text line (no speaker)
+                          return line.trim() ? (
+                            <div key={idx} className="text-muted-foreground">{line}</div>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Transcript will be available after Fathom processes the recording.
+                    </p>
+                  )}
+                </TabsContent>
+
+                {/* Ask AI Tab */}
+                <TabsContent value="ask-ai" className="mt-0">
+                  <AskAIChat meetingId={meeting.id} />
+                </TabsContent>
+              </Tabs>
+            </div>
           </div>
         </div>
         {/* End of Left Column */}

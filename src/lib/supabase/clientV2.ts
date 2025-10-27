@@ -27,6 +27,16 @@ let supabaseAdminInstance: TypedSupabaseClient | null = null;
  */
 function getSupabaseClient(): TypedSupabaseClient {
   if (!supabaseInstance) {
+    // Prefer dedicated Functions domain to avoid fetch issues
+    const functionsUrlEnv = (import.meta as any).env?.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+
     supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
@@ -60,6 +70,7 @@ function getSupabaseClient(): TypedSupabaseClient {
           }
         }
       },
+      functions: functionsUrl ? { url: functionsUrl } : undefined,
       global: {
         headers: {
           'X-Client-Info': 'sales-dashboard-v2'

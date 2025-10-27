@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { googleApi } from '@/lib/api/googleIntegration';
 import { supabase } from '@/lib/supabase/clientV2';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 // Query Keys
 export const GOOGLE_QUERY_KEYS = {
@@ -114,16 +115,65 @@ export function useGmailEmails(query?: string, enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.emails(query),
     queryFn: async () => {
-      // The Edge Function expects action as a query parameter
-      const response = await supabase.functions.invoke('google-gmail?action=list', {
-        body: { 
-          query,
-          maxResults: 50
+      // First try the standard invoke path
+      try {
+        const response = await supabase.functions.invoke('google-gmail?action=list', {
+          body: { 
+            query,
+            maxResults: 50
+          }
+        });
+        if (response.error) throw response.error;
+        return response.data;
+      } catch (err: any) {
+        const isTransportErr =
+          err?.name === 'FunctionsFetchError' ||
+          (typeof err?.message === 'string' && err.message.includes('Failed to send a request'));
+        if (!isTransportErr) throw err; // non-transport errors should bubble
+
+        // Resilient fallback: call the Edge Function directly via fetch
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+        const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+        const functionsUrlEnv = (import.meta as any).env?.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
+        const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0];
+        const subdomainBase = projectRef ? `https://${projectRef}.functions.supabase.co` : undefined;
+        const defaultBase = supabaseUrl ? `${supabaseUrl}/functions/v1` : undefined;
+
+        const candidates = [
+          functionsUrlEnv,
+          subdomainBase,
+          defaultBase,
+        ].filter(Boolean) as string[];
+
+        // Get session token for Authorization header
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) throw err;
+
+        let lastError: any = err;
+        for (const base of candidates) {
+          try {
+            const res = await fetch(`${base}/google-gmail?action=list`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`,
+                ...(anonKey ? { 'apikey': anonKey } : {}),
+                'Content-Type': 'application/json',
+                'X-Client-Info': 'sales-dashboard-v2',
+              },
+              body: JSON.stringify({ query, maxResults: 50 }),
+            });
+            if (!res.ok) {
+              lastError = new Error(`HTTP ${res.status}`);
+              continue;
+            }
+            return await res.json();
+          } catch (e) {
+            lastError = e;
+            continue;
+          }
         }
-      });
-      
-      if (response.error) throw response.error;
-      return response.data;
+        throw lastError;
+      }
     },
     enabled,
     staleTime: 60 * 1000, // 1 minute
