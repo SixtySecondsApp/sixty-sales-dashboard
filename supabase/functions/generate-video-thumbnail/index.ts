@@ -195,6 +195,8 @@ async function captureWithMicrolink(
       'viewport.deviceScaleFactor': '1',
       // Give the player time to seek to the timestamp and render a frame
       waitFor: '7000',
+      // Capture only the video element, not the full page
+      'screenshot.element': 'video',
     }).toString()
 
     console.log(`📡 Fetching screenshot from Microlink...`)
@@ -330,6 +332,7 @@ async function captureWithScreenshotOne(embedUrl: string): Promise<ArrayBuffer |
       viewport_height: '1080',
       delay: '7000', // wait for timestamp seek
       cache: 'false',
+      selector: 'video', // Capture only the video element
     })
 
     const url = `https://api.screenshotone.com/take?${params.toString()}`
@@ -362,6 +365,7 @@ async function captureWithApiFlash(embedUrl: string): Promise<ArrayBuffer | null
       delay: '7', // seconds
       no_ads: 'true',
       fresh: 'true',
+      element: 'video', // Capture only the video element
     })
 
     const url = `https://api.apiflash.com/v1/urltoimage?${params.toString()}`
