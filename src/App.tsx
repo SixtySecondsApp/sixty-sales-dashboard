@@ -25,6 +25,7 @@ import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
+import MeetingThumbnail from '@/pages/MeetingThumbnail';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -206,6 +207,11 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
   return (
     <>
       <IntelligentPreloader />
+      {/* Public routes - outside auth protection */}
+      <Routes>
+        {/* Public thumbnail page for screenshot automation */}
+        <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
+      </Routes>
       <ProtectedRoute>
               <Suspense fallback={<RouteLoader />}>
                 <Routes>

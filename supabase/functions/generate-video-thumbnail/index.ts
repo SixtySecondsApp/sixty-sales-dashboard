@@ -71,11 +71,10 @@ serve(async (req) => {
           } catch { return share_url } })()
       : null
 
-    // Use OUR application's meeting detail page for better control over screenshot
-    // This allows us to target the iframe element directly
-    const appUrl = Deno.env.get('APP_URL') || 'https://sixty-sales.com'
+    // Use OUR public thumbnail page for screenshots (bypasses auth, just shows video)
+    const appUrl = Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'
     const targetUrl = meeting_id
-      ? `${appUrl}/meetings/${meeting_id}${timestamp_seconds ? `?t=${timestamp_seconds}` : ''}`
+      ? `${appUrl}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}${timestamp_seconds ? `&t=${timestamp_seconds}` : ''}`
       : (shareWithTs || embedWithTs)
 
     let thumbnailUrl: string | null = null
@@ -83,9 +82,9 @@ serve(async (req) => {
     const onlyBrowserless = (Deno.env.get('ONLY_BROWSERLESS') || Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')) === 'true'
 
     // A) Self-hosted Browserless (preferred, no per-call vendor cost)
-    // When meeting_id is provided, screenshot our app's meeting page (better control)
+    // Screenshot our public thumbnail page when meeting_id is provided (better control)
     // Otherwise, screenshot Fathom's share page directly
-    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, meeting_id ? 'app' : 'fathom')
+    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, meeting_id ? 'app' : 'fathom', meeting_id)
 
     if (!onlyBrowserless) {
       // B) Microlink screenshot
@@ -314,7 +313,7 @@ async function captureWithMicrolink(
  * Improved selector strategy for Fathom video players
  * @param mode 'app' = screenshot our app's meeting page (targets iframe), 'fathom' = screenshot Fathom page directly
  */
-async function captureWithBrowserlessAndUpload(url: string, recordingId: string, mode: 'app' | 'fathom' = 'fathom'): Promise<string | null> {
+async function captureWithBrowserlessAndUpload(url: string, recordingId: string, mode: 'app' | 'fathom' = 'fathom', meetingId?: string): Promise<string | null> {
   const base = Deno.env.get('BROWSERLESS_URL') || 'https://chrome.browserless.io'
   const token = Deno.env.get('BROWSERLESS_TOKEN')
   if (!base || !token) return null
@@ -358,7 +357,7 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
         // Check for reasonable size (not a tiny placeholder or empty)
         if (buf.byteLength > 10000) { // At least 10KB for a real video frame
           console.log(`✅ Browserless succeeded with selector "${selector}" (${buf.byteLength} bytes)`)
-          return await uploadToStorage(buf, recordingId)
+          return await uploadToStorage(buf, recordingId, meetingId)
         } else {
           console.log(`⚠️  Screenshot too small with "${selector}", trying next...`)
         }
@@ -387,7 +386,7 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
       const buf = await resp.arrayBuffer()
       if (buf.byteLength > 0) {
         console.log(`✅ Browserless full viewport captured (${buf.byteLength} bytes)`)
-        return await uploadToStorage(buf, recordingId)
+        return await uploadToStorage(buf, recordingId, meetingId)
       }
     }
 
@@ -503,11 +502,16 @@ async function captureWithApiFlash(embedUrl: string): Promise<ArrayBuffer | null
  */
 async function uploadToStorage(
   imageBuffer: ArrayBuffer,
-  recordingId: string
+  recordingId: string,
+  meetingId?: string
 ): Promise<string | null> {
   try {
     const folder = (Deno.env.get('AWS_S3_FOLDER') || Deno.env.get('AWS_S3_THUMBNAILS_PREFIX') || 'meeting-thumbnails').replace(/\/+$/,'')
-    const fileName = `${folder}/${recordingId}.jpg`
+    // Include meeting_id and timestamp to make each screenshot unique and avoid caching issues
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const fileName = meetingId
+      ? `${folder}/${meetingId}_${timestamp}.jpg`
+      : `${folder}/${recordingId}_${timestamp}.jpg`
 
     // Get AWS credentials
     const awsAccessKeyId = Deno.env.get('AWS_ACCESS_KEY_ID')
