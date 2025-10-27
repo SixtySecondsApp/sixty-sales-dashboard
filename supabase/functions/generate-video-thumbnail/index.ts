@@ -85,7 +85,7 @@ serve(async (req) => {
     // Build our app's MeetingThumbnail page URL as preferred target for Browserless
     // This avoids iframe CORS issues by showcasing video full-screen in our app
     const appUrl = meeting_id
-      ? `${Deno.env.get('APP_URL') || 'https://app.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}&t=${timestamp_seconds || 30}`
+      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}&t=${timestamp_seconds || 30}`
       : null
 
     let thumbnailUrl: string | null = null
@@ -338,13 +338,10 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
       ? `
         // App mode: Screenshot our full-screen video page
         export default async function({ page }) {
-          await page.goto('${escapedUrl}', { waitUntil: 'networkidle2', timeout: 45000 });
+          // Load with domcontentloaded - faster than waiting for everything
+          await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 20000 });
           
-          // Wait for page marker
-          await page.waitForSelector('[data-thumbnail-ready="true"]', { timeout: 10000 });
-          
-          // Wait a bit for video to render (using alternative to waitForTimeout)
-          await page.waitForLoadState('networkidle');
+          // Wait for initial render
           await new Promise(resolve => setTimeout(resolve, 3000));
 
           // Screenshot entire viewport
@@ -354,13 +351,13 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
       : `
         // Fathom mode: Simple screenshot of Fathom page
         export default async function({ page }) {
+          // Use domcontentloaded for faster loading
           await page.goto('${escapedUrl}', { 
-            waitUntil: 'networkidle2', 
-            timeout: 60000 
+            waitUntil: 'domcontentloaded', 
+            timeout: 20000 
           });
 
-          // Wait for page to settle (alternative to waitForTimeout)
-          await page.waitForLoadState('networkidle');
+          // Wait for initial content
           await new Promise(resolve => setTimeout(resolve, 3000));
 
           // Take viewport screenshot
