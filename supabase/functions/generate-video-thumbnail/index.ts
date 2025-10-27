@@ -186,31 +186,39 @@ async function captureVideoThumbnail(
 async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
-  // Strategy 1: Try to capture just the video element
-  // Based on actual Fathom HTML structure: <video-player><video>
+  // Strategy 1: Try to capture ONLY the <video> tag, not containers
+  // The video tag itself should have the actual video content
   const videoSelectors = [
-    'video-player',              // Fathom's custom element (MOST LIKELY)
+    'video',                     // Direct video tag (MOST IMPORTANT)
     'video-player video',        // Video inside custom element
-    'video',                     // Direct video tag
     'section video',             // Video inside section
-    '[class*="video-player"]',   // Any class with video-player
-    'div.relative video',        // Video in relative container
+    'div.relative video',        // Video in relative positioned div
+    '[class*="video-"]',         // Any class with video- prefix
+    'video-player',              // Last resort: custom element (captures whole page)
   ]
 
   for (const selector of videoSelectors) {
     try {
+      // Use Microlink's element hiding feature to isolate the video
       const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
         url,
         screenshot: 'true',
         meta: 'false',
         'viewport.width': '1920',
         'viewport.height': '1080',
-        'viewport.deviceScaleFactor': '2', // Higher resolution for better quality
-        // Give the player time to seek to the timestamp and render a frame
-        waitFor: '10000', // Increased wait time for video to fully load
-        // Try to capture only the video element
+        'viewport.deviceScaleFactor': '2',
+        waitFor: '10000',
+        // Capture ONLY the video element, nothing else
         'screenshot.element': selector,
-        'screenshot.codeInject': 'document.querySelector("video")?.play()', // Ensure video is playing
+        // Hide all overlay UI elements
+        'screenshot.overlay.browser': 'false',
+        'screenshot.overlay.background': 'transparent',
+        // Remove scrollbars and UI chrome
+        'screenshot.scrollElement': 'false',
+        // Ensure video plays and settles on a frame
+        'scripts': JSON.stringify([
+          "const v = document.querySelector('video'); if(v){v.currentTime=5; v.pause();}"
+        ])
       }).toString()
 
       console.log(`📡 Trying Microlink with selector: ${selector}`)
@@ -309,16 +317,16 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string)
   if (!base || !token) return null
 
   try {
-    // Try several selectors based on actual Fathom HTML structure (most specific first)
+    // Try several selectors - prioritize the actual <video> tag
     const selectors = [
-      'video-player',                   // Fathom's custom web component (PRIMARY TARGET)
+      'video',                          // Direct HTML5 video element (PRIMARY)
       'video-player video',             // Video inside custom element
-      'video',                          // Standard HTML5 video element
       'section video',                  // Video inside section tag
-      '[class*="video-player"]',        // Any class containing video-player
       'div.relative video',             // Video in relative positioned div
+      '[class*="video-"]',              // Any class with video- prefix
+      'video-player',                   // Custom element (may capture whole page)
       'iframe[src*="fathom"]',         // Fathom embed iframe (fallback)
-      'iframe',                         // Any iframe (video embeds)
+      'iframe',                         // Any iframe (last resort)
     ]
 
     for (const selector of selectors) {
