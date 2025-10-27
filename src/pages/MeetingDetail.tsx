@@ -325,27 +325,79 @@ export function MeetingDetail() {
     }
   }, []);
 
+  // Toggle an action item's completion (bidirectional sync via DB triggers)
+  const toggleActionItem = useCallback(async (id: string, completed: boolean) => {
+    try {
+      // Optimistic update
+      setActionItems(prev => prev.map(ai => ai.id === id ? { ...ai, completed: !completed } : ai));
+
+      const { error } = await supabase
+        .from('meeting_action_items')
+        .update({ completed: !completed, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) {
+        // Revert on error
+        setActionItems(prev => prev.map(ai => ai.id === id ? { ...ai, completed } : ai));
+        throw error;
+      }
+    } catch (e) {
+      console.error('[MeetingDetail] Toggle action item failed:', e);
+    }
+  }, []);
+
   // Handle action item extraction - defined before early returns to satisfy Rules of Hooks
   const handleGetActionItems = useCallback(async () => {
     if (!meeting) return;
     setIsExtracting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      let data: any | null = null;
+      try {
+        const res = await supabase.functions.invoke('extract-action-items', {
+          body: { meetingId: meeting.id }
+        });
+        if (res.error) throw res.error;
+        data = res.data;
+      } catch (err: any) {
+        const isTransportErr = err?.name === 'FunctionsFetchError' || (typeof err?.message === 'string' && err.message.includes('Failed to send a request'));
+        if (!isTransportErr) throw err;
 
-      // Call Edge Function to extract items
-      const res = await fetch(`${supabase.supabaseUrl}/functions/v1/extract-action-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ meetingId: meeting.id }),
-      });
+        // Fallback: call the Edge Function directly
+        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+        const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+        const functionsUrlEnv = (import.meta as any).env?.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
+        const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0];
+        const subdomainBase = projectRef ? `https://${projectRef}.functions.supabase.co` : undefined;
+        const defaultBase = supabaseUrl ? `${supabaseUrl}/functions/v1` : undefined;
+        const candidates = [functionsUrlEnv, subdomainBase, defaultBase].filter(Boolean) as string[];
 
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error || 'Failed to extract action items');
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        let lastError: any = err;
+        for (const base of candidates) {
+          try {
+            const resp = await fetch(`${base}/extract-action-items`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+                ...(anonKey ? { 'apikey': anonKey } : {}),
+                'X-Client-Info': 'sales-dashboard-v2',
+              },
+              body: JSON.stringify({ meetingId: meeting.id })
+            });
+            if (!resp.ok) {
+              lastError = new Error(`HTTP ${resp.status}`);
+              continue;
+            }
+            data = await resp.json();
+            break;
+          } catch (e) {
+            lastError = e;
+            continue;
+          }
+        }
+        if (!data) throw lastError;
       }
 
       // Refresh action items list
@@ -357,7 +409,7 @@ export function MeetingDetail() {
       setActionItems(actionItemsData || []);
 
       // Show empty state message if none created
-      const created = Number(json?.itemsCreated || 0);
+      const created = Number((data as any)?.itemsCreated || 0);
       if (created === 0) {
         toast.info('No Action Items From Meeting');
       } else {
@@ -682,7 +734,18 @@ export function MeetingDetail() {
                     className="glassmorphism-light p-3 rounded-xl"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="font-medium text-sm flex-1">{item.title}</div>
+                      <div className="flex items-start gap-2 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={!!item.completed}
+                          onChange={() => toggleActionItem(item.id, !!item.completed)}
+                          className="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500"
+                          aria-label="Mark action item complete"
+                        />
+                        <div className={`font-medium text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
+                          {item.title}
+                        </div>
+                      </div>
                       {item.ai_generated && item.ai_confidence && (
                         <Badge variant="outline" className="text-xs bg-purple-900/30 text-purple-300 border-purple-700 shrink-0">
                           {(item.ai_confidence * 100).toFixed(0)}%

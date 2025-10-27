@@ -8,7 +8,8 @@ interface ActionItem {
   assignedTo: string | null
   assignedToEmail: string | null
   deadline: string | null // ISO date string
-  category: 'follow_up' | 'demo' | 'proposal' | 'contract' | 'technical' | 'other'
+  // Normalized category aligned with tasks UI
+  category: 'call' | 'email' | 'meeting' | 'follow_up' | 'proposal' | 'demo' | 'general'
   priority: 'high' | 'medium' | 'low'
   confidence: number
 }
@@ -114,10 +115,10 @@ ${transcript}
 
 Please analyze the transcript and provide:
 
-1. ACTION ITEMS:
-   Extract ALL action items, tasks, commitments, and follow-ups mentioned in the call.
+1. ACTION ITEMS (ONLY concrete, agreed, assignable next steps):
+   Extract action items that are clearly agreed upon and require action. Exclude ideas, suggestions, opinions, or vague topics.
 
-   IMPORTANT: Look for BOTH explicit and implicit action items:
+   IMPORTANT: Look for BOTH explicit and implicit action items, but include ONLY if they represent a concrete next step:
    - Explicit: "I'll send you the proposal by Friday"
    - Implicit: "We need to review the contract" (creates action for someone)
    - Commitments: "We'll get back to you with those numbers"
@@ -146,7 +147,7 @@ Please analyze the transcript and provide:
      * "by Friday" = nearest Friday from meeting date
      * "in 2 days" = 2 days from meeting date
      * If no deadline mentioned, use null
-   - Category: Classify as follow_up, demo, proposal, contract, technical, or other
+   - Category: Map to ONE of: call, email, meeting, follow_up, proposal, demo, general (use general for anything else)
    - Priority: Assess as high (urgent/time-sensitive), medium (important but flexible), or low (nice to have)
    - Confidence: How confident are you this is a real action item (0.0 to 1.0)
      * 0.9-1.0: Explicit commitment ("I will...")
@@ -166,7 +167,7 @@ Please analyze the transcript and provide:
    - Reasoning: Brief explanation of why you gave this score
    - Key moments: List 2-3 significant positive or negative moments
 
-Return ONLY valid JSON in this exact format:
+Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most important action items that meet the criteria:
 {
   "actionItems": [
     {
@@ -201,7 +202,7 @@ Return ONLY valid JSON in this exact format:
       "assignedTo": "Customer",
       "assignedToEmail": null,
       "deadline": null,
-      "category": "contract",
+      "category": "general",
       "priority": "high",
       "confidence": 0.8
     }
@@ -226,10 +227,11 @@ IMPORTANT:
 - Return ONLY the JSON, no other text
 - Use null for missing values
 - Ensure all percentages sum to 100
-- Be thorough - extract ALL action items (aim for at least 3-5 per sales call)
 - Include BOTH sales rep tasks AND customer/prospect tasks
-- Don't be conservative - if something was discussed as a next step, include it
-- Mark confidence appropriately (0.5-0.7 for implied actions is acceptable)
+- Exclude ideas or vague statements (e.g., "it might be good to...", "we could consider...")
+- Only include items with clear ownership and a concrete verb (send, schedule, review, provide, decide, sign, integrate, configure, follow up)
+- Prefer items with an explicit or reasonably inferred deadline
+- Mark confidence appropriately; avoid items below 0.7 confidence
 - If truly no action items found, return empty array (but this should be rare for sales calls)`
 }
 

@@ -350,19 +350,10 @@ const MeetingDetail: React.FC = () => {
     if (!meeting) return
     setIsExtracting(true)
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Not authenticated')
-
-      const res = await fetch(`${supabase.supabaseUrl}/functions/v1/extract-action-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ meetingId: meeting.id })
+      const { data, error } = await supabase.functions.invoke('extract-action-items', {
+        body: { meetingId: meeting.id }
       })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json?.error || 'Failed to extract action items')
+      if (error) throw error
 
       const { data: actionItemsData } = await supabase
         .from('meeting_action_items')
@@ -371,7 +362,7 @@ const MeetingDetail: React.FC = () => {
         .order('deadline_at', { ascending: true })
       setActionItems(actionItemsData || [])
 
-      const created = Number(json?.itemsCreated || 0)
+      const created = Number((data as any)?.itemsCreated || 0)
       if (created === 0) toast.info('No Action Items From Meeting')
       else toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`)
     } catch (e) {
@@ -477,20 +468,22 @@ const MeetingDetail: React.FC = () => {
           </div>
           
           <div className="flex gap-2">
-            <Badge 
+            <Badge
               variant={sentimentTone(meeting.sentiment_score) as any}
               className="backdrop-blur-sm"
             >
               {sentimentLabel(meeting.sentiment_score)}
             </Badge>
-            <Button 
-              size="sm" 
-              onClick={handleGetActionItems} 
-              disabled={isExtracting}
-              className="bg-emerald-600/80 hover:bg-emerald-600"
-            >
-              {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
-            </Button>
+            {actionItems.length === 0 && (
+              <Button
+                size="sm"
+                onClick={handleGetActionItems}
+                disabled={isExtracting}
+                className="bg-emerald-600/80 hover:bg-emerald-600"
+              >
+                {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
+              </Button>
+            )}
             {meeting.coach_rating !== null && (
               <Badge variant="secondary" className="backdrop-blur-sm">
                 Coach {meeting.coach_rating}%

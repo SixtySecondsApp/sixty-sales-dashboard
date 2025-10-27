@@ -21,7 +21,9 @@ import {
   Flag,
   Users,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Play,
+  Video
 } from 'lucide-react';
 
 import { useTasks } from '@/lib/hooks/useTasks';
@@ -41,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 
 interface TaskListProps {
   showCompleted?: boolean;
@@ -172,6 +175,14 @@ const TaskList: React.FC<TaskListProps> = ({
       overdue: 'bg-red-600/10 text-red-400 border-red-600/20'
     };
     return colors[status] || colors.pending;
+  };
+
+  const formatTimestamp = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   const formatDueDate = (dueDate: string) => {
@@ -486,28 +497,54 @@ const TaskList: React.FC<TaskListProps> = ({
                                       )}
 
                                       <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
-                                        {/* Contact Info */}
-                                        {(task.contact_name || task.contacts?.full_name) && (
-                                          <div className="flex items-center gap-1">
-                                            <User className="w-3 h-3" />
-                                            <span>{task.contact_name || task.contacts?.full_name}</span>
-                                          </div>
-                                        )}
-                                        
-                                        {/* Company Info */}
-                                        {(task.company || task.companies?.name) && (
-                                          <div className="flex items-center gap-1">
+                                        {/* Company Info - clickable link */}
+                                        {(task as any).company && (
+                                          <Link 
+                                            to={`/companies/${(task as any).company.id}`}
+                                            className="flex items-center gap-1 hover:text-blue-400 transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
                                             <Building2 className="w-3 h-3" />
-                                            <span>{task.company || task.companies?.name}</span>
-                                          </div>
+                                            <span>{(task as any).company.name}</span>
+                                          </Link>
                                         )}
 
-                                        {/* Deal Info */}
-                                        {task.deal?.name && (
-                                          <div className="flex items-center gap-1">
-                                            <ExternalLink className="w-3 h-3" />
-                                            <span>{task.deal.name}</span>
-                                          </div>
+                                        {/* Contact Info - clickable link */}
+                                        {(task as any).contact && (
+                                          <Link 
+                                            to={`/crm/contacts/${(task as any).contact.id}`}
+                                            className="flex items-center gap-1 hover:text-blue-400 transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <User className="w-3 h-3" />
+                                            <span>{(task as any).contact.full_name || (task as any).contact.email}</span>
+                                          </Link>
+                                        )}
+
+                                        {/* Meeting Link */}
+                                        {(task as any).meeting_action_item?.meeting && (
+                                          <Link 
+                                            to={`/meetings/${(task as any).meeting_action_item.meeting.id}`}
+                                            className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Video className="w-3 h-3" />
+                                            <span>{(task as any).meeting_action_item.meeting.title || 'Meeting'}</span>
+                                          </Link>
+                                        )}
+
+                                        {/* Playback timestamp button */}
+                                        {(task as any).meeting_action_item?.timestamp_seconds != null && (task as any).meeting_action_item?.playback_url && (
+                                          <a
+                                            href={(task as any).meeting_action_item.playback_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <Play className="w-3 h-3" />
+                                            <span>{formatTimestamp((task as any).meeting_action_item.timestamp_seconds)}</span>
+                                          </a>
                                         )}
                                         
                                         {/* Due Date */}

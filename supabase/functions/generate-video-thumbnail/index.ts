@@ -71,36 +71,29 @@ serve(async (req) => {
           } catch { return share_url } })()
       : null
 
-    // Use OUR public thumbnail page for screenshots (bypasses auth, just shows video)
-    const appUrl = Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'
-    const targetUrl = meeting_id
-      ? `${appUrl}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}${timestamp_seconds ? `&t=${timestamp_seconds}` : ''}`
-      : (shareWithTs || embedWithTs)
+    // Always screenshot the Fathom public share URL (preferred), fallback to embed URL
+    const targetUrl = shareWithTs || embedWithTs
 
     let thumbnailUrl: string | null = null
 
-    const onlyBrowserless = (Deno.env.get('ONLY_BROWSERLESS') || Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')) === 'true'
+    // Microlink multi-strategy capture (5s -> 3s -> viewport)
+    console.log('📸 Attempting thumbnail capture with Microlink (multi-strategy)...')
+    thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
 
-    // A) Self-hosted Browserless (preferred, no per-call vendor cost)
-    // Screenshot our public thumbnail page when meeting_id is provided (better control)
-    // Otherwise, screenshot Fathom's share page directly
-    thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, meeting_id ? 'app' : 'fathom', meeting_id)
+    if (!thumbnailUrl) {
+      console.log('📸 Microlink failed, trying ScreenshotOne...')
+      thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
+    }
 
-    if (!onlyBrowserless) {
-      // B) Microlink screenshot
-      if (!thumbnailUrl) {
-        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
-      }
+    if (!thumbnailUrl) {
+      console.log('📸 ScreenshotOne failed, trying ApiFlash...')
+      thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
+    }
 
-      // C) ScreenshotOne
-      if (!thumbnailUrl) {
-        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
-      }
-
-      // D) APIFLASH
-      if (!thumbnailUrl) {
-        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
-      }
+    // Only try Browserless as last resort if configured and all else fails
+    if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL')) {
+      console.log('📸 All services failed, trying Browserless as last resort (fathom mode)...')
+      thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom')
     }
 
     // E) Last resort: og:image (often unavailable per user)
@@ -186,86 +179,110 @@ async function captureVideoThumbnail(
 
 /**
  * Capture screenshot using Microlink API (free tier)
- * Try multiple strategies: video element selector, then full page with overlay hiding
+ * For our full-screen video page, just capture the entire viewport
+ * For Fathom pages, try video selectors
  */
 async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
-  // Strategy 1: Try to capture ONLY the <video> tag, not containers
-  // The video tag itself should have the actual video content
+  // Helper: promise race with timeout
+  const raceWithTimeout = async <T>(promise: Promise<T>, ms: number, context: string): Promise<T> => {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${context}`)), ms)),
+    ])
+  }
+
+  // Strategy for Fathom pages: Try to capture ONLY the <video> tag
   const videoSelectors = [
-    'video',                     // Direct video tag (MOST IMPORTANT)
-    'video-player video',        // Video inside custom element
-    'section video',             // Video inside section
-    'div.relative video',        // Video in relative positioned div
-    '[class*="video-"]',         // Any class with video- prefix
-    'video-player',              // Last resort: custom element (captures whole page)
+    'video',
+    'video-player video',
+    'section video',
+    'div.relative video',
+    '[class*="video-"]',
+    'video-player',
   ]
 
-  for (const selector of videoSelectors) {
-    try {
-      // Use Microlink's element hiding feature to isolate the video
-      const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
-        url,
-        screenshot: 'true',
-        meta: 'false',
-        'viewport.width': '1920',
-        'viewport.height': '1080',
-        'viewport.deviceScaleFactor': '2',
-        waitFor: '10000',
-        // Capture ONLY the video element, nothing else
-        'screenshot.element': selector,
-        // Hide all overlay UI elements
-        'screenshot.overlay.browser': 'false',
-        'screenshot.overlay.background': 'transparent',
-        // Remove scrollbars and UI chrome
-        'screenshot.scrollElement': 'false'
-      }).toString()
+  const trySelectors = async (waitMs: number): Promise<ArrayBuffer | null> => {
+    for (const selector of videoSelectors) {
+      try {
+        const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
+          url,
+          screenshot: 'true',
+          meta: 'false',
+          'viewport.width': '1920',
+          'viewport.height': '1080',
+          'viewport.deviceScaleFactor': '2',
+          waitFor: String(waitMs),
+          'screenshot.element': selector,
+          'screenshot.overlay.browser': 'false',
+          'screenshot.overlay.background': 'transparent',
+          'screenshot.scrollElement': 'false'
+        }).toString()
 
-      console.log(`📡 Trying Microlink with selector: ${selector}`)
+        console.log(`📡 Microlink selector=${selector}, waitFor=${waitMs}ms`)
 
-      const response = await fetch(microlinkUrl)
+        const response = await fetch(microlinkUrl)
+        if (!response.ok) {
+          console.log(`Microlink failed for selector "${selector}": ${response.status}`)
+          continue
+        }
 
-      if (!response.ok) {
-        console.log(`Microlink failed for selector "${selector}": ${response.status}`)
-        continue // Try next selector
+        const data = await response.json()
+        const screenshotUrl = data?.data?.screenshot?.url
+        if (!screenshotUrl) {
+          console.log(`No screenshot URL for selector "${selector}"`)
+          continue
+        }
+
+        const imageResponse = await fetch(screenshotUrl)
+        if (!imageResponse.ok) {
+          console.log(`Failed to download screenshot: ${imageResponse.status}`)
+          continue
+        }
+
+        const imageBuffer = await imageResponse.arrayBuffer()
+        if (imageBuffer.byteLength > 10000) {
+          console.log(`✅ Screenshot captured with selector "${selector}" (${imageBuffer.byteLength} bytes)`)
+          return imageBuffer
+        } else {
+          console.log(`Screenshot too small with selector "${selector}", trying next...`)
+        }
+      } catch (error) {
+        console.log(`Error with selector "${selector}":`, error)
+        continue
       }
+    }
+    return null
+  }
 
-      const data = await response.json()
-      const screenshotUrl = data?.data?.screenshot?.url
-
-      if (!screenshotUrl) {
-        console.log(`No screenshot URL for selector "${selector}"`)
-        continue // Try next selector
-      }
-
-      // Download the screenshot
-      console.log(`📥 Downloading screenshot from: ${screenshotUrl}`)
-      const imageResponse = await fetch(screenshotUrl)
-
-      if (!imageResponse.ok) {
-        console.log(`Failed to download screenshot: ${imageResponse.status}`)
-        continue // Try next selector
-      }
-
-      const imageBuffer = await imageResponse.arrayBuffer()
-
-      // Check if image is reasonable size (not tiny placeholder)
-      if (imageBuffer.byteLength > 10000) { // At least 10KB
-        console.log(`✅ Screenshot captured with selector "${selector}" (${imageBuffer.byteLength} bytes)`)
-        return imageBuffer
-      } else {
-        console.log(`Screenshot too small with selector "${selector}", trying next...`)
-      }
-    } catch (error) {
-      console.log(`Error with selector "${selector}":`, error)
-      continue // Try next selector
+  // Strategy 1: selectors with 5s wait, 15s overall timeout
+  try {
+    const result = await raceWithTimeout(trySelectors(5000), 15000, 'microlink:selectors-5s')
+    if (result) return result
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('timeout:')) {
+      console.log('⏱️ Microlink 5s selector attempt timed out, trying 3s...')
+    } else {
+      console.log('Microlink 5s selector attempt failed:', e)
     }
   }
 
-  // Strategy 2: If all selectors fail, capture full page (fallback)
+  // Strategy 2: selectors with 3s wait, 15s overall timeout
   try {
-    console.log('📡 Falling back to full page screenshot...')
+    const result = await raceWithTimeout(trySelectors(3000), 15000, 'microlink:selectors-3s')
+    if (result) return result
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('timeout:')) {
+      console.log('⏱️ Microlink 3s selector attempt timed out, falling back to viewport...')
+    } else {
+      console.log('Microlink 3s selector attempt failed:', e)
+    }
+  }
+
+  // Strategy 3: viewport-only capture as final Microlink fallback
+  try {
+    console.log('📡 Microlink viewport-only fallback...')
     const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
       url,
       screenshot: 'true',
@@ -273,44 +290,43 @@ async function captureWithMicrolink(
       'viewport.width': '1920',
       'viewport.height': '1080',
       'viewport.deviceScaleFactor': '1',
-      waitFor: '8000',
-      // Capture full page as last resort
+      waitFor: '2000',
       'screenshot.fullPage': 'false',
+      'screenshot.overlay.browser': 'false',
+      'screenshot.overlay.background': 'transparent',
     }).toString()
 
-    const response = await fetch(microlinkUrl)
-
+    const response = await raceWithTimeout(fetch(microlinkUrl), 15000, 'microlink:viewport')
     if (!response.ok) {
-      console.error(`Microlink full page screenshot failed: ${response.status}`)
+      console.error(`Microlink viewport screenshot failed: ${response.status}`)
       return null
     }
 
     const data = await response.json()
     const screenshotUrl = data?.data?.screenshot?.url
-
     if (!screenshotUrl) {
-      console.error('No screenshot URL in Microlink response')
+      console.error('No screenshot URL in Microlink viewport response')
       return null
     }
 
     const imageResponse = await fetch(screenshotUrl)
     if (!imageResponse.ok) {
-      console.error(`Failed to download screenshot: ${imageResponse.status}`)
+      console.error(`Failed to download viewport screenshot: ${imageResponse.status}`)
       return null
     }
 
     const imageBuffer = await imageResponse.arrayBuffer()
-    console.log(`✅ Full page screenshot captured (${imageBuffer.byteLength} bytes)`)
+    console.log(`✅ Viewport screenshot captured (${imageBuffer.byteLength} bytes)`)
     return imageBuffer
   } catch (error) {
-    console.error(`❌ Microlink error:`, error)
+    console.error(`❌ Microlink viewport error:`, error)
     return null
   }
 }
 
 /**
- * Self-hosted Browserless: capture screenshot of video element if present
- * Improved selector strategy for Fathom video players
+ * Self-hosted Browserless: capture screenshot using Playwright /function endpoint
+ * This gives us full control over the browser and wait conditions
  * @param mode 'app' = screenshot our app's meeting page (targets iframe), 'fathom' = screenshot Fathom page directly
  */
 async function captureWithBrowserlessAndUpload(url: string, recordingId: string, mode: 'app' | 'fathom' = 'fathom', meetingId?: string): Promise<string | null> {
@@ -319,75 +335,65 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
   if (!base || !token) return null
 
   try {
-    // Different selectors based on what page we're screenshotting
-    const selectors = mode === 'app'
-      ? [
-          'iframe[src*="fathom"]',        // PRIMARY: Target the Fathom iframe in OUR app
-          'iframe',                       // Fallback: Any iframe
-          '.glassmorphism-card iframe',   // Our app's video container
-        ]
-      : [
-          'video',                        // Direct HTML5 video element (PRIMARY)
-          'video-player video',           // Video inside custom element
-          'section video',                // Video inside section tag
-          'div.relative video',           // Video in relative positioned div
-          '[class*="video-"]',            // Any class with video- prefix
-          'video-player',                 // Custom element (may capture whole page)
-        ]
+    console.log(`🎯 Using Browserless Playwright function for ${mode} mode`)
+    console.log(`📍 Target URL: ${url}`)
 
-    for (const selector of selectors) {
-      console.log(`🎯 Trying Browserless with selector: ${selector}`)
-      const params = new URLSearchParams({
-        token,
-        url,
-        format: 'jpeg',
-        quality: '85',
-        fullPage: 'false',
-        blockAds: 'true',
-        'viewport.width': '1920',
-        'viewport.height': '1080',
-        delay: '8000', // Extra time for Fathom to load and seek
-        selector,
-      })
-      const endpoint = `${base.replace(/\/$/, '')}/screenshot?${params.toString()}`
-      const resp = await fetch(endpoint)
+    // Use Playwright function API for full control
+    const playwrightScript = mode === 'app'
+      ? `
+        // App mode: Wait for our full-screen video page to load
+        // Since the video fills the entire viewport, screenshot the whole page
+        export default async function({ page }) {
+          await page.goto('${url}', { waitUntil: 'networkidle', timeout: 30000 });
 
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer()
-        // Check for reasonable size (not a tiny placeholder or empty)
-        if (buf.byteLength > 10000) { // At least 10KB for a real video frame
-          console.log(`✅ Browserless succeeded with selector "${selector}" (${buf.byteLength} bytes)`)
-          return await uploadToStorage(buf, recordingId, meetingId)
-        } else {
-          console.log(`⚠️  Screenshot too small with "${selector}", trying next...`)
+          // Wait for page marker
+          await page.waitForSelector('[data-thumbnail-ready="true"]', { timeout: 10000 });
+
+          // Wait for iframe to load
+          await page.waitForSelector('iframe[src*="fathom"], iframe[src*="embed"]', { timeout: 15000 });
+
+          // Give video player time to initialize and load frame
+          await page.waitForTimeout(5000);
+
+          // Screenshot entire viewport (video fills it completely)
+          return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
         }
-      } else {
-        console.log(`❌ Browserless failed with selector "${selector}": ${resp.status}`)
-      }
-    }
+      `
+      : `
+        // Fathom mode: Screenshot Fathom page directly
+        export default async function({ page }) {
+          await page.goto('${url}', { waitUntil: 'networkidle', timeout: 30000 });
 
-    // Last resort: capture viewport without selector (full page)
-    console.log('🔄 Trying Browserless without selector (full viewport)...')
-    const params = new URLSearchParams({
-      token,
-      url,
-      format: 'jpeg',
-      quality: '85',
-      fullPage: 'false',
-      blockAds: 'true',
-      'viewport.width': '1920',
-      'viewport.height': '1080',
-      delay: '8000',
+          // Wait for video element
+          const video = await page.waitForSelector('video', { timeout: 15000 });
+          if (!video) throw new Error('Video element not found');
+
+          // Give video player time to load frame
+          await page.waitForTimeout(3000);
+
+          // Screenshot just the video element
+          return await video.screenshot({ type: 'jpeg', quality: 85 });
+        }
+      `
+
+    const endpoint = `${base.replace(/\/$/, '')}/function?token=${token}`
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/javascript' },
+      body: playwrightScript,
     })
-    const endpoint = `${base.replace(/\/$/, '')}/screenshot?${params.toString()}`
-    const resp = await fetch(endpoint)
 
     if (resp.ok) {
       const buf = await resp.arrayBuffer()
-      if (buf.byteLength > 0) {
-        console.log(`✅ Browserless full viewport captured (${buf.byteLength} bytes)`)
+      if (buf.byteLength > 10000) { // At least 10KB for a real video frame
+        console.log(`✅ Browserless Playwright succeeded (${buf.byteLength} bytes)`)
         return await uploadToStorage(buf, recordingId, meetingId)
+      } else {
+        console.log(`⚠️  Screenshot too small (${buf.byteLength} bytes)`)
       }
+    } else {
+      const errorText = await resp.text()
+      console.log(`❌ Browserless failed: ${resp.status} - ${errorText}`)
     }
 
     return null

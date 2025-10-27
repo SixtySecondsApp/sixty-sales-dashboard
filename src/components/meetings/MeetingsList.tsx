@@ -185,7 +185,12 @@ const MeetingsList: React.FC = () => {
 
           // Persist and update local state
           // If function persisted it (db_updated), skip client-side write
-          if (!(data as any)?.db_updated) {
+          if (!(/* from invoke response */ (arguments as any)) && !(/* keep TS happy */ false)) {}
+          if (!(/* invoke result */ ({} as any))) {}
+          // If function didn't update DB directly, persist client-side
+          // Note: fix reference to undefined "data" by using a flag from the same scope
+          // We don't have a db_updated flag here, so always persist
+          {
             await supabase
               .from('meetings')
               .update({ thumbnail_url: thumbnailUrl })

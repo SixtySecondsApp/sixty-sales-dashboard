@@ -53,6 +53,10 @@ import { DateFilter, DateRangePreset, DateRange } from '@/components/ui/date-fil
 import { SubscriptionStats } from './SubscriptionStats';
 import { Badge } from './Pipeline/Badge';
 import logger from '@/lib/utils/logger';
+import { useDeals } from '@/lib/hooks/useDeals';
+import { useDealStages as useSimpleDealStages } from '@/lib/hooks/useDealStages';
+import { supabase } from '@/lib/supabase/clientV2';
+import { Link } from 'react-router-dom';
 // ActivityFilters component created inline to avoid import issues
 
 interface StatCardProps {
@@ -92,6 +96,55 @@ export function SalesTable() {
   const [showFilters, setShowFilters] = useState(false); // State for filters panel
   const [showSubscriptionStats, setShowSubscriptionStats] = useState(false); // State for subscription cards visibility
   const hasLoggedInitialSync = useRef(false);
+
+  // Add Deal modal state
+  const [addDealForActivity, setAddDealForActivity] = useState<Activity | null>(null);
+  const [newDealCompany, setNewDealCompany] = useState('');
+  const [newDealName, setNewDealName] = useState('');
+  const [newDealValue, setNewDealValue] = useState<number | ''>('');
+  const [newDealOneOff, setNewDealOneOff] = useState<number | ''>('');
+  const [newDealMRR, setNewDealMRR] = useState<number | ''>('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [expectedClose, setExpectedClose] = useState<string>('');
+  const [dealDescription, setDealDescription] = useState('');
+  const [newDealStageId, setNewDealStageId] = useState<string>('');
+  const { stages: dealStages } = useSimpleDealStages();
+  const { createDeal } = useDeals(userData?.id);
+  const [createdDealId, setCreatedDealId] = useState<string | null>(null);
+  const [prefillCompanyId, setPrefillCompanyId] = useState<string | undefined>(undefined);
+
+  const clampWords = (text: string, maxWords: number) => {
+    const words = text.trim().split(/\s+/);
+    if (words.length <= maxWords) return text.trim();
+    return words.slice(0, maxWords).join(' ') + '…';
+  };
+
+  const inferExpectedCloseDate = (sourceText: string, meetingOrActivityDateISO: string) => {
+    try {
+      const base = new Date(meetingOrActivityDateISO);
+      const text = sourceText.toLowerCase();
+      const addDays = (d: number) => new Date(base.getTime() + d * 24 * 60 * 60 * 1000);
+
+      if (/tomorrow/.test(text)) return addDays(1).toISOString().slice(0, 10);
+      if (/next week/.test(text)) return addDays(7).toISOString().slice(0, 10);
+      if (/end of week|by friday/.test(text)) {
+        const day = base.getDay();
+        const diff = ((5 - day) + 7) % 7 || 7; // days until Friday
+        return addDays(diff).toISOString().slice(0, 10);
+      }
+      const inDays = text.match(/in\s+(\d{1,2})\s+days?/);
+      if (inDays) return addDays(parseInt(inDays[1], 10)).toISOString().slice(0, 10);
+      if (/next month/.test(text)) {
+        const dt = new Date(base);
+        dt.setMonth(dt.getMonth() + 1);
+        return dt.toISOString().slice(0, 10);
+      }
+      // Default: 14 days from base date
+      return addDays(14).toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
+  };
   
   // Sync date state with filters when navigating from dashboard
   useEffect(() => {
@@ -409,6 +462,136 @@ export function SalesTable() {
 
   const handleEdit = (activity: Activity) => {
     setEditingActivity(activity);
+  };
+
+  const openAddDealModal = (activity: Activity) => {
+    setAddDealForActivity(activity);
+    const defaultCompany = activity.client_name || '';
+    setNewDealCompany(defaultCompany);
+    setNewDealName(defaultCompany ? `${defaultCompany} Opportunity` : 'New Opportunity');
+    // Default stage: Opportunity, else first available
+    const opportunity = dealStages?.find(s => s.name === 'Opportunity') || dealStages?.[0];
+    setNewDealStageId(opportunity?.id || '');
+    setNewDealValue(activity.amount ?? '');
+    setNewDealOneOff('');
+    setNewDealMRR('');
+    setCompanyWebsite('');
+    setExpectedClose('');
+    setDealDescription('');
+    setPrefillCompanyId(undefined);
+
+    // Autofill from linked meeting if available
+    const loadFromMeeting = async () => {
+      try {
+        const meetingId = (activity as any).meeting_id;
+        if (!meetingId) return;
+
+        const { data: meeting } = await (supabase as any)
+          .from('meetings')
+          .select('id, summary, transcript_text, meeting_start, company_id')
+          .eq('id', meetingId)
+          .single();
+
+        if (meeting?.company_id) setPrefillCompanyId(meeting.company_id);
+
+        let text: string | null = meeting?.summary || meeting?.transcript_text || null;
+        // Try to fetch transcript if missing
+        if (!text && meetingId) {
+          try {
+            const resp = await supabase.functions.invoke('fetch-transcript', { body: { meetingId } });
+            if (!(resp as any).error && (resp as any).data?.transcript) {
+              text = (resp as any).data.transcript as string;
+            }
+          } catch {}
+        }
+
+        if (text) {
+          const fallbackDateISO = activity.date || new Date().toISOString();
+          const baseDateISO = meeting?.meeting_start || fallbackDateISO;
+          const inferred = inferExpectedCloseDate(text, baseDateISO);
+          if (inferred) setExpectedClose(inferred);
+          setDealDescription(clampWords(text, 100));
+        }
+      } catch (e) {
+        logger.warn('Autofill from meeting failed:', e);
+      }
+    };
+    loadFromMeeting();
+  };
+
+  const handleConfirmAddDeal = async () => {
+    try {
+      if (!addDealForActivity) return;
+      if (!newDealCompany || !newDealName || !newDealStageId) {
+        toast.error('Please provide name, company, and stage');
+        return;
+      }
+
+      const selectedStage = dealStages?.find(s => s.id === newDealStageId);
+      const probability = selectedStage?.default_probability ?? 25;
+
+      // Best-effort: map company website to companies table and use company_id
+      let companyId: string | undefined = prefillCompanyId;
+      if (companyWebsite) {
+        try {
+          const normalizedUrl = companyWebsite.startsWith('http') ? companyWebsite : `https://${companyWebsite}`;
+          const domain = new URL(normalizedUrl).hostname.replace(/^www\./, '');
+          // Try find company by domain or website
+          const { data: existingCompanies } = await (supabase as any)
+            .from('companies')
+            .select('id, website, domain')
+            .or(`domain.ilike.%${domain}%,website.ilike.%${domain}%`)
+            .limit(1);
+          if (existingCompanies && existingCompanies.length > 0) {
+            companyId = existingCompanies[0].id;
+          } else {
+            const companyName = newDealCompany || domain.split('.')[0];
+            const { data: newCompany } = await (supabase as any)
+              .from('companies')
+              .insert({ name: companyName, website: normalizedUrl, domain, owner_id: userData?.id })
+              .select('id')
+              .single();
+            companyId = newCompany?.id;
+          }
+        } catch (e) {
+          // Non-fatal
+          logger.warn('Company website mapping failed:', e);
+        }
+      }
+
+      const created = await createDeal({
+        name: newDealName,
+        company: newDealCompany,
+        value: typeof newDealValue === 'number' ? newDealValue : ((typeof newDealOneOff === 'number' ? newDealOneOff : 0) + (typeof newDealMRR === 'number' ? newDealMRR : 0)),
+        stage_id: newDealStageId,
+        owner_id: userData?.id || '',
+        probability,
+        status: 'active',
+        one_off_revenue: typeof newDealOneOff === 'number' ? newDealOneOff : null,
+        monthly_mrr: typeof newDealMRR === 'number' ? newDealMRR : null,
+        expected_close_date: expectedClose || undefined,
+        description: dealDescription || undefined,
+        company_id: companyId,
+      } as any);
+
+      if (created?.id) {
+        await updateActivity({ id: addDealForActivity.id, updates: { deal_id: created.id } });
+        setCreatedDealId(created.id);
+        toast.success('Deal created and activity linked', {
+          action: {
+            label: 'View in Pipeline',
+            onClick: () => {
+              window.location.href = '/pipeline';
+            }
+          }
+        });
+      }
+    } catch (e) {
+      logger.error('Failed to create and link deal:', e);
+      toast.error('Failed to create deal');
+    } finally {
+      setAddDealForActivity(null);
+    }
   };
 
   const handleDelete = (id: string | null) => {
@@ -846,6 +1029,19 @@ export function SalesTable() {
           if (!activity) return null;
           return (
             <div className="flex items-center justify-end gap-2">
+              {!activity.deal_id && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAddDealModal(activity);
+                  }}
+                >
+                  Add Deal
+                </Button>
+              )}
               <Dialog 
                 open={editingActivity?.id === activity.id} 
                 onOpenChange={(isOpen) => {
@@ -1540,6 +1736,135 @@ export function SalesTable() {
               className="bg-red-500 hover:bg-red-600 text-white"
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Deal Dialog */}
+      <Dialog open={!!addDealForActivity} onOpenChange={(open) => !open && setAddDealForActivity(null)}>
+        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle>Add Deal</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Prospect (Company)</label>
+              <input
+                type="text"
+                value={newDealCompany}
+                onChange={(e) => {
+                  setNewDealCompany(e.target.value);
+                  if (!newDealName || newDealName.endsWith(' Opportunity')) {
+                    setNewDealName(`${e.target.value} Opportunity`);
+                  }
+                }}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Acme Corp"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Deal Name</label>
+              <input
+                type="text"
+                value={newDealName}
+                onChange={(e) => setNewDealName(e.target.value)}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Acme Corp Opportunity"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Company Website (optional)</label>
+              <input
+                type="text"
+                value={companyWebsite}
+                onChange={(e) => setCompanyWebsite(e.target.value)}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="https://company.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Stage</label>
+              <select
+                value={newDealStageId}
+                onChange={(e) => setNewDealStageId(e.target.value)}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              >
+                {(dealStages || []).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">One-off Revenue (£)</label>
+                <input
+                  type="number"
+                  value={newDealOneOff}
+                  onChange={(e) => setNewDealOneOff(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Monthly Recurring (£)</label>
+                <input
+                  type="number"
+                  value={newDealMRR}
+                  onChange={(e) => setNewDealMRR(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Expected Close Date</label>
+                <input
+                  type="date"
+                  value={expectedClose}
+                  onChange={(e) => setExpectedClose(e.target.value)}
+                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Value (optional)</label>
+                <input
+                  type="number"
+                  value={newDealValue}
+                  onChange={(e) => setNewDealValue(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm text-gray-300">Description (auto from meeting)</label>
+              <textarea
+                value={dealDescription}
+                onChange={(e) => setDealDescription(e.target.value)}
+                rows={3}
+                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Short summary of conversation"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setAddDealForActivity(null)}
+              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmAddDeal}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              disabled={!newDealCompany || !newDealName || !newDealStageId}
+            >
+              Confirm
             </Button>
           </DialogFooter>
         </DialogContent>

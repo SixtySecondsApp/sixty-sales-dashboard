@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Task } from '@/lib/database/models';
 import { googleTasksSync } from '@/lib/services/googleTasksSync';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const TasksPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
   const [view, setView] = useState<'list' | 'kanban'>('kanban');
@@ -21,7 +22,13 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     checkGoogleConnection();
-  }, []);
+
+    // Check if there's a task_id in the URL query params
+    const taskId = searchParams.get('task_id');
+    if (taskId) {
+      openTaskById(taskId);
+    }
+  }, [searchParams]);
 
   const checkGoogleConnection = async () => {
     try {
@@ -29,6 +36,54 @@ const TasksPage: React.FC = () => {
       setIsGoogleConnected(connected);
     } catch (error) {
       console.error('Failed to check Google connection:', error);
+    }
+  };
+
+  const openTaskById = async (taskId: string) => {
+    try {
+      const { supabase } = await import('@/lib/supabase/clientV2');
+
+      const { data: task, error } = await supabase
+        .from('tasks')
+        .select(`
+          *,
+          assignee:profiles!assigned_to(id, first_name, last_name, email, avatar_url),
+          creator:profiles!created_by(id, first_name, last_name, email, avatar_url),
+          company:companies(id, name, domain),
+          contact:contacts(id, full_name, first_name, last_name, email),
+          meeting_action_item:meeting_action_items(
+            id,
+            meeting_id,
+            timestamp_seconds,
+            playback_url,
+            meeting:meetings(id, title, share_url)
+          )
+        `)
+        .eq('id', taskId)
+        .single();
+
+      if (error) {
+        toast.error('Failed to load task');
+        console.error('Error loading task:', error);
+        // Remove the task_id param from URL
+        searchParams.delete('task_id');
+        setSearchParams(searchParams);
+        return;
+      }
+
+      if (task) {
+        setEditingTask(task as Task);
+        setIsTaskFormOpen(true);
+        // Remove the task_id param from URL after opening
+        searchParams.delete('task_id');
+        setSearchParams(searchParams);
+      }
+    } catch (error) {
+      console.error('Error fetching task:', error);
+      toast.error('Failed to open task');
+      // Remove the task_id param from URL
+      searchParams.delete('task_id');
+      setSearchParams(searchParams);
     }
   };
 

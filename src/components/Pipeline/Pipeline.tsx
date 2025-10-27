@@ -180,11 +180,12 @@ function PipelineContent() {
 
   // Update local state when the context data changes
   useEffect(() => {
-    // Don't reset local state if we're in the middle of a drag operation or updating database
-    if (draggedId || isUpdatingDatabase) return;
-    
+    // Don't reset local state if we're in the middle of a drag operation
+    if (draggedId) return;
+
+    // Only update if there's actual new data (not just isUpdatingDatabase changing)
     setLocalDealsByStage(structuredClone(contextDealsByStage));
-  }, [contextDealsByStage, refreshKey, draggedId, isUpdatingDatabase]);
+  }, [contextDealsByStage, refreshKey, draggedId]);
 
   // Apply sorting to the local state
   useEffect(() => {
@@ -498,12 +499,14 @@ function PipelineContent() {
         }
       }
       
-      // Don't refresh immediately - the state is already updated optimistically
-      // Just cleanup the drag state
+      // Database updated successfully - keep the optimistic update
+      // No need to refresh, the state is already correct
+      setIsUpdatingDatabase(false);
     } catch (err) {
       // On error, revert the optimistic update
       toast.error('Failed to move deal. Please try again.');
-      
+      logger.error('Error updating deal stage:', err);
+
       // Revert to the original state from context
       setLocalDealsByStage(structuredClone(contextDealsByStage));
       setIsUpdatingDatabase(false);
@@ -515,11 +518,6 @@ function PipelineContent() {
       setDraggedOverIndex(null);
       setActiveDeal(null);
       lastValidOverStageRef.current = null;
-      
-      // Allow context updates after a delay to ensure database is updated
-      setTimeout(() => {
-        setIsUpdatingDatabase(false);
-      }, 1000);
     }
   };
 

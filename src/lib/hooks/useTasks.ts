@@ -90,14 +90,23 @@ export function useTasks(filters?: TaskFilters) {
       // Get the user ID with fallback for mock scenarios
       const currentUserId = userData.id || 'mock-user-id';
 
-      // Build the query without contact relations for now
+      // Build the query with company, contact, and meeting_action_item relations
       let query = supabase
         .from('tasks')
         .select(
           `
           *,
           assignee:profiles!assigned_to(id, first_name, last_name, email, avatar_url),
-          creator:profiles!created_by(id, first_name, last_name, email, avatar_url)
+          creator:profiles!created_by(id, first_name, last_name, email, avatar_url),
+          company:companies(id, name, domain),
+          contact:contacts(id, full_name, first_name, last_name, email),
+          meeting_action_item:meeting_action_items(
+            id,
+            meeting_id,
+            timestamp_seconds,
+            playback_url,
+            meeting:meetings(id, title, share_url)
+          )
         `
         )
         .order('due_date', { ascending: true, nullsFirst: false });

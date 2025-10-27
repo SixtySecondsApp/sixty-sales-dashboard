@@ -250,6 +250,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
                 <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
                 <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
+                <Route path="/crm/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
                 <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
                 <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
                 

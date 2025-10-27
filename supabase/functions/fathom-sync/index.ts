@@ -841,6 +841,7 @@ async function autoFetchTranscriptAndAnalyze(
       console.log(`💾 Storing ${uniqueAIActionItems.length} AI-generated action items...`)
 
       for (const item of uniqueAIActionItems) {
+        // Align column names with UI and triggers (auto task creation expects assignee_email, deadline_at)
         await supabase
           .from('meeting_action_items')
           .insert({
@@ -849,13 +850,15 @@ async function autoFetchTranscriptAndAnalyze(
             description: item.title,
             priority: item.priority,
             category: item.category,
-            assigned_to_name: item.assignedTo,
-            assigned_to_email: item.assignedToEmail,
-            deadline_date: item.deadline,
+            assignee_name: item.assignedTo || null,
+            assignee_email: item.assignedToEmail || null,
+            deadline_at: item.deadline ? new Date(item.deadline).toISOString() : null,
             ai_generated: true,
             ai_confidence: item.confidence,
             needs_review: item.confidence < 0.8, // Low confidence items need review
             completed: false,
+            timestamp_seconds: null,
+            playback_url: null,
           })
       }
 
@@ -987,22 +990,50 @@ async function syncSingleCall(
     // Call object already contains all necessary data from bulk API
     console.log(`🔄 Syncing call: ${call.title} (${call.recording_id})`)
 
-    // Resolve meeting owner by recorded_by.email if possible
-    let ownerUserId = userId
-    const recordedByEmail = call?.recorded_by?.email
-    if (recordedByEmail) {
+    // Helper: resolve the meeting owner user by email (robust across payload variants)
+    async function resolveOwnerUserIdFromEmail(email: string | null | undefined): Promise<string | null> {
+      if (!email) return null
       try {
-        const { data: ownerProfile } = await supabase
-          .from('profiles')
-          .select('id, email')
-          .eq('email', recordedByEmail)
+        // Prefer auth.users for canonical identity
+        const { data: au } = await supabase
+          .from('auth.users')
+          .select('id')
+          .eq('email', email)
           .single()
-        if (ownerProfile?.id) {
-          ownerUserId = ownerProfile.id
-        }
-      } catch {
-        // keep default
+        if (au?.id) return au.id
+      } catch (_) {}
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .single()
+        if (prof?.id) return prof.id
+      } catch (_) {}
+      return null
+    }
+
+    // Resolve meeting owner from multiple possible fields
+    let ownerUserId = userId
+    let ownerResolved = false
+    const possibleOwnerEmails: Array<string | null | undefined> = [
+      call?.recorded_by?.email,
+      call?.host_email,
+      (call?.host && typeof call.host === 'object' ? call.host.email : undefined),
+      // From participants/invitees: pick the first host
+      (Array.isArray(call?.participants) ? (call.participants.find((p: any) => p?.is_host)?.email) : undefined),
+      (Array.isArray(call?.calendar_invitees) ? (call.calendar_invitees.find((p: any) => p?.is_host)?.email) : undefined),
+    ]
+    let ownerEmailCandidate: string | null = null
+    for (const em of possibleOwnerEmails) {
+      const uid = await resolveOwnerUserIdFromEmail(em)
+      if (uid) {
+        ownerUserId = uid
+        ownerResolved = true
+        ownerEmailCandidate = em || null
+        break
       }
+      if (!ownerEmailCandidate && em) ownerEmailCandidate = em
     }
 
     // Calculate duration in minutes from recording start/end times
@@ -1050,7 +1081,7 @@ async function syncSingleCall(
       meeting_start: call.recording_start_time || call.scheduled_start_time,
       meeting_end: call.recording_end_time || call.scheduled_end_time,
       duration_minutes: durationMinutes,
-      owner_email: call.recorded_by?.email,
+      owner_email: ownerEmailCandidate || call.recorded_by?.email || call.host_email || null,
       team_name: call.recorded_by?.team || null,
       share_url: call.share_url,
       calls_url: call.url,
@@ -1245,21 +1276,22 @@ async function syncSingleCall(
           console.log(`✅ Created ${meetingContactRecords.length} meeting_contacts records`)
         }
 
-        // Conditional activity creation based on per-user preference and meeting date
+    // Conditional activity creation based on per-user preference and meeting date
         try {
           // Load user preference
-          const { data: settings } = await supabase
-            .from('user_settings')
-            .select('preferences')
-            .eq('user_id', ownerUserId)
-            .single()
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('preferences')
+        .eq('user_id', ownerUserId)
+        .single()
 
           const prefs = (settings?.preferences || {}) as any
           const autoPref = prefs.auto_fathom_activity || {}
           const enabled = !!autoPref.enabled
           const fromDateStr = typeof autoPref.from_date === 'string' ? autoPref.from_date : null
 
-          if (!enabled || !fromDateStr) {
+      // Only auto-log if: owner was resolved to an internal user AND preferences allow AND from_date provided
+      if (!ownerResolved || !enabled || !fromDateStr) {
             console.log(`📝 Skipping activity creation (preference disabled or no from_date)`)
           } else {
             // Only log if meeting_start is on/after from_date (user-locality not known; use ISO date)

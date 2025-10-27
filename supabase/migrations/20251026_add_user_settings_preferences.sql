@@ -10,3 +10,4 @@ CREATE INDEX IF NOT EXISTS idx_user_settings_preferences_gin
   USING GIN (preferences);
 
 
+
