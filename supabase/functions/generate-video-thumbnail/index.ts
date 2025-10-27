@@ -30,14 +30,22 @@ interface ThumbnailRequest {
 }
 
 serve(async (req) => {
+  console.log(`🚀 Function invoked: ${req.method}`)
+  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    console.log('📥 Parsing request body...')
     const { recording_id, share_url, fathom_embed_url, timestamp_seconds, meeting_id }: ThumbnailRequest = await req.json()
 
+    console.log(`   recording_id: ${recording_id}`)
+    console.log(`   share_url: ${share_url}`)
+    console.log(`   fathom_embed_url: ${fathom_embed_url}`)
+
     if (!recording_id || !fathom_embed_url) {
+      console.error('❌ Missing required fields')
       throw new Error('Missing required fields: recording_id and fathom_embed_url')
     }
 
@@ -74,26 +82,69 @@ serve(async (req) => {
     // Always screenshot the Fathom public share URL (preferred), fallback to embed URL
     const targetUrl = shareWithTs || embedWithTs
 
+    // Build our app's MeetingThumbnail page URL as preferred target for Browserless
+    // This avoids iframe CORS issues by showcasing video full-screen in our app
+    const appUrl = meeting_id
+      ? `${Deno.env.get('APP_URL') || 'https://app.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}&t=${timestamp_seconds || 30}`
+      : null
+
     let thumbnailUrl: string | null = null
 
-    // Microlink multi-strategy capture (5s -> 3s -> viewport)
-    console.log('📸 Attempting thumbnail capture with Microlink (multi-strategy)...')
-    thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
+    // Check if we should skip third-party services
+    const onlyBrowserlessValue = Deno.env.get('ONLY_BROWSERLESS')
+    const disableThirdPartyValue = Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')
+    const onlyBrowserless = onlyBrowserlessValue === 'true'
+    const disableThirdParty = disableThirdPartyValue === 'true'
+    const skipThirdParty = onlyBrowserless || disableThirdParty
 
-    if (!thumbnailUrl) {
-      console.log('📸 Microlink failed, trying ScreenshotOne...')
-      thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
+    console.log(`🔧 Environment check:`)
+    console.log(`   ONLY_BROWSERLESS="${onlyBrowserlessValue}" (skip=${onlyBrowserless})`)
+    console.log(`   DISABLE_THIRD_PARTY="${disableThirdPartyValue}" (skip=${disableThirdParty})`)
+    console.log(`   skipThirdParty=${skipThirdParty}`)
+
+    if (!skipThirdParty) {
+      // Try third-party services first
+      // Microlink multi-strategy capture (5s -> 3s -> viewport)
+      console.log('📸 Attempting thumbnail capture with Microlink (multi-strategy)...')
+      console.log(`   URL: ${targetUrl}`)
+      thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
+      
+      if (thumbnailUrl) {
+        console.log('✅ Microlink succeeded!')
+      } else {
+        console.log('❌ Microlink failed, trying ScreenshotOne...')
+        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
+        
+        if (thumbnailUrl) {
+          console.log('✅ ScreenshotOne succeeded!')
+        }
+      }
+
+      if (!thumbnailUrl) {
+        console.log('❌ ScreenshotOne failed, trying ApiFlash...')
+        thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
+        
+        if (thumbnailUrl) {
+          console.log('✅ ApiFlash succeeded!')
+        }
+      }
+    } else {
+      console.log('📸 Skipping third-party services (ONLY_BROWSERLESS or DISABLE_THIRD_PARTY_SCREENSHOTS set)')
     }
 
-    if (!thumbnailUrl) {
-      console.log('📸 ScreenshotOne failed, trying ApiFlash...')
-      thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
-    }
-
-    // Only try Browserless as last resort if configured and all else fails
+    // Try Browserless if configured and (third-party failed or skipped)
     if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 All services failed, trying Browserless as last resort (fathom mode)...')
-      thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom')
+      // Prefer app mode (our MeetingThumbnail page) over fathom mode to avoid iframe CORS
+      if (appUrl) {
+        console.log('📸 Trying Browserless with app mode (preferred)...')
+        thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
+      }
+      
+      // Fallback to fathom mode if app mode failed or unavailable
+      if (!thumbnailUrl) {
+        console.log('📸 App mode failed or unavailable, trying Browserless fathom mode...')
+        thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom', meeting_id)
+      }
     }
 
     // E) Last resort: og:image (often unavailable per user)
@@ -102,7 +153,9 @@ serve(async (req) => {
     }
 
     if (!thumbnailUrl) {
-      throw new Error('Failed to capture video thumbnail')
+      console.error('❌ All thumbnail capture methods failed')
+      console.error(`Config: skipThirdParty=${skipThirdParty}, browserlessConfigured=${!!Deno.env.get('BROWSERLESS_URL')}`)
+      throw new Error('Failed to capture video thumbnail - all methods exhausted')
     }
 
     console.log(`✅ Thumbnail generated: ${thumbnailUrl}`)
@@ -185,141 +238,80 @@ async function captureVideoThumbnail(
 async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
-  // Helper: promise race with timeout
-  const raceWithTimeout = async <T>(promise: Promise<T>, ms: number, context: string): Promise<T> => {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`timeout:${context}`)), ms)),
-    ])
-  }
-
-  // Strategy for Fathom pages: Try to capture ONLY the <video> tag
-  const videoSelectors = [
-    'video',
-    'video-player video',
-    'section video',
-    'div.relative video',
-    '[class*="video-"]',
-    'video-player',
-  ]
-
-  const trySelectors = async (waitMs: number): Promise<ArrayBuffer | null> => {
-    for (const selector of videoSelectors) {
-      try {
-        const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
-          url,
-          screenshot: 'true',
-          meta: 'false',
-          'viewport.width': '1920',
-          'viewport.height': '1080',
-          'viewport.deviceScaleFactor': '2',
-          waitFor: String(waitMs),
-          'screenshot.element': selector,
-          'screenshot.overlay.browser': 'false',
-          'screenshot.overlay.background': 'transparent',
-          'screenshot.scrollElement': 'false'
-        }).toString()
-
-        console.log(`📡 Microlink selector=${selector}, waitFor=${waitMs}ms`)
-
-        const response = await fetch(microlinkUrl)
-        if (!response.ok) {
-          console.log(`Microlink failed for selector "${selector}": ${response.status}`)
-          continue
-        }
-
-        const data = await response.json()
-        const screenshotUrl = data?.data?.screenshot?.url
-        if (!screenshotUrl) {
-          console.log(`No screenshot URL for selector "${selector}"`)
-          continue
-        }
-
-        const imageResponse = await fetch(screenshotUrl)
-        if (!imageResponse.ok) {
-          console.log(`Failed to download screenshot: ${imageResponse.status}`)
-          continue
-        }
-
-        const imageBuffer = await imageResponse.arrayBuffer()
-        if (imageBuffer.byteLength > 10000) {
-          console.log(`✅ Screenshot captured with selector "${selector}" (${imageBuffer.byteLength} bytes)`)
-          return imageBuffer
-        } else {
-          console.log(`Screenshot too small with selector "${selector}", trying next...`)
-        }
-      } catch (error) {
-        console.log(`Error with selector "${selector}":`, error)
-        continue
-      }
-    }
-    return null
-  }
-
-  // Strategy 1: selectors with 5s wait, 15s overall timeout
   try {
-    const result = await raceWithTimeout(trySelectors(5000), 15000, 'microlink:selectors-5s')
-    if (result) return result
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith('timeout:')) {
-      console.log('⏱️ Microlink 5s selector attempt timed out, trying 3s...')
-    } else {
-      console.log('Microlink 5s selector attempt failed:', e)
-    }
-  }
-
-  // Strategy 2: selectors with 3s wait, 15s overall timeout
-  try {
-    const result = await raceWithTimeout(trySelectors(3000), 15000, 'microlink:selectors-3s')
-    if (result) return result
-  } catch (e) {
-    if (e instanceof Error && e.message.startsWith('timeout:')) {
-      console.log('⏱️ Microlink 3s selector attempt timed out, falling back to viewport...')
-    } else {
-      console.log('Microlink 3s selector attempt failed:', e)
-    }
-  }
-
-  // Strategy 3: viewport-only capture as final Microlink fallback
-  try {
-    console.log('📡 Microlink viewport-only fallback...')
+    console.log('📡 Microlink: Simple viewport screenshot')
+    console.log(`   Target URL: ${url}`)
+    
+    // Use the simplest, fastest approach - just screenshot the viewport
     const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
       url,
       screenshot: 'true',
       meta: 'false',
-      'viewport.width': '1920',
-      'viewport.height': '1080',
-      'viewport.deviceScaleFactor': '1',
-      waitFor: '2000',
+      'viewport.width': '1280',
+      'viewport.height': '720',
+      waitFor: '1000',
       'screenshot.fullPage': 'false',
       'screenshot.overlay.browser': 'false',
-      'screenshot.overlay.background': 'transparent',
     }).toString()
 
-    const response = await raceWithTimeout(fetch(microlinkUrl), 15000, 'microlink:viewport')
+    console.log(`   Microlink API URL: ${microlinkUrl.substring(0, 100)}...`)
+    console.log(`   Fetching screenshot...`)
+    
+    const response = await fetch(microlinkUrl, {
+      signal: AbortSignal.timeout(20000),
+    })
+    
+    console.log(`   Response status: ${response.status}`)
+    
     if (!response.ok) {
-      console.error(`Microlink viewport screenshot failed: ${response.status}`)
+      const errorText = await response.text().catch(() => 'Unable to read error')
+      console.log(`❌ Microlink API failed: ${response.status}`)
+      console.log(`   Error: ${errorText.substring(0, 200)}`)
       return null
     }
 
     const data = await response.json()
+    console.log(`   Response status field: ${data?.status}`)
+    
     const screenshotUrl = data?.data?.screenshot?.url
+    
     if (!screenshotUrl) {
-      console.error('No screenshot URL in Microlink viewport response')
+      console.log('❌ No screenshot URL in response')
+      console.log(`   Response data: ${JSON.stringify(data).substring(0, 200)}`)
       return null
     }
 
-    const imageResponse = await fetch(screenshotUrl)
+    console.log(`   Screenshot URL: ${screenshotUrl}`)
+    console.log(`   Downloading image...`)
+    
+    const imageResponse = await fetch(screenshotUrl, {
+      signal: AbortSignal.timeout(10000),
+    })
+    
+    console.log(`   Image download status: ${imageResponse.status}`)
+    
     if (!imageResponse.ok) {
-      console.error(`Failed to download viewport screenshot: ${imageResponse.status}`)
+      console.log(`❌ Failed to download screenshot`)
       return null
     }
 
     const imageBuffer = await imageResponse.arrayBuffer()
-    console.log(`✅ Viewport screenshot captured (${imageBuffer.byteLength} bytes)`)
+    console.log(`   Downloaded: ${imageBuffer.byteLength} bytes`)
+    
+    if (imageBuffer.byteLength < 5000) {
+      console.log(`❌ Screenshot too small`)
+      return null
+    }
+    
+    console.log(`✅ Microlink screenshot captured successfully`)
     return imageBuffer
+    
   } catch (error) {
-    console.error(`❌ Microlink viewport error:`, error)
+    console.error(`❌ Microlink exception:`, error)
+    if (error instanceof Error) {
+      console.error(`   Error message: ${error.message}`)
+      console.error(`   Error stack: ${error.stack?.substring(0, 300)}`)
+    }
     return null
   }
 }
@@ -330,7 +322,7 @@ async function captureWithMicrolink(
  * @param mode 'app' = screenshot our app's meeting page (targets iframe), 'fathom' = screenshot Fathom page directly
  */
 async function captureWithBrowserlessAndUpload(url: string, recordingId: string, mode: 'app' | 'fathom' = 'fathom', meetingId?: string): Promise<string | null> {
-  const base = Deno.env.get('BROWSERLESS_URL') || 'https://chrome.browserless.io'
+  const base = Deno.env.get('BROWSERLESS_URL') || 'https://production-sfo.browserless.io'
   const token = Deno.env.get('BROWSERLESS_TOKEN')
   if (!base || !token) return null
 
@@ -338,50 +330,70 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
     console.log(`🎯 Using Browserless Playwright function for ${mode} mode`)
     console.log(`📍 Target URL: ${url}`)
 
+    // Escape URL for safe injection into JavaScript
+    const escapedUrl = url.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r")
+
     // Use Playwright function API for full control
     const playwrightScript = mode === 'app'
       ? `
-        // App mode: Wait for our full-screen video page to load
-        // Since the video fills the entire viewport, screenshot the whole page
+        // App mode: Screenshot our full-screen video page
         export default async function({ page }) {
-          await page.goto('${url}', { waitUntil: 'networkidle', timeout: 30000 });
-
+          await page.goto('${escapedUrl}', { waitUntil: 'networkidle2', timeout: 45000 });
+          
           // Wait for page marker
           await page.waitForSelector('[data-thumbnail-ready="true"]', { timeout: 10000 });
+          
+          // Wait a bit for video to render (using alternative to waitForTimeout)
+          await page.waitForLoadState('networkidle');
+          await new Promise(resolve => setTimeout(resolve, 3000));
 
-          // Wait for iframe to load
-          await page.waitForSelector('iframe[src*="fathom"], iframe[src*="embed"]', { timeout: 15000 });
-
-          // Give video player time to initialize and load frame
-          await page.waitForTimeout(5000);
-
-          // Screenshot entire viewport (video fills it completely)
+          // Screenshot entire viewport
           return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
         }
       `
       : `
-        // Fathom mode: Screenshot Fathom page directly
+        // Fathom mode: Simple screenshot of Fathom page
         export default async function({ page }) {
-          await page.goto('${url}', { waitUntil: 'networkidle', timeout: 30000 });
+          await page.goto('${escapedUrl}', { 
+            waitUntil: 'networkidle2', 
+            timeout: 60000 
+          });
 
-          // Wait for video element
-          const video = await page.waitForSelector('video', { timeout: 15000 });
-          if (!video) throw new Error('Video element not found');
+          // Wait for page to settle (alternative to waitForTimeout)
+          await page.waitForLoadState('networkidle');
+          await new Promise(resolve => setTimeout(resolve, 3000));
 
-          // Give video player time to load frame
-          await page.waitForTimeout(3000);
-
-          // Screenshot just the video element
-          return await video.screenshot({ type: 'jpeg', quality: 85 });
+          // Take viewport screenshot
+          return await page.screenshot({ 
+            type: 'jpeg', 
+            quality: 85, 
+            fullPage: false 
+          });
         }
       `
 
     const endpoint = `${base.replace(/\/$/, '')}/function?token=${token}`
-    const resp = await fetch(endpoint, {
+    
+    // Add timeout wrapper around fetch to prevent hanging
+    const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs: number) => {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+      
+      try {
+        const response = await fetch(url, { ...options, signal: controller.signal })
+        clearTimeout(timeoutId)
+        return response
+      } catch (error) {
+        clearTimeout(timeoutId)
+        throw error
+      }
+    }
+    
+    const resp = await fetchWithTimeout(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/javascript' },
       body: playwrightScript,
-    })
+    }, 90000) // 90 second timeout (Fathom pages are slow)
 
     if (resp.ok) {
       const buf = await resp.arrayBuffer()
@@ -512,6 +524,9 @@ async function uploadToStorage(
   meetingId?: string
 ): Promise<string | null> {
   try {
+    console.log(`📤 Starting S3 upload for recording ${recordingId}...`)
+    console.log(`   Buffer size: ${imageBuffer.byteLength} bytes`)
+    
     const folder = (Deno.env.get('AWS_S3_FOLDER') || Deno.env.get('AWS_S3_THUMBNAILS_PREFIX') || 'meeting-thumbnails').replace(/\/+$/,'')
     // Include meeting_id and timestamp to make each screenshot unique and avoid caching issues
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -526,10 +541,12 @@ async function uploadToStorage(
     const awsBucket = Deno.env.get('AWS_S3_BUCKET') || 'user-upload'
 
     if (!awsAccessKeyId || !awsSecretAccessKey) {
+      console.error('❌ AWS credentials missing!')
       throw new Error('AWS credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
     }
 
     console.log(`📤 Uploading to AWS S3: ${awsBucket}/${fileName}`)
+    console.log(`   Region: ${awsRegion}`)
 
     const s3Client = new S3Client({
       endPoint: `s3.${awsRegion}.amazonaws.com`,
