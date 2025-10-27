@@ -325,6 +325,52 @@ export function MeetingDetail() {
     }
   }, []);
 
+  // Handle action item extraction - defined before early returns to satisfy Rules of Hooks
+  const handleGetActionItems = useCallback(async () => {
+    if (!meeting) return;
+    setIsExtracting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      // Call Edge Function to extract items
+      const res = await fetch(`${supabase.supabaseUrl}/functions/v1/extract-action-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ meetingId: meeting.id }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to extract action items');
+      }
+
+      // Refresh action items list
+      const { data: actionItemsData } = await supabase
+        .from('meeting_action_items')
+        .select('*')
+        .eq('meeting_id', meeting.id)
+        .order('timestamp_seconds', { ascending: true });
+      setActionItems(actionItemsData || []);
+
+      // Show empty state message if none created
+      const created = Number(json?.itemsCreated || 0);
+      if (created === 0) {
+        toast.info('No Action Items From Meeting');
+      } else {
+        toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`);
+      }
+    } catch (e) {
+      console.error('[Get Action Items] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to extract action items');
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [meeting]);
+
   // Attach click handlers to Fathom timestamp links in summary
   useEffect(() => {
     if (!summaryRef.current || !meeting?.summary) {
@@ -390,51 +436,6 @@ export function MeetingDetail() {
       </div>
     );
   }
-
-  const handleGetActionItems = useCallback(async () => {
-    if (!meeting) return;
-    setIsExtracting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      // Call Edge Function to extract items
-      const res = await fetch(`${supabase.supabaseUrl}/functions/v1/extract-action-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ meetingId: meeting.id }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json?.error || 'Failed to extract action items');
-      }
-
-      // Refresh action items list
-      const { data: actionItemsData } = await supabase
-        .from('meeting_action_items')
-        .select('*')
-        .eq('meeting_id', meeting.id)
-        .order('timestamp_seconds', { ascending: true });
-      setActionItems(actionItemsData || []);
-
-      // Show empty state message if none created
-      const created = Number(json?.itemsCreated || 0);
-      if (created === 0) {
-        toast.info('No Action Items From Meeting');
-      } else {
-        toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`);
-      }
-    } catch (e) {
-      console.error('[Get Action Items] Error:', e);
-      toast.error(e instanceof Error ? e.message : 'Failed to extract action items');
-    } finally {
-      setIsExtracting(false);
-    }
-  }, [meeting]);
 
   return (
     <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">

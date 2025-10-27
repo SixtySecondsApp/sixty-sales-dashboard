@@ -181,11 +181,73 @@ async function captureVideoThumbnail(
 
 /**
  * Capture screenshot using Microlink API (free tier)
+ * Try multiple strategies: video element selector, then full page with overlay hiding
  */
 async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
+  // Strategy 1: Try to capture just the video element
+  const videoSelectors = ['video', 'iframe', '.fathom-player', '[class*="player"]', '[class*="video"]']
+
+  for (const selector of videoSelectors) {
+    try {
+      const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
+        url,
+        screenshot: 'true',
+        meta: 'false',
+        'viewport.width': '1920',
+        'viewport.height': '1080',
+        'viewport.deviceScaleFactor': '1',
+        // Give the player time to seek to the timestamp and render a frame
+        waitFor: '8000',
+        // Try to capture only the video element
+        'screenshot.element': selector,
+      }).toString()
+
+      console.log(`📡 Trying Microlink with selector: ${selector}`)
+
+      const response = await fetch(microlinkUrl)
+
+      if (!response.ok) {
+        console.log(`Microlink failed for selector "${selector}": ${response.status}`)
+        continue // Try next selector
+      }
+
+      const data = await response.json()
+      const screenshotUrl = data?.data?.screenshot?.url
+
+      if (!screenshotUrl) {
+        console.log(`No screenshot URL for selector "${selector}"`)
+        continue // Try next selector
+      }
+
+      // Download the screenshot
+      console.log(`📥 Downloading screenshot from: ${screenshotUrl}`)
+      const imageResponse = await fetch(screenshotUrl)
+
+      if (!imageResponse.ok) {
+        console.log(`Failed to download screenshot: ${imageResponse.status}`)
+        continue // Try next selector
+      }
+
+      const imageBuffer = await imageResponse.arrayBuffer()
+
+      // Check if image is reasonable size (not tiny placeholder)
+      if (imageBuffer.byteLength > 10000) { // At least 10KB
+        console.log(`✅ Screenshot captured with selector "${selector}" (${imageBuffer.byteLength} bytes)`)
+        return imageBuffer
+      } else {
+        console.log(`Screenshot too small with selector "${selector}", trying next...`)
+      }
+    } catch (error) {
+      console.log(`Error with selector "${selector}":`, error)
+      continue // Try next selector
+    }
+  }
+
+  // Strategy 2: If all selectors fail, capture full page (fallback)
   try {
+    console.log('📡 Falling back to full page screenshot...')
     const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
       url,
       screenshot: 'true',
@@ -193,26 +255,19 @@ async function captureWithMicrolink(
       'viewport.width': '1920',
       'viewport.height': '1080',
       'viewport.deviceScaleFactor': '1',
-      // Give the player time to seek to the timestamp and render a frame
-      waitFor: '7000',
-      // Capture only the video element, not the full page
-      'screenshot.element': 'video',
+      waitFor: '8000',
+      // Capture full page as last resort
+      'screenshot.fullPage': 'false',
     }).toString()
-
-    console.log(`📡 Fetching screenshot from Microlink...`)
 
     const response = await fetch(microlinkUrl)
 
     if (!response.ok) {
-      console.error(`Microlink API error: ${response.status}`)
-      const errorText = await response.text()
-      console.error(`Error details: ${errorText}`)
+      console.error(`Microlink full page screenshot failed: ${response.status}`)
       return null
     }
 
     const data = await response.json()
-    console.log(`Microlink response:`, JSON.stringify(data, null, 2))
-
     const screenshotUrl = data?.data?.screenshot?.url
 
     if (!screenshotUrl) {
@@ -220,18 +275,14 @@ async function captureWithMicrolink(
       return null
     }
 
-    // Download the screenshot
-    console.log(`📥 Downloading screenshot from: ${screenshotUrl}`)
     const imageResponse = await fetch(screenshotUrl)
-
     if (!imageResponse.ok) {
       console.error(`Failed to download screenshot: ${imageResponse.status}`)
       return null
     }
 
     const imageBuffer = await imageResponse.arrayBuffer()
-    console.log(`✅ Screenshot downloaded successfully (${imageBuffer.byteLength} bytes)`)
-
+    console.log(`✅ Full page screenshot captured (${imageBuffer.byteLength} bytes)`)
     return imageBuffer
   } catch (error) {
     console.error(`❌ Microlink error:`, error)
@@ -241,6 +292,7 @@ async function captureWithMicrolink(
 
 /**
  * Self-hosted Browserless: capture screenshot of video element if present
+ * Improved selector strategy for Fathom video players
  */
 async function captureWithBrowserlessAndUpload(url: string, recordingId: string): Promise<string | null> {
   const base = Deno.env.get('BROWSERLESS_URL') || 'https://chrome.browserless.io'
@@ -248,9 +300,21 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string)
   if (!base || !token) return null
 
   try {
-    // Try several selectors commonly used by video players
-    const selectors = ['video', 'canvas', '.player', '.vjs-poster', '.vjs-tech']
+    // Try several selectors commonly used by video players (most specific first)
+    const selectors = [
+      'video',                          // Standard HTML5 video element
+      'iframe[src*="fathom"]',         // Fathom embed iframe
+      'iframe',                         // Any iframe (video embeds)
+      '.fathom-player video',          // Fathom-specific player
+      '[class*="player"] video',       // Generic player with video
+      'canvas',                         // Canvas-based players
+      '.player',                        // Generic player class
+      '.vjs-tech',                      // Video.js player
+      '[class*="video"]',              // Any element with "video" in class
+    ]
+
     for (const selector of selectors) {
+      console.log(`🎯 Trying Browserless with selector: ${selector}`)
       const params = new URLSearchParams({
         token,
         url,
@@ -260,18 +324,50 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string)
         blockAds: 'true',
         'viewport.width': '1920',
         'viewport.height': '1080',
-        delay: '7000',
+        delay: '8000', // Extra time for Fathom to load and seek
         selector,
       })
       const endpoint = `${base.replace(/\/$/, '')}/screenshot?${params.toString()}`
       const resp = await fetch(endpoint)
+
       if (resp.ok) {
         const buf = await resp.arrayBuffer()
-        if (buf.byteLength > 0) {
+        // Check for reasonable size (not a tiny placeholder or empty)
+        if (buf.byteLength > 10000) { // At least 10KB for a real video frame
+          console.log(`✅ Browserless succeeded with selector "${selector}" (${buf.byteLength} bytes)`)
           return await uploadToStorage(buf, recordingId)
+        } else {
+          console.log(`⚠️  Screenshot too small with "${selector}", trying next...`)
         }
+      } else {
+        console.log(`❌ Browserless failed with selector "${selector}": ${resp.status}`)
       }
     }
+
+    // Last resort: capture viewport without selector (full page)
+    console.log('🔄 Trying Browserless without selector (full viewport)...')
+    const params = new URLSearchParams({
+      token,
+      url,
+      format: 'jpeg',
+      quality: '85',
+      fullPage: 'false',
+      blockAds: 'true',
+      'viewport.width': '1920',
+      'viewport.height': '1080',
+      delay: '8000',
+    })
+    const endpoint = `${base.replace(/\/$/, '')}/screenshot?${params.toString()}`
+    const resp = await fetch(endpoint)
+
+    if (resp.ok) {
+      const buf = await resp.arrayBuffer()
+      if (buf.byteLength > 0) {
+        console.log(`✅ Browserless full viewport captured (${buf.byteLength} bytes)`)
+        return await uploadToStorage(buf, recordingId)
+      }
+    }
+
     return null
   } catch (e) {
     console.error('❌ Browserless error:', e)
