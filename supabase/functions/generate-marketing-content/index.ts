@@ -22,8 +22,7 @@
  * }
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { buildContentPrompt } from './prompts.ts'
 
 // ============================================================================
@@ -82,7 +81,7 @@ const CORS_HEADERS = {
 
 const MODEL = 'claude-sonnet-4-5-20250929'
 const MAX_TOKENS = 8192
-const TIMEOUT_MS = 60000 // 60 seconds for longer content generation
+const TIMEOUT_MS = 120000 // 120 seconds (2 minutes) for longer content generation
 
 // Pricing: Claude Sonnet 4.5 costs ~$3 per 1M input tokens, ~$15 per 1M output tokens
 // Average generation: ~5K input + ~1K output ≈ 3 cents
@@ -98,7 +97,7 @@ const EXCERPT_CONTEXT_CHARS = 1500
 // Main Handler
 // ============================================================================
 
-serve(async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
@@ -506,7 +505,6 @@ serve(async (req: Request): Promise<Response> => {
       .from('meeting_generated_content')
       .insert({
         meeting_id,
-        user_id: userId,
         content_type,
         title,
         content,
@@ -516,6 +514,7 @@ serve(async (req: Request): Promise<Response> => {
         model_used: MODEL,
         tokens_used: tokensUsed,
         cost_cents: costCents,
+        created_by: userId,
       })
       .select('id')
       .single()

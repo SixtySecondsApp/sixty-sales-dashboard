@@ -38,7 +38,7 @@ export function useExtractTopics(meetingId: string, forceRefresh = false) {
   return useQuery({
     queryKey: ['content-topics', meetingId, forceRefresh],
     queryFn: () => contentService.extractTopics(meetingId, forceRefresh),
-    enabled: !!meetingId,
+    enabled: false, // Changed to false - only run when manually triggered via refetch()
     staleTime: forceRefresh ? 0 : 5 * 60 * 1000, // 5 minutes for cached, 0 for forced
     retry: (failureCount, error) => {
       // Don't retry on client errors (4xx)

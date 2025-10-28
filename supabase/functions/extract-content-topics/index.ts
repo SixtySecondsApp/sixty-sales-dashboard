@@ -15,8 +15,7 @@
  * Body: { meeting_id: string, force_refresh?: boolean }
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 
 // ============================================================================
 // Types & Interfaces
@@ -83,7 +82,7 @@ const OUTPUT_COST_PER_TOKEN = 1.25 / 1_000_000 // $1.25 per 1M tokens
 // Main Handler
 // ============================================================================
 
-serve(async (req: Request): Promise<Response> => {
+Deno.serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS })
@@ -395,6 +394,7 @@ serve(async (req: Request): Promise<Response> => {
         tokens_used: tokensUsed,
         cost_cents: costCents,
         extraction_version: extractionVersion,
+        created_by: userId,
       })
 
     if (insertError) {
