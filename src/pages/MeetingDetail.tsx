@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
+import { MeetingContent } from '@/components/meetings/MeetingContent';
 import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { toast } from 'sonner';
@@ -605,15 +606,19 @@ export function MeetingDetail() {
               </div>
             )}
 
-            {/* Tabbed Interface: Summary, Transcript, Ask AI */}
+            {/* Tabbed Interface: Summary, Transcript, Ask AI, Content */}
             <div className="section-card">
               <Tabs defaultValue="summary" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-4">
+                <TabsList className="grid w-full grid-cols-4 mb-4">
                   <TabsTrigger value="summary">Summary</TabsTrigger>
                   <TabsTrigger value="transcript">Transcript</TabsTrigger>
                   <TabsTrigger value="ask-ai">
                     <MessageSquare className="h-4 w-4 mr-2" />
                     Ask AI
+                  </TabsTrigger>
+                  <TabsTrigger value="content">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Content
                   </TabsTrigger>
                 </TabsList>
 
@@ -705,6 +710,11 @@ export function MeetingDetail() {
                 {/* Ask AI Tab */}
                 <TabsContent value="ask-ai" className="mt-0">
                   <AskAIChat meetingId={meeting.id} />
+                </TabsContent>
+
+                {/* Content Tab */}
+                <TabsContent value="content" className="mt-0">
+                  <MeetingContent meeting={meeting} />
                 </TabsContent>
               </Tabs>
             </div>
