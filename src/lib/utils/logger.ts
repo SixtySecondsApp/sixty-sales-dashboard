@@ -36,10 +36,25 @@ export const logger: Logger = {
         return;
       }
       const [first, ...rest] = args as unknown[];
+      const maybeErr = rest?.[0] as any;
       if (first instanceof Error) {
         console.error(first.message);
       } else if (typeof first === 'string') {
-        console.error(first);
+        // If a string prefix is provided and an Error/object follows, include its message compactly
+        if (maybeErr instanceof Error && typeof maybeErr.message === 'string') {
+          console.error(`${first} ${maybeErr.message}`);
+        } else if (maybeErr && typeof maybeErr.message === 'string') {
+          console.error(`${first} ${maybeErr.message}`);
+        } else if (maybeErr && typeof maybeErr === 'object') {
+          // Print a compact subset to avoid bloat
+          const compact = JSON.stringify({
+            message: (maybeErr && (maybeErr.message || maybeErr.error)) || undefined,
+            code: maybeErr.code || maybeErr.status || undefined
+          });
+          console.error(`${first} ${compact}`);
+        } else {
+          console.error(first);
+        }
       } else {
         console.error(JSON.stringify(first));
       }

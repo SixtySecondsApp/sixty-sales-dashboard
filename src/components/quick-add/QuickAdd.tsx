@@ -63,7 +63,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
   const { findDealsByClient, moveDealToStage } = useDealsActions();
   const { contacts, createContact, findContactByEmail } = useContacts();
   const { addActivity, addSale } = useActivitiesActions();
-  const { createTask } = useTasks();
+  const { createTask } = useTasks(undefined, { autoFetch: false });
   const { createSuggestion } = useRoadmapActions();
   const { validateForm } = useQuickAddValidation();
   

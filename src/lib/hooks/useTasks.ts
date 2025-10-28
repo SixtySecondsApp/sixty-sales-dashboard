@@ -58,7 +58,10 @@ interface UpdateTaskData {
   company?: string;
 }
 
-export function useTasks(filters?: TaskFilters) {
+export function useTasks(
+  filters?: TaskFilters,
+  options?: { autoFetch?: boolean }
+) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -66,6 +69,7 @@ export function useTasks(filters?: TaskFilters) {
 
   // Memoize filters to prevent infinite loops in useEffect.
   const filtersString = JSON.stringify(filters);
+  const autoFetch = options?.autoFetch !== false;
 
   const fetchTasks = useCallback(async () => {
     // Don't fetch if user is still loading
@@ -100,7 +104,7 @@ export function useTasks(filters?: TaskFilters) {
           creator:profiles!created_by(id, first_name, last_name, email, avatar_url),
           company:companies(id, name, domain),
           contact:contacts(id, full_name, first_name, last_name, email),
-          meeting_action_item:meeting_action_items(
+          meeting_action_item:meeting_action_items!tasks_meeting_action_item_id_fkey(
             id,
             meeting_id,
             timestamp_seconds,
@@ -206,8 +210,10 @@ export function useTasks(filters?: TaskFilters) {
   }, [userData?.id, filtersString, userLoading]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if (autoFetch) {
+      fetchTasks();
+    }
+  }, [fetchTasks, autoFetch]);
 
   const createTask = useCallback(async (taskData: CreateTaskData) => {
     // Debug logging
