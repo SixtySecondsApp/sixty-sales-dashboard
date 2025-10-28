@@ -282,8 +282,24 @@ RETURNS TABLE (
   title TEXT,
   version INTEGER,
   created_at TIMESTAMPTZ
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
+  -- SECURITY: Verify caller owns the meeting
+  IF NOT EXISTS (
+    SELECT 1
+    FROM meetings
+    WHERE meetings.id = p_meeting_id
+      AND meetings.owner_user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Permission denied: You do not own this meeting'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Return content
   RETURN QUERY
   SELECT
     mgc.id,
@@ -300,7 +316,7 @@ BEGIN
   ORDER BY mgc.created_at DESC
   LIMIT 1;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Function to get content with linked topics
 CREATE OR REPLACE FUNCTION get_content_with_topics(p_content_id UUID)
@@ -310,8 +326,26 @@ RETURNS TABLE (
   title TEXT,
   content_type TEXT,
   topics JSONB
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
+  -- SECURITY: Verify caller owns the meeting for this content
+  IF NOT EXISTS (
+    SELECT 1
+    FROM meeting_generated_content mgc
+    JOIN meetings m ON m.id = mgc.meeting_id
+    WHERE mgc.id = p_content_id
+      AND m.owner_user_id = auth.uid()
+      AND mgc.deleted_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Permission denied: You do not own the meeting for this content'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Return content with topics
   RETURN QUERY
   SELECT
     mgc.id,
@@ -328,7 +362,7 @@ BEGIN
     AND mct.deleted_at IS NULL
   LIMIT 1;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Function to calculate total costs for a meeting
 CREATE OR REPLACE FUNCTION calculate_meeting_content_costs(p_meeting_id UUID)
@@ -337,8 +371,24 @@ RETURNS TABLE (
   content_cost_cents INTEGER,
   total_cost_cents INTEGER,
   total_tokens INTEGER
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
+  -- SECURITY: Verify caller owns the meeting
+  IF NOT EXISTS (
+    SELECT 1
+    FROM meetings
+    WHERE meetings.id = p_meeting_id
+      AND meetings.owner_user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Permission denied: You do not own this meeting'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
+  -- Calculate and return costs
   RETURN QUERY
   SELECT
     COALESCE(SUM(mct.cost_cents), 0)::INTEGER as topics_cost_cents,
@@ -351,7 +401,7 @@ BEGIN
   WHERE m.id = p_meeting_id
   GROUP BY m.id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ============================================================================
 -- Migration Complete
