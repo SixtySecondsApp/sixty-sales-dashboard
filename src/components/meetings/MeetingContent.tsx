@@ -13,14 +13,14 @@
  * - Error boundary for graceful error handling
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AlertCircle, FileText, Sparkles, Library } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TopicsList } from './TopicsList';
 import { ContentGenerator } from './ContentGenerator';
 import { ContentLibrary } from './ContentLibrary';
-import { contentService, type Topic, type ContentType } from '@/lib/services/contentService';
+import { type Topic, type ContentType } from '@/lib/services/contentService';
 
 /**
  * Props for MeetingContent component
@@ -59,20 +59,6 @@ export function MeetingContent({ meeting }: MeetingContentProps) {
   // State management
   const [activeTab, setActiveTab] = useState<ActiveTab>('topics');
   const [selectedTopics, setSelectedTopics] = useState<SelectedTopic[]>([]);
-  const [extractedTopics, setExtractedTopics] = useState<Topic[]>([]);
-
-  /**
-   * Load cached topics on mount
-   */
-  useEffect(() => {
-    const loadCachedTopics = async () => {
-      const cachedTopics = await contentService.getCachedTopics(meeting.id);
-      if (cachedTopics.length > 0) {
-        setExtractedTopics(cachedTopics);
-      }
-    };
-    loadCachedTopics();
-  }, [meeting.id]);
 
   /**
    * Handle topics selected in step 1
@@ -83,7 +69,6 @@ export function MeetingContent({ meeting }: MeetingContentProps) {
       topic: topics[index],
     }));
     setSelectedTopics(selected);
-    setExtractedTopics(topics); // Store topics for persistence
     setActiveTab('generate');
   };
 

@@ -13,7 +13,7 @@
  * - Skeleton loaders during extraction
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,7 +26,7 @@ import {
   ExternalLink,
   ArrowRight,
 } from 'lucide-react';
-import { useExtractTopics } from '@/lib/services/contentService.examples';
+import { useExtractTopics, useCachedTopics } from '@/lib/services/contentService.examples';
 import type { Topic } from '@/lib/services/contentService';
 import { ContentServiceError } from '@/lib/services/contentService';
 import { cn } from '@/lib/utils';
@@ -63,8 +63,12 @@ export function TopicsList({
   shareUrl,
   onTopicsSelected,
 }: TopicsListProps) {
-  // Local state for selected topic indices
+  // Local state for selected topic indices and topics
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+  const [topics, setTopics] = useState<Topic[]>([]);
+
+  // Load cached topics on mount
+  const { data: cachedTopics } = useCachedTopics(meetingId);
 
   // Fetch topics using React Query
   const {
@@ -74,7 +78,17 @@ export function TopicsList({
     refetch,
   } = useExtractTopics(meetingId, false);
 
-  const topics = topicsData?.topics || [];
+  // Initialize topics from cache or extraction
+  useEffect(() => {
+    if (topicsData?.topics && topicsData.topics.length > 0) {
+      // Use freshly extracted topics
+      setTopics(topicsData.topics);
+    } else if (cachedTopics && cachedTopics.length > 0 && topics.length === 0) {
+      // Use cached topics if no topics have been loaded yet
+      setTopics(cachedTopics);
+    }
+  }, [topicsData?.topics, cachedTopics]);
+
   const hasTopics = topics.length > 0;
 
   /**
