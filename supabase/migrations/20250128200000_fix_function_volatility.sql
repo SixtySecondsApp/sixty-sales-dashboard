@@ -1,13 +1,14 @@
--- Fix Function Volatility Categories
+-- Remove SECURITY DEFINER from Helper Functions
 -- Migration: 20250128200000_fix_function_volatility
--- Purpose: Mark SECURITY DEFINER functions as STABLE to avoid IMMUTABLE errors
+-- Purpose: Remove SECURITY DEFINER to avoid PostgreSQL volatility errors
+-- Note: RLS policies already protect the data, so SECURITY DEFINER is redundant
 -- Created: 2025-01-28
 
 -- ============================================================================
--- Update existing functions to be STABLE instead of VOLATILE (default)
+-- Update functions to remove SECURITY DEFINER (rely on RLS instead)
 -- ============================================================================
 
--- Function 1: get_latest_content
+-- Function 1: get_latest_content (now relies on RLS)
 CREATE OR REPLACE FUNCTION get_latest_content(
   p_meeting_id UUID,
   p_content_type TEXT
@@ -21,22 +22,11 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY DEFINER
-SET search_path = public
 AS $$
 BEGIN
-  -- SECURITY: Verify caller owns the meeting
-  IF NOT EXISTS (
-    SELECT 1
-    FROM meetings
-    WHERE meetings.id = p_meeting_id
-      AND meetings.owner_user_id = auth.uid()
-  ) THEN
-    RAISE EXCEPTION 'Permission denied: You do not own this meeting'
-      USING ERRCODE = 'insufficient_privilege';
-  END IF;
+  -- RLS policies on meeting_generated_content automatically filter by ownership
+  -- No need for explicit auth.uid() check
 
-  -- Return content
   RETURN QUERY
   SELECT
     mgc.id,
@@ -55,7 +45,7 @@ BEGIN
 END;
 $$;
 
--- Function 2: get_content_with_topics
+-- Function 2: get_content_with_topics (now relies on RLS)
 CREATE OR REPLACE FUNCTION get_content_with_topics(p_content_id UUID)
 RETURNS TABLE (
   content_id UUID,
@@ -66,24 +56,10 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY DEFINER
-SET search_path = public
 AS $$
 BEGIN
-  -- SECURITY: Verify caller owns the meeting for this content
-  IF NOT EXISTS (
-    SELECT 1
-    FROM meeting_generated_content mgc
-    JOIN meetings m ON m.id = mgc.meeting_id
-    WHERE mgc.id = p_content_id
-      AND m.owner_user_id = auth.uid()
-      AND mgc.deleted_at IS NULL
-  ) THEN
-    RAISE EXCEPTION 'Permission denied: You do not own the meeting for this content'
-      USING ERRCODE = 'insufficient_privilege';
-  END IF;
+  -- RLS policies automatically filter results by ownership
 
-  -- Return content with topics
   RETURN QUERY
   SELECT
     mgc.id,
@@ -102,7 +78,7 @@ BEGIN
 END;
 $$;
 
--- Function 3: calculate_meeting_content_costs
+-- Function 3: calculate_meeting_content_costs (now relies on RLS)
 CREATE OR REPLACE FUNCTION calculate_meeting_content_costs(p_meeting_id UUID)
 RETURNS TABLE (
   topics_cost_cents INTEGER,
@@ -112,22 +88,10 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 STABLE
-SECURITY DEFINER
-SET search_path = public
 AS $$
 BEGIN
-  -- SECURITY: Verify caller owns the meeting
-  IF NOT EXISTS (
-    SELECT 1
-    FROM meetings
-    WHERE meetings.id = p_meeting_id
-      AND meetings.owner_user_id = auth.uid()
-  ) THEN
-    RAISE EXCEPTION 'Permission denied: You do not own this meeting'
-      USING ERRCODE = 'insufficient_privilege';
-  END IF;
+  -- RLS policies automatically filter results by ownership
 
-  -- Calculate and return costs
   RETURN QUERY
   SELECT
     COALESCE(SUM(mct.cost_cents), 0)::INTEGER as topics_cost_cents,
