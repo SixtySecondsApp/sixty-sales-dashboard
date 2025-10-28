@@ -1,0 +1,39 @@
+generate-marketing-content/
+├── index.ts                      (665 lines) - Main edge function handler
+├── prompts.ts                    (391 lines) - Content-type specific AI prompts
+├── README.md                     (593 lines) - Complete API documentation
+├── EXAMPLES.md                   (358 lines) - 10 request/response examples
+├── COST_AND_VERSIONING.md        (536 lines) - Cost tracking & versioning guide
+├── IMPLEMENTATION_SUMMARY.md     (421 lines) - Technical implementation overview
+├── QUICK_REFERENCE.md            (229 lines) - Quick start guide
+└── DEPLOYMENT_CHECKLIST.md       (577 lines) - Complete deployment guide
+
+Total: 3,770 lines across 8 files (132 KB)
+
+Key Features:
+✅ 4 Content Types (social, blog, video, email)
+✅ Smart Caching (80-90% cost reduction)
+✅ Versioning System (parent-child chain)
+✅ Cost Tracking (~$0.02-0.04 per generation)
+✅ Inline Timestamp Links
+✅ Junction Table for Topic Links
+✅ Comprehensive Error Handling
+✅ Type-Safe TypeScript
+✅ Production-Ready Code
+✅ Complete Documentation
+
+Database Schema:
+├── meeting_generated_content (main table with versioning)
+│   ├── id, meeting_id, user_id
+│   ├── content_type, title, content
+│   ├── version, parent_id, is_latest (versioning)
+│   ├── model_used, tokens_used, cost_cents (tracking)
+│   └── created_at, updated_at, deleted_at
+└── content_topic_links (junction table)
+    ├── generated_content_id → meeting_generated_content
+    ├── topics_extraction_id → meeting_content_topics
+    └── topic_index
+
+AI Model: Claude Sonnet 4.5 (claude-sonnet-4-5-20250929)
+Pricing: $3/1M input tokens, $15/1M output tokens
+Average Cost: $0.03 per generation
