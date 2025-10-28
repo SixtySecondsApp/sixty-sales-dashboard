@@ -2,6 +2,7 @@
 -- Migration: 20250128100000_security_patches
 -- Addresses: CRITICAL-3 (SECURITY DEFINER functions)
 -- Created: 2025-01-28
+-- Fixed: Removed DROP FUNCTION IF EXISTS to avoid index dependency issues
 
 -- ============================================================================
 -- CRITICAL FIX: Add Authorization to SECURITY DEFINER Functions
@@ -12,8 +13,6 @@
 -- ============================================================================
 -- Function 1: get_latest_content with Authorization Check
 -- ============================================================================
-
-DROP FUNCTION IF EXISTS get_latest_content(UUID, TEXT);
 
 CREATE OR REPLACE FUNCTION get_latest_content(
   p_meeting_id UUID,
@@ -68,8 +67,6 @@ COMMENT ON FUNCTION get_latest_content IS 'Get latest content for a meeting (wit
 -- Function 2: get_content_with_topics with Authorization Check
 -- ============================================================================
 
-DROP FUNCTION IF EXISTS get_content_with_topics(UUID);
-
 CREATE OR REPLACE FUNCTION get_content_with_topics(p_content_id UUID)
 RETURNS TABLE (
   content_id UUID,
@@ -121,8 +118,6 @@ COMMENT ON FUNCTION get_content_with_topics IS 'Get content with linked topics (
 -- ============================================================================
 -- Function 3: calculate_meeting_content_costs with Authorization Check
 -- ============================================================================
-
-DROP FUNCTION IF EXISTS calculate_meeting_content_costs(UUID);
 
 CREATE OR REPLACE FUNCTION calculate_meeting_content_costs(p_meeting_id UUID)
 RETURNS TABLE (
@@ -180,9 +175,9 @@ CREATE TABLE IF NOT EXISTS cost_tracking (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_cost_tracking_user_id ON cost_tracking(user_id);
-CREATE INDEX idx_cost_tracking_created_at ON cost_tracking(created_at DESC);
-CREATE INDEX idx_cost_tracking_user_date ON cost_tracking(user_id, DATE(created_at));
+CREATE INDEX IF NOT EXISTS idx_cost_tracking_user_id ON cost_tracking(user_id);
+CREATE INDEX IF NOT EXISTS idx_cost_tracking_created_at ON cost_tracking(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cost_tracking_user_date ON cost_tracking(user_id, DATE(created_at));
 
 COMMENT ON TABLE cost_tracking IS 'Tracks AI operation costs for monitoring and rate limiting';
 
@@ -210,10 +205,10 @@ CREATE TABLE IF NOT EXISTS security_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_security_events_type ON security_events(event_type);
-CREATE INDEX idx_security_events_severity ON security_events(severity);
-CREATE INDEX idx_security_events_created_at ON security_events(created_at DESC);
-CREATE INDEX idx_security_events_user_id ON security_events(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON security_events(severity);
+CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON security_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON security_events(user_id) WHERE user_id IS NOT NULL;
 
 COMMENT ON TABLE security_events IS 'Audit log for security-related events';
 
