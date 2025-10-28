@@ -638,6 +638,57 @@ export class ContentService {
     }
   }
 
+  /**
+   * Get all generated content for a meeting
+   *
+   * @param meetingId - The ID of the meeting
+   * @returns Promise with array of all generated content (sorted by creation date, newest first)
+   *
+   * @example
+   * ```typescript
+   * const allContent = await contentService.getAllGeneratedContent('meeting-123');
+   * console.log(`Found ${allContent.length} pieces of content`);
+   * ```
+   */
+  async getAllGeneratedContent(meetingId: string): Promise<GeneratedContent[]> {
+    try {
+      // Validate input
+      if (!meetingId || typeof meetingId !== 'string') {
+        console.warn('Invalid meeting ID for getAllGeneratedContent');
+        return [];
+      }
+
+      // Query database for all latest versions of each content type
+      const { data, error } = await supabase
+        .from('meeting_generated_content')
+        .select('id, title, content, content_type, version, created_at')
+        .eq('meeting_id', meetingId)
+        .eq('is_latest', true)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Failed to fetch generated content:', error);
+        return [];
+      }
+
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      return data.map((item) => ({
+        id: item.id,
+        title: item.title || '',
+        content: item.content,
+        content_type: item.content_type as ContentType,
+        version: item.version,
+      }));
+    } catch (error) {
+      console.error('Failed to get all generated content:', error);
+      return [];
+    }
+  }
+
   // ==========================================================================
   // Utility Methods
   // ==========================================================================
