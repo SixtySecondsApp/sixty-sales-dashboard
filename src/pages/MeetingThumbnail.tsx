@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import FathomPlayerV2 from '../components/FathomPlayerV2'
 
@@ -14,21 +14,19 @@ import FathomPlayerV2 from '../components/FathomPlayerV2'
 export default function MeetingThumbnail() {
   const { meetingId } = useParams<{ meetingId: string }>()
   const [searchParams] = useSearchParams()
+  const [iframeLoaded, setIframeLoaded] = useState(false)
 
   const shareUrl = searchParams.get('shareUrl') || searchParams.get('share_url')
   const recordingId = searchParams.get('recordingId') || searchParams.get('recording_id')
   const timestamp = parseInt(searchParams.get('t') || '0', 10)
 
-  // Set up full-screen layout and add marker for screenshot automation
+  // Set up full-screen layout
   useEffect(() => {
     // Remove all body margins/padding for true full-screen
     document.body.style.margin = '0'
     document.body.style.padding = '0'
     document.body.style.overflow = 'hidden'
     document.body.style.backgroundColor = '#000'
-
-    // Add marker that Playwright waits for
-    document.body.setAttribute('data-thumbnail-ready', 'true')
 
     return () => {
       // Cleanup on unmount
@@ -37,6 +35,19 @@ export default function MeetingThumbnail() {
       document.body.style.overflow = ''
       document.body.style.backgroundColor = ''
     }
+  }, [])
+
+  // Update ready marker when iframe loads
+  useEffect(() => {
+    if (iframeLoaded) {
+      document.body.setAttribute('data-thumbnail-ready', 'true')
+      document.body.setAttribute('data-iframe-loaded', 'true')
+      console.log('✅ Iframe loaded, ready for screenshot')
+    }
+  }, [iframeLoaded])
+
+  const handleIframeLoad = useCallback(() => {
+    setIframeLoaded(true)
   }, [])
 
   if (!shareUrl && !recordingId) {
@@ -57,13 +68,13 @@ export default function MeetingThumbnail() {
       {/* Ultra-minimal full-screen video player - fills entire viewport */}
       <FathomPlayerV2
         shareUrl={shareUrl || undefined}
-        recordingId={recordingId || undefined}
         startSeconds={timestamp}
         autoplay={false}
         className="w-full h-full"
         title={`Meeting ${meetingId || recordingId}`}
         timeoutMs={15000}
         aspectRatio="16 / 9"
+        onLoad={handleIframeLoad}
       />
     </div>
   )

@@ -85,7 +85,7 @@ serve(async (req) => {
     // Build our app's MeetingThumbnail page URL as preferred target for Browserless
     // This avoids iframe CORS issues by showcasing video full-screen in our app
     const appUrl = meeting_id
-      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&recordingId=${recording_id}&t=${timestamp_seconds || 30}`
+      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&t=${timestamp_seconds || 30}`
       : null
 
     let thumbnailUrl: string | null = null
@@ -102,7 +102,13 @@ serve(async (req) => {
     console.log(`   DISABLE_THIRD_PARTY="${disableThirdPartyValue}" (skip=${disableThirdParty})`)
     console.log(`   skipThirdParty=${skipThirdParty}`)
 
-    if (!skipThirdParty) {
+    // Prefer Browserless app mode first when meeting_id present (gives clean, cropped video)
+    if (!thumbnailUrl && appUrl && Deno.env.get('BROWSERLESS_URL')) {
+      console.log('📸 Trying Browserless first with app mode (cropped iframe)...')
+      thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
+    }
+
+    if (!thumbnailUrl && !skipThirdParty) {
       // Try third-party services first
       // Microlink multi-strategy capture (5s -> 3s -> viewport)
       console.log('📸 Attempting thumbnail capture with Microlink (multi-strategy)...')
@@ -132,19 +138,10 @@ serve(async (req) => {
       console.log('📸 Skipping third-party services (ONLY_BROWSERLESS or DISABLE_THIRD_PARTY_SCREENSHOTS set)')
     }
 
-    // Try Browserless if configured and (third-party failed or skipped)
+    // Try Browserless fathom mode if still not available
     if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL')) {
-      // Prefer app mode (our MeetingThumbnail page) over fathom mode to avoid iframe CORS
-      if (appUrl) {
-        console.log('📸 Trying Browserless with app mode (preferred)...')
-        thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
-      }
-      
-      // Fallback to fathom mode if app mode failed or unavailable
-      if (!thumbnailUrl) {
-        console.log('📸 App mode failed or unavailable, trying Browserless fathom mode...')
-        thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom', meeting_id)
-      }
+      console.log('📸 Trying Browserless fathom mode as fallback...')
+      thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom', meeting_id)
     }
 
     // E) Last resort: og:image (often unavailable per user)
@@ -338,28 +335,42 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
       ? `
         // App mode: Screenshot our full-screen video page
         export default async function({ page }) {
-          // Load with domcontentloaded - faster than waiting for everything
+          console.log('🎬 Loading app page...');
           await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 20000 });
           
-          // Wait for initial render
-          await new Promise(resolve => setTimeout(resolve, 3000));
-
-          // Screenshot entire viewport
+          console.log('⏳ Waiting for iframe to load...');
+          // Wait for the Fathom iframe to be present
+          const iframeSelector = 'iframe[src*="fathom"]';
+          await page.waitForSelector(iframeSelector, { timeout: 8000 });
+          
+          // Brief wait for video to start rendering (just 2-3 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2500));
+          
+          console.log('📸 Taking screenshot of video iframe...');
+          // Screenshot just the iframe element (crops to video borders)
+          const iframe = await page.$(iframeSelector);
+          if (iframe) {
+            return await iframe.screenshot({ type: 'jpeg', quality: 85 });
+          }
+          
+          // Fallback: full viewport if iframe not found
           return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
         }
       `
       : `
         // Fathom mode: Simple screenshot of Fathom page
         export default async function({ page }) {
-          // Use domcontentloaded for faster loading
+          console.log('🎬 Loading Fathom page...');
           await page.goto('${escapedUrl}', { 
             waitUntil: 'domcontentloaded', 
             timeout: 20000 
           });
 
-          // Wait for initial content
+          console.log('⏳ Waiting for video player...');
+          // Quick wait for initial render
           await new Promise(resolve => setTimeout(resolve, 3000));
 
+          console.log('📸 Taking screenshot...');
           // Take viewport screenshot
           return await page.screenshot({ 
             type: 'jpeg', 
