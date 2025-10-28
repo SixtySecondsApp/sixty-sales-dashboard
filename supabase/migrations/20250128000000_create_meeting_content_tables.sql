@@ -284,6 +284,7 @@ RETURNS TABLE (
   created_at TIMESTAMPTZ
 )
 LANGUAGE plpgsql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -328,6 +329,7 @@ RETURNS TABLE (
   topics JSONB
 )
 LANGUAGE plpgsql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -373,6 +375,7 @@ RETURNS TABLE (
   total_tokens INTEGER
 )
 LANGUAGE plpgsql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
