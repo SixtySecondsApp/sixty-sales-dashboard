@@ -186,12 +186,10 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
               </div>
             </div>
 
-            {/* Content preview */}
-            <div className="bg-muted/30 rounded-lg p-4 mb-4 max-h-48 overflow-y-auto">
+            {/* Content preview - full content with no truncation */}
+            <div className="bg-muted/30 rounded-lg p-4 mb-4">
               <pre className="text-sm whitespace-pre-wrap font-mono">
-                {content.content.length > 500
-                  ? content.content.substring(0, 500) + '...'
-                  : content.content}
+                {content.content}
               </pre>
             </div>
 
