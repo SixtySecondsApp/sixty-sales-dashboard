@@ -67,10 +67,11 @@ ALTER TABLE security_events ENABLE ROW LEVEL SECURITY;
 -- ============================================================================
 
 -- Function to get user's hourly costs
+-- Note: RLS on cost_tracking table ensures users only see their own data
 CREATE OR REPLACE FUNCTION get_user_hourly_cost(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE plpgsql
-SECURITY DEFINER
+STABLE
 SET search_path = public
 AS $$
 DECLARE
@@ -87,10 +88,11 @@ END;
 $$;
 
 -- Function to get user's daily costs
+-- Note: RLS on cost_tracking table ensures users only see their own data
 CREATE OR REPLACE FUNCTION get_user_daily_cost(p_user_id UUID)
 RETURNS INTEGER
 LANGUAGE plpgsql
-SECURITY DEFINER
+STABLE
 SET search_path = public
 AS $$
 DECLARE
@@ -107,9 +109,11 @@ END;
 $$;
 
 -- Function to get global hourly costs (all users)
+-- Note: This function requires service_role to bypass RLS
 CREATE OR REPLACE FUNCTION get_global_hourly_cost()
 RETURNS INTEGER
 LANGUAGE plpgsql
+STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
