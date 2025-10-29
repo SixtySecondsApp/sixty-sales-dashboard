@@ -33,7 +33,10 @@
       "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_dTZhpD/**)",
       "Read(//var/folders/v4/5cvcwrq96q1f5fs5kgg8z7m00000gn/T/TemporaryItems/NSIRD_screencaptureui_nX37rF/**)",
       "Bash(git fetch:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(while read file)",
+      "Bash(do grep -c 'variant=' \"$file\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

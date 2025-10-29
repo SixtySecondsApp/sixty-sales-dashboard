@@ -138,7 +138,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
               {filterType !== 'all' && `(${CONTENT_TYPE_LABELS[filterType]})`}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
+          <Button variant="tertiary" size="sm" onClick={() => refetch()}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -147,7 +147,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
         {/* Content type filters */}
         <div className="flex flex-wrap gap-2">
           <Button
-            variant={filterType === 'all' ? 'default' : 'outline'}
+            variant={filterType === 'all' ? 'default' : 'tertiary'}
             size="sm"
             onClick={() => setFilterType('all')}
           >
@@ -159,7 +159,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
             return (
               <Button
                 key={type}
-                variant={filterType === type ? 'default' : 'outline'}
+                variant={filterType === type ? 'default' : 'tertiary'}
                 size="sm"
                 onClick={() => setFilterType(type)}
               >
@@ -196,7 +196,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
               <Button
-                variant="outline"
+                variant="tertiary"
                 size="sm"
                 onClick={() => handleCopy(content)}
                 disabled={copiedId === content.id}
@@ -214,7 +214,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
                 )}
               </Button>
               <Button
-                variant="outline"
+                variant="success"
                 size="sm"
                 onClick={() => handleDownload(content, 'md')}
               >
@@ -222,7 +222,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
                 Download MD
               </Button>
               <Button
-                variant="outline"
+                variant="success"
                 size="sm"
                 onClick={() => handleDownload(content, 'txt')}
               >
@@ -231,7 +231,7 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
               </Button>
               {onRegenerateClick && (
                 <Button
-                  variant="outline"
+                  variant="tertiary"
                   size="sm"
                   onClick={() => onRegenerateClick(content.content_type)}
                 >

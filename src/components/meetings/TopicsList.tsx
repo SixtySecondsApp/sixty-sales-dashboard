@@ -150,7 +150,7 @@ export function TopicsList({
           </AlertDescription>
         </Alert>
         <div className="mt-4">
-          <Button onClick={handleExtract} variant="outline">
+          <Button onClick={handleExtract} variant="tertiary">
             Try Again
           </Button>
         </div>
@@ -226,7 +226,7 @@ export function TopicsList({
               <div className="flex items-center gap-2">
                 <Button
                   onClick={selectAll}
-                  variant="outline"
+                  variant="tertiary"
                   size="sm"
                   disabled={selectedIndices.length === topics.length}
                 >
@@ -235,7 +235,7 @@ export function TopicsList({
                 </Button>
                 <Button
                   onClick={deselectAll}
-                  variant="outline"
+                  variant="tertiary"
                   size="sm"
                   disabled={selectedIndices.length === 0}
                 >

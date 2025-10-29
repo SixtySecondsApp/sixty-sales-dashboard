@@ -42,7 +42,17 @@ export default function MeetingThumbnail() {
     if (iframeLoaded) {
       document.body.setAttribute('data-thumbnail-ready', 'true')
       document.body.setAttribute('data-iframe-loaded', 'true')
-      console.log('✅ Iframe loaded, ready for screenshot')
+      console.log('✅ Iframe loaded, waiting for video to fully render...')
+
+      // Add additional delay to ensure video frame is visible
+      // This gives the iframe time to:
+      // 1. Initialize the player
+      // 2. Seek to the timestamp
+      // 3. Render the first frame
+      setTimeout(() => {
+        document.body.setAttribute('data-video-ready', 'true')
+        console.log('✅ Video should be ready for screenshot now')
+      }, 5000) // 5 second delay after iframe loads
     }
   }, [iframeLoaded])
 

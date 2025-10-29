@@ -8,6 +8,29 @@ const corsHeaders = {
 }
 
 /**
+ * Helper: Normalize Fathom share URL to working format
+ * Converts share.fathom.video/* to app.fathom.video/share/*
+ * which is the actual working public share URL format
+ */
+function normalizeFathomShareUrl(shareUrl: string): string {
+  try {
+    const url = new URL(shareUrl);
+
+    // If it's share.fathom.video (broken DNS), convert to app.fathom.video/share
+    if (url.hostname === 'share.fathom.video') {
+      const parts = url.pathname.split('/').filter(Boolean);
+      const token = parts[parts.length - 1];
+      return `https://app.fathom.video/share/${token}`;
+    }
+
+    // Already in correct format or unknown format - return as-is
+    return shareUrl;
+  } catch {
+    return shareUrl;
+  }
+}
+
+/**
  * Video Thumbnail Generator Edge Function
  *
  * Captures a screenshot from a Fathom video embed using Playwright and uploads to AWS S3
@@ -69,43 +92,101 @@ serve(async (req) => {
       : fathom_embed_url
 
     // Prefer the public share URL for both og:image and screenshots
-    const shareWithTs = share_url
+    // IMPORTANT: Normalize share.fathom.video to app.fathom.video/share (working DNS)
+    const normalizedShareUrl = share_url ? normalizeFathomShareUrl(share_url) : null
+    const shareWithTs = normalizedShareUrl
       ? (() => { try {
-            const u = new URL(share_url)
+            const u = new URL(normalizedShareUrl)
             if (typeof timestamp_seconds === 'number' && timestamp_seconds > 0) {
               u.searchParams.set('timestamp', String(Math.floor(timestamp_seconds)))
             }
             return u.toString()
-          } catch { return share_url } })()
+          } catch { return normalizedShareUrl } })()
       : null
+
+    console.log(`📍 URL Normalization:`)
+    console.log(`   Original share_url: ${share_url}`)
+    console.log(`   Normalized: ${normalizedShareUrl}`)
+    console.log(`   With timestamp: ${shareWithTs}`)
 
     // Always screenshot the Fathom public share URL (preferred), fallback to embed URL
     const targetUrl = shareWithTs || embedWithTs
 
     // Build our app's MeetingThumbnail page URL as preferred target for Browserless
     // This avoids iframe CORS issues by showcasing video full-screen in our app
-    const appUrl = meeting_id
-      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(share_url || '')}&t=${timestamp_seconds || 30}`
+    // IMPORTANT: FathomPlayerV2 component can work with either:
+    // 1. shareUrl (public share link) - best option, no auth required
+    // 2. recordingId (falls back to app.fathom.video/recording/{id}) - requires auth
+    // We should prefer actual share URLs when available
+
+    // For the MeetingThumbnail page, we need to pass EITHER:
+    // - A valid share URL that FathomPlayerV2 can extract an ID from
+    // - OR a recordingId directly
+
+    // CRITICAL FIX: Use the PUBLIC share_url, not fathom_embed_url!
+    // - share_url (https://fathom.video/share/...) = PUBLIC, no auth needed ✅
+    // - fathom_embed_url (https://app.fathom.video/recording/...) = REQUIRES AUTH ❌
+    //
+    // For MeetingThumbnail page, pass the share_url with timestamp
+    const shareUrlWithTs = share_url ? `${share_url}${share_url.includes('?') ? '&' : '?'}timestamp=${timestamp_seconds || 30}` : null
+
+    console.log(`🔗 Building App URL:`)
+    console.log(`   share_url (original): ${share_url}`)
+    console.log(`   shareUrlWithTs: ${shareUrlWithTs}`)
+    console.log(`   fathom_embed_url: ${fathom_embed_url}`)
+    console.log(`   recording_id: ${recording_id}`)
+    console.log(`   timestamp_seconds: ${timestamp_seconds}`)
+
+    const appUrl = meeting_id && shareUrlWithTs
+      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
       : null
+
+    console.log(`   Generated appUrl: ${appUrl}`)
 
     let thumbnailUrl: string | null = null
 
-    // Check if we should skip third-party services
+    // Check if we should skip third-party services and force app mode
     const onlyBrowserlessValue = Deno.env.get('ONLY_BROWSERLESS')
     const disableThirdPartyValue = Deno.env.get('DISABLE_THIRD_PARTY_SCREENSHOTS')
+    const forceAppModeValue = Deno.env.get('FORCE_APP_MODE')
     const onlyBrowserless = onlyBrowserlessValue === 'true'
     const disableThirdParty = disableThirdPartyValue === 'true'
-    const skipThirdParty = onlyBrowserless || disableThirdParty
+    const forceAppMode = forceAppModeValue === 'true'
+    const skipThirdParty = onlyBrowserless || disableThirdParty || forceAppMode
 
     console.log(`🔧 Environment check:`)
     console.log(`   ONLY_BROWSERLESS="${onlyBrowserlessValue}" (skip=${onlyBrowserless})`)
     console.log(`   DISABLE_THIRD_PARTY="${disableThirdPartyValue}" (skip=${disableThirdParty})`)
+    console.log(`   FORCE_APP_MODE="${forceAppModeValue}" (force=${forceAppMode})`)
     console.log(`   skipThirdParty=${skipThirdParty}`)
 
     // Prefer Browserless app mode first when meeting_id present (gives clean, cropped video)
     if (!thumbnailUrl && appUrl && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 Trying Browserless first with app mode (cropped iframe)...')
+      console.log('📸 Trying Browserless with APP MODE (our own page)...')
+      console.log(`   App URL: ${appUrl}`)
+      console.log(`   This will screenshot OUR application's public thumbnail page`)
+      console.log(`   Expected: Full-screen video iframe, cropped to video only`)
       thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
+
+      if (!thumbnailUrl) {
+        console.error('❌ App Mode failed - check if the app is accessible from Browserless')
+        console.error(`   URL that failed: ${appUrl}`)
+        console.error(`   Possible issues:`)
+        console.error(`     1. MeetingThumbnail page not loading (404 or redirect)`)
+        console.error(`     2. Iframe selector 'iframe[src*="fathom"]' timeout`)
+        console.error(`     3. Network connectivity between Browserless and your app`)
+        console.error(`     4. Share URL is invalid or requires auth`)
+
+        if (forceAppMode) {
+          console.error(`   🚨 FORCE_APP_MODE is enabled - will NOT fallback to other methods`)
+          console.error(`   Fix the App Mode issue or disable FORCE_APP_MODE to allow fallbacks`)
+        }
+      } else {
+        console.log('✅ App Mode succeeded!')
+        console.log(`   Screenshot captured from: ${appUrl}`)
+      }
+    } else if (!appUrl) {
+      console.log('⏭️  Skipping App Mode (no appUrl generated - missing meeting_id or share_url)')
     }
 
     if (!thumbnailUrl && !skipThirdParty) {
@@ -139,9 +220,22 @@ serve(async (req) => {
     }
 
     // Try Browserless fathom mode if still not available
-    if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL')) {
+    // BUT: Skip if FORCE_APP_MODE is set (we want ONLY our app to be screenshotted)
+    if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL') && !forceAppMode) {
       console.log('📸 Trying Browserless fathom mode as fallback...')
-      thumbnailUrl = await captureWithBrowserlessAndUpload(targetUrl, recording_id, 'fathom', meeting_id)
+      // Try share URL first (public access, no login required)
+      if (shareWithTs) {
+        console.log(`   Trying public share URL: ${shareWithTs}`)
+        thumbnailUrl = await captureWithBrowserlessAndUpload(shareWithTs, recording_id, 'fathom', meeting_id)
+      }
+      // Fallback to embed URL if share fails
+      if (!thumbnailUrl && embedWithTs) {
+        console.log(`   Share URL failed, trying embed URL: ${embedWithTs}`)
+        thumbnailUrl = await captureWithBrowserlessAndUpload(embedWithTs, recording_id, 'fathom', meeting_id)
+      }
+    } else if (forceAppMode && !thumbnailUrl) {
+      console.log('🚫 Skipping Browserless Fathom mode fallback (FORCE_APP_MODE is enabled)')
+      console.log('   App Mode must succeed for thumbnail generation')
     }
 
     // E) Last resort: og:image (often unavailable per user)
@@ -337,22 +431,42 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
         export default async function({ page }) {
           console.log('🎬 Loading app page...');
           await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 20000 });
-          
+
           console.log('⏳ Waiting for iframe to load...');
           // Wait for the Fathom iframe to be present
           const iframeSelector = 'iframe[src*="fathom"]';
           await page.waitForSelector(iframeSelector, { timeout: 8000 });
-          
-          // Brief wait for video to start rendering (just 2-3 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2500));
-          
+
+          console.log('⏳ Waiting for video content to render...');
+          // Extended wait for video to fully load and render
+          // This allows time for:
+          // 1. Iframe to initialize (2s)
+          // 2. Video player to load (2s)
+          // 3. Video to seek to timestamp (2s)
+          // 4. First frame to render (2s)
+          await new Promise(resolve => setTimeout(resolve, 8000));
+
+          console.log('✅ Verifying iframe is visible...');
+          // Verify iframe is actually visible and has content
+          const iframeVisible = await page.evaluate((selector) => {
+            const iframe = document.querySelector(selector);
+            if (!iframe) return false;
+            const rect = iframe.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0 && rect.top >= 0;
+          }, iframeSelector);
+
+          if (!iframeVisible) {
+            console.log('⚠️  Iframe not visible, waiting additional 2s...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+
           console.log('📸 Taking screenshot of video iframe...');
           // Screenshot just the iframe element (crops to video borders)
           const iframe = await page.$(iframeSelector);
           if (iframe) {
             return await iframe.screenshot({ type: 'jpeg', quality: 85 });
           }
-          
+
           // Fallback: full viewport if iframe not found
           return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
         }
@@ -361,21 +475,42 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
         // Fathom mode: Simple screenshot of Fathom page
         export default async function({ page }) {
           console.log('🎬 Loading Fathom page...');
-          await page.goto('${escapedUrl}', { 
-            waitUntil: 'domcontentloaded', 
-            timeout: 20000 
+          await page.goto('${escapedUrl}', {
+            waitUntil: 'domcontentloaded',
+            timeout: 20000
           });
 
-          console.log('⏳ Waiting for video player...');
-          // Quick wait for initial render
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.log('⏳ Waiting for video player to initialize...');
+          // Extended wait for video player to fully load
+          // This allows time for:
+          // 1. Page scripts to load (2s)
+          // 2. Video player to initialize (2s)
+          // 3. Video to seek to timestamp (2s)
+          // 4. First frame to render (2s)
+          await new Promise(resolve => setTimeout(resolve, 8000));
+
+          console.log('✅ Checking for video element...');
+          // Try to find and verify video element is present
+          const hasVideo = await page.evaluate(() => {
+            const video = document.querySelector('video');
+            if (!video) return false;
+            // Check if video has actual dimensions
+            return video.videoWidth > 0 && video.videoHeight > 0;
+          });
+
+          if (!hasVideo) {
+            console.log('⚠️  Video element not ready, waiting additional 3s...');
+            await new Promise(resolve => setTimeout(resolve, 3000));
+          } else {
+            console.log('✅ Video element found and ready');
+          }
 
           console.log('📸 Taking screenshot...');
           // Take viewport screenshot
-          return await page.screenshot({ 
-            type: 'jpeg', 
-            quality: 85, 
-            fullPage: false 
+          return await page.screenshot({
+            type: 'jpeg',
+            quality: 85,
+            fullPage: false
           });
         }
       `

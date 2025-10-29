@@ -207,14 +207,15 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
   return (
     <>
       <IntelligentPreloader />
-      {/* Public routes - outside auth protection */}
       <Routes>
-        {/* Public thumbnail page for screenshot automation */}
+        {/* Public thumbnail page for screenshot automation - MUST be outside ProtectedRoute */}
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
-      </Routes>
-      <ProtectedRoute>
-              <Suspense fallback={<RouteLoader />}>
-                <Routes>
+
+        {/* All other routes wrapped in ProtectedRoute */}
+        <Route path="/*" element={
+          <ProtectedRoute>
+            <Suspense fallback={<RouteLoader />}>
+              <Routes>
                 <Route path="/auth/login" element={<Login />} />
                 <Route path="/auth/signup" element={<Signup />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
@@ -295,7 +296,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/test-google-tasks" element={<AppLayout><TestGoogleTasks /></AppLayout>} />
               </Routes>
             </Suspense>
-      </ProtectedRoute>
+          </ProtectedRoute>
+        } />
+      </Routes>
       <Toaster />
       <VersionManager />
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] pointer-events-none" />

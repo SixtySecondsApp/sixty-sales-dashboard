@@ -1032,8 +1032,8 @@ export function SalesTable() {
               {!activity.deal_id && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 px-3 text-xs bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                  variant="success"
+                  className="h-7 px-3 text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
                     openAddDealModal(activity);
@@ -1224,13 +1224,8 @@ export function SalesTable() {
               {/* Subscription Stats Toggle */}
               <Button
                 onClick={() => setShowSubscriptionStats(!showSubscriptionStats)}
-                variant="outline"
+                variant="tertiary"
                 size="sm"
-                className={`transition-colors ${
-                  showSubscriptionStats 
-                    ? 'bg-violet-500/20 border-violet-500/40 text-violet-300 hover:bg-violet-500/30' 
-                    : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white'
-                }`}
               >
                 <BarChartIcon className="w-4 h-4 mr-2" />
                 {showSubscriptionStats ? 'Hide' : 'Show'} Subscription Stats
@@ -1243,13 +1238,9 @@ export function SalesTable() {
               >
                 <Button
                   onClick={toggleSelectMode}
-                  variant="outline"
+                  variant="tertiary"
                   size="sm"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
-                    isSelectModeActive 
-                      ? 'bg-gradient-to-r from-violet-500/20 to-purple-500/20 border-violet-500/40 text-violet-300 hover:from-violet-500/30 hover:to-purple-500/30 shadow-lg shadow-violet-500/20 ring-2 ring-violet-500/30' 
-                      : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:text-white hover:border-gray-600 hover:shadow-md'
-                  }`}
+                  className="flex items-center gap-2"
                 >
                   <motion.div
                     animate={{ rotate: isSelectModeActive ? 180 : 0 }}
@@ -1269,9 +1260,8 @@ export function SalesTable() {
 
               <Button
                 onClick={handleExportCSV}
-                variant="outline"
+                variant="success"
                 size="sm"
-                className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 transition-colors"
                 disabled={filteredActivities.length === 0}
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -1312,21 +1302,21 @@ export function SalesTable() {
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         onClick={() => setBulkEditDialogOpen(true)}
-                        variant="outline"
+                        variant="default"
                         size="sm"
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/25 text-blue-400 hover:from-blue-500/20 hover:to-cyan-500/20 hover:text-blue-300 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/20 hover:border-blue-400/40"
+                        className="flex items-center gap-2"
                       >
                         <Edit2 className="w-4 h-4" />
                         <span className="font-medium">Edit</span>
                       </Button>
                     </motion.div>
-                    
+
                     <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                       <Button
                         onClick={() => setBulkDeleteDialogOpen(true)}
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-rose-500/10 border-red-500/25 text-red-400 hover:from-red-500/20 hover:to-rose-500/20 hover:text-red-300 transition-all duration-300 hover:shadow-xl hover:shadow-red-500/20 hover:border-red-400/40"
+                        className="flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
                         <span className="font-medium">Delete</span>
@@ -1354,9 +1344,8 @@ export function SalesTable() {
             {/* Filter Toggle and Summary */}
             <div className="flex items-center justify-between">
               <Button
-                variant="outline"
+                variant="tertiary"
                 onClick={() => setShowFilters(!showFilters)}
-                className="bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
               >
                 <Filter className="w-4 h-4 mr-2" />
                 Advanced Filters
@@ -1372,7 +1361,6 @@ export function SalesTable() {
                   variant="ghost"
                   size="sm"
                   onClick={resetFilters}
-                  className="text-gray-400 hover:text-white"
                 >
                   <X className="w-4 h-4 mr-1" />
                   Clear All
@@ -1721,19 +1709,18 @@ export function SalesTable() {
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => setDeleteDialogOpen(false)}
-              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
             <Button
               type="button"
+              variant="destructive"
               onClick={() => {
                 logger.log('Delete button clicked, id:', activityToDelete);
                 handleDelete(activityToDelete);
               }}
-              className="bg-red-500 hover:bg-red-600 text-white"
             >
               Delete
             </Button>
@@ -1852,16 +1839,15 @@ export function SalesTable() {
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => setAddDealForActivity(null)}
-              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
             <Button
               type="button"
+              variant="success"
               onClick={handleConfirmAddDeal}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
               disabled={!newDealCompany || !newDealName || !newDealStageId}
             >
               Confirm
@@ -1884,16 +1870,15 @@ export function SalesTable() {
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => setBulkDeleteDialogOpen(false)}
-              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
             <Button
               type="button"
+              variant="destructive"
               onClick={handleBulkDelete}
-              className="bg-red-500 hover:bg-red-600 text-white"
             >
               Delete {selectedActivities.size} Activities
             </Button>
@@ -1973,19 +1958,18 @@ export function SalesTable() {
           <DialogFooter>
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               onClick={() => {
                 setBulkEditDialogOpen(false);
                 setBulkEditData({});
               }}
-              className="bg-gray-700 text-gray-100 hover:bg-gray-600 hover:text-white transition-colors"
             >
               Cancel
             </Button>
             <Button
               type="button"
+              variant="default"
               onClick={handleBulkEdit}
-              className="bg-blue-500 hover:bg-blue-600 text-white"
               disabled={Object.keys(bulkEditData).length === 0 || Object.values(bulkEditData).every(v => !v)}
             >
               Update {selectedActivities.size} Activities

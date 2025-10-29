@@ -23,8 +23,7 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const navigate = useNavigate();
   const location = useLocation();
 
-  const isPublicRoute = publicRoutes.includes(location.pathname) || 
-    location.pathname.startsWith('/meetings/thumbnail/'); // Public thumbnail page for screenshots
+  const isPublicRoute = publicRoutes.includes(location.pathname);
   const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
     location.hash.includes('type=recovery');
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');

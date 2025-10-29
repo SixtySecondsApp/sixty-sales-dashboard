@@ -130,7 +130,7 @@
 
   /* Secondary Buttons */
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 bg-gray-800/80 border border-gray-600/60 text-gray-100 font-medium px-4 py-2.5 rounded-lg transition-all duration-300 hover:bg-gray-700/90 hover:border-gray-500 hover:text-white focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 min-h-[40px] whitespace-nowrap;
+    @apply inline-flex items-center justify-center gap-2 bg-gray-800/80 border border-gray-500/60 text-white font-medium px-4 py-2.5 rounded-lg transition-all duration-300 hover:bg-gray-700/90 hover:border-gray-400 hover:text-white focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 min-h-[40px] whitespace-nowrap;
   }
 
   /* Ghost Buttons */
@@ -140,7 +140,7 @@
 
   /* Outline Buttons */
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 bg-transparent border border-gray-500/70 text-gray-200 font-medium px-4 py-2.5 rounded-lg transition-all duration-300 hover:bg-gray-800/60 hover:border-gray-400 hover:text-white focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 min-h-[40px] whitespace-nowrap;
+    @apply inline-flex items-center justify-center gap-2 bg-transparent border border-gray-500/70 text-white font-medium px-4 py-2.5 rounded-lg transition-all duration-300 hover:bg-white hover:text-gray-900 hover:border-white focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 min-h-[40px] whitespace-nowrap disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:text-gray-400;
   }
 
   /* Small Buttons */
@@ -258,39 +258,41 @@
   }
 }
 
-/* Force dark theme button colors in shadcn components */
+/* Button Utility Classes - Matching Component Variants */
 @layer utilities {
-  .dark button {
-    color: hsl(var(--foreground)) !important;
-  }
-  
-  .dark button.bg-primary {
-    color: hsl(var(--primary-foreground)) !important;
-  }
-  
-  .dark button.bg-secondary {
-    color: hsl(var(--secondary-foreground)) !important;
+  /* Tertiary Button - Subtle gray with good contrast */
+  .btn-tertiary {
+    @apply inline-flex items-center justify-center gap-2 bg-gray-800/50 border border-gray-700/50 text-gray-400 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-gray-700/50 hover:text-white hover:border-gray-600/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-800/50 dark:bg-gray-800/50 dark:border-gray-700/50 dark:text-gray-400 dark:hover:bg-gray-700/50 dark:hover:text-white;
   }
 
-  /* Override shadcn button variants for dark theme */
-  .dark .btn-primary,
-  .dark button[class*="bg-blue"] {
-    @apply bg-gradient-to-r from-blue-600 to-blue-700 text-white border-0 hover:from-blue-500 hover:to-blue-600;
+  /* Success Button - Emerald green for positive actions */
+  .btn-success {
+    @apply inline-flex items-center justify-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400 dark:hover:bg-emerald-500/20;
   }
 
-  .dark .btn-secondary,
-  .dark button[variant="outline"] {
-    @apply bg-gray-800/80 border-gray-600/60 text-gray-100 hover:bg-gray-700/90 hover:border-gray-500 hover:text-white;
+  /* Danger Button - Red for destructive secondary actions */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 bg-red-500/10 border border-red-500/20 text-red-400 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400 dark:hover:bg-red-500/20;
   }
 
-  .dark .btn-ghost,
-  .dark button[variant="ghost"] {
-    @apply bg-transparent text-gray-200 hover:bg-gray-800/60 hover:text-white border-0;
+  /* Info Button - Blue for informational actions */
+  .btn-info {
+    @apply inline-flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-blue-500/20 hover:text-blue-300 hover:border-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-blue-500/10 dark:border-blue-500/20 dark:text-blue-400 dark:hover:bg-blue-500/20;
+  }
+
+  /* Warning Button - Amber for warning actions */
+  .btn-warning {
+    @apply inline-flex items-center justify-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium px-4 py-2.5 rounded-lg transition-all duration-200 hover:bg-amber-500/20 hover:text-amber-300 hover:border-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/20;
   }
 
   /* Button text color improvements */
   .btn-primary span,
   .btn-secondary span,
+  .btn-tertiary span,
+  .btn-success span,
+  .btn-danger span,
+  .btn-info span,
+  .btn-warning span,
   .btn-outline span,
   .btn-ghost span {
     @apply text-current;
@@ -304,6 +306,11 @@
   /* Ensure button content doesn't shift */
   .btn-primary,
   .btn-secondary,
+  .btn-tertiary,
+  .btn-success,
+  .btn-danger,
+  .btn-info,
+  .btn-warning,
   .btn-outline,
   .btn-ghost {
     @apply flex-shrink-0;
@@ -314,7 +321,7 @@
     .btn-group {
       @apply flex-col w-full;
     }
-    
+
     .btn-group button {
       @apply w-full;
     }
@@ -457,8 +464,9 @@
   .fc-daygrid-event {
     font-size: 10px !important;
   }
-  
+
   .fc-daygrid-day-number {
     font-size: 12px !important;
   }
 }
+
