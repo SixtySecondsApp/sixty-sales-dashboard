@@ -430,44 +430,109 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
         // App mode: Screenshot our full-screen video page
         export default async function({ page }) {
           console.log('🎬 Loading app page...');
-          await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 20000 });
+          console.log('📍 URL:', '${escapedUrl}');
+
+          // Set a more standard user agent to avoid detection as headless browser
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+          // Set viewport to standard desktop size
+          await page.setViewportSize({ width: 1920, height: 1080 });
+
+          try {
+            // Try with networkidle to ensure all resources load
+            await page.goto('${escapedUrl}', { waitUntil: 'networkidle', timeout: 30000 });
+            console.log('✅ Page loaded with networkidle');
+          } catch (e) {
+            console.log('⚠️ NetworkIdle timeout, trying with domcontentloaded...');
+            try {
+              await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 30000 });
+              console.log('✅ Page loaded with domcontentloaded');
+            } catch (e2) {
+              console.error('❌ Failed to load page:', e2.message);
+              // Log the response status if available
+              const response = await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => null);
+              if (response) {
+                console.log('Response status:', response.status());
+                console.log('Response headers:', JSON.stringify(response.headers()));
+              }
+              throw e2;
+            }
+          }
+
+          console.log('⏳ Waiting 3 seconds for React to render...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+
+          console.log('🔍 Checking page content...');
+          const title = await page.title();
+          const url = page.url();
+          console.log('  Page title:', title);
+          console.log('  Current URL:', url);
+
+          // Check if we got redirected
+          if (!url.includes('/meetings/thumbnail/')) {
+            console.error('⚠️ Page was redirected! Expected /meetings/thumbnail/, got:', url);
+          }
+
+          // Check for error messages
+          const errorText = await page.evaluate(() => {
+            const body = document.body;
+            if (!body) return null;
+            const text = body.innerText || body.textContent;
+            if (text && (text.includes('error') || text.includes('Error') || text.includes('404') || text.includes('403'))) {
+              return text.substring(0, 500);
+            }
+            return null;
+          });
+
+          if (errorText) {
+            console.log('⚠️ Possible error on page:', errorText);
+          }
 
           console.log('⏳ Waiting for iframe to load...');
-          // Wait for the Fathom iframe to be present
-          const iframeSelector = 'iframe[src*="fathom"]';
-          await page.waitForSelector(iframeSelector, { timeout: 8000 });
+          const iframeSelector = 'iframe';
+          try {
+            await page.waitForSelector(iframeSelector, { timeout: 15000 });
+            console.log('✅ Iframe element found');
 
-          console.log('⏳ Waiting for video content to render...');
-          // Extended wait for video to fully load and render
-          // This allows time for:
-          // 1. Iframe to initialize (2s)
-          // 2. Video player to load (2s)
-          // 3. Video to seek to timestamp (2s)
-          // 4. First frame to render (2s)
+            // Get iframe details
+            const iframeInfo = await page.evaluate(() => {
+              const iframe = document.querySelector('iframe');
+              if (iframe) {
+                return {
+                  src: iframe.src,
+                  width: iframe.width,
+                  height: iframe.height,
+                  display: window.getComputedStyle(iframe).display
+                };
+              }
+              return null;
+            });
+            console.log('Iframe info:', JSON.stringify(iframeInfo));
+          } catch (e) {
+            console.log('⚠️  No iframe found after 15s');
+            const html = await page.content();
+            console.log('Page HTML length:', html.length);
+            console.log('Page HTML preview:', html.substring(0, 1000));
+
+            // Check what's actually on the page
+            const bodyInfo = await page.evaluate(() => {
+              return {
+                hasBody: !!document.body,
+                bodyClasses: document.body?.className,
+                rootElement: document.querySelector('#root') ? 'Found #root' : 'No #root',
+                reactRoot: document.querySelector('[data-reactroot]') ? 'Found React root' : 'No React root',
+                childCount: document.body?.children?.length || 0
+              };
+            });
+            console.log('Page structure:', JSON.stringify(bodyInfo));
+
+            throw new Error('Iframe not found on page - check if MeetingThumbnail component rendered');
+          }
+
+          console.log('⏳ Waiting 8 more seconds for video to fully load...');
           await new Promise(resolve => setTimeout(resolve, 8000));
 
-          console.log('✅ Verifying iframe is visible...');
-          // Verify iframe is actually visible and has content
-          const iframeVisible = await page.evaluate((selector) => {
-            const iframe = document.querySelector(selector);
-            if (!iframe) return false;
-            const rect = iframe.getBoundingClientRect();
-            return rect.width > 0 && rect.height > 0 && rect.top >= 0;
-          }, iframeSelector);
-
-          if (!iframeVisible) {
-            console.log('⚠️  Iframe not visible, waiting additional 2s...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-
-          console.log('📸 Taking screenshot of video iframe...');
-          // Screenshot just the iframe element (crops to video borders)
-          const iframe = await page.$(iframeSelector);
-          if (iframe) {
-            return await iframe.screenshot({ type: 'jpeg', quality: 85 });
-          }
-
-          // Fallback: full viewport if iframe not found
+          console.log('📸 Taking screenshot...');
           return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
         }
       `

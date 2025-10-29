@@ -26,6 +26,7 @@ import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
+import BrowserlessTest from '@/pages/BrowserlessTest';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -208,19 +209,22 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
     <>
       <IntelligentPreloader />
       <Routes>
-        {/* Public thumbnail page for screenshot automation - MUST be outside ProtectedRoute */}
+        {/* Public pages for screenshot automation - MUST be outside ProtectedRoute */}
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
+        <Route path="/browserless-test" element={<BrowserlessTest />} />
+
+        {/* Auth routes that should also be accessible without protection */}
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/signup" element={<Signup />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/reset-password" element={<ResetPassword />} />
 
         {/* All other routes wrapped in ProtectedRoute */}
         <Route path="/*" element={
           <ProtectedRoute>
             <Suspense fallback={<RouteLoader />}>
               <Routes>
-                <Route path="/auth/login" element={<Login />} />
-                <Route path="/auth/signup" element={<Signup />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
-                <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-                <Route path="/auth/reset-password" element={<ResetPassword />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
