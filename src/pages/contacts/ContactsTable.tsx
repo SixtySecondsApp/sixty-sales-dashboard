@@ -613,22 +613,25 @@ export default function ContactsTable() {
 
           {/* Actions */}
           <div className="flex gap-2">
-            <Button onClick={exportToCSV} variant="outline" size="sm">
+            <Button
+              onClick={exportToCSV}
+              variant="success"
+              size="sm"
+            >
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
-            <Button 
+            <Button
               onClick={toggleSelectMode}
-              variant={isSelectModeActive ? "default" : "outline"}
-              className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : ""} 
+              variant="tertiary"
               size="sm"
             >
               {isSelectModeActive ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
               {isSelectModeActive ? 'Exit Select' : 'Select Mode'}
             </Button>
-            <Button 
+            <Button
               onClick={handleAddContact}
-              className="bg-green-600 hover:bg-green-700 text-white" 
+              variant="success"
               size="sm"
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -662,23 +665,21 @@ export default function ContactsTable() {
               </div>
               
               <div className="flex items-center gap-2">
-                <Button 
+                <Button
                   onClick={() => setBulkDeleteDialogOpen(true)}
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
-                  className="border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete Selected
                 </Button>
-                <Button 
+                <Button
                   onClick={() => {
                     setSelectedContacts(new Set());
                     setIsSelectAllChecked(false);
                   }}
-                  variant="ghost" 
+                  variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-white hover:bg-gray-800/50"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -867,20 +868,18 @@ export default function ContactsTable() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => handleEditContact(e, contact)}
-                      className="text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
                       title="Edit contact"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="danger"
+                      size="icon"
                       onClick={(e) => handleDeleteContact(e, contact)}
-                      className="text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
                       title="Delete contact"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -918,15 +917,14 @@ export default function ContactsTable() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setDeletingContact(null)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Cancel
             </Button>
             <Button
+              variant="destructive"
               onClick={confirmDeleteContact}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete Contact
             </Button>
@@ -950,20 +948,19 @@ export default function ContactsTable() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setEditingContact(null)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Close
             </Button>
             <Button
+              variant="default"
               onClick={() => {
                 if (editingContact) {
                   navigate(`/crm/contacts/${editingContact.id}`);
                   setEditingContact(null);
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Open Profile
             </Button>
@@ -982,15 +979,14 @@ export default function ContactsTable() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setBulkDeleteDialogOpen(false)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Cancel
             </Button>
             <Button
+              variant="destructive"
               onClick={handleBulkDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete {selectedContacts.size} Contacts
             </Button>

@@ -420,8 +420,8 @@ const Calendar: React.FC = () => {
             <Button
               onClick={() => connectGoogle.mutate()}
               disabled={connectGoogle.isPending}
+              variant="success"
               size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700"
             >
               {connectGoogle.isPending ? (
                 <>
@@ -451,7 +451,6 @@ const Calendar: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => navigate('/integrations')}
-              className="text-gray-400 hover:text-white"
             >
               <Settings className="w-3 h-3 mr-1" />
               Manage
@@ -572,7 +571,7 @@ const Calendar: React.FC = () => {
                         }
                       }}
                       size="sm"
-                      variant="outline"
+                      variant="tertiary"
                       className="ml-2"
                     >
                       Test API
@@ -593,10 +592,6 @@ const Calendar: React.FC = () => {
                       variant={currentView === view.key ? 'default' : 'ghost'}
                       size="sm"
                       onClick={() => setCurrentView(view.key)}
-                      className={currentView === view.key ? 
-                        'bg-emerald-600 text-white' : 
-                        'text-gray-400 hover:text-gray-200'
-                      }
                     >
                       {view.label}
                     </Button>
@@ -619,18 +614,18 @@ const Calendar: React.FC = () => {
                 {/* Actions */}
                 <Button
                   onClick={handleCreateEvent}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  variant="success"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   New Event
                 </Button>
-                
-                <Button variant="outline" size="sm">
+
+                <Button variant="tertiary" size="sm">
                   <Filter className="w-4 h-4 mr-2" />
                   Filter
                 </Button>
-                
-                <Button variant="outline" size="sm">
+
+                <Button variant="tertiary" size="sm">
                   <Settings className="w-4 h-4" />
                 </Button>
               </div>
@@ -651,9 +646,8 @@ const Calendar: React.FC = () => {
                     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
                     handleSync('This Month', start, end);
                   }}
-                  variant="outline"
+                  variant="tertiary"
                   size="sm"
-                  className="text-gray-400 hover:text-white"
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Sync Calendar
@@ -696,11 +690,11 @@ const Calendar: React.FC = () => {
                             console.log('[Calendar] Sync already in progress');
                             return;
                           }
-                          
+
                           setSyncFeedback('🔍 Testing connection with last week\'s activity...');
                           toast.info('Testing calendar sync with last week\'s events...');
-                          
-                          syncCalendar.mutate({ 
+
+                          syncCalendar.mutate({
                             action: 'sync-single'
                           }, {
                             onSuccess: (result) => {
@@ -725,7 +719,7 @@ const Calendar: React.FC = () => {
                             }
                           });
                         }}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        variant="default"
                         size="lg"
                         disabled={isSyncing}
                       >
@@ -756,13 +750,14 @@ const Calendar: React.FC = () => {
                               const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
                               handleSync('This Month', start, end);
                             }}
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                            variant="success"
+                            className="w-full"
                             disabled={isSyncing}
                           >
                             <CalendarIcon className="w-4 h-4 mr-2" />
                             Sync This Month
                           </Button>
-                          
+
                           {/* Secondary options */}
                           <Button
                             onClick={() => {
@@ -771,14 +766,14 @@ const Calendar: React.FC = () => {
                               const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
                               handleSync('Last Month', start, end);
                             }}
-                            variant="outline"
+                            variant="tertiary"
                             className="w-full"
                             disabled={isSyncing}
                           >
                             <CalendarIcon className="w-4 h-4 mr-2" />
                             Last Month
                           </Button>
-                          
+
                           <Button
                             onClick={() => {
                               const now = new Date();
@@ -786,14 +781,14 @@ const Calendar: React.FC = () => {
                               const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
                               handleSync('Last 3 Months', start, end);
                             }}
-                            variant="outline"
+                            variant="tertiary"
                             className="w-full"
                             disabled={isSyncing}
                           >
                             <CalendarIcon className="w-4 h-4 mr-2" />
                             Last 3 Months
                           </Button>
-                          
+
                           <Button
                             onClick={() => {
                               const now = new Date();
@@ -801,21 +796,22 @@ const Calendar: React.FC = () => {
                               const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
                               handleSync('This Year', start, end);
                             }}
-                            variant="outline"
+                            variant="tertiary"
                             className="w-full"
                             disabled={isSyncing}
                           >
                             <CalendarIcon className="w-4 h-4 mr-2" />
                             This Year ({new Date().getFullYear()})
                           </Button>
-                          
+
                           <Button
                             onClick={() => {
                               const start = new Date(2024, 0, 1);
                               const end = new Date(2025, 11, 31, 23, 59, 59);
                               handleSync('All Events', start, end);
                             }}
-                            className="w-full bg-gray-700 hover:bg-gray-600"
+                            variant="secondary"
+                            className="w-full"
                             disabled={isSyncing}
                           >
                             <RefreshCw className="w-4 h-4 mr-2" />

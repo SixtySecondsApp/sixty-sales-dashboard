@@ -624,27 +624,25 @@ export default function CompaniesTable() {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <Button 
-                onClick={exportToCSV} 
-                variant="outline" 
+              <Button
+                onClick={exportToCSV}
+                variant="success"
                 size="sm"
-                className="border-gray-600 bg-gray-800/50 text-gray-100 hover:bg-gray-700/70 hover:text-white hover:border-gray-500"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
-              <Button 
+              <Button
                 onClick={toggleSelectMode}
-                variant={isSelectModeActive ? "default" : "outline"}
-                className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : ""} 
+                variant="tertiary"
                 size="sm"
               >
                 {isSelectModeActive ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
                 {isSelectModeActive ? 'Exit Select' : 'Select Mode'}
               </Button>
-              <Button 
+              <Button
                 onClick={handleAddCompany}
-                className="bg-blue-600 hover:bg-blue-700 text-white" 
+                variant="default"
                 size="sm"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -679,23 +677,21 @@ export default function CompaniesTable() {
               </div>
               
               <div className="flex items-center gap-2">
-                <Button 
+                <Button
                   onClick={() => setBulkDeleteDialogOpen(true)}
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
-                  className="border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete Selected
                 </Button>
-                <Button 
+                <Button
                   onClick={() => {
                     setSelectedCompanies(new Set());
                     setIsSelectAllChecked(false);
                   }}
-                  variant="ghost" 
+                  variant="ghost"
                   size="sm"
-                  className="text-gray-400 hover:text-white hover:bg-gray-800/50"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -878,20 +874,18 @@ export default function CompaniesTable() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-center gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => handleEditCompany(e, company)}
-                      className="text-gray-400 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
                       title="Edit company"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="danger"
+                      size="icon"
                       onClick={(e) => handleDeleteCompany(e, company)}
-                      className="text-gray-400 hover:text-red-400 hover:bg-red-400/10 transition-colors"
                       title="Delete company"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -937,15 +931,14 @@ export default function CompaniesTable() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setDeletingCompany(null)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Cancel
             </Button>
             <Button
+              variant="destructive"
               onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete Company
             </Button>
@@ -969,20 +962,19 @@ export default function CompaniesTable() {
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setEditingCompany(null)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Close
             </Button>
             <Button
+              variant="default"
               onClick={() => {
                 if (editingCompany) {
                   navigate(`/companies/${editingCompany.id}`);
                   setEditingCompany(null);
                 }
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               Open Profile
             </Button>
@@ -1001,15 +993,14 @@ export default function CompaniesTable() {
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
-              variant="outline"
+              variant="secondary"
               onClick={() => setBulkDeleteDialogOpen(false)}
-              className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
             >
               Cancel
             </Button>
             <Button
+              variant="destructive"
               onClick={handleBulkDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
             >
               Delete {selectedCompanies.size} Companies
             </Button>

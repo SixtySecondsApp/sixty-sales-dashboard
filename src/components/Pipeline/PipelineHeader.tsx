@@ -381,7 +381,6 @@ export function PipelineHeader({
               variant={view === 'kanban' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => onViewChange('kanban')}
-              className={view === 'kanban' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}
             >
               <Grid3X3 className="w-4 h-4" />
             </Button>
@@ -389,7 +388,6 @@ export function PipelineHeader({
               variant={view === 'table' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => onViewChange('table')}
-              className={view === 'table' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'text-gray-400 hover:text-white hover:bg-gray-700/50'}
             >
               <List className="w-4 h-4" />
             </Button>
@@ -400,48 +398,41 @@ export function PipelineHeader({
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={onAddDealClick}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg
-              bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
-              hover:bg-emerald-500/20 transition-colors font-medium"
+            variant="success"
+            className="px-4 py-2.5"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4 mr-2" />
             <span>New Deal</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
             onClick={handleExportClick}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg
-              bg-blue-500/10 text-blue-400 border border-blue-500/20
-              hover:bg-blue-500/20 transition-colors font-medium"
+            variant="default"
+            className="px-4 py-2.5"
             title="Export current pipeline view to CSV"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">Export</span>
-          </button>
+          </Button>
         </div>
 
         <div className="flex items-center gap-3">
-          <button
+          <Button
             onClick={() => setShowFilters(!showFilters)}
-            className={`
-              flex items-center gap-2 px-4 py-2.5 rounded-lg
-              border transition-colors relative font-medium
-              ${hasActiveFilters
-                ? 'bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30'
-                : 'bg-gray-800/50 text-gray-400 border-gray-700 hover:bg-gray-700/50'}
-            `}
+            variant={hasActiveFilters ? 'default' : 'tertiary'}
+            className={`px-4 py-2.5 relative ${hasActiveFilters ? 'bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30' : ''}`}
           >
-            <Filter className={`w-4 h-4 ${showFilters ? 'text-violet-400' : ''}`} />
+            <Filter className={`w-4 h-4 mr-2 ${showFilters ? 'text-violet-400' : ''}`} />
             <span>Filters</span>
             {activeFilterCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-violet-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
                 {activeFilterCount}
               </span>
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -498,19 +489,23 @@ export function PipelineHeader({
                 </div>
                 <div className="flex items-center gap-2">
                   {hasActiveFilters && (
-                    <button
+                    <Button
                       onClick={clearAllFilters}
-                      className="px-3 py-1.5 text-xs rounded-md text-gray-300 hover:text-white hover:bg-gray-700/50 transition-colors"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
                     >
                       Clear All
-                    </button>
+                    </Button>
                   )}
-                  <button 
+                  <Button
                     onClick={() => setShowFilters(false)}
-                    className="p-1.5 rounded-md hover:bg-gray-700/50 text-gray-400 hover:text-white transition-colors"
+                    variant="ghost"
+                    size="icon"
+                    className="p-1.5"
                   >
                     <X className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -848,12 +843,13 @@ export function PipelineHeader({
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end pt-4 mt-4 border-t border-gray-700/50">
-                <button
+                <Button
                   onClick={() => setShowFilters(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-500/20 text-violet-400 border border-violet-500/30 hover:bg-violet-500/30 transition-colors"
+                  variant="default"
+                  className="bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30"
                 >
                   Apply Filters
-                </button>
+                </Button>
               </div>
             </div>
           </motion.div>

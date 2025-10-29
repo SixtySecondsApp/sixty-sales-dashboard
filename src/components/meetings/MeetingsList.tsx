@@ -329,12 +329,6 @@ const MeetingsList: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setScope('me')}
-              className={cn(
-                "relative transition-all duration-200",
-                scope === 'me' 
-                  ? 'bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 text-gray-100 shadow-md' 
-                  : 'hover:bg-gray-800/30 text-gray-400'
-              )}
             >
               <User className="h-4 w-4 mr-1.5" />
               My
@@ -343,12 +337,6 @@ const MeetingsList: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setScope('team')}
-              className={cn(
-                "relative transition-all duration-200",
-                scope === 'team' 
-                  ? 'bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 text-gray-100 shadow-md' 
-                  : 'hover:bg-gray-800/30 text-gray-400'
-              )}
             >
               <Users className="h-4 w-4 mr-1.5" />
               Team
@@ -364,12 +352,6 @@ const MeetingsList: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setView('list')}
-              className={cn(
-                "relative transition-all duration-200",
-                view === 'list' 
-                  ? 'bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 text-gray-100 shadow-md' 
-                  : 'hover:bg-gray-800/30 text-gray-400'
-              )}
             >
               <List className="h-4 w-4" />
             </Button>
@@ -377,12 +359,6 @@ const MeetingsList: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={() => setView('grid')}
-              className={cn(
-                "relative transition-all duration-200",
-                view === 'grid' 
-                  ? 'bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 text-gray-100 shadow-md' 
-                  : 'hover:bg-gray-800/30 text-gray-400'
-              )}
             >
               <Grid2X2 className="h-4 w-4" />
             </Button>
@@ -506,7 +482,6 @@ const MeetingsList: React.FC = () => {
                           size="sm"
                           variant="ghost"
                           onClick={() => openMeeting(meeting.id)}
-                          className="hover:bg-gray-800/50 hover:text-emerald-400 transition-colors group-hover:opacity-100 opacity-70"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>

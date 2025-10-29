@@ -391,9 +391,9 @@ const MeetingDetail: React.FC = () => {
         <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-12 border border-gray-800/50 text-center shadow-xl">
           <Video className="h-12 w-12 text-gray-600 mx-auto mb-4" />
           <p className="text-gray-400 text-lg mb-6">Meeting not found</p>
-          <Button 
+          <Button
             onClick={() => navigate('/meetings')}
-            className="bg-gray-800/50 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50"
+            variant="secondary"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Meetings
@@ -436,9 +436,8 @@ const MeetingDetail: React.FC = () => {
         <Button
           variant="ghost"
           onClick={() => navigate('/meetings')}
-          className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 hover:bg-gray-800/50 hover:border-gray-700/60 transition-all duration-300 group"
         >
-          <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Meetings
         </Button>
         
@@ -477,9 +476,9 @@ const MeetingDetail: React.FC = () => {
             {actionItems.length === 0 && (
               <Button
                 size="sm"
+                variant="success"
                 onClick={handleGetActionItems}
                 disabled={isExtracting}
-                className="bg-emerald-600/80 hover:bg-emerald-600"
               >
                 {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
               </Button>
@@ -532,7 +531,9 @@ const MeetingDetail: React.FC = () => {
                       : meeting.share_url
                     window.open(url, '_blank', 'noopener,noreferrer')
                   }}
-                  className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-8 py-6 text-lg font-semibold rounded-xl shadow-lg hover:shadow-emerald-500/20 transition-all duration-300"
+                  variant="success"
+                  size="lg"
+                  className="px-8 py-6 text-lg"
                 >
                   <ExternalLink className="h-5 w-5 mr-3" />
                   Open Recording in Fathom
@@ -573,9 +574,9 @@ const MeetingDetail: React.FC = () => {
                 
                 <div className="mt-4 flex gap-2">
                   {meeting.transcript_doc_url && (
-                    <Button 
-                      size="sm" 
-                      className="bg-gray-800/50 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50"
+                    <Button
+                      size="sm"
+                      variant="tertiary"
                       asChild
                     >
                       <a href={meeting.transcript_doc_url} target="_blank" rel="noopener noreferrer">
@@ -584,10 +585,9 @@ const MeetingDetail: React.FC = () => {
                       </a>
                     </Button>
                   )}
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    className="bg-gray-800/30 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50"
+                  <Button
+                    size="sm"
+                    variant="tertiary"
                     onClick={() => copyToClipboard(meeting.summary || '')}
                   >
                     <Copy className="h-4 w-4 mr-2" />
@@ -789,19 +789,19 @@ const MeetingDetail: React.FC = () => {
                             <div className="flex gap-2 mt-2">
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="tertiary"
                                 onClick={() => seekToTimestamp(item.timestamp_seconds!)}
-                                className="h-7 text-xs bg-gray-800/50 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50"
+                                className="h-7 text-xs"
                               >
                                 <Play className="h-3 w-3 mr-1" />
                                 {formatTimestamp(item.timestamp_seconds)}
                               </Button>
                               {item.playback_url && (
-                                <Button 
-                                  size="sm" 
-                                  variant="outline" 
-                                  asChild 
-                                  className="h-7 text-xs bg-gray-800/50 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50"
+                                <Button
+                                  size="sm"
+                                  variant="tertiary"
+                                  asChild
+                                  className="h-7 text-xs"
                                 >
                                   <a href={item.playback_url} target="_blank" rel="noopener noreferrer">
                                     <ExternalLink className="h-3 w-3" />
@@ -857,9 +857,9 @@ const MeetingDetail: React.FC = () => {
                           {item.timestamp_seconds !== null && (
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="tertiary"
                               onClick={() => seekToTimestamp(item.timestamp_seconds!)}
-                              className="h-7 text-xs bg-gray-800/50 hover:bg-gray-700/50 backdrop-blur-sm border border-gray-700/50 mt-2"
+                              className="h-7 text-xs mt-2"
                             >
                               <Play className="h-3 w-3 mr-1" />
                               {formatTimestamp(item.timestamp_seconds)}
