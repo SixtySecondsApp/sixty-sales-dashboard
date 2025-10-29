@@ -67,10 +67,13 @@
     <!-- Service Worker Registration -->
     <script>
       // Only register service worker in production
-      const isDevelopment = window.location.hostname === 'localhost' && 
+      const isDevelopment = window.location.hostname === 'localhost' &&
                            ['5173', '5174', '5175', '5176'].includes(window.location.port);
-      
-      if ('serviceWorker' in navigator && !isDevelopment) {
+
+      // Skip service worker for thumbnail pages (used by Browserless for screenshots)
+      const isThumbnailPage = window.location.pathname.startsWith('/meetings/thumbnail/');
+
+      if ('serviceWorker' in navigator && !isDevelopment && !isThumbnailPage) {
         window.addEventListener('load', () => {
           // Force update check on every page load
           navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })

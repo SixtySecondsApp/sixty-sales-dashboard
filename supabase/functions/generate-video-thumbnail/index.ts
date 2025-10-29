@@ -434,23 +434,26 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
 
 
           try {
-            // Try with networkidle to ensure all resources load
-            await page.goto('${escapedUrl}', { waitUntil: 'networkidle', timeout: 30000 });
+            // Try with networkidle to ensure all resources load (60 second timeout!)
+            await page.goto('${escapedUrl}', { waitUntil: 'networkidle', timeout: 60000 });
             console.log('✅ Page loaded with networkidle');
           } catch (e) {
             console.log('⚠️ NetworkIdle timeout, trying with domcontentloaded...');
             try {
-              await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 30000 });
+              await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 60000 });
               console.log('✅ Page loaded with domcontentloaded');
             } catch (e2) {
               console.error('❌ Failed to load page:', e2.message);
-              // Log the response status if available
-              const response = await page.goto('${escapedUrl}', { waitUntil: 'domcontentloaded', timeout: 5000 }).catch(() => null);
-              if (response) {
-                console.log('Response status:', response.status());
-                console.log('Response headers:', JSON.stringify(response.headers()));
+              // Try one last time with just 'load'
+              try {
+                const response = await page.goto('${escapedUrl}', { waitUntil: 'load', timeout: 30000 });
+                console.log('✅ Page loaded with "load" strategy');
+                console.log('Response status:', response?.status());
+              } catch (e3) {
+                console.error('❌ All load strategies failed');
+                console.error('This means Browserless cannot access your Vercel deployment');
+                throw e3;
               }
-              throw e2;
             }
           }
 
@@ -483,10 +486,10 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
             console.log('⚠️ Possible error on page:', errorText);
           }
 
-          console.log('⏳ Waiting for iframe to load...');
+          console.log('⏳ Waiting for iframe to load (20 second timeout)...');
           const iframeSelector = 'iframe';
           try {
-            await page.waitForSelector(iframeSelector, { timeout: 15000 });
+            await page.waitForSelector(iframeSelector, { timeout: 20000 });
             console.log('✅ Iframe element found');
 
             // Get iframe details
@@ -495,37 +498,44 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
               if (iframe) {
                 return {
                   src: iframe.src,
-                  width: iframe.width,
-                  height: iframe.height,
-                  display: window.getComputedStyle(iframe).display
+                  width: iframe.width || iframe.offsetWidth,
+                  height: iframe.height || iframe.offsetHeight,
+                  display: window.getComputedStyle(iframe).display,
+                  loaded: iframe.src ? true : false
                 };
               }
               return null;
             });
-            console.log('Iframe info:', JSON.stringify(iframeInfo));
+            console.log('Iframe details:', JSON.stringify(iframeInfo));
+
+            if (!iframeInfo || !iframeInfo.src) {
+              console.error('⚠️ Iframe found but has no src!');
+            }
           } catch (e) {
-            console.log('⚠️  No iframe found after 15s');
+            console.error('❌ No iframe found after 20s');
             const html = await page.content();
             console.log('Page HTML length:', html.length);
-            console.log('Page HTML preview:', html.substring(0, 1000));
+            console.log('Page HTML preview:', html.substring(0, 1500));
 
             // Check what's actually on the page
             const bodyInfo = await page.evaluate(() => {
               return {
                 hasBody: !!document.body,
-                bodyClasses: document.body?.className,
+                bodyClasses: document.body?.className || 'none',
+                bodyText: document.body?.innerText?.substring(0, 200) || 'empty',
                 rootElement: document.querySelector('#root') ? 'Found #root' : 'No #root',
                 reactRoot: document.querySelector('[data-reactroot]') ? 'Found React root' : 'No React root',
-                childCount: document.body?.children?.length || 0
+                childCount: document.body?.children?.length || 0,
+                hasError: document.body?.innerText?.includes('error') || document.body?.innerText?.includes('Error')
               };
             });
             console.log('Page structure:', JSON.stringify(bodyInfo));
 
-            throw new Error('Iframe not found on page - check if MeetingThumbnail component rendered');
+            throw new Error('Iframe not found - MeetingThumbnail component may not have rendered');
           }
 
-          console.log('⏳ Waiting 8 more seconds for video to fully load...');
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          console.log('⏳ Waiting 10 more seconds for video to fully load and seek...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
 
           console.log('📸 Taking screenshot...');
           return await page.screenshot({ type: 'jpeg', quality: 85, fullPage: false });
@@ -600,20 +610,49 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
 
     if (resp.ok) {
       const buf = await resp.arrayBuffer()
+      console.log(`📊 Browserless response: ${buf.byteLength} bytes`)
+
       if (buf.byteLength > 10000) { // At least 10KB for a real video frame
         console.log(`✅ Browserless Playwright succeeded (${buf.byteLength} bytes)`)
+
+        // Log success for App Mode
+        if (mode === 'app') {
+          console.log('🎉 App Mode SUCCESS! Screenshot captured from YOUR app')
+        }
+
         return await uploadToStorage(buf, recordingId, meetingId)
       } else {
-        console.log(`⚠️  Screenshot too small (${buf.byteLength} bytes)`)
+        console.log(`⚠️  Screenshot too small (${buf.byteLength} bytes) - likely blank page or error`)
+
+        if (mode === 'app') {
+          console.error('⚠️  App Mode returned small screenshot - page may not have loaded properly')
+        }
       }
     } else {
       const errorText = await resp.text()
-      console.log(`❌ Browserless failed: ${resp.status} - ${errorText}`)
+      console.error(`❌ Browserless HTTP error: ${resp.status}`)
+      console.error(`❌ Error details: ${errorText.substring(0, 500)}`)
+
+      if (mode === 'app') {
+        console.error('❌ App Mode failed with HTTP error - check Browserless logs or connectivity')
+      }
     }
 
     return null
   } catch (e) {
-    console.error('❌ Browserless error:', e)
+    console.error('❌ Browserless exception:', e.message)
+    console.error('❌ Error type:', e.name)
+
+    if (mode === 'app') {
+      console.error('❌ App Mode threw exception - likely timeout or network error')
+      console.error('   This usually means Browserless cannot reach your Vercel deployment')
+      console.error('   Possible causes:')
+      console.error('   1. Vercel is blocking Browserless IP address')
+      console.error('   2. Browserless service is experiencing issues')
+      console.error('   3. Network timeout (script takes >90 seconds)')
+      console.error('   4. Your app has security middleware blocking headless browsers')
+    }
+
     return null
   }
 }
