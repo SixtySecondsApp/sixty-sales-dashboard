@@ -22,6 +22,10 @@ export default function MeetingThumbnail() {
 
   // Set up full-screen layout
   useEffect(() => {
+    // Set marker immediately when React renders
+    document.body.setAttribute('data-react-loaded', 'true')
+    console.log('✅ React MeetingThumbnail component mounted')
+
     // Remove all body margins/padding for true full-screen
     document.body.style.margin = '0'
     document.body.style.padding = '0'

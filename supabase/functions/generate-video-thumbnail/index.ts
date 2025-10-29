@@ -457,8 +457,8 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
             }
           }
 
-          console.log('⏳ Waiting 3 seconds for React to render...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.log('⏳ Waiting 8 seconds for React to render and iframe to load...');
+          await new Promise(resolve => setTimeout(resolve, 8000));
 
           console.log('🔍 Checking page content...');
           const title = await page.title();
@@ -484,6 +484,18 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
 
           if (errorText) {
             console.log('⚠️ Possible error on page:', errorText);
+          }
+
+          // First check if React even loaded
+          console.log('🔍 Checking if React loaded...');
+          const reactLoaded = await page.evaluate(() => {
+            return document.body.getAttribute('data-react-loaded') === 'true';
+          });
+          console.log(\`React loaded: \${reactLoaded}\`);
+
+          if (!reactLoaded) {
+            console.error('❌ React did not load - taking screenshot anyway for debugging');
+            console.log('HTML preview:', await page.evaluate(() => document.body.innerHTML.substring(0, 500)));
           }
 
           console.log('⏳ Waiting for iframe to load (20 second timeout)...');

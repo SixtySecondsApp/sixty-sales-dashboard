@@ -20,6 +20,7 @@ echo ""
 MEETING_ID="41537c13-f88a-4537-9dbd-9e657af53e66"
 RECORDING_ID="95852639"
 SHARE_URL="https://fathom.video/share/C2stxF1L9toaJSFmsy6WfrYpu1ayzJNJ"
+FATHOM_EMBED_URL="https://app.fathom.video/recording/95852639"
 TIMESTAMP=30
 
 PROJECT_REF=$(echo "$VITE_SUPABASE_URL" | sed 's|https://||' | cut -d'.' -f1)
@@ -29,6 +30,7 @@ REQUEST_BODY=$(cat <<EOF
 {
   "recording_id": "$RECORDING_ID",
   "share_url": "$SHARE_URL",
+  "fathom_embed_url": "$FATHOM_EMBED_URL",
   "timestamp_seconds": $TIMESTAMP,
   "meeting_id": "$MEETING_ID"
 }
