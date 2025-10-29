@@ -137,8 +137,9 @@ serve(async (req) => {
     console.log(`   recording_id: ${recording_id}`)
     console.log(`   timestamp_seconds: ${timestamp_seconds}`)
 
+    // Use static HTML page instead of React route for faster, more reliable loading
     const appUrl = meeting_id && shareUrlWithTs
-      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
+      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/thumbnail.html?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
       : null
 
     console.log(`   Generated appUrl: ${appUrl}`)
