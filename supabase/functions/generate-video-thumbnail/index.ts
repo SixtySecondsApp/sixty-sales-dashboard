@@ -432,11 +432,6 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
           console.log('🎬 Loading app page...');
           console.log('📍 URL:', '${escapedUrl}');
 
-          // Set a more standard user agent to avoid detection as headless browser
-          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-          // Set viewport to standard desktop size
-          await page.setViewportSize({ width: 1920, height: 1080 });
 
           try {
             // Try with networkidle to ensure all resources load
