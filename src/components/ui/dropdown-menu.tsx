@@ -105,8 +105,8 @@ export function DropdownMenuContent({
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           transition={{ duration: 0.1 }}
           className={`
-            absolute top-full mt-1 z-50 min-w-[8rem] rounded-md border shadow-md
-            bg-gray-900 border-gray-700 text-white
+            absolute top-full mt-1 z-50 min-w-[8rem] rounded-md border shadow-md backdrop-blur-sm
+            bg-white/95 dark:bg-gray-900/95 border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100
             ${alignmentClass} ${className}
           `}
         >
@@ -134,7 +134,7 @@ export function DropdownMenuItem({
       onClick={handleClick}
       className={`
         relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm
-        outline-none transition-colors hover:bg-gray-800 hover:text-white focus:bg-gray-800 focus:text-white
+        outline-none transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-white
         ${className}
       `}
     >

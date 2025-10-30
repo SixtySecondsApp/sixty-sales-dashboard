@@ -71,13 +71,13 @@ export function NotificationBell() {
           onClick={handleToggle}
           className={cn(
             "relative p-2 rounded-lg transition-all duration-200",
-            "hover:bg-gray-800/50 hover:scale-110",
-            isOpen && "bg-gray-800/50 scale-110"
+            "hover:bg-gray-50 dark:hover:bg-gray-800/30 hover:scale-110",
+            isOpen && "bg-gray-100 dark:bg-gray-800/50 scale-110"
           )}
           aria-label="Notifications"
           aria-expanded={isOpen}
         >
-          <Bell className="w-5 h-5 text-gray-400 hover:text-white transition-colors" />
+          <Bell className="w-5 h-5 text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors" />
           
           {/* Unread Count Badge */}
           <AnimatePresence>

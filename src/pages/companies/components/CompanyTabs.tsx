@@ -71,8 +71,8 @@ export function CompanyTabs({ activeTab, onTabChange, company, deals, activities
             className={cn(
               "relative flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap",
               isActive
-                ? "text-white bg-gray-800/50 border border-gray-700/50"
-                : "text-gray-400 hover:text-white hover:bg-gray-800/30"
+                ? "theme-text-primary bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50"
+                : "theme-text-tertiary hover:theme-text-primary hover:bg-gray-100/50 dark:hover:bg-gray-800/30"
             )}
           >
             <Icon className="w-4 h-4" />
@@ -82,12 +82,12 @@ export function CompanyTabs({ activeTab, onTabChange, company, deals, activities
                 "px-2 py-0.5 text-xs font-medium rounded-full",
                 isActive
                   ? "bg-emerald-500 text-white"
-                  : "bg-gray-700/50 text-gray-300"
+                  : "bg-gray-300 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300"
               )}>
                 {tab.count}
               </span>
             )}
-            
+
             {/* Active indicator */}
             {isActive && (
               <motion.div

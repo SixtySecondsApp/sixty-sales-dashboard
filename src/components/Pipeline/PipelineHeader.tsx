@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download, Info, ArrowUpDown, Grid3X3, List } from 'lucide-react';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
+import { OwnerFilterV2 } from '@/components/OwnerFilterV2';
 import { DateFilter } from '@/components/ui/date-filter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../../components/ui/tooltip';
@@ -259,15 +260,15 @@ export function PipelineHeader({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex flex-col justify-center px-4 py-2.5 bg-gray-800/50 rounded-lg border border-gray-700/50 min-h-[44px] cursor-help">
+                <div className="flex flex-col justify-center px-4 py-2.5 bg-white/95 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700/50 min-h-[44px] cursor-help backdrop-blur-sm">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs text-gray-400">Total Pipeline</span>
-                    <Info className="w-3 h-3 text-gray-500" />
+                    <span className="text-xs text-gray-600 dark:text-gray-400">Total Pipeline</span>
+                    <Info className="w-3 h-3 text-gray-500 dark:text-gray-500" />
                   </div>
-                  <div className="text-lg font-bold text-emerald-400 leading-tight">
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 leading-tight">
                     {formattedActivePipelineValue}
                   </div>
-                  <div className="text-xs text-gray-500 leading-tight">
+                  <div className="text-xs text-gray-500 dark:text-gray-500 leading-tight">
                     {/* Show breakdown of active stages with their weighted values */}
                     {stages && stages.length > 0 && (() => {
                       // Only show SQL, Opportunity, and Verbal in the breakdown
@@ -324,18 +325,18 @@ export function PipelineHeader({
         <div className="flex items-center gap-4">
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-400 w-4 h-4" />
             <Input
               type="text"
               placeholder="Search deals..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400 focus:border-emerald-500 transition-colors"
+              className="pl-10 bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:border-emerald-500 transition-colors"
             />
           </div>
 
           {/* Separator */}
-          <div className="w-px h-6 bg-gray-700"></div>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
 
           {/* Deals Added Filter */}
           <DateFilter
@@ -360,23 +361,23 @@ export function PipelineHeader({
 
           {/* Sort Controls */}
           <Select value={sortBy} onValueChange={onSortChange}>
-            <SelectTrigger className="h-8 w-40 bg-gray-800/50 border-gray-700 text-white text-xs px-3 py-1.5 hover:bg-gray-700/50 focus:border-emerald-500 transition-colors">
+            <SelectTrigger className="h-8 w-40 bg-white dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-xs px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 focus:border-emerald-500 transition-colors">
               <ArrowUpDown className="w-4 h-4 mr-2" />
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
-            <SelectContent className="bg-gray-800 border-gray-700">
-              <SelectItem value="none" className="text-white hover:bg-gray-700">No Sorting</SelectItem>
-              <SelectItem value="value" className="text-white hover:bg-gray-700">Value (High to Low)</SelectItem>
-              <SelectItem value="date" className="text-white hover:bg-gray-700">Date Created</SelectItem>
-              <SelectItem value="alpha" className="text-white hover:bg-gray-700">Alphabetical</SelectItem>
+            <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+              <SelectItem value="none" className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">No Sorting</SelectItem>
+              <SelectItem value="value" className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">Value (High to Low)</SelectItem>
+              <SelectItem value="date" className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">Date Created</SelectItem>
+              <SelectItem value="alpha" className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">Alphabetical</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Separator */}
-          <div className="w-px h-6 bg-gray-700"></div>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700"></div>
 
           {/* View Mode Toggle */}
-          <div className="flex bg-gray-800/50 rounded-lg p-1 border border-gray-700">
+          <div className="flex bg-white dark:bg-gray-800/50 rounded-lg p-1 border border-gray-200 dark:border-gray-700">
             <Button
               variant={view === 'kanban' ? 'default' : 'ghost'}
               size="sm"
@@ -396,7 +397,7 @@ export function PipelineHeader({
       </div>
 
       {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-white/95 dark:bg-gray-800/30 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50">
         <div className="flex items-center gap-3">
           <Button
             onClick={onAddDealClick}
@@ -423,9 +424,9 @@ export function PipelineHeader({
           <Button
             onClick={() => setShowFilters(!showFilters)}
             variant={hasActiveFilters ? 'default' : 'tertiary'}
-            className={`px-4 py-2.5 relative ${hasActiveFilters ? 'bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30' : ''}`}
+            className={`px-4 py-2.5 relative ${hasActiveFilters ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/30' : ''}`}
           >
-            <Filter className={`w-4 h-4 mr-2 ${showFilters ? 'text-violet-400' : ''}`} />
+            <Filter className={`w-4 h-4 mr-2 ${showFilters ? 'text-violet-600 dark:text-violet-400' : ''}`} />
             <span>Filters</span>
             {activeFilterCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-violet-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
@@ -441,7 +442,7 @@ export function PipelineHeader({
         {quickFilters.map((filter) => {
           const Icon = filter.icon;
           const isActive = filterOptions.quickFilter === filter.id || (filter.id === 'all' && !filterOptions.quickFilter);
-          
+
           return (
             <div key={filter.id} className="relative group">
               <button
@@ -449,17 +450,17 @@ export function PipelineHeader({
                 className={`
                   flex items-center gap-2 px-3 py-1.5 rounded-full whitespace-nowrap
                   text-sm font-medium transition-all duration-200 flex-shrink-0 border
-                  ${isActive ? filter.colorClass : 'bg-gray-800/30 text-gray-400 border-gray-700/50 hover:bg-gray-700/30'}
+                  ${isActive ? filter.colorClass : 'bg-white dark:bg-gray-800/30 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/30'}
                 `}
               >
                 <Icon className="w-4 h-4" />
                 {filter.label}
               </button>
-              
+
               {/* CSS-only tooltip */}
-              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black text-white text-xs rounded-md shadow-lg border border-gray-600 whitespace-pre-line max-w-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[9999]">
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black dark:bg-black text-white text-xs rounded-md shadow-lg border border-gray-600 dark:border-gray-600 whitespace-pre-line max-w-sm opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none z-[9999]">
                 {filter.tooltip}
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black"></div>
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-black dark:border-t-black"></div>
               </div>
             </div>
           );
@@ -476,13 +477,13 @@ export function PipelineHeader({
             transition={{ duration: 0.3 }}
             className="overflow-hidden"
           >
-            <div className="p-4 rounded-xl border border-gray-700/50 bg-gray-800/80 backdrop-blur-md shadow-xl">
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white/95 dark:bg-gray-800/80 backdrop-blur-md shadow-xl">
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
-                  <Sliders className="w-5 h-5 text-violet-400" />
-                  <h3 className="text-lg font-semibold text-white">Advanced Filters</h3>
+                  <Sliders className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Advanced Filters</h3>
                   {activeFilterCount > 0 && (
-                    <span className="text-xs text-violet-400">
+                    <span className="text-xs text-violet-600 dark:text-violet-400">
                       {activeFilterCount} active
                     </span>
                   )}
@@ -510,7 +511,7 @@ export function PipelineHeader({
               </div>
 
               {/* Tabs */}
-              <div className="flex space-x-1 mb-4 bg-gray-900/50 p-1 rounded-lg">
+              <div className="flex space-x-1 mb-4 bg-gray-100 dark:bg-gray-900/50 p-1 rounded-lg">
                 {tabs.map((tab) => {
                   const TabIcon = tab.icon;
                   return (
@@ -519,9 +520,9 @@ export function PipelineHeader({
                       onClick={() => setActiveTab(tab.id)}
                       className={`
                         flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all flex-1
-                        ${activeTab === tab.id 
-                          ? 'bg-violet-500/20 text-violet-400 border border-violet-500/30' 
-                          : 'text-gray-400 hover:text-white hover:bg-gray-700/30'}
+                        ${activeTab === tab.id
+                          ? 'bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-500/30'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700/30'}
                       `}
                     >
                       <TabIcon className="w-4 h-4" />
@@ -537,8 +538,8 @@ export function PipelineHeader({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Deal Value */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white flex items-center gap-2">
-                        <PoundSterling className="w-4 h-4 text-emerald-400" />
+                      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        <PoundSterling className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                         Deal Value
                       </label>
                       <div className="flex gap-2">
@@ -550,7 +551,7 @@ export function PipelineHeader({
                             ...filterOptions,
                             minValue: e.target.value ? Number(e.target.value) : null
                           })}
-                          className="flex-1 p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-emerald-500 focus:outline-none transition-all"
+                          className="flex-1 p-2 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none transition-all"
                         />
                         <input
                           type="number"
@@ -560,15 +561,15 @@ export function PipelineHeader({
                             ...filterOptions,
                             maxValue: e.target.value ? Number(e.target.value) : null
                           })}
-                          className="flex-1 p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-emerald-500 focus:outline-none transition-all"
+                          className="flex-1 p-2 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-emerald-500 focus:outline-none transition-all"
                         />
                       </div>
                     </div>
 
                     {/* Probability */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white flex items-center gap-2">
-                        <Percent className="w-4 h-4 text-blue-400" />
+                      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        <Percent className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                         Min Probability
                       </label>
                       <div className="space-y-2">
@@ -582,10 +583,10 @@ export function PipelineHeader({
                             ...filterOptions,
                             probability: Number(e.target.value) || null
                           })}
-                          className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                          className="w-full h-2 bg-gray-300 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
                         <div className="text-center">
-                          <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400">
+                          <span className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400">
                             {filterOptions.probability || 0}%+
                           </span>
                         </div>
@@ -594,8 +595,8 @@ export function PipelineHeader({
 
                     {/* Sales Rep */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-white flex items-center gap-2">
-                        <Users className="w-4 h-4 text-purple-400" />
+                      <label className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                        <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                         Sales Rep
                       </label>
                       <OwnerFilterV2
@@ -622,7 +623,7 @@ export function PipelineHeader({
                             field: e.target.value as any || null
                           }
                         })}
-                        className="p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-orange-500 focus:outline-none transition-all"
+                        className="p-2 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all"
                       >
                         <option value="">Select Date Field</option>
                         <option value="created_at">Created Date</option>
@@ -639,7 +640,7 @@ export function PipelineHeader({
                             from: e.target.value || null
                           }
                         })}
-                        className="p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-orange-500 focus:outline-none transition-all"
+                        className="p-2 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all"
                       />
                       <input
                         type="date"
@@ -651,12 +652,12 @@ export function PipelineHeader({
                             to: e.target.value || null
                           }
                         })}
-                        className="p-2 text-sm rounded-md border border-gray-600 bg-gray-900/50 text-white focus:border-orange-500 focus:outline-none transition-all"
+                        className="p-2 text-sm rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all"
                       />
                     </div>
 
                     {/* Deals Added Filter - New section */}
-                    <div className="pt-4 border-t border-gray-700">
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                       <DateFilter
                         value={dateFilterPreset}
                         customRange={customDateRange}
@@ -671,7 +672,7 @@ export function PipelineHeader({
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       {/* Stages */}
                       <div>
-                        <label className="text-sm font-medium text-white mb-2 block">Stages</label>
+                        <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">Stages</label>
                         <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-none">
                           {stages?.slice(0, 4).map((stage) => (
                             <label key={stage.id} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -686,9 +687,9 @@ export function PipelineHeader({
                                     stages: newStages
                                   })
                                 )}
-                                className="w-3 h-3 text-indigo-500 bg-gray-700 border-gray-600 rounded"
+                                className="w-3 h-3 text-indigo-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded"
                               />
-                              <span className="text-white">{stage.name}</span>
+                              <span className="text-gray-900 dark:text-white">{stage.name}</span>
                             </label>
                           ))}
                         </div>
@@ -696,7 +697,7 @@ export function PipelineHeader({
 
                       {/* Priorities */}
                       <div>
-                        <label className="text-sm font-medium text-white mb-2 block">Priority</label>
+                        <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">Priority</label>
                         <div className="space-y-1">
                           {priorities.map((priority) => (
                             <label key={priority} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -711,9 +712,9 @@ export function PipelineHeader({
                                     priorities: newPriorities
                                   })
                                 )}
-                                className="w-3 h-3 text-red-500 bg-gray-700 border-gray-600 rounded"
+                                className="w-3 h-3 text-red-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded"
                               />
-                              <span className="text-white capitalize">{priority}</span>
+                              <span className="text-gray-900 dark:text-white capitalize">{priority}</span>
                             </label>
                           ))}
                         </div>
@@ -721,7 +722,7 @@ export function PipelineHeader({
 
                       {/* Deal Sizes */}
                       <div>
-                        <label className="text-sm font-medium text-white mb-2 block">Deal Size</label>
+                        <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">Deal Size</label>
                         <div className="space-y-1">
                           {dealSizes.map((size) => (
                             <label key={size} className="flex items-center gap-2 text-xs cursor-pointer">
@@ -736,9 +737,9 @@ export function PipelineHeader({
                                     dealSizes: newSizes
                                   })
                                 )}
-                                className="w-3 h-3 text-yellow-500 bg-gray-700 border-gray-600 rounded"
+                                className="w-3 h-3 text-yellow-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded"
                               />
-                              <span className="text-white capitalize">{size}</span>
+                              <span className="text-gray-900 dark:text-white capitalize">{size}</span>
                             </label>
                           ))}
                         </div>
@@ -746,7 +747,7 @@ export function PipelineHeader({
 
                       {/* Time in Stage */}
                       <div>
-                        <label className="text-sm font-medium text-white mb-2 block">Days in Stage</label>
+                        <label className="text-sm font-medium text-gray-900 dark:text-white mb-2 block">Days in Stage</label>
                         <div className="space-y-2">
                           <input
                             type="number"
@@ -759,7 +760,7 @@ export function PipelineHeader({
                                 min: e.target.value ? Number(e.target.value) : null
                               }
                             })}
-                            className="w-full p-1.5 text-xs rounded border border-gray-600 bg-gray-900/50 text-white focus:border-cyan-500 focus:outline-none"
+                            className="w-full p-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-cyan-500 focus:outline-none"
                           />
                           <input
                             type="number"
@@ -772,7 +773,7 @@ export function PipelineHeader({
                                 max: e.target.value ? Number(e.target.value) : null
                               }
                             })}
-                            className="w-full p-1.5 text-xs rounded border border-gray-600 bg-gray-900/50 text-white focus:border-cyan-500 focus:outline-none"
+                            className="w-full p-1.5 text-xs rounded border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900/50 text-gray-900 dark:text-white focus:border-cyan-500 focus:outline-none"
                           />
                         </div>
                       </div>
@@ -784,7 +785,7 @@ export function PipelineHeader({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Lead Source Types */}
                     <div>
-                      <label className="text-sm font-medium text-white mb-3 block">Lead Source Type</label>
+                      <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">Lead Source Type</label>
                       <div className="grid grid-cols-2 gap-2">
                         {leadSourceTypes.map((type) => (
                           <label key={type} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -802,9 +803,9 @@ export function PipelineHeader({
                                   }
                                 })
                               )}
-                              className="w-4 h-4 text-green-500 bg-gray-700 border-gray-600 rounded"
+                              className="w-4 h-4 text-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded"
                             />
-                            <span className="text-white capitalize">{type}</span>
+                            <span className="text-gray-900 dark:text-white capitalize">{type}</span>
                           </label>
                         ))}
                       </div>
@@ -812,7 +813,7 @@ export function PipelineHeader({
 
                     {/* Lead Source Channels */}
                     <div>
-                      <label className="text-sm font-medium text-white mb-3 block">Lead Source Channel</label>
+                      <label className="text-sm font-medium text-gray-900 dark:text-white mb-3 block">Lead Source Channel</label>
                       <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto scrollbar-none">
                         {leadSourceChannels.map((channel) => (
                           <label key={channel} className="flex items-center gap-2 text-sm cursor-pointer">
@@ -830,9 +831,9 @@ export function PipelineHeader({
                                   }
                                 })
                               )}
-                              className="w-4 h-4 text-green-500 bg-gray-700 border-gray-600 rounded"
+                              className="w-4 h-4 text-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded"
                             />
-                            <span className="text-white capitalize">{channel}</span>
+                            <span className="text-gray-900 dark:text-white capitalize">{channel}</span>
                           </label>
                         ))}
                       </div>
@@ -842,11 +843,11 @@ export function PipelineHeader({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end pt-4 mt-4 border-t border-gray-700/50">
+              <div className="flex items-center justify-end pt-4 mt-4 border-t border-gray-200 dark:border-gray-700/50">
                 <Button
                   onClick={() => setShowFilters(false)}
                   variant="default"
-                  className="bg-violet-500/20 text-violet-400 border-violet-500/30 hover:bg-violet-500/30"
+                  className="bg-violet-500/20 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/30"
                 >
                   Apply Filters
                 </Button>

@@ -147,9 +147,9 @@ const EmailMCPNode = memo(({ data, selected }: NodeProps<EmailMCPNodeData>) => {
     <div
       className={`relative min-w-[160px] max-w-[280px] rounded-lg border-2 transition-all ${
         selected
-          ? 'border-cyan-500 shadow-lg shadow-cyan-500/20'
+          ? 'border-cyan-500 shadow-lg shadow-cyan-500/20 ring-offset-white dark:ring-offset-gray-950'
           : 'border-cyan-400/50 hover:border-cyan-400'
-      } ${getExecutionStatusColor()} bg-gradient-to-br from-cyan-900/90 via-cyan-800/90 to-blue-900/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 shadow-sm dark:shadow-none`}
     >
       <Handle
         type="target"

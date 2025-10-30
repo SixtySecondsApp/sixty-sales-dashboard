@@ -69,16 +69,16 @@ const ContactRecord: React.FC = () => {
     return (
       <div className="min-h-screen py-8">
         <div className="container mx-auto px-4">
-          <Alert variant="destructive" className="bg-red-900/20 border-red-700 text-red-300">
-            <AlertCircle className="h-4 w-4 text-red-400" />
-            <AlertDescription className="text-red-300">
+          <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300">
+            <AlertCircle className="h-4 w-4 text-red-700 dark:text-red-400" />
+            <AlertDescription className="text-red-700 dark:text-red-300">
               {error}
             </AlertDescription>
           </Alert>
           <div className="mt-4">
-            <button 
+            <button
               onClick={() => navigate('/crm?tab=contacts')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-blue-600 dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               ← Back to Contacts
             </button>
@@ -92,16 +92,16 @@ const ContactRecord: React.FC = () => {
     return (
       <div className="min-h-screen py-8">
         <div className="container mx-auto px-4">
-          <Alert className="bg-gray-800/60 border-gray-600 text-gray-300">
-            <AlertCircle className="h-4 w-4 text-gray-400" />
-            <AlertDescription className="text-gray-300">
+          <Alert className="bg-gray-100 dark:bg-gray-800/60 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-300">
+            <AlertCircle className="h-4 w-4 text-gray-700 dark:text-gray-400" />
+            <AlertDescription className="text-gray-900 dark:text-gray-300">
               Contact not found. It may have been deleted or moved.
             </AlertDescription>
           </Alert>
           <div className="mt-4">
-            <button 
+            <button
               onClick={() => navigate('/crm?tab=contacts')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-blue-600 dark:bg-blue-600 hover:bg-blue-700 dark:hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               ← Back to Contacts
             </button>
@@ -119,7 +119,7 @@ const ContactRecord: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20 }}
         transition={{ duration: 0.3 }}
-        className="min-h-screen text-gray-100"
+        className="min-h-screen text-gray-900 dark:text-gray-100"
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Contact Header */}
@@ -137,9 +137,9 @@ const ContactRecord: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <ContactTabs 
-              activeTab={activeTab} 
-              onTabChange={setActiveTab} 
+            <ContactTabs
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
             />
           </motion.div>
 
@@ -157,9 +157,9 @@ const ContactRecord: React.FC = () => {
 
             {/* Main Content */}
             <div className="lg:col-span-6">
-              <ContactMainContent 
-                contact={contact} 
-                activeTab={activeTab} 
+              <ContactMainContent
+                contact={contact}
+                activeTab={activeTab}
               />
             </div>
 

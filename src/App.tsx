@@ -90,6 +90,8 @@ const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
 const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
 const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
 const Email = lazy(() => import('@/pages/Email'));
+const Preferences = lazy(() => import('@/pages/Preferences'));
+const SettingsPage = lazy(() => import('@/pages/Settings'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -289,6 +291,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
+                <Route path="/preferences" element={<Navigate to="/settings" replace />} />
+                <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />

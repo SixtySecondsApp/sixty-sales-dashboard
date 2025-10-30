@@ -168,10 +168,10 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: 4 }}
-        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border transition-all duration-300 group cursor-pointer ${
-          isSelected && isSelectMode 
-            ? 'border-emerald-500/30 bg-emerald-500/5' 
-            : 'border-gray-800/50 hover:border-emerald-500/30'
+        className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-200 group cursor-pointer ${
+          isSelected && isSelectMode
+            ? 'border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
+            : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50'
         }`}
         onClick={() => onNavigate?.(meeting)}
       >
@@ -192,16 +192,16 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
             )}
             
             {/* Meeting Icon */}
-            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getMeetingColor()} flex items-center justify-center text-white font-bold`}>
-              <Video className="w-4 h-4" />
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center">
+              <Video className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             </div>
             
             <div>
-              <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-2">
                 {meeting.title}
                 {isRecent() && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
               </h3>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 {meeting.company && (
                   <>
                     <Building2 className="w-3 h-3" />
@@ -302,19 +302,13 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`relative bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border transition-all duration-300 overflow-hidden group cursor-pointer ${
-        isSelected && isSelectMode 
-          ? 'border-emerald-500/30 ring-1 ring-emerald-500/20' 
-          : 'border-gray-800/50 hover:border-emerald-500/30'
+      className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-200 overflow-hidden group cursor-pointer ${
+        isSelected && isSelectMode
+          ? 'border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
+          : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50'
       }`}
       onClick={() => onNavigate?.(meeting)}
     >
-      {/* Animated background gradient */}
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-        animate={hovered ? { scale: 1.5, rotate: 180 } : { scale: 1, rotate: 0 }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-      />
       
       {/* Select Checkbox */}
       {isSelectMode && (
@@ -341,25 +335,25 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
 
       {/* Meeting Icon */}
       <div className="relative mb-4">
-        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getMeetingColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
-          <Video className="w-6 h-6" />
+        <div className="w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-center shadow-sm">
+          <Video className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
+        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 dark:bg-emerald-400 rounded-full flex items-center justify-center">
           <Play className="w-3 h-3 text-white fill-white" />
         </div>
       </div>
 
       {/* Meeting Info */}
-      <div className="relative z-10 mb-4">
-        <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors mb-1">
+      <div className="mb-4">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">
           {meeting.title}
         </h3>
-        <div className="flex items-center gap-1 text-sm text-gray-400 mb-2">
+        <div className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 mb-2">
           <Calendar className="w-3 h-3" />
           <span>{formatMeetingDate()} at {formatMeetingTime()}</span>
         </div>
         {meeting.company && (
-          <div className="flex items-center gap-1 text-xs text-emerald-400/80">
+          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
             <Building2 className="w-3 h-3" />
             <span>{meeting.company.name}</span>
           </div>
@@ -367,7 +361,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
       </div>
 
       {/* Meeting Stats */}
-      <div className="relative z-10 mb-4">
+      <div className="mb-4">
         <div className="grid grid-cols-2 gap-2 mb-3">
           <div className="text-center">
             <Badge className={`text-xs ${sentiment.color} border mb-1`}>
@@ -376,7 +370,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
           </div>
           <div className="text-center">
             <div className="text-xs text-gray-500">Duration</div>
-            <div className="font-semibold text-gray-300 text-sm">
+            <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">
               {formatDuration(meeting.duration_minutes)}
             </div>
           </div>
@@ -413,17 +407,17 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
 
       {/* Summary Preview */}
       {meeting.summary && (
-        <div className="relative z-10 mb-4 p-3 bg-gray-800/30 rounded-lg">
-          <div className="text-xs text-gray-400 mb-1">Summary</div>
-          <div className="text-xs text-gray-300 line-clamp-2">
+        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Summary</div>
+          <div className="text-xs text-gray-700 dark:text-gray-300 line-clamp-2">
             {meeting.summary}
           </div>
         </div>
       )}
 
       {/* Footer */}
-      <div className="relative z-10 flex items-center justify-between pt-4 border-t border-gray-800/50">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
+        <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Clock className="w-3 h-3" />
           <span>{getDaysSince() === 0 ? 'Today' : `${getDaysSince()} days ago`}</span>
         </div>

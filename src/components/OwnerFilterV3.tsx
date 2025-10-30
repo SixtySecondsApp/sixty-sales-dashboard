@@ -119,30 +119,30 @@ export function OwnerFilterV3({
     // If we're waiting for initial user data and defaultToCurrentUser is true,
     // show "My Items" to prevent flicker
     if (selectedOwnerId === undefined && defaultToCurrentUser && !isInitialized.current) {
-      return { 
-        label: 'My Items', 
+      return {
+        label: 'My Items',
         icon: <UserCheck className="w-3.5 h-3.5" />,
-        color: 'text-violet-400'
+        color: 'text-violet-600 dark:text-violet-400'
       };
     }
-    
+
     // Explicitly check for null or undefined for "All Items"
     if (selectedOwnerId === null || selectedOwnerId === undefined) {
-      return { 
-        label: 'All Items', 
+      return {
+        label: 'All Items',
         icon: <UsersIcon className="w-3.5 h-3.5" />,
-        color: 'text-blue-400'
+        color: 'text-blue-600 dark:text-blue-400'
       };
     }
-    
+
     if (selectedOwnerId === userData?.id) {
-      return { 
-        label: 'My Items', 
+      return {
+        label: 'My Items',
         icon: <UserCheck className="w-3.5 h-3.5" />,
-        color: 'text-violet-400'
+        color: 'text-violet-600 dark:text-violet-400'
       };
     }
-    
+
     const selectedOwner = owners.find(o => o.id === selectedOwnerId);
     if (selectedOwner) {
       return {
@@ -154,14 +154,14 @@ export function OwnerFilterV3({
             </span>
           </div>
         ),
-        color: 'text-gray-200'
+        color: 'text-gray-900 dark:text-gray-200'
       };
     }
-    
-    return { 
-      label: 'Unknown', 
+
+    return {
+      label: 'Unknown',
       icon: <User className="w-3.5 h-3.5" />,
-      color: 'text-gray-400'
+      color: 'text-gray-600 dark:text-gray-400'
     };
   };
 
@@ -181,11 +181,11 @@ export function OwnerFilterV3({
     return (
       <div className={cn("relative", className)}>
         <div className={cn(
-          "flex items-center gap-2 bg-gray-800/50 border border-gray-700 rounded-md animate-pulse",
+          "flex items-center gap-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-md animate-pulse",
           compact ? "px-2 py-1 text-xs h-8" : "px-3 py-1.5 text-sm h-10"
         )}>
-          <div className="w-3.5 h-3.5 bg-gray-600 rounded" />
-          <div className="w-16 h-3 bg-gray-600 rounded" />
+          <div className="w-3.5 h-3.5 bg-gray-300 dark:bg-gray-600 rounded" />
+          <div className="w-16 h-3 bg-gray-300 dark:bg-gray-600 rounded" />
         </div>
       </div>
     );
@@ -199,11 +199,11 @@ export function OwnerFilterV3({
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           "flex items-center justify-between w-full gap-2",
-          "bg-gray-800/50 hover:bg-gray-800/70",
-          "border border-gray-700 hover:border-gray-600",
+          "bg-white dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/70",
+          "border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600",
           "rounded-md transition-all duration-150",
           "focus:outline-none focus:ring-2 focus:ring-violet-500/40 focus:border-violet-500/50",
-          isOpen && "ring-2 ring-violet-500/40 border-violet-500/50 bg-gray-800/70",
+          isOpen && "ring-2 ring-violet-500/40 border-violet-500/50 bg-gray-50 dark:bg-gray-800/70",
           compact ? "px-2.5 py-1.5 text-xs h-8" : "px-3 py-2 text-sm h-10"
         )}
       >
@@ -223,14 +223,14 @@ export function OwnerFilterV3({
                 e.stopPropagation();
                 handleOptionSelect(null);
               }}
-              className="p-0.5 hover:bg-gray-700/50 rounded transition-colors cursor-pointer"
+              className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-700/50 rounded transition-colors cursor-pointer"
               title="Clear filter"
             >
-              <X className="w-3 h-3 text-gray-500 hover:text-gray-300" />
+              <X className="w-3 h-3 text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300" />
             </div>
           )}
           <ChevronDown className={cn(
-            "w-3.5 h-3.5 text-gray-500 transition-transform duration-200",
+            "w-3.5 h-3.5 text-gray-500 dark:text-gray-500 transition-transform duration-200",
             isOpen && "rotate-180"
           )} />
         </div>
@@ -245,8 +245,8 @@ export function OwnerFilterV3({
               "px-2 py-0.5 text-xs rounded-full transition-all",
               // Highlight My Items if selected OR if we're in initial state with defaultToCurrentUser
               (selectedOwnerId === userData?.id || (selectedOwnerId === undefined && defaultToCurrentUser && !isInitialized.current))
-                ? "bg-violet-500/20 text-violet-400 border border-violet-500/30"
-                : "bg-gray-800/30 text-gray-400 hover:bg-gray-800/50 border border-gray-700/30"
+                ? "bg-violet-500/20 text-violet-600 dark:text-violet-400 border border-violet-500/30"
+                : "bg-gray-200 dark:bg-gray-800/30 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-700/30"
             )}
           >
             My Items
@@ -257,8 +257,8 @@ export function OwnerFilterV3({
               "px-2 py-0.5 text-xs rounded-full transition-all",
               // Only highlight All if explicitly selected (null), not during initial undefined state with defaultToCurrentUser
               (selectedOwnerId === null || (selectedOwnerId === undefined && !defaultToCurrentUser))
-                ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                : "bg-gray-800/30 text-gray-400 hover:bg-gray-800/50 border border-gray-700/30"
+                ? "bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30"
+                : "bg-gray-200 dark:bg-gray-800/30 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-800/50 border border-gray-300 dark:border-gray-700/30"
             )}
           >
             All
@@ -279,8 +279,8 @@ export function OwnerFilterV3({
               className={cn(
                 "fixed",
                 "min-w-[200px] max-w-[280px]",
-                "bg-gray-900 backdrop-blur-xl",
-                "border border-gray-700 rounded-lg shadow-2xl",
+                "bg-white dark:bg-gray-900 backdrop-blur-xl",
+                "border border-gray-200 dark:border-gray-700 rounded-lg shadow-2xl",
                 "overflow-hidden",
                 "z-[99999]"
               )}
@@ -292,7 +292,7 @@ export function OwnerFilterV3({
               }}
             >
             {/* Search Input */}
-            <div className="p-2 border-b border-gray-800">
+            <div className="p-2 border-b border-gray-200 dark:border-gray-800">
               <input
                 ref={searchInputRef}
                 type="text"
@@ -301,8 +301,8 @@ export function OwnerFilterV3({
                 placeholder="Search owners..."
                 className={cn(
                   "w-full px-2.5 py-1.5",
-                  "bg-gray-800/50 border border-gray-700",
-                  "rounded-md text-xs text-white placeholder-gray-500",
+                  "bg-gray-50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700",
+                  "rounded-md text-xs text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-500",
                   "focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
                 )}
                 onClick={(e) => e.stopPropagation()}
@@ -313,7 +313,7 @@ export function OwnerFilterV3({
             </div>
 
             {/* Quick Filters Section */}
-            <div className="p-1 border-b border-gray-800">
+            <div className="p-1 border-b border-gray-200 dark:border-gray-800">
               {/* All Items */}
               <button
                 onClick={() => handleOptionSelect(null)}
@@ -322,8 +322,8 @@ export function OwnerFilterV3({
                   "text-xs font-medium transition-colors",
                   // Don't highlight if we're in initial undefined state with defaultToCurrentUser
                   (selectedOwnerId === null || (selectedOwnerId === undefined && !defaultToCurrentUser))
-                    ? "bg-blue-500/20 text-blue-400"
-                    : "hover:bg-gray-800/50 text-gray-300"
+                    ? "bg-blue-500/20 text-blue-600 dark:text-blue-400"
+                    : "hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
                 )}
               >
                 <UsersIcon className="w-3.5 h-3.5" />
@@ -342,8 +342,8 @@ export function OwnerFilterV3({
                     "text-xs font-medium transition-colors",
                     // Highlight if selected OR if we're in initial state with defaultToCurrentUser
                     (selectedOwnerId === userData.id || (selectedOwnerId === undefined && defaultToCurrentUser && !isInitialized.current))
-                      ? "bg-violet-500/20 text-violet-400"
-                      : "hover:bg-gray-800/50 text-gray-300"
+                      ? "bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
                   )}
                 >
                   <UserCheck className="w-3.5 h-3.5" />
@@ -359,14 +359,14 @@ export function OwnerFilterV3({
             {filteredOwners.length > 0 && (
               <div className="max-h-48 overflow-y-auto p-1">
                 <div className="px-2 py-1">
-                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
+                  <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wider">
                     Team Members
                   </span>
                 </div>
                 {filteredOwners.map((owner) => {
                   const isSelected = selectedOwnerId === owner.id;
                   const isCurrentUser = owner.id === userData?.id;
-                  
+
                   return (
                     <button
                       key={owner.id}
@@ -375,8 +375,8 @@ export function OwnerFilterV3({
                         "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md",
                         "text-xs transition-colors",
                         isSelected
-                          ? "bg-violet-500/20 text-violet-400"
-                          : "hover:bg-gray-800/50 text-gray-300"
+                          ? "bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                          : "hover:bg-gray-100 dark:hover:bg-gray-800/50 text-gray-700 dark:text-gray-300"
                       )}
                     >
                       <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0">
@@ -387,7 +387,7 @@ export function OwnerFilterV3({
                       <span className="truncate flex-1 text-left">
                         {getOwnerDisplayName(owner)}
                         {isCurrentUser && (
-                          <span className="text-gray-500 ml-1">(You)</span>
+                          <span className="text-gray-500 dark:text-gray-500 ml-1">(You)</span>
                         )}
                       </span>
                       {isSelected && (
@@ -402,7 +402,7 @@ export function OwnerFilterV3({
             {/* No Results */}
             {searchTerm && filteredOwners.length === 0 && (
               <div className="px-3 py-6 text-center">
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-600 dark:text-gray-500">
                   No owners found matching "{searchTerm}"
                 </p>
               </div>

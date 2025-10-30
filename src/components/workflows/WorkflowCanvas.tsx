@@ -133,7 +133,7 @@ const mapTestStatusToNodeStatus = (status: NodeExecutionState['status']): NodeSt
   }
 };
 
-// Custom Node Types with Visual Testing - 33% smaller
+// Custom Node Types with Visual Testing - increased base size for better readability
 const TriggerNode = ({ data, selected }: any) => {
   const Icon = data.iconName ? iconMap[data.iconName] : Target;
   const status = data.testStatus as NodeExecutionState['status'] | undefined;
@@ -141,7 +141,7 @@ const TriggerNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-purple-600 rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-purple-600 rounded-lg p-3 min-w-[144px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-purple-500'
     } ${selected ? 'ring-2 ring-purple-300' : ''}`}>
       {nodeStatus !== 'idle' && (
@@ -154,10 +154,10 @@ const TriggerNode = ({ data, selected }: any) => {
       )}
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-purple-500" />
       <div className="flex items-center gap-1.5 text-white">
-        <Icon className="w-3 h-3" />
+        <Icon className="w-6 h-6" />
         <div>
-          <div className="text-[10px] font-semibold">{data.label}</div>
-          <div className="text-[8px] opacity-80">{data.description}</div>
+          <div className="text-sm font-semibold">{data.label}</div>
+          <div className="text-xs opacity-80">{data.description}</div>
         </div>
       </div>
     </div>
@@ -170,7 +170,7 @@ const ConditionNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-blue-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-blue-600 rounded-lg p-3 min-w-[132px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
     } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       {nodeStatus !== 'idle' && (
@@ -185,10 +185,10 @@ const ConditionNode = ({ data, selected }: any) => {
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="true" style={{top: '35%'}} />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="false" style={{top: '65%'}} />
       <div className="flex items-center gap-1.5 text-white">
-        <GitBranch className="w-3 h-3" />
+        <GitBranch className="w-6 h-6" />
         <div>
-          <div className="text-[10px] font-semibold">{data.label}</div>
-          <div className="text-[8px] opacity-80">{data.condition || 'If condition met'}</div>
+          <div className="text-sm font-semibold">{data.label}</div>
+          <div className="text-xs opacity-80">{data.condition || 'If condition met'}</div>
         </div>
       </div>
     </div>
@@ -215,7 +215,7 @@ const ActionNode = ({ data, selected, id }: any) => {
   const incomingCount = isJoinAction ? getEdges().filter(e => e.target === id).length : 0;
   
   return (
-    <div className={`${bgColor} rounded-lg p-2 min-w-[72px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`${bgColor} rounded-lg p-3 min-w-[144px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : borderColor
     } ${selected ? 'ring-2 ring-green-300' : ''} ${isMultiAction ? 'shadow-purple-500/30' : isJoinAction ? 'shadow-teal-500/30' : ''}`}>
       {nodeStatus !== 'idle' && (
@@ -244,12 +244,12 @@ const ActionNode = ({ data, selected, id }: any) => {
         isConnectable={true}
       />
       <div className="flex items-center gap-1.5 text-white">
-        <Icon className={`w-3 h-3 ${isMultiAction ? 'animate-pulse' : ''}`} />
+        <Icon className={`w-6 h-6 ${isMultiAction ? 'animate-pulse' : ''}`} />
         <div>
-          <div className="text-[10px] font-semibold">{data.label}</div>
-          <div className="text-[8px] opacity-80">
+          <div className="text-sm font-semibold">{data.label}</div>
+          <div className="text-xs opacity-80">
             {isMultiAction && data.executionMode && (
-              <div className="text-[7px] uppercase font-bold text-yellow-300">
+              <div className="text-xs uppercase font-bold text-yellow-300">
                 {data.executionMode === 'parallel' ? '⚡ ASYNC' : '⏩ SYNC'}
               </div>
             )}
@@ -268,7 +268,7 @@ const RouterNode = ({ data, selected }: any) => {
   const isActive = status === 'active';
   
   return (
-    <div className={`bg-blue-600 rounded-lg p-2 min-w-[66px] border-2 shadow-lg relative transition-all duration-300 ${
+    <div className={`bg-blue-600 rounded-lg p-3 min-w-[132px] border-2 shadow-lg relative transition-all duration-300 ${
       isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
     } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
       {nodeStatus !== 'idle' && (
@@ -284,10 +284,10 @@ const RouterNode = ({ data, selected }: any) => {
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" style={{top: '50%'}} id="b" />
       <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" style={{top: '70%'}} id="c" />
       <div className="flex items-center gap-1.5 text-white">
-        <GitBranch className="w-3 h-3" />
+        <GitBranch className="w-6 h-6" />
         <div>
-          <div className="text-[10px] font-semibold">{data.label}</div>
-          <div className="text-[8px] opacity-80">{data.description || 'Routes to multiple paths'}</div>
+          <div className="text-sm font-semibold">{data.label}</div>
+          <div className="text-xs opacity-80">{data.description || 'Routes to multiple paths'}</div>
         </div>
       </div>
     </div>
@@ -1459,8 +1459,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             id: nodeId,
             type,
             position: {
-              x: centerX - 36, // Center horizontally (node width ~72px, 40% smaller)
-              y: centerY - 18  // Center vertically (node height ~36px, 40% smaller)
+              x: centerX - 72, // Adjust centering for larger default node width (~144px)
+              y: centerY - 36  // Adjust centering for larger default node height (~72px)
             },
             data: enhancedData,
           };
@@ -2143,18 +2143,23 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       {/* Left Panel - Node Library OR Test Panel - Hide in execution mode */}
       {!executionMode && (
         <motion.div 
-          initial={{ x: -300 }}
-          animate={{ x: (showNodePanel || showTestPanel) ? 0 : -300 }}
-          className="w-80 bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 overflow-y-auto h-[calc(100vh-8rem)]" 
+          initial={{ x: 0, width: 320 }}
+          animate={{ 
+            x: (showNodePanel || showTestPanel) ? 0 : -300,
+            width: (showNodePanel || showTestPanel) ? 320 : 0
+          }}
+          transition={{ type: 'tween', duration: 0.25 }}
+          className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 overflow-y-auto h-[calc(100vh-8rem)]"
+          style={{ width: (showNodePanel || showTestPanel) ? 320 : 0, pointerEvents: (showNodePanel || showTestPanel) ? 'auto' : 'none', overflow: 'hidden' }}
         >
         {/* Show Test Panel if testing, otherwise show Node Library */}
         {showTestPanel ? (
           <div className="h-full flex flex-col">
             {/* Test Panel Header */}
-            <div className="bg-gray-800 p-4 flex items-center justify-between border-b border-gray-700">
+            <div className="bg-white dark:bg-gray-800 p-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-2">
                 <Play className="w-4 h-4 text-[#37bd7e]" />
-                <h3 className="text-sm font-semibold text-white">Test Execution</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Test Execution</h3>
               </div>
               <button
                 onClick={() => {
@@ -2163,7 +2168,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                     stopTest();
                   }
                 }}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors"
                 title="Close test panel"
               >
                 <X className="w-4 h-4" />
@@ -2171,7 +2176,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             </div>
             
             {/* Test Controls */}
-            <div className="p-4 border-b border-gray-700 space-y-3">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 space-y-3">
               {!testExecutionState.isRunning ? (
                 <>
                   <div>
@@ -2179,7 +2184,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                     <select
                       value={selectedScenario}
                       onChange={(e) => setSelectedScenario(e.target.value)}
-                      className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm"
+                      className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm"
                     >
                       {TEST_SCENARIOS.map(scenario => (
                         <option key={scenario.id} value={scenario.id}>
@@ -2232,7 +2237,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   <select
                     value={testExecutionState.executionSpeed}
                     onChange={(e) => handleSpeedChange(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm"
+                    className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500"
                   >
                     <option value={0.5}>0.5x Speed</option>
                     <option value={1}>1x Speed</option>
@@ -2244,9 +2249,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             </div>
             
             {/* Test Data */}
-            <div className="p-4 border-b border-gray-700">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <h4 className="text-xs font-semibold text-gray-400 mb-2">Test Data Context</h4>
-              <pre className="text-xs text-gray-300 bg-gray-800 rounded p-2 overflow-x-auto max-h-32">
+              <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded p-2 overflow-x-auto max-h-32">
                 {JSON.stringify(testExecutionState.testData, null, 2)}
               </pre>
             </div>
@@ -2259,10 +2264,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   <div
                     key={index}
                     className={`p-2 rounded-lg text-xs ${
-                      log.type === 'error' ? 'bg-red-900/20 border border-red-800/50' :
-                      log.type === 'complete' ? 'bg-green-900/20 border border-green-800/50' :
-                      log.type === 'condition' ? 'bg-blue-900/20 border border-blue-800/50' :
-                      'bg-gray-800/50 border border-gray-700/50'
+                      log.type === 'error' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50' :
+                      log.type === 'complete' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50' :
+                      log.type === 'condition' ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50' :
+                      'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50'
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -2304,7 +2309,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   value={nodeSearchQuery}
                   onChange={(e) => setNodeSearchQuery(e.target.value)}
                   placeholder="Search nodes..."
-                  className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                  className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm placeholder-gray-400 dark:placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
                 />
               </div>
             </div>
@@ -2394,7 +2399,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             
             return triggers.length > 0 ? (
               <div>
-                <h3 className="text-sm font-semibold text-white mb-3">Triggers</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Triggers</h3>
                 <div className="space-y-2">
                   {triggers.map((trigger) => {
                     const TriggerIcon = iconMap[trigger.iconName] || Target;
@@ -2406,13 +2411,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           e.dataTransfer.setData('nodeType', trigger.nodeType || 'trigger');
                           e.dataTransfer.setData('nodeData', JSON.stringify(trigger));
                         }}
-                        className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
+                        className="bg-purple-50 dark:bg-purple-600/20 border border-purple-200 dark:border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-100 dark:hover:bg-purple-600/30 transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <TriggerIcon className="w-4 h-4 text-purple-400" />
                           <div>
-                            <div className="text-sm text-white">{trigger.label}</div>
-                            <div className="text-xs text-gray-400">{trigger.description}</div>
+                            <div className="text-sm text-gray-900 dark:text-white">{trigger.label}</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">{trigger.description}</div>
                           </div>
                         </div>
                       </div>
@@ -2443,7 +2448,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             
             return conditions.length > 0 ? (
               <div>
-                <h3 className="text-sm font-semibold text-white mb-3">Logic & Routing</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Logic & Routing</h3>
                 <div className="space-y-2">
                   {conditions.map((condition) => (
                     <div
@@ -2453,7 +2458,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         e.dataTransfer.setData('nodeType', condition.nodeType || 'condition');
                         e.dataTransfer.setData('nodeData', JSON.stringify(condition));
                       }}
-                      className="bg-blue-600/20 border border-blue-600/30 hover:bg-blue-600/30 rounded-lg p-3 cursor-move transition-colors"
+                      className="bg-blue-50 dark:bg-blue-600/20 border border-blue-200 dark:border-blue-600/30 hover:bg-blue-100 dark:hover:bg-blue-600/30 rounded-lg p-3 cursor-move transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         {condition.iconName ? (
@@ -2462,8 +2467,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           <GitBranch className="w-4 h-4 text-blue-400" />
                         )}
                         <div>
-                          <div className="text-sm text-white">{condition.label}</div>
-                          <div className="text-xs text-gray-400">{condition.condition}</div>
+                          <div className="text-sm text-gray-900 dark:text-white">{condition.label}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">{condition.condition}</div>
                         </div>
                       </div>
                     </div>
@@ -2487,7 +2492,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             
             return aiNodes.length > 0 ? (
               <div>
-                <h3 className="text-sm font-semibold text-white mb-3">AI & Intelligence</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">AI & Intelligence</h3>
                 <div className="space-y-2">
                   {aiNodes.map((node) => (
                     <div
@@ -2497,13 +2502,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                         e.dataTransfer.setData('nodeType', node.nodeType);
                         e.dataTransfer.setData('nodeData', JSON.stringify(node));
                       }}
-                      className="bg-purple-600/20 border border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-600/30 transition-colors"
+                      className="bg-purple-50 dark:bg-purple-600/20 border border-purple-200 dark:border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-100 dark:hover:bg-purple-600/30 transition-colors"
                     >
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-purple-400" />
                         <div>
-                          <div className="text-sm text-white">{node.label}</div>
-                          <div className="text-xs text-gray-400">{node.description}</div>
+                          <div className="text-sm text-gray-900 dark:text-white">{node.label}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">{node.description}</div>
                         </div>
                       </div>
                     </div>
@@ -2540,7 +2545,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             
             return actions.length > 0 ? (
               <div>
-                <h3 className="text-sm font-semibold text-white mb-3">Actions</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Actions</h3>
                 <div className="space-y-2">
                   {actions.map((action) => {
                     const ActionIcon = action.iconName === 'Slack' ? FaSlack : (iconMap[action.iconName] || CheckSquare);
@@ -2552,13 +2557,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                           e.dataTransfer.setData('nodeType', 'action');
                           e.dataTransfer.setData('nodeData', JSON.stringify(action));
                         }}
-                        className="bg-[#37bd7e]/20 border border-[#37bd7e]/30 rounded-lg p-3 cursor-move hover:bg-[#37bd7e]/30 transition-colors"
+                        className="bg-emerald-50 dark:bg-[#37bd7e]/20 border border-emerald-200 dark:border-[#37bd7e]/30 rounded-lg p-3 cursor-move hover:bg-emerald-100 dark:hover:bg-[#37bd7e]/30 transition-colors"
                       >
                         <div className="flex items-center gap-2">
                           <ActionIcon className="w-4 h-4 text-[#37bd7e]" />
                           <div>
-                            <div className="text-sm text-white">{action.label}</div>
-                            <div className="text-xs text-gray-400">{action.description}</div>
+                            <div className="text-sm text-gray-900 dark:text-white">{action.label}</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">{action.description}</div>
                           </div>
                         </div>
                       </div>
@@ -2575,11 +2580,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       )}
 
       {/* Main Canvas */}
-      <div className={`${executionMode ? 'w-full' : 'flex-1'} relative h-[calc(100vh-8rem)] overflow-hidden`}>
+      <div className={`${executionMode ? 'w-full' : 'flex-1'} relative h-[calc(100vh-8rem)] overflow-hidden bg-gray-50 dark:bg-gray-900`}>
         {/* Auto-save notification - Bottom right corner */}
         {lastSaveTime && (
           <div className="absolute bottom-4 right-4 z-40">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-900/90 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-900/90 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
               {isAutoSaving ? (
                 <span className="flex items-center gap-2 text-yellow-400 text-xs">
                   <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
@@ -2598,7 +2603,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         {workflowName && !executionMode && (
           <div className="absolute top-4 left-4 z-40">
             {isEditingTitle ? (
-              <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg p-3 min-w-80">
+              <div className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 min-w-80">
                 <div className="space-y-3">
                   <input
                     type="text"
@@ -2635,7 +2640,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             ) : (
               <div
                 onClick={handleTitleClick}
-                className="px-4 py-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700 rounded-lg shadow-lg cursor-pointer hover:border-gray-600 transition-colors group"
+                className="px-4 py-2 bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg cursor-pointer hover:border-gray-300 dark:hover:border-gray-600 transition-colors group"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-white font-medium text-sm">{workflowName}</span>
@@ -2689,13 +2694,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className="absolute top-full mt-1 right-0 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50"
+                className="absolute top-full mt-1 right-0 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50"
               >
                 <div className="p-2">
                   {/* Live Monitor Option */}
                   <button
                     onClick={runLiveMonitor}
-                    className="w-full px-3 py-2 text-left text-white hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
+                    className="w-full px-3 py-2 text-left text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
                     title="Keyboard: Ctrl+M (Cmd+M on Mac)"
                   >
                     <Monitor className="w-4 h-4 text-green-400" />
@@ -2711,7 +2716,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                   {/* Quick Run Option */}
                   <button
                     onClick={runQuickExecution}
-                    className="w-full px-3 py-2 text-left text-white hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
+                    className="w-full px-3 py-2 text-left text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 rounded flex items-center gap-3 transition-colors"
                     title="Keyboard: Ctrl+R (Cmd+R on Mac)"
                   >
                     <Play className="w-4 h-4 text-orange-400" />
@@ -2815,7 +2820,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           <motion.div
             initial={{ x: 300 }}
             animate={{ x: 0 }}
-            className="absolute top-0 right-0 w-96 h-[calc(100vh-8rem)] bg-gray-900/95 backdrop-blur-xl border-l border-gray-800/50 p-6 overflow-y-auto z-50"
+            className="absolute top-0 right-0 w-96 h-[calc(100vh-8rem)] theme-bg-card backdrop-blur-xl border-l theme-border p-6 overflow-y-auto z-50"
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
           >
@@ -2823,12 +2828,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-white">Edit Node</h3>
-                  <p className="text-sm text-gray-400 mt-1">Configure node settings</p>
+                  <h3 className="text-lg font-semibold theme-text-primary">Edit Node</h3>
+                  <p className="text-sm theme-text-secondary mt-1">Configure node settings</p>
                 </div>
                 <button
                   onClick={() => setShowNodeEditor(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="theme-text-tertiary hover:theme-text-primary transition-colors"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2837,30 +2842,30 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
               </div>
 
               {/* Node Type */}
-              <div className="bg-gray-800/50 rounded-lg p-4">
-                <p className="text-xs text-gray-400 mb-1">Node Type</p>
-                <p className="text-white font-medium capitalize">{selectedNode.type}</p>
+              <div className="theme-bg-elevated rounded-lg p-4 theme-border">
+                <p className="text-xs theme-text-tertiary mb-1">Node Type</p>
+                <p className="theme-text-primary font-medium capitalize">{selectedNode.type}</p>
               </div>
 
               {/* Node Settings */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Label</label>
+                  <label className="block text-sm font-medium theme-text-secondary mb-2">Label</label>
                   <input
                     type="text"
                     value={selectedNode.data.label || ''}
                     onChange={(e) => updateNodeData(selectedNode.id, { label: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+                    className="w-full px-3 py-2 theme-bg-elevated theme-border rounded-lg theme-text-primary text-sm placeholder:theme-text-tertiary focus:border-[#37bd7e] outline-none transition-colors"
                     placeholder="Enter node label..."
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+                  <label className="block text-sm font-medium theme-text-secondary mb-2">Description</label>
                   <textarea
                     value={selectedNode.data.description || ''}
                     onChange={(e) => updateNodeData(selectedNode.id, { description: e.target.value })}
-                    className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
+                    className="w-full px-3 py-2 theme-bg-elevated theme-border rounded-lg theme-text-primary text-sm placeholder:theme-text-tertiary focus:border-[#37bd7e] outline-none transition-colors resize-none h-20"
                     placeholder="Enter description..."
                   />
                 </div>

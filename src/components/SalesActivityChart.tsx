@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { Calendar, ChevronDown } from 'lucide-react';
 import { useDashboardActivities } from '@/lib/hooks/useLazyActivities';
 import { useUser } from '@/lib/hooks/useUser';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SalesActivityChartProps {
   selectedMonth: Date;
@@ -25,6 +26,37 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const { activities } = useDashboardActivities(selectedMonth, true);
   const { userData } = useUser();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  // Theme-aware colors
+  const colors = {
+    bg: 'bg-white dark:bg-gray-900/50',
+    border: 'border-gray-200 dark:border-gray-800/50',
+    text: {
+      primary: 'text-gray-900 dark:text-white',
+      secondary: 'text-gray-600 dark:text-gray-400',
+      tertiary: 'text-gray-500 dark:text-gray-500',
+    },
+    button: {
+      bg: 'bg-gray-100 dark:bg-gray-800/50',
+      hover: 'hover:bg-[#37bd7e]/10 dark:hover:bg-[#37bd7e]/20',
+      text: 'text-gray-700 dark:text-gray-300',
+      hoverText: 'hover:text-gray-900 dark:hover:text-white',
+    },
+    dropdown: {
+      bg: 'bg-white dark:bg-gray-900/95',
+      hover: 'hover:bg-[#37bd7e]/10 dark:hover:bg-[#37bd7e]/20',
+    },
+    chart: {
+      grid: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+      axis: isDark ? '#9CA3AF' : '#6B7280',
+      tooltip: {
+        bg: isDark ? '#1F2937' : '#FFFFFF',
+        border: isDark ? '#374151' : '#E5E7EB',
+      },
+    },
+  };
 
   // Charts now using direct imports for stability
 
@@ -146,12 +178,18 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
     if (!active || !payload) return null;
 
     return (
-      <div className="bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-3 shadow-xl">
-        <p className="text-gray-400 text-sm font-medium mb-2">{label}</p>
+      <div
+        className={`backdrop-blur-xl border rounded-xl p-3 shadow-xl ${colors.bg} ${colors.border}`}
+        style={{
+          backgroundColor: colors.chart.tooltip.bg,
+          borderColor: colors.chart.tooltip.border
+        }}
+      >
+        <p className={`text-sm font-medium mb-2 ${colors.text.secondary}`}>{label}</p>
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center justify-between gap-4 text-sm">
             <span style={{ color: entry.color }}>{entry.name}:</span>
-            <span className="text-white font-medium">
+            <span className={`font-medium ${colors.text.primary}`}>
               {entry.value > 0.1 ? Math.round(entry.value) : 0}
             </span>
           </div>
@@ -161,34 +199,34 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
   };
 
   return (
-    <div className="bg-gray-900/50 backdrop-blur-xl rounded-3xl p-6 border border-gray-800/50">
+    <div className={`backdrop-blur-xl rounded-3xl p-6 border ${colors.bg} ${colors.border}`}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xl font-bold text-white">
+          <h3 className={`text-xl font-bold ${colors.text.primary}`}>
             Sales Activities Overview
           </h3>
-          <p className="text-sm text-gray-400 mt-1">
-            {timeframe === 'daily' ? 'Last 14 days' : 
-             timeframe === 'weekly' ? 'Last 12 weeks' : 
+          <p className={`text-sm mt-1 ${colors.text.secondary}`}>
+            {timeframe === 'daily' ? 'Last 14 days' :
+             timeframe === 'weekly' ? 'Last 12 weeks' :
              'Year to date'} breakdown of all sales activities
           </p>
         </div>
         <div className="relative">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-300 hover:bg-[#37bd7e]/20 hover:text-white transition-all duration-300 text-sm border border-transparent hover:border-[#37bd7e]/30"
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg ${colors.button.bg} ${colors.button.text} ${colors.button.hover} ${colors.button.hoverText} transition-all duration-300 text-sm border border-transparent hover:border-[#37bd7e]/30`}
           >
             <Calendar className="w-4 h-4" />
             <span className="capitalize">{timeframe}</span>
             <ChevronDown className="w-4 h-4" />
           </button>
-          
+
           {isDropdownOpen && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 10 }}
-              className="absolute right-0 mt-2 w-40 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl shadow-xl z-10"
+              className={`absolute right-0 mt-2 w-40 backdrop-blur-xl border rounded-xl shadow-xl z-10 ${colors.dropdown.bg} ${colors.border}`}
             >
               {timeframeOptions.map((option) => (
                 <button
@@ -197,7 +235,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
                     setTimeframe(option.value);
                     setIsDropdownOpen(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-[#37bd7e]/20 hover:text-white first:rounded-t-xl last:rounded-b-xl"
+                  className={`w-full px-4 py-2 text-left text-sm ${colors.button.text} ${colors.dropdown.hover} ${colors.button.hoverText} first:rounded-t-xl last:rounded-b-xl transition-colors`}
                 >
                   {option.label}
                 </button>
@@ -232,14 +270,14 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
           </defs>
           <CartesianGrid
             strokeDasharray="3 3"
-            stroke="rgba(255,255,255,0.1)"
+            stroke={colors.chart.grid}
             vertical={false}
           />
           <XAxis
             dataKey="name"
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+            tick={{ fill: colors.chart.axis, fontSize: 12 }}
             dy={10}
             scale="band"
             padding={{ left: 10, right: 10 }}
@@ -247,7 +285,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
           <YAxis
             axisLine={false}
             tickLine={false}
-            tick={{ fill: '#9CA3AF', fontSize: 12 }}
+            tick={{ fill: colors.chart.axis, fontSize: 12 }}
             dx={-10}
             scale="log"
             domain={[0.1, 'auto']}
@@ -258,7 +296,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
               value="Count (log scale)"
               angle={-90}
               position="insideLeft"
-              style={{ fill: '#9CA3AF', fontSize: 12 }}
+              style={{ fill: colors.chart.axis, fontSize: 12 }}
             />
           </YAxis>
           <Tooltip content={<CustomTooltip />} />
@@ -269,7 +307,7 @@ const SalesActivityChart = ({ selectedMonth }: SalesActivityChartProps) => {
             iconSize={8}
             wrapperStyle={{
               paddingTop: '1rem',
-              color: '#9CA3AF',
+              color: colors.chart.axis,
               fontSize: '12px'
             }}
           />

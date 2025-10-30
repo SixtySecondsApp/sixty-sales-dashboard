@@ -95,9 +95,9 @@ const MultiSelect = ({ options, placeholder, selected = [], onChange }: {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-left flex items-center justify-between hover:border-gray-600 transition-colors duration-200"
+        className="w-full px-3 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-left flex items-center justify-between hover:border-gray-400 dark:hover:border-gray-600 transition-colors duration-200"
       >
-        <span className="text-sm text-gray-300">
+        <span className="text-sm text-gray-900 dark:text-gray-300">
           {selectedCount === 0 
             ? placeholder 
             : selectedCount === 1 
@@ -106,11 +106,11 @@ const MultiSelect = ({ options, placeholder, selected = [], onChange }: {
         </span>
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (
-            <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+            <span className="text-xs bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full">
               {selectedCount}
             </span>
           )}
-          <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
+          <ChevronRight className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
         </div>
       </button>
 
@@ -126,22 +126,22 @@ const MultiSelect = ({ options, placeholder, selected = [], onChange }: {
               top: dropdownPosition.top,
               left: dropdownPosition.left,
               width: dropdownPosition.width,
-              zIndex: 99999 
+              zIndex: 99999
             }}
-            className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden"
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden"
           >
             <div className="max-h-64 overflow-y-auto">
               {options.map((option, idx) => (
                 <button
                   key={idx}
                   onClick={() => toggleOption(option)}
-                  className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-gray-700 transition-colors duration-150"
+                  className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-4 h-4 rounded border-2 transition-all duration-200 ${
-                      selected.includes(option.label) 
-                        ? 'bg-emerald-500 border-emerald-500' 
-                        : 'border-gray-600 bg-transparent'
+                      selected.includes(option.label)
+                        ? 'bg-emerald-600 dark:bg-emerald-500 border-emerald-600 dark:border-emerald-500'
+                        : 'border-gray-300 dark:border-gray-600 bg-transparent'
                     }`}>
                       {selected.includes(option.label) && (
                         <svg className="w-full h-full text-white" viewBox="0 0 16 16">
@@ -153,24 +153,24 @@ const MultiSelect = ({ options, placeholder, selected = [], onChange }: {
                       )}
                     </div>
                     <span className={`text-sm ${
-                      selected.includes(option.label) ? 'text-white' : 'text-gray-300'
+                      selected.includes(option.label) ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-700 dark:text-gray-300'
                     }`}>
                       {option.label}
                     </span>
                   </div>
-                  <span className="text-xs text-gray-500">{option.count}</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-500">{option.count}</span>
                 </button>
               ))}
             </div>
             {options.length > 5 && (
-              <div className="p-2 border-t border-gray-700 bg-gray-850">
+              <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-850">
                 <div className="flex items-center justify-between text-xs">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onChange(options.map(o => o.label));
                     }}
-                    className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                   >
                     Select all
                   </button>
@@ -179,7 +179,7 @@ const MultiSelect = ({ options, placeholder, selected = [], onChange }: {
                       e.stopPropagation();
                       onChange([]);
                     }}
-                    className="text-gray-400 hover:text-gray-300 transition-colors"
+                    className="text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 transition-colors"
                   >
                     Clear all
                   </button>
@@ -267,18 +267,18 @@ const FilterSidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     const [isExpanded, setIsExpanded] = useState(expanded);
     
     return (
-      <div className="border-b border-gray-800/50 last:border-0">
+      <div className="border-b border-gray-200 dark:border-gray-800/50 last:border-0">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full py-4 flex items-center justify-between text-left hover:bg-gray-800/30 transition-colors duration-200"
+          className="w-full py-4 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors duration-200"
         >
           <div className="flex items-center gap-3">
-            <Icon className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-300">{title}</span>
+            <Icon className="w-4 h-4 text-gray-700 dark:text-gray-400" />
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-300">{title}</span>
           </div>
           <div className="flex items-center gap-2">
             {selectedFilters[filterKey as keyof typeof selectedFilters]?.length > 0 && (
-              <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+              <span className="text-xs bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full">
                 {selectedFilters[filterKey as keyof typeof selectedFilters].length}
               </span>
             )}
@@ -286,7 +286,7 @@ const FilterSidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronRight className="w-4 h-4 text-gray-500 rotate-90" />
+              <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-500 rotate-90" />
             </motion.div>
           </div>
         </button>
@@ -338,28 +338,28 @@ const FilterSidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
               stiffness: 300,
               opacity: { duration: 0.2, ease: "easeOut" }
             }}
-            className="fixed left-0 top-0 h-full w-[256px] bg-gray-900 border-r border-gray-800 z-[150] overflow-hidden flex flex-col"
+            className="fixed left-0 top-0 h-full w-[256px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-[150] overflow-hidden flex flex-col"
           >
             {/* Header */}
-            <div className="p-6 border-b border-gray-800">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-emerald-400" />
-                  <h3 className="text-lg font-semibold text-white">Filters</h3>
+                  <Filter className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h3>
                   {getTotalFilterCount() > 0 && (
-                    <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">
+                    <span className="text-xs bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full">
                       {getTotalFilterCount()}
                     </span>
                   )}
                 </div>
-                <button 
-                  onClick={onClose} 
-                  className="p-1 hover:bg-gray-800 rounded-lg transition-colors"
+                <button
+                  onClick={onClose}
+                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <X className="w-5 h-5 text-gray-400" />
+                  <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                 </button>
               </div>
-              <p className="text-xs text-gray-500">Refine your search results</p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">Refine your search results</p>
             </div>
 
             {/* Filter sections */}
@@ -457,15 +457,15 @@ const FilterSidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
             </div>
 
             {/* Footer */}
-            <div className="p-6 border-t border-gray-800 bg-gray-900/50">
+            <div className="p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
               <div className="flex items-center gap-3">
-                <button 
+                <button
                   onClick={clearAllFilters}
-                  className="flex-1 py-2 px-4 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-all duration-200"
+                  className="flex-1 py-2 px-4 text-sm text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200"
                 >
                   Clear all
                 </button>
-                <button className="flex-1 py-2 px-4 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-all duration-200 font-medium">
+                <button className="flex-1 py-2 px-4 text-sm bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-700 dark:hover:bg-emerald-600 text-white rounded-lg transition-all duration-200 font-medium">
                   Apply filters
                 </button>
               </div>

@@ -67,9 +67,9 @@ const TabButton = ({ active, onClick, icon: Icon, label, count }: {
     onClick={onClick}
     className={`
       relative px-4 py-2.5 rounded-xl flex items-center gap-2.5 transition-all duration-300
-      ${active 
-        ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 text-emerald-400 shadow-lg shadow-emerald-500/20' 
-        : 'text-gray-400 hover:text-gray-300 hover:bg-gray-800/50'
+      ${active
+        ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-lg shadow-emerald-500/20'
+        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50'
       }
     `}
     whileHover={{ scale: 1.02 }}
@@ -80,7 +80,7 @@ const TabButton = ({ active, onClick, icon: Icon, label, count }: {
     {count && (
       <span className={`
         text-xs px-2 py-0.5 rounded-full
-        ${active ? 'bg-emerald-500/20 text-emerald-300' : 'bg-gray-800 text-gray-400'}
+        ${active ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}
       `}>
         {count}
       </span>
@@ -474,7 +474,7 @@ export default function ElegantCRM() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex">
+      <div className="min-h-screen bg-white dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 flex">
         <ConnectedFilterSidebar
           activeTab={activeTab}
           sizeFilter={sizeFilter}
@@ -494,13 +494,13 @@ export default function ElegantCRM() {
           className="flex-shrink-0"
         />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="bg-gray-900/50 rounded-xl p-8">
+          <div className="bg-white/95 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl p-8 border border-gray-200 dark:border-gray-800/50">
             <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-gray-800 rounded w-1/4"></div>
-              <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+              <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4"></div>
+              <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/2"></div>
               <div className="space-y-3 mt-6">
                 {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="h-16 bg-gray-800/50 rounded-lg"></div>
+                  <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800/50 rounded-lg"></div>
                 ))}
               </div>
             </div>
@@ -512,7 +512,7 @@ export default function ElegantCRM() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex">
+      <div className="min-h-screen bg-white dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 flex">
         <ConnectedFilterSidebar
           activeTab={activeTab}
           sizeFilter={sizeFilter}
@@ -532,9 +532,9 @@ export default function ElegantCRM() {
           className="flex-shrink-0"
         />
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="bg-red-900/20 border border-red-700 rounded-xl p-6">
-            <h3 className="text-red-400 font-medium mb-2">Error loading data</h3>
-            <p className="text-red-300 text-sm">{error}</p>
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-xl p-6">
+            <h3 className="text-red-600 dark:text-red-400 font-medium mb-2">Error loading data</h3>
+            <p className="text-red-500 dark:text-red-300 text-sm">{error}</p>
           </div>
         </div>
       </div>
@@ -542,23 +542,23 @@ export default function ElegantCRM() {
   }
 
   return (
-    <div className="text-gray-100">
+    <div className="text-gray-900 dark:text-gray-100">
       <div className="p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gradient-to-br from-emerald-500/20 to-emerald-500/10 rounded-xl">
-              <Sparkles className="w-6 h-6 text-emerald-400" />
+            <div className="p-2 bg-gradient-to-br from-emerald-500/20 to-emerald-500/10 rounded-xl border border-emerald-500/20">
+              <Sparkles className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+            <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
               Customer Relationship Management
             </h1>
           </div>
-          <p className="text-gray-400 ml-12">Build lasting relationships and close more deals</p>
+          <p className="text-gray-600 dark:text-gray-400 ml-12">Build lasting relationships and close more deals</p>
         </motion.div>
 
         {/* View-Specific Stats - Show for all tabs */}
@@ -571,7 +571,7 @@ export default function ElegantCRM() {
         />
 
         {/* Navigation and Controls */}
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-4 border border-gray-800/50 mb-6">
+        <div className="bg-white/95 dark:bg-gray-900/50 backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800/50 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             {/* Tabs */}
             <div className="flex items-center gap-2 overflow-x-auto">
@@ -597,7 +597,7 @@ export default function ElegantCRM() {
                   placeholder="Search companies..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-10 pr-4 py-1.5 text-xs bg-gray-800/50 border border-gray-700 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 w-64"
+                  className="h-8 pl-10 pr-4 py-1.5 text-xs bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 w-64"
                 />
               </div>
 
@@ -609,9 +609,9 @@ export default function ElegantCRM() {
               />
 
               {/* Filter button */}
-              <button 
+              <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-all duration-200"
+                className="p-2 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
               >
                 <Filter className="w-4 h-4" />
               </button>
@@ -622,7 +622,7 @@ export default function ElegantCRM() {
           </div>
 
           {/* Filters Row */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-4 pt-4 border-t border-gray-800/50">
+          <div className="flex flex-col sm:flex-row gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-800/50">
             {/* Other Filters */}
             <div className="flex flex-col sm:flex-row gap-4 flex-1">
               <OwnerFilterV3
@@ -639,14 +639,14 @@ export default function ElegantCRM() {
                 className="w-full sm:w-[180px]"
               />
 
-              <Select 
-                value={sizeFilter.length === 0 ? 'all' : sizeFilter[0]} 
+              <Select
+                value={sizeFilter.length === 0 ? 'all' : sizeFilter[0]}
                 onValueChange={(value) => setSizeFilter(value === 'all' ? [] : [value])}
               >
-                <SelectTrigger className="h-8 w-full sm:w-[180px] bg-gray-800/50 border-gray-700 text-white text-xs px-3 py-1.5">
+                <SelectTrigger className="h-8 w-full sm:w-[180px] bg-gray-100 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-xs px-3 py-1.5">
                   <SelectValue placeholder="All Sizes" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                   <SelectItem value="all">All Sizes</SelectItem>
                   {uniqueSizes.map(size => (
                     <SelectItem key={size} value={size}>{size}</SelectItem>
@@ -654,14 +654,14 @@ export default function ElegantCRM() {
                 </SelectContent>
               </Select>
 
-              <Select 
-                value={industryFilter.length === 0 ? 'all' : industryFilter[0]} 
+              <Select
+                value={industryFilter.length === 0 ? 'all' : industryFilter[0]}
                 onValueChange={(value) => setIndustryFilter(value === 'all' ? [] : [value])}
               >
-                <SelectTrigger className="h-8 w-full sm:w-[180px] bg-gray-800/50 border-gray-700 text-white text-xs px-3 py-1.5">
+                <SelectTrigger className="h-8 w-full sm:w-[180px] bg-gray-100 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-xs px-3 py-1.5">
                   <SelectValue placeholder="All Industries" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                   <SelectItem value="all">All Industries</SelectItem>
                   {uniqueIndustries.map(industry => (
                     <SelectItem key={industry} value={industry}>{industry}</SelectItem>
@@ -672,19 +672,19 @@ export default function ElegantCRM() {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <Button 
-                onClick={exportToCSV} 
-                variant="outline" 
+              <Button
+                onClick={exportToCSV}
+                variant="outline"
                 size="sm"
-                className="border-gray-500 bg-gray-700/70 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-400 shadow-sm"
+                className="border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-700/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600/80 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 shadow-sm"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
-              <Button 
+              <Button
                 onClick={toggleSelectMode}
                 variant={isSelectModeActive ? "default" : "outline"}
-                className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : "border-gray-500 bg-gray-700/70 text-gray-200 hover:bg-gray-600/80 hover:text-white hover:border-gray-400 shadow-sm"} 
+                className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : "border-gray-300 dark:border-gray-500 bg-gray-100 dark:bg-gray-700/70 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600/80 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 shadow-sm"}
                 size="sm"
               >
                 {isSelectModeActive ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
@@ -698,11 +698,11 @@ export default function ElegantCRM() {
         {activeTab === 'companies' && (
         <AnimatePresence>
           {isSelectModeActive && selectedCompanies.size > 0 && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -20, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: -20, scale: 0.95 }}
-              transition={{ 
+              transition={{
                 duration: 0.2,
                 ease: [0.23, 1, 0.32, 1]
               }}
@@ -711,31 +711,31 @@ export default function ElegantCRM() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 border border-violet-500/30">
-                    <CheckSquare className="w-4 h-4 text-violet-400" />
+                    <CheckSquare className="w-4 h-4 text-violet-600 dark:text-violet-400" />
                   </div>
-                  <span className="text-sm font-medium text-white">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
                     {selectedCompanies.size} selected
                   </span>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
-                  <Button 
+                  <Button
                     onClick={() => setBulkDeleteDialogOpen(true)}
                     variant="outline"
                     size="sm"
-                    className="border-red-500/30 hover:bg-red-500/10 hover:border-red-500/50 text-red-400 hover:text-red-300"
+                    className="border-red-300 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/10 hover:border-red-400 dark:hover:border-red-500/50 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                   >
                     <Trash2 className="w-4 h-4 mr-2" />
                     Delete Selected
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       setSelectedCompanies(new Set());
                       setIsSelectAllChecked(false);
                     }}
-                    variant="ghost" 
+                    variant="ghost"
                     size="sm"
-                    className="text-gray-400 hover:text-white hover:bg-gray-800/50"
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50"
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -774,10 +774,10 @@ export default function ElegantCRM() {
               
               {filteredAndSortedCompanies.length === 0 && (
                 <div className="col-span-full text-center py-12">
-                  <Building2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-400 mb-2">No companies found</h3>
+                  <Building2 className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-600 dark:text-gray-400 mb-2">No companies found</h3>
                   <p className="text-gray-500 text-sm">
-                    {searchQuery || sizeFilter !== 'all' || industryFilter !== 'all' 
+                    {searchQuery || sizeFilter !== 'all' || industryFilter !== 'all'
                       ? 'Try adjusting your search criteria or filters'
                       : 'Get started by adding your first company'
                     }
@@ -816,11 +816,11 @@ export default function ElegantCRM() {
 
         {/* Delete Confirmation Dialog */}
         <Dialog open={!!deletingCompany} onOpenChange={() => setDeletingCompany(null)}>
-          <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
             <DialogHeader>
-              <DialogTitle className="text-red-400">Delete Company</DialogTitle>
-              <DialogDescription className="text-gray-400">
-                Are you sure you want to delete <span className="font-semibold text-white">"{deletingCompany?.name}"</span>? 
+              <DialogTitle className="text-red-600 dark:text-red-400">Delete Company</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
+                Are you sure you want to delete <span className="font-semibold text-gray-900 dark:text-white">"{deletingCompany?.name}"</span>?
                 This action cannot be undone and will also remove all associated contacts, deals, and activities.
               </DialogDescription>
             </DialogHeader>
@@ -828,7 +828,7 @@ export default function ElegantCRM() {
               <Button
                 variant="outline"
                 onClick={() => setDeletingCompany(null)}
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Cancel
               </Button>
@@ -844,10 +844,10 @@ export default function ElegantCRM() {
 
         {/* Bulk Delete Dialog */}
         <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-          <DialogContent className="bg-gray-900 border-gray-800 text-white">
+          <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
             <DialogHeader>
-              <DialogTitle className="text-red-400">Delete Selected Companies</DialogTitle>
-              <DialogDescription className="text-gray-400">
+              <DialogTitle className="text-red-600 dark:text-red-400">Delete Selected Companies</DialogTitle>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
                 Are you sure you want to delete <strong>{selectedCompanies.size}</strong> selected companies? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
@@ -855,7 +855,7 @@ export default function ElegantCRM() {
               <Button
                 variant="outline"
                 onClick={() => setBulkDeleteDialogOpen(false)}
-                className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700"
+                className="bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Cancel
               </Button>
@@ -910,7 +910,7 @@ export default function ElegantCRM() {
         {/* Deal Form Modal */}
         {addDealModalOpen && (
           <Dialog open={addDealModalOpen} onOpenChange={setAddDealModalOpen}>
-            <DialogContent className="bg-gray-900 border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 max-w-2xl max-h-[90vh] overflow-y-auto">
               <DealForm
                 onSave={handleSaveDeal}
                 onCancel={() => setAddDealModalOpen(false)}

@@ -64,10 +64,10 @@ function labelSentiment(score: number | null): string {
 }
 
 function getSentimentColor(score: number | null): string {
-  if (score == null) return 'bg-zinc-800 text-zinc-200';
-  if (score > 0.25) return 'bg-emerald-900/60 text-emerald-300';
-  if (score < -0.25) return 'bg-rose-900/60 text-rose-300';
-  return 'bg-zinc-800 text-zinc-200';
+  if (score == null) return 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-200';
+  if (score > 0.25) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300';
+  if (score < -0.25) return 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300';
+  return 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-zinc-200';
 }
 
 function formatTimestamp(seconds: number): string {
@@ -84,25 +84,25 @@ function formatTimestamp(seconds: number): string {
 function parseMarkdownSummary(markdown: string): string {
   return markdown
     // Main headers (# Header) - Large, prominent
-    .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold text-white mt-8 mb-4 pb-2 border-b border-white/10">$1</h1>')
+    .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-8 mb-4 pb-2 border-b border-gray-200 dark:border-white/10">$1</h1>')
     // Section headers (## Header) - Medium, spaced
-    .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-semibold text-white mt-6 mb-3">$1</h2>')
+    .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mt-6 mb-3">$1</h2>')
     // Sub-headers (### Header) - Smaller, colored accent
-    .replace(/^### (.*?)$/gm, '<h3 class="text-base font-semibold text-blue-400 mt-4 mb-2">$1</h3>')
+    .replace(/^### (.*?)$/gm, '<h3 class="text-base font-semibold text-blue-600 dark:text-blue-400 mt-4 mb-2">$1</h3>')
     // Bold text - White and prominent
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>')
     // Timestamp links - Styled as clickable badges with play icon and consistent spacing
     .replace(/\[(.*?)\]\((https:\/\/fathom\.video\/share\/[^)]+timestamp=([0-9.]+)[^)]*)\)/g,
-      '<span class="timestamp-link inline-block align-top px-2 py-1 mb-1 rounded-md bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 cursor-pointer transition-all text-xs font-medium max-w-[90%]" data-timestamp="$3" data-href="$2">' +
+      '<span class="timestamp-link inline-block align-top px-2 py-1 mb-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer transition-all text-xs font-medium max-w-[90%]" data-timestamp="$3" data-href="$2">' +
       '<svg class="w-3 h-3 inline-block mr-1.5 -mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>' +
       '$1' +
       '</span>')
     // Regular links - Subtle blue
-    .replace(/\[(.*?)\]\((https:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-400 hover:text-blue-300 transition-colors">$1</a>')
+    .replace(/\[(.*?)\]\((https:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">$1</a>')
     // Bullet points - Hidden bullet, consistent spacing with line-height fix
-    .replace(/^ - (.*?)$/gm, '<div class="mb-1 text-gray-300 leading-relaxed min-h-[28px] flex items-start">$1</div>')
+    .replace(/^ - (.*?)$/gm, '<div class="mb-1 text-gray-700 dark:text-gray-300 leading-relaxed min-h-[28px] flex items-start">$1</div>')
     // Numbered lists - Hidden numbers, consistent spacing with line-height fix
-    .replace(/^ (\d+)\. (.*?)$/gm, '<div class="mb-1 text-gray-300 leading-relaxed min-h-[28px] flex items-start">$2</div>')
+    .replace(/^ (\d+)\. (.*?)$/gm, '<div class="mb-1 text-gray-700 dark:text-gray-300 leading-relaxed min-h-[28px] flex items-start">$2</div>')
     // Paragraph breaks - Better spacing
     .replace(/\n\n/g, '<div class="mb-4"></div>')
     // Single line breaks - Smaller spacing
@@ -567,7 +567,7 @@ export function MeetingDetail() {
                 <div className="font-semibold mb-3">Talk Time Analysis</div>
 
                 {/* Visual Bar Chart */}
-                <div className="mb-3 flex h-8 rounded-lg overflow-hidden border border-zinc-700">
+                <div className="mb-3 flex h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700">
                   <div
                     className="bg-blue-600 flex items-center justify-center text-xs font-medium text-white"
                     style={{ width: `${meeting.talk_time_rep_pct}%` }}
@@ -597,7 +597,7 @@ export function MeetingDetail() {
                 {/* AI Judgement */}
                 {meeting.talk_time_judgement && (
                   <div className="glassmorphism-light p-3 rounded-lg">
-                    <div className="text-xs font-medium text-emerald-400 mb-1">AI Assessment</div>
+                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">AI Assessment</div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       {meeting.talk_time_judgement}
                     </p>
@@ -731,7 +731,7 @@ export function MeetingDetail() {
                 Action Items ({actionItems.length})
               </div>
               {actionItems.some(item => item.ai_generated) && (
-                <Badge variant="outline" className="text-xs bg-purple-900/30 text-purple-300 border-purple-700">
+                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
                   AI
                 </Badge>
               )}
@@ -749,7 +749,7 @@ export function MeetingDetail() {
                           type="checkbox"
                           checked={!!item.completed}
                           onChange={() => toggleActionItem(item.id, !!item.completed)}
-                          className="mt-0.5 h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500"
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-emerald-500"
                           aria-label="Mark action item complete"
                         />
                         <div className={`font-medium text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
@@ -757,7 +757,7 @@ export function MeetingDetail() {
                         </div>
                       </div>
                       {item.ai_generated && item.ai_confidence && (
-                        <Badge variant="outline" className="text-xs bg-purple-900/30 text-purple-300 border-purple-700 shrink-0">
+                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700 shrink-0">
                           {(item.ai_confidence * 100).toFixed(0)}%
                         </Badge>
                       )}
@@ -774,7 +774,7 @@ export function MeetingDetail() {
                         {item.priority}
                       </Badge>
                       {item.completed && (
-                        <Badge className="bg-green-900/60 text-green-300 text-xs">
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300 text-xs">
                           ✓
                         </Badge>
                       )}
@@ -820,7 +820,7 @@ export function MeetingDetail() {
                         )}
                       </div>
                       {isExternal ? (
-                        <Badge className="bg-amber-900/60 text-amber-300">
+                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300">
                           External
                         </Badge>
                       ) : (
@@ -835,7 +835,7 @@ export function MeetingDetail() {
                     <Link
                       key={attendee.id}
                       to={`/crm/contacts/${contactId}`}
-                      className="block hover:bg-zinc-900/40 rounded-lg px-2 -mx-2 transition-colors"
+                      className="block hover:bg-gray-100 dark:hover:bg-zinc-900/40 rounded-lg px-2 -mx-2 transition-colors"
                     >
                       {content}
                     </Link>

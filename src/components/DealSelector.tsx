@@ -186,8 +186,13 @@ export function DealSelector({
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
         className={cn(
-          "w-full flex items-center justify-between gap-3 px-4 py-3 bg-gray-800/50 border border-gray-700 rounded-xl text-left transition-all duration-200",
-          "hover:bg-gray-800/70 hover:border-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500",
+          "w-full flex items-center justify-between gap-3 px-4 py-3",
+          "bg-white dark:bg-gray-800/50 backdrop-blur-sm",
+          "border border-gray-300 dark:border-gray-700",
+          "rounded-xl text-left transition-all duration-200",
+          "hover:bg-gray-50 dark:hover:bg-gray-800/70",
+          "hover:border-gray-400 dark:hover:border-gray-600",
+          "focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500",
           disabled && "opacity-50 cursor-not-allowed",
           required && !selectedDealId && "border-red-500/50",
           selectedDealId && "border-emerald-500/50"
@@ -201,18 +206,18 @@ export function DealSelector({
                 `bg-${getStageColor(selectedDeal.stage_id)}-500`
               )} />
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-white truncate">
+                <div className="font-medium text-gray-900 dark:text-white truncate">
                   {selectedDeal.name}
                 </div>
-                <div className="text-sm text-gray-400 truncate">
+                <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
                   {selectedDeal.company} • £{selectedDeal.value?.toLocaleString()}
                 </div>
               </div>
             </>
           ) : (
             <>
-              <Building2 className="w-5 h-5 text-gray-400 flex-shrink-0" />
-              <span className="text-gray-400">{placeholder}</span>
+              <Building2 className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <span className="text-gray-500 dark:text-gray-400">{placeholder}</span>
             </>
           )}
         </div>
@@ -236,18 +241,18 @@ export function DealSelector({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl shadow-2xl z-50 max-h-80 overflow-hidden"
+            className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-xl shadow-2xl z-50 max-h-80 overflow-hidden"
           >
             {/* Search Input and Filters */}
-            <div className="p-3 border-b border-gray-800/50 space-y-3">
+            <div className="p-3 border-b border-gray-200 dark:border-gray-800/50 space-y-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search deals..."
-                  className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
+                  className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
                 />
               </div>
               
@@ -260,7 +265,7 @@ export function DealSelector({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
                     !selectedStageFilter
                       ? "bg-violet-500 text-white"
-                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                      : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-700/50"
                   )}
                 >
                   All Stages
@@ -278,7 +283,7 @@ export function DealSelector({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
                     selectedStageFilter === stages?.find(s => s.name === 'SQL')?.id
                       ? "bg-blue-500 text-white"
-                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                      : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-700/50"
                   )}
                 >
                   SQL
@@ -296,7 +301,7 @@ export function DealSelector({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
                     selectedStageFilter === stages?.find(s => s.name === 'Opportunity')?.id
                       ? "bg-purple-500 text-white"
-                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                      : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-700/50"
                   )}
                 >
                   Opportunity
@@ -314,7 +319,7 @@ export function DealSelector({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
                     selectedStageFilter === stages?.find(s => s.name === 'Verbal')?.id
                       ? "bg-orange-500 text-white"
-                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                      : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-700/50"
                   )}
                 >
                   Verbal
@@ -332,7 +337,7 @@ export function DealSelector({
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5",
                     selectedStageFilter === stages?.find(s => s.name === 'Signed')?.id
                       ? "bg-green-500 text-white"
-                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-300 border border-gray-700/50"
+                      : "bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-300 border border-gray-300 dark:border-gray-700/50"
                   )}
                 >
                   Signed
@@ -348,10 +353,10 @@ export function DealSelector({
               <button
                 type="button"
                 onClick={() => setShowCreateForm(!showCreateForm)}
-                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800/50 transition-colors border-b border-gray-800/30"
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors border-b border-gray-200 dark:border-gray-800/30"
               >
-                <Plus className="w-4 h-4 text-emerald-400" />
-                <span className="font-medium text-emerald-400">Create New Deal</span>
+                <Plus className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">Create New Deal</span>
               </button>
 
               {/* Quick Create Form */}
@@ -362,38 +367,38 @@ export function DealSelector({
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="border-b border-gray-800/30 overflow-hidden"
+                    className="border-b border-gray-200 dark:border-gray-800/30 overflow-hidden"
                   >
-                    <div className="p-4 space-y-3 bg-gray-800/20">
+                    <div className="p-4 space-y-3 bg-gray-50 dark:bg-gray-800/20">
                       <div className="grid grid-cols-2 gap-3">
                         <input
                           type="text"
                           value={quickDealForm.name}
                           onChange={(e) => setQuickDealForm(prev => ({ ...prev, name: e.target.value }))}
                           placeholder="Deal name"
-                          className="px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                          className="px-3 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                         />
                         <input
                           type="text"
                           value={quickDealForm.company}
                           onChange={(e) => setQuickDealForm(prev => ({ ...prev, company: e.target.value }))}
                           placeholder="Company"
-                          className="px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                          className="px-3 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                         />
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-3">
                         <input
                           type="number"
                           value={quickDealForm.value || ''}
                           onChange={(e) => setQuickDealForm(prev => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
                           placeholder="Deal value (£)"
-                          className="px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                          className="px-3 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                         />
                         <select
                           value={quickDealForm.stage_id}
                           onChange={(e) => setQuickDealForm(prev => ({ ...prev, stage_id: e.target.value }))}
-                          className="px-3 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                          className="px-3 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                         >
                           {stages?.map(stage => (
                             <option key={stage.id} value={stage.id}>
@@ -408,7 +413,7 @@ export function DealSelector({
                           type="button"
                           onClick={handleCreateDeal}
                           disabled={isCreating || !quickDealForm.name || !quickDealForm.company}
-                          className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-700 disabled:text-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                          className="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                         >
                           {isCreating ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -420,7 +425,7 @@ export function DealSelector({
                         <button
                           type="button"
                           onClick={() => setShowCreateForm(false)}
-                          className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                          className="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
                         >
                           Cancel
                         </button>
@@ -432,8 +437,8 @@ export function DealSelector({
 
               {/* Existing Deals List */}
               {dealsLoading ? (
-                <div className="p-4 text-center text-gray-400">
-                  <div className="w-6 h-6 border-2 border-gray-600 border-t-violet-500 rounded-full animate-spin mx-auto mb-2" />
+                <div className="p-4 text-center text-gray-600 dark:text-gray-400">
+                  <div className="w-6 h-6 border-2 border-gray-300 dark:border-gray-600 border-t-violet-500 rounded-full animate-spin mx-auto mb-2" />
                   Loading deals...
                 </div>
               ) : filteredDeals.length > 0 ? (
@@ -443,39 +448,39 @@ export function DealSelector({
                       key={deal.id}
                       type="button"
                       onClick={() => handleDealSelect(deal)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-800/50 transition-colors"
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
                     >
                       <div className={cn(
                         "w-3 h-3 rounded-full flex-shrink-0",
                         `bg-${getStageColor(deal.stage_id)}-500`
                       )} />
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-white truncate">
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
                           {deal.name}
                         </div>
-                        <div className="text-sm text-gray-400 truncate">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
                           {deal.company} • £{deal.value?.toLocaleString()} • {stages?.find(s => s.id === deal.stage_id)?.name || 'Unknown'}
                         </div>
                       </div>
                       {selectedDealId === deal.id && (
-                        <Check className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                       )}
                     </button>
                   ))}
                 </div>
               ) : (
-                <div className="p-4 text-center text-gray-400">
+                <div className="p-4 text-center text-gray-600 dark:text-gray-400">
                   {searchQuery ? (
                     <>
-                      <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-500" />
+                      <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
                       No deals found matching "{searchQuery}"
                     </>
                   ) : (
                     <>
-                      <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-500" />
+                      <Building2 className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-gray-500" />
                       No deals found
                       {clientName && (
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                           for {clientName}
                         </div>
                       )}
@@ -487,14 +492,14 @@ export function DealSelector({
 
             {/* Clear Selection Option */}
             {selectedDealId && !required && (
-              <div className="border-t border-gray-800/30 p-2">
+              <div className="border-t border-gray-200 dark:border-gray-800/30 p-2">
                 <button
                   type="button"
                   onClick={() => {
                     onDealSelect(null);
                     setIsOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-colors text-sm"
+                  className="w-full px-3 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors text-sm"
                 >
                   Clear selection
                 </button>

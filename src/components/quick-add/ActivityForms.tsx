@@ -85,29 +85,29 @@ export function ActivityForms({
             <button
               type="button"
               onClick={onBack}
-              className="p-1.5 hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
             >
-              <ArrowRight className="w-4 h-4 text-gray-400 rotate-180" />
+              <ArrowRight className="w-4 h-4 text-gray-500 dark:text-gray-400 rotate-180" />
             </button>
             <div>
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 {getActionIcon()} {getActionTitle()}
               </h3>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm text-gray-400">for</span>
-                <span className="text-sm text-[#37bd7e] font-medium">
-                  {selectedContact.full_name || 
-                   (selectedContact.first_name || selectedContact.last_name ? 
-                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                <span className="text-sm text-gray-600 dark:text-gray-400">for</span>
+                <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium">
+                  {selectedContact.full_name ||
+                   (selectedContact.first_name || selectedContact.last_name ?
+                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() :
                     selectedContact.email)}
                 </span>
                 {selectedContact.company && (
-                  <span className="text-sm text-gray-500">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-500">• {typeof selectedContact.company === 'string' ? selectedContact.company : (selectedContact.company as any)?.name || 'Company'}</span>
                 )}
                 <button
                   type="button"
                   onClick={onChangeContact}
-                  className="text-xs text-gray-400 hover:text-[#37bd7e] ml-2"
+                  className="text-xs text-gray-600 hover:text-emerald-700 dark:text-gray-400 dark:hover:text-emerald-400 ml-2"
                 >
                   Change
                 </button>
@@ -119,7 +119,7 @@ export function ActivityForms({
         {/* Compact Date Selection */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-gray-400">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
               {getDateLabel()}
             </label>
             <div className="flex gap-2">
@@ -137,8 +137,8 @@ export function ActivityForms({
                   }}
                   className={`px-2.5 py-1 text-xs font-medium rounded-lg border transition-all ${
                     format(selectedDate, 'yyyy-MM-dd') === format(option.date, 'yyyy-MM-dd')
-                      ? 'bg-[#37bd7e]/20 border-[#37bd7e] text-[#37bd7e]'
-                      : 'bg-gray-800/30 border-gray-700/30 text-gray-300 hover:bg-gray-700/50'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-600 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                   }`}
                 >
                   {option.label}
@@ -150,17 +150,17 @@ export function ActivityForms({
           <button
             type="button"
             onClick={() => setShowCalendar(!showCalendar)}
-            className="w-full bg-gray-800/50 border border-gray-600/50 rounded-xl px-3 py-2.5 text-white text-left hover:bg-gray-700/50 transition-all flex items-center justify-between group"
+            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-3 py-2.5 text-gray-900 dark:text-white text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all flex items-center justify-between group"
           >
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[#37bd7e]" />
+              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span className="text-sm">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</span>
             </div>
-            <span className="text-xs text-gray-400">Change</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Change</span>
           </button>
-          
+
           {showCalendar && (
-            <div className="absolute left-0 right-0 mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-xl p-4 z-20 shadow-xl">
+            <div className="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-4 z-20 shadow-sm dark:shadow-none">
               <CalendarComponent
                 mode="single"
                 selected={selectedDate}
@@ -170,7 +170,7 @@ export function ActivityForms({
                     setShowCalendar(false);
                   }
                 }}
-                className="bg-transparent [&_.rdp-day]:text-white [&_.rdp-day_button:hover]:bg-[#37bd7e]/20 [&_.rdp-day_button:focus]:bg-[#37bd7e]/20 [&_.rdp-day_selected]:!bg-[#37bd7e] [&_.rdp-day_selected]:hover:!bg-[#2da76c] [&_.rdp-caption]:text-white [&_.rdp-head_cell]:text-gray-400"
+                className="bg-transparent [&_.rdp-day]:text-gray-900 dark:[&_.rdp-day]:text-white [&_.rdp-day_button:hover]:bg-emerald-100 dark:[&_.rdp-day_button:hover]:bg-emerald-500/10 [&_.rdp-day_button:focus]:bg-emerald-100 dark:[&_.rdp-day_button:focus]:bg-emerald-500/10 [&_.rdp-day_selected]:!bg-emerald-600 dark:[&_.rdp-day_selected]:!bg-emerald-500/10 [&_.rdp-day_selected]:hover:!bg-emerald-700 dark:[&_.rdp-day_selected]:hover:!bg-emerald-500/20 [&_.rdp-caption]:text-gray-900 dark:[&_.rdp-caption]:text-white [&_.rdp-head_cell]:text-gray-600 dark:[&_.rdp-head_cell]:text-gray-400"
               />
             </div>
           )}
@@ -180,12 +180,12 @@ export function ActivityForms({
         {selectedAction === 'meeting' && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-400">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                 Type <span className="text-red-500">*</span>
               </label>
               <select
                 required
-                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
                 value={formData.details}
                 onChange={(e) => setFormData({...formData, details: e.target.value})}
               >
@@ -199,11 +199,11 @@ export function ActivityForms({
               </select>
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-400">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                 Status
               </label>
               <select
-                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500/50 transition-colors"
                 value={formData.status}
                 onChange={(e) => setFormData({...formData, status: e.target.value})}
               >
@@ -219,7 +219,7 @@ export function ActivityForms({
         {/* Proposal-specific fields - Compact */}
         {selectedAction === 'proposal' && (
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-400">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
               Proposal Value (£)
             </label>
             <input
@@ -227,7 +227,7 @@ export function ActivityForms({
               min="0"
               step="0.01"
               placeholder="Enter proposal value"
-              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 transition-colors"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500/50 transition-colors"
               value={formData.amount || ''}
               onChange={(e) => setFormData({...formData, amount: e.target.value})}
             />
@@ -239,7 +239,7 @@ export function ActivityForms({
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-400">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                   Monthly Subscription (£)
                 </label>
                 <input
@@ -247,13 +247,13 @@ export function ActivityForms({
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
                   value={formData.monthlyMrr || ''}
                   onChange={(e) => setFormData({...formData, monthlyMrr: e.target.value})}
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-400">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                   One-off Amount (£)
                 </label>
                 <input
@@ -261,17 +261,17 @@ export function ActivityForms({
                   min="0"
                   step="0.01"
                   placeholder="0.00"
-                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors"
                   value={formData.oneOffRevenue || ''}
                   onChange={(e) => setFormData({...formData, oneOffRevenue: e.target.value})}
                 />
               </div>
             </div>
             {(formData.monthlyMrr || formData.oneOffRevenue) && (
-              <div className="px-2 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-                <p className="text-xs text-emerald-400">
+              <div className="px-2 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-lg">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
                   Deal Value: £{calculateDealValue()}
-                  {formData.monthlyMrr && <span className="text-emerald-300/60 text-xs"> (3mo LTV)</span>}
+                  {formData.monthlyMrr && <span className="text-emerald-600/70 dark:text-emerald-300/60 text-xs"> (3mo LTV)</span>}
                 </p>
               </div>
             )}
@@ -283,11 +283,11 @@ export function ActivityForms({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-400">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                   Outbound Type
                 </label>
                 <select
-                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
                   value={formData.outboundType || 'Call'}
                   onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
                 >
@@ -299,7 +299,7 @@ export function ActivityForms({
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-400">
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                   Attempt #
                 </label>
                 <input
@@ -307,20 +307,20 @@ export function ActivityForms({
                   min="1"
                   max="50"
                   placeholder="1"
-                  className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
                   value={formData.outboundCount || '1'}
                   onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
                 />
               </div>
             </div>
             <div className="space-y-1">
-              <label className="block text-xs font-medium text-gray-400">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
                 Outbound Details
               </label>
               <textarea
                 rows={2}
                 placeholder="Cold outreach, follow-up call, etc..."
-                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
                 value={formData.details || ''}
                 onChange={(e) => setFormData({...formData, details: e.target.value})}
               />
@@ -331,19 +331,19 @@ export function ActivityForms({
         {/* Company Information - Required */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-400">
-              Company Name <span className="text-gray-500 text-xs">(or use website below)</span>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
+              Company Name <span className="text-gray-500 dark:text-gray-500 text-xs">(or use website below)</span>
             </label>
             <input
               type="text"
               placeholder="Acme Inc."
               className={cn(
-                "w-full bg-gray-800/50 border rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors",
-                validationErrors.client_name 
-                  ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
+                "w-full bg-white dark:bg-gray-800/50 border rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors",
+                validationErrors.client_name
+                  ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
                   : !formData.client_name && selectedAction
-                    ? 'border-amber-500/50' 
-                    : 'border-gray-600/50'
+                    ? 'border-amber-500/50'
+                    : 'border-gray-300 dark:border-gray-700/50'
               )}
               value={formData.client_name || ''}
               onChange={(e) => setFormData({...formData, client_name: e.target.value})}
@@ -357,13 +357,13 @@ export function ActivityForms({
             )}
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-400">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
               Website
             </label>
             <input
               type="text"
               placeholder="www.acme.com"
-              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
               value={formData.company_website || ''}
               onChange={(e) => {
                 let website = e.target.value.trim();
@@ -384,13 +384,13 @@ export function ActivityForms({
 
         {/* Deal Information - Optional */}
         <details className="group">
-          <summary className="cursor-pointer list-none flex items-center justify-between p-3 bg-gray-800/30 rounded-xl hover:bg-gray-800/50 transition-colors">
+          <summary className="cursor-pointer list-none flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-800/50 transition-colors">
             <div className="flex items-center gap-2">
               <Briefcase className="w-4 h-4 text-purple-500" />
-              <span className="text-sm font-medium text-gray-300">Deal Details</span>
-              <span className="text-xs text-gray-500">(Optional)</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Deal Details</span>
+              <span className="text-xs text-gray-500 dark:text-gray-500">(Optional)</span>
             </div>
-            <div className="text-xs text-purple-400">
+            <div className="text-xs text-purple-600 dark:text-purple-400">
               {selectedAction === 'sale' ? 'Signed stage' : selectedAction === 'proposal' ? 'Opportunity stage' : 'SQL stage'}
             </div>
           </summary>
@@ -398,7 +398,7 @@ export function ActivityForms({
             <input
               type="text"
               placeholder={`Deal name (auto-generated if empty)`}
-              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/50 transition-colors"
               value={formData.deal_name || ''}
               onChange={(e) => setFormData({...formData, deal_name: e.target.value})}
             />
@@ -410,7 +410,7 @@ export function ActivityForms({
           <textarea
             rows={2}
             placeholder="Additional notes (optional)..."
-            className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-[#37bd7e]/20 focus:border-[#37bd7e]/50 transition-colors resize-none"
+            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/50 transition-colors resize-none"
             value={formData.description || ''}
             onChange={(e) => setFormData({...formData, description: e.target.value})}
           />
@@ -420,7 +420,7 @@ export function ActivityForms({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 py-2.5 px-4 bg-gray-800/30 text-gray-300 rounded-lg hover:bg-gray-700/50 transition-colors text-sm font-medium"
+            className="flex-1 py-2.5 px-4 bg-gray-200 dark:bg-gray-800/30 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700/50 transition-colors text-sm font-medium"
           >
             Cancel
           </button>
@@ -428,12 +428,12 @@ export function ActivityForms({
             type="submit"
             disabled={isSubmitting}
             className={cn(
-              "flex-1 py-2.5 px-4 text-white rounded-lg transition-all text-sm font-medium shadow-lg flex items-center justify-center gap-2",
-              submitStatus === 'success' 
-                ? "bg-green-600 hover:bg-green-700"
+              "flex-1 py-2.5 px-4 text-white rounded-lg transition-all text-sm font-medium shadow-sm flex items-center justify-center gap-2",
+              submitStatus === 'success'
+                ? "bg-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border dark:border-emerald-500/20 hover:bg-emerald-700 dark:hover:bg-emerald-500/20"
                 : isSubmitting
-                  ? "bg-gray-600 cursor-not-allowed"
-                  : "bg-gradient-to-r from-[#37bd7e] to-[#2da76c] hover:from-[#2da76c] hover:to-[#228b57]"
+                  ? "bg-gray-600 dark:bg-gray-700 cursor-not-allowed"
+                  : "bg-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border dark:border-emerald-500/20 hover:bg-emerald-700 dark:hover:bg-emerald-500/20"
             )}
           >
             {isSubmitting ? (
@@ -495,7 +495,7 @@ export function OutboundForm({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Phone className="w-5 h-5 text-blue-500" />
-            <h3 className="text-lg font-semibold text-white">Log Outbound Activity</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Log Outbound Activity</h3>
           </div>
           <button
             type="button"
@@ -507,9 +507,9 @@ export function OutboundForm({
         </div>
 
         {/* Contact Selection (Optional) */}
-        <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+        <div className="bg-gray-100 dark:bg-gray-800/30 rounded-lg p-4 border border-gray-300 dark:border-gray-700/50">
           <div className="flex items-center justify-between mb-3">
-            <label className="text-sm font-medium text-gray-400">Contact (Optional)</label>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Contact (Optional)</label>
             {selectedContact && (
               <button
                 type="button"
@@ -523,24 +523,24 @@ export function OutboundForm({
           
           {selectedContact ? (
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-violet-500/20 rounded-full flex items-center justify-center">
-                <Users className="w-4 h-4 text-violet-400" />
+              <div className="w-8 h-8 bg-violet-100 dark:bg-violet-500/20 rounded-full flex items-center justify-center">
+                <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white">
-                  {selectedContact.full_name || 
-                   (selectedContact.first_name || selectedContact.last_name ? 
-                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() : 
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  {selectedContact.full_name ||
+                   (selectedContact.first_name || selectedContact.last_name ?
+                    `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() :
                     selectedContact.email)}
                 </p>
-                <p className="text-xs text-gray-400">{selectedContact.email}</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">{selectedContact.email}</p>
               </div>
             </div>
           ) : (
             <button
               type="button"
               onClick={onAddContact}
-              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm"
+              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-sm"
             >
               <UserPlus className="w-4 h-4" />
               Add Contact (Optional)
@@ -551,12 +551,12 @@ export function OutboundForm({
         {/* Outbound Activity Details */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-400">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
               Activity Type <span className="text-red-500">*</span>
             </label>
             <select
               required
-              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
               value={formData.outboundType || 'Call'}
               onChange={(e) => setFormData({...formData, outboundType: e.target.value})}
             >
@@ -567,20 +567,20 @@ export function OutboundForm({
               <option value="Other">Other</option>
             </select>
           </div>
-          
+
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-400">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
               Quantity <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400" />
               <input
                 type="number"
                 required
                 min="1"
                 max="500"
                 placeholder="50"
-                className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg pl-10 pr-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg pl-10 pr-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
                 value={formData.outboundCount || ''}
                 onChange={(e) => setFormData({...formData, outboundCount: e.target.value})}
               />
@@ -590,13 +590,13 @@ export function OutboundForm({
 
         {/* Details */}
         <div className="space-y-1">
-          <label className="block text-xs font-medium text-gray-400">
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
             Session Notes
           </label>
           <textarea
             rows={3}
             placeholder="e.g., '50 cold calls to tech companies in London. 5 callbacks scheduled, 12 answered calls, good response rate'"
-            className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
+            className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors resize-none"
             value={formData.details || ''}
             onChange={(e) => setFormData({...formData, details: e.target.value})}
           />
@@ -605,13 +605,13 @@ export function OutboundForm({
         {/* Company/Client Name (if no contact selected) */}
         {!selectedContact && (
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-gray-400">
-              Target Company/Client <span className="text-gray-500 text-xs">(optional)</span>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">
+              Target Company/Client <span className="text-gray-500 dark:text-gray-500 text-xs">(optional)</span>
             </label>
             <input
               type="text"
               placeholder="e.g., 'Tech startups in London' or 'Acme Inc.'"
-              className="w-full bg-gray-800/50 border border-gray-600/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-colors"
               value={formData.client_name || ''}
               onChange={(e) => setFormData({...formData, client_name: e.target.value})}
             />

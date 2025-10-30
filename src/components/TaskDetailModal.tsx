@@ -175,14 +175,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-3xl glassmorphism border-gray-700/50 max-h-[90vh] overflow-y-auto">
         <DialogHeader className="pb-6">
-          <DialogTitle className="text-2xl font-bold text-white flex items-center justify-between">
+          <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`p-3 rounded-xl ${taskTypeConfig?.color || 'bg-gray-500/20 text-gray-400'}`}>
                 <TaskTypeIcon className="w-6 h-6" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-white">{task.title}</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{task.title}</span>
                   <motion.div
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -262,11 +262,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           {/* Task Description */}
           {task.description && (
             <div className="glassmorphism-light p-4 rounded-xl border border-gray-600/30">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-400" />
                 Description
               </h3>
-              <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
+              <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                 {task.description}
               </p>
             </div>
@@ -277,7 +277,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             {/* Due Date */}
             {dueDateInfo && (
               <div className="glassmorphism-light p-4 rounded-xl border border-gray-600/30">
-                <h3 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                   <Clock className={`w-5 h-5 ${isOverdue ? 'text-red-400' : 'text-green-400'}`} />
                   Due Date
                 </h3>
@@ -302,7 +302,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
             {/* Assignee */}
             <div className="glassmorphism-light p-4 rounded-xl border border-gray-600/30">
-              <h3 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <User className="w-5 h-5 text-purple-400" />
                 Assignee
               </h3>
@@ -314,8 +314,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="text-white font-medium">{assigneeInfo.name}</div>
-                  <div className="text-sm text-gray-400">Assigned to task</div>
+                  <div className="text-gray-900 dark:text-white font-medium">{assigneeInfo.name}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Assigned to task</div>
                 </div>
               </div>
             </div>
@@ -324,7 +324,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           {/* Related Records */}
           {(task.company || task.contact_name || task.deal_id) && (
             <div className="glassmorphism-light p-4 rounded-xl border border-gray-600/30">
-              <h3 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Target className="w-5 h-5 text-blue-400" />
                 Related Records
               </h3>
@@ -344,11 +344,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <Building2 className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <div className="text-white font-medium flex items-center gap-2">
+                        <div className="text-gray-900 dark:text-white font-medium flex items-center gap-2">
                           {task.company}
                           <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
-                        <div className="text-sm text-gray-400">Company</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Company</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />

@@ -83,9 +83,9 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
     <div
       className={`relative min-w-[120px] rounded-lg border-2 transition-all ${
         selected
-          ? 'border-blue-500 shadow-lg shadow-blue-500/20'
+          ? 'border-blue-500 shadow-lg shadow-blue-500/20 ring-offset-white dark:ring-offset-gray-950'
           : 'border-blue-400/50 hover:border-blue-400'
-      } ${getExecutionStatusColor()} bg-gradient-to-br from-blue-900/90 via-blue-800/90 to-blue-700/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 shadow-sm dark:shadow-none`}
     >
       <Handle
         type="source"

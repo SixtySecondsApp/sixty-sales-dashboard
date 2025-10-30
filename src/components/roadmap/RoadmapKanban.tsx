@@ -62,32 +62,32 @@ function RoadmapSkeleton() {
   return (
     <div className="space-y-6">
       <div className="mb-6 space-y-4">
-        <div className="h-8 bg-gray-800 rounded-lg w-48" />
-        <div className="h-4 bg-gray-800 rounded-lg w-80" />
+        <div className="h-8 bg-gray-300 dark:bg-gray-800 rounded-lg w-48" />
+        <div className="h-4 bg-gray-300 dark:bg-gray-800 rounded-lg w-80" />
         <div className="flex justify-between mt-4">
           <div className="flex gap-2">
-            <div className="h-10 bg-gray-800 rounded-lg w-32" />
-            <div className="h-10 bg-gray-800 rounded-lg w-24" />
+            <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-32" />
+            <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-24" />
           </div>
-          <div className="h-10 bg-gray-800 rounded-lg w-64" />
+          <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-64" />
         </div>
       </div>
       <div className="flex gap-4 overflow-x-auto pb-6">
         {[1, 2, 3, 4, 5, 6].map(i => (
           <div
             key={i}
-            className="min-w-[320px] bg-gray-900/50 rounded-xl border border-gray-800/50 flex flex-col h-[600px]"
+            className="min-w-[320px] bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800/50 flex flex-col h-[600px] shadow-sm dark:shadow-none"
           >
-            <div className="p-4 border-b border-gray-800/50 flex items-center justify-between">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-800/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-md bg-gray-800" />
-                <div className="h-5 bg-gray-800 rounded-lg w-20" />
+                <div className="w-4 h-4 rounded-md bg-gray-300 dark:bg-gray-800" />
+                <div className="h-5 bg-gray-300 dark:bg-gray-800 rounded-lg w-20" />
               </div>
-              <div className="bg-gray-800/50 rounded-full w-8 h-5" />
+              <div className="bg-gray-200 dark:bg-gray-800/50 rounded-full w-8 h-5" />
             </div>
             <div className="p-4 space-y-3 flex-1">
               {[1, 2, 3].map(j => (
-                <div key={j} className="bg-gray-800/50 rounded-xl p-4 h-32" />
+                <div key={j} className="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-4 h-32" />
               ))}
             </div>
           </div>
@@ -685,8 +685,8 @@ const RoadmapContent = React.forwardRef<RoadmapKanbanHandle>((props, ref) => {
 
       {/* Centered modal for suggestion form - rendered as portal to ensure full coverage */}
       {(showSuggestionForm || isEditModalOpen) && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ margin: 0 }}>
-          <div className="bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-800 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ margin: 0 }}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-xl w-full max-w-xl border border-gray-200 dark:border-gray-800 max-h-[90vh] overflow-y-auto text-gray-900 dark:text-white">
             <SuggestionForm
               key={selectedSuggestion?.id || initialStatusId || 'new-suggestion'}
               suggestion={selectedSuggestion}

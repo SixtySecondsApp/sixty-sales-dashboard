@@ -19,26 +19,26 @@ export function ContactSelectionStep({
   return (
     <>
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-white">Select Contact</h3>
-        <p className="text-sm text-gray-400">Choose an existing contact or create a new one</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Select Contact</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400">Choose an existing contact or create a new one</p>
       </div>
 
       {/* Contact Selection Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="font-medium text-white flex items-center gap-2">
-            <Users className="w-4 h-4 text-violet-400" />
+          <h4 className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+            <Users className="w-4 h-4 text-violet-600 dark:text-violet-400" />
             Contact Information
           </h4>
           {wizard.selectedContact && (
-            <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full">
+            <span className="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 rounded-full">
               Contact Selected
             </span>
           )}
         </div>
 
         {!wizard.selectedContact ? (
-          <div className="p-4 bg-gray-800/30 border border-gray-700/50 rounded-xl">
+          <div className="p-4 theme-bg-secondary theme-border rounded-xl">
             <button
               onClick={() => setShowContactSearch(true)}
               className="w-full px-4 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl transition-colors flex items-center justify-center gap-2"
@@ -48,18 +48,18 @@ export function ContactSelectionStep({
             </button>
           </div>
         ) : (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
             <div className="flex items-center justify-between">
               <div>
-                <h5 className="font-medium text-emerald-400">{wizard.selectedContact.full_name}</h5>
-                <p className="text-sm text-emerald-300/70">{wizard.selectedContact.email}</p>
+                <h5 className="font-medium text-emerald-700 dark:text-emerald-400">{wizard.selectedContact.full_name}</h5>
+                <p className="text-sm text-emerald-600 dark:text-emerald-300/70">{wizard.selectedContact.email}</p>
                 {wizard.selectedContact.company && (
-                  <p className="text-sm text-gray-400">{wizard.selectedContact.company.name}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{wizard.selectedContact.company.name}</p>
                 )}
               </div>
               <button
                 onClick={handleContactChange}
-                className="px-3 py-1 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded transition-colors"
+                className="px-3 py-1 text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/10 rounded transition-colors"
               >
                 Change
               </button>

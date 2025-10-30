@@ -77,7 +77,7 @@ export function DealWizard({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={handleClose}
         >
           <motion.div
@@ -85,27 +85,27 @@ export function DealWizard({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="theme-bg-card backdrop-blur-sm theme-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-800/50">
+            <div className="flex items-center justify-between p-6 border-b theme-border">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-violet-500/10 rounded-lg">
-                  <Building2 className="w-5 h-5 text-violet-400" />
+                  <Building2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-white">
-                    {actionType === 'proposal' ? 'Create Deal & Proposal' : 
+                  <h2 className="text-xl font-semibold theme-text-primary">
+                    {actionType === 'proposal' ? 'Create Deal & Proposal' :
                      actionType === 'meeting' ? 'Create Meeting & Deal' :
                      'Create New Deal'}
                   </h2>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-sm theme-text-tertiary">
                     {wizard.step === 'deal-type' && 'Choose the type of deal you\'re creating'}
                     {wizard.step === 'contact-selection' && 'Select a contact to continue'}
                     {wizard.step === 'deal-form' && 'Fill in deal details'}
                     {wizard.step === 'success' && (
-                      actionType === 'proposal' ? 'Deal and proposal created successfully!' : 
+                      actionType === 'proposal' ? 'Deal and proposal created successfully!' :
                       actionType === 'meeting' ? 'Meeting and deal created successfully!' :
                       'Deal created successfully!'
                     )}
@@ -114,45 +114,45 @@ export function DealWizard({
               </div>
               <button
                 onClick={handleClose}
-                className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 theme-text-tertiary" />
               </button>
             </div>
 
             {/* Step Progress */}
-            <div className="px-6 py-4 border-b border-gray-800/30">
+            <div className="px-6 py-4 border-b theme-border">
               <div className="flex items-center gap-2">
                 {/* Step 1: Deal Type */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                  wizard.step === 'deal-type' ? "bg-violet-500 text-white" : 
-                  wizard.dealType ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
+                  wizard.step === 'deal-type' ? "bg-violet-500 text-white" :
+                  wizard.dealType ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
                   1
                 </div>
                 <div className={cn(
                   "flex-1 h-px transition-colors",
-                  wizard.dealType ? "bg-violet-500" : "bg-gray-700"
+                  wizard.dealType ? "bg-violet-500" : "bg-gray-300 dark:bg-gray-700"
                 )} />
-                
+
                 {/* Step 2: Contact & Deal Form */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                  wizard.step === 'contact-selection' || wizard.step === 'deal-form' ? "bg-violet-500 text-white" : 
-                  wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
+                  wizard.step === 'contact-selection' || wizard.step === 'deal-form' ? "bg-violet-500 text-white" :
+                  wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
                   2
                 </div>
                 <div className={cn(
                   "flex-1 h-px transition-colors",
-                  wizard.step === 'success' ? "bg-violet-500" : "bg-gray-700"
+                  wizard.step === 'success' ? "bg-violet-500" : "bg-gray-300 dark:bg-gray-700"
                 )} />
-                
+
                 {/* Step 3: Success */}
                 <div className={cn(
                   "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
-                  wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-700 text-gray-300"
+                  wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
                   <CheckCircle className="w-4 h-4" />
                 </div>

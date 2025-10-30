@@ -60,16 +60,16 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
   // Generate logo colors based on company name
   const getLogoColor = (name: string) => {
     const colors = [
-      'from-blue-500 to-purple-500',
-      'from-orange-500 to-red-500',
-      'from-emerald-500 to-teal-500',
-      'from-pink-500 to-rose-500',
-      'from-indigo-500 to-blue-500',
-      'from-yellow-500 to-orange-500',
-      'from-purple-500 to-pink-500',
-      'from-teal-500 to-cyan-500',
+      'bg-blue-600',
+      'bg-orange-600',
+      'bg-emerald-600',
+      'bg-pink-600',
+      'bg-indigo-600',
+      'bg-yellow-600',
+      'bg-purple-600',
+      'bg-teal-600',
     ];
-    
+
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
   };
@@ -114,10 +114,10 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: 4 }}
-        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border transition-all duration-300 group cursor-pointer ${
-          isSelected && isSelectMode 
-            ? 'border-emerald-500/30 bg-emerald-500/5' 
-            : 'border-gray-800/50 hover:border-emerald-500/30'
+        className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-300 group cursor-pointer shadow-sm dark:shadow-none ${
+          isSelected && isSelectMode
+            ? 'border-emerald-500 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
+            : 'border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30'
         }`}
         onClick={() => onNavigate?.(company)}
       >
@@ -132,39 +132,39 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
                   e.stopPropagation();
                   onSelect?.(company.id, e.target.checked);
                 }}
-                className="w-5 h-5 text-emerald-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
+                className="w-5 h-5 text-emerald-600 dark:text-emerald-500 bg-white dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
                 onClick={(e) => e.stopPropagation()}
               />
             )}
             
             {/* Company Logo */}
-            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold`}>
+            <div className={`w-10 h-10 rounded-lg ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold`}>
               {generateLogo(company.name)}
             </div>
             
             <div>
-              <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-2">
                 {company.name}
                 {isStarred() && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
               </h3>
-              <p className="text-sm text-gray-400">{company.industry || 'Industry not specified'} • {company.size || 'Size not specified'} employees</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{company.industry || 'Industry not specified'} • {company.size || 'Size not specified'} employees</p>
             </div>
           </div>
           
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <div className="text-lg font-bold text-white">{formatCurrency(company.dealsValue || 0)}</div>
-              <div className="text-xs text-gray-400">Total value</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(company.dealsValue || 0)}</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">Total value</div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="text-center">
-                <div className="text-sm font-semibold text-emerald-400">{company.dealsCount || 0}</div>
-                <div className="text-xs text-gray-500">Deals</div>
+                <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{company.dealsCount || 0}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-500">Deals</div>
               </div>
               <div className="text-center">
-                <div className="text-sm font-semibold text-blue-400">{company.contactCount || 0}</div>
-                <div className="text-xs text-gray-500">Contacts</div>
+                <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">{company.contactCount || 0}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-500">Contacts</div>
               </div>
             </div>
             
@@ -213,10 +213,10 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`relative bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border transition-all duration-300 overflow-hidden group cursor-pointer ${
-        isSelected && isSelectMode 
-          ? 'border-emerald-500/30 ring-1 ring-emerald-500/20' 
-          : 'border-gray-800/50 hover:border-emerald-500/30'
+      className={`relative bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 overflow-hidden group cursor-pointer shadow-sm dark:shadow-none ${
+        isSelected && isSelectMode
+          ? 'border-emerald-500 dark:border-emerald-500/30 ring-1 ring-emerald-500/20'
+          : 'border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30'
       }`}
       onClick={() => onNavigate?.(company)}
     >
@@ -237,7 +237,7 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
               e.stopPropagation();
               onSelect?.(company.id, e.target.checked);
             }}
-            className="w-5 h-5 text-emerald-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
+            className="w-5 h-5 text-emerald-600 dark:text-emerald-500 bg-white dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -261,23 +261,23 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
       <div className="relative z-10">
         {/* Company header */}
         <div className="flex items-start gap-4 mb-4">
-          <motion.div 
-            className={`w-14 h-14 rounded-xl bg-gradient-to-br ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold text-xl shadow-lg`}
+          <motion.div
+            className={`w-14 h-14 rounded-xl ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold text-xl shadow-lg`}
             whileHover={{ scale: 1.05, rotate: 5 }}
           >
             {generateLogo(company.name)}
           </motion.div>
           <div className="flex-1">
-            <h3 className="font-semibold text-lg text-white group-hover:text-emerald-400 transition-colors">
+            <h3 className="font-semibold text-lg text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
               {company.name}
             </h3>
-            <p className="text-sm text-gray-400">{company.industry || 'Industry not specified'}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{company.industry || 'Industry not specified'}</p>
           </div>
         </div>
 
         {/* Company info */}
         <div className="space-y-2 mb-4">
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Globe className="w-3 h-3" />
             <span>{formatDomain(company.domain || 'No domain')}</span>
             {company.website && (
@@ -286,13 +286,13 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-blue-400 hover:text-blue-300"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
               >
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-400">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Users className="w-3 h-3" />
             <span>{company.size || 'Size not specified'} employees</span>
           </div>
@@ -300,35 +300,35 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
-            <div className="text-lg font-bold text-emerald-400">{company.dealsCount || 0}</div>
-            <div className="text-xs text-gray-500">Deals</div>
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{company.dealsCount || 0}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-500">Deals</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
-            <div className="text-lg font-bold text-blue-400">{company.contactCount || 0}</div>
-            <div className="text-xs text-gray-500">Contacts</div>
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2.5 text-center">
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{company.contactCount || 0}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-500">Contacts</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-2.5 text-center">
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2.5 text-center">
             <div className={`text-lg font-bold flex items-center justify-center gap-1 ${
-              growth > 0 ? 'text-emerald-400' : 'text-red-400'
+              growth > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
             }`}>
               {growth > 0 ? '+' : ''}{growth}%
               <TrendingUp className={`w-3 h-3 ${growth < 0 ? 'rotate-180' : ''}`} />
             </div>
-            <div className="text-xs text-gray-500">Growth</div>
+            <div className="text-xs text-gray-600 dark:text-gray-500">Growth</div>
           </div>
         </div>
 
         {/* Value and Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
           <div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-gray-900 dark:text-white">
               {formatCurrency(company.dealsValue || 0)}
             </div>
-            <div className="text-xs text-gray-400">Total value</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400">Total value</div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-500 flex items-center gap-1">
+            <div className="text-xs text-gray-600 dark:text-gray-500 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {getLastActivity()}
             </div>

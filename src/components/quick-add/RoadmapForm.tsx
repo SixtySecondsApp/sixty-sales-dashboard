@@ -56,15 +56,15 @@ export function RoadmapForm({
           <Map className="w-6 h-6 text-blue-500" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">Add Roadmap Suggestion</h3>
-          <p className="text-sm text-gray-400">Submit feature requests, bug reports, and improvements</p>
+          <h3 className="text-lg font-semibold theme-text-primary">Add Roadmap Suggestion</h3>
+          <p className="text-sm theme-text-tertiary">Submit feature requests, bug reports, and improvements</p>
         </div>
       </div>
 
       <form onSubmit={onSubmit} className="space-y-6">
         {/* Title */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">
+          <label className="text-sm font-medium theme-text-secondary">
             Title <span className="text-red-400">*</span>
           </label>
           <input
@@ -72,8 +72,8 @@ export function RoadmapForm({
             value={formData.title || ''}
             onChange={(e) => handleInputChange('title', e.target.value)}
             placeholder="Brief description of your request..."
-            className={`w-full px-4 py-3 bg-gray-800/50 border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all ${
-              validationErrors.title ? 'border-red-500/50' : 'border-gray-700/50'
+            className={`w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all ${
+              validationErrors.title ? 'border-red-500/50' : ''
             }`}
           />
           {validationErrors.title && (
@@ -83,14 +83,14 @@ export function RoadmapForm({
 
         {/* Type Selection */}
         <div className="space-y-3">
-          <label className="text-sm font-medium text-gray-300">
+          <label className="text-sm font-medium theme-text-secondary">
             Request Type <span className="text-red-400">*</span>
           </label>
           <div className="grid grid-cols-2 gap-3">
             {roadmapTypes.map((type) => {
               const isSelected = formData.roadmap_type === type.value;
               const IconComponent = type.icon;
-              
+
               return (
                 <button
                   key={type.value}
@@ -99,18 +99,18 @@ export function RoadmapForm({
                   className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     isSelected
                       ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/20'
-                      : 'border-gray-700/50 bg-gray-800/30 hover:border-gray-600 hover:bg-gray-800/50'
+                      : 'theme-border theme-bg-elevated hover:bg-gray-100 dark:hover:bg-gray-800/50'
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${
-                    isSelected 
-                      ? 'bg-blue-500/20 text-blue-400' 
-                      : 'bg-gray-700/50 text-gray-400'
+                    isSelected
+                      ? 'bg-blue-500/20 text-blue-400'
+                      : 'bg-gray-100 dark:bg-gray-700/50 theme-text-tertiary'
                   }`}>
                     <IconComponent className="w-4 h-4" />
                   </div>
                   <span className={`text-sm font-medium ${
-                    isSelected ? 'text-white' : 'text-gray-200'
+                    isSelected ? 'text-blue-600 dark:text-white' : 'theme-text-primary'
                   }`}>
                     {type.label}
                   </span>
@@ -125,11 +125,11 @@ export function RoadmapForm({
 
         {/* Priority */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">Priority</label>
+          <label className="text-sm font-medium theme-text-secondary">Priority</label>
           <select
             value={formData.priority || 'medium'}
             onChange={(e) => handleInputChange('priority', e.target.value)}
-            className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+            className="w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
           >
             {priorityOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -141,7 +141,7 @@ export function RoadmapForm({
 
         {/* Description */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300">
+          <label className="text-sm font-medium theme-text-secondary">
             Description <span className="text-red-400">*</span>
           </label>
           <textarea
@@ -149,8 +149,8 @@ export function RoadmapForm({
             onChange={(e) => handleInputChange('description', e.target.value)}
             placeholder="Provide detailed information about your request..."
             rows={4}
-            className={`w-full px-4 py-3 bg-gray-800/50 border rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-none transition-all ${
-              validationErrors.description ? 'border-red-500/50' : 'border-gray-700/50'
+            className={`w-full px-4 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 resize-none transition-all ${
+              validationErrors.description ? 'border-red-500/50' : ''
             }`}
           />
           {validationErrors.description && (
@@ -164,14 +164,14 @@ export function RoadmapForm({
           disabled={isSubmitting}
           whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
           whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-          className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-medium transition-all shadow-lg ${
+          className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-medium transition-all shadow-sm ${
             submitStatus === 'success'
-              ? 'bg-emerald-500 text-white shadow-emerald-500/25'
+              ? 'bg-emerald-600 dark:bg-emerald-500/10 text-white dark:text-emerald-400 dark:border dark:border-emerald-500/20'
               : submitStatus === 'error'
-                ? 'bg-red-500 text-white shadow-red-500/25'
+                ? 'bg-red-600 dark:bg-red-500/10 text-white dark:text-red-400 dark:border dark:border-red-500/20'
                 : isSubmitting
-                  ? 'bg-blue-500/50 text-white/70 shadow-blue-500/25 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-blue-500/25'
+                  ? 'bg-blue-500/50 dark:bg-blue-700/50 text-white/70 cursor-not-allowed'
+                  : 'bg-blue-600 dark:bg-blue-500/10 text-white dark:text-blue-400 dark:border dark:border-blue-500/20 hover:bg-blue-700 dark:hover:bg-blue-500/20'
           }`}
         >
           {submitStatus === 'success' ? (

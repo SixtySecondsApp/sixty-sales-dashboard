@@ -1,6 +1,7 @@
 // Lazy loading wrapper for Sales Activity Chart to improve homepage performance
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 
 interface LazySalesActivityChartProps {
   selectedMonth: Date;
@@ -9,13 +10,22 @@ interface LazySalesActivityChartProps {
 
 // Skeleton component for loading state
 const SalesActivityChartSkeleton = () => {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  const skeletonColors = {
+    bg: isDark ? 'bg-gray-900/50' : 'bg-white',
+    border: isDark ? 'border-gray-800/50' : 'border-gray-200',
+    element: isDark ? 'bg-gray-800' : 'bg-gray-200',
+  };
+
   return (
-    <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50 animate-pulse">
+    <div className={`backdrop-blur-xl rounded-xl p-6 border animate-pulse ${skeletonColors.bg} ${skeletonColors.border}`}>
       <div className="mb-6">
-        <div className="h-6 w-48 bg-gray-800 rounded-lg mb-2" />
-        <div className="h-4 w-64 bg-gray-800 rounded-lg" />
+        <div className={`h-6 w-48 rounded-lg mb-2 ${skeletonColors.element}`} />
+        <div className={`h-4 w-64 rounded-lg ${skeletonColors.element}`} />
       </div>
-      <div className="h-64 w-full bg-gray-800 rounded-lg" />
+      <div className={`h-64 w-full rounded-lg ${skeletonColors.element}`} />
     </div>
   );
 };
@@ -61,11 +71,20 @@ export const LazySalesActivityChart: React.FC<LazySalesActivityChartProps> = ({ 
     loadComponent();
   }, [shouldLoad]);
 
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  const colors = {
+    bg: isDark ? 'bg-gray-900/50' : 'bg-white',
+    border: isDark ? 'border-gray-800/50' : 'border-gray-200',
+    text: isDark ? 'text-gray-500' : 'text-gray-400',
+  };
+
   return (
     <div ref={containerRef} className={className}>
       {!shouldLoad ? (
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50">
-          <div className="text-center py-8 text-gray-500">
+        <div className={`backdrop-blur-xl rounded-xl p-6 border ${colors.bg} ${colors.border}`}>
+          <div className={`text-center py-8 ${colors.text}`}>
             Sales activity chart will load when visible...
           </div>
         </div>

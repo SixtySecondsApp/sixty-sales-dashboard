@@ -41,19 +41,19 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'submitted':
-        return 'bg-gray-500/20 text-gray-400';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400';
       case 'under_review':
-        return 'bg-blue-500/20 text-blue-400';
+        return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400';
       case 'in_progress':
-        return 'bg-amber-500/20 text-amber-400';
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400';
       case 'testing':
-        return 'bg-purple-500/20 text-purple-400';
+        return 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400';
       case 'completed':
-        return 'bg-emerald-500/20 text-emerald-400';
+        return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400';
       case 'rejected':
-        return 'bg-red-500/20 text-red-400';
+        return 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400';
       default:
-        return 'bg-gray-500/20 text-gray-400';
+        return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400';
     }
   };
 
@@ -71,18 +71,18 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
   };
 
   return (
-    <div className="bg-gray-900/50 rounded-xl border border-gray-800/50 overflow-hidden">
+    <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800/50 overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-800/50 bg-gray-900/70">
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Type</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Title</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Status</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Priority</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Votes</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Submitted By</th>
-              <th className="text-left p-4 text-sm font-medium text-gray-400">Date</th>
+            <tr className="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-900/70">
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Type</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Title</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Status</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Priority</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Votes</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Submitted By</th>
+              <th className="text-left p-4 text-sm font-medium text-gray-700 dark:text-gray-400">Date</th>
             </tr>
           </thead>
           <tbody>
@@ -96,15 +96,15 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
                     logger.error('Cannot edit suggestion with invalid ID:', suggestion);
                   }
                 }}
-                className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer transition-colors"
+                className="border-b border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer transition-colors"
               >
                 <td className="p-4">
                   {getTypeIcon(suggestion.type)}
                 </td>
                 <td className="p-4">
                   <div>
-                    <div className="font-medium text-white">{suggestion.title}</div>
-                    <div className="text-sm text-gray-400 line-clamp-1">{suggestion.description}</div>
+                    <div className="font-medium text-gray-900 dark:text-white">{suggestion.title}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1">{suggestion.description}</div>
                   </div>
                 </td>
                 <td className="p-4">
@@ -122,8 +122,8 @@ export function RoadmapTable({ onSuggestionClick, onDeleteSuggestion }: RoadmapT
                     onClick={(e) => handleVoteClick(e, suggestion)}
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
                       suggestion.hasUserVoted 
-                        ? 'bg-emerald-500/20 text-emerald-400' 
-                        : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700/50 dark:text-gray-300 dark:hover:bg-gray-700'
                     }`}
                   >
                     <ChevronUp className="w-4 h-4" />

@@ -851,7 +851,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 bg-gray-900/50 dark:bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
           onClick={handleClose}
         >
           <motion.div
@@ -864,14 +864,11 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
               stiffness: 300,
               mass: 0.8
             }}
-            className="relative bg-gray-900/95 border border-gray-800/50 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 w-full sm:max-w-2xl backdrop-blur-xl sm:m-4 max-h-[90vh] overflow-y-auto"
+            className="relative bg-white dark:bg-gray-900/80 border border-gray-200 dark:border-gray-700/50 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 w-full sm:max-w-2xl backdrop-blur-sm sm:m-4 max-h-[90vh] overflow-y-auto shadow-sm dark:shadow-none"
             onClick={e => e.stopPropagation()}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/90 via-gray-900/70 to-gray-900/30 rounded-3xl -z-10" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.15),transparent)] rounded-3xl -z-10" />
-            
-            <motion.div 
-              className="w-12 h-1 rounded-full bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden"
+            <motion.div
+              className="w-12 h-1 rounded-full bg-gray-400 dark:bg-gray-800 absolute -top-8 left-1/2 -translate-x-1/2 sm:hidden"
               initial={{ width: '2rem' }}
               animate={{ width: '3rem' }}
               transition={{
@@ -882,15 +879,15 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                 repeatType: 'reverse'
               }}
             />
-            
+
             <div className="flex justify-between items-center mb-6 sm:mb-8">
-              <h2 className="text-xl font-semibold text-white/90 tracking-wide">Quick Add</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white tracking-wide">Quick Add</h2>
               <button
                 type="button"
                 onClick={handleClose}
-                className="p-2 hover:bg-gray-800/50 rounded-xl transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
               </button>
             </div>
 

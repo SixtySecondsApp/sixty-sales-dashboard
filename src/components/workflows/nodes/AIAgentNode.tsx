@@ -103,9 +103,9 @@ const AIAgentNode = memo(({ data, selected }: NodeProps<AIAgentNodeData>) => {
     <div
       className={`relative min-w-[160px] max-w-[280px] rounded-lg border-2 transition-all ${
         selected
-          ? 'border-purple-500 shadow-lg shadow-purple-500/20'
+          ? 'border-purple-500 shadow-lg shadow-purple-500/20 ring-offset-white dark:ring-offset-gray-950'
           : 'border-purple-400/50 hover:border-purple-400'
-      } ${getExecutionStatusColor()} bg-gradient-to-br from-purple-900/90 via-purple-800/90 to-purple-700/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-purple-600 dark:bg-purple-600/20 backdrop-blur-sm border border-purple-500 dark:border-purple-500/30 shadow-sm dark:shadow-none`}
     >
       <Handle
         type="target"

@@ -24,8 +24,8 @@ const GoogleDocsCreatorNode: React.FC<GoogleDocsCreatorNodeProps> = ({ data, sel
   const config = data.config || {};
   
   return (
-    <div className={`bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg p-3 min-w-[180px] shadow-lg ${
-      selected ? 'ring-2 ring-green-400 ring-offset-2 ring-offset-gray-900' : ''
+    <div className={`bg-emerald-600 dark:bg-emerald-600/20 backdrop-blur-sm border border-emerald-500 dark:border-emerald-500/30 shadow-sm dark:shadow-none rounded-lg p-3 min-w-[180px] ${
+      selected ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
     } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
       <Handle 
         type="target" 

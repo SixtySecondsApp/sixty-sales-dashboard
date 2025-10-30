@@ -21,8 +21,8 @@ const FathomWebhookNode: React.FC<FathomWebhookNodeProps> = ({ data, selected })
   const isConfigured = data.isConfigured || false;
   
   return (
-    <div className={`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-lg p-2 min-w-[120px] shadow-lg ${
-      selected ? 'ring-2 ring-purple-400 ring-offset-2 ring-offset-gray-900' : ''
+    <div className={`bg-purple-600 dark:bg-purple-600/20 backdrop-blur-sm border border-purple-500 dark:border-purple-500/30 rounded-lg p-2 min-w-[120px] shadow-sm dark:shadow-none ${
+      selected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
     } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
       <Handle 
         type="source" 
@@ -37,13 +37,13 @@ const FathomWebhookNode: React.FC<FathomWebhookNodeProps> = ({ data, selected })
       </div>
       
       {data.payloadTypes && data.payloadTypes.length > 0 && (
-        <div className="text-[10px] text-purple-200 mt-1">
+        <div className="text-[10px] text-purple-100 dark:text-purple-200 mt-1">
           {data.payloadTypes.length} event{data.payloadTypes.length > 1 ? 's' : ''}
         </div>
       )}
-      
+
       {!isConfigured && (
-        <div className="mt-1 text-yellow-300 text-[10px]">
+        <div className="mt-1 text-yellow-200 dark:text-yellow-300 text-[10px]">
           ⚠️ Setup
         </div>
       )}

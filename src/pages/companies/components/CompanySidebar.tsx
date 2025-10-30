@@ -62,24 +62,24 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
       initial={false}
       animate={{ width: collapsed ? 60 : 280 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 h-fit sticky top-6"
+      className="theme-bg-card backdrop-blur-xl rounded-xl theme-border h-fit sticky top-6"
     >
       {/* Header */}
-      <div className="p-4 border-b border-gray-800/50">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-800/50">
         <div className="flex items-center justify-between">
           {!collapsed && (
-            <h3 className="text-sm font-medium text-gray-400">Company Info</h3>
+            <h3 className="text-sm font-medium theme-text-tertiary">Company Info</h3>
           )}
           <Button
             variant="ghost"
             size="sm"
             onClick={onToggle}
-            className="p-2 hover:bg-gray-800/50"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50"
           >
             {collapsed ? (
-              <ChevronRight className="w-4 h-4 text-gray-400" />
+              <ChevronRight className="w-4 h-4 theme-text-tertiary" />
             ) : (
-              <ChevronLeft className="w-4 h-4 text-gray-400" />
+              <ChevronLeft className="w-4 h-4 theme-text-tertiary" />
             )}
           </Button>
         </div>
@@ -91,22 +91,22 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
           <>
             {/* Company Status */}
             <div className="space-y-3">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Status</h4>
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wider">Status</h4>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-400">Type</span>
-                  <span className="text-sm text-white capitalize">{company.status}</span>
+                  <span className="text-sm theme-text-tertiary">Type</span>
+                  <span className="text-sm theme-text-primary capitalize">{company.status}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-400">Created</span>
-                  <span className="text-sm text-white">
+                  <span className="text-sm theme-text-tertiary">Created</span>
+                  <span className="text-sm theme-text-primary">
                     {format(new Date(company.created_at), 'MMM yyyy')}
                   </span>
                 </div>
                 {company.last_activity_date && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-400">Last Activity</span>
-                    <span className="text-sm text-white">
+                    <span className="text-sm theme-text-tertiary">Last Activity</span>
+                    <span className="text-sm theme-text-primary">
                       {format(new Date(company.last_activity_date), 'MMM d')}
                     </span>
                   </div>
@@ -116,16 +116,16 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
 
             {/* Quick Stats */}
             <div className="space-y-3">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Quick Stats</h4>
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wider">Quick Stats</h4>
               <div className="space-y-2">
                 {quickStats.map((stat, index) => {
                   const Icon = stat.icon;
                   return (
-                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg bg-gray-800/30">
+                    <div key={index} className="flex items-center gap-3 p-2 rounded-lg bg-gray-100/50 dark:bg-gray-800/30">
                       <Icon className={cn("w-4 h-4", stat.color)} />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-400">{stat.label}</div>
-                        <div className="text-sm font-medium text-white truncate">{stat.value}</div>
+                        <div className="text-xs theme-text-tertiary">{stat.label}</div>
+                        <div className="text-sm font-medium theme-text-primary truncate">{stat.value}</div>
                       </div>
                     </div>
                   );
@@ -136,24 +136,24 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
             {/* Company Details */}
             {(company.industry || company.size || company.website) && (
               <div className="space-y-3">
-                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Details</h4>
+                <h4 className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wider">Details</h4>
                 <div className="space-y-2">
                   {company.industry && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Industry</span>
-                      <span className="text-sm text-white text-right truncate ml-2">{company.industry}</span>
+                      <span className="text-sm theme-text-tertiary">Industry</span>
+                      <span className="text-sm theme-text-primary text-right truncate ml-2">{company.industry}</span>
                     </div>
                   )}
                   {company.size && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Size</span>
-                      <span className="text-sm text-white">{company.size}</span>
+                      <span className="text-sm theme-text-tertiary">Size</span>
+                      <span className="text-sm theme-text-primary">{company.size}</span>
                     </div>
                   )}
                   {company.website && (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-400">Website</span>
-                      <a 
+                      <span className="text-sm theme-text-tertiary">Website</span>
+                      <a
                         href={company.website.startsWith('http') ? company.website : `https://${company.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -169,12 +169,12 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
 
             {/* Quick Actions */}
             <div className="space-y-3">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</h4>
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wider">Actions</h4>
               <div className="space-y-2">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  className="w-full justify-start theme-text-tertiary hover:theme-text-primary hover:bg-gray-100 dark:hover:bg-gray-800/50"
                 >
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Company
@@ -182,7 +182,7 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  className="w-full justify-start theme-text-tertiary hover:theme-text-primary hover:bg-gray-100 dark:hover:bg-gray-800/50"
                 >
                   <Calendar className="w-4 h-4 mr-2" />
                   Schedule Meeting
@@ -190,7 +190,7 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-gray-400 hover:text-white hover:bg-gray-800/50"
+                  className="w-full justify-start theme-text-tertiary hover:theme-text-primary hover:bg-gray-100 dark:hover:bg-gray-800/50"
                 >
                   <Activity className="w-4 h-4 mr-2" />
                   Log Activity
@@ -200,8 +200,8 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
 
             {/* Tags/Notes (Placeholder) */}
             <div className="space-y-3">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</h4>
-              <div className="text-sm text-gray-500 italic">
+              <h4 className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wider">Notes</h4>
+              <div className="text-sm text-gray-500 dark:text-gray-500 italic">
                 No notes available
               </div>
             </div>
@@ -214,7 +214,7 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
               return (
                 <div
                   key={index}
-                  className="flex items-center justify-center p-2 rounded-lg bg-gray-800/30"
+                  className="flex items-center justify-center p-2 rounded-lg bg-gray-100/50 dark:bg-gray-800/30"
                   title={`${stat.label}: ${stat.value}`}
                 >
                   <Icon className={cn("w-4 h-4", stat.color)} />

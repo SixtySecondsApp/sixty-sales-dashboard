@@ -82,9 +82,9 @@ const AssistantManagerNode = memo(({ data, selected }: NodeProps<AssistantManage
     <div
       className={`relative min-w-[140px] rounded-lg border-2 transition-all ${
         selected
-          ? 'border-indigo-500 shadow-lg shadow-indigo-500/20'
+          ? 'border-indigo-500 shadow-lg shadow-indigo-500/20 ring-offset-white dark:ring-offset-gray-950'
           : 'border-indigo-400/50 hover:border-indigo-400'
-      } ${getExecutionStatusColor()} bg-gradient-to-br from-indigo-900/90 via-purple-800/90 to-indigo-700/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-violet-600 dark:bg-violet-600/20 backdrop-blur-sm border border-violet-500 dark:border-violet-500/30 shadow-sm dark:shadow-none`}
     >
       <Handle
         type="target"

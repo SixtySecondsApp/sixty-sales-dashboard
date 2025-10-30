@@ -376,21 +376,21 @@ const MeetingDetail: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 dark:border-emerald-400"></div>
       </div>
     )
   }
 
   if (!meeting) {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="p-6"
       >
-        <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-12 border border-gray-800/50 text-center shadow-xl">
-          <Video className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <p className="text-gray-400 text-lg mb-6">Meeting not found</p>
+        <div className="bg-white/85 dark:bg-gray-900/60 backdrop-blur-sm rounded-2xl p-12 border border-gray-200 dark:border-gray-800/50 text-center shadow-sm dark:shadow-xl">
+          <Video className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-700 dark:text-gray-400 text-lg mb-6">Meeting not found</p>
           <Button
             onClick={() => navigate('/meetings')}
             variant="secondary"
@@ -428,7 +428,7 @@ const MeetingDetail: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="space-y-4"
@@ -440,13 +440,13 @@ const MeetingDetail: React.FC = () => {
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Meetings
         </Button>
-        
+
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-100 to-gray-300 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {meeting.title || 'Untitled Meeting'}
             </h1>
-            <div className="text-sm text-gray-400 flex items-center gap-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-4">
               {meeting.company && (
                 <span className="flex items-center gap-1">
                   <Building className="h-4 w-4 text-gray-500" />
@@ -455,7 +455,7 @@ const MeetingDetail: React.FC = () => {
               )}
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4 text-gray-500" />
-                {meeting.meeting_start 
+                {meeting.meeting_start
                   ? format(new Date(meeting.meeting_start), 'dd MMM yyyy, HH:mm')
                   : 'No date'}
               </span>
@@ -465,7 +465,7 @@ const MeetingDetail: React.FC = () => {
               </span>
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <Badge
               variant={sentimentTone(meeting.sentiment_score) as any}
@@ -501,24 +501,22 @@ const MeetingDetail: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.3, delay: 0.1 }}
-              className="relative overflow-hidden bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl border border-gray-800/50 shadow-2xl p-8"
+              className="relative overflow-hidden bg-white/85 dark:bg-gray-900/60 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800/50 shadow-sm dark:shadow-2xl p-8"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-50" />
-
-              <div className="relative z-10 text-center space-y-6">
+              <div className="relative text-center space-y-6">
                 {/* Fathom Logo/Icon */}
                 <div className="flex justify-center">
-                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center">
-                    <Video className="h-8 w-8 text-emerald-400" />
+                  <div className="w-16 h-16 bg-emerald-600/10 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center">
+                    <Video className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
                   </div>
                 </div>
 
                 {/* Title */}
                 <div>
-                  <h3 className="text-xl font-semibold text-white mb-2">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                     Meeting Recording Available
                   </h3>
-                  <p className="text-gray-400 text-sm">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
                     Watch the full recording and review AI-generated insights in Fathom
                   </p>
                 </div>
@@ -554,24 +552,22 @@ const MeetingDetail: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.2 }}
               whileHover={{ scale: 1.02, y: -4 }}
-              className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-lg hover:shadow-xl hover:border-gray-700/60 transition-all duration-300 group"
+              className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              
-              <div className="relative">
+              <div>
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur-sm rounded-xl border border-blue-500/20">
-                    <Sparkles className="h-5 w-5 text-blue-400" />
+                  <div className="p-2 bg-blue-600/10 dark:bg-blue-500/20 backdrop-blur-sm rounded-xl border border-blue-600/20 dark:border-blue-500/20">
+                    <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-100">AI Summary</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">AI Summary</h3>
                 </div>
-                
+
                 <div className="prose prose-sm max-w-none">
-                  <p className="text-gray-300 leading-relaxed whitespace-pre-line text-sm">
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line text-sm">
                     {meeting.summary || 'No summary available'}
                   </p>
                 </div>
-                
+
                 <div className="mt-4 flex gap-2">
                   {meeting.transcript_doc_url && (
                     <Button
@@ -603,39 +599,37 @@ const MeetingDetail: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: 0.3 }}
               whileHover={{ scale: 1.02, y: -4 }}
-              className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-lg hover:shadow-xl hover:border-gray-700/60 transition-all duration-300 group"
+              className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
             >
-              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              
-              <div className="relative space-y-4">
+              <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur-sm rounded-xl border border-emerald-500/20">
-                    <BarChart3 className="h-5 w-5 text-emerald-400" />
+                  <div className="p-2 bg-emerald-600/10 dark:bg-emerald-500/20 backdrop-blur-sm rounded-xl border border-emerald-600/20 dark:border-emerald-500/20">
+                    <BarChart3 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-100">Meeting Analytics</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Meeting Analytics</h3>
                 </div>
-                
+
                 {/* Sentiment Visualization */}
-                <div className="p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50">
+                <div className="p-3 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">Sentiment</span>
-                    <Badge 
-                      variant={sentimentTone(meeting.sentiment_score) as any} 
+                    <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">Sentiment</span>
+                    <Badge
+                      variant={sentimentTone(meeting.sentiment_score) as any}
                       className="backdrop-blur-sm text-xs"
                     >
                       {meeting.sentiment_score?.toFixed(2) || 'N/A'}
                     </Badge>
                   </div>
-                  <div className="w-full bg-gray-700/50 rounded-full h-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700/50 rounded-full h-2">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${((meeting.sentiment_score || 0) + 1) * 50}%` }}
                       transition={{ duration: 1, delay: 0.5 }}
                       className={cn(
                         "h-2 rounded-full transition-all duration-300",
-                        sentimentTone(meeting.sentiment_score) === 'success' ? 'bg-gradient-to-r from-emerald-500 to-emerald-400' :
-                        sentimentTone(meeting.sentiment_score) === 'destructive' ? 'bg-gradient-to-r from-red-500 to-red-400' :
-                        'bg-gradient-to-r from-gray-500 to-gray-400'
+                        sentimentTone(meeting.sentiment_score) === 'success' ? 'bg-emerald-600 dark:bg-emerald-400' :
+                        sentimentTone(meeting.sentiment_score) === 'destructive' ? 'bg-red-600 dark:bg-red-400' :
+                        'bg-gray-500 dark:bg-gray-400'
                       )}
                     />
                   </div>
@@ -648,58 +642,58 @@ const MeetingDetail: React.FC = () => {
 
                 {/* Coach Rating */}
                 {meeting.coach_rating !== null && (
-                  <div className="p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50">
+                  <div className="p-3 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">Coach Score</span>
-                      <div className="text-lg font-bold text-gray-100">{meeting.coach_rating}%</div>
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">Coach Score</span>
+                      <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{meeting.coach_rating}%</div>
                     </div>
-                    <Progress 
-                      value={meeting.coach_rating} 
-                      className="h-2 bg-gray-700/50"
+                    <Progress
+                      value={meeting.coach_rating}
+                      className="h-2 bg-gray-200 dark:bg-gray-700/50"
                     />
                     {meeting.coach_summary && (
-                      <p className="text-xs text-gray-400 mt-2 italic">"{meeting.coach_summary}"</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 italic">"{meeting.coach_summary}"</p>
                     )}
                   </div>
                 )}
 
                 {/* Talk Time Distribution */}
                 {(meeting.talk_time_rep_pct !== null || meeting.talk_time_customer_pct !== null) && (
-                  <div className="p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50">
+                  <div className="p-3 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-300 uppercase tracking-wider">Talk Time</span>
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">Talk Time</span>
                       {meeting.talk_time_judgement && (
                         <Badge variant="secondary" className="backdrop-blur-sm text-xs">
                           {meeting.talk_time_judgement}
                         </Badge>
                       )}
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-400">Sales Rep</span>
-                          <span className="font-medium text-gray-300">{Math.round(meeting.talk_time_rep_pct || 0)}%</span>
+                          <span className="text-gray-600 dark:text-gray-400">Sales Rep</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-300">{Math.round(meeting.talk_time_rep_pct || 0)}%</span>
                         </div>
-                        <Progress 
-                          value={meeting.talk_time_rep_pct || 0} 
-                          className="h-1.5 bg-gray-700/50"
+                        <Progress
+                          value={meeting.talk_time_rep_pct || 0}
+                          className="h-1.5 bg-gray-200 dark:bg-gray-700/50"
                         />
                       </div>
-                      
+
                       <div>
                         <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-400">Customer</span>
-                          <span className="font-medium text-gray-300">{Math.round(meeting.talk_time_customer_pct || 0)}%</span>
+                          <span className="text-gray-600 dark:text-gray-400">Customer</span>
+                          <span className="font-medium text-gray-900 dark:text-gray-300">{Math.round(meeting.talk_time_customer_pct || 0)}%</span>
                         </div>
-                        <Progress 
-                          value={meeting.talk_time_customer_pct || 0} 
-                          className="h-1.5 bg-gray-700/50"
+                        <Progress
+                          value={meeting.talk_time_customer_pct || 0}
+                          className="h-1.5 bg-gray-200 dark:bg-gray-700/50"
                         />
                       </div>
                     </div>
-                    
-                    <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-900/50 rounded-lg flex items-center gap-1">
+
+                    <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg flex items-center gap-1">
                       <Target className="h-3 w-3" />
                       Ideal: {talkTimeIdeal.min}-{talkTimeIdeal.max}% rep talk time
                     </div>
@@ -717,28 +711,28 @@ const MeetingDetail: React.FC = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: 0.4 }}
-            className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-800/50 shadow-lg hover:shadow-xl transition-all duration-300"
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
           >
             <div className="p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-gradient-to-br from-amber-500/20 to-amber-600/10 backdrop-blur-sm rounded-xl border border-amber-500/20">
-                  <CheckSquare className="h-5 w-5 text-amber-400" />
+                <div className="p-2 bg-amber-600/10 dark:bg-amber-500/20 backdrop-blur-sm rounded-xl border border-amber-600/20 dark:border-amber-500/20">
+                  <CheckSquare className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-100">Action Items</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Action Items</h3>
               </div>
-              
+
               <Tabs defaultValue="rep" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-gray-800/30 backdrop-blur-sm border border-gray-700/50">
-                  <TabsTrigger 
-                    value="rep" 
-                    className="data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
+                <TabsList className="grid w-full grid-cols-2 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50">
+                  <TabsTrigger
+                    value="rep"
+                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
                   >
                     <User className="h-4 w-4 mr-1.5" />
                     Rep ({salesRepActionItems.length})
                   </TabsTrigger>
-                  <TabsTrigger 
+                  <TabsTrigger
                     value="prospect"
-                    className="data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
+                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
                   >
                     <Users className="h-4 w-4 mr-1.5" />
                     Prospect ({prospectActionItems.length})
@@ -752,7 +746,7 @@ const MeetingDetail: React.FC = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className="p-4 bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl hover:bg-gray-700/40 transition-all duration-200 group"
+                      className="p-4 bg-gray-50 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-all duration-200 group"
                     >
                       <div className="flex items-start gap-3">
                         <button
@@ -760,20 +754,20 @@ const MeetingDetail: React.FC = () => {
                           className="mt-0.5 transition-transform hover:scale-110"
                         >
                           {item.completed ? (
-                            <CheckCircle className="h-5 w-5 text-emerald-400" />
+                            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                           ) : (
-                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                           )}
                         </button>
                         <div className="flex-1 space-y-2">
                           <div className={cn(
                             "font-medium text-sm transition-colors",
-                            item.completed ? 'line-through text-gray-500' : 'text-gray-200'
+                            item.completed ? 'line-through text-gray-500' : 'text-gray-900 dark:text-gray-200'
                           )}>
                             {item.title}
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-400">{item.assignee_name}</span>
+                            <span className="text-gray-600 dark:text-gray-400">{item.assignee_name}</span>
                             {item.priority && (
                               <Badge className={cn("text-xs backdrop-blur-sm", getPriorityColor(item.priority))}>
                                 {item.priority}
@@ -815,10 +809,10 @@ const MeetingDetail: React.FC = () => {
                     </motion.div>
                   ))}
                   {salesRepActionItems.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">No action items for sales rep</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">No action items for sales rep</p>
                   )}
                 </TabsContent>
-                
+
                 <TabsContent value="prospect" className="space-y-3 mt-4">
                   {prospectActionItems.map((item, index) => (
                     <motion.div
@@ -826,7 +820,7 @@ const MeetingDetail: React.FC = () => {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className="p-4 bg-gray-800/40 backdrop-blur-sm border border-gray-700/50 rounded-xl hover:bg-gray-700/40 transition-all duration-200 group"
+                      className="p-4 bg-gray-50 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-all duration-200 group"
                     >
                       <div className="flex items-start gap-3">
                         <button
@@ -834,20 +828,20 @@ const MeetingDetail: React.FC = () => {
                           className="mt-0.5 transition-transform hover:scale-110"
                         >
                           {item.completed ? (
-                            <CheckCircle className="h-5 w-5 text-emerald-400" />
+                            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                           ) : (
-                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-300" />
+                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
                           )}
                         </button>
                         <div className="flex-1 space-y-2">
                           <div className={cn(
                             "font-medium text-sm transition-colors",
-                            item.completed ? 'line-through text-gray-500' : 'text-gray-200'
+                            item.completed ? 'line-through text-gray-500' : 'text-gray-900 dark:text-gray-200'
                           )}>
                             {item.title}
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-400">{item.assignee_name}</span>
+                            <span className="text-gray-600 dark:text-gray-400">{item.assignee_name}</span>
                             {item.deadline_at && (
                               <span className="text-gray-500">
                                 Due {format(new Date(item.deadline_at), 'dd MMM')}
@@ -870,7 +864,7 @@ const MeetingDetail: React.FC = () => {
                     </motion.div>
                   ))}
                   {prospectActionItems.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">No action items for prospect</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">No action items for prospect</p>
                   )}
                 </TabsContent>
               </Tabs>
@@ -882,18 +876,16 @@ const MeetingDetail: React.FC = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: 0.5 }}
-            className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-lg hover:shadow-xl transition-all duration-300 group"
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            
-            <div className="relative">
+            <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-gradient-to-br from-purple-500/20 to-purple-600/10 backdrop-blur-sm rounded-xl border border-purple-500/20">
-                  <Users className="h-5 w-5 text-purple-400" />
+                <div className="p-2 bg-purple-600/10 dark:bg-purple-500/20 backdrop-blur-sm rounded-xl border border-purple-600/20 dark:border-purple-500/20">
+                  <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-100">Attendees</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Attendees</h3>
               </div>
-              
+
               <div className="space-y-3">
                 {attendees.map((attendee, index) => (
                   <motion.div
@@ -901,18 +893,18 @@ const MeetingDetail: React.FC = () => {
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
-                    className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50 hover:bg-gray-700/30 transition-colors"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-br from-gray-600 to-gray-700 rounded-full flex items-center justify-center">
-                        <User className="h-4 w-4 text-gray-300" />
+                      <div className="w-8 h-8 bg-gray-200 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-gray-600 dark:text-gray-300" />
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-200">{attendee.name}</div>
-                        <div className="text-xs text-gray-400">{attendee.email}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-200">{attendee.name}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">{attendee.email}</div>
                       </div>
                     </div>
-                    <Badge 
+                    <Badge
                       variant={attendee.is_external ? 'outline' : 'secondary'}
                       className="backdrop-blur-sm text-xs"
                     >
@@ -921,7 +913,7 @@ const MeetingDetail: React.FC = () => {
                   </motion.div>
                 ))}
                 {attendees.length === 0 && (
-                  <p className="text-sm text-gray-400 text-center py-4">No attendees recorded</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">No attendees recorded</p>
                 )}
               </div>
             </div>
@@ -932,61 +924,59 @@ const MeetingDetail: React.FC = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3, delay: 0.6 }}
-            className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-lg hover:shadow-xl transition-all duration-300 group"
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            
-            <div className="relative">
+            <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 backdrop-blur-sm rounded-xl border border-indigo-500/20">
-                  <Link2 className="h-5 w-5 text-indigo-400" />
+                <div className="p-2 bg-indigo-600/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl border border-indigo-600/20 dark:border-indigo-500/20">
+                  <Link2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-100">CRM Links</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">CRM Links</h3>
               </div>
-              
+
               <div className="space-y-3">
                 {meeting.company && (
-                  <Link 
-                    to={`/companies/${meeting.company.id}`} 
-                    className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50 hover:bg-gray-700/30 transition-all group/link"
+                  <Link
+                    to={`/companies/${meeting.company.id}`}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-all group/link"
                   >
                     <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4 text-gray-400 group-hover/link:text-indigo-400 transition-colors" />
-                      <span className="text-sm text-gray-300 group-hover/link:text-gray-100 transition-colors">
+                      <Building className="h-4 w-4 text-gray-600 dark:text-gray-400 group-hover/link:text-indigo-600 dark:group-hover/link:text-indigo-400 transition-colors" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 group-hover/link:text-gray-900 dark:group-hover/link:text-gray-100 transition-colors">
                         {meeting.company.name}
                       </span>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-500 group-hover/link:text-gray-400 transition-colors" />
+                    <ExternalLink className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover/link:text-gray-600 dark:group-hover/link:text-gray-400 transition-colors" />
                   </Link>
                 )}
                 {meeting.contact && (
-                  <Link 
-                    to={`/crm/contacts/${meeting.contact.id}`} 
-                    className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50 hover:bg-gray-700/30 transition-all group/link"
+                  <Link
+                    to={`/crm/contacts/${meeting.contact.id}`}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-all group/link"
                   >
                     <div className="flex items-center gap-2">
-                      <User className="h-4 w-4 text-gray-400 group-hover/link:text-indigo-400 transition-colors" />
-                      <span className="text-sm text-gray-300 group-hover/link:text-gray-100 transition-colors">
+                      <User className="h-4 w-4 text-gray-600 dark:text-gray-400 group-hover/link:text-indigo-600 dark:group-hover/link:text-indigo-400 transition-colors" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 group-hover/link:text-gray-900 dark:group-hover/link:text-gray-100 transition-colors">
                         {[meeting.contact.first_name, meeting.contact.last_name].filter(Boolean).join(' ') || meeting.contact.email}
                       </span>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-500 group-hover/link:text-gray-400 transition-colors" />
+                    <ExternalLink className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover/link:text-gray-600 dark:group-hover/link:text-gray-400 transition-colors" />
                   </Link>
                 )}
                 {meeting.share_url && (
-                  <a 
-                    href={meeting.share_url} 
-                    target="_blank" 
+                  <a
+                    href={meeting.share_url}
+                    target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between p-3 bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-700/50 hover:bg-gray-700/30 transition-all group/link"
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/30 transition-all group/link"
                   >
                     <div className="flex items-center gap-2">
-                      <Video className="h-4 w-4 text-gray-400 group-hover/link:text-indigo-400 transition-colors" />
-                      <span className="text-sm text-gray-300 group-hover/link:text-gray-100 transition-colors">
+                      <Video className="h-4 w-4 text-gray-600 dark:text-gray-400 group-hover/link:text-indigo-600 dark:group-hover/link:text-indigo-400 transition-colors" />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 group-hover/link:text-gray-900 dark:group-hover/link:text-gray-100 transition-colors">
                         Open in Fathom
                       </span>
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-500 group-hover/link:text-gray-400 transition-colors" />
+                    <ExternalLink className="h-4 w-4 text-gray-400 dark:text-gray-500 group-hover/link:text-gray-600 dark:group-hover/link:text-gray-400 transition-colors" />
                   </a>
                 )}
               </div>

@@ -103,7 +103,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
+    <div className="min-h-screen bg-\[#FCFCFC\] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
       {/* View Mode Banner at the top */}
       <ViewModeBanner />
       
@@ -119,9 +119,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       
       <div className={cn(
-        "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-gray-950/50 backdrop-blur-sm border-b border-gray-800/50 lg:hidden",
-        isImpersonating ? "mt-6" : ""
-      )}>
+      "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800/50 lg:hidden transition-colors duration-200",
+      isImpersonating ? "mt-6" : ""
+    )}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg overflow-hidden">
             {userData?.avatar_url ? (
@@ -139,10 +139,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-white/90">
+            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
               {userData?.first_name} {userData?.last_name}
             </span>
-            <span className="text-xs text-gray-400">{userData?.stage}</span>
+            <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -150,9 +150,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <motion.button
             animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
             onClick={() => toggleMobileMenu()}
-            className="p-2 rounded-xl bg-gray-800/50 hover:bg-gray-800/70 transition-colors lg:hidden"
+            className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors lg:hidden"
           >
-            <MenuIcon className="w-6 h-6 text-gray-400" />
+            <MenuIcon className="w-6 h-6 text-gray-700 dark:text-gray-400" />
           </motion.button>
         </div>
       </div>
@@ -186,7 +186,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-[280px] bg-gray-900/50 backdrop-blur-xl border-l border-gray-800/50 p-6 z-50 lg:hidden"
+              className="fixed right-0 top-0 bottom-0 w-full max-w-[280px] bg-white dark:bg-gray-900/50 backdrop-blur-xl border-l border-gray-200 dark:border-gray-800/50 p-6 z-50 lg:hidden transition-colors duration-200"
             >
               <div className="relative h-full">
                 <div className="flex items-center justify-between mb-8">
@@ -207,15 +207,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-white/90">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                         {userData?.first_name} {userData?.last_name}
                       </span>
-                      <span className="text-xs text-gray-400">{userData?.stage}</span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => toggleMobileMenu()}
-                    className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
                   >
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
@@ -230,14 +230,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         className={cn(
                           'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'bg-[#37bd7e]/10 text-white border border-[#37bd7e]/20'
-                            : 'text-gray-400/80 hover:bg-gray-800/20'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                         )}
                       >
                         <item.icon className={cn(
                           'w-5 h-5',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'text-white' : 'text-gray-400/80'
+                            ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
                         )} />
                         <span>{item.label}</span>
                       </Link>
@@ -252,8 +252,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                               className={cn(
                                 'w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-medium transition-colors',
                                 location.pathname === subItem.href
-                                  ? 'bg-[#37bd7e]/10 text-white border border-[#37bd7e]/20'
-                                  : 'text-gray-400/80 hover:bg-gray-800/20'
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                               )}
                             >
                               <subItem.icon className="w-4 h-4" />
@@ -266,16 +266,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   ))}
                 </nav>
 
-                <div className="absolute bottom-0 left-0 p-6 border-t border-gray-800/50 w-full space-y-2">
+                <div className="absolute bottom-0 left-0 p-6 border-t border-gray-200 dark:border-gray-800 w-full space-y-2">
                   <Link
-                    to="/profile"
+                    to="/settings"
                     onClick={() => toggleMobileMenu()}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/50 transition-colors"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
                   >
                     <Settings className="w-5 h-5" />
                     Settings
                   </Link>
-                  
+
                   <button 
                     onClick={handleLogout}
                     className={cn(
@@ -308,9 +308,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <motion.div
         initial={!hasMounted ? { opacity: 0, x: -20 } : false}
         animate={!hasMounted ? { opacity: 1, x: 0 } : false}
-        className={cn( 
-          'fixed left-0 h-screen bg-gray-900/50 backdrop-blur-xl border-r border-gray-800/50 p-6',
-          'transition-[width] duration-300 ease-in-out flex-shrink-0',
+        className={cn(
+          'fixed left-0 h-screen bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 p-6',
+          'transition-all duration-300 ease-in-out flex-shrink-0',
           isCollapsed ? 'w-[80px]' : 'w-[256px]',
           'hidden lg:block z-[100]',
           isImpersonating ? 'top-6' : 'top-0'
@@ -323,7 +323,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {isCollapsed ? (
             <button
               onClick={() => setIsCollapsed(false)}
-              className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
             >
               <MenuIcon className="w-5 h-5 text-gray-400" />
             </button>
@@ -352,10 +352,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   className="overflow-hidden flex-1"
                 >
                   <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-white/90">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                       {userData?.first_name} {userData?.last_name}
                     </span>
-                    <span className="text-xs text-gray-400">{userData?.stage}</span>
+                    <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
                   </div>
                 </motion.div>
               </AnimatePresence>
@@ -363,7 +363,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <NotificationBell />
                 <button
                   onClick={() => setIsCollapsed(true)}
-                  className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-400" />
                 </button>
@@ -380,8 +380,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
                   location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                    ? 'bg-[#37bd7e]/10 text-white border border-[#37bd7e]/20'
-                    : 'text-gray-400/80 hover:bg-gray-800/20'
+                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                 )}
               >
                 <motion.div
@@ -392,7 +392,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   className={cn(
                     'relative z-10 min-w-[20px] flex items-center justify-center',
                     location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                      ? 'text-white' : 'text-gray-400/80'
+                      ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
                   )}
                 >
                   <item.icon className="w-4 h-4" />
@@ -420,8 +420,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       className={cn(
                         'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
                         location.pathname === subItem.href
-                          ? 'bg-[#37bd7e]/10 text-white border border-[#37bd7e]/20'
-                          : 'text-gray-400/80 hover:bg-gray-800/20'
+                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                          : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                       )}
                     >
                       <subItem.icon className="w-3.5 h-3.5" />
@@ -435,12 +435,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </nav>
         
         <div className={cn(
-          'absolute bottom-0 left-0 p-6 border-t border-gray-800/50 w-full'
+          'absolute bottom-0 left-0 p-6 border-t border-gray-200 dark:border-gray-800 w-full'
         )}>
           <div className="flex flex-col gap-2">
             <Link
-              to="/profile"
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-gray-800/50 transition-colors"
+              to="/settings"
+              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
             >
               <Settings className="w-4 h-4" />
               <AnimatePresence>
@@ -456,13 +456,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 )}
               </AnimatePresence>
             </Link>
-            
-            <button 
+
+            <button
               onClick={handleLogout}
               className={cn(
                 "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                isImpersonating 
-                  ? "text-amber-400 hover:bg-amber-500/10" 
+                isImpersonating
+                  ? "text-amber-400 hover:bg-amber-500/10"
                   : "text-red-400 hover:bg-red-500/10"
               )}
             >

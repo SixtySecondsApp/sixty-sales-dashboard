@@ -32,33 +32,68 @@
     <meta name="description" content="Modern sales dashboard for tracking performance and managing pipeline">
     <meta name="keywords" content="sales, dashboard, CRM, pipeline, performance, analytics">
     
+    <!-- Theme Initialization Script - MUST run before body renders -->
+    <script>
+      (function() {
+        // Get theme from localStorage or system preference
+        const savedTheme = localStorage.getItem('theme');
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const theme = savedTheme || systemTheme;
+
+        // Apply theme immediately to prevent flash
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
     <!-- Critical CSS will be inlined here by build process -->
     <style id="critical-css">
-      /* Critical above-the-fold styles - dark theme by default to prevent flash */
-      body { 
-        margin: 0; 
-        padding: 0; 
+      /* Critical above-the-fold styles - theme-aware */
+      body {
+        margin: 0;
+        padding: 0;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         font-display: swap;
-        background-color: #111827; /* Dark background matching app theme */
+      }
+
+      /* Light mode defaults */
+      html, body {
+        background-color: #FCFCFC;
+        color: #111827;
+      }
+
+      /* Dark mode overrides */
+      html[data-theme="dark"], html.dark {
+        background-color: #030712;
         color: #f3f4f6;
       }
-      #root { 
-        min-height: 100vh; 
-        background-color: #111827;
+      html[data-theme="dark"] body, html.dark body {
+        background-color: #030712;
+        color: #f3f4f6;
       }
-      /* Skeleton loader styles */
+
+      #root {
+        min-height: 100vh;
+      }
+
+      /* Theme-aware skeleton loader */
       .skeleton {
-        background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+        background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;
       }
+      html[data-theme="dark"] .skeleton, html.dark .skeleton {
+        background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+      }
+
       @keyframes shimmer {
         0% { background-position: 200% 0; }
         100% { background-position: -200% 0; }
       }
     </style>
-    
+
     <title>Sixty Sales Dashboard</title>
   </head>
   <body>

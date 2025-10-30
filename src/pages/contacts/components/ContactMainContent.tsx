@@ -163,21 +163,21 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
           {tasks && tasks.length > 0 ? (
             <div className="space-y-3">
               {tasks.map((task) => (
-                <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-800/70`}>
+                <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-100/50 dark:bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-200/50 dark:hover:bg-gray-800/70`}>
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <input 
+                      <input
                         type="checkbox"
                         checked={task.completed || false}
-                        className="mt-1 w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
+                        className="mt-1 w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
                         onChange={() => handleTaskComplete(task)}
                       />
                       <div>
-                        <h3 className={`text-white font-medium ${task.completed ? 'line-through opacity-60' : ''}`}>
+                        <h3 className={`theme-text-primary font-medium ${task.completed ? 'line-through opacity-60' : ''}`}>
                           {task.title}
                         </h3>
                         {task.description && (
-                          <p className={`text-gray-400 text-sm ${task.completed ? 'opacity-60' : ''}`}>
+                          <p className={`theme-text-tertiary text-sm ${task.completed ? 'opacity-60' : ''}`}>
                             {task.description}
                           </p>
                         )}
@@ -193,12 +193,12 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
                     {getPriorityBadge(task.priority)}
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2 text-gray-400">
+                    <div className="flex items-center gap-2 theme-text-tertiary">
                       <Calendar className="w-4 h-4" />
                       <span>Due: {task.due_date ? formatDate(task.due_date) : 'No due date'}</span>
                       {task.assignee && (
                         <>
-                          <span className="text-gray-600">•</span>
+                          <span className="text-gray-600 dark:text-gray-600">•</span>
                           <span>Assigned to: {task.assignee.first_name} {task.assignee.last_name}</span>
                         </>
                       )}
@@ -224,7 +224,7 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 theme-text-tertiary">
               <CheckCircle2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
               <p className="text-lg font-medium mb-2">No active tasks</p>
               <p className="text-sm">Create a new task to get started with managing your contact activities.</p>
@@ -246,8 +246,8 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
 
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/30">
-              <h3 className="text-white font-medium mb-2">Suggested Email</h3>
-              <div className="text-sm text-gray-300 space-y-2">
+              <h3 className="theme-text-primary font-medium mb-2">Suggested Email</h3>
+              <div className="text-sm theme-text-secondary space-y-2">
                 <p><strong>Subject:</strong> Following up on our recent conversation</p>
                 <p><strong>Hi {contact.first_name || 'there'},</strong></p>
                 <p>Hope you're doing well! I wanted to follow up on our recent discussions about {
@@ -305,10 +305,10 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
       ) : (
         <div className="section-card">
           <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-400 mb-2">
+            <h3 className="text-lg font-medium theme-text-tertiary mb-2">
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Content
             </h3>
-            <p className="text-gray-500 text-sm">
+            <p className="theme-text-tertiary text-sm">
               This section will display {activeTab}-related information for {contact.first_name || contact.email}.
             </p>
           </div>
@@ -418,16 +418,16 @@ function TasksTabContent({
           Tasks for {contact.first_name || contact.email}
         </h2>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-400">
+          <label className="flex items-center gap-2 text-sm theme-text-tertiary">
             <input
               type="checkbox"
               checked={showCompleted}
               onChange={(e) => setShowCompleted(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
             />
             Show completed
           </label>
-          <button 
+          <button
             className="btn-primary"
             onClick={onCreateTask}
           >
@@ -440,21 +440,21 @@ function TasksTabContent({
       <div className="space-y-3">
         {filteredTasks.length > 0 ? (
             filteredTasks.map((task) => (
-              <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-800/70`}>
+              <div key={task.id} className={`p-4 rounded-lg border-l-4 bg-gray-100/50 dark:bg-gray-800/50 ${getPriorityColor(task.priority)} transition-all hover:bg-gray-200/50 dark:hover:bg-gray-800/70`}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <input 
+                    <input
                       type="checkbox"
                       checked={task.completed || false}
-                      className="mt-1 w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
+                      className="mt-1 w-4 h-4 text-blue-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 cursor-pointer"
                       onChange={() => handleTaskComplete(task)}
                     />
                     <div>
-                      <h3 className={`text-white font-medium ${task.completed ? 'line-through opacity-60' : ''}`}>
+                      <h3 className={`theme-text-primary font-medium ${task.completed ? 'line-through opacity-60' : ''}`}>
                         {task.title}
                       </h3>
                       {task.description && (
-                        <p className={`text-gray-400 text-sm mt-1 ${task.completed ? 'opacity-60' : ''}`}>
+                        <p className={`theme-text-tertiary text-sm mt-1 ${task.completed ? 'opacity-60' : ''}`}>
                           {task.description}
                         </p>
                       )}
@@ -483,7 +483,7 @@ function TasksTabContent({
                   {getPriorityBadge(task.priority)}
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-4 text-gray-400 flex-wrap">
+                  <div className="flex items-center gap-4 theme-text-tertiary flex-wrap">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-4 h-4" />
                       <span>Due: {task.due_date ? formatDate(task.due_date) : 'No due date'}</span>
@@ -519,14 +519,14 @@ function TasksTabContent({
               </div>
             ))
           ) : (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 theme-text-tertiary">
               <CheckCircle2 className="w-16 h-16 mx-auto mb-4 opacity-30" />
               <p className="text-lg font-medium mb-2">
                 {showCompleted ? 'No tasks found' : 'No active tasks'}
               </p>
               <p className="text-sm">
-                {showCompleted 
-                  ? 'This contact has no tasks yet.' 
+                {showCompleted
+                  ? 'This contact has no tasks yet.'
                   : 'All tasks for this contact are completed. Toggle "Show completed" to see them.'
                 }
               </p>

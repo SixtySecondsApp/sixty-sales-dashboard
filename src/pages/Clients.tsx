@@ -16,16 +16,16 @@ export default function Clients() {
   };
 
   return (
-    <div className="min-h-screen text-gray-100 p-4 sm:p-6 lg:p-8">
+    <div className="theme-bg-primary theme-text-primary min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Header */}
         <div className="flex items-center justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white">
+            <h1 className="theme-text-primary text-3xl font-bold">
               Client & Payment Management
             </h1>
-            <p className="text-gray-400">
-              {viewMode === 'aggregated' 
+            <p className="theme-text-tertiary">
+              {viewMode === 'aggregated'
                 ? 'Aggregated view of unique clients with totals and metrics'
                 : 'Detailed payment records with revenue tracking and individual deal management'
               }
@@ -33,7 +33,7 @@ export default function Clients() {
           </div>
 
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-2 bg-gray-900/50 rounded-lg p-1 border border-gray-800/50">
+          <div className="flex items-center gap-2 theme-bg-secondary rounded-lg p-1 theme-border">
             <Button
               variant={viewMode === 'aggregated' ? 'default' : 'ghost'}
               size="sm"
@@ -41,7 +41,7 @@ export default function Clients() {
               className={`${
                 viewMode === 'aggregated'
                   ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  : 'theme-text-tertiary hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
               }`}
             >
               <BarChart3 className="w-4 h-4 mr-2" />
@@ -54,7 +54,7 @@ export default function Clients() {
               className={`${
                 viewMode === 'detailed'
                   ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-                  : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                  : 'theme-text-tertiary hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50'
               }`}
             >
               <List className="w-4 h-4 mr-2" />
@@ -71,16 +71,16 @@ export default function Clients() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.3 }}
-            className="bg-gray-900/30 rounded-lg p-4 border border-gray-800/30"
+            className="theme-bg-secondary rounded-lg p-4 theme-border-subtle"
           >
             {viewMode === 'aggregated' ? (
               <div className="flex items-start gap-3">
                 <BarChart3 className="w-5 h-5 text-emerald-400 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="font-medium text-white mb-1">Client Overview Mode</h3>
-                  <p className="text-sm text-gray-400">
-                    Shows unique clients with aggregated data including total payments, lifetime value, 
-                    monthly MRR, active subscriptions, churn tracking, and last payment date. Perfect for high-level 
+                  <h3 className="theme-text-primary font-medium mb-1">Client Overview Mode</h3>
+                  <p className="theme-text-tertiary text-sm">
+                    Shows unique clients with aggregated data including total payments, lifetime value,
+                    monthly MRR, active subscriptions, churn tracking, and last payment date. Perfect for high-level
                     client relationship management and performance tracking.
                   </p>
                 </div>
@@ -89,10 +89,10 @@ export default function Clients() {
               <div className="flex items-start gap-3">
                 <List className="w-5 h-5 text-blue-400 mt-1 flex-shrink-0" />
                 <div>
-                  <h3 className="font-medium text-white mb-1">Payment Records Mode</h3>
-                  <p className="text-sm text-gray-400">
-                    Shows individual payment records and deals with comprehensive revenue tracking. 
-                    Includes subscription management, one-off payments, deal values, and detailed 
+                  <h3 className="theme-text-primary font-medium mb-1">Payment Records Mode</h3>
+                  <p className="theme-text-tertiary text-sm">
+                    Shows individual payment records and deals with comprehensive revenue tracking.
+                    Includes subscription management, one-off payments, deal values, and detailed
                     financial analytics for precise transaction-level analysis.
                   </p>
                 </div>
@@ -110,7 +110,7 @@ export default function Clients() {
             transition={{ duration: 0.3 }}
             className="space-y-4"
           >
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="theme-text-primary text-xl font-semibold">
               Revenue Overview
             </h2>
             <SubscriptionStats 

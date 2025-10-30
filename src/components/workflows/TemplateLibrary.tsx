@@ -1060,8 +1060,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Template Library</h2>
-            <p className="text-gray-400">Start with a pre-built workflow template and customize it to your needs</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Template Library</h2>
+            <p className="text-gray-600 dark:text-gray-400">Start with a pre-built workflow template and customize it to your needs</p>
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-400">{templates.length} templates available</p>
@@ -1081,7 +1081,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
+              className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
             />
           </div>
         </div>
@@ -1095,7 +1095,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors capitalize ${
                 selectedCategory === category
                   ? 'bg-[#37bd7e] text-white'
-                  : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700 hover:text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white'
               }`}
             >
               {category}
@@ -1107,7 +1107,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as any)}
-          className="px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-[#37bd7e] outline-none transition-colors"
+          className="px-4 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:border-[#37bd7e] outline-none transition-colors"
         >
           <option value="usage_count">Most Popular</option>
           <option value="rating_avg">Highest Rated</option>
@@ -1140,7 +1140,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
               transition={{ delay: index * 0.05 }}
               whileHover={{ scale: 1.02 }}
               onClick={() => handleTemplateSelect(template)}
-              className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-6 cursor-pointer hover:border-[#37bd7e]/50 transition-all group"
+              className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-lg p-6 cursor-pointer hover:border-[#37bd7e]/50 transition-all group"
             >
               {/* Icon and Category */}
               <div className="flex items-start justify-between mb-4">
@@ -1153,7 +1153,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
                   </span>
                   <div className="flex items-center gap-1">
                     <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
                       {template.rating_count > 0 ? template.rating_avg.toFixed(1) : 'New'}
                     </span>
                   </div>
@@ -1161,30 +1161,30 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
               </div>
 
               {/* Title and Description */}
-              <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-[#37bd7e] transition-colors">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-[#37bd7e] transition-colors">
                 {template.name}
               </h3>
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 {template.description}
               </p>
 
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-4">
                 {template.tags?.map(tag => (
-                  <span key={tag} className="px-2 py-1 bg-gray-800/50 rounded text-xs text-gray-400">
+                  <span key={tag} className="px-2 py-1 bg-gray-50 dark:bg-gray-800/50 rounded text-xs text-gray-700 dark:text-gray-400">
                     {tag}
                   </span>
                 ))}
               </div>
 
               {/* Footer */}
-              <div className="flex items-center justify-between pt-4 border-t border-gray-800/50">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800/50">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                     <Clock className="w-3 h-3" />
                     <span>{template.estimated_setup_time} min</span>
                   </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
                     <TrendingUp className="w-3 h-3" />
                     <span>{template.usage_count} uses</span>
                   </div>
@@ -1213,8 +1213,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
         <div className="flex items-center gap-3">
           <Sparkles className="w-6 h-6 text-[#37bd7e]" />
           <div>
-            <h3 className="text-lg font-semibold text-white mb-1">Want a custom template?</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Want a custom template?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Contact our team to create a custom workflow template tailored to your specific needs.
             </p>
           </div>

@@ -47,14 +47,14 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 p-6">
+      <div className="min-h-screen p-6">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded w-1/4"></div>
-            <div className="h-64 bg-gray-800 rounded"></div>
+            <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-1/4"></div>
+            <div className="h-64 bg-gray-200 dark:bg-gray-800 rounded"></div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 h-96 bg-gray-800 rounded"></div>
-              <div className="h-96 bg-gray-800 rounded"></div>
+              <div className="lg:col-span-2 h-96 bg-gray-200 dark:bg-gray-800 rounded"></div>
+              <div className="h-96 bg-gray-200 dark:bg-gray-800 rounded"></div>
             </div>
           </div>
         </div>
@@ -64,16 +64,16 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
 
   if (error || !company) {
     return (
-      <div className="min-h-screen bg-gray-950 p-6">
+      <div className="min-h-screen p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-6 text-center">
-            <h2 className="text-xl font-bold text-red-400 mb-2">Company Not Found</h2>
-            <p className="text-gray-400 mb-4">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl p-6 text-center">
+            <h2 className="text-xl font-bold text-red-700 dark:text-red-400 mb-2">Company Not Found</h2>
+            <p className="text-gray-700 dark:text-gray-400 mb-4">
               {error || 'The company you are looking for does not exist or you do not have permission to view it.'}
             </p>
             <Button
               onClick={() => navigate('/companies')}
-              className="bg-gray-800 hover:bg-gray-700 text-white"
+              className="bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Companies
@@ -85,23 +85,23 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950">
+    <div className="min-h-screen">
       {/* Header */}
-      <div className="border-b border-gray-800/50 bg-gray-900/50 backdrop-blur-xl">
+      <div className="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-900/50 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto p-6">
           <div className="flex items-center gap-4 mb-6">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate('/companies')}
-              className="bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+              className="bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700/50"
             >
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back
             </Button>
           </div>
 
-          <CompanyHeader 
+          <CompanyHeader
             company={company}
             deals={deals}
             activities={activities}
@@ -111,9 +111,9 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="border-b border-gray-800/50 bg-gray-900/30">
+      <div className="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/30">
         <div className="max-w-7xl mx-auto px-6">
-          <CompanyTabs 
+          <CompanyTabs
             activeTab={activeTab}
             onTabChange={setActiveTab}
             company={company}
@@ -128,7 +128,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Sidebar */}
           <div className={`${sidebarCollapsed ? 'lg:col-span-1' : 'lg:col-span-1'} transition-all duration-300`}>
-            <CompanySidebar 
+            <CompanySidebar
               company={company}
               collapsed={sidebarCollapsed}
               onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -137,7 +137,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
 
           {/* Main Content Area */}
           <div className={`${sidebarCollapsed ? 'lg:col-span-2' : 'lg:col-span-2'} transition-all duration-300`}>
-            <CompanyMainContent 
+            <CompanyMainContent
               activeTab={activeTab}
               company={company}
               deals={deals}
@@ -148,7 +148,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
 
           {/* Right Panel */}
           <div className="lg:col-span-1">
-            <CompanyRightPanel 
+            <CompanyRightPanel
               company={company}
               deals={deals}
               activities={activities}

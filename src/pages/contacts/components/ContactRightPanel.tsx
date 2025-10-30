@@ -137,35 +137,35 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
         <div className="space-y-3">
           {deals.length > 0 ? (
             deals.map((deal) => (
-              <div 
-                key={deal.id} 
-                className={`deal-card-clickable p-4 rounded-lg bg-gray-800/50 border-l-4 ${getStageColor(deal.stage_name)} group`}
+              <div
+                key={deal.id}
+                className={`deal-card-clickable p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800/50 border-l-4 ${getStageColor(deal.stage_name)} group`}
                 onClick={() => handleDealClick(deal.id)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-white font-medium text-sm group-hover:text-blue-400 transition-colors">
+                    <h3 className="theme-text-primary font-medium text-sm group-hover:text-blue-400 transition-colors">
                       {deal.title || deal.name || `Deal ${deal.id}`}
                     </h3>
-                    <Eye className="w-4 h-4 text-gray-400 group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
+                    <Eye className="w-4 h-4 theme-text-tertiary group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
                   {getStageBadge(deal.stage_name)}
                 </div>
-                <p className="text-gray-400 text-xs mb-2">
+                <p className="theme-text-tertiary text-xs mb-2">
                   {deal.description || 'No description available'}
                 </p>
                 <div className="flex justify-between items-center">
-                  <span className="text-white font-semibold">
+                  <span className="theme-text-primary font-semibold">
                     {formatCurrency(deal.value || deal.amount)}
                   </span>
-                  <span className="text-gray-400 text-xs">
+                  <span className="theme-text-tertiary text-xs">
                     {deal.default_probability || deal.probability || 0}% probability
                   </span>
                 </div>
               </div>
             ))
           ) : (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 theme-text-tertiary">
               <Trophy className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No deals found for this contact</p>
               <p className="text-xs mt-1">Create a new deal to get started</p>
@@ -186,30 +186,30 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
             activities.map((activity) => {
               const { icon: Icon, color, bgColor, borderColor } = getActivityIcon(activity.type);
               return (
-                <div key={activity.id} className="p-3 rounded-lg bg-gray-800/50">
+                <div key={activity.id} className="p-3 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
                       <Badge className={`${bgColor} ${color} ${borderColor} text-xs`}>
                         <Icon className="w-3 h-3 mr-1" />
                         {activity.type?.charAt(0).toUpperCase() + activity.type?.slice(1)}
                       </Badge>
-                      <span className="text-white text-sm font-medium">
+                      <span className="theme-text-primary text-sm font-medium">
                         {activity.title || activity.description || `${activity.type} activity`}
                       </span>
                     </div>
-                    <span className="text-gray-400 text-xs">{formatDate(activity.created_at)}</span>
+                    <span className="theme-text-tertiary text-xs">{formatDate(activity.created_at)}</span>
                   </div>
                   {activity.notes && (
-                    <p className="text-gray-300 text-sm mb-2">{activity.notes}</p>
+                    <p className="theme-text-secondary text-sm mb-2">{activity.notes}</p>
                   )}
                   {activity.deal_title && (
-                    <p className="text-gray-400 text-xs">Related to: {activity.deal_title}</p>
+                    <p className="theme-text-tertiary text-xs">Related to: {activity.deal_title}</p>
                   )}
                 </div>
               );
             })
           ) : (
-            <div className="text-center py-8 text-gray-400">
+            <div className="text-center py-8 theme-text-tertiary">
               <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No recent activity found</p>
               <p className="text-xs mt-1">Activities will appear here as they happen</p>
@@ -233,8 +233,8 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
                 <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
                 <div>
                   <p className="text-green-400 text-xs font-medium mb-1">OPPORTUNITY</p>
-                  <p className="text-white text-sm">
-                    {deals.length} active deal{deals.length > 1 ? 's' : ''} worth {formatCurrency(deals.reduce((sum, deal) => sum + (deal.value || 0), 0))}. 
+                  <p className="theme-text-primary text-sm">
+                    {deals.length} active deal{deals.length > 1 ? 's' : ''} worth {formatCurrency(deals.reduce((sum, deal) => sum + (deal.value || 0), 0))}.
                     Great potential for expansion.
                   </p>
                 </div>
@@ -248,7 +248,7 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
                 <div className="w-2 h-2 bg-yellow-400 rounded-full mt-2 flex-shrink-0"></div>
                 <div>
                   <p className="text-yellow-400 text-xs font-medium mb-1">ATTENTION</p>
-                  <p className="text-white text-sm">No recent activity. Consider reaching out to maintain engagement.</p>
+                  <p className="theme-text-primary text-sm">No recent activity. Consider reaching out to maintain engagement.</p>
                 </div>
               </div>
             </div>
@@ -259,8 +259,8 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
               <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
               <div>
                 <p className="text-blue-400 text-xs font-medium mb-1">INSIGHT</p>
-                <p className="text-white text-sm">
-                  Contact shows {activities.length > 5 ? 'high' : activities.length > 2 ? 'moderate' : 'low'} engagement 
+                <p className="theme-text-primary text-sm">
+                  Contact shows {activities.length > 5 ? 'high' : activities.length > 2 ? 'moderate' : 'low'} engagement
                   with {activities.length} recent activities.
                 </p>
               </div>

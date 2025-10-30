@@ -87,16 +87,16 @@ export function EditActivityEmailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl sm:max-w-[425px]">
+      <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="text-white">Edit Contact Email</DialogTitle>
+          <DialogTitle className="text-gray-900 dark:text-white">Edit Contact Email</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <p className="text-sm text-gray-400">
-            Update the email address for activity related to client: <span className="font-medium text-gray-300">{activity.client_name}</span> (Type: {activity.type}).
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Update the email address for activity related to client: <span className="font-medium text-gray-900 dark:text-gray-300">{activity.client_name}</span> (Type: {activity.type}).
           </p>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="email" className="text-right text-gray-400">
+            <Label htmlFor="email" className="text-right text-gray-700 dark:text-gray-400">
               Email
             </Label>
             <Input
@@ -104,16 +104,16 @@ export function EditActivityEmailModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              className="col-span-3 bg-gray-800/50 border-gray-700/50 focus:ring-offset-0 focus:ring-1 focus:ring-cyan-500 text-white rounded-md"
+              className="col-span-3 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 focus:ring-offset-0 focus:ring-1 focus:ring-cyan-500 text-gray-900 dark:text-white rounded-md"
             />
           </div>
-          {error && <p className="text-red-500 text-sm text-center col-span-4">{error}</p>}
+          {error && <p className="text-red-600 dark:text-red-500 text-sm text-center col-span-4">{error}</p>}
         </div>
         <DialogFooter>
           <Button
             variant="ghost"
             onClick={onClose}
-            className="bg-gray-800/50 text-gray-300 hover:bg-gray-800"
+            className="bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:hover:bg-gray-800"
             disabled={isSaving}
           >
             Cancel

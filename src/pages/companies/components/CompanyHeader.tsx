@@ -96,7 +96,7 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold text-white">{company.name}</h1>
+                <h1 className="text-3xl font-bold theme-text-primary">{company.name}</h1>
                 <div className={cn(
                   "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border",
                   getStatusColor(company.status)
@@ -105,16 +105,16 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                   {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
                 </div>
               </div>
-              
+
               {company.description && (
-                <p className="text-gray-400 mb-3">{company.description}</p>
+                <p className="theme-text-secondary mb-3">{company.description}</p>
               )}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 {company.website && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Globe className="w-4 h-4 text-gray-500" />
-                    <a 
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <Globe className="w-4 h-4 text-gray-500 dark:text-gray-500" />
+                    <a
                       href={company.website.startsWith('http') ? company.website : `https://${company.website}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -124,11 +124,11 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                     </a>
                   </div>
                 )}
-                
+
                 {company.primary_email && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Mail className="w-4 h-4 text-gray-500" />
-                    <a 
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <Mail className="w-4 h-4 text-gray-500 dark:text-gray-500" />
+                    <a
                       href={`mailto:${company.primary_email}`}
                       className="text-blue-400 hover:text-blue-300 transition-colors"
                     >
@@ -136,11 +136,11 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                     </a>
                   </div>
                 )}
-                
+
                 {company.primary_phone && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Phone className="w-4 h-4 text-gray-500" />
-                    <a 
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <Phone className="w-4 h-4 text-gray-500 dark:text-gray-500" />
+                    <a
                       href={`tel:${company.primary_phone}`}
                       className="text-blue-400 hover:text-blue-300 transition-colors"
                     >
@@ -148,24 +148,24 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                     </a>
                   </div>
                 )}
-                
+
                 {(company.city || company.country) && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <MapPin className="w-4 h-4 text-gray-500" />
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <MapPin className="w-4 h-4 text-gray-500 dark:text-gray-500" />
                     <span>{[company.city, company.country].filter(Boolean).join(', ')}</span>
                   </div>
                 )}
-                
+
                 {company.industry && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Building2 className="w-4 h-4 text-gray-500" />
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <Building2 className="w-4 h-4 text-gray-500 dark:text-gray-500" />
                     <span>{company.industry}</span>
                   </div>
                 )}
-                
+
                 {company.last_activity_date && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Calendar className="w-4 h-4 text-gray-500" />
+                  <div className="flex items-center gap-2 theme-text-secondary">
+                    <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-500" />
                     <span>Last activity: {format(new Date(company.last_activity_date), 'MMM d, yyyy')}</span>
                   </div>
                 )}
@@ -175,8 +175,8 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
         </div>
 
         {/* Right: Quick Actions/Contact */}
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-          <h3 className="text-sm font-medium text-gray-400 mb-3">Primary Contact</h3>
+        <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+          <h3 className="text-sm font-medium theme-text-tertiary mb-3">Primary Contact</h3>
           {company.primary_contact ? (
             <div className="space-y-2">
               <div className="flex items-center gap-3">
@@ -186,15 +186,15 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                   </span>
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-white">{company.primary_contact}</div>
+                  <div className="text-sm font-medium theme-text-primary">{company.primary_contact}</div>
                   {company.primary_email && (
-                    <div className="text-xs text-gray-400">{company.primary_email}</div>
+                    <div className="text-xs theme-text-tertiary">{company.primary_email}</div>
                   )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-gray-500">No primary contact set</div>
+            <div className="text-sm text-gray-500 dark:text-gray-500">No primary contact set</div>
           )}
         </div>
       </div>
@@ -206,13 +206,13 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-medium text-gray-400">Total Value</span>
+            <span className="text-xs font-medium theme-text-tertiary">Total Value</span>
           </div>
-          <div className="text-xl font-bold text-white">{formatCurrency(totalValue)}</div>
+          <div className="text-xl font-bold theme-text-primary">{formatCurrency(totalValue)}</div>
         </motion.div>
 
         {/* Won Value */}
@@ -220,11 +220,11 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-emerald-400" />
-            <span className="text-xs font-medium text-gray-400">Won Value</span>
+            <span className="text-xs font-medium theme-text-tertiary">Won Value</span>
           </div>
           <div className="text-xl font-bold text-emerald-400">{formatCurrency(totalWonValue)}</div>
         </motion.div>
@@ -234,11 +234,11 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-blue-400" />
-            <span className="text-xs font-medium text-gray-400">Monthly MRR</span>
+            <span className="text-xs font-medium theme-text-tertiary">Monthly MRR</span>
           </div>
           <div className="text-xl font-bold text-blue-400">{formatCurrency(totalMRR)}</div>
         </motion.div>
@@ -248,13 +248,13 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <Activity className="w-4 h-4 text-yellow-400" />
-            <span className="text-xs font-medium text-gray-400">Active Deals</span>
+            <span className="text-xs font-medium theme-text-tertiary">Active Deals</span>
           </div>
-          <div className="text-xl font-bold text-white">{company.active_deals_count || 0}</div>
+          <div className="text-xl font-bold theme-text-primary">{company.active_deals_count || 0}</div>
         </motion.div>
 
         {/* Active Clients */}
@@ -262,13 +262,13 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <Users className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-medium text-gray-400">Active Clients</span>
+            <span className="text-xs font-medium theme-text-tertiary">Active Clients</span>
           </div>
-          <div className="text-xl font-bold text-white">{activeClients}</div>
+          <div className="text-xl font-bold theme-text-primary">{activeClients}</div>
         </motion.div>
 
         {/* Recent Activity */}
@@ -276,13 +276,13 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border"
         >
           <div className="flex items-center gap-2 mb-2">
             <Activity className="w-4 h-4 text-orange-400" />
-            <span className="text-xs font-medium text-gray-400">30d Activity</span>
+            <span className="text-xs font-medium theme-text-tertiary">30d Activity</span>
           </div>
-          <div className="text-xl font-bold text-white">{recentActivities}</div>
+          <div className="text-xl font-bold theme-text-primary">{recentActivities}</div>
         </motion.div>
       </div>
     </div>

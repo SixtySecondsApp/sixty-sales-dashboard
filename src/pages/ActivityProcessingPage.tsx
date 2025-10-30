@@ -236,16 +236,16 @@ export function ActivityProcessingPage() {
 
       {/* Auto-Processing Information Banner */}
       {showAutoProcessInfo && currentView === 'process-ready' && (
-        <Alert className="mb-6 bg-green-900/20 border-green-800">
-          <AlertTitle className="text-green-400">🎉 Automatic Processing is Now Active!</AlertTitle>
-          <AlertDescription className="text-gray-300">
+        <Alert className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+          <AlertTitle className="text-green-700 dark:text-green-400">🎉 Automatic Processing is Now Active!</AlertTitle>
+          <AlertDescription className="text-gray-700 dark:text-gray-300">
             New activities with email addresses are automatically processed into deals. 
             Activities shown here may be legacy items or require manual review. 
             The "Process" button remains available for manual processing when needed.
             <Button 
               variant="ghost" 
               size="sm" 
-              className="ml-4 text-xs"
+              className="ml-4 text-xs text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setShowAutoProcessInfo(false)}
             >
               Dismiss
@@ -269,16 +269,16 @@ export function ActivityProcessingPage() {
           onValueChange={(value) => setSelectedUserId(value === 'all' ? undefined : value)}
           disabled={isLoadingUsers || isLoading} // Disable while loading users or activities
         >
-          <SelectTrigger className="w-full md:w-[280px] bg-gray-800/50 border-gray-700/50 ring-offset-gray-900 focus:ring-emerald-500">
+          <SelectTrigger className="w-full md:w-[280px] bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white ring-offset-gray-100 dark:ring-offset-gray-900 focus:ring-emerald-500">
             <SelectValue placeholder="Filter by user..." />
           </SelectTrigger>
-          <SelectContent className="bg-gray-800/95 backdrop-blur-md border-gray-700/50 text-white">
-            <SelectItem value="all" className="focus:bg-gray-700/50 focus:text-white">All Users</SelectItem>
+          <SelectContent className="bg-white dark:bg-gray-800/95 backdrop-blur-md border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white">
+            <SelectItem value="all" className="focus:bg-gray-100 dark:focus:bg-gray-700/50 focus:text-gray-900 dark:focus:text-white">All Users</SelectItem>
             {isLoadingUsers ? (
               <SelectItem value="loading" disabled>Loading users...</SelectItem>
             ) : (
               userList.map(user => (
-                <SelectItem key={user.id} value={user.id} className="focus:bg-gray-700/50 focus:text-white">
+                <SelectItem key={user.id} value={user.id} className="focus:bg-gray-100 dark:focus:bg-gray-700/50 focus:text-gray-900 dark:focus:text-white">
                   {user.first_name} {user.last_name}
                 </SelectItem>
               ))
@@ -310,20 +310,20 @@ export function ActivityProcessingPage() {
       ) : activities.length === 0 && !isHookLoading ? (
         <p className="mt-6 text-center text-gray-400">{emptyMessage}</p>
       ) : (
-        <div className="my-6 p-4 bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-800/50 overflow-hidden">
+        <div className="my-6 p-4 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-200 dark:border-gray-800/50 overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="border-gray-800/50">
-                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Date</TableHead>
-                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Type</TableHead>
-                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Client Name</TableHead>
+              <TableRow className="border-gray-200 dark:border-gray-800/50">
+                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Date</TableHead>
+                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Type</TableHead>
+                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Client Name</TableHead>
                 {/* Conditionally show Email column */}
                 {currentView === 'process-ready' && (
-                  <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Contact Email</TableHead>
+                  <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Contact Email</TableHead>
                 )}
-                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Details</TableHead>
-                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Logged By</TableHead>
-                <TableHead className="px-3 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">Actions</TableHead>
+                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Details</TableHead>
+                <TableHead className="px-3 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Logged By</TableHead>
+                <TableHead className="px-3 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -331,15 +331,15 @@ export function ActivityProcessingPage() {
               {activities.map((activity) => {
                 const isProcessingThis = processingActivityId === activity.id && currentView === 'process-ready';
                 return (
-                  <TableRow key={activity.id} className={`${isProcessingThis ? 'opacity-50 pointer-events-none' : ''} border-b border-gray-800/50 hover:bg-gray-800/20`}>
-                    <TableCell className="px-3 py-3 text-sm text-white">{format(new Date(activity.date), 'PP')}</TableCell>
+                  <TableRow key={activity.id} className={`${isProcessingThis ? 'opacity-50 pointer-events-none' : ''} border-b border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20`}>
+                    <TableCell className="px-3 py-3 text-sm text-gray-900 dark:text-white">{format(new Date(activity.date), 'PP')}</TableCell>
                     <TableCell className="px-3 py-3"><Badge variant="secondary">{activity.type}</Badge></TableCell>
-                    <TableCell className="px-3 py-3 text-sm text-white">{activity.client_name || '-'}</TableCell>
+                    <TableCell className="px-3 py-3 text-sm text-gray-900 dark:text-white">{activity.client_name || '-'}</TableCell>
                     {/* Conditionally show Email cell */}
                     {currentView === 'process-ready' && (
-                      <TableCell className="px-3 py-3 text-sm text-white">{activity.contact_identifier || '-'}</TableCell>
+                      <TableCell className="px-3 py-3 text-sm text-gray-900 dark:text-white">{activity.contact_identifier || '-'}</TableCell>
                     )}
-                    <TableCell className="px-3 py-3 text-sm text-gray-400 max-w-xs truncate">{activity.details || '-'}</TableCell>
+                    <TableCell className="px-3 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">{activity.details || '-'}</TableCell>
                     <TableCell className="px-3 py-3">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
@@ -347,7 +347,7 @@ export function ActivityProcessingPage() {
                             {getInitialsFromName(activity.sales_rep)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className='text-sm sm:text-base text-white'>
+                        <span className='text-sm sm:text-base text-gray-900 dark:text-white'>
                           {activity.sales_rep || '(no name)'}
                         </span>
                       </div>

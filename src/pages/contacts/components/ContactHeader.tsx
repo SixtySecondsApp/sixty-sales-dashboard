@@ -46,16 +46,16 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 rounded-full border-3 border-blue-400 bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+          <div className="w-20 h-20 rounded-full border-3 border-blue-400 dark:border-blue-500/30 bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
             {getInitials(contact)}
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">{getFullName(contact)}</h1>
-            <div className="flex items-center gap-3 text-gray-400 mb-2">
+            <h1 className="text-3xl font-bold theme-text-primary mb-2">{getFullName(contact)}</h1>
+            <div className="flex items-center gap-3 theme-text-tertiary mb-2">
               {contact.title && (
                 <>
                   <span className="text-lg">{contact.title}</span>
-                  <span className="text-gray-600">•</span>
+                  <span className="text-gray-600 dark:text-gray-600">•</span>
                 </>
               )}
               {contact.company && (

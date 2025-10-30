@@ -6,6 +6,7 @@ import {
   TrendingDown,
   Activity,
   Clock,
+  CheckSquare,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -40,6 +41,7 @@ import {
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import { formatDistanceToNow, format, subDays } from 'date-fns';
+import { useTheme } from '@/hooks/useTheme';
 
 // Define interfaces
 interface AnalyticsMetrics {
@@ -83,10 +85,36 @@ interface TopWorkflow {
 
 const WorkflowInsights: React.FC = () => {
   const { userData: user } = useUser();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d'>('30d');
   const [selectedMetric, setSelectedMetric] = useState<'executions' | 'success' | 'performance'>('executions');
   const [loading, setLoading] = useState(true);
-  
+
+  // Theme-aware colors
+  const colors = {
+    bg: isDark ? 'bg-gray-900/50' : 'bg-white',
+    border: isDark ? 'border-gray-800/50' : 'border-gray-200',
+    text: {
+      primary: isDark ? 'text-white' : 'text-gray-900',
+      secondary: isDark ? 'text-gray-400' : 'text-gray-600',
+      tertiary: isDark ? 'text-gray-500' : 'text-gray-500',
+    },
+    button: {
+      bg: isDark ? 'bg-gray-800/50' : 'bg-gray-100',
+      hover: isDark ? 'hover:bg-gray-700' : 'hover:bg-gray-200',
+    },
+    chart: {
+      grid: isDark ? '#374151' : '#E5E7EB',
+      axis: isDark ? '#9CA3AF' : '#6B7280',
+      tooltip: {
+        bg: isDark ? '#1F2937' : '#FFFFFF',
+        border: isDark ? '#374151' : '#E5E7EB',
+        text: isDark ? '#9CA3AF' : '#6B7280',
+      },
+    },
+  };
+
   // State for real analytics data
   const [metrics, setMetrics] = useState<AnalyticsMetrics>({
     totalExecutions: 0,
@@ -346,13 +374,13 @@ const WorkflowInsights: React.FC = () => {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Workflow Insights</h2>
-            <p className="text-gray-400">Analytics and performance metrics for your automations</p>
+            <h2 className={`text-2xl font-bold mb-2 ${colors.text.primary}`}>Workflow Insights</h2>
+            <p className={colors.text.secondary}>Analytics and performance metrics for your automations</p>
           </div>
-          
+
           <div className="flex items-center gap-3">
             {/* Time Range Selector */}
-            <div className="flex bg-gray-800/50 rounded-lg p-1">
+            <div className={`flex rounded-lg p-1 ${colors.button.bg}`}>
               {(['7d', '30d', '90d'] as const).map(range => (
                 <button
                   key={range}
@@ -360,24 +388,24 @@ const WorkflowInsights: React.FC = () => {
                   className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
                     timeRange === range
                       ? 'bg-[#37bd7e] text-white'
-                      : 'text-gray-400 hover:text-white'
+                      : `${colors.text.secondary} ${isDark ? 'hover:text-white' : 'hover:text-gray-900'}`
                   }`}
                 >
                   {range === '7d' ? '7 Days' : range === '30d' ? '30 Days' : '90 Days'}
                 </button>
               ))}
             </div>
-            
-            <button 
+
+            <button
               onClick={loadAnalyticsData}
-              className="p-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors"
+              className={`p-2 rounded-lg transition-colors ${colors.button.bg} ${colors.button.hover}`}
               disabled={loading}
             >
-              <RefreshCw className={`w-4 h-4 text-gray-400 ${loading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${colors.text.secondary} ${loading ? 'animate-spin' : ''}`} />
             </button>
-            
-            <button className="p-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg transition-colors">
-              <Download className="w-4 h-4 text-gray-400" />
+
+            <button className={`p-2 rounded-lg transition-colors ${colors.button.bg} ${colors.button.hover}`}>
+              <Download className={`w-4 h-4 ${colors.text.secondary}`} />
             </button>
           </div>
         </div>
@@ -387,7 +415,7 @@ const WorkflowInsights: React.FC = () => {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <motion.div
           whileHover={{ scale: 1.02 }}
-          className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4"
+          className={`backdrop-blur-xl border rounded-lg p-4 ${colors.bg} ${colors.border}`}
         >
           <div className="flex items-center justify-between mb-2">
             <Activity className="w-8 h-8 text-blue-400" />
@@ -398,13 +426,13 @@ const WorkflowInsights: React.FC = () => {
               {Math.abs(metrics.executionChange)}%
             </span>
           </div>
-          <p className="text-2xl font-bold text-white">{metrics.totalExecutions.toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-1">Total Executions</p>
+          <p className={`text-2xl font-bold ${colors.text.primary}`}>{metrics.totalExecutions.toLocaleString()}</p>
+          <p className={`text-xs mt-1 ${colors.text.secondary}`}>Total Executions</p>
         </motion.div>
 
         <motion.div
           whileHover={{ scale: 1.02 }}
-          className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4"
+          className={`backdrop-blur-xl border rounded-lg p-4 ${colors.bg} ${colors.border}`}
         >
           <div className="flex items-center justify-between mb-2">
             <CheckCircle className="w-8 h-8 text-green-400" />
@@ -415,13 +443,13 @@ const WorkflowInsights: React.FC = () => {
               {Math.abs(metrics.successChange)}%
             </span>
           </div>
-          <p className="text-2xl font-bold text-white">{metrics.successRate}%</p>
-          <p className="text-xs text-gray-400 mt-1">Success Rate</p>
+          <p className={`text-2xl font-bold ${colors.text.primary}`}>{metrics.successRate}%</p>
+          <p className={`text-xs mt-1 ${colors.text.secondary}`}>Success Rate</p>
         </motion.div>
 
         <motion.div
           whileHover={{ scale: 1.02 }}
-          className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4"
+          className={`backdrop-blur-xl border rounded-lg p-4 ${colors.bg} ${colors.border}`}
         >
           <div className="flex items-center justify-between mb-2">
             <Clock className="w-8 h-8 text-purple-400" />
@@ -432,13 +460,13 @@ const WorkflowInsights: React.FC = () => {
               {Math.abs(metrics.timeChange)}%
             </span>
           </div>
-          <p className="text-2xl font-bold text-white">{metrics.avgExecutionTime}ms</p>
-          <p className="text-xs text-gray-400 mt-1">Avg Execution Time</p>
+          <p className={`text-2xl font-bold ${colors.text.primary}`}>{metrics.avgExecutionTime}ms</p>
+          <p className={`text-xs mt-1 ${colors.text.secondary}`}>Avg Execution Time</p>
         </motion.div>
 
         <motion.div
           whileHover={{ scale: 1.02 }}
-          className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4"
+          className={`backdrop-blur-xl border rounded-lg p-4 ${colors.bg} ${colors.border}`}
         >
           <div className="flex items-center justify-between mb-2">
             <Zap className="w-8 h-8 text-[#37bd7e]" />
@@ -448,16 +476,16 @@ const WorkflowInsights: React.FC = () => {
               {metrics.workflowChange > 0 ? '+' : ''}{metrics.workflowChange}
             </span>
           </div>
-          <p className="text-2xl font-bold text-white">{metrics.activeWorkflows}</p>
-          <p className="text-xs text-gray-400 mt-1">Active Workflows</p>
+          <p className={`text-2xl font-bold ${colors.text.primary}`}>{metrics.activeWorkflows}</p>
+          <p className={`text-xs mt-1 ${colors.text.secondary}`}>Active Workflows</p>
         </motion.div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6 mb-6">
         {/* Execution Trend Chart */}
-        <div className="lg:col-span-2 bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-6">
+        <div className={`lg:col-span-2 backdrop-blur-xl border rounded-lg p-6 ${colors.bg} ${colors.border}`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-white">Execution Trend</h3>
+            <h3 className={`text-lg font-semibold ${colors.text.primary}`}>Execution Trend</h3>
             <div className="flex gap-2">
               {(['executions', 'success', 'performance'] as const).map(metric => (
                 <button
@@ -466,7 +494,7 @@ const WorkflowInsights: React.FC = () => {
                   className={`px-3 py-1 rounded text-xs font-medium capitalize transition-colors ${
                     selectedMetric === metric
                       ? 'bg-[#37bd7e] text-white'
-                      : 'bg-gray-800 text-gray-400 hover:text-white'
+                      : `${colors.button.bg} ${colors.text.secondary} ${isDark ? 'hover:text-white' : 'hover:text-gray-900'}`
                   }`}
                 >
                   {metric}
@@ -484,23 +512,23 @@ const WorkflowInsights: React.FC = () => {
                     <stop offset="95%" stopColor="#37bd7e" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="time" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                  labelStyle={{ color: '#9CA3AF' }}
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.chart.grid} />
+                <XAxis dataKey="time" stroke={colors.chart.axis} />
+                <YAxis stroke={colors.chart.axis} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: colors.chart.tooltip.bg, border: `1px solid ${colors.chart.tooltip.border}` }}
+                  labelStyle={{ color: colors.chart.tooltip.text }}
                 />
                 <Area type="monotone" dataKey="avgTime" stroke="#37bd7e" fillOpacity={1} fill="url(#colorTime)" />
               </AreaChart>
             ) : (
               <BarChart data={executionTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="date" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                  labelStyle={{ color: '#9CA3AF' }}
+                <CartesianGrid strokeDasharray="3 3" stroke={colors.chart.grid} />
+                <XAxis dataKey="date" stroke={colors.chart.axis} />
+                <YAxis stroke={colors.chart.axis} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: colors.chart.tooltip.bg, border: `1px solid ${colors.chart.tooltip.border}` }}
+                  labelStyle={{ color: colors.chart.tooltip.text }}
                 />
                 <Legend />
                 <Bar dataKey="successful" stackId="a" fill="#37bd7e" />
@@ -511,9 +539,9 @@ const WorkflowInsights: React.FC = () => {
         </div>
 
         {/* Workflow Distribution */}
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-white mb-4">Workflow Distribution</h3>
-          
+        <div className={`backdrop-blur-xl border rounded-lg p-6 ${colors.bg} ${colors.border}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${colors.text.primary}`}>Workflow Distribution</h3>
+
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
@@ -529,21 +557,21 @@ const WorkflowInsights: React.FC = () => {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151' }}
-                labelStyle={{ color: '#9CA3AF' }}
+              <Tooltip
+                contentStyle={{ backgroundColor: colors.chart.tooltip.bg, border: `1px solid ${colors.chart.tooltip.border}` }}
+                labelStyle={{ color: colors.chart.tooltip.text }}
               />
             </PieChart>
           </ResponsiveContainer>
-          
+
           <div className="space-y-2 mt-4">
             {workflowDistribution.map((item) => (
               <div key={item.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }} />
-                  <span className="text-sm text-gray-400">{item.name}</span>
+                  <span className={`text-sm ${colors.text.secondary}`}>{item.name}</span>
                 </div>
-                <span className="text-sm text-white font-medium">{item.value}%</span>
+                <span className={`text-sm font-medium ${colors.text.primary}`}>{item.value}%</span>
               </div>
             ))}
           </div>
@@ -551,20 +579,20 @@ const WorkflowInsights: React.FC = () => {
       </div>
 
       {/* Top Performing Workflows */}
-      <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-white mb-4">Top Performing Workflows</h3>
-        
+      <div className={`backdrop-blur-xl border rounded-lg p-6 ${colors.bg} ${colors.border}`}>
+        <h3 className={`text-lg font-semibold mb-4 ${colors.text.primary}`}>Top Performing Workflows</h3>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-xs text-gray-400 uppercase">
+              <tr className={`text-left text-xs uppercase ${colors.text.secondary}`}>
                 <th className="pb-3">Workflow</th>
                 <th className="pb-3 text-right">Executions</th>
                 <th className="pb-3 text-right">Success Rate</th>
                 <th className="pb-3 text-right">Business Impact</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800/50">
+            <tbody className={`divide-y ${isDark ? 'divide-gray-800/50' : 'divide-gray-200'}`}>
               {topWorkflows.map((workflow, index) => {
                 const WorkflowIcon = getWorkflowIcon(workflow.trigger_type, workflow.action_type);
                 return (
@@ -573,20 +601,20 @@ const WorkflowInsights: React.FC = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="group hover:bg-gray-800/30 transition-colors"
+                    className={`group transition-colors ${isDark ? 'hover:bg-gray-800/30' : 'hover:bg-gray-50'}`}
                   >
                     <td className="py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-[#37bd7e]/20 rounded-lg flex items-center justify-center">
                           <WorkflowIcon className="w-4 h-4 text-[#37bd7e]" />
                         </div>
-                        <span className="text-sm text-white group-hover:text-[#37bd7e] transition-colors">
+                        <span className={`text-sm group-hover:text-[#37bd7e] transition-colors ${colors.text.primary}`}>
                           {workflow.name}
                         </span>
                       </div>
                     </td>
                     <td className="py-3 text-right">
-                      <span className="text-sm text-gray-400">{workflow.executions.toLocaleString()}</span>
+                      <span className={`text-sm ${colors.text.secondary}`}>{workflow.executions.toLocaleString()}</span>
                     </td>
                     <td className="py-3 text-right">
                       <span className={`text-sm font-medium ${

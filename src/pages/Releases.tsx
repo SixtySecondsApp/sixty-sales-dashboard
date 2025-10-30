@@ -193,11 +193,11 @@ export default function Releases() {
 
   if (isLoading && releases.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
+      <div className="min-h-screen text-gray-900 dark:text-white p-6">
         <div className="max-w-6xl mx-auto">
           <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded-lg w-64" />
-            <div className="h-32 bg-gray-800 rounded-xl" />
+            <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded-lg w-64" />
+            <div className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl" />
             <div className="grid gap-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="h-24 bg-gray-800 rounded-xl" />
@@ -211,12 +211,12 @@ export default function Releases() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
+      <div className="min-h-screen text-gray-900 dark:text-white p-6">
         <div className="max-w-6xl mx-auto flex items-center justify-center h-96">
           <div className="text-center">
             <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Error Loading Releases</h2>
-            <p className="text-gray-400">{error}</p>
+            <p className="text-gray-600 dark:text-gray-400">{error}</p>
           </div>
         </div>
       </div>
@@ -224,7 +224,7 @@ export default function Releases() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="min-h-screen text-gray-900 dark:text-white">
       <div className="max-w-6xl mx-auto p-6 space-y-8">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -234,8 +234,8 @@ export default function Releases() {
                 <History className="w-6 h-6 text-blue-500" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Releases & Updates</h1>
-                <p className="text-gray-400">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Releases & Updates</h1>
+                <p className="text-gray-600 dark:text-gray-400">
                   Version history, release notes, and system updates
                 </p>
               </div>
@@ -244,17 +244,17 @@ export default function Releases() {
         </div>
 
         {/* Permanent Cache Management Section - Always Visible */}
-        <div className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-xl p-6">
+        <div className="bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 rounded-xl p-6">
           <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
             <div className="flex items-start gap-4 flex-1">
               <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
                 <RefreshCw className="w-6 h-6 text-violet-400" />
               </div>
               <div className="space-y-2">
-                <h3 className="text-xl font-semibold text-white">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
                   Force Update & Cache Management
                 </h3>
-                <p className="text-gray-300">
+                <p className="text-gray-700 dark:text-gray-300">
                   If you're experiencing issues or not seeing the latest updates, clear your cache to get the newest version.
                 </p>
                 <div className="flex items-center gap-6 text-sm text-gray-400">
@@ -298,9 +298,9 @@ export default function Releases() {
               </Button>
             </div>
           </div>
-          
-          <div className="mt-4 p-3 bg-gray-800/30 rounded-lg border border-gray-700/30">
-            <p className="text-xs text-gray-400">
+
+          <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800/30 rounded-lg border border-gray-300 dark:border-gray-700/30">
+            <p className="text-xs text-gray-600 dark:text-gray-400">
               <strong>Note:</strong> This will clear all cached data, log you out, and reload the page with the latest version. 
               Use this if you're experiencing loading errors or missing new features.
             </p>
@@ -314,7 +314,7 @@ export default function Releases() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border border-emerald-500/20 rounded-xl p-6"
+              className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl p-6"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-4">
@@ -323,25 +323,25 @@ export default function Releases() {
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <h3 className="text-xl font-semibold text-white flex items-center gap-3">
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-3">
                         New Version Available
                         {newBuildId && (
-                          <Badge variant="outline" className="text-emerald-400 border-emerald-500/30">
+                          <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
                             {formatBuildId(newBuildId)}
                           </Badge>
                         )}
                       </h3>
-                      <p className="text-gray-300">
+                      <p className="text-gray-700 dark:text-gray-300">
                         A new version of the application is ready to install
                       </p>
                     </div>
                     
                     {/* New release notes */}
                     {newRelease && (
-                      <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
-                        <p className="text-gray-300 font-medium mb-2">What's New:</p>
-                        <p className="text-gray-400 mb-3">{newRelease.notes}</p>
-                        <div className="flex items-center gap-4 text-gray-500 text-sm">
+                      <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700/50">
+                        <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">What's New:</p>
+                        <p className="text-gray-600 dark:text-gray-400 mb-3">{newRelease.notes}</p>
+                        <div className="flex items-center gap-4 text-gray-500 dark:text-gray-500 text-sm">
                           <div className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
                             {formatDate(newRelease.date)}
@@ -390,14 +390,14 @@ export default function Releases() {
 
         {/* Current Version Card */}
         {currentRelease && (
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50">
+          <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl rounded-xl p-6 dark:border-gray-800/50 shadow-sm dark:shadow-none">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                 <CheckCircle2 className="w-6 h-6 text-emerald-400" />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h3 className="text-xl font-semibold text-white">Current Version</h3>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Current Version</h3>
                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                     {formatBuildId(currentRelease.buildId)}
                   </Badge>
@@ -408,8 +408,8 @@ export default function Releases() {
                     </Badge>
                   )}
                 </div>
-                <p className="text-gray-400 mb-3">{currentRelease.notes}</p>
-                <div className="flex items-center gap-4 text-gray-500 text-sm">
+                <p className="text-gray-600 dark:text-gray-400 mb-3">{currentRelease.notes}</p>
+                <div className="flex items-center gap-4 text-gray-500 dark:text-gray-500 text-sm">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
                     {formatDate(currentRelease.date)}
@@ -428,7 +428,7 @@ export default function Releases() {
               placeholder="Search releases..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-4 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           
@@ -438,7 +438,7 @@ export default function Releases() {
                 type="checkbox"
                 checked={showOnlyMajor}
                 onChange={(e) => setShowOnlyMajor(e.target.checked)}
-                className="rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500"
+                className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-blue-500 focus:ring-blue-500"
               />
               Major releases only
             </label>
@@ -447,47 +447,47 @@ export default function Releases() {
 
         {/* Results Summary */}
         <div className="flex items-center justify-between">
-          <p className="text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400">
             Showing {filteredReleases.length} of {releases.length} releases
           </p>
         </div>
 
         {/* Release History */}
         <div className="space-y-4">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <History className="w-6 h-6" />
             Release History
           </h2>
-          
+
           <div className="space-y-3">
             {filteredReleases.map((release, index) => {
               const isCurrent = release.buildId === clientBuildId;
               const isNew = release.buildId === newBuildId;
-              
+
               return (
                 <motion.div
                   key={release.buildId}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`p-4 rounded-lg border transition-all hover:bg-gray-800/30 ${
+                  className={`p-4 rounded-lg border transition-all ${
                     isCurrent
-                      ? 'bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/30 ring-1 ring-emerald-200 dark:ring-emerald-500/20'
                       : isNew
-                      ? 'bg-blue-500/5 border-blue-500/30'
-                      : 'bg-gray-800/20 border-gray-700/30'
+                      ? 'bg-blue-50 dark:bg-blue-500/5 border-blue-200 dark:border-blue-500/30'
+                      : 'bg-white dark:bg-gray-800/20 border-gray-200 dark:border-gray-700/30 hover:bg-gray-50 dark:hover:bg-gray-800/30'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="font-semibold text-white text-lg">
+                        <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
                           {formatBuildId(release.buildId)}
                         </h3>
                         {getReleaseBadge(release)}
                       </div>
-                      <p className="text-gray-300 mb-3 leading-relaxed">{release.notes}</p>
-                      <div className="flex items-center gap-4 text-gray-500 text-sm">
+                      <p className="text-gray-700 dark:text-gray-300 mb-3 leading-relaxed">{release.notes}</p>
+                      <div className="flex items-center gap-4 text-gray-500 dark:text-gray-500 text-sm">
                         <div className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
                           {formatDate(release.date)}
@@ -506,9 +506,9 @@ export default function Releases() {
 
           {filteredReleases.length === 0 && searchTerm && (
             <div className="text-center py-12">
-              <History className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-400 mb-2">No releases found</h3>
-              <p className="text-gray-500">
+              <History className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-400 mb-2">No releases found</h3>
+              <p className="text-gray-600 dark:text-gray-500">
                 No releases match your search criteria. Try adjusting your filters.
               </p>
             </div>

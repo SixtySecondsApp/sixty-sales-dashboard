@@ -81,20 +81,20 @@ export function ViewSpecificStats({ activeTab, companies = [], contacts = [], de
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: idx * 0.1 }}
-          className="bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50"
+          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none"
         >
           <div className="flex items-center justify-between mb-2">
             <div className={`p-2 rounded-lg bg-${stat.color}-500/10`}>
-              <stat.icon className={`w-4 h-4 text-${stat.color}-400`} />
+              <stat.icon className={`w-4 h-4 text-${stat.color}-600 dark:text-${stat.color}-400`} />
             </div>
             <span className={`text-xs font-medium ${
-              stat.change.startsWith('+') ? 'text-emerald-400' : 'text-red-400'
+              stat.change.startsWith('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
             }`}>
               {stat.change}
             </span>
           </div>
-          <div className="text-2xl font-bold text-white">{stat.value}</div>
-          <div className="text-xs text-gray-400">{stat.label}</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
+          <div className="text-xs text-gray-600 dark:text-gray-400">{stat.label}</div>
         </motion.div>
       ))}
     </div>
