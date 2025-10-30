@@ -4,6 +4,10 @@ import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import App from './App';
 import './index.css';
+import { initializeTheme } from './hooks/useTheme';
+
+// Initialize theme before React renders to prevent flash of wrong theme
+initializeTheme();
 
 // Import debug utilities for development
 if (import.meta.env.DEV) {
@@ -11,9 +15,11 @@ if (import.meta.env.DEV) {
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <HelmetProvider>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </HelmetProvider>
+  <React.StrictMode>
+    <HelmetProvider>
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>
+    </HelmetProvider>
+  </React.StrictMode>
 );

@@ -176,13 +176,13 @@ export default function Users() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 mt-12 lg:mt-0 min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 mt-12 lg:mt-0 min-h-screen bg-white dark:bg-gray-950">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">User Management</h1>
-            <p className="text-sm text-gray-400 mt-1">Manage users, roles, and permissions</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">User Management</h1>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">Manage users, roles, and permissions</p>
           </div>
           <button
             onClick={() => setEditingUser({ isNew: true })}
@@ -195,38 +195,38 @@ export default function Users() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <UsersIcon className="w-5 h-5 text-blue-500" />
+              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                <UsersIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-400">Total Users</p>
-                <div className="text-xl font-bold text-white">{users.length}</div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">Total Users</p>
+                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">{users.length}</div>
               </div>
             </div>
           </div>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-violet-500/10">
-                <Shield className="w-5 h-5 text-violet-500" />
+              <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/20">
+                <Shield className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-400">Admins</p>
-                <div className="text-xl font-bold text-white">
+                <p className="text-sm text-gray-700 dark:text-gray-300">Admins</p>
+                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {users.filter(u => u.is_admin).length}
                 </div>
               </div>
             </div>
           </div>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <Star className="w-5 h-5 text-emerald-500" />
+              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20">
+                <Star className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm text-gray-400">Active</p>
-                <div className="text-xl font-bold text-white">
+                <p className="text-sm text-gray-700 dark:text-gray-300">Active</p>
+                <div className="text-xl font-bold text-gray-900 dark:text-gray-100">
                   {users.filter(u => u.last_sign_in_at).length}
                 </div>
               </div>
@@ -235,9 +235,9 @@ export default function Users() {
         </div>
 
         {/* Users Table */}
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-800/50 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none overflow-hidden">
           {/* Table Controls */}
-          <div className="p-4 sm:p-6 border-b border-gray-800/50 space-y-4">
+          <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="w-full sm:flex-1">
                 <div className="relative">
@@ -247,7 +247,7 @@ export default function Users() {
                     placeholder="Search users..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -285,7 +285,7 @@ export default function Users() {
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                     <select
-                      className="bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white text-sm"
+                      className="bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-gray-100 text-sm"
                       value={selectedStage}
                       onChange={(e) => setSelectedStage(e.target.value)}
                     >
@@ -304,17 +304,17 @@ export default function Users() {
           <div className="overflow-x-auto min-w-[800px] lg:min-w-0">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-800/50">
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 sm:px-6 py-3 whitespace-nowrap">User</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 sm:px-6 py-3 whitespace-nowrap">Stage</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 sm:px-6 py-3 whitespace-nowrap">Targets</th>
-                  <th className="text-left text-xs font-medium text-gray-400 px-4 sm:px-6 py-3 whitespace-nowrap">Admin</th>
-                  <th className="text-right text-xs font-medium text-gray-400 px-4 sm:px-6 py-3 whitespace-nowrap">Actions</th>
+                <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                  <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">User</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Stage</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Targets</th>
+                  <th className="text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Admin</th>
+                  <th className="text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider px-4 sm:px-6 py-3 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                 {filteredUsers.map((user) => (
-                  <tr key={user.id} className="border-b border-gray-800/50 hover:bg-gray-800/20">
+                  <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                     <td className="px-4 sm:px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-[#37bd7e]/10 border border-[#37bd7e]/20 flex items-center justify-center">
@@ -331,10 +331,10 @@ export default function Users() {
                           )}
                         </div>
                         <div>
-                          <div className="font-medium text-white">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
                             {user.first_name} {user.last_name}
                           </div>
-                          <div className="text-sm text-gray-400">{user.email}</div>
+                          <div className="text-sm text-gray-700 dark:text-gray-300">{user.email}</div>
                         </div>
                       </div>
                     </td>
@@ -342,7 +342,7 @@ export default function Users() {
                       <select
                         value={user.stage}
                         onChange={(e) => handleUpdateUser(user.id, { stage: e.target.value })}
-                        className="bg-gray-800/30 border border-gray-700/30 rounded-lg px-3 py-1 text-sm text-white"
+                        className="bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1 text-sm text-gray-900 dark:text-gray-100"
                       >
                         {USER_STAGES.map(stage => (
                           <option key={stage} value={stage}>{stage}</option>
@@ -426,9 +426,9 @@ export default function Users() {
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900/95 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold mb-4 text-white">
+        <div className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900/95 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50 p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-gray-100">
               {editingUser.isNew ? 'Add User' : (editingUser as User).editingTargets ? `Edit Targets for ${(editingUser as User).first_name}` : 'Edit User'}
             </h2>
 
@@ -438,7 +438,7 @@ export default function Users() {
                 handleUpdateUser((editingUser as User).id, { targets: modalTargets });
               }} className="space-y-6">
                 {modalTargets.map((target, index) => (
-                  <div key={target.id || index} className="p-4 rounded-lg border border-gray-700/50 bg-gray-800/20 space-y-4 relative">
+                  <div key={target.id || index} className="p-4 rounded-lg border border-gray-200 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/20 space-y-4 relative">
                     <button
                       type="button"
                       onClick={() => removeTargetSet(index)}
@@ -450,13 +450,13 @@ export default function Users() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">Revenue Target</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Revenue Target</label>
                         <input
                           type="number"
                           placeholder="e.g., 20000"
                           value={target.revenue_target ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'revenue_target', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
                         />
                       </div>
                       <div className="space-y-1">

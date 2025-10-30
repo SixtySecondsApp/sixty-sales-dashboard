@@ -115,13 +115,13 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Quick Actions</h3>
+      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+        <h3 className="text-sm font-medium theme-text-tertiary mb-3">Quick Actions</h3>
         <div className="space-y-2">
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+            className="w-full justify-start bg-gray-100/50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 theme-text-primary hover:bg-gray-200/50 dark:hover:bg-gray-700/50"
           >
             <Phone className="w-4 h-4 mr-2" />
             Schedule Call
@@ -129,7 +129,7 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+            className="w-full justify-start bg-gray-100/50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 theme-text-primary hover:bg-gray-200/50 dark:hover:bg-gray-700/50"
           >
             <Mail className="w-4 h-4 mr-2" />
             Send Email
@@ -137,7 +137,7 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+            className="w-full justify-start bg-gray-100/50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 theme-text-primary hover:bg-gray-200/50 dark:hover:bg-gray-700/50"
           >
             <Plus className="w-4 h-4 mr-2" />
             Create Deal
@@ -145,7 +145,7 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-start bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+            className="w-full justify-start bg-gray-100/50 dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 theme-text-primary hover:bg-gray-200/50 dark:hover:bg-gray-700/50"
           >
             <Activity className="w-4 h-4 mr-2" />
             Log Activity
@@ -154,14 +154,14 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
       </div>
 
       {/* Health Score */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
+      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-400">Relationship Health</h3>
+          <h3 className="text-sm font-medium theme-text-tertiary">Relationship Health</h3>
           <span className={cn("text-lg font-bold", getHealthScoreColor(healthScore))}>
             {healthScore}%
           </span>
         </div>
-        <div className="w-full bg-gray-800 rounded-full h-2 mb-3">
+        <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-2 mb-3">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${healthScore}%` }}
@@ -173,7 +173,7 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
             )}
           />
         </div>
-        <div className="space-y-1 text-xs text-gray-500">
+        <div className="space-y-1 text-xs text-gray-500 dark:text-gray-500">
           <div className="flex items-center gap-2">
             <CheckCircle className="w-3 h-3" />
             <span>{recentActivities.length} recent activities</span>
@@ -190,48 +190,48 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
       </div>
 
       {/* Upcoming Opportunities */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Active Opportunities</h3>
+      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+        <h3 className="text-sm font-medium theme-text-tertiary mb-3">Active Opportunities</h3>
         {upcomingOpportunities.length > 0 ? (
           <div className="space-y-3">
             {upcomingOpportunities.map((deal) => (
-              <div key={deal.id} className="p-3 rounded-lg bg-gray-800/30 border border-gray-700/30">
+              <div key={deal.id} className="p-3 rounded-lg bg-gray-100/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30">
                 <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-sm font-medium text-white truncate">{deal.name}</h4>
+                  <h4 className="text-sm font-medium theme-text-primary truncate">{deal.name}</h4>
                   <span className="text-sm font-bold text-emerald-400">{formatCurrency(deal.value)}</span>
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-xs theme-text-tertiary">
                   Stage: {deal.stage}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                   Created {format(new Date(deal.created_at), 'MMM d')}
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="text-sm text-gray-500">No active opportunities</div>
+          <div className="text-sm text-gray-500 dark:text-gray-500">No active opportunities</div>
         )}
       </div>
 
       {/* Recent Activity Timeline */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Recent Activity</h3>
+      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+        <h3 className="text-sm font-medium theme-text-tertiary mb-3">Recent Activity</h3>
         {recentActivities.length > 0 ? (
           <div className="space-y-3">
             {recentActivities.map((activity, index) => {
               const Icon = getActivityIcon(activity.type);
               return (
                 <div key={activity.id} className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-gray-700/50 flex items-center justify-center flex-shrink-0">
-                    <Icon className="w-3 h-3 text-gray-400" />
+                  <div className="w-6 h-6 rounded-full bg-gray-200/50 dark:bg-gray-700/50 flex items-center justify-center flex-shrink-0">
+                    <Icon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-medium text-white capitalize">{activity.type}</span>
-                      <span className="text-xs text-gray-500">{getRelativeTime(activity.date)}</span>
+                      <span className="text-xs font-medium theme-text-primary capitalize">{activity.type}</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-500">{getRelativeTime(activity.date)}</span>
                     </div>
-                    <p className="text-xs text-gray-400 truncate">
+                    <p className="text-xs theme-text-tertiary truncate">
                       {activity.details || 'No details available'}
                     </p>
                     {activity.amount && (
@@ -243,51 +243,51 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
             })}
           </div>
         ) : (
-          <div className="text-sm text-gray-500">No recent activity</div>
+          <div className="text-sm text-gray-500 dark:text-gray-500">No recent activity</div>
         )}
       </div>
 
       {/* Key Metrics Summary */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Key Metrics</h3>
+      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+        <h3 className="text-sm font-medium theme-text-tertiary mb-3">Key Metrics</h3>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-400" />
-              <span className="text-sm text-gray-400">Total Value</span>
+              <span className="text-sm theme-text-tertiary">Total Value</span>
             </div>
-            <span className="text-sm font-medium text-white">
+            <span className="text-sm font-medium theme-text-primary">
               {formatCurrency(company.total_deal_value || 0)}
             </span>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-blue-400" />
-              <span className="text-sm text-gray-400">Won Rate</span>
+              <span className="text-sm theme-text-tertiary">Won Rate</span>
             </div>
-            <span className="text-sm font-medium text-white">
+            <span className="text-sm font-medium theme-text-primary">
               {deals.length > 0 ? Math.round((deals.filter(d => d.status === 'won').length / deals.length) * 100) : 0}%
             </span>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-purple-400" />
-              <span className="text-sm text-gray-400">Customer Since</span>
+              <span className="text-sm theme-text-tertiary">Customer Since</span>
             </div>
-            <span className="text-sm font-medium text-white">
+            <span className="text-sm font-medium theme-text-primary">
               {format(new Date(company.created_at), 'MMM yyyy')}
             </span>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-orange-400" />
-              <span className="text-sm text-gray-400">Last Contact</span>
+              <span className="text-sm theme-text-tertiary">Last Contact</span>
             </div>
-            <span className="text-sm font-medium text-white">
-              {company.last_activity_date 
+            <span className="text-sm font-medium theme-text-primary">
+              {company.last_activity_date
                 ? getRelativeTime(company.last_activity_date)
                 : 'Never'
               }

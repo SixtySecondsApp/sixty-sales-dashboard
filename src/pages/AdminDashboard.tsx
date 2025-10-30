@@ -203,53 +203,53 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
+    <div className="min-h-screen">
       <div className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Administration</h1>
-            <p className="text-lg text-gray-400">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">Administration</h1>
+            <p className="text-lg text-gray-700 dark:text-gray-300">
               Manage your system settings, users, and configurations
             </p>
           </div>
 
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
+            <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-lg shadow-sm dark:shadow-none p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">Total Users</p>
-                  <p className="text-2xl font-bold text-white">124</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">Total Users</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">124</p>
                 </div>
-                <UsersIcon className="w-8 h-8 text-blue-400 opacity-50" />
+                <UsersIcon className="w-8 h-8 text-blue-600 dark:text-blue-400 opacity-50" />
               </div>
             </div>
-            <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
+            <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-lg shadow-sm dark:shadow-none p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">Active Workflows</p>
-                  <p className="text-2xl font-bold text-white">18</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">Active Workflows</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">18</p>
                 </div>
-                <Workflow className="w-8 h-8 text-green-400 opacity-50" />
+                <Workflow className="w-8 h-8 text-emerald-600 dark:text-emerald-400 opacity-50" />
               </div>
             </div>
-            <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
+            <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-lg shadow-sm dark:shadow-none p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">System Health</p>
-                  <p className="text-2xl font-bold text-white">98%</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">System Health</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">98%</p>
                 </div>
-                <Activity className="w-8 h-8 text-emerald-400 opacity-50" />
+                <Activity className="w-8 h-8 text-emerald-600 dark:text-emerald-400 opacity-50" />
               </div>
             </div>
-            <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
+            <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-lg shadow-sm dark:shadow-none p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">API Calls Today</p>
-                  <p className="text-2xl font-bold text-white">2.4K</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">API Calls Today</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">2.4K</p>
                 </div>
-                <Code2 className="w-8 h-8 text-cyan-400 opacity-50" />
+                <Code2 className="w-8 h-8 text-cyan-600 dark:text-cyan-400 opacity-50" />
               </div>
             </div>
           </div>
@@ -262,39 +262,33 @@ export default function AdminDashboard() {
 
               return (
                 <div key={category}>
-                  <h2 className="text-lg font-semibold text-gray-300 mb-4">{category}</h2>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">{category}</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {cards.map((card) => (
                       <button
                         key={card.id}
                         onClick={() => navigate(card.path)}
-                        className="group relative overflow-hidden bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-xl p-6 hover:bg-gray-800/50 transition-all duration-200 hover:scale-[1.02] hover:shadow-xl text-left"
+                        className="group relative bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-300 dark:hover:border-gray-700/50 transition-all duration-200 text-left"
                       >
-                        {/* Gradient Background */}
-                        <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-0 group-hover:opacity-10 transition-opacity duration-200`} />
-                        
                         {/* Content */}
-                        <div className="relative z-10">
+                        <div>
                           <div className="flex items-start justify-between mb-4">
-                            <div className={`p-3 rounded-lg bg-gradient-to-br ${card.color} bg-opacity-10`}>
-                              <div className="text-white">
+                            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                              <div className="text-blue-600 dark:text-blue-400">
                                 {card.icon}
                               </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-gray-300 transition-colors transform group-hover:translate-x-1 duration-200" />
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors transform group-hover:translate-x-1 duration-200" />
                           </div>
-                          
-                          <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-white transition-colors">
+
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
                             {card.title}
                           </h3>
-                          
-                          <p className="text-sm text-gray-400 group-hover:text-gray-300 transition-colors line-clamp-2">
+
+                          <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                             {card.description}
                           </p>
                         </div>
-
-                        {/* Hover Border Glow */}
-                        <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${card.color} opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300 pointer-events-none`} />
                       </button>
                     ))}
                   </div>

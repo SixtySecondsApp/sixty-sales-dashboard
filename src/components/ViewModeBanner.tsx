@@ -15,7 +15,7 @@ export function ViewModeBanner() {
     viewedUser.email;
   
   return (
-    <div className="relative bg-amber-500 text-white shadow-lg">
+    <div className="relative bg-amber-500 dark:bg-amber-600 text-white shadow-lg">
       <div className="px-4 py-2">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm">
@@ -26,7 +26,7 @@ export function ViewModeBanner() {
             variant="ghost"
             size="sm"
             onClick={exitViewMode}
-            className="text-white hover:bg-amber-600 hover:text-white"
+            className="text-white hover:bg-amber-600 dark:hover:bg-amber-700 hover:text-white"
           >
             <X className="h-4 w-4 mr-1" />
             Exit View Mode

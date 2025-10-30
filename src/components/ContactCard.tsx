@@ -75,16 +75,16 @@ const ContactCard: React.FC<ContactCardProps> = ({
   // Generate avatar colors based on contact name
   const getAvatarColor = () => {
     const colors = [
-      'from-blue-500 to-purple-500',
-      'from-orange-500 to-red-500',
-      'from-emerald-500 to-teal-500',
-      'from-pink-500 to-rose-500',
-      'from-indigo-500 to-blue-500',
-      'from-yellow-500 to-orange-500',
-      'from-purple-500 to-pink-500',
-      'from-teal-500 to-cyan-500',
+      'bg-blue-600',
+      'bg-orange-600',
+      'bg-emerald-600',
+      'bg-pink-600',
+      'bg-indigo-600',
+      'bg-yellow-600',
+      'bg-purple-600',
+      'bg-teal-600',
     ];
-    
+
     const name = getFullName();
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
@@ -116,12 +116,12 @@ const ContactCard: React.FC<ContactCardProps> = ({
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: 4 }}
-        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border transition-all duration-300 group ${
+        className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-300 group shadow-sm dark:shadow-none ${
           isSelectMode ? '' : 'cursor-pointer'
         } ${
-          isSelected && isSelectMode 
-            ? 'border-emerald-500/30 bg-emerald-500/5' 
-            : 'border-gray-800/50 hover:border-emerald-500/30'
+          isSelected && isSelectMode
+            ? 'border-emerald-500 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
+            : 'border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30'
         }`}
         onClick={(e) => {
           if (isSelectMode) {
@@ -136,7 +136,7 @@ const ContactCard: React.FC<ContactCardProps> = ({
           <div className="flex items-center gap-4">
             {/* Contact Avatar */}
             <div className="relative">
-              <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white font-bold`}>
+              <div className={`w-10 h-10 rounded-full ${getAvatarColor()} flex items-center justify-center text-white font-bold`}>
                 {generateInitials()}
               </div>
               {/* Select Checkbox - positioned as overlay on avatar corner */}
@@ -148,18 +148,18 @@ const ContactCard: React.FC<ContactCardProps> = ({
                     e.stopPropagation();
                     onSelect?.(contact.id, e.target.checked);
                   }}
-                  className="absolute -top-1 -right-1 w-5 h-5 text-emerald-500 bg-gray-900 border-2 border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
+                  className="absolute -top-1 -right-1 w-5 h-5 text-emerald-600 dark:text-emerald-500 bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
                   onClick={(e) => e.stopPropagation()}
                 />
               )}
             </div>
             
             <div>
-              <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors flex items-center gap-2">
+              <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-2">
                 {getFullName()}
                 {isPrimary() && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
               </h3>
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                 <span>{contact.title || 'No title'}</span>
                 {contact.company_name && (
                   <>
@@ -173,22 +173,22 @@ const ContactCard: React.FC<ContactCardProps> = ({
           
           <div className="flex items-center gap-6">
             <div className="text-right">
-              <div className="text-sm font-medium text-white flex items-center gap-1">
+              <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-1">
                 <Mail className="w-3 h-3" />
                 {contact.email}
               </div>
               {contact.phone && (
-                <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 mt-1">
                   <Phone className="w-3 h-3" />
                   {formatPhone(contact.phone)}
                 </div>
               )}
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="text-center">
-                <div className="text-xs text-gray-500">Last Activity</div>
-                <div className="text-sm font-semibold text-emerald-400">{getLastActivity()}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-500">Last Activity</div>
+                <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{getLastActivity()}</div>
               </div>
             </div>
             
@@ -235,12 +235,12 @@ const ContactCard: React.FC<ContactCardProps> = ({
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`relative bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border transition-all duration-300 overflow-hidden group ${
+      className={`relative bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 overflow-hidden group shadow-sm dark:shadow-none ${
         isSelectMode ? '' : 'cursor-pointer'
       } ${
-        isSelected && isSelectMode 
-          ? 'border-emerald-500/30 ring-1 ring-emerald-500/20' 
-          : 'border-gray-800/50 hover:border-emerald-500/30'
+        isSelected && isSelectMode
+          ? 'border-emerald-500 dark:border-emerald-500/30 ring-1 ring-emerald-500/20'
+          : 'border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30'
       }`}
       onClick={(e) => {
         if (isSelectMode) {
@@ -268,7 +268,7 @@ const ContactCard: React.FC<ContactCardProps> = ({
               e.stopPropagation();
               onSelect?.(contact.id, e.target.checked);
             }}
-            className="w-5 h-5 text-emerald-500 bg-gray-800/80 border-2 border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
+            className="w-5 h-5 text-emerald-600 dark:text-emerald-500 bg-white dark:bg-gray-800/80 border-2 border-gray-300 dark:border-gray-600 rounded-md focus:ring-emerald-500 focus:ring-2"
             onClick={(e) => e.stopPropagation()}
           />
         </div>
@@ -288,7 +288,7 @@ const ContactCard: React.FC<ContactCardProps> = ({
 
       {/* Avatar */}
       <div className="relative mb-4">
-        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getAvatarColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
+        <div className={`w-16 h-16 rounded-2xl ${getAvatarColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
           {generateInitials()}
         </div>
         <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
@@ -298,14 +298,14 @@ const ContactCard: React.FC<ContactCardProps> = ({
 
       {/* Contact Info */}
       <div className="relative z-10 mb-4">
-        <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors mb-1">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors mb-1">
           {getFullName()}
         </h3>
-        <p className="text-sm text-gray-400 mb-2">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
           {contact.title || 'No title specified'}
         </p>
         {contact.company_name && (
-          <div className="flex items-center gap-1 text-xs text-emerald-400/80">
+          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400/80">
             <Building2 className="w-3 h-3" />
             <span>{contact.company_name}</span>
           </div>
@@ -314,12 +314,12 @@ const ContactCard: React.FC<ContactCardProps> = ({
 
       {/* Contact Details */}
       <div className="relative z-10 mb-4 space-y-2">
-        <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
           <Mail className="w-3 h-3" />
           <span className="truncate">{contact.email}</span>
         </div>
         {contact.phone && (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
             <Phone className="w-3 h-3" />
             <span>{formatPhone(contact.phone)}</span>
           </div>
@@ -327,8 +327,8 @@ const ContactCard: React.FC<ContactCardProps> = ({
       </div>
 
       {/* Footer */}
-      <div className="relative z-10 flex items-center justify-between pt-4 border-t border-gray-800/50">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
+      <div className="relative z-10 flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800/50">
+        <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-500">
           <Clock className="w-3 h-3" />
           <span>{getLastActivity()}</span>
         </div>

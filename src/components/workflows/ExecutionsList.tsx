@@ -100,10 +100,10 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
     const hasTrackingIssues = status === 'completed' && execution.nodeExecutions.length === 0;
     
     const variants = {
-      completed: 'bg-green-500/20 text-green-400 border-green-500/30',
-      failed: 'bg-red-500/20 text-red-400 border-red-500/30',
-      running: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      issue: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+      completed: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30',
+      failed: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30',
+      running: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30',
+      issue: 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30',
     } as const;
 
     const displayStatus = hasTrackingIssues ? 'issue' : status;
@@ -112,7 +112,7 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
     return (
       <Badge 
         variant="outline" 
-        className={`text-xs ${variants[displayStatus as keyof typeof variants] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}
+        className={`text-xs ${variants[displayStatus as keyof typeof variants] || 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-500/30'}`}
       >
         {displayText}
       </Badge>
@@ -137,10 +137,10 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
         onClick={() => onExecutionSelect(execution)}
         className={`
           p-3 rounded-lg border cursor-pointer transition-all duration-200
-          hover:bg-gray-800/50 hover:border-gray-600
+          hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600
           ${isSelected 
-            ? 'bg-blue-500/10 border-blue-500/30 ring-1 ring-blue-500/20' 
-            : 'bg-gray-800/30 border-gray-700/50'
+            ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 ring-1 ring-blue-200/70 dark:ring-blue-500/20' 
+            : 'bg-white dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50'
           }
         `}
         whileHover={{ scale: 1.02 }}
@@ -149,14 +149,14 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {getStatusIcon(execution)}
-            <span className="text-sm font-medium text-gray-200 truncate">
+            <span className="text-sm font-medium text-gray-900 dark:text-gray-200 truncate">
               {execution.workflowName || `Execution ${execution.id.slice(0, 8)}`}
             </span>
           </div>
           {getStatusBadge(execution)}
         </div>
         
-        <div className="flex items-center gap-4 text-xs text-gray-400">
+        <div className="flex items-center gap-4 text-xs text-gray-700 dark:text-gray-400">
           <div className="flex items-center gap-1">
             <Calendar className="w-3 h-3" />
             <span>{date}</span>
@@ -168,7 +168,7 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
         </div>
 
         {execution.completedAt && (
-          <div className="mt-2 text-xs text-gray-500">
+          <div className="mt-2 text-xs text-gray-700 dark:text-gray-500">
             Duration: {Math.round(
               (new Date(execution.completedAt).getTime() - new Date(execution.startedAt).getTime()) / 1000
             )}s
@@ -176,14 +176,14 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
         )}
 
         {execution.error && (
-          <div className="mt-2 text-xs text-red-400 truncate">
+          <div className="mt-2 text-xs text-red-600 dark:text-red-400 truncate">
             Error: {execution.error}
           </div>
         )}
 
         {/* Show tracking issues warning */}
         {execution.status === 'completed' && execution.nodeExecutions.length === 0 && (
-          <div className="mt-2 text-xs text-yellow-400 truncate">
+          <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-400 truncate">
             ⚠️ Execution tracking incomplete - node execution data missing
           </div>
         )}
@@ -192,26 +192,26 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900/50 backdrop-blur-sm">
-      <div className="p-4 border-b border-gray-700/50">
-        <h3 className="text-lg font-semibold text-white mb-1">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-900/50 backdrop-blur-sm">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700/50">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
           {workflowId ? 'Workflow Jobs' : 'All Workflow Jobs'}
         </h3>
         {workflowId && (
-          <p className="text-xs text-gray-400 mb-3">Showing executions for current workflow only</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">Showing executions for current workflow only</p>
         )}
         
         <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as 'production' | 'test')}>
-          <TabsList className="w-full bg-gray-800/50 border border-gray-700/50">
+          <TabsList className="w-full bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
             <TabsTrigger 
               value="production" 
-              className="flex-1 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
+              className="flex-1 text-gray-700 dark:text-gray-300 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400"
             >
               Production
             </TabsTrigger>
             <TabsTrigger 
               value="test" 
-              className="flex-1 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400"
+              className="flex-1 text-gray-700 dark:text-gray-300 data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-700 dark:data-[state=active]:text-blue-400"
             >
               Test
             </TabsTrigger>
@@ -221,12 +221,12 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-gray-700 dark:text-gray-400 py-8">
             <Clock className="w-6 h-6 mx-auto mb-2 animate-spin" />
             <p>Loading executions...</p>
           </div>
         ) : executions.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-gray-700 dark:text-gray-400 py-8">
             <PlayCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>No {activeMode} executions found</p>
             <p className="text-xs mt-1">Run a workflow to see executions here</p>

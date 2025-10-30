@@ -80,8 +80,8 @@ const ActionItemProcessorNode: React.FC<ActionItemProcessorNodeProps> = ({ data,
   const salesWorkflow = config.salesWorkflow?.enabled || false;
   
   return (
-    <div className={`bg-gradient-to-r from-orange-600 to-red-600 rounded-lg p-3 min-w-[200px] shadow-lg ${
-      selected ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-gray-900' : ''
+    <div className={`bg-orange-600 dark:bg-orange-600/20 backdrop-blur-sm border border-orange-500 dark:border-orange-500/30 rounded-lg p-3 min-w-[200px] shadow-sm dark:shadow-none ${
+      selected ? 'ring-2 ring-orange-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
     } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
       <Handle 
         type="target" 

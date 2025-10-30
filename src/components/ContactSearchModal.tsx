@@ -394,41 +394,41 @@ export function ContactSearchModal({
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
-            className="bg-gray-900/95 backdrop-blur-xl border border-gray-800/50 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            className="theme-bg-card backdrop-blur-xl theme-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-800/50">
+            <div className="flex items-center justify-between p-6 border-b theme-border">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-violet-500/10 rounded-lg">
                   <Users className="w-5 h-5 text-violet-400" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-white">Select Contact</h3>
-                  <p className="text-sm text-gray-400">Search for existing contacts or create a new one</p>
+                  <h3 className="text-xl font-semibold theme-text-primary">Select Contact</h3>
+                  <p className="text-sm theme-text-tertiary">Search for existing contacts or create a new one</p>
                 </div>
               </div>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-gray-800/50 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
               >
-                <X className="w-5 h-5 text-gray-400" />
+                <X className="w-5 h-5 theme-text-tertiary" />
               </button>
             </div>
 
             <div className="flex h-[600px]">
               {/* Search Panel */}
-              <div className="flex-1 flex flex-col border-r border-gray-800/30">
+              <div className="flex-1 flex flex-col border-r theme-border">
                 {/* Search Input */}
-                <div className="p-4 border-b border-gray-800/30">
+                <div className="p-4 border-b theme-border">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 theme-text-tertiary" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search by name, email, or company..."
-                      className="w-full pl-10 pr-10 py-3 bg-gray-800/50 border border-gray-700/50 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
+                      className="w-full pl-10 pr-10 py-3 theme-bg-elevated theme-border rounded-xl theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500"
                     />
                     {isSearching && searchQuery && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -439,11 +439,11 @@ export function ContactSearchModal({
                 </div>
 
                 {/* Search Results */}
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto theme-bg-primary">
                   {isSearching ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="flex items-center gap-3 text-gray-400">
-                        <div className="w-5 h-5 border-2 border-gray-600 border-t-violet-500 rounded-full animate-spin" />
+                      <div className="flex items-center gap-3 theme-text-tertiary">
+                        <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 border-t-violet-500 rounded-full animate-spin" />
                         Searching contacts...
                       </div>
                     </div>
@@ -452,42 +452,42 @@ export function ContactSearchModal({
                       {filteredResults.map((contact) => (
                         <motion.button
                           key={contact.id}
-                          whileHover={{ backgroundColor: 'rgba(75, 85, 99, 0.5)' }}
+                          whileHover={{ scale: 1.01 }}
                           onClick={() => handleContactSelect(contact)}
-                          className="w-full p-4 text-left rounded-xl transition-colors"
+                          className="w-full p-4 text-left rounded-xl transition-colors hover:bg-gray-100 dark:hover:bg-gray-800/50"
                         >
                           <div className="flex items-start gap-3">
                             <div className="w-10 h-10 bg-violet-500/20 rounded-full flex items-center justify-center flex-shrink-0">
                               <Users className="w-4 h-4 text-violet-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-white truncate">
-                                {contact.full_name || 
+                              <h4 className="font-medium theme-text-primary truncate">
+                                {contact.full_name ||
                                  `${contact.first_name || ''} ${contact.last_name || ''}`.trim() ||
                                  contact.email ||
                                  'Unknown Contact'}
                               </h4>
                               <div className="flex items-center gap-2 mt-1">
-                                <Mail className="w-3 h-3 text-gray-400" />
-                                <span className="text-sm text-gray-400 truncate">{contact.email}</span>
+                                <Mail className="w-3 h-3 theme-text-tertiary" />
+                                <span className="text-sm theme-text-tertiary truncate">{contact.email}</span>
                               </div>
                               {(contact.company || contact.company_name || contact.companies?.name || contact.companies) && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <Building2 className="w-3 h-3 text-gray-400" />
-                                  <span className="text-sm text-gray-400 truncate">
-                                    {typeof contact.company === 'string' 
-                                      ? contact.company 
-                                      : contact.company?.name || 
-                                        contact.company_name || 
-                                        contact.companies?.name || 
+                                  <Building2 className="w-3 h-3 theme-text-tertiary" />
+                                  <span className="text-sm theme-text-tertiary truncate">
+                                    {typeof contact.company === 'string'
+                                      ? contact.company
+                                      : contact.company?.name ||
+                                        contact.company_name ||
+                                        contact.companies?.name ||
                                         (typeof contact.companies === 'object' ? contact.companies?.name : contact.companies)}
                                   </span>
                                 </div>
                               )}
                               {contact.phone && (
                                 <div className="flex items-center gap-2 mt-1">
-                                  <Phone className="w-3 h-3 text-gray-400" />
-                                  <span className="text-sm text-gray-400">{contact.phone}</span>
+                                  <Phone className="w-3 h-3 theme-text-tertiary" />
+                                  <span className="text-sm theme-text-tertiary">{contact.phone}</span>
                                 </div>
                               )}
                             </div>
@@ -497,14 +497,14 @@ export function ContactSearchModal({
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                      <div className="w-16 h-16 bg-gray-800/50 rounded-full flex items-center justify-center mb-4">
-                        <Users className="w-6 h-6 text-gray-400" />
+                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800/50 rounded-full flex items-center justify-center mb-4">
+                        <Users className="w-6 h-6 theme-text-tertiary" />
                       </div>
-                      <h4 className="font-medium text-white mb-2">
+                      <h4 className="font-medium theme-text-primary mb-2">
                         {searchQuery ? 'No contacts found' : 'No contacts yet'}
                       </h4>
-                      <p className="text-gray-400 text-sm mb-4">
-                        {searchQuery 
+                      <p className="theme-text-tertiary text-sm mb-4">
+                        {searchQuery
                           ? `No contacts match "${searchQuery}". Try a different search or create a new contact.`
                           : 'Create your first contact to get started'
                         }
@@ -522,7 +522,7 @@ export function ContactSearchModal({
 
                 {/* Create New Button */}
                 {filteredResults.length > 0 && (
-                  <div className="p-4 border-t border-gray-800/30">
+                  <div className="p-4 border-t theme-border">
                     <button
                       onClick={() => setShowCreateForm(true)}
                       className="w-full px-4 py-3 bg-violet-600/10 border border-violet-500/20 text-violet-400 rounded-xl hover:bg-violet-600/20 hover:border-violet-500/30 transition-colors flex items-center justify-center gap-2"
@@ -542,18 +542,18 @@ export function ContactSearchModal({
                     animate={{ width: '50%', opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
                     transition={{ duration: 0.3 }}
-                    className="flex flex-col border-l border-gray-800/30 overflow-hidden"
+                    className="flex flex-col border-l theme-border overflow-hidden theme-bg-secondary"
                   >
-                    <div className="flex items-center justify-between p-4 border-b border-gray-800/30">
-                      <h4 className="font-semibold text-white flex items-center gap-2">
+                    <div className="flex items-center justify-between p-4 border-b theme-border">
+                      <h4 className="font-semibold theme-text-primary flex items-center gap-2">
                         <UserPlus className="w-4 h-4 text-violet-400" />
                         Create New Contact
                       </h4>
                       <button
                         onClick={() => setShowCreateForm(false)}
-                        className="p-1 hover:bg-gray-800/50 rounded transition-colors"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded transition-colors"
                       >
-                        <X className="w-4 h-4 text-gray-400" />
+                        <X className="w-4 h-4 theme-text-tertiary" />
                       </button>
                     </div>
 
@@ -568,7 +568,7 @@ export function ContactSearchModal({
                               ...prev,
                               first_name: e.target.value
                             }))}
-                            className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                            className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                             required
                           />
                           <input
@@ -579,7 +579,7 @@ export function ContactSearchModal({
                               ...prev,
                               last_name: e.target.value
                             }))}
-                            className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                            className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                           />
                         </div>
 
@@ -591,24 +591,24 @@ export function ContactSearchModal({
                             const newEmail = e.target.value;
                             const suggestedWebsite = extractWebsiteFromEmail(newEmail);
                             const extractedNames = extractNamesFromEmail(newEmail);
-                            
+
                             setNewContactForm(prev => ({
                               ...prev,
                               email: newEmail,
                               // Only update website if it's currently empty or was auto-populated
-                              company_website: (!prev.company_website || prev.company_website.startsWith('www.')) 
-                                ? suggestedWebsite 
+                              company_website: (!prev.company_website || prev.company_website.startsWith('www.'))
+                                ? suggestedWebsite
                                 : prev.company_website,
                               // Only update names if they're currently empty (don't overwrite user input)
-                              first_name: (!prev.first_name && extractedNames.firstName) 
-                                ? extractedNames.firstName 
+                              first_name: (!prev.first_name && extractedNames.firstName)
+                                ? extractedNames.firstName
                                 : prev.first_name,
-                              last_name: (!prev.last_name && extractedNames.lastName) 
-                                ? extractedNames.lastName 
+                              last_name: (!prev.last_name && extractedNames.lastName)
+                                ? extractedNames.lastName
                                 : prev.last_name
                             }));
                           }}
-                          className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                          className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                           required
                         />
 
@@ -620,7 +620,7 @@ export function ContactSearchModal({
                             ...prev,
                             phone: e.target.value
                           }))}
-                          className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                          className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                         />
 
                         <input
@@ -629,7 +629,7 @@ export function ContactSearchModal({
                           value={newContactForm.company_website}
                           onChange={(e) => {
                             let website = e.target.value.trim();
-                            
+
                             // Auto-add www. if user enters a domain without it
                             if (website && !website.startsWith('www.') && !website.startsWith('http')) {
                               // Check if it looks like a domain (has a dot and no spaces)
@@ -637,13 +637,13 @@ export function ContactSearchModal({
                                 website = `www.${website}`;
                               }
                             }
-                            
+
                             setNewContactForm(prev => ({
                               ...prev,
                               company_website: website
                             }));
                           }}
-                          className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                          className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                         />
 
                         <input
@@ -654,12 +654,12 @@ export function ContactSearchModal({
                             ...prev,
                             job_title: e.target.value
                           }))}
-                          className="w-full px-3 py-2.5 bg-gray-800/50 border border-gray-700/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
+                          className="w-full px-3 py-2.5 theme-bg-elevated theme-border rounded-lg theme-text-primary placeholder:theme-text-tertiary focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500 text-sm"
                         />
                       </div>
                     </div>
 
-                    <div className="p-4 border-t border-gray-800/30">
+                    <div className="p-4 border-t theme-border">
                       <button
                         onClick={handleCreateContact}
                         disabled={!newContactForm.email || !newContactForm.first_name || isCreating}

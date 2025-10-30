@@ -205,9 +205,10 @@ export default function PipelineSettings() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Pipeline Settings</h1>
+    <div className="min-h-screen bg-white dark:bg-gray-950 p-6">
+      <div className="container mx-auto space-y-8">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Pipeline Settings</h1>
         {!isEditing && (
           <Button onClick={handleAddNew}>
             <Plus className="mr-2 h-4 w-4" />
@@ -228,7 +229,7 @@ export default function PipelineSettings() {
             <div className="grid gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
                   <Input
                     value={editingStage.name}
                     onChange={(e) => setEditingStage({ ...editingStage, name: e.target.value })}
@@ -237,7 +238,7 @@ export default function PipelineSettings() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Color</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color</label>
                   <div className="flex items-center gap-2">
                     <Input
                       type="color"
@@ -254,19 +255,21 @@ export default function PipelineSettings() {
                   </div>
                 </div>
               </div>
-              
+
+
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <Input
                   value={editingStage.description}
                   onChange={(e) => setEditingStage({ ...editingStage, description: e.target.value })}
                   placeholder="Describe this pipeline stage"
                 />
               </div>
-              
+
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Position (Order)</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Position (Order)</label>
                   <Input
                     type="number"
                     value={editingStage.order_position}
@@ -276,7 +279,7 @@ export default function PipelineSettings() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Default Win Probability: {editingStage.default_probability}%</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Win Probability: {editingStage.default_probability}%</label>
                   <Slider
                     value={[editingStage.default_probability]}
                     min={0}
@@ -310,10 +313,10 @@ export default function PipelineSettings() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-4">Loading stages...</div>
+              <div className="text-center py-4 text-gray-700 dark:text-gray-400">Loading stages...</div>
             ) : stages.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">No pipeline stages defined yet</p>
+                <p className="text-gray-700 dark:text-gray-400 mb-4">No pipeline stages defined yet</p>
                 <Button onClick={handleAddNew}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add Your First Stage
@@ -374,7 +377,8 @@ export default function PipelineSettings() {
             )}
           </CardContent>
         </Card>
-      )}
+        )}
+      </div>
     </div>
   );
 } 

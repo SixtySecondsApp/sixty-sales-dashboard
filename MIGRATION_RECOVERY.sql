@@ -22,7 +22,8 @@ END $$;
 -- List all applied migrations
 SELECT
   version,
-  name
+  name,
+  inserted_at
 FROM supabase_migrations.schema_migrations
 WHERE version LIKE '20251025%'
 ORDER BY version;

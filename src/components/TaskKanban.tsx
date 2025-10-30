@@ -358,25 +358,25 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     return (
       <div className="space-y-6">
         <div className="mb-6 space-y-4">
-          <div className="h-8 bg-gray-800 rounded-lg w-48" />
-          <div className="h-4 bg-gray-800 rounded-lg w-80" />
+          <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded-lg w-48" />
+          <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded-lg w-80" />
         </div>
         <div className="flex gap-4 overflow-x-auto pb-6">
           {[1, 2, 3].map(i => (
             <div
               key={i}
-              className="min-w-[320px] bg-gray-900/50 rounded-xl border border-gray-800/50 flex flex-col h-[600px]"
+              className="min-w-[320px] bg-white/85 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-800/50 flex flex-col h-[600px]"
             >
-              <div className="p-4 border-b border-gray-800/50 flex items-center justify-between">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 rounded-md bg-gray-800" />
-                  <div className="h-5 bg-gray-800 rounded-lg w-20" />
+                  <div className="w-4 h-4 rounded-md bg-gray-200 dark:bg-gray-800" />
+                  <div className="h-5 bg-gray-200 dark:bg-gray-800 rounded-lg w-20" />
                 </div>
-                <div className="bg-gray-800/50 rounded-full w-8 h-5" />
+                <div className="bg-gray-100 dark:bg-gray-800/50 rounded-full w-8 h-5" />
               </div>
               <div className="p-4 space-y-3 flex-1">
                 {[1, 2, 3].map(j => (
-                  <div key={j} className="bg-gray-800/50 rounded-xl p-4 h-32" />
+                  <div key={j} className="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-4 h-32" />
                 ))}
               </div>
             </div>
@@ -390,9 +390,9 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">Error loading tasks</h3>
-          <p className="text-gray-400">{error.message}</p>
+          <AlertTriangle className="w-12 h-12 text-red-700 dark:text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error loading tasks</h3>
+          <p className="text-gray-600 dark:text-gray-400">{error.message}</p>
         </div>
       </div>
     );
@@ -404,9 +404,9 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     <div className="space-y-6">
       {/* Add Task Button */}
       <div className="flex justify-end">
-        <Button 
+        <Button
           onClick={() => handleCreateTask()}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          variant="default"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Task
@@ -510,8 +510,8 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
 
   return (
     <div
-      className="min-w-[320px] max-w-[320px] bg-gray-900/50 backdrop-blur-xl
-        rounded-xl border border-gray-800/50 flex flex-col max-h-[calc(100vh-200px)]"
+      className="min-w-[320px] max-w-[320px] bg-white dark:bg-gray-900/80 backdrop-blur-sm
+        rounded-xl border border-gray-200 dark:border-gray-700/50 flex flex-col max-h-[calc(100vh-200px)]"
       style={{
         transition: 'border-color 150ms ease',
         borderColor: isOver ? `${stage.color}80` : undefined
@@ -519,20 +519,20 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
     >
       {/* Column Header */}
       <div
-        className="p-4 border-b border-gray-800/50 flex items-center justify-between sticky top-0 z-10 bg-gray-900/80 backdrop-blur-xl"
+        className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between sticky top-0 z-10 bg-white dark:bg-gray-900/80 backdrop-blur-sm"
       >
         <div className="flex items-center gap-3">
           <div
             className="w-4 h-4 rounded-md flex items-center justify-center"
             style={{ backgroundColor: stage.color }}
           >
-            {React.cloneElement(stage.icon as React.ReactElement, { 
-              className: "w-3 h-3 text-white" 
+            {React.cloneElement(stage.icon as React.ReactElement, {
+              className: "w-3 h-3 text-white"
             })}
           </div>
-          <h3 className="font-semibold text-white">{stage.name}</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{stage.name}</h3>
         </div>
-        <div className="bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-400">
+        <div className="bg-gray-50 dark:bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-700 dark:text-gray-300">
           {tasks.length}
         </div>
       </div>
@@ -542,8 +542,8 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         ref={setNodeRef}
         className={`
           flex-1 overflow-y-auto p-4 space-y-3
-          ${isOver ? 'bg-gray-800/30 ring-1 ring-inset' : ''}
-          scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent
+          ${isOver ? 'bg-gray-100 dark:bg-gray-800/30 ring-1 ring-inset' : ''}
+          scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent
           transition-all duration-150
         `}
         style={isOver ? { '--ring-color': `${stage.color}40` } as any : {}}
@@ -551,7 +551,7 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {/* Empty state */}
           {tasks.length === 0 && !isOver && (
-            <div className="text-gray-500 text-center text-sm h-20 flex items-center justify-center border border-dashed border-gray-800/50 rounded-lg">
+            <div className="text-gray-500 text-center text-sm h-20 flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-800/50 rounded-lg">
               Drop tasks here
             </div>
           )}
@@ -580,8 +580,8 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         <button
           onClick={onAddTask}
           className="w-full h-12 flex items-center justify-center gap-2
-            bg-transparent border border-dashed border-gray-700 rounded-lg
-            text-gray-400 hover:text-gray-300 hover:bg-gray-800/30
+            bg-transparent border border-dashed border-gray-300 dark:border-gray-700 rounded-lg
+            text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30
             transition-colors mt-2"
         >
           <Plus className="w-4 h-4" />
@@ -608,7 +608,7 @@ const SubtaskBadge: React.FC<SubtaskBadgeProps> = ({ taskId }) => {
   }
 
   return (
-    <Badge variant="outline" className="text-xs bg-gray-700/50 border-gray-600 text-gray-300 px-2 py-0">
+    <Badge variant="outline" className="text-xs bg-gray-100 dark:bg-gray-700/50 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-2 py-0">
       {subtaskStats.completed}/{subtaskStats.total} subtasks
     </Badge>
   );
@@ -648,10 +648,10 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   const getPriorityColor = (priority: Task['priority']) => {
     const colors = {
-      low: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      medium: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      high: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-      urgent: 'bg-red-500/10 text-red-400 border-red-500/20'
+      low: 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/20',
+      medium: 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20',
+      high: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/20',
+      urgent: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20'
     };
     return colors[priority] || colors.medium;
   };
@@ -682,13 +682,14 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
   return (
     <SortableTaskCard taskId={task.id} isDragging={isDragging}>
-      <Card 
+      <Card
         className={`
-          bg-gray-800/50 border-gray-700/50 hover:bg-gray-800/70 hover:border-gray-600/50
+          bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50
+          hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-gray-300 dark:hover:border-gray-600/50
           transition-all duration-200 cursor-grab active:cursor-grabbing
           ${isDragging ? 'opacity-50 rotate-3 scale-105' : ''}
-          ${isOverdue() ? 'ring-1 ring-red-500/30' : ''}
-          ${onClick ? 'hover:shadow-lg hover:shadow-blue-500/10' : ''}
+          ${isOverdue() ? 'ring-1 ring-red-400 dark:ring-red-500/30' : ''}
+          ${onClick ? 'hover:shadow-lg hover:shadow-blue-200 dark:hover:shadow-blue-500/10' : ''}
         `}
         onClick={onClick ? (e) => {
           e.stopPropagation();
@@ -700,23 +701,23 @@ const TaskCard: React.FC<TaskCardProps> = ({
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
-                <TaskIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                <h4 className="font-medium text-white text-sm leading-tight line-clamp-2">
+                <TaskIcon className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                <h4 className="font-medium text-gray-900 dark:text-white text-sm leading-tight line-clamp-2">
                   {task.title}
                 </h4>
               </div>
               {/* Subtask Badge */}
               <SubtaskBadge taskId={task.id} />
-              
+
               {/* Category and Fathom Badges */}
               <div className="flex flex-wrap gap-1 mt-2">
                 {task.category && (
-                  <Badge className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 border-purple-700">
+                  <Badge className="px-2 py-0.5 text-xs bg-purple-50 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-700">
                     {task.category}
                   </Badge>
                 )}
                 {task.meeting_id && (
-                  <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700">
+                  <Badge className="px-2 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700">
                     From Fathom
                   </Badge>
                 )}
@@ -731,7 +732,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="h-6 w-6 p-0 hover:bg-gray-700/50"
+                  className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700/50"
                 >
                   <Edit className="w-3 h-3" />
                 </Button>
@@ -744,7 +745,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="h-6 w-6 p-0 hover:bg-red-500/20 hover:text-red-400"
+                  className="h-6 w-6 p-0 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
                 >
                   <Trash2 className="w-3 h-3" />
                 </Button>
@@ -754,17 +755,17 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Task Description */}
           {task.description && (
-            <p className="text-xs text-gray-400 mb-3 line-clamp-2">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
               {task.description}
             </p>
           )}
 
           {/* Priority Badge */}
           <div className="flex items-center justify-between mb-3">
-            <Badge className={`text-xs border ${getPriorityColor(task.priority)}`}>
+            <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
               {task.priority}
             </Badge>
-            
+
             {/* Complete Button */}
             {onComplete && (
               <Button
@@ -775,9 +776,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   onComplete();
                 }}
                 className={`h-6 w-6 p-0 ${
-                  task.completed 
-                    ? 'text-green-400 hover:bg-green-500/20' 
-                    : 'text-gray-400 hover:bg-gray-700/50'
+                  task.completed
+                    ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/50'
                 }`}
               >
                 {task.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
@@ -788,23 +789,23 @@ const TaskCard: React.FC<TaskCardProps> = ({
           {/* Due Date */}
           {task.due_date && (
             <div className={`flex items-center gap-1 text-xs ${
-              isOverdue() ? 'text-red-400' : 'text-gray-400'
+              isOverdue() ? 'text-red-700 dark:text-red-400' : 'text-gray-600 dark:text-gray-400'
             }`}>
               <Clock className="w-3 h-3" />
               <span>{formatDueDate(task.due_date)}</span>
-              {isOverdue() && <AlertTriangle className="w-3 h-3 text-red-400" />}
+              {isOverdue() && <AlertTriangle className="w-3 h-3 text-red-700 dark:text-red-400" />}
             </div>
           )}
 
           {/* Contact/Company Info */}
           {(task.contact_name || task.company) && (
-            <div className="mt-2 pt-2 border-t border-gray-700/50">
+            <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700/50">
               {task.contact_name && (
-                <div 
+                <div
                   className={`flex items-center gap-1 text-xs mb-1 transition-colors ${
                     isRelatedRecordNavigable(task.contact_id, task.contact_name)
-                      ? 'text-blue-400 hover:text-blue-300 cursor-pointer group'
-                      : 'text-gray-400'
+                      ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer group'
+                      : 'text-gray-600 dark:text-gray-400'
                   }`}
                   onClick={
                     isRelatedRecordNavigable(task.contact_id, task.contact_name)
@@ -830,11 +831,11 @@ const TaskCard: React.FC<TaskCardProps> = ({
                 </div>
               )}
               {task.company && (
-                <div 
+                <div
                   className={`flex items-center gap-1 text-xs transition-colors ${
                     isRelatedRecordNavigable(task.company_id, task.company)
-                      ? 'text-blue-400 hover:text-blue-300 cursor-pointer group'
-                      : 'text-gray-400'
+                      ? 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer group'
+                      : 'text-gray-600 dark:text-gray-400'
                   }`}
                   onClick={
                     isRelatedRecordNavigable(task.company_id, task.company)
@@ -864,15 +865,15 @@ const TaskCard: React.FC<TaskCardProps> = ({
 
           {/* Assignee */}
           {task.assignee && (
-            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-700/50">
-              <Avatar className="h-6 w-6 ring-1 ring-gray-600/50">
+            <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
+              <Avatar className="h-6 w-6 ring-1 ring-gray-300 dark:ring-gray-600/50">
                 <AvatarImage src={task.assignee.avatar_url} />
                 <AvatarFallback className="text-xs bg-gradient-to-br from-blue-500 to-purple-500 text-white font-medium">
                   {(task.assignee.first_name?.[0] || '') + (task.assignee.last_name?.[0] || '')}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-medium text-gray-300 truncate">
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">
                   {task.assignee.first_name} {task.assignee.last_name}
                 </div>
                 <div className="text-xs text-gray-500">

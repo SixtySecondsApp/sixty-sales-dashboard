@@ -291,12 +291,12 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
   if (isLoading) {
     return (
-      <div className={cn("bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50", className)}>
+      <div className={cn("bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700/50", className)}>
         <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
           <div className="space-y-3">
             {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-12 bg-gray-700 rounded"></div>
+              <div key={i} className="h-12 bg-gray-200 dark:bg-gray-700 rounded"></div>
             ))}
           </div>
         </div>
@@ -306,11 +306,11 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
   if (error) {
     return (
-      <div className={cn("bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50", className)}>
+      <div className={cn("bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700/50", className)}>
         <div className="text-center py-8">
-          <div className="text-red-400 mb-2">Error loading clients</div>
-          <div className="text-gray-400">{error}</div>
-          <Button 
+          <div className="text-red-600 dark:text-red-400 mb-2">Error loading clients</div>
+          <div className="text-gray-600 dark:text-gray-400">{error}</div>
+          <Button
             onClick={refreshAggregatedClients}
             className="mt-4"
             variant="outline"
@@ -326,33 +326,33 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
     <div className={cn("space-y-6", className)}>
       {/* Summary Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-white">{summaryStats.totalClients}</div>
-          <div className="text-sm text-gray-400">Total Clients</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{summaryStats.totalClients}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Total Clients</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-white">{formatCurrency(summaryStats.totalValue)}</div>
-          <div className="text-sm text-gray-400">Total Value</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(summaryStats.totalValue)}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Total Value</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-emerald-400">{formatCurrency(summaryStats.totalMRR)}</div>
-          <div className="text-sm text-gray-400">Monthly MRR</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(summaryStats.totalMRR)}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Monthly MRR</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-blue-400">{summaryStats.activeClients}</div>
-          <div className="text-sm text-gray-400">Active</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{summaryStats.activeClients}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Active</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-purple-400">{summaryStats.subscriptionClients}</div>
-          <div className="text-sm text-gray-400">Subscriptions</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{summaryStats.subscriptionClients}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Subscriptions</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-red-400">{summaryStats.churnedClients}</div>
-          <div className="text-sm text-gray-400">Churned</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{summaryStats.churnedClients}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Churned</div>
         </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg p-4 border border-gray-800/50">
-          <div className="text-2xl font-bold text-red-400">{formatCurrency(summaryStats.totalChurnAmount)}</div>
-          <div className="text-sm text-gray-400">Churn Value</div>
+        <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCurrency(summaryStats.totalChurnAmount)}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Churn Value</div>
         </div>
       </div>
 
@@ -360,15 +360,15 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-white">Client Overview</h2>
-            <p className="text-sm text-gray-400">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Client Overview</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Aggregated view of all clients with totals and status
             </p>
           </div>
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
-            className="bg-gray-800/50 border-gray-700/50 text-white hover:bg-gray-700/50"
+            className="bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700/50"
           >
             <Filter className="w-4 h-4 mr-2" />
             Filters
@@ -389,10 +389,10 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50 space-y-4">
+              <div className="bg-white dark:bg-gray-900/50 backdrop-blur-sm dark:backdrop-blur-xl rounded-xl p-6 border border-gray-200 dark:border-gray-800/50 space-y-4 shadow-sm dark:shadow-none">
                 {/* Search */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">Search</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
@@ -400,7 +400,7 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                       placeholder="Search client name, sales rep, or contact..."
                       value={filters.searchQuery}
                       onChange={(e) => setFilters(prev => ({ ...prev, searchQuery: e.target.value }))}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -409,14 +409,14 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {/* Status Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Status</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                     <select
                       value={filters.status || 'all'}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
                         status: e.target.value === 'all' ? undefined : e.target.value as ClientStatus
                       }))}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     >
                       <option value="all">All Status</option>
                       <option value="active">Active</option>
@@ -430,14 +430,14 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
                   {/* Subscription Filter */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Subscriptions</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Subscriptions</label>
                     <select
                       value={filters.hasSubscriptions === undefined ? 'all' : filters.hasSubscriptions ? 'yes' : 'no'}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
                         hasSubscriptions: e.target.value === 'all' ? undefined : e.target.value === 'yes'
                       }))}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     >
                       <option value="all">All Clients</option>
                       <option value="yes">Has Subscriptions</option>
@@ -447,7 +447,7 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
                   {/* Sales Rep Filter - using OwnerFilter component */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Sales Rep</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sales Rep</label>
                     <OwnerFilter
                       selectedOwnerId={selectedOwnerId}
                       onOwnerChange={setSelectedOwnerId}
@@ -457,30 +457,30 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
                   {/* Value Range */}
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Min Value (£)</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Min Value (£)</label>
                     <input
                       type="number"
                       placeholder="0"
                       value={filters.minValue || ''}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
-                        minValue: e.target.value ? safeParseFinancial(e.target.value, 0, { fieldName: 'filter_min_value', allowZero: true }) : undefined 
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
+                        minValue: e.target.value ? safeParseFinancial(e.target.value, 0, { fieldName: 'filter_min_value', allowZero: true }) : undefined
                       }))}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">Max Value (£)</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Max Value (£)</label>
                     <input
                       type="number"
                       placeholder="100000"
                       value={filters.maxValue || ''}
-                      onChange={(e) => setFilters(prev => ({ 
-                        ...prev, 
-                        maxValue: e.target.value ? safeParseFinancial(e.target.value, 0, { fieldName: 'filter_max_value', allowZero: true }) : undefined 
+                      onChange={(e) => setFilters(prev => ({
+                        ...prev,
+                        maxValue: e.target.value ? safeParseFinancial(e.target.value, 0, { fieldName: 'filter_max_value', allowZero: true }) : undefined
                       }))}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -491,7 +491,7 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                     variant="ghost"
                     size="sm"
                     onClick={resetFilters}
-                    className="text-gray-400 hover:text-white"
+                    className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
                   >
                     <X className="w-4 h-4 mr-1" />
                     Clear All Filters
@@ -504,21 +504,21 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
       </div>
 
       {/* Table */}
-      <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-sm dark:backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 overflow-hidden shadow-sm dark:shadow-none">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800/50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Client</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Deals Count</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Deal Value</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">One-off Total</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Monthly MRR</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Subscriptions</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Last Payment</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Sales Rep</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 whitespace-nowrap">Actions</th>
+              <tr className="border-b border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-transparent">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Client</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Deals Count</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Deal Value</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">One-off Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Monthly MRR</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Subscriptions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Last Payment</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Sales Rep</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -533,29 +533,29 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                       duration: 0.2,
                       delay: index * 0.02
                     }}
-                    className="border-b border-gray-800/50 hover:bg-gray-800/20"
+                    className="border-b border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20"
                   >
                     {/* Client */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gray-800/50 flex items-center justify-center">
-                          <Building2 className="w-4 h-4 text-gray-400" />
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-white flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             {client.client_name}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 navigateToCompanyProfile(client.client_name);
                               }}
-                              className="text-blue-400 hover:text-blue-300 transition-colors"
+                              className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors"
                               title="View company profile"
                             >
                               <Building2 className="w-3 h-3" />
                             </button>
                           </div>
-                          <div className="text-xs text-gray-400">
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
                             {client.contact_identifier && (
                               <span>{client.contact_identifier}</span>
                             )}
@@ -577,43 +577,43 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
                     {/* Deals Count */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-white">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {client.total_payments_count}
                       </div>
                     </td>
 
                     {/* Lifetime Value */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-white">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {formatCurrency(client.total_lifetime_value)}
                       </div>
                     </td>
 
                     {/* One-off Total */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-blue-400">
+                      <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
                         {formatCurrency(client.total_one_off)}
                       </div>
                     </td>
 
                     {/* Monthly MRR */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-emerald-400">
+                      <div className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
                         {formatCurrency(client.total_monthly_mrr)}
-                        {client.total_monthly_mrr > 0 && <span className="text-xs text-gray-400">/mo</span>}
+                        {client.total_monthly_mrr > 0 && <span className="text-xs text-gray-600 dark:text-gray-400">/mo</span>}
                       </div>
                     </td>
 
                     {/* Active Subscriptions */}
                     <td className="px-4 py-3">
-                      <div className="text-sm font-medium text-purple-400">
+                      <div className="text-sm font-medium text-purple-600 dark:text-purple-400">
                         {client.active_subscriptions}
                       </div>
                     </td>
 
                     {/* Last Payment Date */}
                     <td className="px-4 py-3">
-                      <div className="text-sm text-white">
+                      <div className="text-sm text-gray-900 dark:text-white">
                         {client.last_payment_date ? format(new Date(client.last_payment_date), 'MMM d, yyyy') : 'N/A'}
                       </div>
                     </td>
@@ -622,11 +622,11 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                          <span className="text-xs font-medium text-emerald-500">
+                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-500">
                             {client.sales_rep?.split(' ').map(n => n[0]).join('') || '??'}
                           </span>
                         </div>
-                        <span className="text-sm text-white">{client.sales_rep}</span>
+                        <span className="text-sm text-gray-900 dark:text-white">{client.sales_rep}</span>
                       </div>
                     </td>
 
@@ -638,18 +638,18 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setViewingClient(client)}
-                          className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors text-gray-400 hover:text-blue-500"
+                          className="p-2 hover:bg-blue-500/20 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-500"
                           title="View client details and payment history"
                         >
                           <Eye className="w-4 h-4" />
                         </motion.button>
-                        
+
                         {/* Edit Client */}
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => handleEditClientComprehensive(client)}
-                          className="p-2 hover:bg-[#37bd7e]/20 rounded-lg transition-colors text-gray-400 hover:text-[#37bd7e]"
+                          className="p-2 hover:bg-[#37bd7e]/20 rounded-lg transition-colors text-gray-500 dark:text-gray-400 hover:text-[#37bd7e]"
                           title="Edit client revenue, status, and details"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -665,7 +665,7 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
           
           {filteredClients.length === 0 && (
             <div className="text-center py-8">
-              <div className="text-gray-400">
+              <div className="text-gray-600 dark:text-gray-400">
                 {aggregatedClients.length === 0 ? 'No clients found.' : 'No clients match your filters.'}
               </div>
             </div>
@@ -684,70 +684,70 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
       {/* Client Details Modal */}
       <Dialog open={!!viewingClient} onOpenChange={() => setViewingClient(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-gray-900 border-gray-800">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-gray-900 dark:text-white">
               {viewingClient?.client_name} - Payment History
             </DialogTitle>
           </DialogHeader>
-          
+
           {viewingClient && (
             <div className="space-y-6">
               {/* Client Summary */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="text-lg font-bold text-white">{viewingClient.total_payments_count}</div>
-                  <div className="text-sm text-gray-400">Total Deals</div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                  <div className="text-lg font-bold text-gray-900 dark:text-white">{viewingClient.total_payments_count}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Total Deals</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="text-lg font-bold text-white">{formatCurrency(viewingClient.total_lifetime_value)}</div>
-                  <div className="text-sm text-gray-400">Deal Value</div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                  <div className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(viewingClient.total_lifetime_value)}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Deal Value</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="text-lg font-bold text-emerald-400">{formatCurrency(viewingClient.total_monthly_mrr)}</div>
-                  <div className="text-sm text-gray-400">Monthly MRR</div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(viewingClient.total_monthly_mrr)}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Monthly MRR</div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="text-lg font-bold text-purple-400">{viewingClient.active_subscriptions}</div>
-                  <div className="text-sm text-gray-400">Subscriptions</div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                  <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{viewingClient.active_subscriptions}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Subscriptions</div>
                 </div>
               </div>
 
               {/* Deals History */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white">Deal History</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Deal History</h3>
                 <div className="space-y-3">
                   {viewingClient.deals.map((deal) => (
-                    <div key={deal.id} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                    <div key={deal.id} className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700/50">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <div className="font-medium text-white">{deal.name}</div>
-                          <div className="text-sm text-gray-400">
-                            {deal.deal_type === 'subscription' ? 'Subscription' : 'One-off'} • 
+                          <div className="font-medium text-gray-900 dark:text-white">{deal.name}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            {deal.deal_type === 'subscription' ? 'Subscription' : 'One-off'} •
                             Signed: {format(new Date(deal.signed_date), 'MMM d, yyyy')}
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-medium text-white">{formatCurrency(deal.value)}</div>
-                          <div className="text-sm text-gray-400">Total Value</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{formatCurrency(deal.value)}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">Total Value</div>
                         </div>
                       </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-700/50">
+
+                      <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
                         <div>
-                          <div className="text-sm text-blue-400">{formatCurrency(deal.one_off_revenue || 0)}</div>
-                          <div className="text-xs text-gray-400">One-off</div>
+                          <div className="text-sm text-blue-600 dark:text-blue-400">{formatCurrency(deal.one_off_revenue || 0)}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">One-off</div>
                         </div>
                         <div>
-                          <div className="text-sm text-emerald-400">
+                          <div className="text-sm text-emerald-600 dark:text-emerald-400">
                             {formatCurrency(deal.monthly_mrr || 0)}
                             {(deal.monthly_mrr || 0) > 0 && <span className="text-xs">/mo</span>}
                           </div>
-                          <div className="text-xs text-gray-400">Monthly MRR</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Monthly MRR</div>
                         </div>
                         <div>
-                          <div className="text-sm text-purple-400">{formatCurrency(deal.annual_value || 0)}</div>
-                          <div className="text-xs text-gray-400">Annual Value</div>
+                          <div className="text-sm text-purple-600 dark:text-purple-400">{formatCurrency(deal.annual_value || 0)}</div>
+                          <div className="text-xs text-gray-600 dark:text-gray-400">Annual Value</div>
                         </div>
                       </div>
                     </div>
@@ -791,9 +791,9 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
 
       {/* Deal Selection Modal for Multi-Deal Clients */}
       <Dialog open={!!selectingDealForClient} onOpenChange={() => setSelectingDealForClient(null)}>
-        <DialogContent className="max-w-2xl bg-gray-900 border-gray-800">
+        <DialogContent className="max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white">
           <DialogHeader>
-            <DialogTitle className="text-white">
+            <DialogTitle className="text-gray-900 dark:text-white">
               Select Deal to Edit - {selectingDealForClient?.client_name}
             </DialogTitle>
           </DialogHeader>
@@ -808,38 +808,38 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
                 {selectingDealForClient.deals.map((deal) => (
                   <div
                     key={deal.id}
-                    className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 cursor-pointer hover:bg-gray-800/70 transition-colors"
+                    className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors"
                     onClick={() => handleSelectDealForEditing(deal)}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div>
-                        <div className="font-medium text-white">{deal.name}</div>
-                        <div className="text-sm text-gray-400">
+                        <div className="font-medium text-gray-900 dark:text-white">{deal.name}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
                           {deal.deal_type === 'subscription' ? 'Subscription' : 'One-off'} • 
                           Signed: {format(new Date(deal.signed_date), 'MMM d, yyyy')}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium text-white">{formatCurrency(deal.value)}</div>
-                        <div className="text-sm text-gray-400">Total Value</div>
+                        <div className="font-medium text-gray-900 dark:text-white">{formatCurrency(deal.value)}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Total Value</div>
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-700/50">
+                    <div className="grid grid-cols-3 gap-4 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700/50">
                       <div>
                         <div className="text-sm text-blue-400">{formatCurrency(deal.one_off_revenue || 0)}</div>
-                        <div className="text-xs text-gray-400">One-off</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">One-off</div>
                       </div>
                       <div>
                         <div className="text-sm text-emerald-400">
                           {formatCurrency(deal.monthly_mrr || 0)}
                           {(deal.monthly_mrr || 0) > 0 && <span className="text-xs">/mo</span>}
                         </div>
-                        <div className="text-xs text-gray-400">Monthly MRR</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Monthly MRR</div>
                       </div>
                       <div>
                         <div className="text-sm text-purple-400">{formatCurrency(deal.annual_value || 0)}</div>
-                        <div className="text-xs text-gray-400">Annual Value</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">Annual Value</div>
                       </div>
                     </div>
                   </div>

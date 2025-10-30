@@ -22,6 +22,8 @@ import {
   FileText,
   UploadCloud, // Added for potential use in import component
   Filter,
+  ChevronLeft,
+  ChevronRight,
   X,
   Search,
   Download,
@@ -75,7 +77,8 @@ export function SalesTable() {
   // Removed unused sorting state
   // const [sorting, setSorting] = useState<SortingState>([]); 
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
-  const { activities, removeActivity, updateActivity } = useActivities();
+  // Activities will be fetched for the selected date range
+  // (hook call moved below after currentDateRange is computed)
   const { userData } = useUser(); // Get user data for admin check
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [activityToDelete, setActivityToDelete] = useState<string | null>(null);
@@ -96,6 +99,10 @@ export function SalesTable() {
   const [showFilters, setShowFilters] = useState(false); // State for filters panel
   const [showSubscriptionStats, setShowSubscriptionStats] = useState(false); // State for subscription cards visibility
   const hasLoggedInitialSync = useRef(false);
+  const hasSyncedFromFilters = useRef(false);
+
+  // Month-by-month toggle state (mirrors dashboard behavior)
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
   // Add Deal modal state
   const [addDealForActivity, setAddDealForActivity] = useState<Activity | null>(null);
@@ -146,48 +153,91 @@ export function SalesTable() {
     }
   };
   
-  // Sync date state with filters when navigating from dashboard
+  // One-time sync from global filters (e.g., when arriving from dashboard)
   useEffect(() => {
-    if (filters.dateRange) {
-      const now = new Date();
-      const filterStart = new Date(filters.dateRange.start);
-      const filterEnd = new Date(filters.dateRange.end);
-      
-      // Only log once on initial sync
-      if (!hasLoggedInitialSync.current) {
-        hasLoggedInitialSync.current = true;
-        logger.log('[SalesTable] Initial sync with filter date range:', {
-          start: format(filterStart, 'yyyy-MM-dd'),
-          end: format(filterEnd, 'yyyy-MM-dd')
-        });
-      }
-      
-      // Check if it matches a preset
+    if (hasSyncedFromFilters.current) return;
+    const fr = filters.dateRange;
+    if (!fr) return;
+
+    const now = new Date();
+    const filterStart = new Date(fr.start);
+    const filterEnd = new Date(fr.end);
+
+    if (!hasLoggedInitialSync.current) {
+      hasLoggedInitialSync.current = true;
+      logger.log('[SalesTable] Initial sync with filter date range:', {
+        start: format(filterStart, 'yyyy-MM-dd'),
+        end: format(filterEnd, 'yyyy-MM-dd')
+      });
+    }
+
+    if (
+      startOfDay(filterStart).getTime() === startOfDay(now).getTime() &&
+      endOfDay(filterEnd).getTime() === endOfDay(now).getTime()
+    ) {
+      setSelectedRangeType('today');
+      setCustomDateRange(null);
+      setSelectedMonth(new Date());
+    } else if (
+      startOfWeek(filterStart).getTime() === startOfWeek(now).getTime() &&
+      endOfWeek(filterEnd).getTime() === endOfWeek(now).getTime()
+    ) {
+      setSelectedRangeType('thisWeek');
+      setCustomDateRange(null);
+      setSelectedMonth(new Date());
+    } else if (
+      startOfMonth(filterStart).getTime() === startOfMonth(now).getTime() &&
+      endOfMonth(filterEnd).getTime() === endOfMonth(now).getTime()
+    ) {
+      setSelectedRangeType('thisMonth');
+      setCustomDateRange(null);
+      setSelectedMonth(new Date());
+    } else {
+      setSelectedRangeType('custom');
+      setCustomDateRange({ start: filterStart, end: filterEnd });
+
+      const monthStart = startOfMonth(filterStart);
+      const monthEnd = endOfMonth(filterStart);
       if (
-        startOfDay(filterStart).getTime() === startOfDay(now).getTime() &&
-        endOfDay(filterEnd).getTime() === endOfDay(now).getTime()
+        monthStart.getTime() === startOfDay(filterStart).getTime() &&
+        monthEnd.getTime() === endOfDay(filterEnd).getTime()
       ) {
-        setSelectedRangeType('today');
-        setCustomDateRange(null);
-      } else if (
-        startOfWeek(filterStart).getTime() === startOfWeek(now).getTime() &&
-        endOfWeek(filterEnd).getTime() === endOfWeek(now).getTime()
-      ) {
-        setSelectedRangeType('thisWeek');
-        setCustomDateRange(null);
-      } else if (
-        startOfMonth(filterStart).getTime() === startOfMonth(now).getTime() &&
-        endOfMonth(filterEnd).getTime() === endOfMonth(now).getTime()
-      ) {
-        setSelectedRangeType('thisMonth');
-        setCustomDateRange(null);
-      } else {
-        // It's a custom range (including previous months from dashboard)
-        setSelectedRangeType('custom');
-        setCustomDateRange({ start: filterStart, end: filterEnd });
+        setSelectedMonth(new Date(filterStart));
       }
     }
-  }, [filters.dateRange]); // Only run when filters.dateRange changes
+
+    hasSyncedFromFilters.current = true;
+  }, [filters.dateRange]);
+
+  // Handlers for month navigation
+  const handlePreviousMonth = () => {
+    setSelectedMonth(prev => {
+      const newMonth = subMonths(prev, 1);
+      // Apply as a custom range covering that calendar month
+      const start = startOfMonth(newMonth);
+      const end = endOfMonth(newMonth);
+      setSelectedRangeType('custom');
+      setCustomDateRange({ start, end });
+      return newMonth;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(prev => {
+      const candidate = new Date(prev);
+      const next = new Date(candidate.getFullYear(), candidate.getMonth() + 1, 1);
+      const now = new Date();
+      const maxMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      if (next > maxMonth) {
+        return prev; // Do not go beyond current month
+      }
+      const start = startOfMonth(next);
+      const end = endOfMonth(next);
+      setSelectedRangeType('custom');
+      setCustomDateRange({ start, end });
+      return next;
+    });
+  };
 
   // Calculate the current and previous date ranges based on the selected type
   const { currentDateRange, previousDateRange } = useMemo(() => {
@@ -241,15 +291,21 @@ export function SalesTable() {
     };
   }, [selectedRangeType, customDateRange]);
 
-  // Sync selected date range with filters
+  // Now that currentDateRange is available, fetch activities server-side for that range
+  const { activities, removeActivity, updateActivity } = useActivities(currentDateRange);
+
+  // Sync selected date range to global filters (only when changed)
   useEffect(() => {
-    setFilters({ 
-      dateRange: { 
-        start: currentDateRange.start, 
-        end: currentDateRange.end 
-      }
-    });
-  }, [currentDateRange, setFilters]);
+    const fr = filters.dateRange;
+    const nextStartIso = currentDateRange.start.toISOString();
+    const nextEndIso = currentDateRange.end.toISOString();
+    const currentStartIso = fr?.start ? new Date(fr.start).toISOString() : undefined;
+    const currentEndIso = fr?.end ? new Date(fr.end).toISOString() : undefined;
+    if (currentStartIso === nextStartIso && currentEndIso === nextEndIso) {
+      return; // No change, avoid store update loop
+    }
+    setFilters({ dateRange: { start: currentDateRange.start, end: currentDateRange.end } });
+  }, [currentDateRange, setFilters, filters.dateRange]);
 
   // Filter activities with comprehensive filtering (for table display)
   const filteredActivities = useMemo(() => {
@@ -842,7 +898,7 @@ export function SalesTable() {
                   {initials || '??'}
                 </span>
               </div>
-              <span className="text-sm sm:text-base text-white">
+              <span className="text-sm sm:text-base text-gray-900 dark:text-white">
                 {salesRep || 'Loading...'}
               </span>
             </div>
@@ -946,12 +1002,12 @@ export function SalesTable() {
           
           return (
             <div className="flex items-center gap-3">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-800/50 flex items-center justify-center text-white text-xs sm:text-sm font-medium">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center text-gray-700 dark:text-white text-xs sm:text-sm font-medium">
                 {clientNameStr.split(' ').map((n: string) => n?.[0]).join('') || '??'}
               </div>
               <div>
-                <div className="text-sm sm:text-base font-medium text-white">{clientNameStr}</div>
-                <div className="text-[10px] sm:text-xs text-gray-400 flex items-center gap-1">
+                <div className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{clientNameStr}</div>
+                <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
                   <LinkIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   {activity.details || 'No details'}
                 </div>
@@ -980,7 +1036,7 @@ export function SalesTable() {
           
           return (
             <div className="font-medium">
-              <div className="text-sm sm:text-base text-white">
+              <div className="text-sm sm:text-base text-gray-900 dark:text-white">
                 {displayAmount}
               </div>
               <div className={`text-[10px] sm:text-xs capitalize ${
@@ -1060,7 +1116,7 @@ export function SalesTable() {
                     <Edit2 className="w-4 h-4 text-gray-400 hover:text-[#37bd7e]" />
                   </motion.button>
                 </DialogTrigger>
-                <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
+                <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
                   {editingActivity && editingActivity.id === activity.id && (
                     <EditActivityForm 
                       activity={editingActivity}
@@ -1098,7 +1154,7 @@ export function SalesTable() {
 
     return (
       <div 
-        className={`bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-800/50 cursor-pointer hover:border-${color}-500/50 transition-all duration-300 relative min-h-[120px] flex flex-col`}
+        className={`bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 border border-gray-200 dark:border-gray-800/50 cursor-pointer hover:border-${color}-500/50 transition-all duration-300 relative min-h-[120px] flex flex-col`}
         onClick={() => {
           // When clicking a stat card, filter by its corresponding type
           const typeMap: Record<string, Activity['type'] | undefined> = {
@@ -1137,18 +1193,18 @@ export function SalesTable() {
           </div>
           
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{title}</p>
+            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">{title}</p>
             
             {/* Primary metric */}
             <div className="space-y-1">
               {amount && (
-                <div className="text-2xl font-bold text-white tracking-tight">{amount}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{amount}</div>
               )}
               {percentage && (
-                <div className="text-2xl font-bold text-white tracking-tight">{percentage}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{percentage}</div>
               )}
               {!amount && !percentage && (
-                <div className="text-2xl font-bold text-white tracking-tight">{value}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{value}</div>
               )}
             </div>
             
@@ -1157,7 +1213,7 @@ export function SalesTable() {
             
             {/* Contextual information */}
             {contextInfo && (
-              <div className="text-xs text-gray-500 mt-2">
+              <div className="text-xs text-gray-600 dark:text-gray-500 mt-2">
                 {contextInfo}
               </div>
             )}
@@ -1198,17 +1254,17 @@ export function SalesTable() {
   };
 
   return (
-    <div className="min-h-screen text-gray-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="space-y-6">
           <div className="flex flex-col gap-4 sm:gap-6 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl font-bold text-white">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                     {isTypeFiltered ? `${filters.type?.charAt(0).toUpperCase() ?? ''}${filters.type?.slice(1) ?? ''} Activities` : 'Activity Log'}
                   </h1>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     {isTypeFiltered ? `Showing ${filters.type || ''} activities for the selected period` : 'Track and manage your sales activities'}
                   </p>
                 </div>
@@ -1267,6 +1323,30 @@ export function SalesTable() {
                 <Download className="w-4 h-4 mr-2" />
                 Export CSV ({filteredActivities.length})
               </Button>
+
+              {/* Month-by-month toggle */}
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800/50 rounded-md px-2 py-1.5">
+                <button
+                  type="button"
+                  onClick={handlePreviousMonth}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft className="w-4 h-4 text-gray-500" />
+                </button>
+                <div className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-[90px] text-center">
+                  {format(selectedMonth, 'MMM yyyy')}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  disabled={new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1) > new Date(new Date().getFullYear(), new Date().getMonth(), 1)}
+                  className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Next month"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </button>
+              </div>
 
               {/* Bulk Actions - Only show when select mode is active and activities are selected */}
               <AnimatePresence>
@@ -1377,11 +1457,11 @@ export function SalesTable() {
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50 space-y-6">
+                  <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-200 dark:border-gray-800/50 space-y-6">
                     
                     {/* Search */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Search</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Search</label>
                       <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
@@ -1389,7 +1469,7 @@ export function SalesTable() {
                           placeholder="Search activities, clients, details..."
                           value={filters.searchQuery}
                           onChange={(e) => setFilters({ searchQuery: e.target.value })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg pl-10 pr-4 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         />
                       </div>
                     </div>
@@ -1399,11 +1479,11 @@ export function SalesTable() {
                       
                       {/* Activity Type */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">Activity Type</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Activity Type</label>
                         <select
                           value={filters.type || 'all'}
                           onChange={(e) => setFilters({ type: e.target.value === 'all' ? undefined : e.target.value as any })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="all">All Types</option>
                           <option value="sale">Sales</option>
@@ -1415,11 +1495,11 @@ export function SalesTable() {
 
                       {/* Sales Rep */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">Sales Rep</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sales Rep</label>
                         <select
                           value={filters.salesRep || 'all'}
                           onChange={(e) => setFilters({ salesRep: e.target.value === 'all' ? undefined : e.target.value })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="all">All Sales Reps</option>
                           {Array.from(new Set(activities.map(a => a.sales_rep).filter(Boolean))).sort().map((rep: string) => (
@@ -1430,11 +1510,11 @@ export function SalesTable() {
 
                       {/* Status */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">Status</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                         <select
                           value={filters.status || 'all'}
                           onChange={(e) => setFilters({ status: e.target.value === 'all' ? undefined : e.target.value as any })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="all">All Statuses</option>
                           <option value="completed">Completed</option>
@@ -1446,11 +1526,11 @@ export function SalesTable() {
 
                       {/* Priority */}
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">Priority</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Priority</label>
                         <select
                           value={filters.priority || 'all'}
                           onChange={(e) => setFilters({ priority: e.target.value === 'all' ? undefined : e.target.value as any })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="all">All Priorities</option>
                           <option value="high">High</option>
@@ -1463,7 +1543,7 @@ export function SalesTable() {
                     {/* Sub-type Filters (when applicable) */}
                     {filters.type && (
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-300">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                           {filters.type === 'sale' ? 'Sale Type' : 
                            filters.type === 'meeting' ? 'Meeting Type' : 
                            filters.type === 'outbound' ? 'Outbound Type' : 
@@ -1485,7 +1565,7 @@ export function SalesTable() {
                               setFilters({ outboundType: value as any });
                             }
                           }}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="all">All Types</option>
                           {filters.type === 'sale' && (
@@ -1519,32 +1599,32 @@ export function SalesTable() {
 
                     {/* Amount Range */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Amount Range</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Amount Range</label>
                       <div className="grid grid-cols-2 gap-4">
                         <input
                           type="number"
                           placeholder="Min amount"
                           value={filters.minAmount || ''}
                           onChange={(e) => setFilters({ minAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         />
                         <input
                           type="number"
                           placeholder="Max amount"
                           value={filters.maxAmount || ''}
                           onChange={(e) => setFilters({ maxAmount: e.target.value ? parseFloat(e.target.value) : undefined })}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         />
                       </div>
                     </div>
 
                     {/* Client Filter */}
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-gray-300">Client</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Client</label>
                       <select
                         value={filters.clientName || 'all'}
                         onChange={(e) => setFilters({ clientName: e.target.value === 'all' ? undefined : e.target.value })}
-                        className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                       >
                         <option value="all">All Clients</option>
                         {Array.from(new Set(activities.map(a => a.client_name).filter(Boolean))).sort().map((client: string) => (
@@ -1620,10 +1700,10 @@ export function SalesTable() {
           {showSubscriptionStats && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-white">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Subscription Management
                 </h3>
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
                   Revenue Overview
                 </div>
               </div>
@@ -1631,15 +1711,15 @@ export function SalesTable() {
             </div>
           )}
 
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-800/50 overflow-hidden w-full">
+          <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-200 dark:border-gray-800/50 overflow-hidden w-full">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-800/50">
+                  <tr className="border-b border-gray-200 dark:border-gray-800/50">
                     {columns.map(column => (
                       <th 
                         key={(column as any).accessorKey || (column as any).id || Math.random()}
-                        className="px-2 py-2 text-left text-xs font-medium text-gray-400 whitespace-nowrap"
+                        className="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-400 whitespace-nowrap"
                         style={{ width: (column as any).size ? `${(column as any).size}px` : 'auto' }}
                       >
                         {(column as any).header ? 
@@ -1664,7 +1744,7 @@ export function SalesTable() {
                       className={`relative border-b transition-all duration-300 cursor-pointer ${
                         selectedActivities.has(activity.id) && isSelectModeActive
                           ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
-                          : 'border-gray-700 hover:bg-gray-700/50 hover:border-gray-600'
+                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                     >
                       {columns.map(column => {
@@ -1697,7 +1777,7 @@ export function SalesTable() {
         </div>
       </div>
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl">
+        <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle>Delete Activity</DialogTitle>
           </DialogHeader>
@@ -1730,7 +1810,7 @@ export function SalesTable() {
 
       {/* Add Deal Dialog */}
       <Dialog open={!!addDealForActivity} onOpenChange={(open) => !open && setAddDealForActivity(null)}>
-        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-md w-full">
+        <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl max-w-md w/full">
           <DialogHeader>
             <DialogTitle>Add Deal</DialogTitle>
           </DialogHeader>
@@ -1746,7 +1826,7 @@ export function SalesTable() {
                     setNewDealName(`${e.target.value} Opportunity`);
                   }
                 }}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Acme Corp"
               />
             </div>
@@ -1756,7 +1836,7 @@ export function SalesTable() {
                 type="text"
                 value={newDealName}
                 onChange={(e) => setNewDealName(e.target.value)}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Acme Corp Opportunity"
               />
             </div>
@@ -1766,7 +1846,7 @@ export function SalesTable() {
                 type="text"
                 value={companyWebsite}
                 onChange={(e) => setCompanyWebsite(e.target.value)}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="https://company.com"
               />
             </div>
@@ -1775,7 +1855,7 @@ export function SalesTable() {
               <select
                 value={newDealStageId}
                 onChange={(e) => setNewDealStageId(e.target.value)}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 {(dealStages || []).map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
@@ -1789,7 +1869,7 @@ export function SalesTable() {
                   type="number"
                   value={newDealOneOff}
                   onChange={(e) => setNewDealOneOff(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="0"
                 />
               </div>
@@ -1799,7 +1879,7 @@ export function SalesTable() {
                   type="number"
                   value={newDealMRR}
                   onChange={(e) => setNewDealMRR(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   placeholder="0"
                 />
               </div>
@@ -1811,7 +1891,7 @@ export function SalesTable() {
                   type="date"
                   value={expectedClose}
                   onChange={(e) => setExpectedClose(e.target.value)}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
               <div className="space-y-2">
@@ -1831,7 +1911,7 @@ export function SalesTable() {
                 value={dealDescription}
                 onChange={(e) => setDealDescription(e.target.value)}
                 rows={3}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 placeholder="Short summary of conversation"
               />
             </div>
@@ -1858,7 +1938,7 @@ export function SalesTable() {
 
       {/* Bulk Delete Dialog */}
       <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl">
+        <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle>Delete Selected Activities</DialogTitle>
           </DialogHeader>
@@ -1888,7 +1968,7 @@ export function SalesTable() {
 
       {/* Bulk Edit Dialog */}
       <Dialog open={bulkEditDialogOpen} onOpenChange={setBulkEditDialogOpen}>
-        <DialogContent className="bg-gray-900/95 backdrop-blur-xl border-gray-800/50 text-white p-6 rounded-xl max-w-2xl">
+        <DialogContent className="bg-white dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 text-gray-900 dark:text-white p-6 rounded-xl max-w-2xl">
           <DialogHeader>
             <DialogTitle>Bulk Edit Activities</DialogTitle>
           </DialogHeader>
@@ -1903,7 +1983,7 @@ export function SalesTable() {
               <select
                 value={bulkEditData.status || ''}
                 onChange={(e) => setBulkEditData(prev => ({ ...prev, status: e.target.value as Activity['status'] || undefined }))}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Don't change status</option>
                 <option value="pending">Pending</option>
@@ -1919,7 +1999,7 @@ export function SalesTable() {
               <select
                 value={bulkEditData.priority || ''}
                 onChange={(e) => setBulkEditData(prev => ({ ...prev, priority: e.target.value as Activity['priority'] || undefined }))}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Don't change priority</option>
                 <option value="low">Low</option>
@@ -1934,7 +2014,7 @@ export function SalesTable() {
               <select
                 value={bulkEditData.sales_rep || ''}
                 onChange={(e) => setBulkEditData(prev => ({ ...prev, sales_rep: e.target.value || undefined }))}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Don't change sales rep</option>
                 {Array.from(new Set(activities.map(a => a.sales_rep).filter(Boolean))).sort().map((rep: string) => (
@@ -1951,7 +2031,7 @@ export function SalesTable() {
                 onChange={(e) => setBulkEditData(prev => ({ ...prev, details: e.target.value || undefined }))}
                 placeholder="Leave empty to keep existing details"
                 rows={3}
-                className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>

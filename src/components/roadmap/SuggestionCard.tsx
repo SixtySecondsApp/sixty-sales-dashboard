@@ -131,10 +131,10 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
       aria-label={`Roadmap suggestion: ${suggestion.title}. Priority: ${suggestion.priority}. Status: ${suggestion.status}. ${suggestion.votes_count} votes.`}
       aria-describedby={`suggestion-${suggestion.id}-description`}
       className={`
-        bg-gray-800/50 rounded-xl p-4 hover:bg-gray-800/70
-        transition-all border border-gray-800/80
-        hover:border-gray-700 shadow-sm hover:shadow-md group
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900
+        bg-white dark:bg-gray-800/50 rounded-xl p-4 hover:bg-gray-50 dark:hover:bg-gray-800/70
+        transition-all border border-gray-200 dark:border-gray-800/80
+        hover:border-gray-300 dark:hover:border-gray-700 shadow-sm hover:shadow-md group
+        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-900
         ${isDragging || isDragOverlay ? 'shadow-lg cursor-grabbing z-[9999]' : 'cursor-grab hover:cursor-pointer'}
         relative overflow-hidden
       `}
@@ -152,15 +152,15 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
       <div className="relative z-[2]">
         {/* Header with ticket ID and share */}
         <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
             <Hash className="w-3 h-3" />
             <span className="font-mono">#{suggestion.ticket_id || 'N/A'}</span>
           </div>
-          
+
           {suggestion.ticket_id && (
             <div onClick={(e) => e.stopPropagation()}>
-              <TicketShareMenu 
-                suggestion={suggestion} 
+              <TicketShareMenu
+                suggestion={suggestion}
                 size="small"
                 className="opacity-0 group-hover:opacity-100 transition-opacity"
               />
@@ -173,15 +173,15 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2">
               <TypeIcon className={`w-4 h-4 ${typeInfo.color} flex-shrink-0`} />
-              <h3 className="font-medium text-white text-base truncate"
+              <h3 className="font-medium text-gray-900 dark:text-white text-base truncate"
                   title={suggestion.title}
               >
                 {suggestion.title}
               </h3>
             </div>
-            
+
             {/* Submitter info */}
-            <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
               <User className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="truncate" title={suggestion.submitted_by_profile?.full_name}>
                 {suggestion.submitted_by_profile?.full_name || 'Unknown'}
@@ -191,7 +191,7 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
 
           {/* Votes */}
           <div className={`flex items-center gap-1 ml-3 px-2 py-1 rounded-lg ${
-            suggestion.hasUserVoted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700/50 text-gray-300'
+            suggestion.hasUserVoted ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300'
           }`}>
             <ChevronUp className="w-4 h-4" />
             <span className="font-semibold text-sm">{suggestion.votes_count || 0}</span>
@@ -199,9 +199,9 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
         </div>
 
         {/* Description preview */}
-        <p 
+        <p
           id={`suggestion-${suggestion.id}-description`}
-          className="text-sm text-gray-400 mb-3 line-clamp-2"
+          className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2"
         >
           {suggestion.description}
         </p>
@@ -247,8 +247,8 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
           {/* Time since submission */}
           <div className={`
             flex items-center gap-1.5 text-xs
-            ${timeIndicator.status === 'danger' ? 'text-red-400' :
-              timeIndicator.status === 'warning' ? 'text-yellow-400' : 'text-gray-400'}
+            ${timeIndicator.status === 'danger' ? 'text-red-600 dark:text-red-400' :
+              timeIndicator.status === 'warning' ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-400'}
           `}>
             {timeIndicator.icon && <timeIndicator.icon className="w-3.5 h-3.5" />}
             <span>{timeIndicator.text}</span>
@@ -256,11 +256,11 @@ export function SuggestionCard({ suggestion, onClick, isDragOverlay = false }: S
 
           {/* Target version or completion date */}
           {suggestion.target_version ? (
-            <span className="text-xs font-medium text-gray-300">
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
               v{suggestion.target_version}
             </span>
           ) : suggestion.completion_date ? (
-            <span className="text-xs text-emerald-400">
+            <span className="text-xs text-emerald-600 dark:text-emerald-400">
               <Calendar className="w-3 h-3 inline mr-1" />
               {format(new Date(suggestion.completion_date), 'MMM d')}
             </span>

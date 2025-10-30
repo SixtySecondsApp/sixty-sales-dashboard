@@ -138,12 +138,12 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
     <div className="space-y-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-semibold text-white">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             {validSuggestion ? 'Edit Suggestion' : 'Submit a Feature Request or Bug Report'}
           </h2>
           {validSuggestion?.ticket_id && (
             <div className="flex items-center gap-3 mt-2">
-              <div className="flex items-center gap-1 text-sm text-gray-400">
+            <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                 <Hash className="w-4 h-4" />
                 <span className="font-mono">Ticket #{validSuggestion.ticket_id}</span>
               </div>
@@ -156,7 +156,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
         </div>
         <button
           onClick={onCancel}
-          className="text-gray-400 hover:text-white transition-colors"
+          className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -165,7 +165,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Title */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Title <span className="text-red-400">*</span>
             </label>
             <input
@@ -174,14 +174,14 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="Brief, descriptive title for your suggestion"
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
             />
           </div>
 
           {/* Type and Priority */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Type <span className="text-red-400">*</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -192,8 +192,8 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
                     onClick={() => setFormData(prev => ({ ...prev, type }))}
                     className={`p-3 rounded-lg border transition-all flex items-center gap-2 ${
                       formData.type === type
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
-                        : 'border-gray-700/50 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        ? 'border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400'
+                        : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
                     }`}
                   >
                     {getTypeIcon(type)}
@@ -204,7 +204,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Priority
               </label>
               <div className="grid grid-cols-2 gap-2">
@@ -216,7 +216,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
                     className={`p-2 rounded-lg border transition-all text-sm font-medium capitalize ${
                       formData.priority === priority
                         ? getPriorityColor(priority)
-                        : 'border-gray-700/50 bg-gray-800/50 text-gray-400 hover:border-gray-600 hover:text-gray-300'
+                        : 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
                     }`}
                   >
                     {priority}
@@ -228,7 +228,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
 
           {/* Description */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-300">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Description <span className="text-red-400">*</span>
             </label>
             <textarea
@@ -237,7 +237,7 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
               placeholder="Provide detailed information about your suggestion. For bugs, include steps to reproduce. For features, explain the use case and expected behavior."
               rows={6}
-              className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+              className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
             />
           </div>
 
@@ -255,16 +255,16 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
 
           {/* Admin-only fields */}
           {isAdmin && validSuggestion && (
-            <div className="space-y-4 border-t border-gray-800 pt-4">
-              <h3 className="text-sm font-medium text-gray-300">Admin Controls</h3>
+            <div className="space-y-4 border-t border-gray-200 dark:border-gray-800 pt-4">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin Controls</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">Status</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                   <select
                     value={formData.status}
                     onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as any }))}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="submitted">Submitted</option>
                     <option value="under_review">Planned</option>
@@ -276,11 +276,11 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300">Estimated Effort</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Estimated Effort</label>
                   <select
                     value={formData.estimated_effort || ''}
                     onChange={(e) => setFormData(prev => ({ ...prev, estimated_effort: e.target.value as any || undefined }))}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="">Not set</option>
                     <option value="small">Small</option>
@@ -292,24 +292,24 @@ export function SuggestionForm({ suggestion, onSave, onCancel, onDelete, initial
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">Target Version</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Target Version</label>
                 <input
                   type="text"
                   value={formData.target_version}
                   onChange={(e) => setFormData(prev => ({ ...prev, target_version: e.target.value }))}
                   placeholder="e.g., 2.0.0"
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">Admin Notes</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Admin Notes</label>
                 <textarea
                   value={formData.admin_notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, admin_notes: e.target.value }))}
                   placeholder="Internal notes about this suggestion..."
                   rows={3}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
                 />
               </div>
             </div>

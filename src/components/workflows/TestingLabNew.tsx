@@ -444,10 +444,10 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
 
   if (!workflow) {
     return (
-      <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-xl p-8 text-center">
+      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-xl p-8 text-center">
         <TestTube className="w-12 h-12 mx-auto text-gray-500 mb-4" />
-        <h3 className="text-xl font-semibold text-white mb-2">Testing Lab</h3>
-        <p className="text-gray-400 mb-4">Select a workflow to start testing</p>
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Testing Lab</h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">Select a workflow to start testing</p>
         <div className="text-sm text-gray-500">
           Build your workflow in the Builder tab, then come here to test it with real data
         </div>
@@ -456,23 +456,23 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
   }
 
   return (
-    <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-xl overflow-hidden">
+    <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-purple-900 p-4 border-b border-gray-700">
+      <div className="bg-white dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900 p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
               <TestTube className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white">🧪 Testing Lab</h2>
-              <p className="text-sm text-blue-200">{workflow.rule_name || 'Untitled Workflow'}</p>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">🧪 Testing Lab</h2>
+              <p className="text-sm text-gray-600 dark:text-blue-200">{workflow.rule_name || 'Untitled Workflow'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={loadTestHistory}
-              className="p-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+              className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300"
               title="Refresh test history"
             >
               <RefreshCw className="w-4 h-4" />
@@ -492,10 +492,10 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
       {/* Main Content */}
       <div className="flex h-[600px]">
         {/* Left Panel - Test Controls */}
-        <div className="w-80 bg-gray-800/50 border-r border-gray-700 p-4 overflow-y-auto">
+        <div className="w-80 bg-white dark:bg-gray-800/50 border-r border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
           {/* Test Scenarios */}
           <div className="mb-6">
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <Target className="w-4 h-4 text-blue-400" />
               Test Scenarios
             </h3>
@@ -520,7 +520,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
           {/* Custom Data Input */}
           {showDataInput && (
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-white mb-3">Custom Test Data</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Custom Test Data</h3>
               <textarea
                 value={JSON.stringify(customData, null, 2)}
                 onChange={(e) => {
@@ -528,7 +528,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
                     setCustomData(JSON.parse(e.target.value));
                   } catch {}
                 }}
-                className="w-full h-32 p-3 bg-gray-700 border border-gray-600 rounded text-white text-xs font-mono resize-none focus:outline-none focus:border-blue-500"
+                className="w-full h-32 p-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white text-xs font-mono resize-none focus:outline-none focus:border-blue-500"
                 placeholder="Enter JSON test data..."
               />
             </div>
@@ -536,7 +536,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
 
           {/* Execution Controls */}
           <div className="mb-6">
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <Play className="w-4 h-4 text-green-400" />
               Controls
             </h3>
@@ -580,10 +580,10 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
               {testHistory.map((test) => (
                 <div
                   key={test.id}
-                  className="p-2 bg-gray-700 rounded border border-gray-600 text-xs"
+                  className="p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 text-xs"
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-white font-medium">
+                    <span className="text-gray-900 dark:text-white font-medium">
                       {test.status === 'completed' ? '✅' : test.status === 'failed' ? '❌' : '⏳'}
                     </span>
                     <span className="text-gray-400">
@@ -605,11 +605,11 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
 
           {/* Execution Log */}
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
               <FileText className="w-4 h-4 text-gray-400" />
               Execution Log
             </h3>
-            <div className="bg-gray-900 border border-gray-600 rounded-lg p-3 h-40 overflow-y-auto">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-3 h-40 overflow-y-auto">
               {executionLog.length === 0 ? (
                 <p className="text-gray-500 text-xs">Start a test to see logs...</p>
               ) : (
@@ -626,7 +626,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
         </div>
 
         {/* Right Panel - Workflow Visualization */}
-        <div className="flex-1 bg-gray-900 relative">
+        <div className="flex-1 bg-gray-50 dark:bg-gray-900 relative">
           {testNodes.length > 0 ? (
             <ReactFlowProvider>
               <ReactFlow
@@ -635,7 +635,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
                 onNodeClick={handleNodeClick}
                 nodeTypes={nodeTypes}
                 fitView
-                className="bg-gray-900"
+                className="bg-gray-50 dark:bg-gray-900"
                 nodesDraggable={false}
                 nodesConnectable={false}
                 elementsSelectable={true}
@@ -644,7 +644,7 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
                 <Controls />
                 <MiniMap 
                   nodeColor="#6B7280"
-                  className="bg-gray-800 border border-gray-600"
+                  className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600"
                 />
               </ReactFlow>
             </ReactFlowProvider>

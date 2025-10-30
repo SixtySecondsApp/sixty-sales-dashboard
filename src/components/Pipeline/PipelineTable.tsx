@@ -136,14 +136,14 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
           const deal = row.original;
           return (
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleRowClick(deal.id)}>
-              <div className="w-9 h-9 rounded-lg bg-gray-800/70 border border-gray-700/50 flex items-center justify-center">
-                <span className="text-xs font-medium text-gray-300">
+              <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700/50 flex items-center justify-center">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
                   {deal.company?.charAt(0)?.toUpperCase() || '#'}
                 </span>
               </div>
               <div>
-                <div className="text-sm font-medium text-white">{deal.company || 'Unknown Company'}</div>
-                <div className="text-xs text-gray-400">{deal.name}</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-white">{deal.company || 'Unknown Company'}</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400">{deal.name}</div>
               </div>
             </div>
           );
@@ -155,7 +155,7 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
         cell: ({ row }) => {
           const value = parseFloat(row.original.value);
           return (
-            <div className="text-sm font-medium text-white">
+            <div className="text-sm font-medium text-gray-900 dark:text-white">
               {formatCurrency(value)}
             </div>
           );
@@ -182,9 +182,9 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
           return (
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-md" style={indicatorStyles}></div>
-              <span className="text-sm text-white">{stageName}</span>
+              <span className="text-sm text-gray-900 dark:text-white">{stageName}</span>
               {stage?.default_probability && (
-                <span className="text-xs text-gray-400 ml-1">({stage.default_probability}%)</span>
+                <span className="text-xs text-gray-600 dark:text-gray-400 ml-1">({stage.default_probability}%)</span>
               )}
             </div>
           );
@@ -214,16 +214,16 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
           
           return (
             <div className="flex items-center gap-2">
-              <div className="w-full bg-gray-700 rounded-full h-2">
-                <div 
-                  className="h-2 rounded-full" 
-                  style={{ 
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full"
+                  style={{
                     width: `${probability}%`,
                     ...progressStyles
                   }}
                 ></div>
               </div>
-              <span className="text-xs text-gray-400">{probability}%</span>
+              <span className="text-xs text-gray-600 dark:text-gray-400">{probability}%</span>
             </div>
           );
         }
@@ -233,8 +233,8 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
         header: 'Contact',
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-gray-400" />
-            <span className="text-sm text-white">{row.original.contact_name || 'No contact'}</span>
+            <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+            <span className="text-sm text-gray-900 dark:text-white">{row.original.contact_name || 'No contact'}</span>
           </div>
         )
       },
@@ -245,8 +245,8 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
           const date = new Date(row.original.created_at);
           return (
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-gray-300">{format(date, 'MMM d, yyyy')}</span>
+              <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{format(date, 'MMM d, yyyy')}</span>
             </div>
           );
         }
@@ -267,7 +267,7 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
                   e.stopPropagation();
                   onDealClick(deal);
                 }}
-                className="h-8 w-8 text-gray-400 hover:text-white"
+                className="h-8 w-8 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
               >
                 <Edit className="h-4 w-4" />
               </Button>
@@ -279,7 +279,7 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
                     e.stopPropagation();
                     handleDeleteClick(deal.id);
                   }}
-                  className="h-8 w-8 text-gray-400 hover:text-red-500"
+                  className="h-8 w-8 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
                 >
                   <Trash className="h-4 w-4" />
                 </Button>
@@ -320,15 +320,15 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-gray-800 overflow-hidden">
+      <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="overflow-x-auto scrollbar-none">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-800 bg-gray-900/50">
+              <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
                 {table.getFlatHeaders().map((header) => (
                   <th
                     key={header.id}
-                    className="text-left p-4 text-xs font-medium text-gray-400 uppercase tracking-wider"
+                    className="text-left p-4 text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider"
                   >
                     {header.isPlaceholder ? null : (
                       <div
@@ -355,8 +355,8 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
               {table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => (
                   <React.Fragment key={row.id}>
-                    <tr 
-                      className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer"
+                    <tr
+                      className="border-b border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 cursor-pointer"
                       onClick={() => handleRowClick(row.original.id)}
                     >
                       {row.getVisibleCells().map((cell) => (
@@ -369,22 +369,22 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
                       ))}
                     </tr>
                     {expandedRow === row.original.id && (
-                      <tr className="bg-gray-800/20">
+                      <tr className="bg-gray-50 dark:bg-gray-800/20">
                         <td colSpan={columns.length} className="p-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                              <h4 className="text-sm font-medium text-gray-400">Deal Details</h4>
-                              <p className="text-sm text-white">{row.original.description || 'No description provided'}</p>
+                              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Deal Details</h4>
+                              <p className="text-sm text-gray-900 dark:text-white">{row.original.description || 'No description provided'}</p>
                             </div>
                             <div className="space-y-2">
-                              <h4 className="text-sm font-medium text-gray-400">Contact Information</h4>
-                              <p className="text-sm text-white">{row.original.contact_name || 'No contact'}</p>
-                              <p className="text-sm text-gray-400">{row.original.contact_email || 'No email'}</p>
-                              <p className="text-sm text-gray-400">{row.original.contact_phone || 'No phone'}</p>
+                              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Contact Information</h4>
+                              <p className="text-sm text-gray-900 dark:text-white">{row.original.contact_name || 'No contact'}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{row.original.contact_email || 'No email'}</p>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{row.original.contact_phone || 'No phone'}</p>
                             </div>
                             <div className="space-y-2">
-                              <h4 className="text-sm font-medium text-gray-400">Next Steps</h4>
-                              <p className="text-sm text-white">{row.original.next_steps || 'No next steps defined'}</p>
+                              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-400">Next Steps</h4>
+                              <p className="text-sm text-gray-900 dark:text-white">{row.original.next_steps || 'No next steps defined'}</p>
                             </div>
                           </div>
                         </td>
@@ -394,7 +394,7 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
                 ))
               ) : (
                 <tr>
-                  <td colSpan={columns.length} className="p-8 text-center text-gray-400">
+                  <td colSpan={columns.length} className="p-8 text-center text-gray-600 dark:text-gray-400">
                     No deals match your filters
                   </td>
                 </tr>
@@ -411,7 +411,7 @@ function PipelineTableComponent({ onDealClick, onDeleteDeal }: PipelineTableProp
             <DialogTitle>Delete Deal</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-gray-300">Are you sure you want to delete this deal? This action cannot be undone.</p>
+            <p className="text-gray-700 dark:text-gray-300">Are you sure you want to delete this deal? This action cannot be undone.</p>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>

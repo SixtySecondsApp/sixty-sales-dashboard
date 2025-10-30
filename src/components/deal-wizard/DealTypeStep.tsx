@@ -101,10 +101,10 @@ export function DealTypeStep({ wizard, onWizardChange, onNext }: DealTypeStepPro
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h3 className="text-xl font-semibold text-white mb-2">
+        <h3 className="text-xl font-semibold theme-text-primary mb-2">
           What type of deal are you creating?
         </h3>
-        <p className="text-gray-400 text-sm">
+        <p className="theme-text-tertiary text-sm">
           Choose the deal type that best matches your business model
         </p>
       </div>
@@ -121,27 +121,27 @@ export function DealTypeStep({ wizard, onWizardChange, onNext }: DealTypeStepPro
               className={`p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                 isSelected
                   ? 'border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/20'
-                  : 'border-gray-700/50 bg-gray-800/30 hover:border-gray-600 hover:bg-gray-800/50'
+                  : 'theme-border theme-bg-elevated/50 hover:bg-gray-100 dark:hover:bg-gray-800/50'
               }`}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               <div className="flex items-start gap-3">
                 <div className={`p-2 rounded-lg flex-shrink-0 ${
-                  isSelected 
-                    ? 'bg-violet-500/20 text-violet-400' 
-                    : 'bg-gray-700/50 text-gray-400'
+                  isSelected
+                    ? 'bg-violet-500/20 text-violet-400'
+                    : 'bg-gray-200 dark:bg-gray-700/50 theme-text-tertiary'
                 }`}>
                   <IconComponent className="w-5 h-5" />
                 </div>
                 <div className="flex-1">
                   <h4 className={`font-medium ${
-                    isSelected ? 'text-white' : 'text-gray-200'
+                    isSelected ? 'theme-text-primary' : 'theme-text-secondary'
                   }`}>
                     {config.title}
                   </h4>
                   <p className={`text-sm mt-1 ${
-                    isSelected ? 'text-gray-300' : 'text-gray-400'
+                    isSelected ? 'theme-text-secondary' : 'theme-text-tertiary'
                   }`}>
                     {config.description}
                   </p>
@@ -163,7 +163,7 @@ export function DealTypeStep({ wizard, onWizardChange, onNext }: DealTypeStepPro
         <button
           onClick={handleNext}
           disabled={!wizard.dealType}
-          className="w-full px-6 py-3 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl hover:from-violet-600 hover:to-purple-700 disabled:from-gray-700 disabled:to-gray-700 transition-all shadow-lg shadow-violet-500/25 flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+          className="w-full px-6 py-3 bg-violet-600 dark:bg-violet-500/10 text-white dark:text-violet-400 dark:border dark:border-violet-500/20 rounded-xl hover:bg-violet-700 dark:hover:bg-violet-500/20 disabled:bg-gray-600 dark:disabled:bg-gray-700 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
         >
           Continue
           <ChevronRight className="w-4 h-4" />

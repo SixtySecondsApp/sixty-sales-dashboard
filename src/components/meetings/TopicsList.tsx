@@ -384,7 +384,7 @@ function TopicCard({
         >
           <Badge
             variant="outline"
-            className="text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border-blue-500/30 cursor-pointer transition-colors"
+            className="text-xs bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/30 cursor-pointer transition-colors"
           >
             {formatTimestamp(topic.timestamp_seconds)}
             <ExternalLink className="h-3 w-3 ml-1" />

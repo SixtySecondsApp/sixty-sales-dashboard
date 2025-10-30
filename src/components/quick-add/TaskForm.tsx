@@ -61,22 +61,22 @@ export function TaskForm({
         <button
           type="button"
           onClick={onBack}
-          className="p-2 hover:bg-gray-800/50 rounded-xl transition-colors"
+          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-xl transition-colors"
         >
-          <ArrowRight className="w-5 h-5 text-gray-400 rotate-180" />
+          <ArrowRight className="w-5 h-5 theme-text-tertiary rotate-180" />
         </button>
         <div>
-          <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+          <h3 className="text-xl font-semibold theme-text-primary flex items-center gap-2">
             <CheckSquare className="w-6 h-6 text-indigo-500" />
             Create New Task
           </h3>
-          <p className="text-gray-400 text-sm">Set up your task quickly and efficiently</p>
+          <p className="theme-text-tertiary text-sm">Set up your task quickly and efficiently</p>
         </div>
       </div>
 
       {/* Task Title */}
       <div className="space-y-3">
-        <label className="text-lg font-semibold text-white flex items-center gap-2">
+        <label className="text-lg font-semibold theme-text-primary flex items-center gap-2">
           <Target className="w-5 h-5 text-indigo-400" />
           What needs to be done? *
         </label>
@@ -86,10 +86,10 @@ export function TaskForm({
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
           placeholder="e.g., Call John about the proposal"
           className={cn(
-            "w-full bg-gray-800/50 border text-white text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all",
-            validationErrors.title 
-              ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20" 
-              : "border-gray-600/50"
+            "w-full theme-bg-elevated theme-border theme-text-primary text-lg p-4 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all",
+            validationErrors.title
+              ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20"
+              : ""
           )}
           required
         />
@@ -105,7 +105,7 @@ export function TaskForm({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Task Type */}
         <div className="space-y-3">
-          <label className="text-base font-medium text-white flex items-center gap-2">
+          <label className="text-base font-medium theme-text-primary flex items-center gap-2">
             <Zap className="w-4 h-4 text-yellow-400" />
             Task Type
           </label>
@@ -118,7 +118,7 @@ export function TaskForm({
                 className={`p-3 rounded-xl border transition-all ${
                   formData.task_type === type.value
                     ? `${type.color} border-current`
-                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export function TaskForm({
                 className={`p-3 rounded-xl border transition-all ${
                   formData.task_type === type.value
                     ? `${type.color} border-current`
-                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ export function TaskForm({
 
         {/* Priority */}
         <div className="space-y-3">
-          <label className="text-base font-medium text-white flex items-center gap-2">
+          <label className="text-base font-medium theme-text-primary flex items-center gap-2">
             <Flag className="w-4 h-4 text-red-400" />
             Priority Level
           </label>
@@ -164,7 +164,7 @@ export function TaskForm({
                 className={`p-3 rounded-xl border transition-all ${
                   formData.priority === priority.value
                     ? `${priority.color} ${priority.ringColor} ring-2`
-                    : 'bg-gray-800/30 border-gray-600/30 text-gray-400 hover:bg-gray-700/50'
+                    : 'theme-bg-elevated theme-border theme-text-tertiary hover:bg-gray-100 dark:hover:bg-gray-700/50'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -179,11 +179,11 @@ export function TaskForm({
 
       {/* Due Date Section */}
       <div className="space-y-4">
-        <label className="text-base font-medium text-white flex items-center gap-2">
+        <label className="text-base font-medium theme-text-primary flex items-center gap-2">
           <Clock className="w-4 h-4 text-green-400" />
           When is this due?
         </label>
-        
+
         {/* Smart Quick Date Buttons */}
         <div className="grid grid-cols-2 gap-2">
           {getSmartQuickDates().map((quick) => (
@@ -194,7 +194,7 @@ export function TaskForm({
               className={`p-3 rounded-xl border transition-all group ${
                 formData.due_date === quick.value
                   ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
-                  : 'bg-gray-800/30 border-gray-600/30 text-gray-300 hover:bg-gray-700/50'
+                  : 'theme-bg-elevated theme-border theme-text-secondary hover:bg-gray-100 dark:hover:bg-gray-700/50'
               }`}
             >
               <div className="flex items-center gap-3">
@@ -207,22 +207,22 @@ export function TaskForm({
             </button>
           ))}
         </div>
-        
+
         {/* Custom Date Input */}
         <div className="space-y-2">
-          <label className="text-sm text-gray-400">Or set a custom date & time</label>
+          <label className="text-sm theme-text-tertiary">Or set a custom date & time</label>
           <input
             type="datetime-local"
             value={formData.due_date}
             onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-            className="w-full bg-gray-800/50 border border-gray-600/50 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 transition-all"
           />
         </div>
       </div>
 
       {/* Description */}
       <div className="space-y-3">
-        <label className="text-base font-medium text-white">
+        <label className="text-base font-medium theme-text-primary">
           Additional Details (Optional)
         </label>
         <textarea
@@ -230,30 +230,30 @@ export function TaskForm({
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
           placeholder="Any additional context or notes..."
           rows={3}
-          className="w-full bg-gray-800/50 border border-gray-600/50 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all resize-none"
+          className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all resize-none"
         />
       </div>
 
       {/* Contact & Company Info */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-400">Contact Name</label>
+          <label className="text-sm font-medium theme-text-tertiary">Contact Name</label>
           <input
             type="text"
             value={formData.contact_name}
             onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
             placeholder="John Smith"
-            className="w-full bg-gray-800/30 border border-gray-600/30 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
+            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all"
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-400">Company Website</label>
+          <label className="text-sm font-medium theme-text-tertiary">Company Website</label>
           <input
             type="text"
             value={formData.company_website}
             onChange={(e) => {
               let website = e.target.value.trim();
-              
+
               // Auto-add www. if user enters a domain without it
               if (website && !website.startsWith('www.') && !website.startsWith('http')) {
                 // Check if it looks like a domain (has a dot and no spaces)
@@ -261,11 +261,11 @@ export function TaskForm({
                   website = `www.${website}`;
                 }
               }
-              
+
               setFormData({ ...formData, company_website: website });
             }}
             placeholder="www.company.com"
-            className="w-full bg-gray-800/30 border border-gray-600/30 text-white p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-400 transition-all"
+            className="w-full theme-bg-elevated theme-border theme-text-primary p-3 rounded-xl focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 placeholder:theme-text-tertiary transition-all"
           />
         </div>
       </div>
@@ -275,7 +275,7 @@ export function TaskForm({
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 py-3 px-4 bg-gray-800/50 border border-gray-600/50 text-gray-300 rounded-xl hover:bg-gray-700/50 transition-all font-medium"
+          className="flex-1 py-3 px-4 theme-bg-elevated theme-border theme-text-secondary rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all font-medium"
         >
           Cancel
         </button>
@@ -283,12 +283,12 @@ export function TaskForm({
           type="submit"
           disabled={isSubmitting}
           className={cn(
-            "flex-1 py-3 px-4 text-white rounded-xl transition-all font-medium shadow-lg flex items-center justify-center gap-2",
-            submitStatus === 'success' 
-              ? "bg-green-600 hover:bg-green-700 shadow-green-500/25"
+            "flex-1 py-3 px-4 rounded-xl transition-all font-medium shadow-sm flex items-center justify-center gap-2",
+            submitStatus === 'success'
+              ? "bg-emerald-600 text-white hover:bg-emerald-700"
               : isSubmitting
-                ? "bg-gray-600 cursor-not-allowed"
-                : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 shadow-indigo-500/25"
+                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
           )}
         >
           {isSubmitting ? (

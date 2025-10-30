@@ -51,12 +51,12 @@ const GoogleDocsNode: React.FC<GoogleDocsNodeProps> = ({ data, selected }) => {
   };
   
   return (
-    <div 
+    <div
       className={`
-        bg-gradient-to-r from-green-600 to-green-700 rounded-lg p-3 min-w-[180px] 
-        border-2 shadow-lg relative transition-all duration-300
-        ${isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-green-500'}
-        ${selected ? 'ring-2 ring-green-300' : ''}
+        bg-emerald-600 dark:bg-emerald-600/20 backdrop-blur-sm border border-emerald-500 dark:border-emerald-500/30 shadow-sm dark:shadow-none rounded-lg p-3 min-w-[180px]
+        border-2 relative transition-all duration-300
+        ${isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-emerald-500'}
+        ${selected ? 'ring-2 ring-emerald-300 ring-offset-white dark:ring-offset-gray-950' : ''}
         ${!isConfigured ? 'opacity-75' : ''}
       `}
     >

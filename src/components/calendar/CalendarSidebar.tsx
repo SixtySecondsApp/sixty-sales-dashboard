@@ -167,17 +167,17 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
   return (
     <div className="h-full w-full flex flex-col bg-transparent overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800/50 flex-shrink-0">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-800/50 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Calendar className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-gray-100">Calendar</h2>
+            <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Calendar</h2>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onToggleCollapsed(true)}
-            className="text-gray-400 hover:text-gray-200"
+            className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
           >
             <X className="w-4 h-4" />
           </Button>
@@ -187,27 +187,27 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
       <ScrollArea className="flex-1 min-h-0 overflow-hidden">
         <div className="p-3 space-y-4 overflow-hidden">
           {/* Mini Calendar */}
-          <Card className="bg-gray-800/30 border-gray-700/50">
+          <Card className="bg-white dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setMiniCalendarDate(subMonths(miniCalendarDate, 1))}
-                  className="text-gray-400 hover:text-gray-200 p-1"
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 p-1"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                
-                <h3 className="text-sm font-semibold text-gray-200">
+
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-200">
                   {format(miniCalendarDate, 'MMMM yyyy')}
                 </h3>
-                
+
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setMiniCalendarDate(addMonths(miniCalendarDate, 1))}
-                  className="text-gray-400 hover:text-gray-200 p-1"
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 p-1"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
@@ -218,7 +218,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
               {/* Days of week header */}
               <div className="grid grid-cols-7 gap-1 mb-3">
                 {DAYS_OF_WEEK.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-gray-400 py-2">
+                  <div key={day} className="text-center text-xs font-medium text-gray-600 dark:text-gray-400 py-2">
                     {day}
                   </div>
                 ))}
@@ -240,13 +240,13 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                       onClick={() => onDateSelect(day)}
                       className={`
                         relative py-2 px-1 text-sm rounded-md transition-colors h-8 flex items-center justify-center
-                        ${isSelected 
-                          ? 'bg-emerald-600 text-white' 
+                        ${isSelected
+                          ? 'bg-emerald-600 text-white'
                           : isToday(day)
-                          ? 'bg-emerald-600/20 text-emerald-400 font-semibold'
+                          ? 'bg-emerald-100 dark:bg-emerald-600/20 text-emerald-700 dark:text-emerald-400 font-semibold'
                           : isCurrentMonth
-                          ? 'text-gray-300 hover:bg-gray-700/50'
-                          : 'text-gray-600 hover:bg-gray-800/30'
+                          ? 'text-gray-900 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                          : 'text-gray-400 dark:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800/30'
                         }
                       `}
                     >
@@ -264,10 +264,10 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
           </Card>
 
           {/* Category Filters */}
-          <Card className="bg-gray-800/30 border-gray-700/50">
+          <Card className="bg-white dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-200 flex items-center space-x-2">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-200 flex items-center space-x-2">
                   <Palette className="w-4 h-4" />
                   <span>Categories</span>
                 </h3>
@@ -276,7 +276,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={handleSelectAll}
-                    className="text-xs text-gray-400 hover:text-gray-200 px-2 py-1"
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 px-2 py-1"
                   >
                     {selectedCategories.length === categoryOptions.length ? 'None' : 'All'}
                   </Button>
@@ -284,7 +284,7 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowCategories(!showCategories)}
-                    className="text-gray-400 hover:text-gray-200 p-1"
+                    className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 p-1"
                   >
                     {showCategories ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   </Button>
@@ -308,29 +308,29 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
                         <motion.div
                           key={category.value}
                           whileHover={{ x: 2 }}
-                          className="flex items-center justify-between p-2 rounded-md hover:bg-gray-700/30 cursor-pointer"
+                          className="flex items-center justify-between p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/30 cursor-pointer"
                           onClick={() => handleCategoryToggle(category.value)}
                         >
                           <div className="flex items-center space-x-3">
                             <div className="flex items-center space-x-2">
                               <div className={`w-3 h-3 rounded-full ${category.color} ${!isSelected ? 'opacity-30' : ''}`} />
-                              <span className={`text-sm ${isSelected ? 'text-gray-200' : 'text-gray-500'}`}>
+                              <span className={`text-sm ${isSelected ? 'text-gray-900 dark:text-gray-200' : 'text-gray-500 dark:text-gray-500'}`}>
                                 {category.label}
                               </span>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
                             <Badge
                               variant="secondary"
-                              className={`text-xs ${isSelected ? 'bg-gray-700 text-gray-200' : 'bg-gray-800 text-gray-500'}`}
+                              className={`text-xs ${isSelected ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-200' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500'}`}
                             >
                               {category.count}
                             </Badge>
                             {isSelected ? (
-                              <Eye className="w-3 h-3 text-emerald-400" />
+                              <Eye className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                             ) : (
-                              <EyeOff className="w-3 h-3 text-gray-500" />
+                              <EyeOff className="w-3 h-3 text-gray-500 dark:text-gray-500" />
                             )}
                           </div>
                         </motion.div>
@@ -343,10 +343,10 @@ export const CalendarSidebar: React.FC<CalendarSidebarProps> = ({
           </Card>
 
           {/* Upcoming Events */}
-          <Card className="bg-gray-800/30 border-gray-700/50">
+          <Card className="bg-white dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-200">Upcoming</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-200">Upcoming</h3>
                 <Button
                   variant="ghost"
                   size="sm"

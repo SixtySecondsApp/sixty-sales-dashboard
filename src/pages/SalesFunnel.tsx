@@ -15,29 +15,29 @@ function FunnelSkeleton() {
     <div className="p-4 sm:p-6 lg:p-8 mt-12 lg:mt-0 animate-pulse">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 sm:mb-8 lg:mb-12">
-          <div className="h-8 w-48 bg-gray-800 rounded-lg mb-2" />
-          <div className="h-4 w-64 bg-gray-800 rounded-lg" />
+          <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg mb-2" />
+          <div className="h-4 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg" />
         </div>
         <div className="relative max-w-4xl mx-auto space-y-4">
           {[100, 80, 60, 40].map((width, i) => (
             <div key={i} className="mb-4">
               <div className="flex items-center gap-4 mb-2">
-                <div className="w-10 h-10 bg-gray-800 rounded-lg" />
+                <div className="w-10 h-10 bg-gray-200 dark:bg-gray-800 rounded-lg" />
                 <div>
-                  <div className="h-6 w-32 bg-gray-800 rounded-lg mb-1" />
-                  <div className="h-8 w-16 bg-gray-800 rounded-lg" />
+                  <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded-lg mb-1" />
+                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-800 rounded-lg" />
                 </div>
               </div>
-              <div className="h-16 bg-gray-800 rounded-xl" style={{ width: `${width}%` }} />
+              <div className="h-16 bg-gray-200 dark:bg-gray-800 rounded-xl" style={{ width: `${width}%` }} />
             </div>
           ))}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-8">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50">
-              <div className="h-6 w-32 bg-gray-800 rounded-lg mb-2" />
-              <div className="h-10 w-24 bg-gray-800 rounded-lg mb-1" />
-              <div className="h-4 w-40 bg-gray-800 rounded-lg" />
+            <div key={i} className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+              <div className="h-6 w-32 bg-gray-200 dark:bg-gray-800 rounded-lg mb-2" />
+              <div className="h-10 w-24 bg-gray-200 dark:bg-gray-800 rounded-lg mb-1" />
+              <div className="h-4 w-40 bg-gray-200 dark:bg-gray-800 rounded-lg" />
             </div>
           ))}
         </div>
@@ -254,8 +254,8 @@ export default function SalesFunnel() {
   if (!targets) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] gap-4">
-        <p className="text-lg text-gray-400">Unable to load sales funnel data</p>
-        <button 
+        <p className="text-lg text-gray-600 dark:text-gray-400">Unable to load sales funnel data</p>
+        <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 text-sm font-medium text-white bg-[#37bd7e] rounded-lg hover:bg-[#2da76c] transition-colors"
         >
@@ -275,8 +275,8 @@ export default function SalesFunnel() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8 lg:mb-12">
-          <h1 className="text-3xl font-bold">Sales Funnel</h1>
-          <p className="text-gray-400 mt-1">Visualise your sales pipeline conversion rates</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Sales Funnel</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Visualise your sales pipeline conversion rates</p>
         </div>
 
         {/* Funnel Visualization */}
@@ -295,28 +295,28 @@ export default function SalesFunnel() {
                 <div className="flex items-center gap-4 mb-2">
                   <div className={`p-2 rounded-lg ${
                     stage.color === 'blue'
-                      ? 'bg-blue-400/5'
+                      ? 'bg-blue-400/10 dark:bg-blue-400/5'
                       : `bg-${stage.color}-500/10`
                   } border ${
                     stage.color === 'blue'
-                      ? 'border-blue-500/10'
+                      ? 'border-blue-500/20 dark:border-blue-500/10'
                       : `border-${stage.color}-500/20`
                   }`}>
                     <stage.icon className={`w-5 h-5 ${
                       stage.color === 'blue'
-                        ? 'text-blue-400'
+                        ? 'text-blue-500 dark:text-blue-400'
                         : `text-${stage.color}-500`
                     }`} />
                   </div>
                   <div>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-medium text-white">{stage.label}</span>
-                      <span className="text-sm text-gray-400">{stage.description}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{stage.label}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">{stage.description}</span>
                     </div>
                     <div className="flex items-baseline gap-2">
-                      <div className="text-2xl font-bold text-white">{stage.value}</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-white">{stage.value}</div>
                       {stage.totalBooked && stage.totalBooked !== stage.value && (
-                        <div className="text-lg text-gray-400">/ {stage.totalBooked}</div>
+                        <div className="text-lg text-gray-600 dark:text-gray-400">/ {stage.totalBooked}</div>
                       )}
                     </div>
                   </div>
@@ -328,17 +328,17 @@ export default function SalesFunnel() {
                       initial={{ width: 0 }}
                       animate={{ width: `${totalBookedWidth}%` }}
                       transition={{ duration: 0.4, ease: "easeOut" }}
-                      className="h-16 bg-gray-600/20 border border-gray-600/30 backdrop-blur-xl rounded-xl absolute inset-0"
+                      className="h-16 bg-gray-300/30 dark:bg-gray-600/20 border border-gray-400/40 dark:border-gray-600/30 backdrop-blur-xl rounded-xl absolute inset-0"
                     />
                   )}
-                  
+
                   {/* Main bar */}
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${width}%` }}
                     transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
                     onClick={() => {
-                      setFilters({ 
+                      setFilters({
                         type: stage.id === 'closed' ? 'sale' : stage.id,
                         dateRange
                       });
@@ -346,13 +346,13 @@ export default function SalesFunnel() {
                     }}
                     className={`h-16 ${
                       stage.color === 'blue'
-                        ? 'bg-blue-400/5 border-blue-500/10 hover:bg-blue-400/10 hover:border-blue-500/20 hover:shadow-blue-400/10'
-                        : `bg-${stage.color}-500/10 border-${stage.color}-500/20 hover:bg-${stage.color}-500/20 hover:border-${stage.color}-500/40 hover:shadow-${stage.color}-500/20`
+                        ? 'bg-blue-400/15 dark:bg-blue-400/5 border-blue-500/30 dark:border-blue-500/10 hover:bg-blue-400/25 dark:hover:bg-blue-400/10 hover:border-blue-500/40 dark:hover:border-blue-500/20 hover:shadow-blue-400/20 dark:hover:shadow-blue-400/10'
+                        : `bg-${stage.color}-500/15 dark:bg-${stage.color}-500/10 border-${stage.color}-500/30 dark:border-${stage.color}-500/20 hover:bg-${stage.color}-500/25 dark:hover:bg-${stage.color}-500/20 hover:border-${stage.color}-500/50 dark:hover:border-${stage.color}-500/40 hover:shadow-${stage.color}-500/30 dark:hover:shadow-${stage.color}-500/20`
                     } backdrop-blur-xl border rounded-xl relative overflow-hidden group transition-all duration-300 hover:shadow-lg cursor-pointer z-10`}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 dark:via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500" />
                     {index < funnelStages.length - 1 && (
-                      <div className="absolute -bottom-4 left-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[16px] border-gray-800/50" style={{ transform: 'translateX(-50%)' }} />
+                      <div className="absolute -bottom-4 left-1/2 w-0 h-0 border-l-[12px] border-l-transparent border-r-[12px] border-r-transparent border-t-[16px] border-gray-300/50 dark:border-gray-800/50" style={{ transform: 'translateX(-50%)' }} />
                     )}
                   </motion.div>
                 </div>
@@ -364,28 +364,28 @@ export default function SalesFunnel() {
         {/* Key Metrics Display */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-8 lg:mt-12">
           {/* Meeting Conversion Rate Card */}
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50">
-            <p className="text-sm text-gray-400 mb-1">Meeting Conversion</p>
-            <p className="text-3xl font-bold text-white">{funnelMetrics.meetingToProposalRate}%</p>
-            <p className="text-xs text-gray-500 mt-0.5">Meetings to Proposals</p>
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Meeting Conversion</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{funnelMetrics.meetingToProposalRate}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Meetings to Proposals</p>
           </div>
           {/* Proposal Win Rate Card (was Overall Conversion) */}
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50">
-            <p className="text-sm text-gray-400 mb-1">Proposal Win Rate</p>
-            <p className="text-3xl font-bold text-white">{funnelMetrics.proposalWinRate}%</p>
-            <p className="text-xs text-gray-500 mt-0.5">Proposals to Signed</p>
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Proposal Win Rate</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{funnelMetrics.proposalWinRate}%</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Proposals to Signed</p>
           </div>
           {/* Average Deal Size Card */}
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50">
-            <p className="text-sm text-gray-400 mb-1">Avg. Deal Size</p>
-            <p className="text-3xl font-bold text-white">£{funnelMetrics.avgDealSize?.toLocaleString() || 0}</p>
-            <p className="text-xs text-gray-500 mt-0.5">Average value of signed deals</p>
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Avg. Deal Size</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">£{funnelMetrics.avgDealSize?.toLocaleString() || 0}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Average value of signed deals</p>
           </div>
           {/* Sales Velocity Card */}
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50">
-            <p className="text-sm text-gray-400 mb-1">Sales Velocity</p>
-            <p className="text-3xl font-bold text-white">{funnelMetrics.avgSalesVelocity || '-'} Days</p>
-            <p className="text-xs text-gray-500 mt-0.5">Average time to close deal</p>
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Sales Velocity</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-white">{funnelMetrics.avgSalesVelocity || '-'} Days</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">Average time to close deal</p>
           </div>
         </div>
       </div>

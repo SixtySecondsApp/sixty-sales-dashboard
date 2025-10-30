@@ -129,8 +129,8 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
             <div
               className={`max-w-[80%] rounded-lg px-4 py-3 ${
                 message.role === 'user'
-                  ? 'bg-blue-600 text-white ml-auto'
-                  : 'bg-zinc-800 text-zinc-100'
+                  ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-900 dark:text-blue-100 border border-blue-200 dark:border-blue-500/20 ml-auto'
+                  : 'bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50'
               }`}
             >
               <div className="text-sm whitespace-pre-wrap break-words">
@@ -138,7 +138,7 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
               </div>
               <div
                 className={`text-xs mt-2 ${
-                  message.role === 'user' ? 'text-blue-200' : 'text-zinc-500'
+                  message.role === 'user' ? 'text-blue-700 dark:text-blue-300' : 'text-gray-500 dark:text-gray-400'
                 }`}
               >
                 {message.timestamp.toLocaleTimeString([], {
@@ -153,7 +153,7 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 text-zinc-100 rounded-lg px-4 py-3">
+            <div className="bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50 rounded-lg px-4 py-3">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Thinking...</span>
@@ -174,7 +174,7 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="border-t border-zinc-800 p-4">
+      <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-700 p-4">
         <div className="flex gap-2">
           <textarea
             ref={inputRef}
@@ -182,7 +182,7 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask anything about this meeting..."
-            className="flex-1 resize-none rounded-lg bg-zinc-900 border-zinc-800 text-white placeholder:text-zinc-500 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px] max-h-[120px]"
+            className="flex-1 resize-none rounded-lg bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px] max-h-[120px]"
             disabled={isLoading}
             rows={2}
           />
@@ -198,7 +198,7 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
             )}
           </Button>
         </div>
-        <div className="text-xs text-zinc-500 mt-2">
+        <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
           Press Enter to send, Shift+Enter for new line
         </div>
       </form>

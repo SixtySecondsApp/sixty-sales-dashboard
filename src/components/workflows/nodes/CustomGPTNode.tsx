@@ -62,9 +62,9 @@ const CustomGPTNode = memo(({ data, selected }: NodeProps<CustomGPTNodeData>) =>
     <div
       className={`relative min-w-[140px] rounded-lg border-2 transition-all ${
         selected
-          ? 'border-emerald-500 shadow-lg shadow-emerald-500/20'
+          ? 'border-emerald-500 shadow-lg shadow-emerald-500/20 ring-offset-white dark:ring-offset-gray-950'
           : 'border-emerald-400/50 hover:border-emerald-400'
-      } ${getExecutionStatusColor()} bg-gradient-to-br from-emerald-900/90 via-teal-800/90 to-emerald-700/90 backdrop-blur-sm`}
+      } ${getExecutionStatusColor()} bg-emerald-600 dark:bg-emerald-600/20 backdrop-blur-sm border border-emerald-500 dark:border-emerald-500/30 shadow-sm dark:shadow-none`}
     >
       <Handle
         type="target"

@@ -55,8 +55,8 @@ export function RoadmapColumn({
   return (
     <div
       data-testid={`roadmap-column-${status.id}`}
-      className="flex-1 min-w-[280px] max-w-[400px] bg-gray-900/50 backdrop-blur-xl
-        rounded-xl border border-gray-800/50 flex flex-col max-h-[calc(100vh-250px)]"
+      className="flex-1 min-w-[280px] max-w-[400px] bg-white dark:bg-gray-900/50 backdrop-blur-xl
+        rounded-xl border border-gray-200 dark:border-gray-800/50 flex flex-col max-h-[calc(100vh-250px)] shadow-sm dark:shadow-none"
       style={{
         isolation: 'isolate',
         transition: 'border-color 150ms ease'
@@ -64,7 +64,7 @@ export function RoadmapColumn({
     >
       {/* Column Header with Status Metrics */}
       <div
-        className="p-4 border-b border-gray-800/50 sticky top-0 z-10 bg-gray-900/80 backdrop-blur-xl"
+        className="p-4 border-b border-gray-200 dark:border-gray-800/50 sticky top-0 z-10 bg-gray-50 dark:bg-gray-900/80 backdrop-blur-xl"
         style={{
           borderBottomColor: isOver ? `${status.color}80` : undefined
         }}
@@ -76,20 +76,20 @@ export function RoadmapColumn({
               className="w-4 h-4 rounded-md"
               style={{ backgroundColor: status.color }}
             />
-            <h3 className="font-semibold text-white text-lg">{status.name}</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{status.name}</h3>
           </div>
-          <div className="bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-400">
+          <div className="bg-gray-200 dark:bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-600 dark:text-gray-400">
             {suggestions.length}
           </div>
         </div>
 
         {/* Status Metrics */}
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <TrendingUp className="w-3.5 h-3.5" />
-          <span className="font-medium text-emerald-400">{totalVotes}</span>
-          <span className="text-gray-500">votes</span>
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">{totalVotes}</span>
+          <span className="text-gray-500 dark:text-gray-500">votes</span>
           {priorityStats.critical > 0 && (
-            <span className="ml-auto text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">
+            <span className="ml-auto text-xs bg-red-500/20 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded">
               {priorityStats.critical} critical
             </span>
           )}
@@ -125,16 +125,16 @@ export function RoadmapColumn({
         >
           {suggestions.length === 0 ? (
             // Empty state that's still droppable
-            <div 
+            <div
               className={`
-                text-gray-500 text-center text-sm flex flex-col items-center justify-center 
+                text-gray-500 dark:text-gray-500 text-center text-sm flex flex-col items-center justify-center
                 border-2 border-dashed rounded-lg transition-all duration-200
-                ${isOver 
-                  ? 'border-opacity-100 bg-gray-800/50 text-white' 
-                  : 'border-gray-800/50 hover:border-gray-700/70'
+                ${isOver
+                  ? 'border-opacity-100 bg-gray-100 dark:bg-gray-800/50 text-gray-900 dark:text-white'
+                  : 'border-gray-300 dark:border-gray-800/50 hover:border-gray-400 dark:hover:border-gray-700/70'
                 }
               `}
-              style={{ 
+              style={{
                 minHeight: '200px',
                 borderColor: isOver ? status.color : undefined
               }}
@@ -170,8 +170,8 @@ export function RoadmapColumn({
         <button
           onClick={() => onAddSuggestionClick(status.id)}
           className="w-full h-12 flex items-center justify-center gap-2
-            bg-transparent border border-dashed border-gray-700 rounded-lg
-            text-gray-400 hover:text-gray-300 hover:bg-gray-800/30
+            bg-transparent border border-dashed border-gray-300 dark:border-gray-700 rounded-lg
+            text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30
             transition-colors mt-3"
         >
           <PlusCircle className="w-4 h-4" />
@@ -181,8 +181,8 @@ export function RoadmapColumn({
 
       {/* Bottom Summary */}
       {suggestions.length > 0 && (
-        <div className="p-3 border-t border-gray-800/50 bg-gray-900/70">
-          <div className="flex items-center justify-between text-xs text-gray-400">
+        <div className="p-3 border-t border-gray-200 dark:border-gray-800/50 bg-gray-50 dark:bg-gray-900/70">
+          <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
             <div className="flex gap-3">
               {priorityStats.high > 0 && (
                 <span>High: {priorityStats.high}</span>

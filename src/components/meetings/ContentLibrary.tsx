@@ -31,10 +31,10 @@ const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
 };
 
 const CONTENT_TYPE_COLORS: Record<ContentType, string> = {
-  social: 'bg-blue-500/10 text-blue-700 dark:text-blue-400',
-  blog: 'bg-purple-500/10 text-purple-700 dark:text-purple-400',
-  video: 'bg-orange-500/10 text-orange-700 dark:text-orange-400',
-  email: 'bg-green-500/10 text-green-700 dark:text-green-400',
+  social: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20',
+  blog: 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20',
+  video: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20',
+  email: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20',
 };
 
 export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryProps) {
@@ -187,8 +187,8 @@ export function ContentLibrary({ meetingId, onRegenerateClick }: ContentLibraryP
             </div>
 
             {/* Content preview - full content with no truncation */}
-            <div className="bg-muted/30 rounded-lg p-4 mb-4">
-              <pre className="text-sm whitespace-pre-wrap font-mono">
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-4">
+              <pre className="text-sm whitespace-pre-wrap font-mono text-gray-700 dark:text-gray-300">
                 {content.content}
               </pre>
             </div>

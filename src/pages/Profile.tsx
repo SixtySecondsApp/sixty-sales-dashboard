@@ -229,16 +229,16 @@ export default function Profile() {
   }
 
   return (
-    <div className="p-4 sm:p-8 mt-12 lg:mt-0">
+    <div className="min-h-screen p-4 sm:p-8 mt-12 lg:mt-0">
       <div className="max-w-2xl mx-auto space-y-8">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Profile Settings</h1>
-          <p className="text-gray-400 mt-1">Manage your account settings and preferences</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Profile Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Manage your account settings and preferences</p>
         </div>
 
         {/* Profile Form */}
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
+        <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none overflow-hidden">
           <form onSubmit={handleSave} className="p-6 space-y-6">
             {/* Profile Picture */}
             <div className="flex flex-col items-center gap-4">
@@ -287,46 +287,46 @@ export default function Profile() {
             {/* Form Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                   First Name
                 </label>
                 <input
                   type="text"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-400">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                   Last Name
                 </label>
                 <input
                   type="text"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                 />
               </div>
               <div className="md:col-span-2 space-y-2">
-                <label className="text-sm font-medium text-gray-400">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                   Email Address
                 </label>
                 <input
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                 />
               </div>
             </div>
 
             {/* Password Section */}
-            <div className="pt-6 border-t border-gray-800/50">
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800/50">
               <button
                 type="button"
                 onClick={() => setIsPasswordModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-800/50 text-white hover:bg-[#37bd7e]/20 transition-all duration-300 border border-gray-700/50 hover:border-[#37bd7e]/50"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800/50 text-gray-900 dark:text-white hover:bg-[#37bd7e]/20 transition-all duration-300 border border-gray-300 dark:border-gray-700/50 hover:border-[#37bd7e]/50"
               >
                 <Lock className="w-4 h-4" />
                 Change Password
@@ -334,11 +334,11 @@ export default function Profile() {
             </div>
 
             {/* Preferences */}
-            <div className="pt-6 border-t border-gray-800/50 space-y-4">
+            <div className="pt-6 border-t border-gray-200 dark:border-gray-800/50 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="font-medium">Auto-log new Fathom meetings as activities</div>
-                  <div className="text-sm text-gray-400">Only meetings from the day you enable onward</div>
+                  <div className="font-medium text-gray-900 dark:text-white">Auto-log new Fathom meetings as activities</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Only meetings from the day you enable onward</div>
                 </div>
                 <Switch
                   checked={autoFathomEnabled}
@@ -348,12 +348,12 @@ export default function Profile() {
               {autoFathomEnabled && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-400">Start date</label>
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Start date</label>
                     <input
                       type="date"
                       value={autoFathomFromDate || ''}
                       onChange={(e) => setAutoFathomFromDate(e.target.value)}
-                      className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                     />
                   </div>
                 </div>
@@ -375,55 +375,55 @@ export default function Profile() {
         </div>
 
         {/* Quick Links Section */}
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
+        <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none overflow-hidden">
           <div className="p-6">
-            <h2 className="text-xl font-bold mb-4">Quick Links</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Links</h2>
             <div className="space-y-2">
               {/* Admin Section - Only show if user is admin */}
               {userData?.is_admin && (
                 <button
                   onClick={() => navigate('/admin')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-3">
                     <UserCog className="w-5 h-5 text-[#37bd7e]" />
                     <div className="text-left">
-                      <p className="font-medium">Admin Dashboard</p>
-                      <p className="text-sm text-gray-400">Manage users, permissions, and system settings</p>
+                      <p className="font-medium text-gray-900 dark:text-white">Admin Dashboard</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Manage users, permissions, and system settings</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
                 </button>
               )}
 
               {/* Integrations */}
               <button
                 onClick={() => navigate('/integrations')}
-                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
               >
                 <div className="flex items-center gap-3">
                   <Link2 className="w-5 h-5 text-[#37bd7e]" />
                   <div className="text-left">
-                    <p className="font-medium">Integrations</p>
-                    <p className="text-sm text-gray-400">Connect with Google, Fathom, and other services</p>
+                    <p className="font-medium text-gray-900 dark:text-white">Integrations</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Connect with Google, Fathom, and other services</p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
               </button>
 
               {/* Releases */}
               <button
                 onClick={() => navigate('/releases')}
-                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-800/30 hover:bg-gray-800/50 transition-all duration-300 group"
+                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
               >
                 <div className="flex items-center gap-3">
                   <History className="w-5 h-5 text-[#37bd7e]" />
                   <div className="text-left">
-                    <p className="font-medium">Release Notes</p>
-                    <p className="text-sm text-gray-400">See what's new and upcoming features</p>
+                    <p className="font-medium text-gray-900 dark:text-white">Release Notes</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">See what's new and upcoming features</p>
                   </div>
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
               </button>
             </div>
           </div>
@@ -435,49 +435,49 @@ export default function Profile() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-gray-900/40 dark:bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
             onClick={() => setIsPasswordModalOpen(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-gray-900/95 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6 w-full max-w-md mx-4"
+              className="bg-white dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
               onClick={e => e.stopPropagation()}
             >
-              <h2 className="text-xl font-bold mb-4">Change Password</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Change Password</h2>
               <form onSubmit={handlePasswordChange} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                     Current Password
                   </label>
                   <input
                     type="password"
                     value={formData.currentPassword}
                     onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                     New Password
                   </label>
                   <input
                     type="password"
                     value={formData.newPassword}
                     onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">
                     Confirm New Password
                   </label>
                   <input
                     type="password"
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className="w-full bg-gray-800/50 border border-gray-700/50 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                    className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
                   />
                 </div>
                 <div className="flex justify-end gap-3 mt-6">
@@ -485,7 +485,7 @@ export default function Profile() {
                     type="button"
                     onClick={() => setIsPasswordModalOpen(false)}
                     disabled={isLoading}
-                    className="px-4 py-2 rounded-xl bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors border border-gray-700/30"
+                    className="px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors border border-gray-300 dark:border-gray-700/30"
                   >
                     Cancel
                   </button>

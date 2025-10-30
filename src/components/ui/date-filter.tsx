@@ -191,23 +191,23 @@ export function DateFilter({
             </div>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-80 p-0 bg-gray-900 border-gray-700 shadow-xl" align="start">
+        <PopoverContent className="w-80 p-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 shadow-xl" align="start">
           <div className="p-4 space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-700">
-              <Calendar className="w-4 h-4 text-emerald-400" />
-              <Label className="text-sm font-medium text-gray-200">{label}</Label>
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <Label className="text-sm font-medium text-gray-900 dark:text-gray-200">{label}</Label>
             </div>
-            
+
             <Select value={value} onValueChange={handlePresetChange}>
-              <SelectTrigger className="bg-gray-800 border-gray-700 text-white hover:bg-gray-750 focus:border-emerald-500">
+              <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-750 focus:border-emerald-500">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
                 {presetOptions.map((option) => (
-                  <SelectItem 
-                    key={option.value} 
+                  <SelectItem
+                    key={option.value}
                     value={option.value}
-                    className="text-white hover:bg-gray-700 focus:bg-gray-700 cursor-pointer"
+                    className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700 cursor-pointer"
                   >
                     {option.label}
                   </SelectItem>
@@ -216,28 +216,28 @@ export function DateFilter({
             </Select>
 
             {value === 'custom' && (
-              <div className="space-y-4 pt-2 border-t border-gray-700">
+              <div className="space-y-4 pt-2 border-t border-gray-200 dark:border-gray-700">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-gray-400">Start Date</Label>
+                    <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">Start Date</Label>
                     <Input
                       type="date"
                       value={tempStartDate}
                       onChange={(e) => setTempStartDate(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-white focus:border-emerald-500 focus:ring-emerald-500/20"
+                      className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:border-emerald-500 focus:ring-emerald-500/20"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium text-gray-400">End Date</Label>
+                    <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">End Date</Label>
                     <Input
                       type="date"
                       value={tempEndDate}
                       onChange={(e) => setTempEndDate(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-white focus:border-emerald-500 focus:ring-emerald-500/20"
+                      className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:border-emerald-500 focus:ring-emerald-500/20"
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
@@ -251,7 +251,7 @@ export function DateFilter({
                     size="sm"
                     variant="outline"
                     onClick={handleCustomRangeClear}
-                    className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white"
+                    className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
                   >
                     Clear
                   </Button>
@@ -267,20 +267,20 @@ export function DateFilter({
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="flex items-center gap-2">
-        <Calendar className="w-4 h-4 text-emerald-400" />
-        <Label className="text-sm font-medium text-gray-200">{label}</Label>
+        <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+        <Label className="text-sm font-medium text-gray-900 dark:text-gray-200">{label}</Label>
       </div>
-      
+
       <Select value={value} onValueChange={handlePresetChange}>
-        <SelectTrigger className="bg-gray-800 border-gray-700 text-white hover:bg-gray-750 focus:border-emerald-500 transition-colors">
+        <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-750 focus:border-emerald-500 transition-colors">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent className="bg-gray-800 border-gray-700">
+        <SelectContent className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
           {presetOptions.map((option) => (
-            <SelectItem 
-              key={option.value} 
+            <SelectItem
+              key={option.value}
               value={option.value}
-              className="text-white hover:bg-gray-700 focus:bg-gray-700 cursor-pointer"
+              className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:bg-gray-100 dark:focus:bg-gray-700 cursor-pointer"
             >
               {option.label}
             </SelectItem>
@@ -289,28 +289,28 @@ export function DateFilter({
       </Select>
 
       {value === 'custom' && (
-        <div className="space-y-4 pt-3 border-t border-gray-700">
+        <div className="space-y-4 pt-3 border-t border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-gray-400">Start Date</Label>
+              <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">Start Date</Label>
               <Input
                 type="date"
                 value={tempStartDate}
                 onChange={(e) => setTempStartDate(e.target.value)}
-                className="bg-gray-800 border-gray-700 text-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-colors"
+                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-gray-400">End Date</Label>
+              <Label className="text-xs font-medium text-gray-600 dark:text-gray-400">End Date</Label>
               <Input
                 type="date"
                 value={tempEndDate}
                 onChange={(e) => setTempEndDate(e.target.value)}
-                className="bg-gray-800 border-gray-700 text-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-colors"
+                className="bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white focus:border-emerald-500 focus:ring-emerald-500/20 transition-colors"
               />
             </div>
           </div>
-          
+
           <div className="flex gap-3 pt-2">
             <Button
               size="sm"
@@ -324,7 +324,7 @@ export function DateFilter({
               size="sm"
               variant="outline"
               onClick={handleCustomRangeClear}
-              className="border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white hover:border-gray-600 transition-colors"
+              className="border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-gray-600 transition-colors"
             >
               Clear
             </Button>

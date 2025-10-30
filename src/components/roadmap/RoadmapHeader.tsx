@@ -32,10 +32,10 @@ export function RoadmapHeader({
     <div className="mb-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Product Roadmap</h1>
-          <p className="text-gray-400 mt-1">Track feature requests and development progress</p>
+          <h1 className="text-2xl font-bold theme-text-primary">Product Roadmap</h1>
+          <p className="theme-text-tertiary mt-1">Track feature requests and development progress</p>
         </div>
-        
+
         <button
           onClick={onAddSuggestionClick}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -49,39 +49,39 @@ export function RoadmapHeader({
       <div className="flex items-center justify-between mb-4">
         {/* Search */}
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 theme-text-tertiary w-4 h-4" />
           <input
             type="text"
             placeholder="Search suggestions..."
             value={filters.search}
             onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-            className="w-full bg-gray-800 text-white rounded-lg pl-10 pr-4 py-2 text-sm border border-gray-700 focus:outline-none focus:border-gray-600 focus:ring-1 focus:ring-blue-500"
+            className="w-full theme-bg-elevated theme-text-primary rounded-lg pl-10 pr-4 py-2 text-sm theme-border focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
-        
+
         {/* Controls */}
         <div className="flex items-center gap-2">
           {/* Filter Toggle */}
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              showFilters 
+              showFilters
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                : 'theme-bg-elevated theme-text-tertiary hover:theme-text-primary'
             }`}
           >
             <Filter className="w-4 h-4" />
             <span className="text-sm">Filters</span>
           </button>
-          
+
           {/* View Toggle */}
-          <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg p-1">
+          <div className="flex items-center gap-2 theme-bg-elevated/50 rounded-lg p-1">
             <button
               onClick={() => onViewChange('kanban')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
                 view === 'kanban'
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gray-200 dark:bg-gray-700 theme-text-primary'
+                  : 'theme-text-tertiary hover:theme-text-primary'
               }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -91,8 +91,8 @@ export function RoadmapHeader({
               onClick={() => onViewChange('table')}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${
                 view === 'table'
-                  ? 'bg-gray-700 text-white'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-gray-200 dark:bg-gray-700 theme-text-primary'
+                  : 'theme-text-tertiary hover:theme-text-primary'
               }`}
             >
               <Table className="w-4 h-4" />
@@ -103,11 +103,11 @@ export function RoadmapHeader({
           {/* Sort Options */}
           {view === 'kanban' && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Sort by:</span>
+              <span className="text-sm theme-text-tertiary">Sort by:</span>
               <select
                 value={sortBy}
                 onChange={(e) => onSortChange(e.target.value as any)}
-                className="bg-gray-800 text-white rounded-lg px-3 py-1.5 text-sm border border-gray-700 focus:outline-none focus:border-gray-600"
+                className="theme-bg-elevated theme-text-primary rounded-lg px-3 py-1.5 text-sm theme-border focus:outline-none"
               >
                 <option value="none">Default</option>
                 <option value="votes">Most Votes</option>
@@ -121,11 +121,11 @@ export function RoadmapHeader({
 
       {/* Advanced Filters Panel */}
       {showFilters && (
-        <div className="bg-gray-800/30 rounded-lg p-4 mb-4 border border-gray-700/50">
+        <div className="theme-bg-elevated/30 rounded-lg p-4 mb-4 theme-border">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Type Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
+              <label className="block text-sm font-medium theme-text-secondary mb-2">Type</label>
               <div className="space-y-2">
                 {['feature', 'bug', 'improvement', 'other'].map((type) => (
                   <label key={type} className="flex items-center gap-2 text-sm">
@@ -138,9 +138,9 @@ export function RoadmapHeader({
                           : filters.type.filter(t => t !== type);
                         onFiltersChange({ ...filters, type: newTypes });
                       }}
-                      className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="capitalize text-gray-300">{type}</span>
+                    <span className="capitalize theme-text-secondary">{type}</span>
                   </label>
                 ))}
               </div>
@@ -148,7 +148,7 @@ export function RoadmapHeader({
 
             {/* Priority Filter */}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+              <label className="block text-sm font-medium theme-text-secondary mb-2">Priority</label>
               <div className="space-y-2">
                 {['critical', 'high', 'medium', 'low'].map((priority) => (
                   <label key={priority} className="flex items-center gap-2 text-sm">
@@ -161,9 +161,9 @@ export function RoadmapHeader({
                           : filters.priority.filter(p => p !== priority);
                         onFiltersChange({ ...filters, priority: newPriorities });
                       }}
-                      className="rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="capitalize text-gray-300">{priority}</span>
+                    <span className="capitalize theme-text-secondary">{priority}</span>
                   </label>
                 ))}
               </div>
@@ -173,7 +173,7 @@ export function RoadmapHeader({
             <div className="flex items-end">
               <button
                 onClick={() => onFiltersChange({ search: '', type: [], priority: [], assignee: [] })}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-sm theme-text-tertiary hover:theme-text-primary transition-colors"
               >
                 <X className="w-4 h-4" />
                 Clear Filters

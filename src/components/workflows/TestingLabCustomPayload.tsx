@@ -269,7 +269,7 @@ export default function TestingLabCustomPayload({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 p-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BeakerIcon className="h-6 w-6 text-purple-400" />
@@ -279,7 +279,7 @@ export default function TestingLabCustomPayload({
           <div className="flex items-center gap-2">
             {/* Template Selector */}
             <select
-              className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm"
+              className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
               value={selectedTemplate?.id || ''}
               onChange={(e) => {
                 const template = getTemplateById(e.target.value);
@@ -296,7 +296,7 @@ export default function TestingLabCustomPayload({
 
             {/* Category Filter */}
             <select
-              className="bg-gray-900 border border-gray-700 rounded px-3 py-1.5 text-sm"
+              className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value as any)}
             >
@@ -311,7 +311,7 @@ export default function TestingLabCustomPayload({
             {/* Import/Export */}
             <button
               onClick={() => document.getElementById('import-file')?.click()}
-              className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
               title="Import JSON"
             >
               <ArrowDownTrayIcon className="h-5 w-5" />
@@ -326,7 +326,7 @@ export default function TestingLabCustomPayload({
             
             <button
               onClick={exportPayload}
-              className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
               title="Export JSON"
               disabled={!isValid}
             >
@@ -336,12 +336,12 @@ export default function TestingLabCustomPayload({
             {/* History */}
             <button
               onClick={() => setShowHistory(!showHistory)}
-              className="p-1.5 hover:bg-gray-700 rounded transition-colors relative"
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors relative"
               title="Payload History"
             >
               <ClockIcon className="h-5 w-5" />
               {payloadHistory.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-purple-500 text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
                   {payloadHistory.length}
                 </span>
               )}
@@ -353,12 +353,12 @@ export default function TestingLabCustomPayload({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Panel - JSON Editor */}
-        <div className="w-1/2 flex flex-col border-r border-gray-700">
+        <div className="w-1/2 flex flex-col border-r border-gray-200 dark:border-gray-700">
           <div className="flex-1 relative">
             <textarea
               value={payloadText}
               onChange={(e) => setPayloadText(e.target.value)}
-              className={`absolute inset-0 w-full h-full bg-gray-900 text-gray-100 p-4 font-mono text-sm resize-none focus:outline-none ${
+              className={`absolute inset-0 w-full h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 p-4 font-mono text-sm resize-none focus:outline-none ${
                 !isValid ? 'border-2 border-red-500' : ''
               }`}
               placeholder="Enter your JSON payload here..."
@@ -374,7 +374,7 @@ export default function TestingLabCustomPayload({
           </div>
 
           {/* Validation Status */}
-          <div className="bg-gray-800 border-t border-gray-700 p-3">
+          <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3">
             {isValid ? (
               <div className="flex items-center gap-2 text-green-400">
                 <CheckCircleIcon className="h-5 w-5" />
@@ -396,10 +396,10 @@ export default function TestingLabCustomPayload({
           </div>
 
           {/* Action Buttons */}
-          <div className="bg-gray-800 border-t border-gray-700 p-3 flex gap-2">
+          <div className="bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3 flex gap-2">
             <button
               onClick={formatJson}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
               disabled={!isValid}
             >
               Format JSON
@@ -407,7 +407,7 @@ export default function TestingLabCustomPayload({
             
             <button
               onClick={clearPayload}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
             >
               Clear
             </button>
@@ -416,7 +416,7 @@ export default function TestingLabCustomPayload({
               onClick={() => {
                 navigator.clipboard.writeText(payloadText);
               }}
-              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200"
             >
               <ClipboardDocumentCheckIcon className="h-4 w-4 inline mr-1" />
               Copy
@@ -437,7 +437,7 @@ export default function TestingLabCustomPayload({
 
         {/* Right Panel - Node Responses */}
         <div className="w-1/2 flex flex-col">
-          <div className="bg-gray-800 border-b border-gray-700 p-3">
+          <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3">
             <h3 className="font-medium">Node Responses</h3>
           </div>
           
@@ -455,11 +455,11 @@ export default function TestingLabCustomPayload({
                   return (
                     <div 
                       key={node.id} 
-                      className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden"
+                      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
                     >
                       <button
                         onClick={() => toggleNodeExpansion(node.id)}
-                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-700 transition-colors"
+                        className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
                         <div className="flex items-center gap-3">
                           {isExpanded ? (
@@ -491,12 +491,12 @@ export default function TestingLabCustomPayload({
                       </button>
                       
                       {isExpanded && (
-                        <div className="border-t border-gray-700">
+                        <div className="border-t border-gray-200 dark:border-gray-700">
                           {/* Input Data */}
                           {nodeState?.inputData && (
-                            <div className="p-4 border-b border-gray-700">
-                              <div className="text-sm text-gray-400 mb-2">📥 Input Data:</div>
-                              <pre className="text-xs bg-gray-900 p-2 rounded overflow-x-auto">
+                            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">📥 Input Data:</div>
+                              <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto">
                                 {JSON.stringify(nodeState.inputData, null, 2)}
                               </pre>
                             </div>
@@ -504,9 +504,9 @@ export default function TestingLabCustomPayload({
                           
                           {/* Output Data */}
                           {nodeState?.outputData && (
-                            <div className="p-4 border-b border-gray-700">
-                              <div className="text-sm text-gray-400 mb-2">📤 Output Data:</div>
-                              <pre className="text-xs bg-gray-900 p-2 rounded overflow-x-auto">
+                            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">📤 Output Data:</div>
+                              <pre className="text-xs bg-gray-50 dark:bg-gray-900 p-2 rounded overflow-x-auto">
                                 {JSON.stringify(nodeState.outputData, null, 2)}
                               </pre>
                             </div>
@@ -536,7 +536,7 @@ export default function TestingLabCustomPayload({
                           
                           {/* Error Message */}
                           {nodeState?.error && (
-                            <div className="p-4 border-t border-gray-700 bg-red-900/20">
+                            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20">
                               <div className="text-sm text-red-400">❌ Error:</div>
                               <div className="text-xs text-red-300 mt-1">{nodeState.error}</div>
                             </div>
@@ -560,8 +560,8 @@ export default function TestingLabCustomPayload({
 
       {/* History Panel */}
       {showHistory && (
-        <div className="absolute top-16 right-4 w-80 max-h-96 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden z-50">
-          <div className="bg-gray-900 p-3 border-b border-gray-700">
+        <div className="absolute top-16 right-4 w-80 max-h-96 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden z-50">
+          <div className="bg-gray-50 dark:bg-gray-900 p-3 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-medium">Payload History</h3>
           </div>
           <div className="max-h-80 overflow-y-auto">
@@ -570,7 +570,7 @@ export default function TestingLabCustomPayload({
                 {payloadHistory.map(entry => (
                   <div 
                     key={entry.id}
-                    className="bg-gray-900 rounded p-3 hover:bg-gray-700 transition-colors cursor-pointer group"
+                    className="bg-gray-50 dark:bg-gray-900 rounded p-3 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer group"
                     onClick={() => loadFromHistory(entry)}
                   >
                     <div className="flex items-center justify-between mb-1">

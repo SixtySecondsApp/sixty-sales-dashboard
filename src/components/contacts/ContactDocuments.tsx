@@ -304,17 +304,17 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
 
   if (loading) {
     return (
-      <Card className={`bg-slate-900/50 backdrop-blur-sm border-slate-700/50 ${className}`}>
+      <Card className={`bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 ${className}`}>
         <div className="p-6">
           <div className="flex items-center gap-2 mb-4">
-            <FolderOpen className="h-5 w-5 text-slate-400" />
-            <h3 className="text-lg font-semibold text-white">Documents</h3>
+            <FolderOpen className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Documents</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-full bg-slate-800" />
-                <Skeleton className="h-3 w-3/4 bg-slate-800" />
+                <Skeleton className="h-4 w-full bg-slate-200 dark:bg-slate-800" />
+                <Skeleton className="h-3 w-3/4 bg-slate-200 dark:bg-slate-800" />
               </div>
             ))}
           </div>
@@ -325,24 +325,24 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
 
   return (
     <TooltipProvider>
-      <Card className={`bg-slate-900/50 backdrop-blur-sm border-slate-700/50 ${className}`}>
+      <Card className={`bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-slate-200/50 dark:border-slate-700/50 ${className}`}>
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <div className="p-2 bg-green-500/20 rounded-lg">
-                <FolderOpen className="h-5 w-5 text-green-400" />
+              <div className="p-2 bg-green-500/20 dark:bg-green-500/20 rounded-lg border border-green-500/30">
+                <FolderOpen className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Documents</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Documents</h3>
                 {contactName && (
-                  <p className="text-sm text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     {documents.length} document{documents.length !== 1 ? 's' : ''} for {contactName}
                   </p>
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -351,7 +351,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                     size="sm"
                     onClick={() => loadDocuments(true)}
                     disabled={refreshing}
-                    className="text-slate-400 hover:text-white"
+                    className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
                     <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                   </Button>
@@ -364,7 +364,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
               <Button
                 onClick={() => setShowCreateDialog(true)}
                 size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-green-600 hover:bg-green-700 text-white border-green-600 dark:border-green-600"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 New Document
@@ -376,24 +376,24 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-500 dark:text-slate-400" />
                 <Input
                   value={filters.search}
                   onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                   placeholder="Search documents..."
-                  className="pl-10 bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-400 focus:border-green-500/50"
+                  className="pl-10 bg-white dark:bg-slate-800/50 border-slate-300 dark:border-slate-700/50 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-green-500/50 dark:focus:border-green-500/50"
                 />
               </div>
             </div>
-            
+
             <Select
               value={filters.type}
               onValueChange={(value: any) => setFilters(prev => ({ ...prev, type: value }))}
             >
-              <SelectTrigger className="w-[140px] bg-slate-800/50 border-slate-700/50 text-white">
+              <SelectTrigger className="w-[140px] bg-white dark:bg-slate-800/50 border-slate-300 dark:border-slate-700/50 text-slate-900 dark:text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectContent className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
                 <SelectItem value="all">All types</SelectItem>
                 <SelectItem value="document">Documents</SelectItem>
                 <SelectItem value="spreadsheet">Sheets</SelectItem>
@@ -407,10 +407,10 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
               value={filters.shared}
               onValueChange={(value: any) => setFilters(prev => ({ ...prev, shared: value }))}
             >
-              <SelectTrigger className="w-[120px] bg-slate-800/50 border-slate-700/50 text-white">
+              <SelectTrigger className="w-[120px] bg-white dark:bg-slate-800/50 border-slate-300 dark:border-slate-700/50 text-slate-900 dark:text-white">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-slate-800 border-slate-700">
+              <SelectContent className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
                 <SelectItem value="all">All docs</SelectItem>
                 <SelectItem value="shared">Shared</SelectItem>
                 <SelectItem value="private">Private</SelectItem>
@@ -421,10 +421,10 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
           {/* Documents List */}
           {filteredDocuments.length === 0 ? (
             <div className="text-center py-12">
-              <FolderOpen className="h-12 w-12 text-slate-600 mx-auto mb-4" />
-              <h4 className="text-lg font-medium text-slate-400 mb-2">No documents found</h4>
-              <p className="text-slate-500 mb-4">
-                {documents.length === 0 
+              <FolderOpen className="h-12 w-12 text-slate-400 dark:text-slate-600 mx-auto mb-4" />
+              <h4 className="text-lg font-medium text-slate-600 dark:text-slate-400 mb-2">No documents found</h4>
+              <p className="text-slate-500 dark:text-slate-500 mb-4">
+                {documents.length === 0
                   ? 'Create your first document to get started'
                   : 'Try adjusting your filters'
                 }
@@ -432,7 +432,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
               {documents.length === 0 && (
                 <Button
                   onClick={() => setShowCreateDialog(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-green-600 hover:bg-green-700 text-white border-green-600"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Create Document
@@ -448,13 +448,13 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
-                    className="border border-slate-700/50 rounded-lg p-4 hover:border-slate-600/50 transition-all duration-200 bg-slate-800/30 hover:bg-slate-800/50"
+                    className="border border-slate-300 dark:border-slate-700/50 rounded-lg p-4 hover:border-slate-400 dark:hover:border-slate-600/50 transition-all duration-200 bg-slate-100/30 dark:bg-slate-800/30 hover:bg-slate-100/50 dark:hover:bg-slate-800/50"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-start gap-3 flex-1 min-w-0">
                         {getDocumentIcon(doc.document_type)}
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-white truncate" title={doc.title}>
+                          <h4 className="font-medium text-slate-900 dark:text-white truncate" title={doc.title}>
                             {doc.title}
                           </h4>
                           <div className="flex items-center gap-2 mt-1">
@@ -462,7 +462,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                               {getDocumentTypeLabel(doc.document_type)}
                             </Badge>
                             {doc.shared && (
-                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-400 border-green-500/20">
+                              <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20">
                                 <Share2 className="h-3 w-3 mr-1" />
                                 shared
                               </Badge>
@@ -476,26 +476,26 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-slate-400 hover:text-white h-8 w-8 p-0"
+                            className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                           >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
-                          <DropdownMenuItem onClick={() => handleViewDocument(doc)} className="text-slate-300">
+                        <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
+                          <DropdownMenuItem onClick={() => handleViewDocument(doc)} className="text-slate-700 dark:text-slate-300">
                             <Eye className="h-4 w-4 mr-2" />
                             View
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEditDocument(doc)} className="text-slate-300">
+                          <DropdownMenuItem onClick={() => handleEditDocument(doc)} className="text-slate-700 dark:text-slate-300">
                             <ExternalLink className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator className="bg-slate-700" />
-                          <DropdownMenuItem onClick={() => handleCopyLink(doc)} className="text-slate-300">
+                          <DropdownMenuSeparator className="bg-slate-300 dark:bg-slate-700" />
+                          <DropdownMenuItem onClick={() => handleCopyLink(doc)} className="text-slate-700 dark:text-slate-300">
                             <Copy className="h-4 w-4 mr-2" />
                             Copy Link
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleShareDocument(doc)} className="text-slate-300">
+                          <DropdownMenuItem onClick={() => handleShareDocument(doc)} className="text-slate-700 dark:text-slate-300">
                             <Share2 className="h-4 w-4 mr-2" />
                             Share Settings
                           </DropdownMenuItem>
@@ -503,7 +503,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                       </DropdownMenu>
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {formatDocumentDate(doc.last_modified_time || doc.updated_at)}
@@ -521,7 +521,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleViewDocument(doc)}
-                        className="flex-1 text-slate-400 hover:text-white text-xs"
+                        className="flex-1 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <Eye className="h-3 w-3 mr-1" />
                         View
@@ -530,7 +530,7 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEditDocument(doc)}
-                        className="flex-1 text-slate-400 hover:text-white text-xs"
+                        className="flex-1 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white text-xs hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <ExternalLink className="h-3 w-3 mr-1" />
                         Edit
@@ -545,37 +545,37 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
 
         {/* Create Document Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="max-w-md bg-slate-900/95 backdrop-blur-xl border border-slate-700/50">
+          <DialogContent className="max-w-md bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-300 dark:border-slate-700/50">
             <DialogHeader>
-              <DialogTitle className="text-white">Create New Document</DialogTitle>
-              <DialogDescription className="text-slate-400">
+              <DialogTitle className="text-slate-900 dark:text-white">Create New Document</DialogTitle>
+              <DialogDescription className="text-slate-600 dark:text-slate-400">
                 Create a new Google document for {contactName || 'this contact'}.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Document Title</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Document Title</label>
                 <Input
                   value={newDocument.title}
                   onChange={(e) => setNewDocument(prev => ({ ...prev, title: e.target.value }))}
                   placeholder={`Meeting notes with ${contactName || 'contact'}`}
-                  className="bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-400 focus:border-green-500/50"
+                  className="bg-white dark:bg-slate-800/50 border-slate-300 dark:border-slate-700/50 text-slate-900 dark:text-white placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-green-500/50 dark:focus:border-green-500/50"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Document Type</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Document Type</label>
                 <Select
                   value={newDocument.type}
-                  onValueChange={(value: 'document' | 'spreadsheet' | 'presentation') => 
+                  onValueChange={(value: 'document' | 'spreadsheet' | 'presentation') =>
                     setNewDocument(prev => ({ ...prev, type: value }))
                   }
                 >
-                  <SelectTrigger className="bg-slate-800/50 border-slate-700/50 text-white">
+                  <SelectTrigger className="bg-white dark:bg-slate-800/50 border-slate-300 dark:border-slate-700/50 text-slate-900 dark:text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
+                  <SelectContent className="bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700">
                     <SelectItem value="document">Google Docs (Document)</SelectItem>
                     <SelectItem value="spreadsheet">Google Sheets (Spreadsheet)</SelectItem>
                     <SelectItem value="presentation">Google Slides (Presentation)</SelectItem>
@@ -589,14 +589,14 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
                 variant="ghost"
                 onClick={() => setShowCreateDialog(false)}
                 disabled={creating}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleCreateDocument}
                 disabled={creating || !newDocument.title.trim()}
-                className="bg-green-600 hover:bg-green-700 text-white"
+                className="bg-green-600 hover:bg-green-700 text-white border-green-600"
               >
                 {creating ? (
                   <>

@@ -74,7 +74,7 @@ function sentimentTone(score: number | null): 'destructive' | 'default' | 'succe
   return 'success'
 }
 
-const StatCard: React.FC<{ 
+const StatCard: React.FC<{
   title: string
   value: string
   sub?: string
@@ -86,21 +86,17 @@ const StatCard: React.FC<{
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.3 }}
     whileHover={{ scale: 1.02, y: -2 }}
-    className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-gray-800/50 shadow-lg hover:shadow-xl hover:border-gray-700/60 transition-all duration-300 group"
+    className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200"
   >
-    {/* Background decoration */}
-    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-    
-    {/* Content */}
-    <div className="relative flex items-start justify-between">
+    <div className="flex items-start justify-between">
       <div className="flex flex-col gap-1">
-        <div className="text-gray-400 text-xs font-medium uppercase tracking-wider">{title}</div>
-        <div className="text-2xl font-bold text-gray-100">{value}</div>
+        <div className="text-gray-600 dark:text-gray-400 text-xs font-medium uppercase tracking-wider">{title}</div>
+        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</div>
         {sub && (
           <div className={cn(
             "text-xs font-medium",
-            trend === 'up' ? 'text-emerald-400' : 
-            trend === 'down' ? 'text-red-400' : 
+            trend === 'up' ? 'text-emerald-600 dark:text-emerald-400' :
+            trend === 'down' ? 'text-red-600 dark:text-red-400' :
             'text-gray-500'
           )}>
             {sub}
@@ -108,7 +104,7 @@ const StatCard: React.FC<{
         )}
       </div>
       {icon && (
-        <div className="text-gray-600 group-hover:text-gray-400 transition-colors">
+        <div className="text-gray-400 dark:text-gray-600 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors">
           {icon}
         </div>
       )}
@@ -294,7 +290,7 @@ const MeetingsList: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 dark:border-emerald-400"></div>
       </div>
     )
   }
@@ -302,31 +298,31 @@ const MeetingsList: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 backdrop-blur-sm rounded-xl border border-emerald-500/20">
-            <Video className="h-6 w-6 text-emerald-400" />
+          <div className="p-2 bg-emerald-600/10 dark:bg-emerald-500/20 backdrop-blur-sm rounded-xl border border-emerald-600/20 dark:border-emerald-500/20">
+            <Video className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-100 to-gray-300 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               Meetings
             </h1>
-            <p className="text-sm text-gray-400 mt-1">Review your recorded conversations and insights</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Review your recorded conversations and insights</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {/* Scope Toggle */}
-          <motion.div 
+          <motion.div
             whileHover={{ scale: 1.02 }}
-            className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-1 border border-gray-800/50 shadow-lg"
+            className="bg-gray-100/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl p-1 border border-gray-300 dark:border-gray-800/50 shadow-sm dark:shadow-lg"
           >
             <Button
-              variant="ghost"
+              variant={scope === 'me' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setScope('me')}
             >
@@ -334,7 +330,7 @@ const MeetingsList: React.FC = () => {
               My
             </Button>
             <Button
-              variant="ghost"
+              variant={scope === 'team' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setScope('team')}
             >
@@ -342,21 +338,21 @@ const MeetingsList: React.FC = () => {
               Team
             </Button>
           </motion.div>
-          
+
           {/* View Toggle */}
-          <motion.div 
+          <motion.div
             whileHover={{ scale: 1.02 }}
-            className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-1 border border-gray-800/50 shadow-lg"
+            className="bg-gray-100/80 dark:bg-gray-900/50 backdrop-blur-sm rounded-xl p-1 border border-gray-300 dark:border-gray-800/50 shadow-sm dark:shadow-lg"
           >
             <Button
-              variant="ghost"
+              variant={view === 'list' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setView('list')}
             >
               <List className="h-4 w-4" />
             </Button>
             <Button
-              variant="ghost"
+              variant={view === 'grid' ? 'secondary' : 'ghost'}
               size="sm"
               onClick={() => setView('grid')}
             >
@@ -409,56 +405,56 @@ const MeetingsList: React.FC = () => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
             transition={{ duration: 0.2 }}
-            className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl border border-gray-800/50 overflow-hidden shadow-2xl"
+            className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-sm dark:shadow-none"
           >
             <Table>
               <TableHeader>
-                <TableRow className="border-gray-800/50 hover:bg-gray-800/20">
-                  <TableHead className="text-gray-400">Title</TableHead>
-                  <TableHead className="text-gray-400">Company</TableHead>
-                  <TableHead className="text-gray-400">Rep</TableHead>
-                  <TableHead className="text-gray-400">Date</TableHead>
-                  <TableHead className="text-gray-400">Duration</TableHead>
-                  <TableHead className="text-gray-400">Sentiment</TableHead>
-                  <TableHead className="text-gray-400">Coach</TableHead>
-                  <TableHead className="text-gray-400">Tasks</TableHead>
+                <TableRow className="border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20">
+                  <TableHead className="text-gray-600 dark:text-gray-400">Title</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Company</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Rep</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Date</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Duration</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Sentiment</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Coach</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Tasks</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {meetings.map((meeting, index) => {
                   const openTasks = meeting.action_items?.filter(a => !a.completed).length || 0
-                  
+
                   return (
                     <motion.tr
                       key={meeting.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="border-gray-800/50 hover:bg-gray-800/20 transition-colors group"
+                      className="border-gray-200 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors group"
                     >
-                      <TableCell className="font-medium text-gray-200">
+                      <TableCell className="font-medium text-gray-900 dark:text-gray-200">
                         {meeting.title || 'Untitled'}
                       </TableCell>
-                      <TableCell className="text-gray-400">
+                      <TableCell className="text-gray-700 dark:text-gray-400">
                         {meeting.company?.name || '-'}
                       </TableCell>
-                      <TableCell className="text-gray-400">
+                      <TableCell className="text-gray-700 dark:text-gray-400">
                         {meeting.owner_email?.split('@')[0]}
                       </TableCell>
-                      <TableCell className="text-gray-400">
-                        {meeting.meeting_start 
+                      <TableCell className="text-gray-700 dark:text-gray-400">
+                        {meeting.meeting_start
                           ? format(new Date(meeting.meeting_start), 'dd MMM yyyy')
                           : '-'}
                       </TableCell>
-                      <TableCell className="text-gray-400">
+                      <TableCell className="text-gray-700 dark:text-gray-400">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           {meeting.duration_minutes || 0}m
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge 
+                        <Badge
                           variant={sentimentTone(meeting.sentiment_score) as any}
                           className="backdrop-blur-sm"
                         >
@@ -474,7 +470,7 @@ const MeetingsList: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         {openTasks > 0 && (
-                          <span className="text-amber-400 font-medium">{openTasks}</span>
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">{openTasks}</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -511,11 +507,11 @@ const MeetingsList: React.FC = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                   whileHover={{ scale: 1.02, y: -4 }}
-                  className="bg-gradient-to-br from-gray-900/70 to-gray-900/40 backdrop-blur-xl rounded-2xl p-5 border border-gray-800/50 hover:border-gray-700/60 transition-all duration-300 shadow-xl hover:shadow-2xl group cursor-pointer"
+                  className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200 shadow-sm dark:shadow-none cursor-pointer group"
                   onClick={() => openMeeting(meeting.id)}
                 >
                   {/* Video Thumbnail Area */}
-                  <div className="relative aspect-video bg-gradient-to-br from-gray-800/50 to-gray-900/50 rounded-xl mb-4 overflow-hidden">
+                  <div className="relative aspect-video bg-gray-100 dark:bg-gray-800/50 rounded-xl mb-4 overflow-hidden">
                     {meeting.thumbnail_url ? (
                       <img
                         src={meeting.thumbnail_url}
@@ -530,31 +526,31 @@ const MeetingsList: React.FC = () => {
                     ) : null}
                     {/* Fallback icon (always rendered behind image) */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <Video className="h-8 w-8 text-gray-600" />
+                      <Video className="h-8 w-8 text-gray-400 dark:text-gray-600" />
                     </div>
                     {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                     {/* Duration badge */}
-                    <div className="absolute bottom-2 right-2 px-2 py-1 bg-gray-900/80 backdrop-blur-sm rounded-lg text-xs text-gray-300 flex items-center gap-1">
+                    <div className="absolute bottom-2 right-2 px-2 py-1 bg-white/90 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {meeting.duration_minutes || 0}m
                     </div>
                   </div>
-                  
+
                   {/* Content */}
                   <div className="space-y-3">
                     <div>
-                      <h3 className="font-semibold text-gray-100 group-hover:text-emerald-400 transition-colors line-clamp-1">
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors line-clamp-1">
                         {meeting.title || 'Untitled Meeting'}
                       </h3>
-                      <p className="text-sm text-gray-400 mt-1">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                         {meeting.company?.name || 'No company'}
                       </p>
                     </div>
-                    
+
                     {/* Badges */}
                     <div className="flex flex-wrap gap-2">
-                      <Badge 
+                      <Badge
                         variant={sentimentTone(meeting.sentiment_score) as any}
                         className="backdrop-blur-sm text-xs"
                       >
@@ -566,20 +562,20 @@ const MeetingsList: React.FC = () => {
                         </Badge>
                       )}
                       {openTasks > 0 && (
-                        <Badge variant="outline" className="backdrop-blur-sm text-xs border-amber-500/50 text-amber-400">
+                        <Badge variant="outline" className="backdrop-blur-sm text-xs border-amber-600/50 dark:border-amber-500/50 text-amber-600 dark:text-amber-400">
                           {openTasks} tasks
                         </Badge>
                       )}
                     </div>
-                    
+
                     {/* Footer */}
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-800/50">
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-800/50">
                       <div className="text-xs text-gray-500">
-                        {meeting.meeting_start 
+                        {meeting.meeting_start
                           ? format(new Date(meeting.meeting_start), 'dd MMM yyyy')
                           : 'No date'}
                       </div>
-                      <div className="text-xs text-gray-400 flex items-center gap-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
                         <User className="h-3 w-3" />
                         {meeting.owner_email?.split('@')[0]}
                       </div>
@@ -597,11 +593,11 @@ const MeetingsList: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-12 border border-gray-800/50 text-center shadow-xl"
+          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-12 border border-gray-200 dark:border-gray-700/50 text-center shadow-sm dark:shadow-none"
         >
-          <Video className="h-12 w-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-300 mb-2">No meetings found</h3>
-          <p className="text-gray-500">Meetings will appear here once they are synced from Fathom.</p>
+          <Video className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No meetings found</h3>
+          <p className="text-gray-600 dark:text-gray-500">Meetings will appear here once they are synced from Fathom.</p>
         </motion.div>
       )}
     </div>

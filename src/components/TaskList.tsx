@@ -158,21 +158,21 @@ const TaskList: React.FC<TaskListProps> = ({
 
   const getPriorityColor = (priority: Task['priority']) => {
     const colors = {
-      low: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      medium: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      high: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-      urgent: 'bg-red-500/10 text-red-400 border-red-500/20'
+      low: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20',
+      medium: 'bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20',
+      high: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-500/20',
+      urgent: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20'
     };
     return colors[priority] || colors.medium;
   };
 
   const getStatusColor = (status: Task['status']) => {
     const colors = {
-      pending: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-      in_progress: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-      completed: 'bg-green-500/10 text-green-400 border-green-500/20',
-      cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
-      overdue: 'bg-red-600/10 text-red-400 border-red-600/20'
+      pending: 'bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-300 dark:border-gray-500/20',
+      in_progress: 'bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20',
+      completed: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20',
+      cancelled: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20',
+      overdue: 'bg-red-50 dark:bg-red-600/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-600/20'
     };
     return colors[status] || colors.pending;
   };
@@ -246,7 +246,7 @@ const TaskList: React.FC<TaskListProps> = ({
     return (
       <Card className="max-w-4xl mx-auto">
         <CardContent className="p-6">
-          <div className="text-center text-red-400">
+          <div className="text-center text-red-700 dark:text-red-400">
             <AlertTriangle className="w-8 h-8 mx-auto mb-2" />
             <p>Failed to load tasks. Please try again.</p>
           </div>
@@ -262,19 +262,18 @@ const TaskList: React.FC<TaskListProps> = ({
       {/* Action Buttons */}
       {!isContextual && (
         <div className="flex justify-end gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setShowFilters(!showFilters)}
-            className="border-gray-700 text-gray-300 hover:bg-gray-800"
           >
             <Filter className="w-4 h-4 mr-2" />
             Filters
           </Button>
           {onCreateTask && (
-            <Button 
-              size="sm" 
-              className="bg-[#37bd7e] hover:bg-[#37bd7e]/90"
+            <Button
+              size="sm"
+              variant="success"
               onClick={onCreateTask}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -288,17 +287,17 @@ const TaskList: React.FC<TaskListProps> = ({
       {isContextual && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-white">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               {dealId && 'Deal Tasks'}
               {companyId && 'Company Tasks'}
               {contactId && 'Contact Tasks'}
             </h2>
-            <p className="text-gray-400">Related tasks and follow-ups</p>
+            <p className="text-gray-600 dark:text-gray-400">Related tasks and follow-ups</p>
           </div>
           {onCreateTask && (
-            <Button 
-              size="sm" 
-              className="bg-[#37bd7e] hover:bg-[#37bd7e]/90"
+            <Button
+              size="sm"
+              variant="success"
               onClick={onCreateTask}
             >
               <Plus className="w-4 h-4 mr-2" />
@@ -321,17 +320,17 @@ const TaskList: React.FC<TaskListProps> = ({
               <CardContent className="p-4">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-500 dark:text-gray-400" />
                     <Input
                       placeholder="Search tasks..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 bg-gray-800/50 border-gray-700"
+                      className="pl-9"
                     />
                   </div>
-                  
+
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="bg-gray-800/50 border-gray-700">
+                    <SelectTrigger>
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -345,7 +344,7 @@ const TaskList: React.FC<TaskListProps> = ({
                   </Select>
 
                   <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                    <SelectTrigger className="bg-gray-800/50 border-gray-700">
+                    <SelectTrigger>
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -358,7 +357,7 @@ const TaskList: React.FC<TaskListProps> = ({
                   </Select>
 
                   <Select value={taskTypeFilter} onValueChange={setTaskTypeFilter}>
-                    <SelectTrigger className="bg-gray-800/50 border-gray-700">
+                    <SelectTrigger>
                       <SelectValue placeholder="Task Type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -383,8 +382,8 @@ const TaskList: React.FC<TaskListProps> = ({
       {isLoading ? (
         <Card>
           <CardContent className="p-8">
-            <div className="text-center text-gray-400">
-              <div className="animate-spin w-8 h-8 border-2 border-[#37bd7e] border-t-transparent rounded-full mx-auto mb-4"></div>
+            <div className="text-center text-gray-600 dark:text-gray-400">
+              <div className="animate-spin w-8 h-8 border-2 border-emerald-600 dark:border-emerald-500 border-t-transparent rounded-full mx-auto mb-4"></div>
               <p>Loading tasks...</p>
             </div>
           </CardContent>
@@ -404,11 +403,11 @@ const TaskList: React.FC<TaskListProps> = ({
             };
 
             const groupColors: { [key: string]: string } = {
-              overdue: 'text-red-400',
-              today: 'text-orange-400',
-              tomorrow: 'text-blue-400',
-              thisWeek: 'text-gray-300',
-              later: 'text-gray-400',
+              overdue: 'text-red-700 dark:text-red-400',
+              today: 'text-orange-700 dark:text-orange-400',
+              tomorrow: 'text-blue-700 dark:text-blue-400',
+              thisWeek: 'text-gray-700 dark:text-gray-300',
+              later: 'text-gray-600 dark:text-gray-400',
               noDate: 'text-gray-500'
             };
 
@@ -418,7 +417,7 @@ const TaskList: React.FC<TaskListProps> = ({
                   <h2 className={`text-lg font-medium ${groupColors[groupKey]}`}>
                     {groupLabels[groupKey]}
                   </h2>
-                  <Badge variant="secondary" className="bg-gray-800 text-gray-300">
+                  <Badge variant="secondary" className="bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                     {groupTasks.length}
                   </Badge>
                 </div>
@@ -438,11 +437,11 @@ const TaskList: React.FC<TaskListProps> = ({
                           className={`group ${compactView ? 'mb-1' : 'mb-2'}`}
                         >
                           <Card className={`transition-all duration-200 hover:shadow-lg ${
-                            task.completed 
-                              ? 'bg-gray-900/30 border-gray-800/30' 
-                              : isTaskOverdue 
-                                ? 'bg-red-500/5 border-red-500/20' 
-                                : 'hover:bg-gray-800/50'
+                            task.completed
+                              ? 'bg-gray-100/50 dark:bg-gray-900/30 border-gray-300 dark:border-gray-800/30'
+                              : isTaskOverdue
+                                ? 'bg-red-50 dark:bg-red-500/5 border-red-300 dark:border-red-500/20'
+                                : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                           }`}>
                             <CardContent className={compactView ? 'p-3' : 'p-4'}>
                               <div className="flex items-start gap-3">
@@ -451,8 +450,8 @@ const TaskList: React.FC<TaskListProps> = ({
                                   onClick={() => handleCompleteTask(task)}
                                   className={`mt-1 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                                     task.completed
-                                      ? 'bg-green-500 border-green-500'
-                                      : 'border-gray-600 hover:border-green-500'
+                                      ? 'bg-emerald-600 border-emerald-600 dark:bg-emerald-500 dark:border-emerald-500'
+                                      : 'border-gray-400 dark:border-gray-600 hover:border-emerald-600 dark:hover:border-emerald-500'
                                   }`}
                                 >
                                   {task.completed && <Check className="w-3 h-3 text-white" />}
@@ -463,9 +462,9 @@ const TaskList: React.FC<TaskListProps> = ({
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                        <TaskIcon className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                        <TaskIcon className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                                         <h3 className={`font-medium ${
-                                          task.completed ? 'line-through text-gray-500' : 'text-white'
+                                          task.completed ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'
                                         }`}>
                                           {task.title}
                                         </h3>
@@ -476,12 +475,12 @@ const TaskList: React.FC<TaskListProps> = ({
                                           {task.status.replace('_', ' ')}
                                         </Badge>
                                         {task.category && (
-                                          <Badge className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 border-purple-700">
+                                          <Badge className="px-2 py-0.5 text-xs bg-purple-50 dark:bg-purple-900/50 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-700">
                                             {task.category}
                                           </Badge>
                                         )}
                                         {task.meeting_action_item_id && (
-                                          <Badge className="px-2 py-0.5 text-xs bg-blue-900/50 text-blue-400 border-blue-700 hover:bg-blue-800/50 cursor-pointer transition-colors">
+                                          <Badge className="px-2 py-0.5 text-xs bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-800/50 cursor-pointer transition-colors">
                                             <Calendar className="w-3 h-3 mr-1" />
                                             From Meeting
                                           </Badge>
@@ -490,18 +489,18 @@ const TaskList: React.FC<TaskListProps> = ({
 
                                       {task.description && (
                                         <p className={`text-sm mb-2 ${
-                                          task.completed ? 'text-gray-600' : 'text-gray-400'
+                                          task.completed ? 'text-gray-500 dark:text-gray-600' : 'text-gray-600 dark:text-gray-400'
                                         }`}>
                                           {task.description}
                                         </p>
                                       )}
 
-                                      <div className="flex items-center gap-4 text-xs text-gray-500 flex-wrap">
+                                      <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-500 flex-wrap">
                                         {/* Company Info - clickable link */}
                                         {(task as any).company && (
-                                          <Link 
+                                          <Link
                                             to={`/companies/${(task as any).company.id}`}
-                                            className="flex items-center gap-1 hover:text-blue-400 transition-colors"
+                                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <Building2 className="w-3 h-3" />
@@ -511,9 +510,9 @@ const TaskList: React.FC<TaskListProps> = ({
 
                                         {/* Contact Info - clickable link */}
                                         {(task as any).contact && (
-                                          <Link 
+                                          <Link
                                             to={`/crm/contacts/${(task as any).contact.id}`}
-                                            className="flex items-center gap-1 hover:text-blue-400 transition-colors"
+                                            className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <User className="w-3 h-3" />
@@ -523,9 +522,9 @@ const TaskList: React.FC<TaskListProps> = ({
 
                                         {/* Meeting Link */}
                                         {(task as any).meeting_action_item?.meeting && (
-                                          <Link 
+                                          <Link
                                             to={`/meetings/${(task as any).meeting_action_item.meeting.id}`}
-                                            className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
+                                            className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <Video className="w-3 h-3" />
@@ -539,18 +538,18 @@ const TaskList: React.FC<TaskListProps> = ({
                                             href={(task as any).meeting_action_item.playback_url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
+                                            className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
                                             onClick={(e) => e.stopPropagation()}
                                           >
                                             <Play className="w-3 h-3" />
                                             <span>{formatTimestamp((task as any).meeting_action_item.timestamp_seconds)}</span>
                                           </a>
                                         )}
-                                        
+
                                         {/* Due Date */}
                                         {task.due_date && (
                                           <div className={`flex items-center gap-1 ${
-                                            isTaskOverdue ? 'text-red-400' : ''
+                                            isTaskOverdue ? 'text-red-700 dark:text-red-400' : ''
                                           }`}>
                                             <Calendar className="w-3 h-3" />
                                             <span>{formatDueDate(task.due_date)}</span>
@@ -564,7 +563,7 @@ const TaskList: React.FC<TaskListProps> = ({
                                       {task.assignee && (
                                         <Avatar className="w-6 h-6">
                                           <AvatarImage src={task.assignee.avatar_url} />
-                                          <AvatarFallback className="text-xs bg-gray-700">
+                                          <AvatarFallback className="text-xs bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
                                             {task.assignee.first_name?.[0]}{task.assignee.last_name?.[0]}
                                           </AvatarFallback>
                                         </Avatar>
@@ -572,19 +571,19 @@ const TaskList: React.FC<TaskListProps> = ({
 
                                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         {onEditTask && (
-                                          <Button 
-                                            variant="ghost" 
+                                          <Button
+                                            variant="ghost"
                                             size="sm"
-                                            className="h-8 w-8 p-0 hover:bg-gray-700"
+                                            className="h-8 w-8 p-0 hover:bg-gray-200 dark:hover:bg-gray-700"
                                             onClick={() => onEditTask(task)}
                                           >
                                             <Edit className="w-4 h-4" />
                                           </Button>
                                         )}
-                                        <Button 
-                                          variant="ghost" 
+                                        <Button
+                                          variant="ghost"
                                           size="sm"
-                                          className="h-8 w-8 p-0 hover:bg-red-500/20 text-red-400"
+                                          className="h-8 w-8 p-0 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400"
                                           onClick={() => handleDeleteTask(task.id)}
                                         >
                                           <Trash2 className="w-4 h-4" />
@@ -608,11 +607,11 @@ const TaskList: React.FC<TaskListProps> = ({
           {tasks.length === 0 && (
             <Card>
               <CardContent className="p-8">
-                <div className="text-center text-gray-400">
-                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-gray-600" />
-                  <h3 className="text-lg font-medium mb-2">No tasks found</h3>
+                <div className="text-center text-gray-600 dark:text-gray-400">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-gray-400 dark:text-gray-600" />
+                  <h3 className="text-lg font-medium mb-2 text-gray-900 dark:text-gray-100">No tasks found</h3>
                   <p>
-                    {isContextual 
+                    {isContextual
                       ? 'No tasks found for this context. Create a new task to get started.'
                       : 'Create a new task or adjust your filters to see tasks.'
                     }

@@ -146,21 +146,21 @@ const TasksPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
       {/* Google Tasks Sync Component */}
       <GoogleTasksSync />
 
       {/* Header with View Toggle and Sync Button */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-white">Tasks</h1>
-          <p className="text-gray-400 mt-1">
-            {isGoogleConnected 
-              ? 'Synced with Google Tasks' 
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tasks</h1>
+          <p className="text-gray-700 dark:text-gray-300 mt-1">
+            {isGoogleConnected
+              ? 'Synced with Google Tasks'
               : 'Manage your tasks and stay organized'}
           </p>
         </div>
-        
+
         <div className="flex items-center gap-4">
           {/* Sync Button */}
           {isGoogleConnected && (
@@ -170,11 +170,11 @@ const TasksPage: React.FC = () => {
                 disabled={isSyncing}
                 variant="outline"
                 className={`
-                  ${syncStatus === 'success' 
-                    ? 'border-green-500 text-green-500 hover:bg-green-500/10' 
+                  ${syncStatus === 'success'
+                    ? 'border-emerald-500 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10'
                     : syncStatus === 'error'
-                    ? 'border-red-500 text-red-500 hover:bg-red-500/10'
-                    : 'border-gray-600 text-gray-300 hover:bg-gray-800'
+                    ? 'border-red-500 dark:border-red-500/20 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10'
+                    : ''
                   }
                   transition-all duration-300
                 `}
@@ -205,7 +205,6 @@ const TasksPage: React.FC = () => {
                 onClick={() => navigate('/tasks/settings')}
                 variant="outline"
                 size="icon"
-                className="border-gray-600 text-gray-300 hover:bg-gray-800"
                 title="Google Tasks Settings"
               >
                 <Settings className="w-4 h-4" />
@@ -214,18 +213,11 @@ const TasksPage: React.FC = () => {
           )}
 
           {/* View Toggle */}
-          <div className="flex items-center gap-2 bg-gray-800/50 rounded-lg p-1">
+          <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-1">
             <Button
               variant={view === 'list' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setView('list')}
-              className={`
-                ${view === 'list' 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }
-                transition-all duration-200
-              `}
             >
               <List className="w-4 h-4 mr-2" />
               List View
@@ -234,13 +226,6 @@ const TasksPage: React.FC = () => {
               variant={view === 'kanban' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setView('kanban')}
-              className={`
-                ${view === 'kanban' 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
-                }
-                transition-all duration-200
-              `}
             >
               <LayoutGrid className="w-4 h-4 mr-2" />
               Kanban View

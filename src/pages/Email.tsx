@@ -407,16 +407,16 @@ export default function Email() {
   const unreadCount = emails.filter(email => !email.read).length;
 
   return (
-    <div className="h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 overflow-hidden">
+    <div className="h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-hidden">
       {/* Google Connection Banner */}
       {!isGmailEnabled && (
-        <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-6 py-3">
+        <div className="bg-yellow-50 dark:bg-yellow-500/10 border-b border-yellow-200 dark:border-yellow-500/20 px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-yellow-500" />
+              <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-500" />
               <div>
-                <p className="text-sm font-medium text-yellow-500">Gmail Not Connected</p>
-                <p className="text-xs text-gray-400">Connect your Google account to access your real emails</p>
+                <p className="text-sm font-medium text-yellow-700 dark:text-yellow-500">Gmail Not Connected</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Connect your Google account to access your real emails</p>
               </div>
             </div>
             <motion.button
@@ -443,20 +443,20 @@ export default function Email() {
       )}
       
       {/* Header */}
-      <div className="h-16 border-b border-gray-800/50 bg-gray-900/50 backdrop-blur-xl flex items-center justify-between px-6">
+      <div className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between px-6">
         <div className="flex items-center gap-4">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
+            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
           >
             {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </motion.button>
-          
+
           <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6 text-blue-500" />
-            <h1 className="text-xl font-semibold">Email</h1>
+            <Mail className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Email</h1>
             {unreadCount > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
@@ -479,7 +479,7 @@ export default function Email() {
               placeholder="Search emails..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-80 bg-gray-700 border border-gray-600 rounded-lg text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+              className="pl-10 pr-4 py-2 w-80 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
@@ -582,7 +582,7 @@ export default function Email() {
               animate={{ width: 280, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="bg-gray-900/30 backdrop-blur-xl border-r border-gray-800/50 flex flex-col overflow-hidden"
+              className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden"
             >
               <div className="p-4 space-y-4">
                 {/* Folders */}
@@ -759,7 +759,7 @@ export default function Email() {
 
         {/* Email List */}
         <div className={cn(
-          'border-r border-gray-800/50 bg-gray-900/20 backdrop-blur-xl',
+          'border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900',
           selectedEmail ? 'w-96' : 'flex-1'
         )}>
           <EmailList
@@ -781,7 +781,7 @@ export default function Email() {
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="flex-1 bg-gray-900/10 backdrop-blur-xl overflow-hidden"
+              className="flex-1 bg-white dark:bg-gray-950 overflow-hidden"
             >
               <EmailThread
                 email={selectedEmailData}
@@ -833,9 +833,6 @@ export default function Email() {
         </div>
       )}
 
-      {/* Background Effects */}
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(74,74,117,0.15),transparent)] pointer-events-none" />
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(55,189,126,0.05),transparent)] pointer-events-none" />
     </div>
   );
 }

@@ -143,14 +143,14 @@ export default function Integrations() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-6xl">
+    <div className="container mx-auto py-8 px-4 max-w-6xl min-h-screen">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white mb-2">Integrations</h1>
-        <p className="text-gray-400">Connect your external services to enhance your CRM experience</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Integrations</h1>
+        <p className="text-gray-600 dark:text-gray-400">Connect your external services to enhance your CRM experience</p>
       </div>
 
       {/* Google Workspace Card */}
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 shadow-sm dark:shadow-none">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -163,8 +163,8 @@ export default function Integrations() {
                 </svg>
               </div>
               <div>
-                <CardTitle className="text-xl text-white">Google Workspace</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardTitle className="text-xl text-gray-900 dark:text-gray-100">Google Workspace</CardTitle>
+                <CardDescription className="text-gray-700 dark:text-gray-300">
                   Connect Gmail, Calendar, and Drive to your CRM
                 </CardDescription>
               </div>
@@ -194,12 +194,12 @@ export default function Integrations() {
           {!isConnected ? (
             <div className="space-y-4">
               {/* Security Notice */}
-              <div className="bg-blue-950/30 border border-blue-800 rounded-lg p-4">
+              <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-4">
                 <div className="flex items-start space-x-3">
-                  <Shield className="w-5 h-5 text-blue-400 mt-0.5" />
+                  <Shield className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-blue-400">Secure Connection</p>
-                    <ul className="text-xs text-gray-400 space-y-1">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-400">Secure Connection</p>
+                    <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                       <li>• Your credentials are encrypted and never stored in our frontend</li>
                       <li>• We only access the permissions you explicitly grant</li>
                       <li>• You can disconnect at any time with one click</li>

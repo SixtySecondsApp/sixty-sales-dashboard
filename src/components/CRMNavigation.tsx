@@ -56,7 +56,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
   const currentSection = getCurrentSection();
 
   return (
-    <div className={cn("bg-gray-900/30 border-b border-gray-800/50", className)}>
+    <div className={cn("bg-gray-50 dark:bg-gray-900/30 border-b border-gray-200 dark:border-gray-800", className)}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* CRM Section Navigation */}
         <div className="flex items-center justify-between py-4">
@@ -77,8 +77,8 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
                     className={cn(
                       'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors relative',
                       isActive
-                        ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-800/30'
+                        ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20'
+                        : 'text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/30'
                     )}
                   >
                     <section.icon className="w-4 h-4" />
@@ -86,7 +86,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
                     {isActive && (
                       <motion.div
                         layoutId="activeTab"
-                        className="absolute inset-0 bg-blue-500/5 rounded-lg border border-blue-500/20"
+                        className="absolute inset-0 bg-blue-50/50 dark:bg-blue-500/5 rounded-lg border border-blue-200 dark:border-blue-500/20"
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
@@ -104,14 +104,14 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
                   size="sm"
                   variant="outline"
                   onClick={() => window.location.href = '/crm/contacts'}
-                  className="bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  className="bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white"
                 >
                   <Users className="w-4 h-4 mr-1" />
                   View Contacts
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Company
@@ -125,14 +125,14 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
                   size="sm"
                   variant="outline"
                   onClick={() => window.location.href = '/crm/companies'}
-                  className="bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700/50 hover:text-white"
+                  className="bg-white dark:bg-gray-800/50 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white"
                 >
                   <Building2 className="w-4 h-4 mr-1" />
                   View Companies
                 </Button>
                 <Button
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 dark:bg-blue-500 hover:bg-blue-700 dark:hover:bg-blue-600 text-white"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Add Contact

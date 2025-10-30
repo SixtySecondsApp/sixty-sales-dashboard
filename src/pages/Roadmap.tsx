@@ -80,16 +80,16 @@ const StatCard = memo(function StatCard({ title, value, icon: Icon, color, subti
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-gray-800/50"
+      className="theme-bg-card backdrop-blur-sm rounded-xl p-6 theme-border shadow-sm dark:shadow-none"
     >
       <div className="flex items-center gap-4">
         <div className={`p-3 rounded-lg ${colorClass.bg} border ${colorClass.border}`}>
           <Icon className={`w-6 h-6 ${colorClass.text}`} />
         </div>
         <div>
-          <p className="text-sm text-gray-400">{title}</p>
-          <p className="text-2xl font-bold text-white">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+          <p className="theme-text-secondary text-sm">{title}</p>
+          <p className="theme-text-primary text-2xl font-bold">{value}</p>
+          {subtitle && <p className="theme-text-tertiary text-xs">{subtitle}</p>}
         </div>
       </div>
     </motion.div>
@@ -222,22 +222,22 @@ export default function Roadmap() {
 
   // TICKET #23 & #36: Enhanced loading skeleton with better UX and mobile responsiveness
   const loadingSkeleton = useMemo(() => (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="theme-bg-primary theme-text-primary min-h-screen">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
         {/* TICKET #23: Enhanced header skeleton with mobile optimization */}
         <div className="animate-pulse space-y-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-6">
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-gray-800/50 w-10 h-10" />
+                <div className="p-2 rounded-lg bg-gray-300 dark:bg-gray-800/50 w-10 h-10" />
                 <div className="space-y-2">
-                  <div className="h-8 bg-gray-800 rounded-lg w-48 sm:w-64" />
-                  <div className="h-4 bg-gray-800/60 rounded w-32 sm:w-40" />
+                  <div className="h-8 bg-gray-300 dark:bg-gray-800 rounded-lg w-48 sm:w-64" />
+                  <div className="h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-32 sm:w-40" />
                 </div>
               </div>
             </div>
             <div className="w-full sm:w-auto">
-              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-48" />
+              <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-full sm:w-48" />
             </div>
           </div>
         </div>
@@ -250,14 +250,14 @@ export default function Roadmap() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-800/50 space-y-3"
+              className="bg-gray-100/50 dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-800/50 space-y-3"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 sm:p-3 rounded-lg bg-gray-800/50 w-8 h-8 sm:w-12 sm:h-12" />
+                <div className="p-2 sm:p-3 rounded-lg bg-gray-300 dark:bg-gray-800/50 w-8 h-8 sm:w-12 sm:h-12" />
                 <div className="space-y-2 flex-1">
-                  <div className="h-3 sm:h-4 bg-gray-800/60 rounded w-16 sm:w-20" />
-                  <div className="h-6 sm:h-8 bg-gray-800 rounded w-8 sm:w-12" />
-                  <div className="h-2 sm:h-3 bg-gray-800/40 rounded w-12 sm:w-16" />
+                  <div className="h-3 sm:h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-16 sm:w-20" />
+                  <div className="h-6 sm:h-8 bg-gray-300 dark:bg-gray-800 rounded w-8 sm:w-12" />
+                  <div className="h-2 sm:h-3 bg-gray-200 dark:bg-gray-800/40 rounded w-12 sm:w-16" />
                 </div>
               </div>
             </motion.div>
@@ -272,13 +272,13 @@ export default function Roadmap() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.4 + i * 0.05 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50"
+              className="bg-gray-100/50 dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-800/50"
             >
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-gray-800/60 rounded" />
+                <div className="w-4 h-4 sm:w-5 sm:h-5 bg-gray-300 dark:bg-gray-800/60 rounded" />
                 <div className="space-y-1 flex-1">
-                  <div className="h-3 bg-gray-800/60 rounded w-12 sm:w-16" />
-                  <div className="h-4 sm:h-5 bg-gray-800 rounded w-6 sm:w-8" />
+                  <div className="h-3 bg-gray-200 dark:bg-gray-800/60 rounded w-12 sm:w-16" />
+                  <div className="h-4 sm:h-5 bg-gray-300 dark:bg-gray-800 rounded w-6 sm:w-8" />
                 </div>
               </div>
             </motion.div>
@@ -289,14 +289,14 @@ export default function Roadmap() {
         <div className="animate-pulse space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center">
             <div className="flex-1 max-w-full sm:max-w-md">
-              <div className="h-10 bg-gray-800 rounded-lg w-full" />
+              <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-full" />
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
-              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-32" />
-              <div className="h-10 bg-gray-800 rounded-lg w-full sm:w-32" />
+              <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-full sm:w-32" />
+              <div className="h-10 bg-gray-300 dark:bg-gray-800 rounded-lg w-full sm:w-32" />
             </div>
           </div>
-          <div className="h-4 bg-gray-800/60 rounded w-40" />
+          <div className="h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-40" />
         </div>
 
         {/* TICKET #23: Enhanced kanban skeleton with progressive loading animation */}
@@ -316,11 +316,11 @@ export default function Roadmap() {
                 className="space-y-4"
               >
                 {/* Column header */}
-                <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 space-y-2">
-                  <div className="h-5 sm:h-6 bg-gray-800 rounded w-20 sm:w-24" />
-                  <div className="h-3 bg-gray-800/60 rounded w-8" />
+                <div className="bg-gray-100/50 dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-800/50 space-y-2">
+                  <div className="h-5 sm:h-6 bg-gray-300 dark:bg-gray-800 rounded w-20 sm:w-24" />
+                  <div className="h-3 bg-gray-200 dark:bg-gray-800/60 rounded w-8" />
                 </div>
-                
+
                 {/* Column cards */}
                 {Array.from({ length: columnIndex === 2 ? 1 : columnIndex === 3 ? 3 : columnIndex === 4 ? 1 : 0 }).map((_, cardIndex) => (
                   <motion.div
@@ -328,24 +328,24 @@ export default function Roadmap() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 1.0 + columnIndex * 0.1 + cardIndex * 0.1 }}
-                    className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 space-y-3"
+                    className="bg-gray-100/50 dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-800/50 space-y-3"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="h-4 bg-gray-800 rounded w-12" />
-                      <div className="w-6 h-6 bg-gray-800/60 rounded" />
+                      <div className="h-4 bg-gray-300 dark:bg-gray-800 rounded w-12" />
+                      <div className="w-6 h-6 bg-gray-300 dark:bg-gray-800/60 rounded" />
                     </div>
                     <div className="space-y-2">
-                      <div className="h-5 bg-gray-800 rounded w-full" />
-                      <div className="h-3 bg-gray-800/60 rounded w-3/4" />
+                      <div className="h-5 bg-gray-300 dark:bg-gray-800 rounded w-full" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-800/60 rounded w-3/4" />
                     </div>
                     <div className="flex gap-2">
-                      <div className="h-4 bg-gray-800/60 rounded w-12" />
-                      <div className="h-4 bg-gray-800/60 rounded w-8" />
-                      <div className="h-4 bg-gray-800/60 rounded w-10" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-12" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-8" />
+                      <div className="h-4 bg-gray-200 dark:bg-gray-800/60 rounded w-10" />
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="h-3 bg-gray-800/40 rounded w-16" />
-                      <div className="h-3 bg-gray-800/40 rounded w-12" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-800/40 rounded w-16" />
+                      <div className="h-3 bg-gray-200 dark:bg-gray-800/40 rounded w-12" />
                     </div>
                   </motion.div>
                 ))}
@@ -407,21 +407,7 @@ export default function Roadmap() {
   }), [suggestions]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-800 rounded-lg w-64" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-24 bg-gray-800 rounded-xl" />
-              ))}
-            </div>
-            <div className="h-96 bg-gray-800 rounded-xl" />
-          </div>
-        </div>
-      </div>
-    );
+    return loadingSkeleton;
   }
 
   // TICKET #26: Enhanced error display with better UX and retry functionality
@@ -457,17 +443,17 @@ export default function Roadmap() {
     };
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-6">
+      <div className="theme-bg-primary theme-text-primary min-h-screen p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center max-w-md mx-auto"
           >
-            <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800/50">
+            <div className="theme-bg-card backdrop-blur-sm rounded-2xl p-8 theme-border shadow-xl">
               {getErrorIcon()}
-              <h2 className="text-2xl font-semibold mb-3">{getErrorTitle()}</h2>
-              <p className="text-gray-300 mb-6 leading-relaxed">{errorInfo.message}</p>
+              <h2 className="theme-text-primary text-2xl font-semibold mb-3">{getErrorTitle()}</h2>
+              <p className="theme-text-secondary mb-6 leading-relaxed">{errorInfo.message}</p>
               
               {errorInfo.recoverable && (
                 <div className="space-y-4">
@@ -506,7 +492,7 @@ export default function Roadmap() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
+    <div className="theme-bg-primary theme-text-primary min-h-screen">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
         {/* TICKET #23: Enhanced header with improved mobile responsiveness */}
         <motion.div
@@ -517,7 +503,7 @@ export default function Roadmap() {
         >
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
@@ -526,8 +512,8 @@ export default function Roadmap() {
                 <Map className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
               </motion.div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">Product Roadmap</h1>
-                <p className="text-sm sm:text-base text-gray-400 leading-relaxed max-w-md">
+                <h1 className="theme-text-primary text-2xl sm:text-3xl font-bold">Product Roadmap</h1>
+                <p className="theme-text-tertiary text-sm sm:text-base leading-relaxed max-w-md">
                   Share your ideas, report bugs, and track development progress
                 </p>
               </div>
@@ -600,13 +586,13 @@ export default function Roadmap() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.9 + index * 0.05 }}
               whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-xl p-3 sm:p-4 border border-gray-800/50 hover:border-gray-700/50 transition-all duration-200"
+              className="theme-bg-card backdrop-blur-sm rounded-xl p-3 sm:p-4 theme-border hover:border-gray-300 dark:hover:border-gray-600/50 transition-all duration-200 shadow-sm dark:shadow-none"
             >
               <div className="flex items-center gap-2 sm:gap-3">
                 <type.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${type.color}`} />
                 <div>
-                  <p className="text-xs sm:text-sm text-gray-400">{type.label}</p>
-                  <p className="text-base sm:text-lg font-semibold text-white">{type.value}</p>
+                  <p className="theme-text-tertiary text-xs sm:text-sm">{type.label}</p>
+                  <p className="theme-text-primary text-base sm:text-lg font-semibold">{type.value}</p>
                 </div>
               </div>
             </motion.div>
@@ -632,7 +618,7 @@ export default function Roadmap() {
             <select
               value={typeFilter}
               onChange={handleTypeFilterChange}
-              className="flex-1 sm:flex-none bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-800/70"
+              className="flex-1 sm:flex-none theme-bg-elevated theme-border rounded-lg px-3 py-2 text-sm theme-text-primary focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/70"
             >
               <option value="all">All Types</option>
               <option value="feature">Features</option>
@@ -640,11 +626,11 @@ export default function Roadmap() {
               <option value="improvement">Improvements</option>
               <option value="other">Other</option>
             </select>
-            
+
             <select
               value={statusFilter}
               onChange={handleStatusFilterChange}
-              className="flex-1 sm:flex-none bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-800/70"
+              className="flex-1 sm:flex-none theme-bg-elevated theme-border rounded-lg px-3 py-2 text-sm theme-text-primary focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/70"
             >
               <option value="all">All Statuses</option>
               <option value="submitted">Submitted</option>
@@ -663,9 +649,9 @@ export default function Roadmap() {
           transition={{ delay: 1.2 }}
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
-          <p className="text-sm sm:text-base text-gray-400">
-            Showing <span className="font-medium text-emerald-400">{filteredSuggestions.length}</span> of{' '}
-            <span className="font-medium text-white">{suggestions.length}</span> suggestions
+          <p className="theme-text-tertiary text-sm sm:text-base">
+            Showing <span className="font-medium text-emerald-600 dark:text-emerald-400">{filteredSuggestions.length}</span> of{' '}
+            <span className="theme-text-primary font-medium">{suggestions.length}</span> suggestions
           </p>
           {isAdmin && (
             <motion.div

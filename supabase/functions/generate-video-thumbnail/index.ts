@@ -137,12 +137,22 @@ serve(async (req) => {
     console.log(`   recording_id: ${recording_id}`)
     console.log(`   timestamp_seconds: ${timestamp_seconds}`)
 
-    // Use static HTML page instead of React route for faster, more reliable loading
-    const appUrl = meeting_id && shareUrlWithTs
-      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/thumbnail.html?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
+    // Option 1: Try proxy approach first (if proxy edge function is deployed)
+    const proxyUrl = shareUrlWithTs && Deno.env.get('ENABLE_PROXY_MODE') === 'true'
+      ? `${Deno.env.get('SUPABASE_URL')}/functions/v1/proxy-fathom-video?url=${encodeURIComponent(shareUrlWithTs)}&timestamp=${timestamp_seconds || 30}`
+      : null
+
+    // Option 2: Direct screenshot of Fathom page (skip iframe entirely)
+    const directFathomUrl = shareUrlWithTs || shareWithTs
+
+    // Option 3: Use React app page with embedded video
+    // DISABLE APP MODE by default - it doesn't work with cross-origin iframes!
+    const appUrl = meeting_id && shareUrlWithTs && !proxyUrl && Deno.env.get('ENABLE_APP_MODE') === 'true'
+      ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
       : null
 
     console.log(`   Generated appUrl: ${appUrl}`)
+    console.log(`   Direct Fathom URL: ${directFathomUrl}`)
 
     let thumbnailUrl: string | null = null
 
@@ -161,33 +171,45 @@ serve(async (req) => {
     console.log(`   FORCE_APP_MODE="${forceAppModeValue}" (force=${forceAppMode})`)
     console.log(`   skipThirdParty=${skipThirdParty}`)
 
-    // Prefer Browserless app mode first when meeting_id present (gives clean, cropped video)
-    if (!thumbnailUrl && appUrl && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 Trying Browserless with APP MODE (our own page)...')
+    // Check if we should try proxy mode first
+    if (!thumbnailUrl && proxyUrl && Deno.env.get('BROWSERLESS_URL')) {
+      console.log('📸 Trying Browserless with PROXY MODE...')
+      console.log(`   Proxy URL: ${proxyUrl}`)
+      console.log(`   This proxies Fathom content without iframe restrictions`)
+      thumbnailUrl = await captureWithBrowserlessAndUpload(proxyUrl, recording_id, 'fathom', meeting_id)
+
+      if (thumbnailUrl) {
+        console.log('✅ Proxy Mode succeeded!')
+      } else {
+        console.log('❌ Proxy Mode failed')
+      }
+    }
+
+    // TRY DIRECT FATHOM SCREENSHOT FIRST (MOST RELIABLE)
+    if (!thumbnailUrl && directFathomUrl && Deno.env.get('BROWSERLESS_URL')) {
+      console.log('📸 Trying DIRECT Fathom screenshot (most reliable method)...')
+      console.log(`   Direct Fathom URL: ${directFathomUrl}`)
+      thumbnailUrl = await captureWithBrowserlessAndUpload(directFathomUrl, recording_id, 'fathom', meeting_id)
+
+      if (thumbnailUrl) {
+        console.log('✅ Direct Fathom screenshot succeeded!')
+      } else {
+        console.log('❌ Direct Fathom screenshot failed, will try other methods...')
+      }
+    }
+
+    // App mode is disabled by default since cross-origin iframes don't work
+    if (!thumbnailUrl && appUrl && Deno.env.get('ENABLE_APP_MODE') === 'true' && Deno.env.get('BROWSERLESS_URL')) {
+      console.log('📸 APP MODE enabled - Trying embedded approach...')
       console.log(`   App URL: ${appUrl}`)
-      console.log(`   This will screenshot OUR application's public thumbnail page`)
-      console.log(`   Expected: Full-screen video iframe, cropped to video only`)
+      console.log(`   Note: This usually fails due to X-Frame-Options`)
       thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
 
-      if (!thumbnailUrl) {
-        console.error('❌ App Mode failed - check if the app is accessible from Browserless')
-        console.error(`   URL that failed: ${appUrl}`)
-        console.error(`   Possible issues:`)
-        console.error(`     1. MeetingThumbnail page not loading (404 or redirect)`)
-        console.error(`     2. Iframe selector 'iframe[src*="fathom"]' timeout`)
-        console.error(`     3. Network connectivity between Browserless and your app`)
-        console.error(`     4. Share URL is invalid or requires auth`)
-
-        if (forceAppMode) {
-          console.error(`   🚨 FORCE_APP_MODE is enabled - will NOT fallback to other methods`)
-          console.error(`   Fix the App Mode issue or disable FORCE_APP_MODE to allow fallbacks`)
-        }
+      if (thumbnailUrl) {
+        console.log('✅ App mode screenshot succeeded!')
       } else {
-        console.log('✅ App Mode succeeded!')
-        console.log(`   Screenshot captured from: ${appUrl}`)
+        console.log('❌ App mode failed (expected due to iframe restrictions)')
       }
-    } else if (!appUrl) {
-      console.log('⏭️  Skipping App Mode (no appUrl generated - missing meeting_id or share_url)')
     }
 
     if (!thumbnailUrl && !skipThirdParty) {
@@ -220,24 +242,7 @@ serve(async (req) => {
       console.log('📸 Skipping third-party services (ONLY_BROWSERLESS or DISABLE_THIRD_PARTY_SCREENSHOTS set)')
     }
 
-    // Try Browserless fathom mode if still not available
-    // BUT: Skip if FORCE_APP_MODE is set (we want ONLY our app to be screenshotted)
-    if (!thumbnailUrl && Deno.env.get('BROWSERLESS_URL') && !forceAppMode) {
-      console.log('📸 Trying Browserless fathom mode as fallback...')
-      // Try share URL first (public access, no login required)
-      if (shareWithTs) {
-        console.log(`   Trying public share URL: ${shareWithTs}`)
-        thumbnailUrl = await captureWithBrowserlessAndUpload(shareWithTs, recording_id, 'fathom', meeting_id)
-      }
-      // Fallback to embed URL if share fails
-      if (!thumbnailUrl && embedWithTs) {
-        console.log(`   Share URL failed, trying embed URL: ${embedWithTs}`)
-        thumbnailUrl = await captureWithBrowserlessAndUpload(embedWithTs, recording_id, 'fathom', meeting_id)
-      }
-    } else if (forceAppMode && !thumbnailUrl) {
-      console.log('🚫 Skipping Browserless Fathom mode fallback (FORCE_APP_MODE is enabled)')
-      console.log('   App Mode must succeed for thumbnail generation')
-    }
+    // Skip duplicate fathom mode - we already tried direct Fathom screenshot above
 
     // E) Last resort: og:image (often unavailable per user)
     if (!thumbnailUrl && shareWithTs) {
@@ -425,12 +430,17 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
     // Escape URL for safe injection into JavaScript
     const escapedUrl = url.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r")
 
+    // Extract timestamp from URL if present
+    const urlObj = new URL(url)
+    const timestampFromUrl = urlObj.searchParams.get('timestamp') || urlObj.searchParams.get('t') || '30'
+    const escapedTs = String(timestampFromUrl)
+
     // Use Playwright function API for full control
     const playwrightScript = mode === 'app'
       ? `
-        // App mode: Screenshot our full-screen video page
-        export default async function({ page }) {
-          console.log('🎬 Loading app page...');
+        // App mode: Screenshot our full-screen video page (with iframe security bypass)
+        export default async function({ page, browser }) {
+          console.log('🎬 Loading app page with enhanced iframe support...');
           console.log('📍 URL:', '${escapedUrl}');
 
 
@@ -458,8 +468,8 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
             }
           }
 
-          console.log('⏳ Waiting 8 seconds for React to render and iframe to load...');
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          console.log('⏳ Waiting 15 seconds for iframe to fully load and video to seek...');
+          await new Promise(resolve => setTimeout(resolve, 15000));
 
           console.log('🔍 Checking page content...');
           const title = await page.title();
@@ -555,44 +565,177 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
         }
       `
       : `
-        // Fathom mode: Simple screenshot of Fathom page
-        export default async function({ page }) {
-          console.log('🎬 Loading Fathom page...');
-          await page.goto('${escapedUrl}', {
-            waitUntil: 'domcontentloaded',
-            timeout: 20000
-          });
+        // Fathom mode: Enhanced screenshot with improved video detection
+        export default async function({ page, browser }) {
+          console.log('🎬 Loading Fathom page directly...');
+          console.log('📍 URL:', '${escapedUrl}');
 
-          console.log('⏳ Waiting for video player to initialize...');
-          // Extended wait for video player to fully load
-          // This allows time for:
-          // 1. Page scripts to load (2s)
-          // 2. Video player to initialize (2s)
-          // 3. Video to seek to timestamp (2s)
-          // 4. First frame to render (2s)
-          await new Promise(resolve => setTimeout(resolve, 8000));
+          // Set viewport to standard video aspect ratio
+          await page.setViewport({ width: 1920, height: 1080 });
 
-          console.log('✅ Checking for video element...');
-          // Try to find and verify video element is present
-          const hasVideo = await page.evaluate(() => {
-            const video = document.querySelector('video');
-            if (!video) return false;
-            // Check if video has actual dimensions
-            return video.videoWidth > 0 && video.videoHeight > 0;
-          });
-
-          if (!hasVideo) {
-            console.log('⚠️  Video element not ready, waiting additional 3s...');
-            await new Promise(resolve => setTimeout(resolve, 3000));
-          } else {
-            console.log('✅ Video element found and ready');
+          // Navigate with network idle to ensure all resources load
+          try {
+            await page.goto('${escapedUrl}', {
+              waitUntil: 'networkidle',
+              timeout: 30000
+            });
+            console.log('✅ Page loaded with networkidle');
+          } catch (e) {
+            console.log('⚠️ NetworkIdle timeout, continuing anyway...');
+            await page.goto('${escapedUrl}', {
+              waitUntil: 'domcontentloaded',
+              timeout: 30000
+            });
           }
 
+          console.log('⏳ Waiting for video player to fully initialize...');
+
+          // Try multiple strategies to ensure video is ready
+          let videoReady = false;
+          let attempts = 0;
+          const maxAttempts = 10;
+
+          while (!videoReady && attempts < maxAttempts) {
+            attempts++;
+            console.log(\`Attempt \${attempts}/\${maxAttempts} to find video...\`);
+
+            // Wait a bit between attempts
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Check for video element and its readiness
+            const videoInfo = await page.evaluate(() => {
+              const videos = document.querySelectorAll('video');
+              if (videos.length === 0) return { found: false };
+
+              // Get the first video that seems ready
+              for (const video of videos) {
+                if (video.videoWidth > 0 && video.videoHeight > 0) {
+                  return {
+                    found: true,
+                    ready: true,
+                    width: video.videoWidth,
+                    height: video.videoHeight,
+                    currentTime: video.currentTime,
+                    duration: video.duration,
+                    paused: video.paused,
+                    src: video.src || video.currentSrc
+                  };
+                }
+              }
+
+              // Video found but not ready yet
+              return {
+                found: true,
+                ready: false,
+                count: videos.length
+              };
+            });
+
+            console.log('Video info:', JSON.stringify(videoInfo));
+
+            if (videoInfo.found && videoInfo.ready) {
+              videoReady = true;
+              console.log('✅ Video is ready!');
+
+              // Try to seek to timestamp if needed
+              const timestamp = ${escapedTs};
+              if (timestamp > 0) {
+                console.log(\`⏩ Seeking to timestamp: \${timestamp}s\`);
+                await page.evaluate((ts) => {
+                  const video = document.querySelector('video');
+                  if (video) {
+                    video.currentTime = ts;
+                  }
+                }, timestamp);
+
+                // Wait for seek to complete
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
+
+              break;
+            }
+          }
+
+          if (!videoReady) {
+            console.log('⚠️ Video not ready after all attempts, proceeding anyway...');
+          }
+
+          // Additional wait for any animations or overlays to settle
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
           console.log('📸 Taking screenshot...');
-          // Take viewport screenshot
+
+          // Enhanced video element targeting with fullscreen optimization
+          const videoSelector = await page.evaluate(() => {
+            const video = document.querySelector('video');
+            if (video && video.videoWidth > 0) {
+              // Make video fullscreen by manipulating its styles
+              video.style.position = 'fixed';
+              video.style.top = '0';
+              video.style.left = '0';
+              video.style.width = '100vw';
+              video.style.height = '100vh';
+              video.style.objectFit = 'cover';
+              video.style.zIndex = '999999';
+
+              // Hide all other elements
+              document.querySelectorAll('body > *:not(video)').forEach(el => {
+                if (el !== video && !el.contains(video)) {
+                  el.style.display = 'none';
+                }
+              });
+
+              // Hide Fathom UI elements specifically
+              const hideSelectors = [
+                '.fathom-toolbar',
+                '.fathom-controls',
+                '[class*="toolbar"]',
+                '[class*="controls"]',
+                '[class*="overlay"]',
+                'header',
+                'nav',
+                '.tabs',
+                '[role="tablist"]'
+              ];
+
+              hideSelectors.forEach(selector => {
+                document.querySelectorAll(selector).forEach(el => {
+                  el.style.display = 'none';
+                });
+              });
+
+              // Add a temporary ID for selection
+              video.id = 'target-video-element';
+              return '#target-video-element';
+            }
+            return null;
+          });
+
+          if (videoSelector) {
+            console.log('📸 Attempting to screenshot full-screen video element...');
+
+            // Wait for styles to apply
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            try {
+              // Take full viewport screenshot (video is now fullscreen)
+              const screenshot = await page.screenshot({
+                type: 'jpeg',
+                quality: 90,
+                fullPage: false
+              });
+              console.log('✅ Full-screen video screenshot captured!');
+              return screenshot;
+            } catch (e) {
+              console.log('⚠️ Could not screenshot full-screen video:', e.message);
+            }
+          }
+
+          // Fallback to full viewport screenshot
+          console.log('📸 Taking full viewport screenshot...');
           return await page.screenshot({
             type: 'jpeg',
-            quality: 85,
+            quality: 90,
             fullPage: false
           });
         }

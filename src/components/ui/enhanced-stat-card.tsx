@@ -104,7 +104,7 @@ export function EnhancedStatCard({
     <motion.div
       whileHover={{ y: -2 }}
       className={cn(
-        'bg-gray-900/50 backdrop-blur-xl rounded-xl p-5 border border-gray-800/50 transition-all duration-300',
+        'bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-5 border border-gray-200 dark:border-gray-700/50 transition-all duration-300 shadow-sm dark:shadow-none',
         colorClass.hover,
         onClick && 'cursor-pointer',
         className
@@ -120,19 +120,19 @@ export function EnhancedStatCard({
         )}>
           <Icon className={cn('w-5 h-5', colorClass.text)} />
         </div>
-        
+
         {/* Trend Indicator with Period Context */}
         {trendPercentage !== undefined && (
           <div className="flex flex-col items-end">
             <div className={cn(
               'flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
               getTrendColor(),
-              'bg-gray-800/50'
+              'bg-gray-100 dark:bg-gray-800/50'
             )}>
               <TrendIcon className="w-3 h-3" />
               {formatTrendText()}
             </div>
-            <div className="flex items-center gap-1 mt-1 text-xs text-gray-500">
+            <div className="flex items-center gap-1 mt-1 text-xs text-gray-500 dark:text-gray-500">
               <Calendar className="w-3 h-3" />
               {periodContext}
             </div>
@@ -143,11 +143,11 @@ export function EnhancedStatCard({
       {/* Content */}
       <div className="space-y-2">
         {/* Title */}
-        <h3 className="text-sm font-medium text-gray-400">{title}</h3>
-        
+        <h3 className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</h3>
+
         {/* Primary Value */}
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-white">
+          <span className="text-2xl font-bold text-gray-900 dark:text-white">
             {primaryValue}
           </span>
           {percentageValue !== undefined && (
@@ -156,10 +156,10 @@ export function EnhancedStatCard({
             </span>
           )}
         </div>
-        
+
         {/* Secondary Value */}
         {secondaryValue && (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-gray-600 dark:text-gray-500">
             {secondaryValue}
           </div>
         )}
@@ -167,7 +167,7 @@ export function EnhancedStatCard({
 
       {/* Special indicator for no-show rate */}
       {variant === 'no-show' && (
-        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-gray-800/50">
+        <div className="flex items-center gap-1 mt-3 pt-3 border-t border-gray-200 dark:border-gray-800/50">
           <UserX className="w-3 h-3 text-orange-500" />
           <span className="text-xs text-orange-400">Lost Opportunities</span>
         </div>

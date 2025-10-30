@@ -25,12 +25,12 @@ const GoogleEmailNode: React.FC<GoogleEmailNodeProps> = ({ data, selected }) => 
   const isActive = data.testStatus === 'active';
   
   return (
-    <div 
+    <div
       className={`
-        bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg p-3 min-w-[180px] 
-        border-2 shadow-lg relative transition-all duration-300
+        bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 shadow-sm dark:shadow-none rounded-lg p-3 min-w-[180px]
+        border-2 relative transition-all duration-300
         ${isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'}
-        ${selected ? 'ring-2 ring-blue-300' : ''}
+        ${selected ? 'ring-2 ring-blue-300 ring-offset-white dark:ring-offset-gray-950' : ''}
         ${!isConfigured ? 'opacity-75' : ''}
       `}
     >

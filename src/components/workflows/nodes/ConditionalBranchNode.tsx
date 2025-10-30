@@ -22,8 +22,8 @@ const ConditionalBranchNode: React.FC<ConditionalBranchNodeProps> = ({ data, sel
   const isConfigured = data.isConfigured || false;
   
   return (
-    <div className={`bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg p-3 min-w-[160px] shadow-lg ${
-      selected ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-900' : ''
+    <div className={`bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 rounded-lg p-3 min-w-[160px] shadow-sm dark:shadow-none ${
+      selected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
     } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
       <Handle 
         type="target" 
