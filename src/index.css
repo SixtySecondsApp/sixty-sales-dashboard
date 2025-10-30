@@ -500,7 +500,7 @@
 }
 
 .glassmorphism-card {
-  @apply bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-800/30 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700/30 shadow-lg;
+  @apply bg-white dark:bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700/30 shadow-lg;
 }
 
 /* AI Insights specific styling */

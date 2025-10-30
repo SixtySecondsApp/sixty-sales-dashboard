@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
@@ -21,11 +21,12 @@ import {
 
 // Import workflow components
 import WorkflowCanvas from '@/components/workflows/WorkflowCanvas';
-import TemplateLibrary from '@/components/workflows/TemplateLibrary';
-import MyWorkflows from '@/components/workflows/MyWorkflows';
-import TestingLabNew from '@/components/workflows/TestingLabNew';
-import TestingLabCustomPayload from '@/components/workflows/TestingLabCustomPayload';
-import WorkflowInsights from '@/components/workflows/WorkflowInsights';
+// Lazy-load heavy/non-default tabs
+const TemplateLibrary = lazy(() => import('@/components/workflows/TemplateLibrary'));
+const MyWorkflows = lazy(() => import('@/components/workflows/MyWorkflows'));
+const TestingLabNew = lazy(() => import('@/components/workflows/TestingLabNew'));
+const TestingLabCustomPayload = lazy(() => import('@/components/workflows/TestingLabCustomPayload'));
+const WorkflowInsights = lazy(() => import('@/components/workflows/WorkflowInsights'));
 import ExecutionsList from '@/components/workflows/ExecutionsList';
 import { type WorkflowExecution } from '@/lib/services/workflowExecutionService';
 
@@ -511,12 +512,14 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <TemplateLibrary 
-                onSelectTemplate={(template) => {
-                  setSelectedWorkflow(template);
-                  setActiveTab('builder');
-                }}
-              />
+              <Suspense fallback={<div className="p-6">Loading templates…</div>}>
+                <TemplateLibrary 
+                  onSelectTemplate={(template) => {
+                    setSelectedWorkflow(template);
+                    setActiveTab('builder');
+                  }}
+                />
+              </Suspense>
             </motion.div>
           )}
           
@@ -528,10 +531,12 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <MyWorkflows 
-                onSelectWorkflow={handleWorkflowSelect}
-                onDeleteWorkflow={handleDeleteWorkflow}
-              />
+              <Suspense fallback={<div className="p-6">Loading workflows…</div>}>
+                <MyWorkflows 
+                  onSelectWorkflow={handleWorkflowSelect}
+                  onDeleteWorkflow={handleDeleteWorkflow}
+                />
+              </Suspense>
             </motion.div>
           )}
           
@@ -584,24 +589,28 @@ export default function Workflows() {
               <div className="flex-1 overflow-hidden">
                 {testingMode === 'executions' ? (
                   <div className="h-full p-6">
-                    <TestingLabNew workflow={selectedWorkflow} />
+                    <Suspense fallback={<div className="p-6">Loading test lab…</div>}>
+                      <TestingLabNew workflow={selectedWorkflow} />
+                    </Suspense>
                   </div>
                 ) : (
                   <div className="h-full">
-                    {selectedWorkflow ? (
-                      <TestingLabCustomPayload 
-                        workflow={selectedWorkflow}
-                        nodes={selectedWorkflow?.canvas_data?.nodes || []}
-                        edges={selectedWorkflow?.canvas_data?.edges || []}
-                        testEngine={null} // Will be initialized inside the component
-                        executionState={null} // Will be managed inside the component
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
-                        <TestTube className="w-12 h-12 mb-3" />
-                        <p className="text-sm">Select a workflow to test with custom payloads</p>
-                      </div>
-                    )}
+                    <Suspense fallback={<div className="p-6">Loading payload tester…</div>}>
+                      {selectedWorkflow ? (
+                        <TestingLabCustomPayload 
+                          workflow={selectedWorkflow}
+                          nodes={selectedWorkflow?.canvas_data?.nodes || []}
+                          edges={selectedWorkflow?.canvas_data?.edges || []}
+                          testEngine={null}
+                          executionState={null}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                          <TestTube className="w-12 h-12 mb-3" />
+                          <p className="text-sm">Select a workflow to test with custom payloads</p>
+                        </div>
+                      )}
+                    </Suspense>
                   </div>
                 )}
               </div>
@@ -616,7 +625,9 @@ export default function Workflows() {
               exit={{ opacity: 0, y: -20 }}
               className="h-full p-6"
             >
-              <WorkflowInsights />
+              <Suspense fallback={<div className="p-6">Loading insights…</div>}>
+                <WorkflowInsights />
+              </Suspense>
             </motion.div>
           )}
         </AnimatePresence>

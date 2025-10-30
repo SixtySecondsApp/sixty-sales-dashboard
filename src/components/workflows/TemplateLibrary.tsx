@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// Virtualized grid for large lists
+import { VirtuosoGrid } from 'react-virtuoso';
 import { motion } from 'framer-motion';
 import { 
   BookOpen,
@@ -933,6 +935,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  // Debounced search input
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'usage_count' | 'difficulty_level' | 'name' | 'rating_avg'>('usage_count');
 
@@ -977,7 +981,7 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
     try {
       // Try to increment usage count (but don't fail if table doesn't exist)
       try {
-        await supabase
+        await (supabase as any)
           .from('workflow_templates')
           .update({ usage_count: template.usage_count + 1 })
           .eq('id', template.id);
@@ -1020,22 +1024,115 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
     }
   };
 
-  const filteredTemplates = templates
-    .filter(t => selectedCategory === 'All' || t.category === selectedCategory)
-    .filter(t => 
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-    )
-    .sort((a, b) => {
+  // Debounce search changes to avoid expensive recomputations on every keystroke
+  useEffect(() => {
+    const id = setTimeout(() => setSearchQuery(searchInput.trim()), 200);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  const filteredTemplates = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    const byCategory = selectedCategory === 'All'
+      ? templates
+      : templates.filter(t => t.category === selectedCategory);
+
+    const bySearch = searchLower
+      ? byCategory.filter(t =>
+          t.name.toLowerCase().includes(searchLower) ||
+          t.description?.toLowerCase().includes(searchLower) ||
+          t.tags?.some(tag => tag.toLowerCase().includes(searchLower))
+        )
+      : byCategory;
+
+    const sorted = [...bySearch].sort((a, b) => {
       if (sortBy === 'usage_count') return b.usage_count - a.usage_count;
       if (sortBy === 'rating_avg') return (b.rating_avg || 0) - (a.rating_avg || 0);
       if (sortBy === 'difficulty_level') {
-        const diffOrder = { easy: 0, medium: 1, hard: 2 };
+        const diffOrder: any = { easy: 0, medium: 1, hard: 2 };
         return diffOrder[a.difficulty_level] - diffOrder[b.difficulty_level];
       }
       return a.name.localeCompare(b.name);
     });
+
+    return sorted;
+  }, [templates, selectedCategory, searchQuery, sortBy]);
+
+  const renderTemplateCard = useCallback((index: number) => {
+    const template = filteredTemplates[index];
+    if (!template) return null;
+
+    const getTemplateIcon = () => {
+      if (template.trigger_type === 'stage_changed') return Target;
+      if (template.trigger_type === 'activity_created') return Activity;
+      if (template.trigger_type === 'deal_created') return Database;
+      if (template.action_type === 'create_task') return CheckSquare;
+      if (template.action_type === 'send_notification') return Bell;
+      return GitBranch;
+    };
+    const Icon = getTemplateIcon();
+    const categoryColor = categoryColors[template.category] || categoryColors.general;
+
+    return (
+      <motion.div
+        key={template.id}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: (index % 12) * 0.01 }}
+        whileHover={{ scale: 1.02 }}
+        onClick={() => handleTemplateSelect(template)}
+        className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-lg p-6 cursor-pointer hover:border-[#37bd7e]/50 transition-all group"
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className={`w-12 h-12 ${categoryColor} rounded-lg flex items-center justify-center`}>
+            <Icon className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-1 rounded text-xs font-medium ${getDifficultyColor(template.difficulty_level)}`}>
+              {template.difficulty_level}
+            </span>
+            <div className="flex items-center gap-1">
+              <Star className="w-3 h-3 text-yellow-400 fill-current" />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {template.rating_count > 0 ? template.rating_avg.toFixed(1) : 'New'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-[#37bd7e] transition-colors">
+          {template.name}
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          {template.description}
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-4">
+          {template.tags?.map(tag => (
+            <span key={tag} className="px-2 py-1 bg-gray-50 dark:bg-gray-800/50 rounded text-xs text-gray-700 dark:text-gray-400">
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800/50">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+              <Clock className="w-3 h-3" />
+              <span>{template.estimated_setup_time} min</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+              <TrendingUp className="w-3 h-3" />
+              <span>{template.usage_count} uses</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 text-[#37bd7e] opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-sm font-medium">Use Template</span>
+            <ChevronRight className="w-4 h-4" />
+          </div>
+        </div>
+      </motion.div>
+    );
+  }, [filteredTemplates, handleTemplateSelect]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
@@ -1078,8 +1175,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search templates..."
               className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:border-[#37bd7e] outline-none transition-colors"
             />
@@ -1116,88 +1213,15 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
         </select>
       </div>
 
-      {/* Template Grid */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTemplates.map((template, index) => {
-          // Get appropriate icon based on trigger/action type
-          const getTemplateIcon = () => {
-            if (template.trigger_type === 'stage_changed') return Target;
-            if (template.trigger_type === 'activity_created') return Activity;
-            if (template.trigger_type === 'deal_created') return Database;
-            if (template.action_type === 'create_task') return CheckSquare;
-            if (template.action_type === 'send_notification') return Bell;
-            return GitBranch;
-          };
-          
-          const Icon = getTemplateIcon();
-          const categoryColor = categoryColors[template.category] || categoryColors.general;
-          
-          return (
-            <motion.div
-              key={template.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              whileHover={{ scale: 1.02 }}
-              onClick={() => handleTemplateSelect(template)}
-              className="bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-lg p-6 cursor-pointer hover:border-[#37bd7e]/50 transition-all group"
-            >
-              {/* Icon and Category */}
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 ${categoryColor} rounded-lg flex items-center justify-center`}>
-                  <Icon className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getDifficultyColor(template.difficulty_level)}`}>
-                    {template.difficulty_level}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Star className="w-3 h-3 text-yellow-400 fill-current" />
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
-                      {template.rating_count > 0 ? template.rating_avg.toFixed(1) : 'New'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Title and Description */}
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-[#37bd7e] transition-colors">
-                {template.name}
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                {template.description}
-              </p>
-
-              {/* Tags */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {template.tags?.map(tag => (
-                  <span key={tag} className="px-2 py-1 bg-gray-50 dark:bg-gray-800/50 rounded text-xs text-gray-700 dark:text-gray-400">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800/50">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                    <Clock className="w-3 h-3" />
-                    <span>{template.estimated_setup_time} min</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>{template.usage_count} uses</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-[#37bd7e] opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-sm font-medium">Use Template</span>
-                  <ChevronRight className="w-4 h-4" />
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-      </div>
+      {/* Template Grid (virtualized) */}
+      <VirtuosoGrid
+        className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
+        totalCount={filteredTemplates.length}
+        itemContent={index => renderTemplateCard(index)}
+        components={{
+          // Use default wrappers; Tailwind classes applied on className above
+        }}
+      />
 
       {/* Empty State */}
       {filteredTemplates.length === 0 && (

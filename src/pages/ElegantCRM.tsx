@@ -107,8 +107,22 @@ export default function ElegantCRM() {
       ? tabParam 
       : 'companies';
   });
+  // Debounced search
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  // Pagination for companies
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  // Debounce search input
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setPage(1); // reset to first page on new search
+      setSearchQuery(searchInput.trim());
+    }, 250);
+    return () => clearTimeout(id);
+  }, [searchInput]);
   const [sizeFilter, setSizeFilter] = useState<string[]>([]);
   const [industryFilter, setIndustryFilter] = useState<string[]>([]);
   const [locationFilter, setLocationFilter] = useState<string[]>([]);
@@ -165,10 +179,13 @@ export default function ElegantCRM() {
     companies, 
     isLoading, 
     error: hookError,
-    deleteCompany
+    deleteCompany,
+    totalCount
   } = useCompanies({
     search: searchQuery,
-    includeStats: true
+    includeStats: false,
+    page,
+    pageSize
   });
 
   // Fetch contacts and deals data
@@ -595,8 +612,8 @@ export default function ElegantCRM() {
                 <Input
                   type="text"
                   placeholder="Search companies..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   className="h-8 pl-10 pr-4 py-1.5 text-xs bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 w-64"
                 />
               </div>
@@ -618,6 +635,8 @@ export default function ElegantCRM() {
 
               {/* Dynamic Add button */}
               {getAddButton()}
+
+              
             </div>
           </div>
 
@@ -753,10 +772,9 @@ export default function ElegantCRM() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={viewMode === 'grid' 
+              className={`${viewMode === 'grid' 
                 ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' 
-                : 'space-y-3'
-              }
+                : 'space-y-3'} pb-20`}
             >
               {filteredAndSortedCompanies.map((company, index) => (
                 <CompanyCard
@@ -782,6 +800,43 @@ export default function ElegantCRM() {
                       : 'Get started by adding your first company'
                     }
                   </p>
+                </div>
+              )}
+              {/* Bottom pagination, centered */}
+              {filteredAndSortedCompanies.length > 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center gap-2 pt-4 pb-2">
+                  <div className="text-xs text-gray-500">
+                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount || (page * pageSize))} of {totalCount || 'many'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                      disabled={page <= 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    <div className="px-2 text-xs text-gray-600 dark:text-gray-400 select-none">
+                      Page {page}
+                    </div>
+                    <button
+                      className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50"
+                      disabled={totalCount !== 0 && page * pageSize >= (totalCount || 0)}
+                      onClick={() => setPage(p => p + 1)}
+                    >
+                      Next
+                    </button>
+                    <select
+                      className="ml-2 h-8 text-xs bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded px-2"
+                      value={pageSize}
+                      onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setPage(1); }}
+                      aria-label="Page size"
+                    >
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
                 </div>
               )}
             </motion.div>

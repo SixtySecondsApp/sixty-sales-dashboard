@@ -14,6 +14,8 @@ interface UseCompaniesOptions {
   industry?: string;
   includeStats?: boolean;
   autoFetch?: boolean;
+  page?: number;
+  pageSize?: number;
 }
 
 interface UseCompaniesReturn {
@@ -59,7 +61,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
           // Build companies query - simplified to avoid complex joins
           let query = supabase
             .from('companies')
-            .select('*')
+            .select('*', { count: 'exact' })
             .order('created_at', { ascending: false });
 
           if (options.search) {
@@ -67,7 +69,14 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
             query = query.or(`name.ilike.${searchPattern},domain.ilike.${searchPattern},industry.ilike.${searchPattern}`);
           }
 
-          const { data: companiesData, error: companiesError } = await query;
+          // Apply pagination if provided
+          if (options.page && options.pageSize) {
+            const from = (options.page - 1) * options.pageSize;
+            const to = from + options.pageSize - 1;
+            query = query.range(from, to);
+          }
+
+          const { data: companiesData, error: companiesError, count } = await query;
 
           if (companiesError) {
             logger.warn('⚠️ Companies table query failed:', companiesError);
@@ -125,7 +134,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
 
           logger.log('📊 Companies loaded from table:', companies.map(c => ({ id: c.id, name: c.name })));
           setCompanies(companies);
-          setTotalCount(companies.length);
+          setTotalCount(count || companies.length);
           return;
         } catch (directQueryError) {
           logger.warn('⚠️ Direct companies table query failed, using mock data:', directQueryError);
@@ -181,6 +190,13 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
 
       // Order by updated_at
       query = query.order('updated_at', { ascending: false });
+
+      // Apply pagination if provided
+      if (options.page && options.pageSize) {
+        const from = (options.page - 1) * options.pageSize;
+        const to = from + options.pageSize - 1;
+        query = query.range(from, to);
+      }
 
       const { data: companies, error, count } = await query;
 
@@ -247,7 +263,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
     } finally {
       setIsLoading(false);
     }
-  }, [options.search, userData?.id, options.domain, options.size, options.industry, options.includeStats]);
+  }, [options.search, userData?.id, options.domain, options.size, options.industry, options.includeStats, options.page, options.pageSize]);
 
   // Create a new company
   const createCompany = useCallback(async (companyData: Omit<Company, 'id' | 'created_at' | 'updated_at'>) => {
@@ -381,7 +397,7 @@ export function useCompanies(options: UseCompaniesOptions = {}): UseCompaniesRet
       hasFetched.current = true;
       fetchCompanies();
     }
-  }, [options.search]); // Only depend on search changes, not the callback
+  }, [options.search, options.page, options.pageSize]); // include pagination
 
   return {
     companies,
