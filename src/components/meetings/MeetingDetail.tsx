@@ -272,7 +272,7 @@ const MeetingDetail: React.FC = () => {
         if (embedUrl) {
           // Choose a representative timestamp: midpoint, clamped to >=5s
           const midpointSeconds = Math.max(5, Math.floor((meeting.duration_minutes || 0) * 60 / 2))
-          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail', {
+          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail-v2', {
             body: {
               recording_id: meeting.fathom_recording_id,
               share_url: meeting.share_url,

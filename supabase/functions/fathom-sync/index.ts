@@ -99,7 +99,7 @@ async function generateVideoThumbnail(
   embedUrl: string
 ): Promise<string | null> {
   try {
-    const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail`
+    const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail-v2`
 
     console.log(`📸 Calling thumbnail generation service for recording ${recordingId}...`)
 

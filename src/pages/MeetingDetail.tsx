@@ -280,7 +280,7 @@ export function MeetingDetail() {
 
         if (embedUrl) {
           // Try generation service first
-          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail', {
+          const { data, error } = await supabase.functions.invoke('generate-video-thumbnail-v2', {
             body: {
               recording_id: meeting.fathom_recording_id,
               share_url: meeting.share_url,
