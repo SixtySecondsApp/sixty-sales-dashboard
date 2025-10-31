@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
 import logger from '@/lib/utils/logger';
+import { useNextActions } from '@/lib/hooks/useNextActions';
+import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 
 interface ContactRightPanelProps {
   contact: Contact;
@@ -16,6 +18,17 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
   const [deals, setDeals] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
+
+  // Get AI suggestions for this contact
+  const {
+    pendingCount: nextActionsPendingCount,
+    highUrgencyCount,
+    suggestions
+  } = useNextActions({
+    contactId: contact.id,
+    status: 'pending',
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -174,6 +187,37 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
         </div>
       </div>
 
+      {/* AI Suggestions */}
+      {nextActionsPendingCount > 0 && (
+        <div className="section-card bg-gradient-to-br from-emerald-900/20 to-blue-900/20 border-emerald-500/20">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-emerald-400" />
+              AI Suggestions
+            </h2>
+            <NextActionBadge
+              count={nextActionsPendingCount}
+              urgency={highUrgencyCount > 0 ? 'high' : 'medium'}
+              onClick={() => setShowNextActionsPanel(true)}
+              compact
+              showIcon={false}
+            />
+          </div>
+
+          <p className="theme-text-tertiary text-sm mb-3">
+            {nextActionsPendingCount} AI-powered recommendation{nextActionsPendingCount !== 1 ? 's' : ''} based on recent interactions
+          </p>
+
+          <button
+            onClick={() => setShowNextActionsPanel(true)}
+            className="btn-outline w-full bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>View All Suggestions</span>
+          </button>
+        </div>
+      )}
+
       {/* Recent Communications */}
       <div className="section-card">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -273,6 +317,13 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* Next-Action Suggestions Panel */}
+      <NextActionPanel
+        contactId={contact.id}
+        isOpen={showNextActionsPanel}
+        onClose={() => setShowNextActionsPanel(false)}
+      />
     </div>
   );
 } 

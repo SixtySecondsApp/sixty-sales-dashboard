@@ -1,8 +1,8 @@
 # Next-Best-Action Engine Implementation Guide
 
-**Status**: ✅ Phase 1-3 Complete | 🔄 Phase 4 In Progress | 📋 Phase 5 Pending
+**Status**: ✅ Phase 1-4 Complete | 📋 Phase 5 Pending
 **Date**: October 31, 2025
-**Version**: 1.1.0
+**Version**: 1.2.0
 
 ## 🎯 Overview
 
@@ -353,25 +353,33 @@ SELECT backfill_next_actions_for_meetings(10);
    - Click opens suggestion panel
    - Supports both split and non-split deals
 
-4. **Next Action Panel**:
+4. **Company Detail Page** (Right Panel):
+   - AI Suggestions card with badge
+   - Shows aggregated suggestions for all company-related activities
+   - "View All Suggestions" button opens panel
+   - Positioned after Quick Actions section
+
+5. **Contact Detail Page** (Right Panel):
+   - AI Suggestions card with badge
+   - Shows aggregated suggestions for all contact-related interactions
+   - "View All Suggestions" button opens panel
+   - Positioned after Active Deals section
+
+6. **Next Action Panel**:
    - Accessible from any card badge
    - Filter by urgency
    - Bulk actions
    - Individual card actions
-   - Supports both activity-level and deal-level filtering
+   - Supports activity, deal, company, and contact-level filtering
 
 ### 📋 Pending Implementation
 
-1. **Company/Contact Records**:
-   - Aggregated suggestions tab
-   - All suggestions for company/contact
-
-2. **Dedicated AI Suggestions Page**:
+1. **Dedicated AI Suggestions Page**:
    - `/ai-suggestions` route
    - Filterable list of all pending suggestions
    - Dashboard widgets
 
-3. **Navigation Badge**:
+2. **Navigation Badge**:
    - Global pending count in nav
    - Link to dedicated page
 
@@ -546,12 +554,12 @@ CREATE POLICY "Service role can insert suggestions"
 
 ## 🚧 Remaining Implementation
 
-### Phase 4: Additional Integrations (In Progress)
+### Phase 4: Additional Integrations (Complete)
 
 - [x] Integrate into DealCard component
-- [ ] Add to Company detail page
-- [ ] Add to Contact detail page
-- [ ] Create activity timeline integration
+- [x] Add to Company detail page
+- [x] Add to Contact detail page
+- [ ] Create activity timeline integration (optional)
 
 ### Phase 5: Dedicated Page & Nav (Pending)
 
@@ -602,7 +610,7 @@ CREATE POLICY "Service role can insert suggestions"
 
 **Implementation Status**:
 - **Phase 1-3**: ✅ Complete (Backend, Service Layer, UI Components)
-- **Phase 4**: 🔄 In Progress (DealCard ✅, Company/Contact pages pending)
+- **Phase 4**: ✅ Complete (DealCard, Company page, Contact page integrations)
 - **Phase 5**: 📋 Pending (Dedicated page and navigation)
 
-**Current Status**: DealCard integration complete, ready for Company/Contact page integration
+**Current Status**: All core integrations complete. System is fully functional across meetings, deals, companies, and contacts. Ready for dedicated AI suggestions page and global navigation.

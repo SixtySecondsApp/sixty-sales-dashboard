@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { format, isToday, isYesterday, isThisWeek } from 'date-fns';
-import { 
+import {
   Calendar,
   Clock,
   Activity,
@@ -17,11 +17,14 @@ import {
   Phone,
   Mail,
   MessageSquare,
-  FileText
+  FileText,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Company, CompanyDeal, CompanyActivity } from '@/lib/hooks/useCompany';
+import { useNextActions } from '@/lib/hooks/useNextActions';
+import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 
 interface CompanyRightPanelProps {
   company: Company;
@@ -30,9 +33,21 @@ interface CompanyRightPanelProps {
 }
 
 export function CompanyRightPanel({ company, deals, activities }: CompanyRightPanelProps) {
+  const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
+
+  // Get AI suggestions for this company
+  const {
+    pendingCount: nextActionsPendingCount,
+    highUrgencyCount,
+    suggestions
+  } = useNextActions({
+    companyId: company.id,
+    status: 'pending',
+  });
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-GB', { 
-      style: 'currency', 
+    return new Intl.NumberFormat('en-GB', {
+      style: 'currency',
       currency: 'GBP',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
@@ -152,6 +167,37 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           </Button>
         </div>
       </div>
+
+      {/* AI Suggestions */}
+      {nextActionsPendingCount > 0 && (
+        <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-sm font-medium theme-text-tertiary">AI Suggestions</h3>
+            </div>
+            <NextActionBadge
+              count={nextActionsPendingCount}
+              urgency={highUrgencyCount > 0 ? 'high' : 'medium'}
+              onClick={() => setShowNextActionsPanel(true)}
+              compact
+              showIcon={false}
+            />
+          </div>
+          <p className="text-xs theme-text-tertiary mb-3">
+            {nextActionsPendingCount} AI-powered recommendation{nextActionsPendingCount !== 1 ? 's' : ''} based on recent activities
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowNextActionsPanel(true)}
+            className="w-full justify-start bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            View All Suggestions
+          </Button>
+        </div>
+      )}
 
       {/* Health Score */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
@@ -295,6 +341,13 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           </div>
         </div>
       </div>
+
+      {/* Next-Action Suggestions Panel */}
+      <NextActionPanel
+        companyId={company.id}
+        isOpen={showNextActionsPanel}
+        onClose={() => setShowNextActionsPanel(false)}
+      />
     </div>
   );
 }

@@ -30,6 +30,8 @@ interface NextActionPanelProps {
   activityId?: string
   activityType?: 'meeting' | 'activity' | 'email' | 'proposal' | 'call'
   dealId?: string
+  companyId?: string
+  contactId?: string
   isOpen: boolean
   onClose: () => void
 }
@@ -38,6 +40,8 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
   activityId,
   activityType,
   dealId,
+  companyId,
+  contactId,
   isOpen,
   onClose,
 }) => {
@@ -59,6 +63,8 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
     activityId,
     activityType,
     dealId,
+    companyId,
+    contactId,
     status: 'pending',
     enableRealtime: true,
   })
