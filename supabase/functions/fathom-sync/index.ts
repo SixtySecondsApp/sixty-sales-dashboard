@@ -28,6 +28,7 @@ interface SyncRequest {
   call_id?: string // For webhook-triggered single call sync
   user_id?: string // For webhook calls that explicitly pass user ID
   limit?: number // Optional limit for test syncs (e.g., only sync last 5 calls)
+  webhook_payload?: any // For webhook calls that pass the complete Fathom payload
 }
 
 interface FathomCall {
@@ -68,6 +69,80 @@ interface FathomAnalytics {
     description: string
     type: 'question' | 'objection' | 'next_step' | 'highlight'
   }>
+}
+
+/**
+ * Helper: Refresh OAuth access token if expired
+ */
+async function refreshAccessToken(supabase: any, integration: any): Promise<string> {
+  const now = new Date()
+  const expiresAt = new Date(integration.token_expires_at)
+
+  // Check if token is expired or will expire within 5 minutes
+  const bufferMs = 5 * 60 * 1000 // 5 minutes buffer
+  if (expiresAt.getTime() - now.getTime() > bufferMs) {
+    // Token is still valid
+    return integration.access_token
+  }
+
+  console.log('🔄 Access token expired or expiring soon, refreshing...')
+
+  // Get OAuth configuration
+  const clientId = Deno.env.get('VITE_FATHOM_CLIENT_ID')
+  const clientSecret = Deno.env.get('VITE_FATHOM_CLIENT_SECRET')
+
+  if (!clientId || !clientSecret) {
+    throw new Error('Missing Fathom OAuth configuration for token refresh')
+  }
+
+  // Exchange refresh token for new access token
+  const tokenParams = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: integration.refresh_token,
+    client_id: clientId,
+    client_secret: clientSecret,
+  })
+
+  const tokenResponse = await fetch('https://fathom.video/external/v1/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: tokenParams.toString(),
+  })
+
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text()
+    console.error('❌ Token refresh failed:', errorText)
+    throw new Error(`Token refresh failed: ${errorText}. Please reconnect your Fathom integration.`)
+  }
+
+  const tokenData = await tokenResponse.json()
+  console.log('✅ Access token refreshed successfully')
+
+  // Calculate new token expiry
+  const expiresIn = tokenData.expires_in || 3600 // Default 1 hour
+  const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
+
+  // Update tokens in database
+  const { error: updateError } = await supabase
+    .from('fathom_integrations')
+    .update({
+      access_token: tokenData.access_token,
+      refresh_token: tokenData.refresh_token || integration.refresh_token, // Some OAuth providers don't issue new refresh tokens
+      token_expires_at: newTokenExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', integration.id)
+
+  if (updateError) {
+    console.error('❌ Failed to update refreshed tokens:', updateError)
+    throw new Error(`Failed to update refreshed tokens: ${updateError.message}`)
+  }
+
+  console.log('✅ Refreshed tokens stored successfully')
+
+  return tokenData.access_token
 }
 
 /**
@@ -332,7 +407,7 @@ serve(async (req) => {
       userId = user.id
       console.log('🔄 Starting Fathom sync for user (authenticated):', userId)
     }
-    const { sync_type, start_date, end_date, call_id, limit } = body
+    const { sync_type, start_date, end_date, call_id, limit, webhook_payload } = body
 
     // Get active Fathom integration
     const { data: integration, error: integrationError } = await supabase
@@ -375,16 +450,34 @@ serve(async (req) => {
     const errors: Array<{ call_id: string; error: string }> = []
 
     // Single call sync (webhook-triggered)
-    if (sync_type === 'webhook' && call_id) {
-      console.log(`📞 Syncing single call: ${call_id}`)
+    if (sync_type === 'webhook') {
+      // If webhook_payload is provided, use it directly
+      if (webhook_payload) {
+        console.log(`📞 Syncing webhook payload: ${webhook_payload.title}`)
 
-      const result = await syncSingleCall(supabase, userId, integration, call_id)
+        const result = await syncSingleCall(supabase, userId, integration, webhook_payload)
 
-      if (result.success) {
-        meetingsSynced = 1
-        totalMeetingsFound = 1
+        if (result.success) {
+          meetingsSynced = 1
+          totalMeetingsFound = 1
+        } else {
+          const recordingId = webhook_payload.recording_id || webhook_payload.id || 'unknown'
+          errors.push({ call_id: recordingId, error: result.error || 'Unknown error' })
+        }
+      } else if (call_id) {
+        // Legacy: fetch single call by ID
+        console.log(`📞 Syncing single call: ${call_id}`)
+
+        const result = await syncSingleCall(supabase, userId, integration, call_id)
+
+        if (result.success) {
+          meetingsSynced = 1
+          totalMeetingsFound = 1
+        } else {
+          errors.push({ call_id, error: result.error || 'Unknown error' })
+        }
       } else {
-        errors.push({ call_id, error: result.error || 'Unknown error' })
+        errors.push({ call_id: 'unknown', error: 'Webhook sync requires either webhook_payload or call_id' })
       }
     } else {
       // Bulk sync (initial, incremental, manual)
@@ -430,7 +523,7 @@ serve(async (req) => {
           end_date: apiEndDate,
           limit: apiLimit,
           offset,
-        })
+        }, supabase)
 
         totalMeetingsFound += calls.length
         console.log(`📦 Fetched ${calls.length} calls (offset: ${offset})`)
@@ -475,7 +568,7 @@ serve(async (req) => {
         console.log('⚠️  No meetings found in date range.')
         console.log(`   Date range: ${apiStartDate} to ${apiEndDate}`)
         console.log('ℹ️  Retrying without date filters to check if any meetings exist...')
-        const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 })
+        const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 }, supabase)
         totalMeetingsFound += retryCalls.length
 
         if (retryCalls.length === 0) {
@@ -616,7 +709,8 @@ async function fetchFathomCalls(
     end_date?: string
     limit?: number
     offset?: number
-  }
+  },
+  supabase?: any
 ): Promise<FathomCall[]> {
   const queryParams = new URLSearchParams()
 
@@ -634,14 +728,27 @@ async function fetchFathomCalls(
   const url = `https://api.fathom.ai/external/v1/meetings?${queryParams.toString()}`
 
   return await retryWithBackoff(async () => {
+    // Refresh token if expired (only if supabase client is provided)
+    let accessToken = integration.access_token
+    if (supabase) {
+      try {
+        accessToken = await refreshAccessToken(supabase, integration)
+        // Update the integration object with the new token
+        integration.access_token = accessToken
+      } catch (error) {
+        console.error('⚠️ Token refresh failed, attempting with existing token:', error)
+        // Continue with existing token - it might still work
+      }
+    }
+
     console.log(`📡 Fetching from: ${url}`)
-    console.log(`🔑 Using token: ${integration.access_token?.substring(0, 10)}...`)
+    console.log(`🔑 Using token: ${accessToken?.substring(0, 10)}...`)
 
     // OAuth tokens typically use Authorization: Bearer, not X-Api-Key
     // Try Bearer first (standard for OAuth), then fallback to X-Api-Key
     let response = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${integration.access_token}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
     })
@@ -653,7 +760,7 @@ async function fetchFathomCalls(
       console.log(`⚠️  Bearer auth failed, trying X-Api-Key...`)
       response = await fetch(url, {
         headers: {
-          'X-Api-Key': integration.access_token,
+          'X-Api-Key': accessToken,
           'Content-Type': 'application/json',
         },
       })
@@ -721,14 +828,33 @@ async function autoFetchTranscriptAndAnalyze(
       return
     }
 
-    // Check if we already have transcript
+    // Check if we already have transcript AND action items FIRST
+    // This prevents cooldown from blocking AI analysis on existing transcripts
     if (meeting.transcript_text) {
-      console.log(`⏭️  Transcript already exists for ${recordingId}`)
-      return
+      // Check if action items exist for this meeting
+      const { data: existingActionItems, error: aiCheckError } = await supabase
+        .from('meeting_action_items')
+        .select('id')
+        .eq('meeting_id', meeting.id)
+        .limit(1)
+
+      if (aiCheckError) {
+        console.error(`⚠️  Error checking action items: ${aiCheckError.message}`)
+      }
+
+      if (existingActionItems && existingActionItems.length > 0) {
+        console.log(`⏭️  Transcript and action items already exist for ${recordingId}`)
+        return
+      } else {
+        console.log(`📝 Transcript exists but no action items - will retry AI analysis for ${recordingId}`)
+        // Continue to AI analysis using existing transcript
+        // NOTE: Cooldown does NOT apply here - we're just running AI on existing transcript
+      }
     }
 
     // Check last attempt time - wait at least 5 minutes between attempts
-    if (meeting.last_transcript_fetch_at) {
+    // IMPORTANT: Only applies when we need to FETCH a new transcript
+    if (!meeting.transcript_text && meeting.last_transcript_fetch_at) {
       const lastAttempt = new Date(meeting.last_transcript_fetch_at)
       const now = new Date()
       const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
@@ -739,46 +865,53 @@ async function autoFetchTranscriptAndAnalyze(
       }
     }
 
-    console.log(`📄 Auto-fetching transcript for ${recordingId} (attempt ${fetchAttempts + 1}/3)...`)
-
-    // Update fetch tracking
-    await supabase
-      .from('meetings')
-      .update({
-        transcript_fetch_attempts: fetchAttempts + 1,
-        last_transcript_fetch_at: new Date().toISOString(),
-      })
-      .eq('id', meeting.id)
-
-    // Fetch transcript
-    const transcript = await fetchTranscriptFromFathom(integration.access_token, recordingId)
+    // Determine if we need to fetch transcript or use existing
+    let transcript: string | null = meeting.transcript_text
 
     if (!transcript) {
-      console.log(`ℹ️  Transcript not yet available for ${recordingId} - will retry next sync`)
-      return
-    }
+      console.log(`📄 Auto-fetching transcript for ${recordingId} (attempt ${fetchAttempts + 1}/3)...`)
 
-    console.log(`✅ Transcript fetched: ${transcript.length} characters`)
+      // Update fetch tracking
+      await supabase
+        .from('meetings')
+        .update({
+          transcript_fetch_attempts: fetchAttempts + 1,
+          last_transcript_fetch_at: new Date().toISOString(),
+        })
+        .eq('id', meeting.id)
 
-    // Fetch enhanced summary
-    let summaryData: any = null
-    try {
-      summaryData = await fetchSummaryFromFathom(integration.access_token, recordingId)
-      if (summaryData) {
-        console.log(`✅ Enhanced summary fetched`)
+      // Fetch transcript
+      transcript = await fetchTranscriptFromFathom(integration.access_token, recordingId)
+
+      if (!transcript) {
+        console.log(`ℹ️  Transcript not yet available for ${recordingId} - will retry next sync`)
+        return
       }
-    } catch (error) {
-      console.log(`⚠️  Summary fetch failed (non-fatal): ${error.message}`)
-    }
 
-    // Store transcript immediately
-    await supabase
-      .from('meetings')
-      .update({
-        transcript_text: transcript,
-        summary: summaryData?.summary || meeting.summary, // Keep existing summary if new one not available
-      })
-      .eq('id', meeting.id)
+      console.log(`✅ Transcript fetched: ${transcript.length} characters`)
+
+      // Fetch enhanced summary
+      let summaryData: any = null
+      try {
+        summaryData = await fetchSummaryFromFathom(integration.access_token, recordingId)
+        if (summaryData) {
+          console.log(`✅ Enhanced summary fetched`)
+        }
+      } catch (error) {
+        console.log(`⚠️  Summary fetch failed (non-fatal): ${error.message}`)
+      }
+
+      // Store transcript immediately
+      await supabase
+        .from('meetings')
+        .update({
+          transcript_text: transcript,
+          summary: summaryData?.summary || meeting.summary, // Keep existing summary if new one not available
+        })
+        .eq('id', meeting.id)
+    } else {
+      console.log(`✅ Using existing transcript: ${transcript.length} characters`)
+    }
 
     // Run AI analysis on transcript
     console.log(`🤖 Running Claude AI analysis on transcript...`)
@@ -993,23 +1126,31 @@ async function syncSingleCall(
     // Helper: resolve the meeting owner user by email (robust across payload variants)
     async function resolveOwnerUserIdFromEmail(email: string | null | undefined): Promise<string | null> {
       if (!email) return null
+
+      console.log(`🔍 Resolving user ID for email: ${email}`)
+
       try {
-        // Prefer auth.users for canonical identity
-        const { data: au } = await supabase
-          .from('auth.users')
-          .select('id')
-          .eq('email', email)
-          .single()
-        if (au?.id) return au.id
-      } catch (_) {}
-      try {
-        const { data: prof } = await supabase
+        // Query profiles table (auth.users is not directly accessible in edge functions)
+        const { data: prof, error: profError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, email, first_name, last_name')
           .eq('email', email)
           .single()
-        if (prof?.id) return prof.id
-      } catch (_) {}
+
+        if (prof?.id) {
+          const fullName = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.email
+          console.log(`✅ Found user: ${fullName} (${prof.id})`)
+          return prof.id
+        }
+
+        if (profError) {
+          console.log(`⚠️  Profile lookup error: ${profError.message}`)
+        }
+      } catch (e) {
+        console.error(`❌ Error resolving user: ${e instanceof Error ? e.message : 'unknown'}`)
+      }
+
+      console.log(`❌ No user found for email: ${email}`)
       return null
     }
 
@@ -1024,6 +1165,9 @@ async function syncSingleCall(
       (Array.isArray(call?.participants) ? (call.participants.find((p: any) => p?.is_host)?.email) : undefined),
       (Array.isArray(call?.calendar_invitees) ? (call.calendar_invitees.find((p: any) => p?.is_host)?.email) : undefined),
     ]
+
+    console.log(`📧 Candidate owner emails from Fathom:`, possibleOwnerEmails.filter(e => e))
+
     let ownerEmailCandidate: string | null = null
     for (const em of possibleOwnerEmails) {
       const uid = await resolveOwnerUserIdFromEmail(em)
@@ -1031,9 +1175,14 @@ async function syncSingleCall(
         ownerUserId = uid
         ownerResolved = true
         ownerEmailCandidate = em || null
+        console.log(`✅ Owner resolved: ${em} → ${uid}`)
         break
       }
       if (!ownerEmailCandidate && em) ownerEmailCandidate = em
+    }
+
+    if (!ownerResolved) {
+      console.log(`⚠️  Could not resolve owner from any email. Using integration owner: ${userId}`)
     }
 
     // Calculate duration in minutes from recording start/end times
@@ -1303,24 +1452,49 @@ async function syncSingleCall(
             } else if (meetingDateOnly >= fromDateOnly) {
               console.log('📝 Auto-logging meeting activity per user preference (new meetings only)')
 
-              const { error: activityError } = await supabase.from('activities').insert({
-                user_id: ownerUserId,
-                sales_rep: ownerUserId,
-                meeting_id: meeting.id,
-                contact_id: primaryContactId,
-                company_id: meetingCompanyId,
-                type: 'meeting',
-                status: 'completed',
-                client_name: meetingData.title || 'Fathom Meeting',
-                details: meetingData.summary || `Meeting with ${externalContactIds.length} external contact${externalContactIds.length > 1 ? 's' : ''}`,
-                date: meetingData.meeting_start,
-                created_at: new Date().toISOString()
-              })
+              // Check if activity already exists for this meeting
+              const { data: existingActivity } = await supabase
+                .from('activities')
+                .select('id')
+                .eq('meeting_id', meeting.id)
+                .eq('user_id', ownerUserId)
+                .eq('type', 'meeting')
+                .single()
 
-              if (activityError) {
-                console.error(`❌ Error creating activity: ${activityError.message}`)
+              if (existingActivity) {
+                console.log('⏭️  Activity already exists for this meeting - skipping duplicate creation')
               } else {
-                console.log('✅ Created activity record for meeting')
+                // Get sales rep email - use ownerEmailCandidate or lookup from profile
+                let salesRepEmail = ownerEmailCandidate
+                if (!salesRepEmail) {
+                  // Fallback: lookup email from profiles table
+                  const { data: ownerProfile } = await supabase
+                    .from('profiles')
+                    .select('email')
+                    .eq('id', ownerUserId)
+                    .single()
+                  salesRepEmail = ownerProfile?.email || ownerUserId
+                }
+
+                const { error: activityError } = await supabase.from('activities').insert({
+                  user_id: ownerUserId,
+                  sales_rep: salesRepEmail,  // Use email instead of UUID
+                  meeting_id: meeting.id,
+                  contact_id: primaryContactId,
+                  company_id: meetingCompanyId,
+                  type: 'meeting',
+                  status: 'completed',
+                  client_name: meetingData.title || 'Fathom Meeting',
+                  details: meetingData.summary || `Meeting with ${externalContactIds.length > 1 ? 's' : ''}`,
+                  date: meetingData.meeting_start,
+                  created_at: new Date().toISOString()
+                })
+
+                if (activityError) {
+                  console.error(`❌ Error creating activity: ${activityError.message}`)
+                } else {
+                  console.log('✅ Created activity record for meeting')
+                }
               }
             } else {
               console.log('📝 Meeting before preference start date - skipping auto activity creation')
