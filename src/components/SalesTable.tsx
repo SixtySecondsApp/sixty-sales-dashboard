@@ -940,7 +940,7 @@ export function SalesTable() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <div className="text-sm font-medium text-white capitalize">
+              <div className="text-sm font-medium text-gray-900 dark:text-white capitalize">
                     {type}
                     {type === 'outbound' && quantity > 1 && (
                       <span className="ml-2 text-xs text-blue-400">×{quantity}</span>
@@ -1711,7 +1711,7 @@ export function SalesTable() {
             </div>
           )}
 
-          <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-lg border border-gray-200 dark:border-gray-800/50 overflow-hidden w-full">
+          <div className="bg-white dark:bg-transparent backdrop-blur-xl dark:backdrop-blur-0 rounded-lg border border-gray-200 dark:border-transparent overflow-hidden w-full">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2 } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
@@ -53,6 +53,9 @@ interface ActionItem {
   playback_url: string | null;
   ai_generated: boolean | null;
   ai_confidence: number | null;
+  task_id: string | null;
+  synced_to_task: boolean | null;
+  sync_status: string | null;
 }
 
 // Helper functions
@@ -125,6 +128,8 @@ export function MeetingDetail() {
   const [currentTimestamp, setCurrentTimestamp] = useState(0);
   const [thumbnailEnsured, setThumbnailEnsured] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   const primaryExternal = attendees.find(a => a.is_external);
 
@@ -423,6 +428,61 @@ export function MeetingDetail() {
       setIsExtracting(false);
     }
   }, [meeting]);
+
+  // Create task from action item
+  const handleCreateTask = useCallback(async (actionItemId: string) => {
+    try {
+      setCreatingTaskId(actionItemId);
+
+      const { data, error } = await supabase.functions.invoke('create-task-from-action-item', {
+        body: { action_item_id: actionItemId }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create task');
+      }
+
+      // Update the action item in state
+      setActionItems(prev => prev.map(item =>
+        item.id === actionItemId
+          ? { ...item, task_id: data.task.id, synced_to_task: true, sync_status: 'synced' }
+          : item
+      ));
+
+      toast.success('Task created successfully');
+    } catch (e) {
+      console.error('[Create Task] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to create task');
+    } finally {
+      setCreatingTaskId(null);
+    }
+  }, []);
+
+  // Delete action item
+  const handleDeleteActionItem = useCallback(async (actionItemId: string) => {
+    try {
+      setDeletingItemId(actionItemId);
+
+      const { error } = await supabase
+        .from('meeting_action_items')
+        .delete()
+        .eq('id', actionItemId);
+
+      if (error) throw error;
+
+      // Remove from state
+      setActionItems(prev => prev.filter(item => item.id !== actionItemId));
+
+      toast.success('Action item deleted');
+    } catch (e) {
+      console.error('[Delete Action Item] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to delete action item');
+    } finally {
+      setDeletingItemId(null);
+    }
+  }, []);
 
   // Attach click handlers to Fathom timestamp links in summary
   useEffect(() => {
@@ -782,17 +842,65 @@ export function MeetingDetail() {
                         <span className="text-xs text-muted-foreground">{item.category}</span>
                       )}
                     </div>
-                    {item.timestamp_seconds !== null && (
+
+                    {/* Action Buttons */}
+                    <div className="mt-3 flex items-center gap-2">
+                      {/* Jump to timestamp */}
+                      {item.timestamp_seconds !== null && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTimestampJump(item.timestamp_seconds!)}
+                          className="text-xs flex-1"
+                        >
+                          <Play className="h-3 w-3 mr-1" />
+                          {formatTimestamp(item.timestamp_seconds)}
+                        </Button>
+                      )}
+
+                      {/* Create Task Button */}
+                      {item.synced_to_task ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled
+                          className="text-xs bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Synced
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCreateTask(item.id)}
+                          disabled={creatingTaskId === item.id}
+                          className="text-xs"
+                        >
+                          {creatingTaskId === item.id ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <ListTodo className="h-3 w-3 mr-1" />
+                          )}
+                          Create Task
+                        </Button>
+                      )}
+
+                      {/* Delete Button */}
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={() => handleTimestampJump(item.timestamp_seconds!)}
-                        className="mt-2 w-full text-xs"
+                        variant="ghost"
+                        onClick={() => handleDeleteActionItem(item.id)}
+                        disabled={deletingItemId === item.id}
+                        className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                       >
-                        <Play className="h-3 w-3 mr-1" />
-                        {formatTimestamp(item.timestamp_seconds)}
+                        {deletingItemId === item.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
                       </Button>
-                    )}
+                    </div>
                   </div>
                 ))
               ) : (

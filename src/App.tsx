@@ -72,6 +72,7 @@ const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
 const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
 const TestNotifications = lazy(() => import('@/pages/TestNotifications'));
+const Events = lazy(() => import('@/pages/Events'));
 
 // CRM routes - heavy components, lazy load
 const CRM = lazy(() => import('@/pages/CRM'));
@@ -260,6 +261,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/crm/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
                 <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
                 <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
+                <Route path="/events" element={<AppLayout><Events /></AppLayout>} />
                 
                 {/* Form Display Routes */}
                 <Route path="/form/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />

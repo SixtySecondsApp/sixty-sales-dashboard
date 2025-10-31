@@ -1,12 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { 
-  Building2, 
-  User, 
-  Calendar, 
-  Clock, 
-  AlertCircle, 
+import {
+  Building2,
+  User,
+  Calendar,
+  Clock,
+  AlertCircle,
   ExternalLink,
   Users,
   PieChart,
@@ -16,6 +16,8 @@ import { motion } from 'framer-motion';
 import { useDealSplits } from '@/lib/hooks/useDealSplits';
 import { Badge } from './Badge';
 import { format } from 'date-fns';
+import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
+import { useNextActions } from '@/lib/hooks/useNextActions';
 
 interface DealCardProps {
   deal: any;
@@ -28,6 +30,16 @@ interface DealCardProps {
 export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay = false }: DealCardProps) {
   // Assurer que l'ID est une chaîne de caractères
   const dealId = String(deal.id);
+
+  // Next-action suggestions state and hook
+  const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
+  const {
+    pendingCount: nextActionsPendingCount,
+    highUrgencyCount
+  } = useNextActions({
+    dealId: deal.id,
+    status: 'pending',
+  });
 
   // Get deal splits information
   const { splits, calculateSplitTotals } = useDealSplits({ dealId: deal.id });
@@ -315,6 +327,18 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
                   {formattedValue}
                 </div>
               )}
+
+              {/* Next-Action Badge */}
+              {nextActionsPendingCount > 0 && (
+                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                  <NextActionBadge
+                    count={nextActionsPendingCount}
+                    urgency={highUrgencyCount > 0 ? 'high' : 'medium'}
+                    onClick={() => setShowNextActionsPanel(true)}
+                    compact
+                  />
+                </div>
+              )}
             </div>
 
             {/* Drag Handle Indicator */}
@@ -410,6 +434,13 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
           </div>
         )}
       </div>
+
+      {/* Next-Action Suggestions Panel */}
+      <NextActionPanel
+        dealId={deal.id}
+        isOpen={showNextActionsPanel}
+        onClose={() => setShowNextActionsPanel(false)}
+      />
     </div>
   );
 }

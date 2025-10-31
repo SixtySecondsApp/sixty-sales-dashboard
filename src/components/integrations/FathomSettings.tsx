@@ -61,10 +61,10 @@ export function FathomSettings() {
   const handleTestSync = async () => {
     setSyncing(true);
     try {
-      // Test sync with only last 5 calls
+      // Test sync with only last 10 calls
       const result = await triggerSync({
         sync_type: 'manual',
-        limit: 5
+        limit: 10
       });
       console.log('Test sync result:', result);
     } catch (err) {
@@ -232,7 +232,7 @@ export function FathomSettings() {
                   ) : (
                     <Play className="h-4 w-4" />
                   )}
-                  Test Sync (Last 5)
+                  Test Sync (Last 10)
                 </Button>
 
                 <Button

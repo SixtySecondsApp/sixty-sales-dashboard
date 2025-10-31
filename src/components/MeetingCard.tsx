@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Video, 
-  Building2, 
-  User, 
+import {
+  Video,
+  Building2,
+  User,
   Clock,
   MessageSquare,
   TrendingUp,
@@ -20,6 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
+import { useNextActions } from '@/lib/hooks/useNextActions';
 
 interface Meeting {
   id: string;
@@ -73,6 +75,14 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
   onNavigate,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
+
+  // Fetch next action suggestions for this meeting
+  const { pendingCount, highUrgencyCount } = useNextActions({
+    activityId: meeting.id,
+    activityType: 'meeting',
+    status: 'pending',
+  });
 
   // Generate meeting icon color based on sentiment or coach rating
   const getMeetingColor = () => {
@@ -200,6 +210,14 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
               <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors flex items-center gap-2">
                 {meeting.title}
                 {isRecent() && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
+                {pendingCount > 0 && (
+                  <NextActionBadge
+                    count={pendingCount}
+                    urgency={highUrgencyCount > 0 ? 'high' : 'medium'}
+                    onClick={() => setShowNextActionsPanel(true)}
+                    compact
+                  />
+                )}
               </h3>
               <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 {meeting.company && (
@@ -326,12 +344,19 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
         </div>
       )}
 
-      {/* Recent indicator */}
-      {isRecent() && (
-        <div className="absolute top-4 right-4 z-10">
-          <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
-        </div>
-      )}
+      {/* Recent indicator & Next Actions Badge */}
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        {isRecent() && <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />}
+        {pendingCount > 0 && (
+          <NextActionBadge
+            count={pendingCount}
+            urgency={highUrgencyCount > 0 ? 'high' : 'medium'}
+            onClick={() => setShowNextActionsPanel(true)}
+            showIcon={false}
+            compact
+          />
+        )}
+      </div>
 
       {/* Meeting Icon */}
       <div className="relative mb-4">
@@ -463,6 +488,14 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
           )}
         </div>
       </div>
+
+      {/* Next Actions Panel */}
+      <NextActionPanel
+        activityId={meeting.id}
+        activityType="meeting"
+        isOpen={showNextActionsPanel}
+        onClose={() => setShowNextActionsPanel(false)}
+      />
     </motion.div>
   );
 };

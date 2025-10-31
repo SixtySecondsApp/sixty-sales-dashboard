@@ -1,38 +1,32 @@
--- Check which meetings should have action items based on Fathom share URLs
-
--- Meeting 1: Should have 3 action items
--- https://fathom.video/share/QX4zNf5vPfVRMFi-m9yP2vnqDNzFeoZz
-SELECT
-  id,
-  title,
-  fathom_recording_id,
-  share_url,
-  '3 expected' as action_items_expected
-FROM meetings
-WHERE share_url = 'https://fathom.video/share/QX4zNf5vPfVRMFi-m9yP2vnqDNzFeoZz'
-
-UNION ALL
-
--- Meeting 2: Should have 2 action items
--- https://fathom.video/share/BTPE7mwG8QtBsQwtPtX6PxeauX1C8bZf
-SELECT
-  id,
-  title,
-  fathom_recording_id,
-  share_url,
-  '2 expected' as action_items_expected
-FROM meetings
-WHERE share_url = 'https://fathom.video/share/BTPE7mwG8QtBsQwtPtX6PxeauX1C8bZf';
-
--- Check if any action items exist for these meetings
-SELECT
+-- Check recent meetings and their action items
+SELECT 
+  m.id,
   m.title,
+  m.meeting_start,
   m.fathom_recording_id,
-  COUNT(mai.id) as actual_action_items
+  m.sync_status,
+  m.last_synced_at,
+  COUNT(ai.id) as action_item_count
 FROM meetings m
-LEFT JOIN meeting_action_items mai ON mai.meeting_id = m.id
-WHERE m.share_url IN (
-  'https://fathom.video/share/QX4zNf5vPfVRMFi-m9yP2vnqDNzFeoZz',
-  'https://fathom.video/share/BTPE7mwG8QtBsQwtPtX6PxeauX1C8bZf'
-)
-GROUP BY m.id, m.title, m.fathom_recording_id;
+LEFT JOIN meeting_action_items ai ON ai.meeting_id = m.id
+WHERE m.created_at > NOW() - INTERVAL '24 hours'
+GROUP BY m.id, m.title, m.meeting_start, m.fathom_recording_id, m.sync_status, m.last_synced_at
+ORDER BY m.meeting_start DESC
+LIMIT 10;
+
+-- Check total action items in system
+SELECT COUNT(*) as total_action_items FROM meeting_action_items;
+
+-- Check sample of recent action items if any exist
+SELECT 
+  ai.id,
+  ai.title,
+  ai.category,
+  ai.completed,
+  ai.ai_generated,
+  ai.created_at,
+  m.title as meeting_title
+FROM meeting_action_items ai
+JOIN meetings m ON m.id = ai.meeting_id
+ORDER BY ai.created_at DESC
+LIMIT 5;

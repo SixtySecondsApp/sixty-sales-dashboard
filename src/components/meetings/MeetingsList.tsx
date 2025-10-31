@@ -15,18 +15,19 @@ import {
   TableRow
 } from '@/components/ui/table'
 import { format } from 'date-fns'
-import { 
-  Grid2X2, 
-  List, 
-  Users, 
-  User, 
-  Video, 
-  Clock, 
+import {
+  Grid2X2,
+  List,
+  Users,
+  User,
+  Video,
+  Clock,
   MessageSquare,
   TrendingUp,
   Award,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Play
 } from 'lucide-react'
 
 interface Meeting {
@@ -524,12 +525,14 @@ const MeetingsList: React.FC = () => {
                         }}
                       />
                     ) : null}
-                    {/* Fallback icon (always rendered behind image) */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Video className="h-8 w-8 text-gray-400 dark:text-gray-600" />
-                    </div>
                     {/* Overlay gradient */}
                     <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {/* Play Button Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-16 h-16 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <Play className="h-8 w-8 text-emerald-600 dark:text-emerald-400 fill-current ml-1" />
+                      </div>
+                    </div>
                     {/* Duration badge */}
                     <div className="absolute bottom-2 right-2 px-2 py-1 bg-white/90 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1">
                       <Clock className="h-3 w-3" />
