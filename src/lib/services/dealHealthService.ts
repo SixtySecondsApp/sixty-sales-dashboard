@@ -380,11 +380,11 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
     // 3. Get meeting data (last 30 days and last 3 meetings for sentiment)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Note: Filtering by owner_user_id only since deals.company is TEXT but meetings.company_id is UUID
     const { data: meetings, error: meetingsError } = await supabase
       .from('meetings')
       .select('id, meeting_start, sentiment_score')
       .eq('owner_user_id', deal.owner_id)
-      .or(`company_id.eq.${deal.company}`)
       .order('meeting_start', { ascending: false })
       .limit(10);
 
@@ -614,12 +614,16 @@ export async function calculateDealHealth(dealId: string): Promise<DealHealthSco
 export async function calculateAllDealsHealth(userId: string): Promise<DealHealthScore[]> {
   try {
     // Get all active deals for user
+    // Join with deal_stages to filter by stage name
     const { data: deals, error } = await supabase
       .from('deals')
-      .select('id')
+      .select(`
+        id,
+        deal_stages!inner(name)
+      `)
       .eq('owner_id', userId)
-      .neq('stage_id', 'signed') // Skip won deals
-      .neq('stage_id', 'lost'); // Skip lost deals
+      .eq('status', 'active')
+      .not('deal_stages.name', 'in', '("Signed","Lost")');
 
     if (error || !deals) {
       console.error('[DealHealth] Error fetching deals:', error);
@@ -639,6 +643,77 @@ export async function calculateAllDealsHealth(userId: string): Promise<DealHealt
   } catch (error) {
     console.error('[DealHealth] Exception calculating all deals health:', error);
     return [];
+  }
+}
+
+/**
+ * Smart refresh: Only recalculate health scores that are stale
+ * @param userId - User ID to refresh scores for
+ * @param maxAgeHours - Maximum age in hours before a score is considered stale (default: 24)
+ * @returns Updated health scores
+ */
+export async function refreshStaleHealthScores(
+  userId: string,
+  maxAgeHours: number = 24
+): Promise<{ updated: DealHealthScore[], skipped: number }> {
+  try {
+    // Get all active deals for user with their existing health scores
+    const { data: deals, error: dealsError } = await supabase
+      .from('deals')
+      .select(`
+        id,
+        deal_stages!inner(name),
+        deal_health_scores(id, last_calculated_at)
+      `)
+      .eq('owner_id', userId)
+      .eq('status', 'active')
+      .not('deal_stages.name', 'in', '("Signed","Lost")');
+
+    if (dealsError || !deals) {
+      console.error('[DealHealth] Error fetching deals for refresh:', dealsError);
+      return { updated: [], skipped: 0 };
+    }
+
+    const staleThreshold = new Date();
+    staleThreshold.setHours(staleThreshold.getHours() - maxAgeHours);
+
+    const dealsToUpdate: string[] = [];
+    let skippedCount = 0;
+
+    // Identify stale scores
+    for (const deal of deals) {
+      const healthScore = (deal as any).deal_health_scores?.[0];
+
+      if (!healthScore) {
+        // No health score exists - needs calculation
+        dealsToUpdate.push(deal.id);
+      } else {
+        const lastCalculated = new Date(healthScore.last_calculated_at);
+        if (lastCalculated < staleThreshold) {
+          // Score is stale - needs recalculation
+          dealsToUpdate.push(deal.id);
+        } else {
+          // Score is fresh - skip
+          skippedCount++;
+        }
+      }
+    }
+
+    console.log(`[DealHealth] Refreshing ${dealsToUpdate.length} stale scores, skipping ${skippedCount} fresh scores`);
+
+    // Calculate health for stale deals only
+    const healthScores: DealHealthScore[] = [];
+    for (const dealId of dealsToUpdate) {
+      const score = await calculateDealHealth(dealId);
+      if (score) {
+        healthScores.push(score);
+      }
+    }
+
+    return { updated: healthScores, skipped: skippedCount };
+  } catch (error) {
+    console.error('[DealHealth] Exception refreshing stale health scores:', error);
+    return { updated: [], skipped: 0 };
   }
 }
 

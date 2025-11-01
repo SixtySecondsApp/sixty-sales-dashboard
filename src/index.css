@@ -238,7 +238,9 @@
 
   /* Secondary Buttons */
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 bg-gray-800/80 border border-gray-500/60 text-white font-medium px-4 py-2.5 rounded-lg transition-all duration-300 hover:bg-gray-700/90 hover:border-gray-400 hover:text-white focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900 min-h-[40px] whitespace-nowrap;
+    @apply inline-flex items-center justify-center gap-2 font-medium px-4 py-2.5 rounded-lg transition-all duration-300 min-h-[40px] whitespace-nowrap;
+    @apply bg-white text-gray-900 border border-gray-300 hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-white;
+    @apply dark:bg-gray-800/80 dark:text-white dark:border-gray-500/60 dark:hover:bg-gray-700/90 dark:hover:border-gray-400 dark:focus:ring-offset-gray-900;
   }
 
   /* Ghost Buttons */
@@ -523,11 +525,11 @@
 
 /* Breadcrumb Navigation */
 .breadcrumb-nav {
-  @apply flex items-center gap-2 text-sm text-gray-400 mb-6;
+  @apply flex items-center gap-2 text-sm theme-text-tertiary mb-6;
 }
 
 .breadcrumb-item {
-  @apply hover:text-white transition-colors cursor-pointer;
+  @apply transition-colors cursor-pointer hover:text-gray-900 dark:hover:text-white;
 }
 
 .breadcrumb-separator {
@@ -535,7 +537,7 @@
 }
 
 .breadcrumb-current {
-  @apply text-white font-medium;
+  @apply theme-text-primary font-medium;
 }
 
 /* Calendar-specific layout fixes */

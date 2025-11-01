@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import {
   calculateDealHealth,
   calculateAllDealsHealth,
+  refreshStaleHealthScores,
   getDealHealthScore,
   getUserDealsHealthScores,
   type DealHealthScore,
@@ -130,15 +131,29 @@ export function useDealHealthScore(dealId: string | null) {
 // =====================================================
 
 /**
+ * Extended health score with deal details
+ */
+export interface ExtendedHealthScore extends DealHealthScore {
+  deal_name?: string;
+  deal_company?: string;
+  deal_contact?: string;
+  deal_value?: number;
+  deal_owner_name?: string;
+  meeting_count?: number;
+  contact_id?: string;
+  company_id?: string;
+}
+
+/**
  * Hook to get health scores for all user's deals
  */
 export function useUserDealsHealth() {
   const { user } = useAuth();
-  const [healthScores, setHealthScores] = useState<DealHealthScore[]>([]);
+  const [healthScores, setHealthScores] = useState<ExtendedHealthScore[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch health scores
+  // Fetch health scores with extended deal information
   const fetchHealthScores = useCallback(async () => {
     if (!user) {
       setHealthScores([]);
@@ -149,8 +164,64 @@ export function useUserDealsHealth() {
       setLoading(true);
       setError(null);
 
-      const scores = await getUserDealsHealthScores(user.id);
-      setHealthScores(scores);
+      // Get health scores with deal details
+      const { data: scores, error: scoresError } = await supabase
+        .from('deal_health_scores')
+        .select(`
+          *,
+          deals!inner(
+            id,
+            name,
+            company,
+            contact_name,
+            primary_contact_id,
+            company_id,
+            value,
+            owner_id
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (scoresError) throw scoresError;
+
+      // Enrich with owner names and meeting counts
+      const enrichedScores = await Promise.all(
+        (scores || []).map(async (score: any) => {
+          const deal = score.deals;
+
+          // Get owner name
+          let ownerName = 'Unknown';
+          if (deal?.owner_id) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', deal.owner_id)
+              .single();
+            ownerName = profile?.full_name || 'Unknown';
+          }
+
+          // Get meeting count for this deal
+          const { count: meetingCount } = await supabase
+            .from('meetings')
+            .select('id', { count: 'exact', head: true })
+            .eq('owner_user_id', deal?.owner_id || user.id);
+
+          return {
+            ...score,
+            deal_name: deal?.name || 'Unnamed Deal',
+            deal_company: deal?.company || 'Unknown Company',
+            deal_contact: deal?.contact_name || null,
+            deal_value: deal?.value || 0,
+            deal_owner_name: ownerName,
+            meeting_count: meetingCount || 0,
+            contact_id: deal?.primary_contact_id,
+            company_id: deal?.company_id,
+          };
+        })
+      );
+
+      setHealthScores(enrichedScores);
     } catch (err) {
       console.error('[useUserDealsHealth] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch health scores');
@@ -159,7 +230,7 @@ export function useUserDealsHealth() {
     }
   }, [user]);
 
-  // Calculate health for all deals
+  // Calculate health for all deals (force recalculation)
   const calculateAllHealth = useCallback(async () => {
     if (!user) return;
 
@@ -168,7 +239,9 @@ export function useUserDealsHealth() {
       setError(null);
 
       const scores = await calculateAllDealsHealth(user.id);
-      setHealthScores(scores);
+
+      // Fetch updated extended scores
+      await fetchHealthScores();
 
       // Generate alerts for all deals
       await generateAlertsForAllDeals(user.id);
@@ -181,7 +254,35 @@ export function useUserDealsHealth() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, fetchHealthScores]);
+
+  // Smart refresh: Only update stale scores (default: older than 24 hours)
+  const smartRefresh = useCallback(async (maxAgeHours: number = 24) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { updated, skipped } = await refreshStaleHealthScores(user.id, maxAgeHours);
+
+      // Fetch updated extended scores
+      await fetchHealthScores();
+
+      // Generate alerts for updated deals
+      if (updated.length > 0) {
+        await generateAlertsForAllDeals(user.id);
+      }
+
+      toast.success(`Updated ${updated.length} stale scores, ${skipped} were fresh`);
+    } catch (err) {
+      console.error('[useUserDealsHealth] Error smart refreshing:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh health scores');
+      toast.error('Failed to refresh health scores');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, fetchHealthScores]);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -217,6 +318,7 @@ export function useUserDealsHealth() {
     error,
     refresh: fetchHealthScores,
     calculateAllHealth,
+    smartRefresh,
   };
 }
 
@@ -470,7 +572,7 @@ export function useContactDealHealth(contactId: string | null) {
       const { data: deals, error: dealsError } = await supabase
         .from('deals')
         .select('id')
-        .or(`contact_email.eq.${contactId},contact_id.eq.${contactId}`)
+        .or(`contact_email.eq.${contactId},primary_contact_id.eq.${contactId}`)
         .eq('owner_id', user.id);
 
       if (dealsError) throw dealsError;

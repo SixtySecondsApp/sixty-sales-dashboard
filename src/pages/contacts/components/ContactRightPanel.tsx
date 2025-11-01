@@ -7,6 +7,8 @@ import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
 import logger from '@/lib/utils/logger';
 import { ContactDealHealthWidget } from '@/components/ContactDealHealthWidget';
+import { DealHealthBadge } from '@/components/DealHealthBadge';
+import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 
 interface ContactRightPanelProps {
   contact: Contact;
@@ -119,6 +121,13 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
     }
   };
 
+  // Mini component to show health badge for a deal
+  const DealHealthIndicator = ({ dealId }: { dealId: string }) => {
+    const { healthScore } = useDealHealthScore(dealId);
+    if (!healthScore) return null;
+    return <DealHealthBadge healthScore={healthScore} size="sm" />;
+  };
+
   // Component always renders - no loading skeleton needed since parent handles loading
   return (
     <div className="space-y-6">
@@ -147,13 +156,16 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
                 onClick={() => handleDealClick(deal.id)}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
                     <h3 className="theme-text-primary font-medium text-sm group-hover:text-blue-400 transition-colors">
                       {deal.title || deal.name || `Deal ${deal.id}`}
                     </h3>
                     <Eye className="w-4 h-4 theme-text-tertiary group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
-                  {getStageBadge(deal.stage_name)}
+                  <div className="flex items-center gap-2">
+                    <DealHealthIndicator dealId={deal.id} />
+                    {getStageBadge(deal.stage_name)}
+                  </div>
                 </div>
                 <p className="theme-text-tertiary text-xs mb-2">
                   {deal.description || 'No description available'}

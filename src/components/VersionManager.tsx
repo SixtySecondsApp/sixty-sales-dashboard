@@ -37,7 +37,7 @@ export function VersionManager() {
       {/* Version Info Button (top right corner) */}
       <button
         onClick={() => setShowVersionModal(true)}
-        className="fixed top-4 right-4 z-[9998] px-3 py-1.5 bg-gray-900/80 hover:bg-gray-900/90 backdrop-blur-sm text-gray-400 hover:text-white text-xs rounded-lg transition-all duration-200 border border-gray-800 hover:border-gray-700"
+        className="fixed top-4 right-4 z-[9998] px-3 py-1.5 bg-white/90 dark:bg-gray-900/80 hover:bg-white dark:hover:bg-gray-900/90 backdrop-blur-sm text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-xs rounded-lg transition-all duration-200 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 shadow-sm"
         title="Version info and cache management"
       >
         v{APP_VERSION}

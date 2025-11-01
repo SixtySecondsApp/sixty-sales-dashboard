@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DndContext,
   closestCorners,
@@ -131,6 +132,7 @@ function PipelineSkeleton() {
 // --- DRAG AND DROP IMPROVEMENTS ---
 
 function PipelineContent() {
+  const navigate = useNavigate();
   const {
     deals,
     stages,
@@ -241,10 +243,7 @@ function PipelineContent() {
   };
 
   const handleDealClick = (deal: any) => {
-    const foundDeal = deals.find(d => d.id === deal.id);
-    setSelectedDeal(foundDeal);
-    setShowDealForm(true);
-    setInitialStageId(null);
+    navigate(`/crm/deals/${deal.id}?returnTo=${encodeURIComponent(window.location.pathname)}`);
   };
 
   const handleSaveDeal = async (formData: any) => {
@@ -498,9 +497,9 @@ function PipelineContent() {
           toast.success('🎉 Deal signed! Track payment status on the Payments page.');
         }
       }
-      
-      // Database updated successfully - keep the optimistic update
-      // No need to refresh, the state is already correct
+
+      // Database updated successfully - refresh context to sync with DB
+      await refreshDeals();
       setIsUpdatingDatabase(false);
     } catch (err) {
       // On error, revert the optimistic update

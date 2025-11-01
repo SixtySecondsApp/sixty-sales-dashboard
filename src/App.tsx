@@ -51,6 +51,10 @@ const SystemHealth = lazyWithRetry(() => import('@/pages/admin/SystemHealth'));
 const Database = lazyWithRetry(() => import('@/pages/admin/Database'));
 const Reports = lazyWithRetry(() => import('@/pages/admin/Reports'));
 const Documentation = lazyWithRetry(() => import('@/pages/admin/Documentation'));
+const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
+
+// Health Monitoring routes
+const DealHealthDashboard = lazyWithRetry(() => import('@/components/DealHealthDashboard').then(m => ({ default: m.DealHealthDashboard })));
 
 // Auth routes - lazy load with retry except login
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
@@ -249,6 +253,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/database" element={<AppLayout><Database /></AppLayout>} />
                 <Route path="/admin/reports" element={<AppLayout><Reports /></AppLayout>} />
                 <Route path="/admin/documentation" element={<AppLayout><Documentation /></AppLayout>} />
+                <Route path="/admin/health-rules" element={<AppLayout><HealthRules /></AppLayout>} />
                 <Route path="/admin/old" element={<AppLayout><Admin /></AppLayout>} /> {/* Keep old admin for reference */}
                 <Route path="/workflows" element={<AppLayout><Workflows /></AppLayout>} />
                 <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
@@ -285,7 +290,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
                 <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
                 <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
-                
+                <Route path="/crm/health" element={<AppLayout><DealHealthDashboard /></AppLayout>} />
+
                 {/* Other routes */}
                 <Route path="/payments" element={<Navigate to="/clients" replace />} />
                 <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
