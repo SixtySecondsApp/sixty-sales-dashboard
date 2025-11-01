@@ -433,3 +433,252 @@ export function useActiveAlerts() {
     dismiss,
   };
 }
+
+// =====================================================
+// useContactDealHealth Hook
+// =====================================================
+
+/**
+ * Hook to get aggregated health scores for all deals related to a contact
+ */
+export function useContactDealHealth(contactId: string | null) {
+  const { user } = useAuth();
+  const [healthScores, setHealthScores] = useState<DealHealthScore[]>([]);
+  const [aggregateStats, setAggregateStats] = useState({
+    totalDeals: 0,
+    avgHealth: 0,
+    healthy: 0,
+    warning: 0,
+    critical: 0,
+    stalled: 0,
+    activeAlerts: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchContactHealth = useCallback(async () => {
+    if (!contactId || !user) {
+      setHealthScores([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get all deals for this contact
+      const { data: deals, error: dealsError } = await supabase
+        .from('deals')
+        .select('id')
+        .or(`contact_email.eq.${contactId},contact_id.eq.${contactId}`)
+        .eq('owner_id', user.id);
+
+      if (dealsError) throw dealsError;
+
+      if (!deals || deals.length === 0) {
+        setHealthScores([]);
+        setAggregateStats({
+          totalDeals: 0,
+          avgHealth: 0,
+          healthy: 0,
+          warning: 0,
+          critical: 0,
+          stalled: 0,
+          activeAlerts: 0,
+        });
+        return;
+      }
+
+      // Get health scores for these deals
+      const dealIds = deals.map((d) => d.id);
+      const { data: scores, error: scoresError } = await supabase
+        .from('deal_health_scores')
+        .select('*')
+        .in('deal_id', dealIds);
+
+      if (scoresError) throw scoresError;
+
+      setHealthScores(scores || []);
+
+      // Calculate aggregate stats
+      const total = scores?.length || 0;
+      const avgHealth =
+        total > 0
+          ? Math.round(
+              scores.reduce((sum, s) => sum + s.overall_health_score, 0) / total
+            )
+          : 0;
+
+      const healthy = scores?.filter((s) => s.health_status === 'healthy').length || 0;
+      const warning = scores?.filter((s) => s.health_status === 'warning').length || 0;
+      const critical = scores?.filter((s) => s.health_status === 'critical').length || 0;
+      const stalled = scores?.filter((s) => s.health_status === 'stalled').length || 0;
+
+      // Get active alerts count
+      const { data: alerts } = await supabase
+        .from('deal_health_alerts')
+        .select('id', { count: 'exact', head: true })
+        .in('deal_id', dealIds)
+        .eq('status', 'active');
+
+      setAggregateStats({
+        totalDeals: total,
+        avgHealth,
+        healthy,
+        warning,
+        critical,
+        stalled,
+        activeAlerts: alerts?.length || 0,
+      });
+    } catch (err) {
+      console.error('[useContactDealHealth] Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch contact health');
+    } finally {
+      setLoading(false);
+    }
+  }, [contactId, user]);
+
+  useEffect(() => {
+    fetchContactHealth();
+  }, [fetchContactHealth]);
+
+  return {
+    healthScores,
+    aggregateStats,
+    loading,
+    error,
+    refresh: fetchContactHealth,
+  };
+}
+
+// =====================================================
+// useCompanyDealHealth Hook
+// =====================================================
+
+/**
+ * Hook to get aggregated health scores for all deals related to a company
+ */
+export function useCompanyDealHealth(companyId: string | null) {
+  const { user } = useAuth();
+  const [healthScores, setHealthScores] = useState<DealHealthScore[]>([]);
+  const [aggregateStats, setAggregateStats] = useState({
+    totalDeals: 0,
+    avgHealth: 0,
+    healthy: 0,
+    warning: 0,
+    critical: 0,
+    stalled: 0,
+    activeAlerts: 0,
+    totalValue: 0,
+    atRiskValue: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchCompanyHealth = useCallback(async () => {
+    if (!companyId || !user) {
+      setHealthScores([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get all deals for this company
+      const { data: deals, error: dealsError } = await supabase
+        .from('deals')
+        .select('id, value, company')
+        .or(`company.eq.${companyId},company_id.eq.${companyId}`)
+        .eq('owner_id', user.id);
+
+      if (dealsError) throw dealsError;
+
+      if (!deals || deals.length === 0) {
+        setHealthScores([]);
+        setAggregateStats({
+          totalDeals: 0,
+          avgHealth: 0,
+          healthy: 0,
+          warning: 0,
+          critical: 0,
+          stalled: 0,
+          activeAlerts: 0,
+          totalValue: 0,
+          atRiskValue: 0,
+        });
+        return;
+      }
+
+      // Get health scores for these deals
+      const dealIds = deals.map((d) => d.id);
+      const { data: scores, error: scoresError } = await supabase
+        .from('deal_health_scores')
+        .select('*')
+        .in('deal_id', dealIds);
+
+      if (scoresError) throw scoresError;
+
+      setHealthScores(scores || []);
+
+      // Calculate aggregate stats
+      const total = scores?.length || 0;
+      const avgHealth =
+        total > 0
+          ? Math.round(
+              scores.reduce((sum, s) => sum + s.overall_health_score, 0) / total
+            )
+          : 0;
+
+      const healthy = scores?.filter((s) => s.health_status === 'healthy').length || 0;
+      const warning = scores?.filter((s) => s.health_status === 'warning').length || 0;
+      const critical = scores?.filter((s) => s.health_status === 'critical').length || 0;
+      const stalled = scores?.filter((s) => s.health_status === 'stalled').length || 0;
+
+      // Calculate total value and at-risk value
+      const totalValue = deals.reduce((sum, d) => sum + (d.value || 0), 0);
+      const atRiskDealIds = scores
+        ?.filter((s) => s.health_status === 'critical' || s.health_status === 'stalled')
+        .map((s) => s.deal_id) || [];
+      const atRiskValue = deals
+        .filter((d) => atRiskDealIds.includes(d.id))
+        .reduce((sum, d) => sum + (d.value || 0), 0);
+
+      // Get active alerts count
+      const { data: alerts } = await supabase
+        .from('deal_health_alerts')
+        .select('id', { count: 'exact', head: true })
+        .in('deal_id', dealIds)
+        .eq('status', 'active');
+
+      setAggregateStats({
+        totalDeals: total,
+        avgHealth,
+        healthy,
+        warning,
+        critical,
+        stalled,
+        activeAlerts: alerts?.length || 0,
+        totalValue,
+        atRiskValue,
+      });
+    } catch (err) {
+      console.error('[useCompanyDealHealth] Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch company health');
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, user]);
+
+  useEffect(() => {
+    fetchCompanyHealth();
+  }, [fetchCompanyHealth]);
+
+  return {
+    healthScores,
+    aggregateStats,
+    loading,
+    error,
+    refresh: fetchCompanyHealth,
+  };
+}

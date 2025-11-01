@@ -115,6 +115,18 @@ Alert generation and management:
 - Alert statistics
 - Acknowledge/resolve/dismiss actions
 
+#### `useContactDealHealth(contactId)`
+- Get aggregated health scores for all deals related to a contact
+- Calculate average health, status distribution
+- Track active alerts for contact's deals
+- Real-time updates when contact deals change
+
+#### `useCompanyDealHealth(companyId)`
+- Get aggregated health scores for all deals related to a company
+- Calculate pipeline value and at-risk value
+- Track active alerts across all company deals
+- Monitor overall company relationship health
+
 ### UI Components
 
 #### `DealHealthBadge`
@@ -145,6 +157,23 @@ Rule configuration interface:
 - Toggle active/inactive
 - Create/edit/delete custom rules
 - System rules protected from deletion
+
+#### `ContactDealHealthWidget`
+Contact page integration:
+- Aggregated health metrics for contact's deals
+- Average health score and status distribution
+- Expandable deal list with individual health scores
+- Active alert count and risk indicators
+- Appears in contact right panel
+
+#### `CompanyDealHealthWidget`
+Company page integration:
+- Pipeline health overview with total value
+- At-risk value calculation and percentage
+- Health distribution across all company deals
+- Expandable deal list sorted by health (worst first)
+- Active alerts requiring attention
+- Appears in company right panel
 
 ---
 
@@ -224,7 +253,78 @@ function Dashboard() {
 }
 ```
 
-### 5. Set Up Automated Calculation
+### 5. Integrate with Contacts and Companies Pages
+
+**Contact Page Integration:**
+
+The health widget is automatically included in the contact right panel:
+
+```typescript
+// Already integrated in: src/pages/contacts/components/ContactRightPanel.tsx
+import { ContactDealHealthWidget } from '@/components/ContactDealHealthWidget';
+
+// Displays:
+// - Average health score across all contact deals
+// - Health status distribution (healthy/warning/critical)
+// - Active alert count
+// - Expandable list of deals with individual health scores
+```
+
+**Company Page Integration:**
+
+The health widget is automatically included in the company right panel:
+
+```typescript
+// Already integrated in: src/pages/companies/components/CompanyRightPanel.tsx
+import { CompanyDealHealthWidget } from '@/components/CompanyDealHealthWidget';
+
+// Displays:
+// - Pipeline health overview with total and at-risk value
+// - Average health score across all company deals
+// - Health distribution (healthy/warning/critical/stalled)
+// - Active alerts requiring attention
+// - Expandable list of deals sorted by health (worst first)
+```
+
+**Manual Integration (if needed elsewhere):**
+
+```typescript
+// For contacts
+import { useContactDealHealth } from '@/lib/hooks/useDealHealth';
+
+function ContactView({ contactId }) {
+  const { healthScores, aggregateStats, refresh } = useContactDealHealth(contactId);
+
+  return (
+    <div>
+      <h3>Deal Health</h3>
+      <p>Average Health: {aggregateStats.avgHealth}</p>
+      <p>Active Deals: {aggregateStats.totalDeals}</p>
+      <p>At Risk: {aggregateStats.critical + aggregateStats.stalled}</p>
+      <p>Active Alerts: {aggregateStats.activeAlerts}</p>
+    </div>
+  );
+}
+
+// For companies
+import { useCompanyDealHealth } from '@/lib/hooks/useDealHealth';
+
+function CompanyView({ companyId }) {
+  const { healthScores, aggregateStats, refresh } = useCompanyDealHealth(companyId);
+
+  return (
+    <div>
+      <h3>Pipeline Health</h3>
+      <p>Total Value: £{aggregateStats.totalValue.toLocaleString()}</p>
+      <p>At Risk Value: £{aggregateStats.atRiskValue.toLocaleString()}</p>
+      <p>Average Health: {aggregateStats.avgHealth}</p>
+      <p>Active Alerts: {aggregateStats.activeAlerts}</p>
+    </div>
+  );
+}
+```
+
+### 6. Set Up Automated Calculation
 
 Create a cron job or scheduled task to calculate health scores:
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { format, isToday, isYesterday, isThisWeek } from 'date-fns';
-import { 
+import {
   Calendar,
   Clock,
   Activity,
@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Company, CompanyDeal, CompanyActivity } from '@/lib/hooks/useCompany';
+import { CompanyDealHealthWidget } from '@/components/CompanyDealHealthWidget';
 
 interface CompanyRightPanelProps {
   company: Company;
@@ -153,41 +154,8 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
         </div>
       </div>
 
-      {/* Health Score */}
-      <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium theme-text-tertiary">Relationship Health</h3>
-          <span className={cn("text-lg font-bold", getHealthScoreColor(healthScore))}>
-            {healthScore}%
-          </span>
-        </div>
-        <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-2 mb-3">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${healthScore}%` }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            className={cn(
-              "h-2 rounded-full",
-              healthScore >= 80 ? "bg-emerald-500" :
-              healthScore >= 60 ? "bg-yellow-500" : "bg-red-500"
-            )}
-          />
-        </div>
-        <div className="space-y-1 text-xs text-gray-500 dark:text-gray-500">
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-3 h-3" />
-            <span>{recentActivities.length} recent activities</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-3 h-3" />
-            <span>{deals.filter(d => d.status === 'won').length} closed deals</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-3 h-3" />
-            <span>{upcomingOpportunities.length} active opportunities</span>
-          </div>
-        </div>
-      </div>
+      {/* Deal Health Monitoring */}
+      <CompanyDealHealthWidget companyId={company.id} />
 
       {/* Upcoming Opportunities */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">

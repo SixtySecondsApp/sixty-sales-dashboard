@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
 import logger from '@/lib/utils/logger';
+import { ContactDealHealthWidget } from '@/components/ContactDealHealthWidget';
 
 interface ContactRightPanelProps {
   contact: Contact;
@@ -121,6 +122,9 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
   // Component always renders - no loading skeleton needed since parent handles loading
   return (
     <div className="space-y-6">
+      {/* Deal Health Widget */}
+      <ContactDealHealthWidget contactId={contact.id} />
+
       {/* Active Deals */}
       <div className="section-card">
         <div className="flex justify-between items-center mb-4">
