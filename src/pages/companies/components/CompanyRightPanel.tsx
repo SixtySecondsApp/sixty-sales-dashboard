@@ -178,7 +178,6 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
         </div>
       </div>
 
-<<<<<<< HEAD
       {/* AI Suggestions */}
       {nextActionsPendingCount > 0 && (
         <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
@@ -209,6 +208,9 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           </Button>
         </div>
       )}
+
+      {/* Deal Health Monitoring */}
+      <CompanyDealHealthWidget companyId={company.id} />
 
       {/* Health Score */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
@@ -245,10 +247,6 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           </div>
         </div>
       </div>
-=======
-      {/* Deal Health Monitoring */}
-      <CompanyDealHealthWidget companyId={company.id} />
->>>>>>> claude/deal-health-monitoring-alerts-011CUh8LxaP4XNqmPFprdZGE
 
       {/* Upcoming Opportunities */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
