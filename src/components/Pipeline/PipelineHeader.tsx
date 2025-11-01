@@ -123,7 +123,7 @@ export function PipelineHeader({
       id: 'all', 
       label: 'All Deals', 
       icon: LayoutGrid, 
-      colorClass: 'text-gray-400 bg-gray-800/30 border-gray-700/50 hover:bg-gray-700/30',
+      colorClass: 'text-gray-700 bg-gray-100 border-gray-300 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800/30 dark:border-gray-700/50 dark:hover:bg-gray-700/30',
       tooltip: 'Show all deals in the pipeline without any filters applied'
     },
     { 

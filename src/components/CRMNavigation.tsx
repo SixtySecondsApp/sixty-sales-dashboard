@@ -1,12 +1,13 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Building2, 
-  Users, 
-  Heart, 
+import {
+  Building2,
+  Users,
+  Heart,
   Plus,
-  Video
+  Video,
+  Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,29 +20,35 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
   const location = useLocation();
   
   const crmSections = [
-    { 
-      icon: Building2, 
-      label: 'Companies', 
+    {
+      icon: Building2,
+      label: 'Companies',
       href: '/crm/companies',
       description: 'Manage company profiles and relationships'
     },
-    { 
-      icon: Users, 
-      label: 'Contacts', 
+    {
+      icon: Users,
+      label: 'Contacts',
       href: '/crm/contacts',
       description: 'Individual contact management'
     },
-    { 
-      icon: Heart, 
-      label: 'Deals', 
+    {
+      icon: Heart,
+      label: 'Deals',
       href: '/pipeline',
       description: 'Sales opportunities and pipeline'
     },
-    { 
-      icon: Video, 
-      label: 'Meetings', 
+    {
+      icon: Video,
+      label: 'Meetings',
       href: '/meetings',
       description: 'Call recordings and analytics'
+    },
+    {
+      icon: Activity,
+      label: 'Health',
+      href: '/crm/health',
+      description: 'Deal health monitoring and analytics'
     }
   ];
 
@@ -50,6 +57,7 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
     if (location.pathname.includes('/contacts')) return 'Contacts';
     if (location.pathname.includes('/deals') || location.pathname.includes('/pipeline')) return 'Deals';
     if (location.pathname.includes('/meetings')) return 'Meetings';
+    if (location.pathname.includes('/health')) return 'Health';
     return 'CRM';
   };
 

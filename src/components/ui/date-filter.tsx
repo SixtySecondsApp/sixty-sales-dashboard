@@ -167,8 +167,8 @@ export function DateFilter({
             className={`
               h-8 px-3 min-w-[140px] justify-between font-medium transition-all text-xs
               ${hasActiveFilter 
-                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/70' 
-                : 'border-gray-700 bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:border-gray-600'
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/70' 
+                : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
               } ${className}
             `}
           >
@@ -180,14 +180,14 @@ export function DateFilter({
             <div className="flex items-center gap-1 ml-2">
               {hasActiveFilter && (
                 <X 
-                  className="w-3 h-3 text-gray-400 hover:text-gray-200 hover:bg-gray-600 rounded-sm p-0.5 transition-colors" 
+                  className="w-3 h-3 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-sm p-0.5 transition-colors" 
                   onClick={(e) => {
                     e.stopPropagation();
                     handleCustomRangeClear();
                   }}
                 />
               )}
-              <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" />
+              <ChevronDown className="w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
             </div>
           </Button>
         </PopoverTrigger>

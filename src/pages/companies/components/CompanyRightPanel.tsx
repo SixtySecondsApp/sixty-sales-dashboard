@@ -25,6 +25,9 @@ import { cn } from '@/lib/utils';
 import { Company, CompanyDeal, CompanyActivity } from '@/lib/hooks/useCompany';
 import { useNextActions } from '@/lib/hooks/useNextActions';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
+import { CompanyDealHealthWidget } from '@/components/CompanyDealHealthWidget';
+import { DealHealthBadge } from '@/components/DealHealthBadge';
+import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 
 interface CompanyRightPanelProps {
   company: Company;
@@ -127,6 +130,13 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
     }
   };
 
+  // Mini component to show health badge for a deal
+  const DealHealthIndicator = ({ dealId }: { dealId: string }) => {
+    const { healthScore } = useDealHealthScore(dealId);
+    if (!healthScore) return null;
+    return <DealHealthBadge healthScore={healthScore} size="sm" />;
+  };
+
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
@@ -168,6 +178,7 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
         </div>
       </div>
 
+<<<<<<< HEAD
       {/* AI Suggestions */}
       {nextActionsPendingCount > 0 && (
         <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
@@ -234,6 +245,10 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
           </div>
         </div>
       </div>
+=======
+      {/* Deal Health Monitoring */}
+      <CompanyDealHealthWidget companyId={company.id} />
+>>>>>>> claude/deal-health-monitoring-alerts-011CUh8LxaP4XNqmPFprdZGE
 
       {/* Upcoming Opportunities */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
@@ -243,14 +258,19 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
             {upcomingOpportunities.map((deal) => (
               <div key={deal.id} className="p-3 rounded-lg bg-gray-100/50 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30">
                 <div className="flex items-start justify-between mb-2">
-                  <h4 className="text-sm font-medium theme-text-primary truncate">{deal.name}</h4>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="text-sm font-medium theme-text-primary truncate">{deal.name}</h4>
+                      <DealHealthIndicator dealId={deal.id} />
+                    </div>
+                    <div className="text-xs theme-text-tertiary">
+                      Stage: {deal.stage}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                      Created {format(new Date(deal.created_at), 'MMM d')}
+                    </div>
+                  </div>
                   <span className="text-sm font-bold text-emerald-400">{formatCurrency(deal.value)}</span>
-                </div>
-                <div className="text-xs theme-text-tertiary">
-                  Stage: {deal.stage}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Created {format(new Date(deal.created_at), 'MMM d')}
                 </div>
               </div>
             ))}

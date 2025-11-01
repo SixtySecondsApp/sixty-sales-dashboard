@@ -18,6 +18,8 @@ import { Badge } from './Badge';
 import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { useNextActions } from '@/lib/hooks/useNextActions';
+import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
+import { DealHealthBadge } from '@/components/DealHealthBadge';
 
 interface DealCardProps {
   deal: any;
@@ -40,6 +42,9 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
     dealId: deal.id,
     status: 'pending',
   });
+
+  // Get deal health score
+  const { healthScore } = useDealHealthScore(dealId);
 
   // Get deal splits information
   const { splits, calculateSplitTotals } = useDealSplits({ dealId: deal.id });
@@ -301,7 +306,29 @@ export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay
             </div>
           </div>
 
-          <div className="ml-3 flex-shrink-0 text-right flex items-start gap-2">
+          <div className="ml-3 flex-shrink-0 text-right flex flex-col items-end gap-2">
+            {/* Compact Health Score */}
+            {healthScore && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.location.href = `/crm/health`;
+                }}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group/health"
+                title={`Health Score: ${healthScore.overall_health_score} (${healthScore.health_status})`}
+              >
+                <div className={`w-2 h-2 rounded-full ${
+                  healthScore.health_status === 'healthy' ? 'bg-green-500' :
+                  healthScore.health_status === 'warning' ? 'bg-yellow-500' :
+                  healthScore.health_status === 'critical' ? 'bg-red-500' :
+                  'bg-gray-500'
+                }`} />
+                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 group-hover/health:text-gray-900 dark:group-hover/health:text-white">
+                  {healthScore.overall_health_score}
+                </span>
+              </button>
+            )}
+
             <div>
               {splitInfo.hasSplits ? (
                 <div className="space-y-1">
