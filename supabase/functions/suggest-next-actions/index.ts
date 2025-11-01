@@ -156,9 +156,19 @@ serve(async (req) => {
 
     console.log(`[suggest-next-actions] Generated ${storedSuggestions.length} suggestions`)
 
+    // AUTO-CREATE TASKS from suggestions (NEW UNIFIED SYSTEM)
+    const createdTasks = await autoCreateTasksFromSuggestions(
+      supabaseClient,
+      storedSuggestions,
+      context
+    )
+
+    console.log(`[suggest-next-actions] Auto-created ${createdTasks.length} tasks`)
+
     return new Response(
       JSON.stringify({
         suggestions: storedSuggestions,
+        tasks: createdTasks,
         count: storedSuggestions.length,
         activity_type: activityType
       }),
@@ -198,7 +208,7 @@ async function fetchActivityContext(
         primary_contact_id,
         owner_user_id,
         companies:companies!fk_meetings_company_id(id, name, domain, size),
-        contacts:contacts!fk_meetings_primary_contact_id(id, name, email, role)
+        contacts:contacts!primary_contact_id(id, first_name, last_name, full_name, email, title)
       `)
       .eq('id', activityId)
       .single()
@@ -317,12 +327,33 @@ Consider:
 - Objection handling requirements
 
 For each suggestion, provide:
-1. Specific action type (e.g., "send_roi_calculator", "schedule_technical_demo", "follow_up_on_pricing")
+1. Task category - MUST be one of: call, email, meeting, follow_up, proposal, demo, general
 2. Clear, actionable title (what to do)
 3. Detailed reasoning (why this action matters based on the context)
 4. Urgency level (low, medium, high)
-5. Recommended deadline (specific date/time)
+5. Recommended deadline (realistic ISO 8601 date based on urgency and context)
 6. Confidence score (0.0 to 1.0)
+7. Timestamp (optional) - If you can identify roughly when this topic was discussed in the transcript, estimate the time in seconds from the start of the meeting
+
+**Task Category Guidelines**:
+- "call" - Phone calls to prospect/customer
+- "email" - Email communications (proposals, ROI docs, follow-ups)
+- "meeting" - Schedule demos, strategy sessions, reviews
+- "follow_up" - General follow-up on previous discussions
+- "proposal" - Create and send formal proposals
+- "demo" - Product demonstrations or technical deep-dives
+- "general" - Other tasks not fitting above categories
+
+**Deadline Guidelines**:
+- High urgency: 1-2 days
+- Medium urgency: 3-5 days
+- Low urgency: 1-2 weeks
+- Consider mentioned timeframes (e.g., "budget meeting Friday" = set deadline before Friday)
+
+**Timestamp Guidelines**:
+- If the transcript shows when a topic was discussed, estimate the seconds from start
+- This helps users jump to the relevant part of the recording
+- If unsure, omit the timestamp field (better to have no timestamp than wrong timestamp)
 
 Return ONLY a valid JSON array with no additional text.`
 
@@ -333,19 +364,20 @@ ${contextSummary}
 Return suggestions as a JSON array following this exact structure:
 [
   {
-    "action_type": "send_roi_calculator",
+    "task_category": "email",
     "title": "Send ROI calculator within 24 hours",
     "reasoning": "Customer expressed concerns about ROI during the call. Specifically mentioned wanting to see numbers before next budget meeting on Friday. Providing calculator now addresses their primary objection and keeps momentum.",
     "urgency": "high",
     "recommended_deadline": "${getRecommendedDeadline(1)}",
     "confidence_score": 0.85,
-    "quick_actions": {
-      "create_task": true,
-      "schedule_meeting": false,
-      "send_email": true
-    }
+    "timestamp_seconds": 450
   }
-]`
+]
+
+IMPORTANT:
+- Use "task_category" not "action_type". Valid categories: call, email, meeting, follow_up, proposal, demo, general
+- Include "timestamp_seconds" if you can identify when this was discussed (omit if unsure)
+- timestamp_seconds should be the approximate seconds from start of meeting`
 
   console.log('[generateSuggestionsWithClaude] Calling Claude API')
 
@@ -378,9 +410,16 @@ Return suggestions as a JSON array following this exact structure:
   }
 
   const responseData = await response.json()
-  const aiResponse = responseData.content[0]?.text || '[]'
+  let aiResponse = responseData.content[0]?.text || '[]'
 
   console.log('[generateSuggestionsWithClaude] AI response length:', aiResponse.length)
+
+  // Strip markdown code blocks if present (```json ... ```)
+  const codeBlockMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (codeBlockMatch) {
+    aiResponse = codeBlockMatch[1].trim()
+    console.log('[generateSuggestionsWithClaude] Stripped markdown code blocks')
+  }
 
   // Parse JSON response
   try {
@@ -388,6 +427,7 @@ Return suggestions as a JSON array following this exact structure:
     return Array.isArray(suggestions) ? suggestions : []
   } catch (parseError) {
     console.error('[generateSuggestionsWithClaude] Failed to parse AI response:', parseError)
+    console.error('[generateSuggestionsWithClaude] Raw response:', aiResponse.substring(0, 200))
     return []
   }
 }
@@ -418,8 +458,9 @@ function buildContextSummary(context: ActivityContext): string {
 
   if (context.contact) {
     summary += `\nPrimary Contact:\n`
-    summary += `- Name: ${context.contact.name}\n`
-    summary += `- Role: ${context.contact.role || 'N/A'}\n`
+    const contactName = context.contact.full_name || `${context.contact.first_name || ''} ${context.contact.last_name || ''}`.trim() || 'N/A'
+    summary += `- Name: ${contactName}\n`
+    summary += `- Title: ${context.contact.title || 'N/A'}\n`
   }
 
   if (context.transcript && context.transcript.length > 100) {
@@ -462,6 +503,18 @@ async function storeSuggestions(
   const storedSuggestions = []
 
   for (const suggestion of suggestions) {
+    // Map task_category to action_type (handle both field names for compatibility)
+    const taskCategory = (suggestion as any).task_category || suggestion.action_type || 'general'
+
+    // Validate task category is one of the allowed values
+    const validCategories = ['call', 'email', 'meeting', 'follow_up', 'proposal', 'demo', 'general']
+    const action_type = validCategories.includes(taskCategory) ? taskCategory : 'general'
+
+    console.log(`[storeSuggestions] Mapping task_category "${taskCategory}" to action_type "${action_type}"`)
+
+    // Extract timestamp if provided
+    const timestamp_seconds = (suggestion as any).timestamp_seconds || null
+
     const insertData = {
       activity_id: activityId,
       activity_type: activityType,
@@ -469,15 +522,20 @@ async function storeSuggestions(
       company_id: context.company?.id || null,
       contact_id: context.contact?.id || null,
       user_id: context.type === 'meeting' ? null : null, // Will be set by RLS or trigger
-      action_type: suggestion.action_type,
+      action_type: action_type,
       title: suggestion.title,
       reasoning: suggestion.reasoning,
       urgency: suggestion.urgency,
       recommended_deadline: suggestion.recommended_deadline,
       confidence_score: suggestion.confidence_score,
+      timestamp_seconds: timestamp_seconds,
       status: 'pending',
       ai_model: Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001',
       context_quality: context.transcript ? 0.95 : (context.summary ? 0.75 : 0.50)
+    }
+
+    if (timestamp_seconds) {
+      console.log(`[storeSuggestions] Suggestion "${suggestion.title}" includes timestamp: ${timestamp_seconds}s`)
     }
 
     const { data, error } = await supabase
@@ -494,4 +552,95 @@ async function storeSuggestions(
   }
 
   return storedSuggestions
+}
+
+/**
+ * AUTO-CREATE TASKS from AI suggestions (NEW UNIFIED SYSTEM)
+ * Automatically converts accepted AI suggestions into tasks
+ */
+async function autoCreateTasksFromSuggestions(
+  supabase: any,
+  suggestions: any[],
+  context: ActivityContext
+): Promise<any[]> {
+  const createdTasks = []
+
+  // Get meeting owner or default user for task assignment
+  let ownerId = null
+  if (context.type === 'meeting') {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('owner_user_id')
+      .eq('id', context.id)
+      .single()
+    ownerId = meeting?.owner_user_id
+  }
+
+  if (!ownerId) {
+    console.log('[autoCreateTasksFromSuggestions] No owner found, skipping task creation')
+    return []
+  }
+
+  for (const suggestion of suggestions) {
+    try {
+      // Map urgency to priority
+      const priorityMap = {
+        'critical': 'urgent',
+        'high': 'high',
+        'medium': 'medium',
+        'low': 'low'
+      }
+      const priority = priorityMap[suggestion.urgency] || 'medium'
+
+      // Create task
+      const taskData = {
+        title: suggestion.title,
+        description: suggestion.reasoning,
+        task_type: suggestion.action_type,
+        priority: priority,
+        due_date: suggestion.recommended_deadline,
+        status: 'pending',
+        assigned_to: ownerId,
+        created_by: ownerId,
+        meeting_id: context.type === 'meeting' ? context.id : null,
+        company_id: suggestion.company_id,
+        contact_id: suggestion.contact_id,
+        suggestion_id: suggestion.id,
+        source: 'ai_suggestion',
+        metadata: {
+          confidence_score: suggestion.confidence_score,
+          timestamp_seconds: suggestion.timestamp_seconds,
+          urgency: suggestion.urgency,
+          ai_model: suggestion.ai_model,
+          auto_created: true,
+          created_at: new Date().toISOString()
+        }
+      }
+
+      const { data: task, error: taskError } = await supabase
+        .from('tasks')
+        .insert(taskData)
+        .select()
+        .single()
+
+      if (taskError) {
+        console.error('[autoCreateTasksFromSuggestions] Task creation error:', taskError)
+        continue
+      }
+
+      // Mark suggestion as accepted (auto-converted to task)
+      await supabase
+        .from('next_action_suggestions')
+        .update({ status: 'accepted' })
+        .eq('id', suggestion.id)
+
+      createdTasks.push(task)
+      console.log(`[autoCreateTasksFromSuggestions] Created task: ${task.title}`)
+
+    } catch (error) {
+      console.error('[autoCreateTasksFromSuggestions] Error creating task for suggestion:', error)
+    }
+  }
+
+  return createdTasks
 }

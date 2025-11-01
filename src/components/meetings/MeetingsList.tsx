@@ -27,7 +27,8 @@ import {
   Award,
   Calendar,
   ExternalLink,
-  Play
+  Play,
+  Lightbulb
 } from 'lucide-react'
 
 interface Meeting {
@@ -52,12 +53,16 @@ interface Meeting {
   talk_time_rep_pct: number | null
   talk_time_customer_pct: number | null
   talk_time_judgement: string | null
+  next_actions_count: number | null
   company?: {
     name: string
     domain: string
   }
   action_items?: {
     completed: boolean
+  }[]
+  tasks?: {
+    status: string
   }[]
 }
 
@@ -217,7 +222,8 @@ const MeetingsList: React.FC = () => {
         .select(`
           *,
           company:companies!fk_meetings_company_id(name, domain),
-          action_items:meeting_action_items(completed)
+          action_items:meeting_action_items(completed),
+          tasks(status)
         `)
         .order('meeting_start', { ascending: false })
 
@@ -424,7 +430,8 @@ const MeetingsList: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {meetings.map((meeting, index) => {
-                  const openTasks = meeting.action_items?.filter(a => !a.completed).length || 0
+                  // Unified task count from tasks table
+                  const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
 
                   return (
                     <motion.tr
@@ -499,8 +506,9 @@ const MeetingsList: React.FC = () => {
             className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
           >
             {meetings.map((meeting, index) => {
-              const openTasks = meeting.action_items?.filter(a => !a.completed).length || 0
-              
+              // Unified task count from tasks table
+              const openTasks = meeting.tasks?.filter(t => t.status !== 'completed').length || 0
+
               return (
                 <motion.div
                   key={meeting.id}

@@ -20,6 +20,7 @@ interface TaskFilters {
   deal_id?: string;
   company_id?: string;
   contact_id?: string;
+  meeting_id?: string;
   completed?: boolean;
 }
 
@@ -94,7 +95,7 @@ export function useTasks(
       // Get the user ID with fallback for mock scenarios
       const currentUserId = userData.id || 'mock-user-id';
 
-      // Build the query with company, contact, and meeting_action_item relations
+      // Build the query with company, contact, meeting_action_item, and AI suggestion relations
       let query = supabase
         .from('tasks')
         .select(
@@ -110,6 +111,13 @@ export function useTasks(
             timestamp_seconds,
             playback_url,
             meeting:meetings(id, title, share_url)
+          ),
+          suggestion:next_action_suggestions!tasks_suggestion_id_fkey(
+            id,
+            confidence_score,
+            reasoning,
+            urgency,
+            timestamp_seconds
           )
         `
         )
@@ -151,6 +159,10 @@ export function useTasks(
 
       if (parsedFilters?.contact_id) {
         query = query.eq('contact_id', parsedFilters.contact_id);
+      }
+
+      if (parsedFilters?.meeting_id) {
+        query = query.eq('meeting_id', parsedFilters.meeting_id);
       }
 
       if (parsedFilters?.completed !== undefined) {

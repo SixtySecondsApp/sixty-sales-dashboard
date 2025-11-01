@@ -9,7 +9,10 @@ import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageS
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
+import { NextActionSuggestions } from '@/components/meetings/NextActionSuggestions';
 import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
+import { useNextActionSuggestions } from '@/lib/hooks/useNextActionSuggestions';
+import { useTasks } from '@/lib/hooks/useTasks';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { toast } from 'sonner';
 
@@ -132,6 +135,24 @@ export function MeetingDetail() {
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   const primaryExternal = attendees.find(a => a.is_external);
+
+  // AI Suggestions hook
+  const {
+    suggestions,
+    loading: suggestionsLoading,
+    refetch: refetchSuggestions,
+    pendingCount
+  } = useNextActionSuggestions(id || '', 'meeting');
+
+  // Unified Tasks hook - fetches all tasks for this meeting
+  const {
+    tasks,
+    isLoading: tasksLoading,
+    refetch: refetchTasks
+  } = useTasks({ meeting_id: id }, { autoFetch: true });
+
+  // State for Generate More button
+  const [generatingMore, setGeneratingMore] = useState(false);
 
   const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal') => {
     if (!meeting) return;
@@ -484,6 +505,47 @@ export function MeetingDetail() {
     }
   }, []);
 
+  // Generate More Actions handler
+  const handleGenerateMore = useCallback(async () => {
+    if (!meeting?.id) return;
+
+    try {
+      setGeneratingMore(true);
+      toast.info('Analyzing meeting for additional action items...');
+
+      const { data: authData } = await supabase.auth.getSession();
+      if (!authData.session) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await supabase.functions.invoke('generate-more-actions', {
+        body: {
+          meetingId: meeting.id,
+          maxActions: 7
+        }
+      });
+
+      if (response.error) throw response.error;
+
+      const { tasks: newTasks, count } = response.data;
+
+      if (count > 0) {
+        toast.success(`Generated ${count} additional action items`);
+        // Refetch tasks to show new items
+        refetchTasks();
+      } else {
+        toast.info('No additional action items found');
+      }
+
+    } catch (e) {
+      console.error('[Generate More Actions] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to generate additional actions');
+    } finally {
+      setGeneratingMore(false);
+    }
+  }, [meeting?.id, refetchTasks]);
+
   // Attach click handlers to Fathom timestamp links in summary
   useEffect(() => {
     if (!summaryRef.current || !meeting?.summary) {
@@ -784,129 +846,125 @@ export function MeetingDetail() {
 
         {/* Right Column - Sidebar */}
         <div className="lg:col-span-4 space-y-4">
-          {/* Action Items */}
+          {/* Unified Tasks Section */}
           <div className="section-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className="font-semibold">
-                Action Items ({actionItems.length})
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-lg">
+                  Tasks ({tasks.length})
+                </h3>
               </div>
-              {actionItems.some(item => item.ai_generated) && (
-                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700">
-                  AI
-                </Badge>
-              )}
+              <Button
+                onClick={handleGenerateMore}
+                variant="outline"
+                size="sm"
+                disabled={generatingMore || !meeting?.transcript_text}
+                className="flex items-center gap-2"
+              >
+                {generatingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate More
+                  </>
+                )}
+              </Button>
             </div>
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
-              {actionItems.length > 0 ? (
-                actionItems.map((item) => (
+
+            <div className="space-y-2 max-h-[700px] overflow-y-auto">
+              {tasksLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : tasks.length > 0 ? (
+                tasks.map((task) => (
                   <div
-                    key={item.id}
-                    className="glassmorphism-light p-3 rounded-xl"
+                    key={task.id}
+                    className="glassmorphism-light p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-start gap-2 flex-1">
                         <input
                           type="checkbox"
-                          checked={!!item.completed}
-                          onChange={() => toggleActionItem(item.id, !!item.completed)}
+                          checked={task.status === 'completed'}
+                          onChange={async () => {
+                            // TODO: Implement task toggle
+                            toast.info('Task completion coming soon');
+                          }}
                           className="mt-0.5 h-4 w-4 rounded border-gray-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-emerald-500"
-                          aria-label="Mark action item complete"
+                          aria-label="Mark task complete"
                         />
-                        <div className={`font-medium text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
-                          {item.title}
+                        <div className="flex-1">
+                          <div className={`font-medium text-sm ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
+                            {task.title}
+                          </div>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {task.description}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {item.ai_generated && item.ai_confidence && (
-                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700 shrink-0">
-                          {(item.ai_confidence * 100).toFixed(0)}%
-                        </Badge>
-                      )}
                     </div>
+
                     <div className="flex items-center gap-2 flex-wrap">
                       <Badge
                         variant={
-                          item.priority === 'urgent' || item.priority === 'high'
+                          task.priority === 'urgent' || task.priority === 'high'
                             ? 'destructive'
                             : 'secondary'
                         }
                         className="text-xs"
                       >
-                        {item.priority}
+                        {task.priority}
                       </Badge>
-                      {item.completed && (
+                      {task.status === 'completed' && (
                         <Badge className="bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300 text-xs">
-                          ✓
+                          ✓ Complete
                         </Badge>
                       )}
-                      {item.category && (
-                        <span className="text-xs text-muted-foreground">{item.category}</span>
+                      {task.task_type && (
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {task.task_type.replace('_', ' ')}
+                        </span>
                       )}
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="mt-3 flex items-center gap-2">
-                      {/* Jump to timestamp */}
-                      {item.timestamp_seconds !== null && (
+                    {/* Timestamp playback if available */}
+                    {task.metadata?.timestamp_seconds && (
+                      <div className="mt-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleTimestampJump(item.timestamp_seconds!)}
-                          className="text-xs flex-1"
-                        >
-                          <Play className="h-3 w-3 mr-1" />
-                          {formatTimestamp(item.timestamp_seconds)}
-                        </Button>
-                      )}
-
-                      {/* Create Task Button */}
-                      {item.synced_to_task ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled
-                          className="text-xs bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
-                        >
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Synced
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleCreateTask(item.id)}
-                          disabled={creatingTaskId === item.id}
+                          onClick={() => handleTimestampJump(task.metadata.timestamp_seconds)}
                           className="text-xs"
                         >
-                          {creatingTaskId === item.id ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          ) : (
-                            <ListTodo className="h-3 w-3 mr-1" />
-                          )}
-                          Create Task
+                          <Play className="h-3 w-3 mr-1" />
+                          {formatTimestamp(task.metadata.timestamp_seconds)}
                         </Button>
-                      )}
-
-                      {/* Delete Button */}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteActionItem(item.id)}
-                        disabled={deletingItemId === item.id}
-                        className="text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                      >
-                        {deletingItemId === item.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  No action items identified.
-                </p>
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    No tasks yet for this meeting
+                  </p>
+                  <Button
+                    onClick={handleGenerateMore}
+                    variant="outline"
+                    size="sm"
+                    disabled={generatingMore || !meeting?.transcript_text}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Action Items
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -948,7 +1006,10 @@ export function MeetingDetail() {
                       {content}
                     </Link>
                   ) : (
-                    <div key={attendee.id} className="flex items-center justify-between text-sm">
+                    <div
+                      key={attendee.id}
+                      className="block hover:bg-gray-100 dark:hover:bg-zinc-900/40 rounded-lg px-2 -mx-2 transition-colors"
+                    >
                       {content}
                     </div>
                   );

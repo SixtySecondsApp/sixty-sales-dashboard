@@ -127,6 +127,7 @@ serve(async (req) => {
     const taskType = taskTypeMapping[actionItem.category?.toLowerCase() || ''] || 'follow_up'
 
     // Create the task
+    // IMPORTANT: tasks table uses 'created_by' NOT 'user_id'
     const { data: newTask, error: taskError } = await supabase
       .from('tasks')
       .insert({
@@ -137,7 +138,7 @@ serve(async (req) => {
         status: actionItem.completed ? 'completed' : 'pending',
         task_type: taskType,
         assigned_to: assignedTo,
-        user_id: user.id,
+        created_by: user.id,  // CORRECT: tasks table uses 'created_by' not 'user_id'
         company_id: actionItem.meeting?.company_id,
         contact_id: actionItem.meeting?.primary_contact_id,
         meeting_id: actionItem.meeting_id,
