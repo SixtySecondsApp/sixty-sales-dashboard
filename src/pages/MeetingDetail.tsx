@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +61,9 @@ interface ActionItem {
   task_id: string | null;
   synced_to_task: boolean | null;
   sync_status: string | null;
+  deadline_at: string | null;
+  assignee_name: string | null;
+  assignee_email: string | null;
 }
 
 // Helper functions
@@ -150,15 +154,28 @@ export function MeetingDetail() {
   const {
     tasks,
     isLoading: tasksLoading,
-    refetch: refetchTasks
+    fetchTasks: refetchTasks,
+    completeTask,
+    uncompleteTask
   } = useTasks({ meeting_id: id }, { autoFetch: true });
-
-  // State for Generate More button
-  const [generatingMore, setGeneratingMore] = useState(false);
 
   // State for action item operations
   const [addingToTasksId, setAddingToTasksId] = useState<string | null>(null);
   const [removingFromTasksId, setRemovingFromTasksId] = useState<string | null>(null);
+
+  // Animation state management
+  const [animatingActionItemId, setAnimatingActionItemId] = useState<string | null>(null);
+  const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
+
+  // Clear newly added task highlight after animation completes
+  useEffect(() => {
+    if (newlyAddedTaskId) {
+      const timer = setTimeout(() => {
+        setNewlyAddedTaskId(null);
+      }, 1500); // Clear after 1.5s (animation + pulse complete)
+      return () => clearTimeout(timer);
+    }
+  }, [newlyAddedTaskId]);
 
   const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal' | 'sale') => {
     if (!meeting) return;
@@ -511,82 +528,105 @@ export function MeetingDetail() {
     }
   }, []);
 
-  // Generate More Actions handler
-  const handleGenerateMore = useCallback(async () => {
-    if (!meeting?.id) return;
 
-    try {
-      setGeneratingMore(true);
-      toast.info('Analyzing meeting for additional action items...');
+  // Helper function to map action item priority to valid task priority
+  const mapPriorityToTaskPriority = (priority: string | null): 'low' | 'medium' | 'high' | 'urgent' => {
+    if (!priority) return 'medium';
 
-      const { data: authData } = await supabase.auth.getSession();
-      if (!authData.session) {
-        toast.error('Authentication required');
-        return;
-      }
+    const prio = priority.toLowerCase().trim();
 
-      const response = await supabase.functions.invoke('generate-more-actions', {
-        body: {
-          meetingId: meeting.id,
-          maxActions: 7
-        }
-      });
-
-      if (response.error) throw response.error;
-
-      const { tasks: newTasks, count } = response.data;
-
-      if (count > 0) {
-        toast.success(`Generated ${count} additional action items`);
-        // Refetch tasks to show new items
-        refetchTasks();
-      } else {
-        toast.info('No additional action items found');
-      }
-
-    } catch (e) {
-      console.error('[Generate More Actions] Error:', e);
-      toast.error(e instanceof Error ? e.message : 'Failed to generate additional actions');
-    } finally {
-      setGeneratingMore(false);
+    // Direct matches
+    if (['low', 'medium', 'high', 'urgent'].includes(prio)) {
+      return prio as any;
     }
-  }, [meeting?.id, refetchTasks]);
+
+    // Fuzzy matches
+    if (prio.includes('urgent') || prio.includes('critical') || prio.includes('asap')) return 'urgent';
+    if (prio.includes('high') || prio.includes('important')) return 'high';
+    if (prio.includes('low') || prio.includes('minor')) return 'low';
+
+    // Default fallback
+    return 'medium';
+  };
+
+  // Helper function to map action item category to valid task_type
+  const mapCategoryToTaskType = (category: string | null): 'call' | 'email' | 'meeting' | 'follow_up' | 'proposal' | 'demo' | 'general' => {
+    if (!category) return 'general';
+
+    const cat = category.toLowerCase().trim();
+
+    // Direct matches
+    if (['call', 'email', 'meeting', 'follow_up', 'proposal', 'demo', 'general'].includes(cat)) {
+      return cat as any;
+    }
+
+    // Fuzzy matches
+    if (cat.includes('call') || cat.includes('phone')) return 'call';
+    if (cat.includes('email') || cat.includes('message')) return 'email';
+    if (cat.includes('meeting') || cat.includes('meet')) return 'meeting';
+    if (cat.includes('follow') || cat.includes('followup')) return 'follow_up';
+    if (cat.includes('proposal') || cat.includes('quote')) return 'proposal';
+    if (cat.includes('demo') || cat.includes('presentation')) return 'demo';
+
+    // Default fallback
+    return 'general';
+  };
 
   // Handler to add action item to tasks
   const handleAddToTasks = useCallback(async (actionItem: ActionItem) => {
     if (!meeting?.id) return;
 
     try {
+      // Step 1: Start exit animation
       setAddingToTasksId(actionItem.id);
+      setAnimatingActionItemId(actionItem.id);
+
+      // Step 2: Wait for exit animation to complete (300ms)
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error('Authentication required');
+        setAnimatingActionItemId(null);
         return;
       }
 
       // Create task from action item
+      // Note: Tasks table requires at least one of: company_id, contact_id, contact_email, or deal_id
+      const taskData: any = {
+        title: actionItem.title,
+        description: `Action item from meeting: ${meeting.title}`,
+        due_date: actionItem.deadline_at || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        priority: mapPriorityToTaskPriority(actionItem.priority),
+        status: actionItem.completed ? 'completed' : 'pending',
+        task_type: mapCategoryToTaskType(actionItem.category),
+        assigned_to: user.id,
+        created_by: user.id,
+        meeting_id: meeting.id,  // CRITICAL: Link task to meeting for filtering
+        meeting_action_item_id: actionItem.id,
+        notes: actionItem.playback_url ? `Video playback: ${actionItem.playback_url}` : null,
+        completed: actionItem.completed
+      };
+
+      // Add CRM relationships if available
+      if (meeting.company_id) taskData.company_id = meeting.company_id;
+      if (meeting.primary_contact_id) taskData.contact_id = meeting.primary_contact_id;
+
+      // If no CRM relationships, use assignee email as fallback to satisfy constraint
+      if (!meeting.company_id && !meeting.primary_contact_id) {
+        taskData.contact_email = actionItem.assignee_email || user.email;
+      }
+
       const { data: newTask, error: taskError } = await supabase
         .from('tasks')
-        .insert({
-          title: actionItem.title,
-          description: `Action item from meeting: ${meeting.title}`,
-          due_date: actionItem.deadline_at || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-          priority: (actionItem.priority?.toLowerCase() || 'medium') as any,
-          status: actionItem.completed ? 'completed' : 'pending',
-          task_type: (actionItem.category?.toLowerCase() || 'general') as any,
-          assigned_to: user.id,
-          created_by: user.id,
-          company_id: meeting.company_id,
-          contact_id: meeting.primary_contact_id,
-          meeting_action_item_id: actionItem.id,
-          notes: actionItem.playback_url ? `Video playback: ${actionItem.playback_url}` : null,
-          completed: actionItem.completed
-        })
+        .insert(taskData)
         .select()
         .single();
 
-      if (taskError) throw taskError;
+      if (taskError) {
+        console.error('[Add to Tasks] Task creation error:', taskError);
+        throw taskError;
+      }
 
       // Update action item with task link
       const { error: updateError } = await supabase
@@ -601,22 +641,35 @@ export function MeetingDetail() {
 
       if (updateError) throw updateError;
 
-      // Refresh both action items and tasks
+      // Step 3: Update action items state
       setActionItems(prev => prev.map(item =>
         item.id === actionItem.id
           ? { ...item, task_id: newTask.id, synced_to_task: true, sync_status: 'synced' }
           : item
       ));
-      refetchTasks();
+
+      // Step 4: Refresh tasks and set newly added task for entrance animation
+      await refetchTasks();
+      setNewlyAddedTaskId(newTask.id);
 
       toast.success('Action item added to tasks');
     } catch (e) {
-      console.error('[Add to Tasks] Error:', e);
-      toast.error(e instanceof Error ? e.message : 'Failed to add to tasks');
+      console.error('[Add to Tasks] Full error:', e);
+      console.error('[Add to Tasks] Error details:', JSON.stringify(e, null, 2));
+      const errorMessage = e instanceof Error
+        ? e.message
+        : (typeof e === 'object' && e !== null && 'message' in e)
+          ? String((e as any).message)
+          : 'Failed to add to tasks';
+      toast.error(errorMessage);
+      // Clear animation state on error
+      setAnimatingActionItemId(null);
     } finally {
       setAddingToTasksId(null);
+      // Clear animating state after a small delay to allow error handling
+      setTimeout(() => setAnimatingActionItemId(null), 100);
     }
-  }, [meeting, refetchTasks]);
+  }, [meeting, refetchTasks, tasks.length]);
 
   // Handler to remove action item from tasks
   const handleRemoveFromTasks = useCallback(async (actionItem: ActionItem) => {
@@ -964,7 +1017,7 @@ export function MeetingDetail() {
 
         {/* Right Column - Sidebar */}
         <div className="lg:col-span-4 space-y-4">
-          {/* Unified Tasks Section */}
+          {/* Unified Tasks Section - Static container, only task cards animate */}
           <div className="section-card">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -972,37 +1025,18 @@ export function MeetingDetail() {
                   Tasks ({tasks.length})
                 </h3>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setCreateTaskModalOpen(true)}
-                  variant="default"
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <ListTodo className="w-4 h-4" />
-                  Add Task
-                </Button>
-                <Button
-                  onClick={handleGenerateMore}
-                  variant="outline"
-                  size="sm"
-                  disabled={generatingMore || !meeting?.transcript_text}
-                  className="flex items-center gap-2"
-                >
-                  {generatingMore ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      Generate More
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => setCreateTaskModalOpen(true)}
+                      variant="default"
+                      size="sm"
+                      className="flex items-center gap-2"
+                    >
+                      <ListTodo className="w-4 h-4" />
+                      Add Task
+                    </Button>
+                  </div>
+                </div>
 
             <div className="space-y-2 max-h-[700px] overflow-y-auto">
               {tasksLoading ? (
@@ -1010,19 +1044,54 @@ export function MeetingDetail() {
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : tasks.length > 0 ? (
-                tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="glassmorphism-light p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                  >
+                tasks.map((task) => {
+                  const isNewlyAdded = task.id === newlyAddedTaskId;
+                  return (
+                    <motion.div
+                      key={task.id}
+                      className="glassmorphism-light p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                      initial={isNewlyAdded ? { opacity: 0, x: 100, scale: 0.9 } : false}
+                      animate={isNewlyAdded ? {
+                        opacity: 1,
+                        x: 0,
+                        scale: 1,
+                        boxShadow: [
+                          '0 0 0 0 rgba(34, 197, 94, 0)',
+                          '0 0 0 4px rgba(34, 197, 94, 0.3)',
+                          '0 0 0 0 rgba(34, 197, 94, 0)'
+                        ]
+                      } : {}}
+                      transition={isNewlyAdded ? {
+                        duration: 0.4,
+                        ease: 'easeOut',
+                        boxShadow: { duration: 1, times: [0, 0.5, 1] }
+                      } : {}}
+                    >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-start gap-2 flex-1">
                         <input
                           type="checkbox"
                           checked={task.status === 'completed'}
                           onChange={async () => {
-                            // TODO: Implement task toggle
-                            toast.info('Task completion coming soon');
+                            try {
+                              if (task.status === 'completed') {
+                                await uncompleteTask(task.id);
+                                toast.success('Task marked as incomplete');
+                              } else {
+                                await completeTask(task.id);
+                                toast.success('Task marked as complete');
+                              }
+                              await refetchTasks();
+                            } catch (error) {
+                              console.error('[Task Toggle] Full error:', error);
+                              console.error('[Task Toggle] Error details:', JSON.stringify(error, null, 2));
+                              const errorMessage = error instanceof Error
+                                ? error.message
+                                : (typeof error === 'object' && error !== null && 'message' in error)
+                                  ? String((error as any).message)
+                                  : 'Failed to update task';
+                              toast.error(errorMessage);
+                            }
                           }}
                           className="mt-0.5 h-4 w-4 rounded border-gray-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-emerald-500"
                           aria-label="Mark task complete"
@@ -1077,21 +1146,172 @@ export function MeetingDetail() {
                         </Button>
                       </div>
                     )}
-                  </div>
-                ))
+                    </motion.div>
+                  );
+                })
               ) : (
                 <div className="text-center py-8">
                   <p className="text-sm text-muted-foreground mb-3">
                     No tasks yet for this meeting
                   </p>
+                  <p className="text-xs text-muted-foreground">
+                    Convert action items to tasks using the "Add to Tasks" button below
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Items Section */}
+          <div className="section-card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-lg">
+                Action Items ({actionItems.length})
+              </h3>
+            </div>
+
+            <div className="space-y-2 max-h-[700px] overflow-y-auto">
+              {actionItems.length > 0 ? (
+                <AnimatePresence mode="popLayout">
+                  {actionItems
+                    .filter(item => item.id !== animatingActionItemId)
+                    .map((item) => (
+                      <motion.div
+                        key={item.id}
+                        className="glassmorphism-light p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{
+                          opacity: 0,
+                          scale: 0.8,
+                          y: 20,
+                          transition: { duration: 0.3, ease: 'easeIn' }
+                        }}
+                        layout
+                      >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-start gap-2 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={() => toggleActionItem(item.id, item.completed)}
+                          className="mt-0.5 h-4 w-4 rounded border-gray-300 bg-white text-emerald-600 focus:ring-emerald-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-emerald-500"
+                          aria-label="Mark action item complete"
+                        />
+                        <div className="flex-1">
+                          <div className={`font-medium text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
+                            {item.title}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <Badge
+                        variant={
+                          item.priority === 'urgent' || item.priority === 'high'
+                            ? 'destructive'
+                            : 'secondary'
+                        }
+                        className="text-xs"
+                      >
+                        {item.priority}
+                      </Badge>
+                      {item.completed && (
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/60 dark:text-green-300 text-xs">
+                          ✓ Complete
+                        </Badge>
+                      )}
+                      {item.ai_generated && (
+                        <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 text-xs">
+                          🤖 AI
+                        </Badge>
+                      )}
+                      {item.category && (
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {item.category.replace('_', ' ')}
+                        </span>
+                      )}
+                      {item.synced_to_task && (
+                        <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 text-xs">
+                          ✓ In Tasks
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                      {!item.synced_to_task ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddToTasks(item)}
+                          disabled={addingToTasksId === item.id}
+                          className="text-xs"
+                        >
+                          {addingToTasksId === item.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Adding...
+                            </>
+                          ) : (
+                            <>
+                              <ListTodo className="h-3 w-3 mr-1" />
+                              Add to Tasks
+                            </>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRemoveFromTasks(item)}
+                          disabled={removingFromTasksId === item.id}
+                          className="text-xs"
+                        >
+                          {removingFromTasksId === item.id ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Removing...
+                            </>
+                          ) : (
+                            <>
+                              <X className="h-3 w-3 mr-1" />
+                              Remove from Tasks
+                            </>
+                          )}
+                        </Button>
+                      )}
+
+                      {/* Timestamp playback if available */}
+                      {item.timestamp_seconds && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleTimestampJump(item.timestamp_seconds!)}
+                          className="text-xs"
+                        >
+                          <Play className="h-3 w-3 mr-1" />
+                          {formatTimestamp(item.timestamp_seconds)}
+                        </Button>
+                      )}
+                    </div>
+                      </motion.div>
+                    ))}
+                </AnimatePresence>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-3">
+                    No action items yet for this meeting
+                  </p>
                   <Button
-                    onClick={handleGenerateMore}
+                    onClick={handleGetActionItems}
                     variant="outline"
                     size="sm"
-                    disabled={generatingMore || !meeting?.transcript_text}
+                    disabled={!meeting?.transcript_text}
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Action Items
+                    Extract Action Items
                   </Button>
                 </div>
               )}

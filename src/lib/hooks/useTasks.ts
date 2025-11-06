@@ -107,7 +107,7 @@ export function useTasks(
           creator:profiles!created_by(id, first_name, last_name, email, avatar_url),
           company:companies(id, name, domain),
           contact:contacts(id, full_name, first_name, last_name, email),
-          meeting_action_item:meeting_action_items!tasks_meeting_action_item_id_fkey(
+          meeting_action_item:meeting_action_items!meeting_action_item_id(
             id,
             meeting_id,
             timestamp_seconds,
@@ -285,7 +285,7 @@ export function useTasks(
         updates.completed_at = new Date().toISOString();
         updates.status = 'completed';
       } else if (updates.completed === false) {
-        updates.completed_at = undefined;
+        updates.completed_at = null as any;
         if (updates.status === 'completed') {
           updates.status = 'pending';
         }
@@ -339,10 +339,10 @@ export function useTasks(
   }, [updateTask]);
 
   const uncompleteTask = useCallback(async (taskId: string) => {
-    return updateTask(taskId, { 
-      completed: false, 
+    return updateTask(taskId, {
+      completed: false,
       status: 'pending',
-      completed_at: undefined 
+      completed_at: null as any
     });
   }, [updateTask]);
 
