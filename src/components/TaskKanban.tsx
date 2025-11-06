@@ -72,6 +72,7 @@ interface TaskKanbanProps {
   companyId?: string;
   contactId?: string;
   onEditTask?: (task: Task) => void;
+  meetingTasksOnly?: boolean;
 }
 
 interface TaskStage {
@@ -111,7 +112,8 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   dealId,
   companyId,
   contactId,
-  onEditTask
+  onEditTask,
+  meetingTasksOnly = false
 }) => {
   const { userData } = useUser();
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -125,25 +127,30 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   // Build filters for the hook
   const filters = useMemo(() => {
     const taskFilters: any = {};
-    
+
     if (assigneeFilter) {
       taskFilters.assigned_to = assigneeFilter;
     }
-    
+
     if (dealId) {
       taskFilters.deal_id = dealId;
     }
-    
+
     if (companyId) {
       taskFilters.company_id = companyId;
     }
-    
+
     if (contactId) {
       taskFilters.contact_id = contactId;
     }
-    
+
+    // Add meeting filter if enabled
+    if (meetingTasksOnly) {
+      taskFilters.hasMeeting = true;
+    }
+
     return taskFilters;
-  }, [assigneeFilter, dealId, companyId, contactId]);
+  }, [assigneeFilter, dealId, companyId, contactId, meetingTasksOnly]);
 
   const { tasks, isLoading, error, updateTask, deleteTask, completeTask, uncompleteTask, fetchTasks } = useTasks(filters);
 
@@ -849,11 +856,11 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   }
                   tabIndex={isRelatedRecordNavigable(task.company_id, task.company) ? 0 : undefined}
                   role={isRelatedRecordNavigable(task.company_id, task.company) ? "button" : undefined}
-                  aria-label={isRelatedRecordNavigable(task.company_id, task.company) ? `Navigate to company ${task.company}` : undefined}
+                  aria-label={isRelatedRecordNavigable(task.company_id, task.company) ? `Navigate to company ${typeof task.company === 'object' ? task.company?.name : task.company}` : undefined}
                 >
                   <Building2 className="w-3 h-3" />
                   <span className={isRelatedRecordNavigable(task.company_id, task.company) ? 'underline decoration-dotted hover:decoration-solid' : ''}>
-                    {task.company}
+                    {typeof task.company === 'object' ? task.company?.name : task.company}
                   </span>
                   {isRelatedRecordNavigable(task.company_id, task.company) && (
                     <ExternalLink className="w-2 h-2 opacity-0 group-hover:opacity-100 transition-opacity" />

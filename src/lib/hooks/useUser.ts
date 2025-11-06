@@ -195,10 +195,12 @@ export function useUser() {
   }
 
   useEffect(() => {
+    logger.log('⚙️ useUser useEffect running...');
+
     // Check if we're in an impersonation session
     const { isImpersonating: isImpersonated, originalUserId } = getImpersonationData();
     setIsImpersonating(isImpersonated && !!originalUserId);
-    
+
     // Set audit context if impersonating
     if (isImpersonated && originalUserId) {
       setAuditContext();
@@ -214,19 +216,21 @@ export function useUser() {
         logger.log('⏭️ Skipping concurrent user fetch');
         return;
       }
-      
+
       isUserFetching = true;
-      
+      logger.log('🚀 Starting user fetch...');
+
       try {
         setIsLoading(true);
         setError(null);
 
         // Get the current user session from Supabase with timeout
+        logger.log('📡 Fetching session from Supabase...');
         const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Session fetch timeout')), 10000) // Increased to 10 seconds
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout')), 30000) // Increased to 30 seconds for slow connections
         );
-        
+
         const { data: { session }, error: sessionError } = await Promise.race([
           sessionPromise,
           timeoutPromise
@@ -357,43 +361,55 @@ export function useUser() {
           }
         }
       } catch (err: any) {
-        // Only log once, not repeatedly
-        if (!error) {
-          logger.error('❌ Error fetching user:', err);
-          logger.error('Error details:', {
-            message: err.message,
-            stack: err.stack,
-            code: err.code
-          });
-        }
-        setError(err);
-        
-        // Only use mock user if explicitly allowed
-        const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
-        
-        if (allowMockUser) {
-          logger.log('⚠️ Falling back to mock user due to authentication error');
-          const mockUserData = {
-            id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
-            email: 'andrew.bryce@sixtyseconds.video',
-            first_name: 'Andrew',
-            last_name: 'Bryce',
-            full_name: 'Andrew Bryce',
-            avatar_url: null,
-            role: 'Senior',
-            department: 'Sales',
-            stage: 'Senior',
-            is_admin: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            username: null,
-            website: null
-          } as UserProfile;
-          
-          setUserData(mockUserData);
-          localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+        // Check if this is a timeout error
+        const isTimeout = err.message && err.message.includes('timeout');
+
+        if (isTimeout) {
+          // For timeout errors, treat as not authenticated rather than fatal error
+          logger.warn('⚠️ Session fetch timeout - treating as not authenticated');
+          logger.warn('If you have a slow internet connection, this is expected. Please try logging in again.');
+          setError(null); // Clear error state so app doesn't get stuck
+          setUserData(null); // Set as not authenticated
         } else {
-          setUserData(null);
+          // For other errors, log and set error state
+          // Only log once, not repeatedly
+          if (!error) {
+            logger.error('❌ Error fetching user:', err);
+            logger.error('Error details:', {
+              message: err.message,
+              stack: err.stack,
+              code: err.code
+            });
+          }
+          setError(err);
+
+          // Only use mock user if explicitly allowed
+          const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+
+          if (allowMockUser) {
+            logger.log('⚠️ Falling back to mock user due to authentication error');
+            const mockUserData = {
+              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
+              email: 'andrew.bryce@sixtyseconds.video',
+              first_name: 'Andrew',
+              last_name: 'Bryce',
+              full_name: 'Andrew Bryce',
+              avatar_url: null,
+              role: 'Senior',
+              department: 'Sales',
+              stage: 'Senior',
+              is_admin: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              username: null,
+              website: null
+            } as UserProfile;
+
+            setUserData(mockUserData);
+            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+          } else {
+            setUserData(null);
+          }
         }
       } finally {
         setIsLoading(false);
@@ -401,6 +417,7 @@ export function useUser() {
       }
     }
 
+    logger.log('📞 Calling fetchUser()...');
     fetchUser();
 
     // Listen for auth changes

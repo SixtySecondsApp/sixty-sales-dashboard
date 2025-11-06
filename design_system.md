@@ -1,7 +1,7 @@
-# Universal Design System v3.0
-## Super Clean Light Mode + Glassmorphic Dark Mode
+# Sixty Sales Dashboard Design System v4.0
+## Clean Light Mode + Premium Glassmorphic Dark Mode
 
-> A production-ready design system featuring super clean light mode and modern glassmorphic dark mode. Framework-agnostic, easy to implement, zero gradients.
+> Production-ready design system with clean, minimal light mode and premium glassmorphic dark mode. Optimized for enterprise SaaS applications with Inter font family and consistent backdrop blur effects.
 
 ---
 
@@ -25,17 +25,19 @@
 ### Core Principles
 
 **Light Mode:**
-- ✨ Pure white backgrounds (#ffffff)
-- 🎯 High contrast text (gray-900)
-- 💪 Solid button colors
-- 🎨 Minimal gray usage
-- 🚫 No gradients
+- ✨ Pure white (#FFFFFF) and off-white (#FCFCFC) backgrounds
+- 🎯 High contrast text (gray-900 primary, gray-700 secondary)
+- 💪 Clean borders with gray-200 and gray-300
+- 🎨 Minimal shadows, clean aesthetic
+- 📱 Mobile-first responsive design
 
-**Dark Mode:**
-- 🌑 Deep dark backgrounds (gray-950)
-- ✨ Glassmorphic cards with blur
-- 💎 Translucent surfaces
-- 🔮 Subtle borders with opacity
+**Dark Mode (Glassmorphism):**
+- 🌑 Deep dark backgrounds (gray-950: #030712)
+- ✨ Glassmorphic cards: `bg-gray-900/80 backdrop-blur-sm`
+- 💎 Premium glass surfaces: `rgba(20, 28, 36, 0.6)` with `backdrop-filter: blur(16px)`
+- 🔮 Subtle borders: `border-gray-700/50` with opacity
+- ⚡ Smooth transitions and hover effects
+- 🎭 Inset highlights: `inset 0 1px 0 rgba(255, 255, 255, 0.05)`
 
 ---
 
@@ -279,47 +281,65 @@ function App() {
 
 ```css
 /* Backgrounds */
---white: #ffffff          /* Primary background */
---gray-50: #f9fafb       /* Subtle backgrounds */
---gray-100: #f3f4f6      /* Hover states */
+--bg-primary: #FFFFFF           /* Pure white - rgb(255 255 255) */
+--bg-secondary: #FCFCFC         /* Off-white - rgb(252 252 252) */
+--bg-tertiary: #F3F4F6          /* Gray-100 - rgb(243 244 246) */
+--bg-elevated: #FFFFFF          /* White for elevated surfaces */
+
+/* Surfaces (Glassmorphism) */
+--surface-glass: rgba(255, 255, 255, 0.85)  /* White glass base */
+--surface-opacity: 0.85                      /* Glass opacity for light mode */
 
 /* Borders */
---gray-200: #e5e7eb      /* Primary borders */
---gray-300: #d1d5db      /* Emphasized borders */
+--border-primary: #E5E7EB       /* Gray-200 - rgb(229 231 235) */
+--border-secondary: #D1D5DB     /* Gray-300 - rgb(209 213 219) */
 
 /* Text */
---gray-900: #111827      /* Primary text */
---gray-700: #374151      /* Secondary text */
---gray-500: #6b7280      /* Tertiary text */
---gray-400: #9ca3af      /* Muted text */
+--text-primary: #111827         /* Gray-900 - rgb(17 24 39) */
+--text-secondary: #374151       /* Gray-700 - rgb(55 65 81) */
+--text-tertiary: #6B7280        /* Gray-500 - rgb(107 114 128) */
+--text-muted: #9CA3AF           /* Gray-400 - rgb(156 163 175) */
 
 /* Semantic Colors */
---blue-600: #2563eb      /* Primary actions */
---emerald-600: #059669   /* Success actions */
---red-600: #dc2626       /* Destructive actions */
+--color-primary: #2563EB        /* Blue-600 - Primary actions */
+--color-accent-green: #059669   /* Emerald-600 - Success */
+--color-accent-red: #DC2626     /* Red-600 - Destructive */
+--color-accent-yellow: #D97706  /* Amber-600 - Warning */
+--color-accent-purple: #7C3AED  /* Violet-600 - Info */
+--color-accent-orange: #EA580C  /* Orange-600 - Alert */
 ```
 
-### Dark Mode Colors
+### Dark Mode Colors (Glassmorphism)
 
 ```css
 /* Backgrounds */
---gray-950: #030712      /* Primary background */
---gray-900: #111827      /* Card backgrounds */
---gray-800: #1f2937      /* Elevated surfaces */
+--bg-primary: #030712           /* Gray-950 - rgb(3 7 18) */
+--bg-secondary: #111827         /* Gray-900 - rgb(17 24 39) */
+--bg-tertiary: #1F2937          /* Gray-800 - rgb(31 41 55) */
+--bg-elevated: #1F2937          /* Gray-800 for elevated surfaces */
+
+/* Surfaces (Glassmorphism) */
+--surface-glass: rgba(17, 24, 39, 0.8)      /* Gray-900 glass base */
+--surface-glass-premium: rgba(20, 28, 36, 0.6)  /* Premium glass effect */
+--surface-opacity: 0.8                       /* Glass opacity for dark mode */
 
 /* Borders */
---gray-700: #374151      /* Primary borders */
---gray-600: #4b5563      /* Emphasized borders */
+--border-primary: rgba(55, 65, 81, 0.5)     /* Gray-700/50 */
+--border-secondary: rgba(75, 85, 99, 0.5)   /* Gray-600/50 */
 
 /* Text */
---gray-100: #f3f4f6      /* Primary text */
---gray-300: #d1d5db      /* Secondary text */
---gray-400: #9ca3af      /* Tertiary text */
+--text-primary: #F3F4F6         /* Gray-100 - rgb(243 244 246) */
+--text-secondary: #D1D5DB       /* Gray-300 - rgb(209 213 219) */
+--text-tertiary: #9CA3AF        /* Gray-400 - rgb(156 163 175) */
+--text-muted: #6B7280           /* Gray-500 - rgb(107 114 128) */
 
 /* Semantic Colors */
---blue-400: #60a5fa      /* Primary actions */
---emerald-400: #34d399   /* Success actions */
---red-400: #f87171       /* Destructive actions */
+--color-primary: #3DA8F4        /* Blue-400 - Primary actions */
+--color-accent-green: #10B981   /* Emerald-500 - Success */
+--color-accent-red: #EF4444     /* Red-500 - Destructive */
+--color-accent-yellow: #F59E0B  /* Amber-500 - Warning */
+--color-accent-purple: #8B5CF6  /* Violet-500 - Info */
+--color-accent-orange: #F97316  /* Orange-500 - Alert */
 ```
 
 ---
@@ -503,15 +523,16 @@ import { Plus, Trash2, Download } from 'lucide-react'
 
 ## 🎨 Components
 
-### Card Component
+### Card Component (Glassmorphism)
 
 ```tsx
-// Basic card
-<div className="bg-white dark:bg-gray-900/80 
-                backdrop-blur-sm 
-                border border-gray-200 dark:border-gray-700/50 
+// Standard Glassmorphic Card
+<div className="bg-white dark:bg-gray-900/80
+                backdrop-blur-sm
+                border border-gray-200 dark:border-gray-700/50
                 rounded-xl p-6
-                shadow-sm dark:shadow-none">
+                shadow-sm dark:shadow-none
+                transition-all duration-300">
   <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
     Card Title
   </h3>
@@ -520,19 +541,87 @@ import { Plus, Trash2, Download } from 'lucide-react'
   </p>
 </div>
 
-// Interactive card
-<div className="bg-white dark:bg-gray-900/80 
-                backdrop-blur-sm 
-                border border-gray-200 dark:border-gray-700/50 
+// Premium Glassmorphic Card (Dark Mode)
+<div className="bg-white dark:bg-gray-900/80
+                backdrop-blur-xl
+                border border-gray-200 dark:border-gray-800/50
+                rounded-2xl p-6
+                shadow-sm dark:shadow-none
+                transition-all duration-300
+                hover:shadow-lg dark:hover:shadow-black/20">
+  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+    Premium Card
+  </h3>
+  <p className="text-gray-700 dark:text-gray-300">
+    Enhanced glass effect with stronger blur
+  </p>
+</div>
+
+// Interactive Clickable Card
+<div className="bg-white dark:bg-gray-900/80
+                backdrop-blur-sm
+                border border-gray-200 dark:border-gray-700/50
                 rounded-xl p-6
                 shadow-sm dark:shadow-none
-                transition-all duration-300 
-                hover:border-blue-400 dark:hover:border-blue-500/30 
-                hover:shadow-md dark:hover:shadow-none
-                hover:-translate-y-1
+                transition-all duration-300
+                hover:scale-[1.02] hover:shadow-lg
+                dark:hover:shadow-black/20
                 cursor-pointer">
   <!-- Card content -->
 </div>
+
+// Section Card (Custom Glassmorphism Class)
+<div className="section-card">
+  <!-- Automatically applies glassmorphism in dark mode -->
+  <!-- Clean white background in light mode -->
+</div>
+```
+
+### Glassmorphism CSS Classes
+
+```css
+/* Premium Glassmorphism - Dark Mode Only */
+.glassmorphism {
+  background: rgba(20, 28, 36, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(45, 62, 78, 0.4);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Light Glassmorphism - Dark Mode Only */
+.glassmorphism-light {
+  background: rgba(30, 40, 52, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(55, 75, 95, 0.3);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Section Card - Theme-Aware */
+[data-theme="dark"] .section-card {
+  background: rgba(20, 28, 36, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(45, 62, 78, 0.4);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .section-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
 ```
 
 ### Input Fields
@@ -668,37 +757,47 @@ import { Plus, Trash2, Download } from 'lucide-react'
 </span>
 ```
 
-### Modals/Dialogs
+### Modals/Dialogs (Glassmorphism)
 
 ```tsx
-// Overlay
-<div className="fixed inset-0 bg-gray-900/50 dark:bg-black/60 
-                backdrop-blur-sm z-40" 
-     onClick={onClose} />
+// Dialog Overlay (with stronger backdrop blur)
+<div className="fixed inset-0 z-50
+                bg-gray-900/40 dark:bg-black/80
+                backdrop-blur-sm
+                data-[state=open]:animate-in
+                data-[state=closed]:animate-out
+                data-[state=closed]:fade-out-0
+                data-[state=open]:fade-in-0" />
 
-// Modal container
-<div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                bg-white dark:bg-gray-900/95 
-                backdrop-blur-sm 
-                border border-gray-200 dark:border-gray-700/50 
-                rounded-xl p-6 max-w-md w-full 
-                shadow-2xl z-50">
-  
+// Dialog Content (Premium Glassmorphism)
+<div className="fixed left-[50%] top-[50%] z-50
+                grid w-full max-w-lg
+                translate-x-[-50%] translate-y-[-50%]
+                gap-4
+                border bg-white/95 dark:bg-gray-900/95
+                backdrop-blur-sm
+                border-gray-200 dark:border-gray-700/50
+                text-gray-900 dark:text-gray-100
+                p-6
+                shadow-lg dark:shadow-none
+                duration-200
+                sm:rounded-lg">
+
   {/* Header */}
-  <div className="flex items-center justify-between mb-4">
+  <div className="flex items-center justify-between">
     <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
       Modal Title
     </h2>
-    <button 
+    <button
       onClick={onClose}
-      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 
+      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200
                  transition-colors">
       <X className="w-5 h-5" />
     </button>
   </div>
 
   {/* Content */}
-  <p className="text-gray-700 dark:text-gray-300 mb-6">
+  <p className="text-gray-700 dark:text-gray-300">
     Modal content goes here
   </p>
 
@@ -712,6 +811,39 @@ import { Plus, Trash2, Download } from 'lucide-react'
     </Button>
   </div>
 </div>
+
+// Alert Dialog Content (Shadcn UI Compatible)
+<AlertDialogContent className="bg-white/95 dark:bg-gray-900/95
+                                backdrop-blur-sm
+                                border-gray-200 dark:border-gray-700/50
+                                sm:rounded-xl">
+  <AlertDialogHeader>
+    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+    <AlertDialogDescription>
+      This action cannot be undone.
+    </AlertDialogDescription>
+  </AlertDialogHeader>
+  <AlertDialogFooter>
+    <AlertDialogCancel>Cancel</AlertDialogCancel>
+    <AlertDialogAction>Continue</AlertDialogAction>
+  </AlertDialogFooter>
+</AlertDialogContent>
+
+// Popover (with Glassmorphism)
+<PopoverContent className="z-50 w-72 rounded-md
+                          border bg-white/95 dark:bg-gray-900/95
+                          border-gray-200 dark:border-gray-700/50
+                          backdrop-blur-sm
+                          p-4
+                          text-gray-900 dark:text-gray-100
+                          shadow-md dark:shadow-none">
+  <div className="space-y-2">
+    <h4 className="font-medium">Popover Title</h4>
+    <p className="text-sm text-gray-700 dark:text-gray-300">
+      Popover content goes here
+    </p>
+  </div>
+</PopoverContent>
 ```
 
 ### Navigation Sidebar
@@ -973,8 +1105,20 @@ className="bg-blue-50 dark:bg-blue-500/10
 /* Page background */
 "bg-white dark:bg-gray-950"
 
-/* Card */
-"bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none"
+/* Secondary page background */
+"bg-[#FCFCFC] dark:bg-gray-900"
+
+/* Standard Glassmorphic Card */
+"bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none transition-all duration-300"
+
+/* Premium Glassmorphic Card */
+"bg-white dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-2xl p-6 shadow-sm dark:shadow-none transition-all duration-300"
+
+/* Interactive Clickable Card */
+"bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none transition-all duration-300 hover:scale-[1.02] hover:shadow-lg dark:hover:shadow-black/20 cursor-pointer"
+
+/* Section Card (uses custom class) */
+"section-card"
 
 /* Primary text */
 "text-gray-900 dark:text-gray-100"
@@ -982,8 +1126,17 @@ className="bg-blue-50 dark:bg-blue-500/10
 /* Secondary text */
 "text-gray-700 dark:text-gray-300"
 
+/* Tertiary text */
+"text-gray-500 dark:text-gray-400"
+
+/* Muted text */
+"text-gray-400 dark:text-gray-500"
+
 /* Border */
 "border-gray-200 dark:border-gray-700/50"
+
+/* Emphasized border */
+"border-gray-300 dark:border-gray-800/50"
 
 /* Hover background */
 "hover:bg-gray-50 dark:hover:bg-gray-800/30"
@@ -991,27 +1144,97 @@ className="bg-blue-50 dark:bg-blue-500/10
 /* Active nav item */
 "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20"
 
-/* Input */
-"bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-gray-100"
+/* Input field */
+"bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+
+/* Select dropdown */
+"bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 rounded-md"
+
+/* Dialog/Modal overlay */
+"fixed inset-0 z-50 bg-gray-900/40 dark:bg-black/80 backdrop-blur-sm"
+
+/* Dialog/Modal content */
+"bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 rounded-xl p-6 shadow-lg dark:shadow-none"
+
+/* Popover content */
+"bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 rounded-md p-4 shadow-md dark:shadow-none"
+
+/* Toast/Notification */
+"bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 shadow-lg"
+```
+
+### Theme-Aware Utility Classes
+
+```tsx
+/* Universal theme-aware backgrounds */
+.theme-bg-primary       /* bg-white dark:bg-gray-950 */
+.theme-bg-secondary     /* bg-[#FCFCFC] dark:bg-gray-900 */
+.theme-bg-card          /* bg-white dark:bg-gray-900/80 backdrop-blur-sm */
+.theme-bg-elevated      /* bg-white dark:bg-gray-800 */
+
+/* Universal theme-aware borders */
+.theme-border           /* border-gray-200 dark:border-gray-800/50 */
+.theme-border-subtle    /* border-gray-300 dark:border-gray-700/50 */
+
+/* Universal theme-aware text */
+.theme-text-primary     /* text-gray-900 dark:text-gray-100 */
+.theme-text-secondary   /* text-gray-700 dark:text-gray-300 */
+.theme-text-tertiary    /* text-gray-500 dark:text-gray-400 */
+.theme-text-muted       /* text-gray-400 dark:text-gray-500 */
 ```
 
 ---
 
 ## 🎯 Design Tokens Summary
 
-| Element | Light Mode | Dark Mode |
-|---------|-----------|-----------|
-| **Page BG** | `white` | `gray-950` |
-| **Card BG** | `white/85` blur | `gray-900/80` blur |
-| **Border** | `gray-200` | `gray-700/50` |
-| **Text Primary** | `gray-900` | `gray-100` |
-| **Text Secondary** | `gray-700` | `gray-300` |
-| **Button Primary** | Solid `blue-600` | Glow `blue-500/10` |
-| **Button Success** | Solid `emerald-600` | Glow `emerald-500/10` |
-| **Button Destructive** | Solid `red-600` | Glow `red-600/10` |
-| **Nav Active** | `blue-50` bg, `blue-600` text | `blue-500/10` bg, `blue-400` text |
-| **Table Header** | `gray-50` | `gray-800/50` |
-| **Table Hover** | `gray-50` | `gray-800/30` |
+| Element | Light Mode | Dark Mode (Glassmorphism) |
+|---------|-----------|---------------------------|
+| **Page BG** | `#FFFFFF` | `#030712` (gray-950) |
+| **Secondary BG** | `#FCFCFC` | `#111827` (gray-900) |
+| **Card BG** | `white` + `shadow-sm` | `gray-900/80` + `backdrop-blur-sm` |
+| **Premium Card** | `white` + `shadow-sm` | `rgba(20, 28, 36, 0.6)` + `blur(16px)` |
+| **Border** | `gray-200` (#E5E7EB) | `gray-700/50` opacity |
+| **Text Primary** | `gray-900` (#111827) | `gray-100` (#F3F4F6) |
+| **Text Secondary** | `gray-700` (#374151) | `gray-300` (#D1D5DB) |
+| **Text Tertiary** | `gray-500` (#6B7280) | `gray-400` (#9CA3AF) |
+| **Modal Overlay** | `gray-900/40` + `blur` | `black/80` + `backdrop-blur-sm` |
+| **Modal Content** | `white/95` + `blur` | `gray-900/95` + `backdrop-blur-sm` |
+| **Popover** | `white/95` + `shadow-md` | `gray-900/95` + `backdrop-blur-sm` |
+| **Select Dropdown** | `white/95` + `blur` | `gray-900/95` + `backdrop-blur-sm` |
+
+## 🌟 Glassmorphism Specifications
+
+### Backdrop Blur Levels
+
+| Level | CSS | Usage |
+|-------|-----|-------|
+| **Standard** | `backdrop-blur-sm` (4px) | Cards, dialogs, popovers |
+| **Medium** | `backdrop-blur` (8px) | Not commonly used |
+| **Enhanced** | `backdrop-blur-xl` (24px) | Premium cards, hero sections |
+| **Strong** | `blur(16px)` | Custom glassmorphism class |
+| **Maximum** | `blur(20px)` | Rarely used, special effects |
+
+### Glass Surface Opacity
+
+| Theme | Base Opacity | Usage |
+|-------|-------------|--------|
+| **Light Mode** | `0.85` (85%) | Glass surfaces: `rgba(255, 255, 255, 0.85)` |
+| **Light Mode** | `0.95` (95%) | Modals/Dialogs: `bg-white/95` |
+| **Dark Mode** | `0.6` (60%) | Premium glass: `rgba(20, 28, 36, 0.6)` |
+| **Dark Mode** | `0.8` (80%) | Standard glass: `bg-gray-900/80` |
+| **Dark Mode** | `0.95` (95%) | Modals/Dialogs: `bg-gray-900/95` |
+
+### Shadow Specifications
+
+| Theme | Shadow | Usage |
+|-------|--------|--------|
+| **Light Mode** | `shadow-sm` | Standard cards and surfaces |
+| **Light Mode** | `shadow-md` | Hover states |
+| **Light Mode** | `shadow-lg` | Popovers and elevated elements |
+| **Dark Mode** | `shadow-none` | Most surfaces (glass effect instead) |
+| **Dark Mode** | `shadow-black/20` | Hover effects on interactive cards |
+| **Dark Mode Custom** | `0 8px 32px rgba(0,0,0,0.3)` | Premium glassmorphism |
+| **Dark Mode Inset** | `inset 0 1px 0 rgba(255,255,255,0.05)` | Glass highlight edge |
 
 ---
 
@@ -1038,7 +1261,57 @@ This design system is free to use in any project, commercial or personal.
 
 ---
 
+## 🎯 Implementation Best Practices
+
+### Glassmorphism Do's and Don'ts
+
+✅ **DO:**
+- Use `backdrop-blur-sm` (4px) for most cards and modals
+- Use `backdrop-blur-xl` (24px) for hero sections and premium cards
+- Apply opacity levels: `0.8` for cards, `0.95` for modals/popovers
+- Use custom `blur(16px)` for premium glassmorphism effects
+- Add subtle inset highlights: `inset 0 1px 0 rgba(255,255,255,0.05)`
+- Include webkit prefixes: `-webkit-backdrop-filter`
+- Combine with semi-transparent backgrounds: `bg-gray-900/80`
+- Use `shadow-none` in dark mode (glass effect replaces shadows)
+- Add smooth transitions: `transition-all duration-300`
+
+❌ **DON'T:**
+- Don't use backdrop blur without semi-transparent backgrounds
+- Don't stack too many glassmorphic layers (max 2-3 levels)
+- Don't use heavy shadows in dark mode with glass effects
+- Don't forget webkit prefix for Safari support
+- Don't use glassmorphism in light mode (clean backgrounds instead)
+- Don't exceed blur(24px) - degrades performance
+- Don't use glassmorphism on small elements (< 100px)
+
+### Performance Considerations
+
+- **Backdrop Blur Impact**: Moderate GPU usage, optimize for 60fps
+- **Layer Limit**: Maximum 2-3 overlapping glass layers
+- **Mobile Optimization**: Test on older devices, may need fallbacks
+- **Browser Support**: Use webkit prefix, test in Safari
+- **Transition Performance**: Use `transform` over position changes
+
+### Accessibility Guidelines
+
+- **Contrast Ratios**: Maintain WCAG AA (4.5:1 for text)
+- **Border Visibility**: Use subtle borders even with glass effects
+- **Text Readability**: Ensure text is readable over glass backgrounds
+- **Focus States**: Clear focus indicators on interactive elements
+- **Reduced Motion**: Respect `prefers-reduced-motion` for animations
+
 ## 🔄 Version History
+
+**v4.0.0** - 2025-01-03
+- Complete audit of Sixty Sales Dashboard implementation
+- Exact glassmorphism specifications and opacity levels
+- Comprehensive backdrop blur reference (sm, xl, 16px, 20px)
+- Theme-aware utility classes documented
+- Shadow specifications for light and dark modes
+- Quick copy-paste classes for all common patterns
+- Implementation best practices and performance guidelines
+- Accessibility considerations for glass effects
 
 **v3.0.0** - 2025-10-29
 - Universal design system for any project
@@ -1062,6 +1335,7 @@ This design system is free to use in any project, commercial or personal.
 
 ---
 
-**Last Updated:** 2025-10-29  
-**Version:** 3.0.0  
+**Last Updated:** 2025-01-03
+**Version:** 4.0.0
 **Status:** Production Ready ✅
+**Source:** Sixty Sales Dashboard - Complete Implementation Audit

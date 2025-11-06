@@ -337,7 +337,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg hover:bg-gray-700/50 cursor-pointer transition-colors group focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                     tabIndex={0}
                     role="button"
-                    aria-label={`Navigate to company ${task.company}`}
+                    aria-label={`Navigate to company ${typeof task.company === 'object' ? task.company?.name : task.company}`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
@@ -345,7 +345,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       </div>
                       <div>
                         <div className="text-gray-900 dark:text-white font-medium flex items-center gap-2">
-                          {task.company}
+                          {typeof task.company === 'object' ? task.company?.name : task.company}
                           <ExternalLink className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">Company</div>
@@ -363,7 +363,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <Building2 className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <div className="text-white font-medium">{task.company}</div>
+                        <div className="text-white font-medium">{typeof task.company === 'object' ? task.company?.name : task.company}</div>
                         <div className="text-sm text-gray-400">Company</div>
                       </div>
                     </div>

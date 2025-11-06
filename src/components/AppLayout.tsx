@@ -42,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
 import logger from '@/lib/utils/logger';
 import { useEventListener } from '@/lib/communication/EventBus';
+import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -51,6 +52,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  // Initialize task notifications - this will show toasts for auto-created tasks
+  useTaskNotifications();
 
   // Open/close QuickAdd via global modal events
   useEventListener('modal:opened', ({ type, context }) => {

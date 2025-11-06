@@ -22,6 +22,7 @@ interface TaskFilters {
   contact_id?: string;
   meeting_id?: string;
   completed?: boolean;
+  hasMeeting?: boolean;
 }
 
 interface CreateTaskData {
@@ -95,7 +96,8 @@ export function useTasks(
       // Get the user ID with fallback for mock scenarios
       const currentUserId = userData.id || 'mock-user-id';
 
-      // Build the query with company, contact, meeting_action_item, and AI suggestion relations
+      // Build the query with company, contact, and meeting_action_item relations
+      // Note: suggestion_id is stored in metadata JSON field, not as foreign key
       let query = supabase
         .from('tasks')
         .select(
@@ -111,17 +113,10 @@ export function useTasks(
             timestamp_seconds,
             playback_url,
             meeting:meetings(id, title, share_url)
-          ),
-          suggestion:next_action_suggestions!tasks_suggestion_id_fkey(
-            id,
-            confidence_score,
-            reasoning,
-            urgency,
-            timestamp_seconds
           )
         `
         )
-        .order('due_date', { ascending: true, nullsFirst: false });
+        .order('due_date', { ascending: true, nullsFirst: false});
 
       // Apply filters
       if (parsedFilters?.assigned_to) {
@@ -163,6 +158,11 @@ export function useTasks(
 
       if (parsedFilters?.meeting_id) {
         query = query.eq('meeting_id', parsedFilters.meeting_id);
+      }
+
+      // Filter for tasks that have a meeting association
+      if (parsedFilters?.hasMeeting) {
+        query = query.not('meeting_id', 'is', null);
       }
 
       if (parsedFilters?.completed !== undefined) {

@@ -54,17 +54,19 @@ interface TaskListProps {
   dealId?: string;
   companyId?: string;
   contactId?: string;
+  meetingTasksOnly?: boolean;
 }
 
-const TaskList: React.FC<TaskListProps> = ({ 
-  showCompleted = false, 
+const TaskList: React.FC<TaskListProps> = ({
+  showCompleted = false,
   assigneeFilter,
   compactView = false,
   onCreateTask,
   onEditTask,
   dealId,
   companyId,
-  contactId
+  contactId,
+  meetingTasksOnly = false
 }) => {
   const { userData } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,23 +78,28 @@ const TaskList: React.FC<TaskListProps> = ({
   // Build filters for the hook
   const filters = useMemo(() => {
     const taskFilters: any = {};
-    
+
     if (assigneeFilter) {
       taskFilters.assigned_to = assigneeFilter;
     }
-    
+
     if (dealId) {
       taskFilters.deal_id = dealId;
     }
-    
+
     if (companyId) {
       taskFilters.company_id = companyId;
     }
-    
+
     if (contactId) {
       taskFilters.contact_id = contactId;
     }
-    
+
+    // Add meeting filter if enabled
+    if (meetingTasksOnly) {
+      taskFilters.hasMeeting = true;
+    }
+
     if (statusFilter !== 'all') {
       if (statusFilter === 'incomplete') {
         taskFilters.status = ['pending', 'in_progress', 'overdue'];
@@ -102,21 +109,21 @@ const TaskList: React.FC<TaskListProps> = ({
     } else if (!showCompleted) {
       taskFilters.completed = false;
     }
-    
+
     if (priorityFilter !== 'all') {
       taskFilters.priority = [priorityFilter];
     }
-    
+
     if (taskTypeFilter !== 'all') {
       taskFilters.task_type = [taskTypeFilter];
     }
-    
+
     if (searchQuery.trim()) {
       taskFilters.search = searchQuery.trim();
     }
-    
+
     return taskFilters;
-  }, [assigneeFilter, statusFilter, priorityFilter, taskTypeFilter, searchQuery, showCompleted, dealId, companyId, contactId]);
+  }, [assigneeFilter, statusFilter, priorityFilter, taskTypeFilter, searchQuery, showCompleted, dealId, companyId, contactId, meetingTasksOnly]);
 
   const { tasks, isLoading, error, completeTask, uncompleteTask, deleteTask } = useTasks(filters);
 

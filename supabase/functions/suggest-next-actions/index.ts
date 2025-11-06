@@ -24,6 +24,10 @@ interface RequestBody {
   activityType: 'meeting' | 'activity' | 'email' | 'proposal' | 'call'
   userId?: string
   forceRegenerate?: boolean
+  existingContext?: {
+    suggestions?: Array<{ title: string; action_type: string; status: string }>
+    tasks?: Array<{ title: string; task_type: string; status: string }>
+  }
 }
 
 interface ActivityContext {
@@ -80,7 +84,7 @@ serve(async (req) => {
   }
 
   try {
-    const { activityId, activityType, userId, forceRegenerate }: RequestBody = await req.json()
+    const { activityId, activityType, userId, forceRegenerate, existingContext }: RequestBody = await req.json()
 
     if (!activityId || !activityType) {
       return new Response(
@@ -91,16 +95,20 @@ serve(async (req) => {
 
     // Get authorization token
     const authHeader = req.headers.get('Authorization')
-    const isServiceRole = authHeader?.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '')
 
-    // Initialize Supabase client
+    // ALWAYS use service role for database operations to bypass RLS
+    // Edge Functions need elevated permissions to insert AI suggestions
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      isServiceRole ? (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '') : (Deno.env.get('SUPABASE_ANON_KEY') ?? ''),
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
-        global: {
-          headers: authHeader ? { Authorization: authHeader } : {},
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
         },
+        db: {
+          schema: 'public'
+        }
       }
     )
 
@@ -136,7 +144,7 @@ serve(async (req) => {
     }
 
     // Generate suggestions using Claude Haiku 4.5
-    const suggestions = await generateSuggestionsWithClaude(context)
+    const suggestions = await generateSuggestionsWithClaude(context, existingContext)
 
     if (!suggestions || suggestions.length === 0) {
       return new Response(
@@ -164,6 +172,32 @@ serve(async (req) => {
     )
 
     console.log(`[suggest-next-actions] Auto-created ${createdTasks.length} tasks`)
+
+    // Create notification for user if tasks were created
+    if (createdTasks.length > 0 && context.type === 'meeting') {
+      try {
+        const taskIds = createdTasks.map(t => t.id);
+        const { data: meeting } = await supabaseClient
+          .from('meetings')
+          .select('owner_user_id, title')
+          .eq('id', context.id)
+          .single();
+
+        if (meeting?.owner_user_id) {
+          await supabaseClient.rpc('create_task_creation_notification', {
+            p_user_id: meeting.owner_user_id,
+            p_meeting_id: context.id,
+            p_meeting_title: context.title || meeting.title || 'Meeting',
+            p_task_count: createdTasks.length,
+            p_task_ids: taskIds
+          });
+          console.log(`[suggest-next-actions] Created notification for ${createdTasks.length} tasks`);
+        }
+      } catch (notifError) {
+        console.error('[suggest-next-actions] Failed to create notification:', notifError);
+        // Don't fail the whole request if notification fails
+      }
+    }
 
     return new Response(
       JSON.stringify({
@@ -303,7 +337,11 @@ async function fetchActivityContext(
  * Generate next-action suggestions using Claude Haiku 4.5
  */
 async function generateSuggestionsWithClaude(
-  context: ActivityContext
+  context: ActivityContext,
+  existingContext?: {
+    suggestions?: Array<{ title: string; action_type: string; status: string }>
+    tasks?: Array<{ title: string; task_type: string; status: string }>
+  }
 ): Promise<NextActionSuggestion[]> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
@@ -357,9 +395,33 @@ For each suggestion, provide:
 
 Return ONLY a valid JSON array with no additional text.`
 
+  // Build existing context summary for duplicate prevention
+  let existingContextSummary = '';
+  if (existingContext && (existingContext.suggestions?.length || existingContext.tasks?.length)) {
+    existingContextSummary = '\n\n**IMPORTANT - EXISTING TASKS AND SUGGESTIONS TO AVOID DUPLICATES:**\n\n';
+
+    if (existingContext.suggestions && existingContext.suggestions.length > 0) {
+      existingContextSummary += 'Previously Suggested Actions:\n';
+      existingContext.suggestions.forEach((s, i) => {
+        existingContextSummary += `${i + 1}. [${s.action_type}] ${s.title} (Status: ${s.status})\n`;
+      });
+      existingContextSummary += '\n';
+    }
+
+    if (existingContext.tasks && existingContext.tasks.length > 0) {
+      existingContextSummary += 'Already Created Tasks:\n';
+      existingContext.tasks.forEach((t, i) => {
+        existingContextSummary += `${i + 1}. [${t.task_type}] ${t.title} (Status: ${t.status})\n`;
+      });
+      existingContextSummary += '\n';
+    }
+
+    existingContextSummary += 'DO NOT suggest tasks that are similar to or duplicate the ones listed above. Focus on NEW, DIFFERENT action items that haven\'t been covered yet.\n';
+  }
+
   const userPrompt = `Analyze this sales activity and suggest 2-4 next actions:
 
-${contextSummary}
+${contextSummary}${existingContextSummary}
 
 Return suggestions as a JSON array following this exact structure:
 [
@@ -413,6 +475,7 @@ IMPORTANT:
   let aiResponse = responseData.content[0]?.text || '[]'
 
   console.log('[generateSuggestionsWithClaude] AI response length:', aiResponse.length)
+  console.log('[generateSuggestionsWithClaude] Raw AI response:', aiResponse.substring(0, 500))
 
   // Strip markdown code blocks if present (```json ... ```)
   const codeBlockMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
@@ -605,9 +668,9 @@ async function autoCreateTasksFromSuggestions(
         meeting_id: context.type === 'meeting' ? context.id : null,
         company_id: suggestion.company_id,
         contact_id: suggestion.contact_id,
-        suggestion_id: suggestion.id,
         source: 'ai_suggestion',
         metadata: {
+          suggestion_id: suggestion.id,
           confidence_score: suggestion.confidence_score,
           timestamp_seconds: suggestion.timestamp_seconds,
           urgency: suggestion.urgency,

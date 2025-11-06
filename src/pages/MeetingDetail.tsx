@@ -10,6 +10,7 @@ import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
 import { NextActionSuggestions } from '@/components/meetings/NextActionSuggestions';
+import { CreateTaskModal } from '@/components/meetings/CreateTaskModal';
 import { useActivitiesActions } from '@/lib/hooks/useActivitiesActions';
 import { useNextActionSuggestions } from '@/lib/hooks/useNextActionSuggestions';
 import { useTasks } from '@/lib/hooks/useTasks';
@@ -133,6 +134,7 @@ export function MeetingDetail() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [createTaskModalOpen, setCreateTaskModalOpen] = useState(false);
 
   const primaryExternal = attendees.find(a => a.is_external);
 
@@ -854,25 +856,36 @@ export function MeetingDetail() {
                   Tasks ({tasks.length})
                 </h3>
               </div>
-              <Button
-                onClick={handleGenerateMore}
-                variant="outline"
-                size="sm"
-                disabled={generatingMore || !meeting?.transcript_text}
-                className="flex items-center gap-2"
-              >
-                {generatingMore ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Generate More
-                  </>
-                )}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setCreateTaskModalOpen(true)}
+                  variant="default"
+                  size="sm"
+                  className="flex items-center gap-2"
+                >
+                  <ListTodo className="w-4 h-4" />
+                  Add Task
+                </Button>
+                <Button
+                  onClick={handleGenerateMore}
+                  variant="outline"
+                  size="sm"
+                  disabled={generatingMore || !meeting?.transcript_text}
+                  className="flex items-center gap-2"
+                >
+                  {generatingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Generate More
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2 max-h-[700px] overflow-y-auto">
@@ -1061,6 +1074,17 @@ export function MeetingDetail() {
           </div>
         </div>
       </div>
+
+      {/* Create Task Modal */}
+      {meeting && (
+        <CreateTaskModal
+          meetingId={meeting.id}
+          meetingTitle={meeting.title}
+          open={createTaskModalOpen}
+          onOpenChange={setCreateTaskModalOpen}
+          onTaskCreated={refetchTasks}
+        />
+      )}
     </div>
   );
 }

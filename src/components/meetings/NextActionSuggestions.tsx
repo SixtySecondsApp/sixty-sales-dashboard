@@ -20,7 +20,8 @@ import {
   ListTodo,
   Play,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
@@ -75,6 +76,7 @@ export function NextActionSuggestions({
   const [suggestions, setSuggestions] = useState(initialSuggestions);
   const [loading, setLoading] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [extractingMore, setExtractingMore] = useState(false);
 
   // Task category icon mapping
   const categoryIcons: Record<string, any> = {
@@ -189,6 +191,59 @@ export function NextActionSuggestions({
     }
   };
 
+  const handleExtractMoreTasks = async () => {
+    setExtractingMore(true);
+    try {
+      // Get all existing suggestions and tasks for context
+      const { data: existingData, error: fetchError } = await supabase
+        .from('next_action_suggestions')
+        .select('title, action_type, status')
+        .eq('activity_id', meetingId)
+        .eq('activity_type', 'meeting');
+
+      if (fetchError) throw fetchError;
+
+      // Also get tasks created from this meeting
+      const { data: existingTasks } = await supabase
+        .from('tasks')
+        .select('title, task_type, status')
+        .eq('meeting_id', meetingId);
+
+      // Prepare context for duplicate prevention
+      const existingContext = {
+        suggestions: existingData || [],
+        tasks: existingTasks || []
+      };
+
+      // Call the Edge Function with forceRegenerate and context
+      const { data, error } = await supabase.functions.invoke('suggest-next-actions', {
+        body: {
+          activityId: meetingId,
+          activityType: 'meeting',
+          forceRegenerate: true,
+          existingContext: existingContext
+        }
+      });
+
+      if (error) throw error;
+
+      const newTasksCount = data?.tasks?.length || 0;
+
+      toast.success(`Extracted ${newTasksCount} additional tasks!`, {
+        description: 'New tasks have been added based on the meeting context.'
+      });
+
+      onSuggestionUpdate();
+    } catch (error: any) {
+      console.error('Error extracting more tasks:', error);
+      toast.error('Failed to extract additional tasks', {
+        description: error.message
+      });
+    } finally {
+      setExtractingMore(false);
+    }
+  };
+
   const toggleCard = (id: string) => {
     setExpandedCards(prev => {
       const next = new Set(prev);
@@ -230,15 +285,43 @@ export function NextActionSuggestions({
 
   return (
     <div className="space-y-3">
+      {/* Header with Extract More Tasks Button */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            AI Suggestions
+          </h3>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleExtractMoreTasks}
+          disabled={extractingMore}
+          className="text-xs h-8 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800/50 hover:from-purple-100 hover:to-blue-100 dark:hover:from-purple-900/30 dark:hover:to-blue-900/30"
+        >
+          {extractingMore ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+              <span>Extracting...</span>
+            </>
+          ) : (
+            <>
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              <span>Extract More Tasks</span>
+            </>
+          )}
+        </Button>
+      </div>
+
       {/* Pending Suggestions */}
       {pendingSuggestions.length > 0 && (
         <div className="space-y-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                 Recommended Next Actions
-              </h3>
+              </h4>
             </div>
             {showPendingCount && (
               <Badge variant="destructive" className="text-xs">

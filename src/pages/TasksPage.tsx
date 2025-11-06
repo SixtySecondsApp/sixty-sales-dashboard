@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutGrid, List, RefreshCw, CheckCircle, AlertCircle, Settings } from 'lucide-react';
+import { LayoutGrid, List, RefreshCw, CheckCircle, AlertCircle, Settings, Video, Filter } from 'lucide-react';
 import TaskList from '@/components/TaskList';
 import TaskForm from '@/components/TaskForm';
 import TaskKanban from '@/components/TaskKanban';
@@ -9,6 +9,7 @@ import { Task } from '@/lib/database/models';
 import { googleTasksSync } from '@/lib/services/googleTasksSync';
 import { toast } from 'sonner';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Badge } from '@/components/ui/badge';
 
 const TasksPage: React.FC = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ const TasksPage: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [showMeetingTasksOnly, setShowMeetingTasksOnly] = useState(false);
 
   useEffect(() => {
     checkGoogleConnection();
@@ -154,14 +156,30 @@ const TasksPage: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Tasks</h1>
-          <p className="text-gray-700 dark:text-gray-300 mt-1">
+          <p className="text-gray-700 dark:text-gray-300 mt-1 flex items-center gap-2">
             {isGoogleConnected
               ? 'Synced with Google Tasks'
               : 'Manage your tasks and stay organized'}
+            {showMeetingTasksOnly && (
+              <Badge variant="secondary" className="ml-2">
+                <Video className="w-3 h-3 mr-1" />
+                Meeting Tasks Only
+              </Badge>
+            )}
           </p>
         </div>
 
         <div className="flex items-center gap-4">
+          {/* Meeting Tasks Filter Toggle */}
+          <Button
+            variant={showMeetingTasksOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowMeetingTasksOnly(!showMeetingTasksOnly)}
+            className="flex items-center gap-2"
+          >
+            <Video className="w-4 h-4" />
+            {showMeetingTasksOnly ? 'Show All Tasks' : 'Meeting Tasks'}
+          </Button>
           {/* Sync Button */}
           {isGoogleConnected && (
             <>
@@ -236,14 +254,16 @@ const TasksPage: React.FC = () => {
 
       {/* Content based on view */}
       {view === 'list' ? (
-        <TaskList 
+        <TaskList
           showCompleted={false}
           onCreateTask={handleCreateTask}
           onEditTask={handleEditTask}
+          meetingTasksOnly={showMeetingTasksOnly}
         />
       ) : (
-        <TaskKanban 
+        <TaskKanban
           onEditTask={handleEditTask}
+          meetingTasksOnly={showMeetingTasksOnly}
         />
       )}
       

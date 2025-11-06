@@ -4,6 +4,7 @@ import { useActivities } from '@/lib/hooks/useActivities';
 import { supabase } from '@/lib/supabase/clientV2';
 import { WizardState } from '../types';
 import logger from '@/lib/utils/logger';
+import { ensureDealEntities } from '@/lib/services/entityResolutionService';
 
 interface UseDealCreationOptions {
   userData: any;
@@ -35,6 +36,40 @@ export function useDealCreation({ userData, actionType, stages, defaultStage }: 
     try {
       setIsLoading(true);
 
+      // Ensure company and contact exist with auto-enrichment and fuzzy matching
+      logger.log('🎯 Resolving entities for deal creation...');
+
+      let companyId: string;
+      let contactId: string;
+
+      try {
+        const { companyId: resolvedCompanyId, contactId: resolvedContactId, isNewCompany, isNewContact } =
+          await ensureDealEntities({
+            contact_email: wizard.selectedContact.email,
+            contact_name: wizard.selectedContact.full_name,
+            company: wizard.dealData.company,
+            owner_id: userData?.id || ''
+          });
+
+        companyId = resolvedCompanyId;
+        contactId = resolvedContactId;
+
+        // Show feedback to user
+        if (isNewCompany) {
+          logger.log('✨ Auto-created company from domain, enriching in background...');
+          toast.success('Company auto-created and enriching...', { duration: 3000 });
+        }
+        if (isNewContact) {
+          logger.log('✨ Auto-created contact record');
+          toast.success('Contact auto-created', { duration: 2000 });
+        }
+      } catch (entityError) {
+        logger.error('❌ Entity resolution failed:', entityError);
+        toast.error('Failed to resolve company/contact. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
       // Set stage based on action type
       let stageId;
       if (actionType === 'sale') {
@@ -60,9 +95,9 @@ export function useDealCreation({ userData, actionType, stages, defaultStage }: 
       const dealData = {
         name: wizard.dealData.name,
         company: wizard.dealData.company,
-        // company_id and primary_contact_id columns don't exist yet, so commenting them out
-        // company_id: wizard.selectedContact.company_id,
-        // primary_contact_id: wizard.selectedContact.id,
+        // Entity resolution ensures these FKs are always set
+        company_id: companyId,
+        primary_contact_id: contactId,
         contact_name: wizard.selectedContact.full_name,
         contact_email: wizard.selectedContact.email,
         contact_phone: wizard.selectedContact.phone || wizard.dealData.contact_phone,

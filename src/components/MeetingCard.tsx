@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Video,
@@ -15,13 +15,15 @@ import {
   ChevronRight,
   Play,
   Users,
-  Star
+  Star,
+  CheckSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { useNextActions } from '@/lib/hooks/useNextActions';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface Meeting {
   id: string;
@@ -38,6 +40,8 @@ interface Meeting {
   company_id: string | null;
   primary_contact_id: string | null;
   summary: string;
+  summary_oneliner?: string;
+  next_steps_oneliner?: string;
   transcript_doc_url: string | null;
   sentiment_score: number | null;
   coach_rating: number | null;
@@ -76,6 +80,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
 }) => {
   const [hovered, setHovered] = useState(false);
   const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
+  const [taskCount, setTaskCount] = useState({ total: 0, completed: 0 });
 
   // Fetch next action suggestions for this meeting
   const { pendingCount, highUrgencyCount } = useNextActions({
@@ -83,6 +88,47 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
     activityType: 'meeting',
     status: 'pending',
   });
+
+  // Fetch task count for this meeting
+  useEffect(() => {
+    const fetchTaskCount = async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, status')
+        .eq('meeting_id', meeting.id);
+
+      if (!error && data) {
+        const completed = data.filter(t => t.status === 'completed').length;
+        setTaskCount({
+          total: data.length,
+          completed
+        });
+      }
+    };
+
+    fetchTaskCount();
+
+    // Subscribe to task changes
+    const channel = supabase
+      .channel(`meeting-tasks-${meeting.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `meeting_id=eq.${meeting.id}`
+        },
+        () => {
+          fetchTaskCount();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [meeting.id]);
 
   // Generate meeting icon color based on sentiment or coach rating
   const getMeetingColor = () => {
@@ -261,6 +307,15 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
                   <div className="text-xs text-gray-500">Actions</div>
                 </div>
               )}
+              {taskCount.total > 0 && (
+                <div className="text-center">
+                  <div className="text-sm font-semibold text-emerald-400 flex items-center gap-1">
+                    <CheckSquare className="w-3 h-3" />
+                    {taskCount.completed}/{taskCount.total}
+                  </div>
+                  <div className="text-xs text-gray-500">Tasks</div>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center gap-1">
@@ -419,6 +474,15 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
               </div>
             </div>
           )}
+          {taskCount.total > 0 && (
+            <div>
+              <span className="text-gray-500">Tasks</span>
+              <div className="font-semibold text-emerald-400 flex items-center gap-1">
+                <CheckSquare className="w-3 h-3" />
+                {taskCount.completed}/{taskCount.total}
+              </div>
+            </div>
+          )}
           {meeting.talk_time_rep_pct && (
             <div>
               <span className="text-gray-500">Talk Time</span>
@@ -430,13 +494,33 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
         </div>
       </div>
 
-      {/* Summary Preview */}
-      {meeting.summary && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Summary</div>
-          <div className="text-xs text-gray-700 dark:text-gray-300 line-clamp-2">
-            {meeting.summary}
-          </div>
+      {/* Summary Preview - Use condensed summaries if available */}
+      {(meeting.summary_oneliner || meeting.next_steps_oneliner || meeting.summary) && (
+        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg space-y-2">
+          {meeting.summary_oneliner && (
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">💬 Discussion</div>
+              <div className="text-xs text-gray-700 dark:text-gray-300">
+                {meeting.summary_oneliner}
+              </div>
+            </div>
+          )}
+          {meeting.next_steps_oneliner && (
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">▶️ Next Steps</div>
+              <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                {meeting.next_steps_oneliner}
+              </div>
+            </div>
+          )}
+          {!meeting.summary_oneliner && !meeting.next_steps_oneliner && meeting.summary && (
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Summary</div>
+              <div className="text-xs text-gray-700 dark:text-gray-300 line-clamp-2">
+                {meeting.summary}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

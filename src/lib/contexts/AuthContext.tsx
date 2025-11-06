@@ -54,8 +54,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
+        logger.log('🔐 AuthContext: Initializing auth...');
+
+        // Add timeout protection for session fetch
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: Session | null }, error: AuthError | null }>((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout in AuthContext')), 30000)
+        );
+
+        const result = await Promise.race([sessionPromise, timeoutPromise]).catch(err => {
+          logger.warn('⚠️ AuthContext: Session fetch timed out or failed:', err.message);
+          return { data: { session: null }, error: err as AuthError };
+        });
+
+        const { data: { session }, error } = result;
+
         if (mounted) {
           if (error) {
             logger.error('Error getting session:', error);
@@ -64,18 +77,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             setSession(session);
             setUser(session?.user ?? null);
-            
-                          // Log session restoration without showing toast
-              if (session?.user && isInitialLoad) {
-                logger.log('📱 Session restored for:', session.user.email);
-                authLogger.logAuthEvent({
-                  event_type: 'SIGNED_IN',
-                  user_id: session.user.id,
-                  email: session.user.email,
-                });
-              }
+
+            // Log session restoration without showing toast
+            if (session?.user && isInitialLoad) {
+              logger.log('📱 Session restored for:', session.user.email);
+              authLogger.logAuthEvent({
+                event_type: 'SIGNED_IN',
+                user_id: session.user.id,
+                email: session.user.email,
+              });
+            }
           }
           setLoading(false);
+          logger.log('✅ AuthContext: Auth initialization complete');
         }
       } catch (error) {
         logger.error('Failed to initialize auth:', error);

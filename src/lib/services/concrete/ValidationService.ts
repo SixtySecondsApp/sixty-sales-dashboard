@@ -154,7 +154,7 @@ class CompanyRequiredFieldsStrategy implements ValidationStrategy<Partial<Compan
 class CompanyFormatValidationStrategy implements ValidationStrategy<Partial<Company>> {
   validate(data: Partial<Company>): string[] {
     const errors: string[] = [];
-    
+
     // Website validation
     if (data.website) {
       const websiteRegex = /^https?:\/\/.+\..+/;
@@ -162,7 +162,7 @@ class CompanyFormatValidationStrategy implements ValidationStrategy<Partial<Comp
         errors.push('Website must be a valid URL');
       }
     }
-    
+
     // Domain validation
     if (data.domain) {
       const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}$/;
@@ -175,12 +175,43 @@ class CompanyFormatValidationStrategy implements ValidationStrategy<Partial<Comp
   }
 }
 
+// Deal Entity Requirements Strategy - ensures every deal has contact email
+class DealEntityRequirementsStrategy implements ValidationStrategy<DealCreateData> {
+  validate(data: DealCreateData): string[] {
+    const errors: string[] = [];
+
+    // Contact email is required for all deals (enables entity resolution)
+    if (!data.contact_email || !data.contact_email.trim()) {
+      errors.push('Contact email is required for all deals');
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (data.contact_email && !emailRegex.test(data.contact_email)) {
+      errors.push('Contact email must be valid');
+    }
+
+    // Company name is required (for entity resolution fallback)
+    if (!data.company || !data.company.trim()) {
+      errors.push('Company name is required');
+    }
+
+    // Contact name is required (for entity resolution)
+    if (!data.contact_name || !data.contact_name.trim()) {
+      errors.push('Contact name is required');
+    }
+
+    return errors;
+  }
+}
+
 export class ValidationService implements IValidationService {
   // Deal validation strategies
   private readonly dealValidationStrategies: ValidationStrategy<DealCreateData | DealUpdateData>[] = [
     new DealRequiredFieldsStrategy(),
     new DealFinancialValidationStrategy(),
     new DealBusinessRulesStrategy(),
+    new DealEntityRequirementsStrategy(),
   ];
 
   // Activity validation strategies

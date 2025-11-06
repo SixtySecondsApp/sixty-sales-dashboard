@@ -17,6 +17,7 @@ import logger from '@/lib/utils/logger';
 import { supabase, authUtils } from '@/lib/supabase/clientV2';
 import { sanitizeCrmForm, sanitizeNumber } from '@/lib/utils/inputSanitizer';
 import { canSplitDeals } from '@/lib/utils/adminUtils';
+import { ensureDealEntities } from '@/lib/services/entityResolutionService';
 
 // New decoupling imports
 import { 
@@ -711,14 +712,58 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
               .single();
             
             const stageId = stages?.id;
-            
+
             if (stageId && userData?.id) {
               // Determine company name - use provided name or extract from website
-              const companyName = formData.client_name || 
-                                (formData.company_website ? 
-                                 formData.company_website.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0] : 
+              const companyName = formData.client_name ||
+                                (formData.company_website ?
+                                 formData.company_website.replace(/^(https?:\/\/)?(www\.)?/, '').split('.')[0] :
                                  'Unknown Company');
-              
+
+              // Ensure company and contact exist with auto-enrichment and fuzzy matching
+              let companyId: string | undefined;
+              let contactId: string | undefined;
+
+              try {
+                const contactEmail = formData.contactIdentifier || selectedContact?.email;
+                const contactName = formData.contact_name || selectedContact?.full_name || companyName;
+
+                if (!contactEmail) {
+                  logger.warn('No contact email available for entity resolution');
+                  toast.warning('Contact email is required for proper deal tracking');
+                } else {
+                  logger.log('🎯 Resolving entities for deal creation...');
+
+                  const {
+                    companyId: resolvedCompanyId,
+                    contactId: resolvedContactId,
+                    isNewCompany,
+                    isNewContact
+                  } = await ensureDealEntities({
+                    contact_email: contactEmail,
+                    contact_name: contactName,
+                    company: companyName,
+                    owner_id: userData.id
+                  });
+
+                  companyId = resolvedCompanyId;
+                  contactId = resolvedContactId;
+
+                  // Show feedback to user
+                  if (isNewCompany) {
+                    logger.log('✨ Auto-created company from domain, enriching in background...');
+                    toast.success('✨ Company auto-created and enriching...', { duration: 2000 });
+                  }
+                  if (isNewContact) {
+                    logger.log('✨ Auto-created contact record');
+                    toast.success('✨ Contact auto-created', { duration: 2000 });
+                  }
+                }
+              } catch (entityError) {
+                logger.error('❌ Entity resolution failed (non-blocking):', entityError);
+                // Don't block deal creation - continue without entity FKs
+              }
+
               // Create a new deal (only if we have a user ID)
               const { data: newDeal, error: dealError } = await supabase
                 .from('deals')
@@ -733,14 +778,17 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                   status: 'active',
                   expected_close_date: addDays(new Date(), 30).toISOString(),
                   contact_email: formData.contactIdentifier,
-                  contact_name: formData.contact_name || companyName
+                  contact_name: formData.contact_name || companyName,
+                  // Entity resolution ensures these FKs are set when possible
+                  company_id: companyId,
+                  primary_contact_id: contactId
                 })
                 .select()
                 .single();
-              
+
               if (!dealError && newDeal) {
                 finalDealId = newDeal.id;  // Use the local variable
-                logger.log(`✅ Created deal ${newDeal.id} for ${selectedAction}`);
+                logger.log(`✅ Created deal ${newDeal.id} for ${selectedAction}${companyId ? ' with company FK' : ''}${contactId ? ' with contact FK' : ''}`);
                 toast.success(`📊 Deal created and linked to ${selectedAction}`);
               } else {
                 logger.warn(`Failed to create deal for ${selectedAction}:`, dealError);
