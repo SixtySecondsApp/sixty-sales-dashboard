@@ -968,17 +968,21 @@ async function autoFetchTranscriptAndAnalyze(
         })
         .eq('id', meeting.id)
 
-      // Condense summary if we have a new one
+      // Condense summary if we have a new one (non-blocking)
       const finalSummary = summaryData?.summary || meeting.summary
       if (finalSummary && finalSummary.length > 0) {
-        await condenseMeetingSummary(supabase, meeting.id, finalSummary, meeting.title || 'Meeting')
+        // Fire-and-forget - don't block sync on AI summarization
+        condenseMeetingSummary(supabase, meeting.id, finalSummary, meeting.title || 'Meeting')
+          .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
       }
     } else {
       console.log(`✅ Using existing transcript: ${transcript.length} characters`)
 
-      // Condense existing summary if not already done
+      // Condense existing summary if not already done (non-blocking)
       if (meeting.summary && !meeting.summary_oneliner) {
-        await condenseMeetingSummary(supabase, meeting.id, meeting.summary, meeting.title || 'Meeting')
+        // Fire-and-forget - don't block sync on AI summarization
+        condenseMeetingSummary(supabase, meeting.id, meeting.summary, meeting.title || 'Meeting')
+          .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
       }
     }
 
@@ -1336,10 +1340,12 @@ async function syncSingleCall(
 
     console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
 
-    // CONDENSE SUMMARY IF AVAILABLE
-    // If we already have a summary from the bulk API, condense it immediately
+    // CONDENSE SUMMARY IF AVAILABLE (non-blocking)
+    // If we already have a summary from the bulk API, condense it in background
     if (summaryText && summaryText.length > 0) {
-      await condenseMeetingSummary(supabase, meeting.id, summaryText, call.title || 'Meeting')
+      // Fire-and-forget - don't block sync on AI summarization
+      condenseMeetingSummary(supabase, meeting.id, summaryText, call.title || 'Meeting')
+        .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
     }
 
     // AUTO-FETCH TRANSCRIPT AND SUMMARY
