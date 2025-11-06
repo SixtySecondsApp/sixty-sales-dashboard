@@ -10,11 +10,11 @@ import {
   CellContext,
 } from '@tanstack/react-table';
 import {
-  Edit2, 
-  Trash2, 
-  ArrowUpRight, 
-  Users, 
-  PoundSterling, 
+  Edit2,
+  Trash2,
+  ArrowUpRight,
+  Users,
+  PoundSterling,
   LinkIcon,
   TrendingUp,
   BarChart as BarChartIcon,
@@ -29,7 +29,11 @@ import {
   Download,
   XCircle,
   RefreshCw,
-  UserCheck
+  UserCheck,
+  Building2,
+  User,
+  Video,
+  ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useActivities, Activity } from '@/lib/hooks/useActivities';
@@ -922,7 +926,7 @@ export function SalesTable() {
                     ? 'bg-orange-500/10'
                     : `bg-${getActivityColor(type)}-500/10`
               } border ${
-                getActivityColor(type) === 'blue' 
+                getActivityColor(type) === 'blue'
                   ? 'border-blue-500/10'
                   : getActivityColor(type) === 'orange'
                     ? 'border-orange-500/20'
@@ -946,9 +950,20 @@ export function SalesTable() {
                       <span className="ml-2 text-xs text-blue-400">×{quantity}</span>
                     )}
                   </div>
-                  {/* Meeting badges */}
+                  {/* Meeting badges and link */}
                   {type === 'meeting' && (
                     <div className="flex items-center gap-1">
+                      {activity.meeting_id && (
+                        <Link
+                          to={`/meetings/${activity.meeting_id}`}
+                          className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors group/meeting"
+                          title="View meeting details"
+                        >
+                          <Video className="w-2.5 h-2.5" />
+                          <span className="hidden sm:inline">View</span>
+                          <ExternalLink className="w-2 h-2 opacity-0 group-hover/meeting:opacity-100 transition-opacity" />
+                        </Link>
+                      )}
                       {activity.is_rebooking && (
                         <Badge color="orange" className="text-[10px] px-1.5 py-0.5">
                           <RefreshCw className="w-2.5 h-2.5 mr-1" />
@@ -969,9 +984,9 @@ export function SalesTable() {
               {(activity.amount || activity.deals) && (
                 <div className="ml-auto text-sm font-medium text-emerald-500">
                   {formatActivityAmount(
-                    activity.amount, 
-                    activity.deals 
-                      ? calculateLTVValue(activity.deals, activity.amount) 
+                    activity.amount,
+                    activity.deals
+                      ? calculateLTVValue(activity.deals, activity.amount)
                       : (activity.type === 'proposal' && activity.amount ? activity.amount : null),
                     activity.type
                   )}
@@ -989,7 +1004,7 @@ export function SalesTable() {
         cell: (info: CellContext<Activity, unknown>) => {
           const activity = info.row.original as Activity;
           if (!activity) return null;
-          
+
           // Ensure client_name is always treated as a string
           let clientName = info.getValue();
           if (typeof clientName === 'object' && clientName !== null) {
@@ -999,17 +1014,51 @@ export function SalesTable() {
             clientName = 'Unknown';
           }
           const clientNameStr = String(clientName);
-          
+
           return (
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center text-gray-700 dark:text-white text-xs sm:text-sm font-medium">
                 {clientNameStr.split(' ').map((n: string) => n?.[0]).join('') || '??'}
               </div>
-              <div>
-                <div className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{clientNameStr}</div>
-                <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                  <LinkIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                  {activity.details || 'No details'}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  {activity.company_id ? (
+                    <Link
+                      to={`/crm/companies/${activity.company_id}`}
+                      className="text-sm sm:text-base font-medium text-gray-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 group"
+                    >
+                      <Building2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+                      {clientNameStr}
+                      <ExternalLink className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                    </Link>
+                  ) : (
+                    <span className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{clientNameStr}</span>
+                  )}
+                </div>
+                <div className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1 mt-0.5">
+                  {activity.contact_id ? (
+                    <Link
+                      to={`/crm/contacts/${activity.contact_id}`}
+                      className="flex items-center gap-1 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors group/contact"
+                      title="View contact"
+                    >
+                      <User className="w-2.5 h-2.5 sm:w-3 sm:h-3 opacity-60 group-hover/contact:opacity-100" />
+                      <span className="line-clamp-1">
+                        {activity.details && activity.details.length > 100
+                          ? `${activity.details.substring(0, 100)}...`
+                          : activity.details || 'View contact'}
+                      </span>
+                    </Link>
+                  ) : (
+                    <>
+                      <LinkIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span className="line-clamp-1" title={activity.details || 'No details'}>
+                        {activity.details && activity.details.length > 100
+                          ? `${activity.details.substring(0, 100)}...`
+                          : activity.details || 'No details'}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1067,6 +1116,31 @@ export function SalesTable() {
         cell: (info: CellContext<Activity, unknown>) => {
           const activity = info.row.original as Activity;
           if (!activity) return null;
+
+          // For meeting activities, prefer condensed summary if available
+          if (activity.type === 'meeting' && activity.meetings) {
+            const summaryOneliner = activity.meetings.summary_oneliner;
+            const nextStepsOneliner = activity.meetings.next_steps_oneliner;
+
+            if (summaryOneliner || nextStepsOneliner) {
+              return (
+                <div className="text-xs sm:text-sm space-y-1">
+                  {summaryOneliner && (
+                    <div className="text-gray-300" title="What was discussed">
+                      💬 {summaryOneliner}
+                    </div>
+                  )}
+                  {nextStepsOneliner && (
+                    <div className="text-emerald-400" title="Next steps">
+                      ▶️ {nextStepsOneliner}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+          }
+
+          // Fallback to regular details
           const details = info.getValue() as string;
           return (
             <div className="text-xs sm:text-sm text-gray-400">

@@ -808,6 +808,64 @@ async function fetchFathomCalls(
 }
 
 /**
+ * Condense meeting summary into one-liners using Claude Haiku 4.5
+ */
+async function condenseMeetingSummary(
+  supabase: any,
+  meetingId: string,
+  summary: string,
+  title: string
+): Promise<void> {
+  try {
+    console.log(`📝 Condensing summary for meeting: ${title}`)
+
+    const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/condense-meeting-summary`
+
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        summary,
+        meetingTitle: title,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`❌ Condense summary service error: ${response.status} - ${errorText}`)
+      return // Non-fatal error - continue without condensed summaries
+    }
+
+    const data = await response.json()
+
+    if (data.success && data.meeting_about && data.next_steps) {
+      console.log(`✅ Summary condensed successfully`)
+      console.log(`   About: ${data.meeting_about}`)
+      console.log(`   Next: ${data.next_steps}`)
+
+      // Update meeting with condensed summaries
+      await supabase
+        .from('meetings')
+        .update({
+          summary_oneliner: data.meeting_about,
+          next_steps_oneliner: data.next_steps,
+        })
+        .eq('id', meetingId)
+
+      console.log(`✅ Condensed summaries saved to database`)
+    } else {
+      console.error(`⚠️  Condense summary service returned no data`)
+    }
+  } catch (error) {
+    console.error(`❌ Error condensing summary: ${error.message}`)
+    // Non-fatal - don't throw, allow meeting sync to continue
+  }
+}
+
+/**
  * Auto-fetch transcript and summary, then analyze with Claude AI
  * Includes smart retry logic for Fathom's async processing
  */
@@ -909,8 +967,19 @@ async function autoFetchTranscriptAndAnalyze(
           summary: summaryData?.summary || meeting.summary, // Keep existing summary if new one not available
         })
         .eq('id', meeting.id)
+
+      // Condense summary if we have a new one
+      const finalSummary = summaryData?.summary || meeting.summary
+      if (finalSummary && finalSummary.length > 0) {
+        await condenseMeetingSummary(supabase, meeting.id, finalSummary, meeting.title || 'Meeting')
+      }
     } else {
       console.log(`✅ Using existing transcript: ${transcript.length} characters`)
+
+      // Condense existing summary if not already done
+      if (meeting.summary && !meeting.summary_oneliner) {
+        await condenseMeetingSummary(supabase, meeting.id, meeting.summary, meeting.title || 'Meeting')
+      }
     }
 
     // Run AI analysis on transcript
@@ -1267,6 +1336,12 @@ async function syncSingleCall(
 
     console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
 
+    // CONDENSE SUMMARY IF AVAILABLE
+    // If we already have a summary from the bulk API, condense it immediately
+    if (summaryText && summaryText.length > 0) {
+      await condenseMeetingSummary(supabase, meeting.id, summaryText, call.title || 'Meeting')
+    }
+
     // AUTO-FETCH TRANSCRIPT AND SUMMARY
     // Attempt to fetch transcript and summary automatically for AI analysis
     await autoFetchTranscriptAndAnalyze(supabase, ownerUserId, integration, meeting, call)
@@ -1394,7 +1469,20 @@ async function syncSingleCall(
         const meetingCompanyId = await determineMeetingCompany(supabase, externalContactIds, primaryContactId, ownerUserId)
 
         if (meetingCompanyId) {
-          console.log(`🏢 Meeting linked to company: ${meetingCompanyId}`)
+          // Fetch and log company name for transparency
+          const { data: companyDetails } = await supabase
+            .from('companies')
+            .select('name, domain')
+            .eq('id', meetingCompanyId)
+            .single()
+
+          if (companyDetails) {
+            console.log(`🏢 Meeting linked to company: ${companyDetails.name} (${companyDetails.domain}) [ID: ${meetingCompanyId}]`)
+          } else {
+            console.log(`🏢 Meeting linked to company ID: ${meetingCompanyId}`)
+          }
+        } else {
+          console.log(`⚠️  No company could be determined for this meeting (may be personal email domains)`)
         }
 
         // Update meeting with primary contact and company
@@ -1476,6 +1564,58 @@ async function syncSingleCall(
                   salesRepEmail = ownerProfile?.email || ownerUserId
                 }
 
+                // Get company name from meetingCompanyId (extracted from attendee emails)
+                let companyName = meetingData.title || 'Fathom Meeting' // Fallback to meeting title
+                if (meetingCompanyId) {
+                  const { data: companyData, error: companyError } = await supabase
+                    .from('companies')
+                    .select('name')
+                    .eq('id', meetingCompanyId)
+                    .single()
+
+                  if (!companyError && companyData?.name) {
+                    companyName = companyData.name
+                    console.log(`🏢 Using company name for activity: ${companyName}`)
+                  } else if (companyError) {
+                    console.log(`⚠️  Could not fetch company name: ${companyError.message}, using fallback: ${companyName}`)
+                  }
+                } else {
+                  console.log(`ℹ️  No company linked to meeting, using meeting title: ${companyName}`)
+                }
+
+                // Extract and truncate summary for activity details to prevent UI overflow
+                const extractAndTruncateSummary = (summary: string | null | undefined, maxLength: number = 200): string => {
+                  if (!summary) {
+                    return `Meeting with ${externalContactIds.length} participant${externalContactIds.length > 1 ? 's' : ''}`
+                  }
+
+                  let textContent = summary
+
+                  // If summary is a JSON string, parse and extract markdown_formatted or text field
+                  if (summary.trim().startsWith('{')) {
+                    try {
+                      const parsed = JSON.parse(summary)
+                      textContent = parsed.markdown_formatted || parsed.text || summary
+                    } catch (e) {
+                      // If parsing fails, use the raw summary
+                      console.log('⚠️ Could not parse summary JSON, using raw text')
+                    }
+                  }
+
+                  // Remove markdown formatting and clean up
+                  textContent = textContent
+                    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove markdown links [text](url) -> text
+                    .replace(/##\s+/g, '') // Remove heading markers
+                    .replace(/\*\*/g, '') // Remove bold markers
+                    .replace(/\n+/g, ' ') // Replace newlines with spaces
+                    .replace(/\s+/g, ' ') // Collapse multiple spaces
+                    .trim()
+
+                  // Truncate to max length
+                  if (textContent.length <= maxLength) return textContent
+                  return textContent.substring(0, maxLength).trim() + '...'
+                }
+
                 const { error: activityError } = await supabase.from('activities').insert({
                   user_id: ownerUserId,
                   sales_rep: salesRepEmail,  // Use email instead of UUID
@@ -1484,8 +1624,8 @@ async function syncSingleCall(
                   company_id: meetingCompanyId,
                   type: 'meeting',
                   status: 'completed',
-                  client_name: meetingData.title || 'Fathom Meeting',
-                  details: meetingData.summary || `Meeting with ${externalContactIds.length > 1 ? 's' : ''}`,
+                  client_name: companyName, // FIXED: Use company name instead of meeting title
+                  details: extractAndTruncateSummary(meetingData.summary),
                   date: meetingData.meeting_start,
                   created_at: new Date().toISOString()
                 })
@@ -1493,7 +1633,7 @@ async function syncSingleCall(
                 if (activityError) {
                   console.error(`❌ Error creating activity: ${activityError.message}`)
                 } else {
-                  console.log('✅ Created activity record for meeting')
+                  console.log(`✅ Created activity record for meeting with client: ${companyName}`)
                 }
               }
             } else {
@@ -1503,6 +1643,8 @@ async function syncSingleCall(
         } catch (e) {
           console.log('⚠️  Preference check failed, skipping auto activity creation')
         }
+      } else {
+        console.log(`ℹ️  No external contacts found for meeting ${meeting.id} - skipping company linkage and activity creation`)
       }
     }
 
