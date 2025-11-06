@@ -142,7 +142,9 @@ const TaskForm: React.FC<TaskFormProps> = ({
         assigned_to: task.assigned_to,
         deal_id: task.deal_id || '',
         contact_name: task.contact_name || '',
-        company: task.company || ''
+        company: typeof task.company === 'object' && task.company !== null
+          ? (task.company as any).name
+          : (task.company || '')
       });
       
       // Update date picker states
