@@ -13,7 +13,7 @@
  * - Normalize all emails (lowercase, trim)
  */
 
-import { CompanyService } from './CompanyService';
+import { CompanyService } from './companyService';
 import { ApiContactService } from './apiContactService';
 import type { Company, Contact } from '@/lib/database/models';
 import logger from '@/lib/utils/logger';
