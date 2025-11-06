@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
@@ -156,7 +156,11 @@ export function MeetingDetail() {
   // State for Generate More button
   const [generatingMore, setGeneratingMore] = useState(false);
 
-  const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal') => {
+  // State for action item operations
+  const [addingToTasksId, setAddingToTasksId] = useState<string | null>(null);
+  const [removingFromTasksId, setRemovingFromTasksId] = useState<string | null>(null);
+
+  const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal' | 'sale') => {
     if (!meeting) return;
     const clientName = primaryExternal?.name || attendees[0]?.name || meeting.title || 'Prospect';
     // Derive website from primary external attendee email domain when available
@@ -548,6 +552,117 @@ export function MeetingDetail() {
     }
   }, [meeting?.id, refetchTasks]);
 
+  // Handler to add action item to tasks
+  const handleAddToTasks = useCallback(async (actionItem: ActionItem) => {
+    if (!meeting?.id) return;
+
+    try {
+      setAddingToTasksId(actionItem.id);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      // Create task from action item
+      const { data: newTask, error: taskError } = await supabase
+        .from('tasks')
+        .insert({
+          title: actionItem.title,
+          description: `Action item from meeting: ${meeting.title}`,
+          due_date: actionItem.deadline_at || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: (actionItem.priority?.toLowerCase() || 'medium') as any,
+          status: actionItem.completed ? 'completed' : 'pending',
+          task_type: (actionItem.category?.toLowerCase() || 'general') as any,
+          assigned_to: user.id,
+          created_by: user.id,
+          company_id: meeting.company_id,
+          contact_id: meeting.primary_contact_id,
+          meeting_action_item_id: actionItem.id,
+          notes: actionItem.playback_url ? `Video playback: ${actionItem.playback_url}` : null,
+          completed: actionItem.completed
+        })
+        .select()
+        .single();
+
+      if (taskError) throw taskError;
+
+      // Update action item with task link
+      const { error: updateError } = await supabase
+        .from('meeting_action_items')
+        .update({
+          task_id: newTask.id,
+          synced_to_task: true,
+          sync_status: 'synced',
+          synced_at: new Date().toISOString()
+        })
+        .eq('id', actionItem.id);
+
+      if (updateError) throw updateError;
+
+      // Refresh both action items and tasks
+      setActionItems(prev => prev.map(item =>
+        item.id === actionItem.id
+          ? { ...item, task_id: newTask.id, synced_to_task: true, sync_status: 'synced' }
+          : item
+      ));
+      refetchTasks();
+
+      toast.success('Action item added to tasks');
+    } catch (e) {
+      console.error('[Add to Tasks] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to add to tasks');
+    } finally {
+      setAddingToTasksId(null);
+    }
+  }, [meeting, refetchTasks]);
+
+  // Handler to remove action item from tasks
+  const handleRemoveFromTasks = useCallback(async (actionItem: ActionItem) => {
+    if (!actionItem.task_id) return;
+
+    try {
+      setRemovingFromTasksId(actionItem.id);
+
+      // Delete the task
+      const { error: deleteError } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', actionItem.task_id);
+
+      if (deleteError) throw deleteError;
+
+      // Update action item to remove task link
+      const { error: updateError } = await supabase
+        .from('meeting_action_items')
+        .update({
+          task_id: null,
+          synced_to_task: false,
+          sync_status: null,
+          synced_at: null
+        })
+        .eq('id', actionItem.id);
+
+      if (updateError) throw updateError;
+
+      // Refresh both action items and tasks
+      setActionItems(prev => prev.map(item =>
+        item.id === actionItem.id
+          ? { ...item, task_id: null, synced_to_task: false, sync_status: null }
+          : item
+      ));
+      refetchTasks();
+
+      toast.success('Task removed');
+    } catch (e) {
+      console.error('[Remove from Tasks] Error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to remove task');
+    } finally {
+      setRemovingFromTasksId(null);
+    }
+  }, [refetchTasks]);
+
   // Attach click handlers to Fathom timestamp links in summary
   useEffect(() => {
     if (!summaryRef.current || !meeting?.summary) {
@@ -753,6 +868,7 @@ export function MeetingDetail() {
                     <Button size="sm" onClick={() => handleQuickAdd('meeting')}>Add Meeting</Button>
                     <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('outbound')}>Add Outbound</Button>
                     <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('proposal')}>Add Proposal</Button>
+                    <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('sale')}>Add Sale</Button>
                   </div>
 
                   {meeting.summary ? (
