@@ -53,7 +53,7 @@ const TasksPage: React.FC = () => {
           creator:profiles!created_by(id, first_name, last_name, email, avatar_url),
           company:companies(id, name, domain),
           contact:contacts(id, full_name, first_name, last_name, email),
-          meeting_action_item:meeting_action_items(
+          meeting_action_item:meeting_action_items!tasks_meeting_action_item_id_fkey(
             id,
             meeting_id,
             timestamp_seconds,
