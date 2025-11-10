@@ -16,6 +16,11 @@ interface PipelineColumnProps {
   onDealClick: (deal: any) => void;
   onAddDealClick: (stageId: string) => void;
   onConvertToSubscription?: (deal: any) => void;
+  // Performance optimization: Batched metadata
+  batchedMetadata?: {
+    nextActions: Record<string, { pendingCount: number; highUrgencyCount: number }>;
+    healthScores: Record<string, { overall_health_score: number; health_status: string }>;
+  };
 }
 
 export function PipelineColumn({
@@ -23,7 +28,8 @@ export function PipelineColumn({
   deals,
   onDealClick,
   onAddDealClick,
-  onConvertToSubscription
+  onConvertToSubscription,
+  batchedMetadata = { nextActions: {}, healthScores: {} }
 }: PipelineColumnProps) {
   // Set up droppable behavior
   const { setNodeRef, isOver } = useDroppable({
@@ -132,15 +138,21 @@ export function PipelineColumn({
         )}
 
         <SortableContext items={dealIds} strategy={verticalListSortingStrategy}>
-          {deals.map((deal, index) => (
-            <DealCard
-              key={deal.id}
-              deal={deal}
-              index={index}
-              onClick={onDealClick}
-              onConvertToSubscription={onConvertToSubscription}
-            />
-          ))}
+          {deals.map((deal, index) => {
+            const dealId = String(deal.id);
+            return (
+              <DealCard
+                key={deal.id}
+                deal={deal}
+                index={index}
+                onClick={onDealClick}
+                onConvertToSubscription={onConvertToSubscription}
+                nextActionsPendingCount={batchedMetadata.nextActions[dealId]?.pendingCount || 0}
+                highUrgencyCount={batchedMetadata.nextActions[dealId]?.highUrgencyCount || 0}
+                healthScore={batchedMetadata.healthScores[dealId] || null}
+              />
+            );
+          })}
         </SortableContext>
 
         {/* Add Deal Button */}

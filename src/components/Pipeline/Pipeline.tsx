@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 import { ConfettiService } from '@/lib/services/confettiService';
 import logger from '@/lib/utils/logger';
+import { useBatchedDealMetadata } from '@/lib/hooks/useBatchedDealMetadata';
 
 
 
@@ -177,8 +178,17 @@ function PipelineContent() {
   // State for the ConvertDealModal
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [convertingDeal, setConvertingDeal] = useState<any>(null);
-  
+
   // Removed proposal confirmation modal state - deals now move directly to Opportunity
+
+  // Performance optimization: Batch-fetch next actions and health scores for all visible deals
+  const allDealIds = React.useMemo(() => {
+    return Object.values(localDealsByStage)
+      .flat()
+      .map(deal => String(deal.id));
+  }, [localDealsByStage]);
+
+  const { data: batchedMetadata } = useBatchedDealMetadata(allDealIds);
 
   // Update local state when the context data changes
   useEffect(() => {
@@ -781,6 +791,7 @@ function PipelineContent() {
                   onAddDealClick={() => handleAddDealClick(stage.id)}
                   onDealClick={handleDealClick}
                   onConvertToSubscription={handleConvertToSubscription}
+                  batchedMetadata={batchedMetadata}
                 />
               ))}
             </div>
@@ -798,6 +809,9 @@ function PipelineContent() {
                   deal={activeDeal}
                   onClick={() => {}}
                   isDragOverlay={true}
+                  nextActionsPendingCount={batchedMetadata.nextActions[String(activeDeal.id)]?.pendingCount || 0}
+                  highUrgencyCount={batchedMetadata.nextActions[String(activeDeal.id)]?.highUrgencyCount || 0}
+                  healthScore={batchedMetadata.healthScores[String(activeDeal.id)] || null}
                 />
               )}
             </DragOverlay>

@@ -17,8 +17,6 @@ import { useDealSplits } from '@/lib/hooks/useDealSplits';
 import { Badge } from './Badge';
 import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
-import { useNextActions } from '@/lib/hooks/useNextActions';
-import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
 
 interface DealCardProps {
@@ -27,24 +25,30 @@ interface DealCardProps {
   onClick: (deal: any) => void;
   onConvertToSubscription?: (deal: any) => void;
   isDragOverlay?: boolean;
+  // Performance optimization: Pass batched metadata as props
+  nextActionsPendingCount?: number;
+  highUrgencyCount?: number;
+  healthScore?: {
+    overall_health_score: number;
+    health_status: 'healthy' | 'warning' | 'critical' | 'stalled';
+  } | null;
 }
 
-export function DealCard({ deal, onClick, onConvertToSubscription, isDragOverlay = false }: DealCardProps) {
+export function DealCard({
+  deal,
+  onClick,
+  onConvertToSubscription,
+  isDragOverlay = false,
+  // Default to 0 if not provided (batched data loading or unavailable)
+  nextActionsPendingCount = 0,
+  highUrgencyCount = 0,
+  healthScore = null
+}: DealCardProps) {
   // Assurer que l'ID est une chaîne de caractères
   const dealId = String(deal.id);
 
-  // Next-action suggestions state and hook
+  // Next-action suggestions state
   const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
-  const {
-    pendingCount: nextActionsPendingCount,
-    highUrgencyCount
-  } = useNextActions({
-    dealId: deal.id,
-    status: 'pending',
-  });
-
-  // Get deal health score
-  const { healthScore } = useDealHealthScore(dealId);
 
   // Get deal splits information
   const { splits, calculateSplitTotals } = useDealSplits({ dealId: deal.id });
