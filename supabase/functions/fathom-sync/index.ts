@@ -866,6 +866,21 @@ async function condenseMeetingSummary(
 }
 
 /**
+ * Helper: dynamic cooldown for transcript fetch attempts
+ * Gradually increases the wait between attempts to avoid hammering Fathom API
+ */
+function calculateTranscriptFetchCooldownMinutes(attempts: number | null | undefined): number {
+  const count = attempts ?? 0
+
+  if (count >= 24) return 720 // 12 hours after many attempts
+  if (count >= 12) return 180 // 3 hours after a dozen attempts
+  if (count >= 6) return 60 // 1 hour after repeated attempts
+  if (count >= 3) return 15 // 15 minutes after a few retries
+
+  return 5 // default: retry after 5 minutes
+}
+
+/**
  * Auto-fetch transcript and summary, then analyze with Claude AI
  * Includes smart retry logic for Fathom's async processing
  */
@@ -879,12 +894,9 @@ async function autoFetchTranscriptAndAnalyze(
   try {
     const recordingId = call.recording_id
 
-    // Check retry attempts - don't try more than 3 times
+    // Track retry attempts with adaptive backoff to avoid hammering the API
     const fetchAttempts = meeting.transcript_fetch_attempts || 0
-    if (fetchAttempts >= 3) {
-      console.log(`⏭️  Skipping transcript fetch for ${recordingId} - max attempts (3) reached`)
-      return
-    }
+    const cooldownMinutes = calculateTranscriptFetchCooldownMinutes(fetchAttempts)
 
     // Check if we already have transcript AND action items FIRST
     // This prevents cooldown from blocking AI analysis on existing transcripts
@@ -917,8 +929,15 @@ async function autoFetchTranscriptAndAnalyze(
       const now = new Date()
       const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
 
-      if (minutesSinceLastAttempt < 5) {
-        console.log(`⏭️  Skipping transcript fetch for ${recordingId} - last attempt was ${Math.round(minutesSinceLastAttempt)} min ago (waiting 5 min)`)
+      if (!isFinite(minutesSinceLastAttempt) || minutesSinceLastAttempt < 0) {
+        console.log(`⚠️  Invalid last_transcript_fetch_at timestamp for meeting ${meeting.id}, proceeding with fetch`)
+      } else if (minutesSinceLastAttempt < cooldownMinutes) {
+        const waitMinutes = Math.ceil(cooldownMinutes - minutesSinceLastAttempt)
+        console.log(
+          `⏭️  Skipping transcript fetch for ${recordingId} - attempt ${fetchAttempts} cooling down (` +
+          `${Math.round(minutesSinceLastAttempt)} min ago, need ${cooldownMinutes} min). ` +
+          `Retry in ~${waitMinutes} min.`
+        )
         return
       }
     }
@@ -1288,8 +1307,7 @@ async function syncSingleCall(
 
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
-    let summaryText: string | null = call.default_summary || null
-    let transcriptText: string | null = null
+    let summaryText: string | null = call.default_summary || call.summary || null
 
     console.log(`📝 Summary from bulk API: ${summaryText ? `available (${summaryText.length} chars)` : 'not available'}`)
     console.log(`📄 Transcript: Not fetched during sync (use separate endpoint for on-demand fetching)`)
@@ -1308,8 +1326,6 @@ async function syncSingleCall(
       share_url: call.share_url,
       calls_url: call.url,
       transcript_doc_url: call.transcript || null, // If Fathom provided a URL
-      transcript_text: transcriptText, // Raw transcript plaintext for search and analysis
-      summary: summaryText, // Complete summary from API
       sentiment_score: null, // Not available in bulk API response
       coach_summary: null, // Not available in bulk API response
       talk_time_rep_pct: null, // Not available in bulk API response
@@ -1323,6 +1339,10 @@ async function syncSingleCall(
       calendar_invitees_type: call.calendar_invitees_domains_type || null,
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
+    }
+
+    if (summaryText) {
+      meetingData.summary = summaryText
     }
 
     // UPSERT meeting

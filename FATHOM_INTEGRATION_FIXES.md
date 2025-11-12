@@ -131,8 +131,8 @@ const extractAndTruncateSummary = (summary: string | null | undefined, maxLength
 **Features:**
 - Lists last 10 meetings with transcript status
 - Shows fetch attempts and last attempt timestamp
-- Identifies meetings hitting max attempts (3)
-- Detects meetings in cooldown period (<5 min)
+- Highlights meetings in heavy retry zone (≥12 attempts)
+- Detects meetings currently in cooldown (adaptive timing)
 - Checks active Fathom integrations
 - Analyzes recent activities for text overflow
 - Provides actionable recommendations
@@ -232,8 +232,8 @@ const extractAndTruncateSummary = (summary: string | null | undefined, maxLength
 
 1. **Enhanced Error Handling**
    - Add detailed error logging for transcript fetch failures
-   - Implement exponential backoff for retries
-   - Alert admins when max attempts reached
+   - Implement exponential backoff for retries (✅ adaptive cooldowns now live)
+   - Alert admins when meetings enter extended cooldown (≥24 attempts)
 
 2. **Transcript Fetch Monitoring**
    - Track success/failure rates

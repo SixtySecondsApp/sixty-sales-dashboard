@@ -15,7 +15,7 @@ if [ -z "$SUPABASE_URL" ] || [ -z "$SERVICE_ROLE_KEY" ]; then
 fi
 
 echo "1️⃣  Finding meetings without transcripts..."
-MEETINGS=$(curl -s -X GET "${SUPABASE_URL}/rest/v1/meetings?select=id,title,fathom_recording_id,meeting_start&transcript_text=is.null&order=meeting_start.desc&limit=10" \
+MEETINGS=$(curl -s -X GET "${SUPABASE_URL}/rest/v1/meetings?select=id,title,fathom_recording_id,meeting_start,owner_user_id&transcript_text=is.null&order=meeting_start.desc&limit=10" \
   -H "apikey: ${SERVICE_ROLE_KEY}" \
   -H "Authorization: Bearer ${SERVICE_ROLE_KEY}")
 
@@ -50,14 +50,17 @@ FAILED=0
 echo "$MEETINGS" | jq -c '.[]' | while read -r meeting; do
     MEETING_ID=$(echo "$meeting" | jq -r '.id')
     TITLE=$(echo "$meeting" | jq -r '.title')
+    OWNER_ID=$(echo "$meeting" | jq -r '.owner_user_id')
 
     echo "📄 Fetching: $TITLE"
 
     # Call fetch-transcript edge function
     RESULT=$(curl -s -X POST "${SUPABASE_URL}/functions/v1/fetch-transcript" \
       -H "Authorization: Bearer ${SERVICE_ROLE_KEY}" \
+      -H "apikey: ${SERVICE_ROLE_KEY}" \
+      -H "x-service-role-key: ${SERVICE_ROLE_KEY}" \
       -H "Content-Type: application/json" \
-      -d "{\"meeting_id\": \"${MEETING_ID}\"}")
+      -d "{\"meetingId\": \"${MEETING_ID}\", \"user_id\": \"${OWNER_ID}\"}")
 
     # Check if successful
     SUCCESS_CHECK=$(echo "$RESULT" | jq -r '.success // false')

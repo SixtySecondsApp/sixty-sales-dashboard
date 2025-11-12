@@ -130,6 +130,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Parse payload early so we can fallback to meeting owner if needed
+    const body = await req.json()
+    const meetingId: string | undefined = body.meetingId ?? body.meeting_id
+    const explicitUserId: string | undefined = body.user_id ?? body.userId
+
+    if (!meetingId) {
+      throw new Error('Missing meetingId parameter')
+    }
+
     // Get user from auth header
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -137,16 +146,35 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token)
+    let userId: string | null = null
+    let usingServiceRole = false
 
-    if (userError || !user) {
-      throw new Error('Invalid user token')
+    const { data: userResult, error: userError } = await supabase.auth.getUser(token)
+
+    if (!userError && userResult?.user) {
+      userId = userResult.user.id
+    } else {
+      const { data: meetingOwner, error: ownerError } = await supabase
+        .from('meetings')
+        .select('owner_user_id')
+        .eq('id', meetingId)
+        .single()
+
+      if (ownerError || !meetingOwner?.owner_user_id) {
+        throw new Error('Invalid user token (meeting owner lookup failed)')
+      }
+
+      if (explicitUserId && explicitUserId !== meetingOwner.owner_user_id) {
+        throw new Error('Invalid user token (explicit user mismatch)')
+      }
+
+      userId = meetingOwner.owner_user_id
+      usingServiceRole = true
     }
 
-    const userId = user.id
-
-    // Get meeting ID from request
-    const { meetingId } = await req.json()
+    if (!userId) {
+      throw new Error('Unable to resolve user for transcript fetch')
+    }
 
     if (!meetingId) {
       throw new Error('Missing meetingId parameter')
@@ -159,10 +187,14 @@ serve(async (req) => {
       .from('meetings')
       .select('id, fathom_recording_id, title, transcript_text, transcript_doc_url, owner_user_id')
       .eq('id', meetingId)
-      .eq('owner_user_id', userId)
       .single()
 
     if (meetingError || !meeting) {
+      throw new Error('Meeting not found or access denied')
+    }
+
+    // Enforce ownership only for user-scoped calls
+    if (!usingServiceRole && meeting.owner_user_id !== userId) {
       throw new Error('Meeting not found or access denied')
     }
 
@@ -185,10 +217,9 @@ serve(async (req) => {
 
     // Get Fathom integration
     const { data: fathomIntegration, error: integrationError } = await supabase
-      .from('integrations')
-      .select('access_token, fathom_user_id')
+      .from('fathom_integrations')
+      .select('access_token')
       .eq('user_id', userId)
-      .eq('provider', 'fathom')
       .single()
 
     if (integrationError || !fathomIntegration) {

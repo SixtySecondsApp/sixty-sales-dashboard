@@ -1,5 +1,7 @@
 # ACTUAL ROOT CAUSE: 5-Minute Cooldown Logic
 
+> **Update – 2025-11-12:** The transcript retry logic now uses adaptive cooldowns and no longer stops after three attempts. The analysis below documents the original issue for historical context.
+
 ## The Real Issue
 
 **The AI extraction IS in the code, but it's being SKIPPED by the cooldown logic!**
