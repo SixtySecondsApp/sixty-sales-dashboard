@@ -64,12 +64,12 @@
 2. **Transcript not available yet from Fathom**
    - Fathom takes time to process recordings
    - Returns 404 until ready
-   - Max 3 attempts with 5-minute cooldown
+   - Adaptive retries with increasing cooldown (5 min → 15 min → 60 min → 180+ min)
    - Solution: Check function logs for "Transcript not yet available"
 
-3. **Max attempts reached**
-   - After 3 failed attempts, function stops trying
-   - Solution: Check if `transcript_fetch_attempts >= 3`
+3. **Heavy retry zone**
+   - After 12+ failed attempts, retries slow to every 3 hours (then 12 hours past 24 attempts)
+   - Solution: Check if `transcript_fetch_attempts >= 12` and review Fathom recording status
 
 4. **AI analysis is failing**
    - Claude API errors
@@ -102,8 +102,8 @@ ORDER BY m.meeting_start DESC;
 
 **What to look for:**
 - `has_transcript = true` but `action_item_count = 0` → Extraction didn't run
-- `transcript_fetch_attempts = 3` → Max attempts reached
-- `last_transcript_fetch_at` < 5 min ago → Still in cooldown
+- `transcript_fetch_attempts >= 12` → Heavy retry zone, may need manual reset
+- `minutes_since_last_fetch < cooldown` → Still in cooldown (check adaptive timing)
 
 ### Step 2: Check Function Logs
 Go to: Supabase Dashboard → Functions → fathom-sync → Logs
@@ -111,7 +111,7 @@ Go to: Supabase Dashboard → Functions → fathom-sync → Logs
 **Look for these messages:**
 - `📄 Auto-fetching transcript for <id>` → Attempting fetch
 - `⏭️  Transcript already exists` → Skipping because exists
-- `⏭️  Skipping transcript fetch - max attempts (3) reached` → Gave up
+- `⏭️  Skipping transcript fetch ... cooling down` → Waiting for adaptive cooldown to expire
 - `ℹ️  Transcript not yet available` → Fathom still processing
 - `🤖 Running Claude AI analysis` → Analysis started
 - `💾 Storing X AI-generated action items` → Action items being saved

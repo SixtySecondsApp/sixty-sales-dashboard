@@ -91,8 +91,16 @@ SELECT
   m.transcript_fetch_attempts,
   EXTRACT(EPOCH FROM (NOW() - m.last_transcript_fetch_at)) / 60 as minutes_since_last_fetch,
   CASE
-    WHEN m.transcript_fetch_attempts >= 3 THEN '❌ Max attempts reached'
-    WHEN EXTRACT(EPOCH FROM (NOW() - m.last_transcript_fetch_at)) / 60 < 5 THEN '⏳ In cooldown period'
+    WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 24 THEN '🚨 Extended cooldown (12h cadence)'
+    WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 12 THEN '⚠️ Heavy retry cadence'
+    WHEN EXTRACT(EPOCH FROM (NOW() - m.last_transcript_fetch_at)) / 60 <
+         CASE
+           WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 24 THEN 720
+           WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 12 THEN 180
+           WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 6 THEN 60
+           WHEN COALESCE(m.transcript_fetch_attempts, 0) >= 3 THEN 15
+           ELSE 5
+         END THEN '⏳ In cooldown period'
     ELSE '✅ Ready for retry'
   END as retry_status
 FROM meetings m

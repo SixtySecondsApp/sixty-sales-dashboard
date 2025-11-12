@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SalesFunnel from '@/pages/SalesFunnel';
 import Heatmap from '@/pages/Heatmap';
-import { LineChart, Activity } from 'lucide-react';
+import { LineChart, Activity, Sparkles } from 'lucide-react';
+import { LeadAnalyticsCard } from '@/components/leads/LeadAnalyticsCard';
 
 export default function Insights() {
   const [activeTab, setActiveTab] = useState('funnel');
@@ -36,6 +37,13 @@ export default function Insights() {
                 <Activity className="w-4 h-4" />
                 Activity Heatmap
               </TabsTrigger>
+              <TabsTrigger
+                value="leads"
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white"
+              >
+                <Sparkles className="w-4 h-4" />
+                Lead Analytics
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="funnel" className="space-y-0">
@@ -44,6 +52,10 @@ export default function Insights() {
 
             <TabsContent value="heatmap" className="space-y-0">
               <Heatmap />
+            </TabsContent>
+
+            <TabsContent value="leads" className="space-y-0">
+              <LeadAnalyticsCard />
             </TabsContent>
           </Tabs>
         </div>

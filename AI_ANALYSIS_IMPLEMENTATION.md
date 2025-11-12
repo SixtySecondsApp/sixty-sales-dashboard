@@ -247,10 +247,10 @@ Meeting Ends → Fathom Processing (5-10 min) → First Sync (4-6 min) → Compl
 ```
 
 ### Retry Behavior
-- **Attempt 1** (immediately after meeting): Usually 404
-- **Attempt 2** (5 min later): Usually success
-- **Attempt 3** (10 min later): Fallback if needed
-- **Max attempts**: 3 over 15 minutes
+- **Attempts 1-2**: Immediate + 5 min retry (most transcripts ready here)
+- **Attempts 3-5**: Continue with 15 min cooldown while Fathom finishes processing
+- **Attempts 6-11**: Hourly retries for stubborn recordings
+- **Attempts ≥12**: Adaptive long-haul retries (every 3 hours, then 12 hours past 24 attempts) with status logging for manual review
 
 ---
 
@@ -339,7 +339,7 @@ Expected:
 1. **Trigger sync** for meetings from last 7 days
 2. **Check logs** for:
    ```
-   📄 Auto-fetching transcript for {id} (attempt 1/3)...
+   📄 Auto-fetching transcript for {id} (attempt 1)...
    ✅ Transcript fetched: 15234 characters
    🤖 Running Claude AI analysis on transcript...
    ✅ AI metrics stored: sentiment=0.75, rep=45%, customer=55%
@@ -382,10 +382,10 @@ Expected:
 - **Handling**: Error logged, sync continues without AI
 - **User Impact**: Meeting data saved, AI metrics missing
 
-**"Max attempts reached"**:
-- **Cause**: 3 failed transcript fetches
-- **Handling**: Stop retrying for this meeting
-- **User Impact**: Meeting saved without transcript/AI analysis
+**"Extended cooldown"**:
+- **Cause**: Transcript still unavailable after many retries (≥24 attempts)
+- **Handling**: Continue retrying every 12 hours, flag for manual check
+- **User Impact**: Meeting temporarily lacks transcript/AI analysis until Fathom finishes processing
 
 ### Monitoring
 
@@ -409,7 +409,7 @@ Expected:
 ❌ Error indicators:
 - "Error in auto-fetch and analyze"
 - "Claude API error"
-- "Max attempts (3) reached"
+- "Skipping transcript fetch ... cooling down (attempt X)" repeating for many hours (investigate Fathom status)
 ```
 
 ---

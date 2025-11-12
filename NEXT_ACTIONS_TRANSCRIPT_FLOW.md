@@ -186,9 +186,12 @@ ORDER BY created_at DESC;
 
 **Interpretation**:
 - `transcript_fetch_attempts = 0`: No fetch attempted yet
-- `transcript_fetch_attempts = 1-2`: In progress, may retry
-- `transcript_fetch_attempts = 3`: Max attempts reached, won't retry
-- `minutes_since_last_fetch < 5`: Cooldown active, won't retry yet
+- `transcript_fetch_attempts = 1-2`: In progress (5 min cooldown between retries)
+- `transcript_fetch_attempts = 3-5`: Still retrying (15 min cooldown)
+- `transcript_fetch_attempts = 6-11`: Still retrying (60 min cooldown)
+- `transcript_fetch_attempts = 12-23`: Heavy retry zone (180 min cooldown)
+- `transcript_fetch_attempts >= 24`: Long-haul retry cadence (720 min cooldown) — review for possible manual intervention
+- `minutes_since_last_fetch < cooldown`: Cooldown active, won't retry yet
 
 ## 🔧 Solutions
 
@@ -225,7 +228,7 @@ SELECT regenerate_next_actions_for_activity(
 
 ### Solution 3: Reset Fetch Attempts
 
-**When to use**: Fetch attempts maxed out but you want to retry
+**When to use**: Fetch attempts in heavy retry zone (≥12) but transcript still missing
 
 ```sql
 -- Reset fetch attempts for a specific meeting

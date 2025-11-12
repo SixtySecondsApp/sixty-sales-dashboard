@@ -137,8 +137,10 @@ ORDER BY m.meeting_start DESC;
 SELECT
   COUNT(CASE WHEN transcript_text IS NOT NULL THEN 1 END) as with_transcript,
   COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts = 0 THEN 1 END) as not_attempted,
-  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts BETWEEN 1 AND 2 THEN 1 END) as retrying,
-  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts >= 3 THEN 1 END) as max_attempts_reached,
+  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts BETWEEN 1 AND 2 THEN 1 END) as retrying_5_min,
+  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts BETWEEN 3 AND 5 THEN 1 END) as retrying_15_min,
+  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts BETWEEN 6 AND 11 THEN 1 END) as retrying_60_min,
+  COUNT(CASE WHEN transcript_text IS NULL AND transcript_fetch_attempts >= 12 THEN 1 END) as heavy_retry_180_plus,
   COUNT(*) as total_meetings
 FROM meetings
 WHERE meeting_start >= NOW() - INTERVAL '7 days';

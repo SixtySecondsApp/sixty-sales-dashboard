@@ -36,7 +36,8 @@ import {
   Workflow,
   ExternalLink as LinkIcon,
   Mail,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -94,6 +95,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
+    { icon: Sparkles, label: 'Leads', href: '/leads' },
     { icon: Activity, label: 'Deal Health', href: '/crm/health' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
@@ -321,87 +323,134 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           isImpersonating ? 'top-6' : 'top-0'
         )}
       >
-        <div className={cn(
-          'flex items-center gap-3 mb-8',
-          isCollapsed && 'justify-center'
-        )}>
-          {isCollapsed ? (
-            <button
-              onClick={() => setIsCollapsed(false)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-            >
-              <MenuIcon className="w-5 h-5 text-gray-400" />
-            </button>
-          ) : (
-            <>
-              <div className="w-8 h-8 rounded-lg overflow-hidden">
-                {userData?.avatar_url ? (
-                  <img
-                    src={userData.avatar_url}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-[#37bd7e]/20 flex items-center justify-center">
-                    <span className="text-sm font-medium text-[#37bd7e]">
-                      {userData?.first_name?.[0]}{userData?.last_name?.[0]}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <AnimatePresence>
-                <motion.div
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  className="overflow-hidden flex-1"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                      {userData?.first_name} {userData?.last_name}
-                    </span>
-                    <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-              <div className="flex items-center gap-2">
-                <NotificationBell />
-                <button
-                  onClick={() => setIsCollapsed(true)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-        
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
-            <div key={item.href + item.label}>
-              <Link
-                to={item.href}
-                className={cn(
-                  'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                  location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                )}
+        <div className="flex h-full flex-col">
+          <div className={cn(
+            'flex items-center gap-3 mb-8',
+            isCollapsed && 'justify-center'
+          )}>
+            {isCollapsed ? (
+              <button
+                onClick={() => setIsCollapsed(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
               >
-                <motion.div
-                  animate={{
-                    x: isCollapsed ? 0 : 0,
-                    scale: isCollapsed ? 1.1 : 1
-                  }}
-                  className={cn(
-                    'relative z-10 min-w-[20px] flex items-center justify-center',
-                    location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                      ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
+                <MenuIcon className="w-5 h-5 text-gray-400" />
+              </button>
+            ) : (
+              <>
+                <div className="w-8 h-8 rounded-lg overflow-hidden">
+                  {userData?.avatar_url ? (
+                    <img
+                      src={userData.avatar_url}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#37bd7e]/20 flex items-center justify-center">
+                      <span className="text-sm font-medium text-[#37bd7e]">
+                        {userData?.first_name?.[0]}{userData?.last_name?.[0]}
+                      </span>
+                    </div>
                   )}
-                >
-                  <item.icon className="w-4 h-4" />
-                </motion.div>
+                </div>
+                <AnimatePresence>
+                  <motion.div
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: "auto" }}
+                    exit={{ opacity: 0, width: 0 }}
+                    className="overflow-hidden flex-1"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {userData?.first_name} {userData?.last_name}
+                      </span>
+                      <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
+                    </div>
+                  </motion.div>
+                </AnimatePresence>
+                <div className="flex items-center gap-2">
+                  <NotificationBell />
+                  <button
+                    onClick={() => setIsCollapsed(true)}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+            <nav className="space-y-2 pb-6">
+              {menuItems.map((item) => (
+                <div key={item.href + item.label}>
+                  <Link
+                    to={item.href}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                      location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
+                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                        : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                    )}
+                  >
+                    <motion.div
+                      animate={{
+                        x: isCollapsed ? 0 : 0,
+                        scale: isCollapsed ? 1.1 : 1
+                      }}
+                      className={cn(
+                        'relative z-10 min-w-[20px] flex items-center justify-center',
+                        location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
+                          ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
+                      )}
+                    >
+                      <item.icon className="w-4 h-4" />
+                    </motion.div>
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="overflow-hidden whitespace-nowrap"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </Link>
+                  
+                  {item.subItems && !isCollapsed && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {item.subItems.map((subItem) => (
+                        <Link
+                          key={subItem.href + subItem.label}
+                          to={subItem.href}
+                          className={cn(
+                            'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
+                            location.pathname === subItem.href
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                              : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                          )}
+                        >
+                          <subItem.icon className="w-3.5 h-3.5" />
+                          <span>{subItem.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </nav>
+          </div>
+          
+          <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800">
+            <div className="flex flex-col gap-2">
+              <Link
+                to="/settings"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
                 <AnimatePresence>
                   {!isCollapsed && (
                     <motion.span
@@ -410,101 +459,56 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       exit={{ opacity: 0, width: 0 }}
                       className="overflow-hidden whitespace-nowrap"
                     >
-                      {item.label}
+                      Settings
                     </motion.span>
                   )}
                 </AnimatePresence>
               </Link>
-              
-              {item.subItems && !isCollapsed && (
-                <div className="ml-8 mt-1 space-y-1">
-                  {item.subItems.map((subItem) => (
-                    <Link
-                      key={subItem.href + subItem.label}
-                      to={subItem.href}
-                      className={cn(
-                        'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
-                        location.pathname === subItem.href
-                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                          : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
-                      )}
-                    >
-                      <subItem.icon className="w-3.5 h-3.5" />
-                      <span>{subItem.label}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </nav>
-        
-        <div className={cn(
-          'absolute bottom-0 left-0 p-6 border-t border-gray-200 dark:border-gray-800 w-full'
-        )}>
-          <div className="flex flex-col gap-2">
-            <Link
-              to="/settings"
-              className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              <AnimatePresence>
-                {!isCollapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="overflow-hidden whitespace-nowrap"
-                  >
-                    Settings
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </Link>
 
-            <button
-              onClick={handleLogout}
-              className={cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                isImpersonating
-                  ? "text-amber-400 hover:bg-amber-500/10"
-                  : "text-red-400 hover:bg-red-500/10"
-              )}
-            >
-              {isImpersonating ? (
-                <>
-                  <UserX className="w-4 h-4" />
-                  <AnimatePresence>
-                    {!isCollapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'auto' }}
-                        exit={{ opacity: 0, width: 0 }}
-                        className="overflow-hidden whitespace-nowrap"
-                      >
-                        Stop Impersonation
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </>
-              ) : (
-                <>
-                  <LogOut className="w-4 h-4" />
-                  <AnimatePresence>
-                    {!isCollapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'auto' }}
-                        exit={{ opacity: 0, width: 0 }}
-                        className="overflow-hidden whitespace-nowrap"
-                      >
-                        Logout
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </>
-              )}
-            </button>
+              <button
+                onClick={handleLogout}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
+                  isImpersonating
+                    ? "text-amber-400 hover:bg-amber-500/10"
+                    : "text-red-400 hover:bg-red-500/10"
+                )}
+              >
+                {isImpersonating ? (
+                  <>
+                    <UserX className="w-4 h-4" />
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="overflow-hidden whitespace-nowrap"
+                        >
+                          Stop Impersonation
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" />
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="overflow-hidden whitespace-nowrap"
+                        >
+                          Logout
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>

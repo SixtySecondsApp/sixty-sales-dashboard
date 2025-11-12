@@ -97,6 +97,7 @@ const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
 const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazy(() => import('@/pages/Settings'));
+const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -267,6 +268,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
                 <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
                 <Route path="/events" element={<AppLayout><Events /></AppLayout>} />
+                <Route path="/leads" element={<AppLayout><LeadsInbox /></AppLayout>} />
                 
                 {/* Form Display Routes */}
                 <Route path="/form/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />

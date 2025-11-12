@@ -21,9 +21,26 @@ SELECT
   -- Fetch attempt status
   COALESCE(transcript_fetch_attempts, 0) as fetch_attempts,
   CASE
-    WHEN transcript_fetch_attempts >= 3 THEN '🚫 Max Attempts'
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 24 THEN 720
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 12 THEN 180
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 6 THEN 60
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 3 THEN 15
+    ELSE 5
+  END as cooldown_minutes,
+  CASE
+    WHEN transcript_text IS NOT NULL THEN '✅ Transcript Loaded'
     WHEN last_transcript_fetch_at IS NULL THEN '⏸️  Not Tried'
-    WHEN EXTRACT(EPOCH FROM (NOW() - last_transcript_fetch_at))/60 < 5 THEN '⏳ Cooldown Active'
+    WHEN EXTRACT(EPOCH FROM (NOW() - last_transcript_fetch_at))/60 <
+         CASE
+           WHEN COALESCE(transcript_fetch_attempts, 0) >= 24 THEN 720
+           WHEN COALESCE(transcript_fetch_attempts, 0) >= 12 THEN 180
+           WHEN COALESCE(transcript_fetch_attempts, 0) >= 6 THEN 60
+           WHEN COALESCE(transcript_fetch_attempts, 0) >= 3 THEN 15
+           ELSE 5
+         END
+      THEN '⏳ Cooldown Active'
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 24 THEN '🚨 Extended Cooldown (12h cadence)'
+    WHEN COALESCE(transcript_fetch_attempts, 0) >= 12 THEN '⚠️ Heavy Retry (3h cadence)'
     ELSE '✅ Ready to Retry'
   END as fetch_status,
   -- Time info

@@ -35,18 +35,28 @@ echo ""
 MISSING_COUNT=$(echo "$MEETINGS" | jq '[.[] | select(.transcript_text == null)] | length')
 echo "⚠️  Meetings without transcripts: ${MISSING_COUNT}/10"
 
-# Check for meetings hitting attempt limit
-MAX_ATTEMPTS=$(echo "$MEETINGS" | jq '[.[] | select(.transcript_fetch_attempts >= 3)] | length')
-if [ "$MAX_ATTEMPTS" -gt 0 ]; then
-    echo "🚫 Meetings that hit max attempts (3): ${MAX_ATTEMPTS}"
-    echo "$MEETINGS" | jq -r '.[] | select(.transcript_fetch_attempts >= 3) | "   - \(.title) (Recording: \(.fathom_recording_id))"'
+# Check for meetings hitting heavy retry zone (>= 12 attempts triggers 3h cooldown)
+HEAVY_RETRIES=$(echo "$MEETINGS" | jq '[.[] | select((.transcript_fetch_attempts // 0) >= 12)] | length')
+if [ "$HEAVY_RETRIES" -gt 0 ]; then
+    echo "🚨 Meetings in heavy retry zone (>=12 attempts): ${HEAVY_RETRIES}"
+    echo "$MEETINGS" | jq -r '.[] | select((.transcript_fetch_attempts // 0) >= 12) | "   - \(.title) (Recording: \(.fathom_recording_id))"' 
 fi
 
 # Check for meetings in cooldown
 NOW=$(date -u +%s)
-IN_COOLDOWN=$(echo "$MEETINGS" | jq --arg now "$NOW" '[.[] | select(.last_transcript_fetch_at != null) | select((($now | tonumber) - (.last_transcript_fetch_at | fromdateiso8601)) < 300)] | length')
+IN_COOLDOWN=$(echo "$MEETINGS" | jq --arg now "$NOW" '
+  [.[] 
+    | select(.transcript_text == null and .last_transcript_fetch_at != null)
+    | .cooldown_min = (if (.transcript_fetch_attempts // 0) >= 24 then 720
+                       elif (.transcript_fetch_attempts // 0) >= 12 then 180
+                       elif (.transcript_fetch_attempts // 0) >= 6 then 60
+                       elif (.transcript_fetch_attempts // 0) >= 3 then 15
+                       else 5 end)
+    | .mins_since = ((($now | tonumber) - (.last_transcript_fetch_at | fromdateiso8601)) / 60)
+    | select(.mins_since < .cooldown_min)
+  ] | length')
 if [ "$IN_COOLDOWN" -gt 0 ]; then
-    echo "⏳ Meetings in cooldown period (<5 min): ${IN_COOLDOWN}"
+    echo "⏳ Meetings currently cooling down before next retry: ${IN_COOLDOWN}"
 fi
 
 echo ""
@@ -84,9 +94,9 @@ if [ "$MISSING_COUNT" -gt 0 ]; then
     echo "   3. Verify recordings have completed processing in Fathom"
 fi
 
-if [ "$MAX_ATTEMPTS" -gt 0 ]; then
-    echo "   4. Some meetings hit max retry attempts - they need manual reset"
-    echo "      Reset attempts with: UPDATE meetings SET transcript_fetch_attempts = 0 WHERE transcript_fetch_attempts >= 3"
+if [ "$HEAVY_RETRIES" -gt 0 ]; then
+    echo "   4. Some meetings are stuck despite many retries - consider resetting attempts"
+    echo "      Reset attempts with: UPDATE meetings SET transcript_fetch_attempts = 0, last_transcript_fetch_at = NULL WHERE transcript_fetch_attempts >= 12"
 fi
 
 echo ""
