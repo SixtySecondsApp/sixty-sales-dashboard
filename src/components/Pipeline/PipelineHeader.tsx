@@ -467,17 +467,28 @@ export function PipelineHeader({
         })}
       </div>
       
-      {/* Compact Advanced Filter Panel */}
+      {/* Compact Advanced Filter Panel - Full screen on mobile */}
       <AnimatePresence>
         {showFilters && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700/50 bg-white/95 dark:bg-gray-800/80 backdrop-blur-md shadow-xl">
+          <>
+            {/* Mobile Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowFilters(false)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            />
+
+            {/* Filter Panel */}
+            <motion.div
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="fixed inset-x-0 top-0 z-50 h-screen overflow-y-auto lg:relative lg:inset-auto lg:z-auto lg:h-auto lg:overflow-hidden"
+            >
+              <div className="min-h-screen lg:min-h-0 p-3 sm:p-4 bg-white dark:bg-gray-900 lg:bg-white/95 lg:dark:bg-gray-800/80 lg:rounded-xl lg:border border-gray-200 dark:border-gray-700/50 lg:backdrop-blur-md lg:shadow-xl">
               <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-3">
                   <Sliders className="w-5 h-5 text-violet-600 dark:text-violet-400" />
@@ -843,17 +854,27 @@ export function PipelineHeader({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end pt-4 mt-4 border-t border-gray-200 dark:border-gray-700/50">
+              <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700/50">
+                <Button
+                  onClick={() => setShowFilters(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="lg:hidden min-h-[44px]"
+                >
+                  Cancel
+                </Button>
                 <Button
                   onClick={() => setShowFilters(false)}
                   variant="default"
-                  className="bg-violet-500/20 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/30"
+                  size="sm"
+                  className="bg-violet-500/20 text-violet-600 dark:text-violet-400 border-violet-500/30 hover:bg-violet-500/30 min-h-[44px]"
                 >
                   Apply Filters
                 </Button>
               </div>
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
