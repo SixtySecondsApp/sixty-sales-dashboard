@@ -186,7 +186,10 @@ Best regards`;
     if (mode === 'short') {
       return body.split('\n').slice(0, 2).join('\n') + (body.split('\n').length > 2 ? '...' : '');
     } else if (mode === 'standard') {
-      return body.length > 500 ? body.substring(0, 500) + '...' : body;
+      if (body.length <= 500) return body;
+      const slice = body.substring(0, 500);
+      const lastSpace = slice.lastIndexOf(' ');
+      return (lastSpace > 0 ? slice.substring(0, lastSpace) : slice) + '...';
     }
     return body;
   };
