@@ -4,6 +4,8 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error("Missing Supabase configuration for process-lead-prep function");
@@ -45,7 +47,8 @@ serve(async (req) => {
         prep_status,
         prep_summary,
         metadata,
-        created_at
+        created_at,
+        companies(id, name, industry, description)
       `)
       .in("prep_status", ["pending", "in_progress"])
       .order("created_at", { ascending: true })
@@ -71,7 +74,7 @@ serve(async (req) => {
     for (const lead of leads) {
       try {
         const summary = buildPrepSummary(lead);
-        const prepNotes = buildPrepNotes(lead, summary);
+        const prepNotes = await buildPrepNotesWithAI(lead, summary, supabase);
 
         // Remove previous auto-generated notes to avoid duplicates
         await supabase
@@ -175,7 +178,11 @@ function buildPrepSummary(lead: any) {
   };
 }
 
-function buildPrepNotes(lead: any, summary: ReturnType<typeof buildPrepSummary>) {
+async function buildPrepNotesWithAI(
+  lead: any,
+  summary: ReturnType<typeof buildPrepSummary>,
+  supabase: any
+) {
   const baseNotes = [
     {
       note_type: "summary",
@@ -187,9 +194,161 @@ function buildPrepNotes(lead: any, summary: ReturnType<typeof buildPrepSummary>)
       metadata: {
         type: "overview",
         generated_from: "process-lead-prep",
+        confidence: 1.0,
+        sources: [],
       },
     },
-    {
+  ];
+
+  // Get company industry for playbook matching
+  const company = lead.companies?.[0] || lead.companies;
+  const industry = company?.industry || null;
+
+  // Generate AI-powered insights with evidence and confidence
+  let aiInsights: any = null;
+  if (lead.domain || lead.contact_email) {
+      try {
+        aiInsights = await generateAIInsights(lead, summary, industry);
+      } catch (error) {
+        console.error("Failed to generate AI insights:", error);
+      }
+  }
+
+  // Add industry playbook if available
+  if (industry) {
+    const playbook = getIndustryPlaybook(industry);
+    if (playbook) {
+      baseNotes.push({
+        note_type: "question",
+        title: "Industry-Specific Discovery Questions",
+        body: playbook.discoveryQuestions.map((q) => `• ${q}`).join("\n"),
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "industry_playbook_questions",
+          industry: playbook.industry,
+          confidence: 0.9,
+          sources: [`Industry playbook: ${playbook.industry}`],
+        },
+      });
+
+      baseNotes.push({
+        note_type: "insight",
+        title: "Value Points for " + playbook.industry,
+        body: playbook.valuePoints.map((v) => `• ${v}`).join("\n"),
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "industry_playbook_value",
+          industry: playbook.industry,
+          confidence: 0.9,
+          sources: [`Industry playbook: ${playbook.industry}`],
+        },
+      });
+
+      baseNotes.push({
+        note_type: "insight",
+        title: "Potential Risks & Considerations",
+        body: playbook.risks.map((r) => `• ${r}`).join("\n"),
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "industry_playbook_risks",
+          industry: playbook.industry,
+          confidence: 0.9,
+          sources: [`Industry playbook: ${playbook.industry}`],
+        },
+      });
+    }
+  }
+
+  // Add AI-generated insights if available
+  if (aiInsights) {
+    if (aiInsights.prospect_info) {
+      baseNotes.push({
+        note_type: "insight",
+        title: "Prospect Information",
+        body: [
+          aiInsights.prospect_info.role_and_responsibilities || "",
+          aiInsights.prospect_info.background || "",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "prospect_info",
+          confidence: aiInsights.evidence?.[0]?.confidence || 0.7,
+          sources: aiInsights.evidence?.[0]?.sources || [],
+        },
+      });
+    }
+
+    if (aiInsights.offer_info) {
+      baseNotes.push({
+        note_type: "insight",
+        title: "What They Need",
+        body: aiInsights.offer_info.what_they_need || "",
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "offer_info",
+          confidence: aiInsights.evidence?.[1]?.confidence || 0.7,
+          sources: aiInsights.evidence?.[1]?.sources || [],
+        },
+      });
+    }
+
+    if (aiInsights.why_sixty_seconds) {
+      baseNotes.push({
+        note_type: "insight",
+        title: "Why Sixty Seconds",
+        body: aiInsights.why_sixty_seconds.fit_assessment || "",
+        created_by: lead.owner_id,
+        is_auto_generated: true,
+        is_pinned: false,
+        metadata: {
+          type: "fit_assessment",
+          confidence: aiInsights.evidence?.[2]?.confidence || 0.7,
+          sources: aiInsights.evidence?.[2]?.sources || [],
+        },
+      });
+    }
+  }
+
+  // Fetch and add live signals
+  if (lead.domain) {
+    try {
+      const liveSignals = await fetchLiveSignals(lead.domain);
+      if (liveSignals && liveSignals.length > 0) {
+        baseNotes.push({
+          note_type: "insight",
+          title: "Latest Signals",
+          body: liveSignals.map((s: string) => `• ${s}`).join("\n"),
+          created_by: lead.owner_id,
+          is_auto_generated: true,
+          is_pinned: false,
+          metadata: {
+            type: "live_signals",
+            confidence: 0.8,
+            sources: [`${lead.domain}`, "Recent news"],
+            fetched_at: new Date().toISOString(),
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch live signals:", error);
+    }
+  }
+
+  // Add default discovery questions if no playbook
+  if (!industry || !getIndustryPlaybook(industry)) {
+    baseNotes.push({
       note_type: "question",
       title: "Discovery Questions",
       body: [
@@ -202,20 +361,8 @@ function buildPrepNotes(lead: any, summary: ReturnType<typeof buildPrepSummary>)
       is_pinned: false,
       metadata: {
         type: "discovery_questions",
-      },
-    },
-  ];
-
-  if (lead.domain) {
-    baseNotes.push({
-      note_type: "insight",
-      title: "Company Research Focus",
-      body: `Review ${lead.domain} for recent announcements, headcount changes, and product positioning. Align demo narrative to their messaging.`,
-      created_by: lead.owner_id,
-      is_auto_generated: true,
-      is_pinned: false,
-      metadata: {
-        type: "company_research",
+        confidence: 0.8,
+        sources: [],
       },
     });
   }
@@ -233,9 +380,241 @@ function buildPrepNotes(lead: any, summary: ReturnType<typeof buildPrepSummary>)
     is_pinned: false,
     metadata: {
       type: "prep_checklist",
+      confidence: 1.0,
+      sources: [],
     },
   });
 
   return baseNotes;
+}
+
+// Industry playbook mapping
+function getIndustryPlaybook(industry: string | null): any {
+  if (!industry) return null;
+  
+  const playbooks: Record<string, any> = {
+    technology: {
+      industry: "Technology",
+      discoveryQuestions: [
+        "What technical challenges are you facing with your current stack?",
+        "How does your team currently handle scaling and infrastructure?",
+        "What integration requirements do you have with existing tools?",
+      ],
+      valuePoints: [
+        "Reduced technical debt and improved system reliability",
+        "Faster time-to-market for new features",
+        "Better developer experience and productivity",
+      ],
+      risks: [
+        "Complex migration from legacy systems",
+        "Team resistance to new tooling",
+      ],
+    },
+    healthcare: {
+      industry: "Healthcare",
+      discoveryQuestions: [
+        "How do you ensure HIPAA compliance in your current processes?",
+        "What patient data management challenges are you facing?",
+        "How do you handle interoperability with other healthcare systems?",
+      ],
+      valuePoints: [
+        "Enhanced patient care coordination",
+        "Improved regulatory compliance",
+        "Reduced administrative burden on clinical staff",
+      ],
+      risks: [
+        "Strict regulatory requirements and compliance concerns",
+        "Long approval cycles and procurement processes",
+      ],
+    },
+    "financial services": {
+      industry: "Financial Services",
+      discoveryQuestions: [
+        "What regulatory compliance requirements must you meet?",
+        "How do you currently handle risk management and reporting?",
+        "What security and data protection measures are in place?",
+      ],
+      valuePoints: [
+        "Improved regulatory reporting and compliance",
+        "Enhanced fraud detection and risk management",
+        "Better customer data security and privacy",
+      ],
+      risks: [
+        "Stringent security and compliance requirements",
+        "Complex integration with legacy banking systems",
+      ],
+    },
+  };
+
+  const normalized = industry.toLowerCase().trim();
+  return playbooks[normalized] || null;
+}
+
+// Generate AI insights with evidence and confidence
+async function generateAIInsights(lead: any, summary: any, industry: string | null) {
+  const apiKey = ANTHROPIC_API_KEY || OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn("No AI API key configured, skipping AI insights");
+    return null;
+  }
+
+  const useAnthropic = !!ANTHROPIC_API_KEY;
+  const model = useAnthropic ? "claude-3-5-sonnet-20241022" : "gpt-4o-mini";
+
+  const prompt = `Generate lead prep insights for a sales meeting with ${summary.contact} from ${summary.company}.
+
+Meeting: ${lead.meeting_title || "Discovery Call"}
+${lead.meeting_description ? `Description: ${lead.meeting_description}` : ""}
+${industry ? `Industry: ${industry}` : ""}
+${lead.domain ? `Company website: ${lead.domain}` : ""}
+
+Provide a JSON response with this structure:
+{
+  "prospect_info": {
+    "role_and_responsibilities": "Brief description of their role and what they're responsible for",
+    "background": "Relevant background information about the prospect"
+  },
+  "offer_info": {
+    "what_they_need": "What solutions or capabilities they likely need based on their role and company"
+  },
+  "why_sixty_seconds": {
+    "fit_assessment": "Why Sixty Seconds might be a good fit for this prospect"
+  },
+  "evidence": [
+    {
+      "for": "prospect_info.background",
+      "confidence": 0.0-1.0,
+      "sources": ["URL or source name if available"]
+    },
+    {
+      "for": "offer_info.what_they_need",
+      "confidence": 0.0-1.0,
+      "sources": ["URL or source name if available"]
+    },
+    {
+      "for": "why_sixty_seconds.fit_assessment",
+      "confidence": 0.0-1.0,
+      "sources": ["URL or source name if available"]
+    }
+  ]
+}
+
+Be concise but specific. Confidence should reflect how certain you are about the information.`;
+
+  try {
+    let response: Response;
+    if (useAnthropic) {
+      response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model,
+          system: "You are a sales intelligence assistant. Always respond with valid JSON only.",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 2000,
+        }),
+      });
+    } else {
+      response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: "You are a sales intelligence assistant. Always respond with valid JSON only." },
+            { role: "user", content: prompt },
+          ],
+          max_tokens: 2000,
+          response_format: { type: "json_object" },
+        }),
+      });
+    }
+
+    if (!response.ok) {
+      throw new Error(`AI API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = useAnthropic
+      ? data.content[0].text
+      : data.choices[0].message.content;
+
+    // Parse JSON response
+    const parsed = JSON.parse(content);
+    return parsed;
+  } catch (error) {
+    console.error("Error generating AI insights:", error);
+    return null;
+  }
+}
+
+// Fetch live signals from homepage and news
+async function fetchLiveSignals(domain: string): Promise<string[]> {
+  const signals: string[] = [];
+
+  try {
+    // Fetch homepage content
+    const homepageUrl = domain.startsWith("http") ? domain : `https://${domain}`;
+    const homepageResponse = await fetch(homepageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; LeadPrepBot/1.0)",
+      },
+      signal: AbortSignal.timeout(5000), // 5 second timeout
+    });
+
+    if (homepageResponse.ok) {
+      const html = await homepageResponse.text();
+      // Extract text content (simple approach - could be improved)
+      const textMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (textMatch) {
+        const bodyText = textMatch[1]
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .substring(0, 500);
+
+        if (bodyText.length > 50) {
+          signals.push(`Homepage highlights: ${bodyText.substring(0, 150)}...`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching homepage:", error);
+  }
+
+  // Try to fetch recent news (simplified - could use a news API)
+  try {
+    // Use a simple news search approach
+    const newsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(domain)}&hl=en-US&gl=US&ceid=US:en`;
+    const newsResponse = await fetch(newsUrl, {
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (newsResponse.ok) {
+      const xml = await newsResponse.text();
+      // Simple RSS parsing
+      const titleMatches = xml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/g);
+      if (titleMatches && titleMatches.length > 1) {
+        // Skip first title (usually "Search results")
+        const recentNews = titleMatches
+          .slice(1, 4)
+          .map((match) => match.replace(/<title><!\[CDATA\[(.*?)\]\]><\/title>/, "$1"));
+        signals.push(...recentNews.map((title) => `Recent news: ${title}`));
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching news:", error);
+  }
+
+  return signals.slice(0, 3); // Return max 3 signals
 }
 
