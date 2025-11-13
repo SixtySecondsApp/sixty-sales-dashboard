@@ -408,12 +408,13 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
   const activeDragTask = activeDragId ? tasks.find(t => t.id === activeDragId) : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Add Task Button */}
       <div className="flex justify-end">
         <Button
           onClick={() => handleCreateTask()}
           variant="default"
+          className="h-11 min-h-[44px] px-4"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Task
@@ -427,7 +428,8 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-6 overflow-x-auto pb-6">
+        {/* Mobile: Horizontal scroll with snap points; Desktop: Grid layout */}
+        <div className="flex gap-3 sm:gap-4 lg:gap-6 overflow-x-auto pb-4 sm:pb-6 snap-x snap-mandatory lg:snap-none scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent -mx-3 px-3 sm:mx-0 sm:px-0">
           {taskStages.map(stage => (
             <TaskColumn
               key={stage.id}
@@ -444,9 +446,9 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
 
         <DragOverlay>
           {activeDragTask ? (
-            <TaskCard 
-              task={activeDragTask} 
-              isDragging 
+            <TaskCard
+              task={activeDragTask}
+              isDragging
             />
           ) : null}
         </DragOverlay>
@@ -517,8 +519,15 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
 
   return (
     <div
-      className="min-w-[320px] max-w-[320px] bg-white dark:bg-gray-900/80 backdrop-blur-sm
-        rounded-xl border border-gray-200 dark:border-gray-700/50 flex flex-col max-h-[calc(100vh-200px)]"
+      className="
+        min-w-[280px] w-[280px] sm:min-w-[300px] sm:w-[300px] lg:min-w-[320px] lg:w-[320px]
+        snap-center lg:snap-align-none
+        bg-white dark:bg-gray-900/80 backdrop-blur-sm
+        rounded-xl border border-gray-200 dark:border-gray-700/50
+        flex flex-col
+        max-h-[calc(100vh-240px)] sm:max-h-[calc(100vh-220px)] lg:max-h-[calc(100vh-200px)]
+        flex-shrink-0
+      "
       style={{
         transition: 'border-color 150ms ease',
         borderColor: isOver ? `${stage.color}80` : undefined
@@ -526,9 +535,9 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
     >
       {/* Column Header */}
       <div
-        className="p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between sticky top-0 z-10 bg-white dark:bg-gray-900/80 backdrop-blur-sm"
+        className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700/50 flex items-center justify-between sticky top-0 z-10 bg-white dark:bg-gray-900/80 backdrop-blur-sm"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div
             className="w-4 h-4 rounded-md flex items-center justify-center"
             style={{ backgroundColor: stage.color }}
@@ -537,9 +546,9 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
               className: "w-3 h-3 text-white"
             })}
           </div>
-          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{stage.name}</h3>
+          <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-gray-100">{stage.name}</h3>
         </div>
-        <div className="bg-gray-50 dark:bg-gray-800/50 px-2.5 py-0.5 rounded-full text-xs text-gray-700 dark:text-gray-300">
+        <div className="bg-gray-50 dark:bg-gray-800/50 px-2 sm:px-2.5 py-0.5 rounded-full text-xs text-gray-700 dark:text-gray-300">
           {tasks.length}
         </div>
       </div>
@@ -548,7 +557,7 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
       <div
         ref={setNodeRef}
         className={`
-          flex-1 overflow-y-auto p-4 space-y-3
+          flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 sm:space-y-3
           ${isOver ? 'bg-gray-100 dark:bg-gray-800/30 ring-1 ring-inset' : ''}
           scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent
           transition-all duration-150
@@ -558,7 +567,7 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {/* Empty state */}
           {tasks.length === 0 && !isOver && (
-            <div className="text-gray-500 text-center text-sm h-20 flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-800/50 rounded-lg">
+            <div className="text-gray-500 text-center text-xs sm:text-sm h-16 sm:h-20 flex items-center justify-center border border-dashed border-gray-300 dark:border-gray-800/50 rounded-lg px-2">
               Drop tasks here
             </div>
           )}
@@ -586,13 +595,13 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
         {/* Add Task Button */}
         <button
           onClick={onAddTask}
-          className="w-full h-12 flex items-center justify-center gap-2
+          className="w-full min-h-[44px] h-11 sm:h-12 flex items-center justify-center gap-2
             bg-transparent border border-dashed border-gray-300 dark:border-gray-700 rounded-lg
             text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30
-            transition-colors mt-2"
+            transition-colors mt-2 active:scale-95"
         >
           <Plus className="w-4 h-4" />
-          <span className="text-sm">Add task</span>
+          <span className="text-xs sm:text-sm">Add task</span>
         </button>
       </div>
     </div>
@@ -739,9 +748,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     e.stopPropagation();
                     onEdit();
                   }}
-                  className="h-6 w-6 p-0 hover:bg-gray-200 dark:hover:bg-gray-700/50"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 hover:bg-gray-200 dark:hover:bg-gray-700/50 active:scale-95"
                 >
-                  <Edit className="w-3 h-3" />
+                  <Edit className="w-3.5 h-3.5" />
                 </Button>
               )}
               {onDelete && (
@@ -752,9 +761,9 @@ const TaskCard: React.FC<TaskCardProps> = ({
                     e.stopPropagation();
                     onDelete();
                   }}
-                  className="h-6 w-6 p-0 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
+                  className="h-8 w-8 min-h-[32px] min-w-[32px] p-0 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 active:scale-95"
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               )}
             </div>
@@ -782,7 +791,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   e.stopPropagation();
                   onComplete();
                 }}
-                className={`h-6 w-6 p-0 ${
+                className={`h-8 w-8 min-h-[32px] min-w-[32px] p-0 active:scale-95 ${
                   task.completed
                     ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700/50'

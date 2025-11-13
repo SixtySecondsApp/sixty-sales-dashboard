@@ -33,24 +33,24 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
           key={lead.id}
           onClick={() => onSelect(lead.id)}
           className={cn(
-            'w-full text-left px-4 py-3 transition-colors',
+            'w-full text-left px-3 sm:px-4 py-3 min-h-[88px] transition-colors active:scale-[0.99]',
             'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
             selectedLeadId === lead.id
               ? 'bg-emerald-100/70 dark:bg-emerald-500/20 border-l-4 border-emerald-500'
               : 'border-l-4 border-transparent'
           )}
         >
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                 {lead.contact_name || lead.contact_email || 'Unnamed Lead'}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-1">
                 {lead.meeting_title || 'Discovery Call'} •{' '}
                 {lead.domain || lead.contact_email?.split('@')[1] || 'Unknown domain'}
               </p>
             </div>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1 sm:gap-2 text-xs flex-shrink-0">
               <StatusPill status={lead.prep_status} label="Prep" />
               <StatusPill status={lead.enrichment_status} label="Enrichment" />
             </div>
@@ -58,7 +58,7 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
           <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
             <span>{lead.owner_id ? 'Assigned' : 'Unassigned'}</span>
             {lead.created_at && (
-              <span>
+              <span className="truncate ml-2">
                 {formatDistanceToNow(new Date(lead.created_at), { addSuffix: true })}
               </span>
             )}

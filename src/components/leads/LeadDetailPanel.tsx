@@ -19,15 +19,15 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         <header>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100 break-words">
             {lead.contact_name || lead.contact_email || 'Unnamed Lead'}
           </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{lead.meeting_title || 'Discovery Call'}</p>
+          <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">{lead.meeting_title || 'Discovery Call'}</p>
         </header>
 
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <section className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
           <InfoTile icon={User} label="Contact" value={lead.contact_email ?? 'N/A'} />
           <InfoTile icon={Timer} label="Meeting" value={meetingStart} />
           <InfoTile icon={Globe} label="Domain" value={lead.domain || 'Unknown'} />
@@ -91,11 +91,11 @@ interface InfoTileProps {
 
 function InfoTile({ label, value, icon: Icon }: InfoTileProps) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-800/60 dark:bg-gray-900/40">
-      <Icon className="h-5 w-5 text-emerald-500" />
-      <div>
-        <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{value}</p>
+    <div className="flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl border border-gray-200 bg-white px-3 py-2.5 sm:px-4 sm:py-3 shadow-sm dark:border-gray-800/60 dark:bg-gray-900/40">
+      <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-emerald-500 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] sm:text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
+        <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{value}</p>
       </div>
     </div>
   );

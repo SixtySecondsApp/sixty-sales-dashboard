@@ -173,16 +173,20 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-3xl glassmorphism border-gray-700/50 max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-6">
-          <DialogTitle className="text-2xl font-bold text-gray-900 dark:text-white flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl ${taskTypeConfig?.color || 'bg-gray-500/20 text-gray-400'}`}>
-                <TaskTypeIcon className="w-6 h-6" />
+      <DialogContent className="
+        fixed inset-0 w-screen h-screen max-w-none max-h-none rounded-none p-0 m-0
+        sm:relative sm:inset-auto sm:w-full sm:h-auto sm:max-w-3xl sm:max-h-[90vh] sm:rounded-xl sm:p-6 sm:m-4
+        glassmorphism border-gray-700/50 overflow-y-auto
+      ">
+        <DialogHeader className="pb-4 sm:pb-6 px-4 pt-4 sm:px-0 sm:pt-0 sticky top-0 z-10 bg-white dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700/50 sm:border-0 sm:static">
+          <DialogTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl ${taskTypeConfig?.color || 'bg-gray-500/20 text-gray-400'}`}>
+                <TaskTypeIcon className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{task.title}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <span className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white break-words">{task.title}</span>
                   <motion.div
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -191,9 +195,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                       variant="ghost"
                       size="sm"
                       onClick={handleToggleComplete}
-                      className={`p-2 rounded-full transition-colors ${
-                        task.completed 
-                          ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10' 
+                      className={`p-2 rounded-full transition-colors min-h-[40px] min-w-[40px] ${
+                        task.completed
+                          ? 'text-green-400 hover:text-green-300 hover:bg-green-500/10'
                           : 'text-gray-400 hover:text-green-400 hover:bg-green-500/10'
                       }`}
                     >
@@ -206,7 +210,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             exit={{ scale: 0, rotate: 90 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <CheckCircle2 className="w-6 h-6" />
+                            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" />
                           </motion.div>
                         ) : (
                           <motion.div
@@ -216,30 +220,30 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             exit={{ scale: 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <Circle className="w-6 h-6" />
+                            <Circle className="w-5 h-5 sm:w-6 sm:h-6" />
                           </motion.div>
                         )}
                       </AnimatePresence>
                     </Button>
                   </motion.div>
                 </div>
-                <div className="flex items-center gap-3 mt-2">
-                  <Badge className={taskTypeConfig?.color || 'bg-gray-500/20 text-gray-400'}>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <Badge className={`text-xs ${taskTypeConfig?.color || 'bg-gray-500/20 text-gray-400'}`}>
                     <span className="mr-1">{taskTypeConfig?.emoji}</span>
                     {taskTypeConfig?.label || 'General'}
                   </Badge>
-                  <Badge className={priorityConfig?.color || 'bg-gray-500/20 text-gray-400'}>
+                  <Badge className={`text-xs ${priorityConfig?.color || 'bg-gray-500/20 text-gray-400'}`}>
                     <span className="mr-1">{priorityConfig?.icon}</span>
                     {priorityConfig?.label || 'Medium'} Priority
                   </Badge>
                   {task.completed && (
-                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                    <Badge className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
                       <CheckCircle2 className="w-3 h-3 mr-1" />
                       Completed
                     </Badge>
                   )}
                   {isOverdue && !task.completed && (
-                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                    <Badge className="text-xs bg-red-500/20 text-red-400 border-red-500/30">
                       <AlertTriangle className="w-3 h-3 mr-1" />
                       Overdue
                     </Badge>
@@ -251,14 +255,14 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              className="text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full p-2"
+              className="text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-full p-2 min-h-[40px] min-w-[40px] flex-shrink-0"
             >
               <X className="w-5 h-5" />
             </Button>
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 px-4 pb-4 sm:px-0 sm:pb-0">
           {/* Task Description */}
           {task.description && (
             <div className="glassmorphism-light p-4 rounded-xl border border-gray-600/30">
@@ -500,48 +504,52 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t border-gray-700/50">
+          <div className="
+            flex flex-col sm:flex-row gap-2 sm:gap-3 pt-4 border-t border-gray-700/50
+            sticky sm:static bottom-0 left-0 right-0 bg-white dark:bg-gray-900/95 backdrop-blur-sm
+            px-4 py-3 sm:px-0 sm:py-0 -mx-4 sm:mx-0 mt-4
+          ">
             <Button
               onClick={() => onEdit(task)}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white h-12 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300"
+              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white min-h-[44px] h-11 sm:h-12 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 active:scale-98"
             >
               <Edit3 className="w-4 h-4 mr-2" />
-              Edit Task
+              <span className="text-sm sm:text-base">Edit Task</span>
             </Button>
-            
+
             <Button
               onClick={handleToggleComplete}
               variant="outline"
-              className="flex-1 border-gray-600/50 text-gray-300 hover:bg-gray-700/70 hover:text-white h-12 rounded-xl"
+              className="flex-1 border-gray-600/50 text-gray-300 hover:bg-gray-700/70 hover:text-white min-h-[44px] h-11 sm:h-12 rounded-xl active:scale-98"
             >
               {task.completed ? (
                 <>
                   <Circle className="w-4 h-4 mr-2" />
-                  Mark Incomplete
+                  <span className="text-sm sm:text-base">Mark Incomplete</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Mark Complete
+                  <span className="text-sm sm:text-base">Mark Complete</span>
                 </>
               )}
             </Button>
-            
+
             <Button
               onClick={handleDelete}
               disabled={isDeleting}
               variant="outline"
-              className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500/70 hover:text-red-300 h-12 px-6 rounded-xl transition-all duration-300 disabled:opacity-50"
+              className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:border-red-500/70 hover:text-red-300 min-h-[44px] h-11 sm:h-12 px-4 sm:px-6 rounded-xl transition-all duration-300 disabled:opacity-50 active:scale-98"
             >
               {isDeleting ? (
                 <>
                   <div className="animate-spin w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full mr-2" />
-                  Deleting...
+                  <span className="text-sm sm:text-base">Deleting...</span>
                 </>
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
+                  <span className="text-sm sm:text-base">Delete</span>
                 </>
               )}
             </Button>
