@@ -1417,7 +1417,7 @@ async function syncSingleCall(
           console.log(`👤 Processing external contact: ${invitee.name} (${invitee.email})`)
 
           // 1. Match or create company from email domain
-          const company = await matchOrCreateCompany(supabase, invitee.email, userId, invitee.name)
+          const { company } = await matchOrCreateCompany(supabase, invitee.email, userId, invitee.name)
           if (company) {
             console.log(`🏢 Matched/created company: ${company.name} (${company.domain})`)
           }

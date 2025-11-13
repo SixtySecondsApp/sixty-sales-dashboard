@@ -13,7 +13,8 @@ export async function fetchLeads(): Promise<LeadWithPrep[]> {
     .from('leads')
     .select(`
       *,
-      lead_prep_notes(*)
+      lead_prep_notes(*),
+      owner:profiles!leads_owner_id_fkey(id, first_name, last_name, email)
     `)
     .order('created_at', { ascending: false });
 

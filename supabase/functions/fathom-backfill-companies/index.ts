@@ -123,7 +123,7 @@ serve(async (req) => {
           console.log(`👤 Processing: ${attendee.name} (${attendee.email})`)
 
           // 1. Match or create company
-          const company = await matchOrCreateCompany(supabase, attendee.email, meeting.owner_user_id, attendee.name)
+          const { company } = await matchOrCreateCompany(supabase, attendee.email, meeting.owner_user_id, attendee.name)
 
           if (company) {
             console.log(`🏢 Matched/created company: ${company.name}`)

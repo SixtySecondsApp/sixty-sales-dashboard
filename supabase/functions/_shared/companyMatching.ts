@@ -295,24 +295,25 @@ export async function createCompanyFromDomain(
 
 /**
  * Match or create company from email
+ * Returns company and whether it was newly created
  */
 export async function matchOrCreateCompany(
   supabase: SupabaseClient,
   email: string,
   userId: string,
   contactName?: string
-): Promise<Company | null> {
+): Promise<{ company: Company | null; isNew: boolean }> {
   const domain = extractBusinessDomain(email)
 
   if (!domain) {
-    return null
+    return { company: null, isNew: false }
   }
 
   // Try exact domain match
   let company = await findCompanyByDomain(supabase, domain, userId)
 
   if (company) {
-    return company
+    return { company, isNew: false }
   }
 
   // Try fuzzy name match
@@ -332,12 +333,13 @@ export async function matchOrCreateCompany(
         .select()
         .single()
 
-      return updated || company
+      return { company: updated || company, isNew: false }
     }
 
-    return company
+    return { company, isNew: false }
   }
 
   // Create new company
-  return await createCompanyFromDomain(supabase, domain, userId, contactName)
+  const newCompany = await createCompanyFromDomain(supabase, domain, userId, contactName)
+  return { company: newCompany, isNew: !!newCompany }
 }

@@ -1,18 +1,19 @@
-# Plan - Fathom Transcript Reliability
+# Plan - Task View UX Improvements
 
 ## Objectives
-- Restore reliable transcript and summary ingestion for Fathom meetings.
-- Ensure future sync runs keep retrying until transcripts arrive while avoiding excessive API calls.
-- Backfill transcripts and summaries for affected historical meetings.
+- Make task pop-ups instantly communicate the task title, owner, and related meeting context.
+- Provide a quick, friendly way to change task status without opening the full edit form.
+- Keep advanced editing flows available on demand while reducing initial cognitive load.
 
 ## Tasks
-- [ ] Diagnose the root cause of missing transcripts in `supabase/functions/fathom-sync`.
-- [ ] Implement updated retry/backoff logic for transcript/summary fetching.
-- [ ] Reset affected meetings and trigger a re-sync to backfill data.
-- [ ] Verify that transcripts and summaries now populate as expected.
+- [x] Audit the current task detail modal and identify information gaps for meeting context and status updates.
+- [ ] Redesign the modal layout to highlight key summary details and surface meeting links prominently.
+- [ ] Implement quick status update controls and ensure they sync with existing task actions.
+- [ ] Validate the updated experience in kanban view, run lint checks, and document the change.
 
 ## Milestones
-- **Investigation Complete** – Root cause documented with supporting evidence.
-- **Fix Implemented** – Code merged locally with tests or lint checks passing.
-- **Backfill Executed** – Script run with confirmation of improved transcript coverage.
-- **Verification** – Spot-check shows transcripts and summaries available for recent meetings.
+- **Design Finalized** – Updated layout mock captured in code comments/readme for future reference.
+- **Summary Ready** – Modal shows concise header with title, owner, status, and meeting callouts.
+- **Actions Confirmed** – Status quick-actions work without opening the full edit flow and respect completion logic.
+- **QA Complete** – Basic lint/tests executed and UX smoke-tested in the tasks kanban.
+

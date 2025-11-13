@@ -350,14 +350,35 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     await handleDeleteTask(taskId);
   };
 
-  const handleTaskDetailToggleComplete = async (task: Task) => {
-    await handleCompleteTask(task);
-    // Refresh the selected task data if it's still the same task
-    if (selectedTask && selectedTask.id === task.id) {
-      const updatedTask = tasks.find(t => t.id === task.id);
-      if (updatedTask) {
-        setSelectedTask(updatedTask);
+  const statusLabels: Record<Task['status'], string> = {
+    pending: 'Pending',
+    in_progress: 'In Progress',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    overdue: 'Overdue'
+  };
+
+  const handleTaskDetailStatusChange = async (task: Task, nextStatus: Task['status']) => {
+    try {
+      let updatedTask: Task;
+
+      if (nextStatus === 'completed') {
+        updatedTask = await completeTask(task.id);
+      } else {
+        const updates: Partial<Task> = {
+          status: nextStatus,
+          completed: false,
+        };
+        updatedTask = await updateTask(task.id, updates);
       }
+
+      const mergedTask = { ...task, ...updatedTask };
+      setSelectedTask(mergedTask as Task);
+      toast.success(`Task status set to ${statusLabels[nextStatus]}`);
+    } catch (error) {
+      logger.error('Error updating task status from detail modal:', error);
+      toast.error('Failed to update task status');
+      throw error;
     }
   };
 
@@ -479,7 +500,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         onClose={handleTaskDetailModalClose}
         onEdit={handleTaskDetailEdit}
         onDelete={handleTaskDetailDelete}
-        onToggleComplete={handleTaskDetailToggleComplete}
+        onStatusChange={handleTaskDetailStatusChange}
       />
     </div>
   );

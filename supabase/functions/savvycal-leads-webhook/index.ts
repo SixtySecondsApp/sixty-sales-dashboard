@@ -315,17 +315,19 @@ async function processSavvyCalEvent(
 
   let companyId: string | null = null;
   let contactId: string | null = null;
+  let isNewCompany = false;
 
   const businessDomain = contactEmail ? extractBusinessDomain(contactEmail) : null;
 
   if (ownerProfileId && businessDomain) {
-    const company = await matchOrCreateCompany(
+    const { company, isNew } = await matchOrCreateCompany(
       supabase,
       contactEmail,
       ownerProfileId,
       leadName,
     );
     companyId = company?.id ?? null;
+    isNewCompany = isNew;
   }
 
   contactId = await upsertContact(
@@ -344,6 +346,34 @@ async function processSavvyCalEvent(
   const payloadHash = await hashPayload(event.payload);
 
   const status = determineLeadStatus(event);
+
+  // Build tags array: "Meeting Booked", source name, owner name
+  const tags: string[] = ["Meeting Booked"];
+  
+  // Add source name if available
+  if (leadSource?.name) {
+    tags.push(leadSource.name);
+  } else if (sourceDetails.name) {
+    tags.push(sourceDetails.name);
+  }
+  
+  // Add owner name if available
+  if (ownerProfileId) {
+    const { data: ownerProfile } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", ownerProfileId)
+      .maybeSingle();
+    
+    if (ownerProfile) {
+      const ownerName = [ownerProfile.first_name, ownerProfile.last_name]
+        .filter(Boolean)
+        .join(" ");
+      if (ownerName) {
+        tags.push(ownerName);
+      }
+    }
+  }
 
   const leadRecord = {
     external_source: "savvycal",
@@ -395,6 +425,7 @@ async function processSavvyCalEvent(
     utm_term: event.payload.metadata?.utm_term as string ?? null,
     utm_content: event.payload.metadata?.utm_content as string ?? null,
     metadata: leadMetadata,
+    tags,
     first_seen_at: event.occurred_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -424,6 +455,27 @@ async function processSavvyCalEvent(
 
   if (insertEventError) {
     console.error("Failed to insert lead event record", insertEventError);
+  }
+
+  // Trigger company enrichment if this is a new company
+  if (isNewCompany && companyId) {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+    const enrichUrl = `${SUPABASE_URL}/functions/v1/enrich-company`;
+    
+    // Fire and forget - don't wait for enrichment to complete
+    fetch(enrichUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ company_id: companyId }),
+    }).catch((error) => {
+      console.error("Failed to trigger company enrichment:", error);
+      // Non-blocking - enrichment failure shouldn't fail lead creation
+    });
+    
+    console.log(`✅ Triggered enrichment for new company: ${companyId}`);
   }
 
   return {
