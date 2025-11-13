@@ -82,7 +82,13 @@ export function NotificationPanel({ onClose }: NotificationPanelProps) {
   };
 
   return (
-    <div className="w-96 max-h-[600px] bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-2xl overflow-hidden flex flex-col">
+    <div className="
+      w-full h-full sm:w-96 sm:h-auto sm:max-h-[600px]
+      bg-white dark:bg-gray-900/95 backdrop-blur-sm
+      border-0 sm:border border-gray-200 dark:border-gray-700/50
+      rounded-none sm:rounded-lg shadow-2xl
+      overflow-hidden flex flex-col
+    ">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
         <div className="flex items-center justify-between mb-3">

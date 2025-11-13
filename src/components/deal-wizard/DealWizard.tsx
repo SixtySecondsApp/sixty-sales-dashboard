@@ -77,7 +77,7 @@ export function DealWizard({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center sm:p-4"
           onClick={handleClose}
         >
           <motion.div
@@ -85,22 +85,27 @@ export function DealWizard({
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="theme-bg-card backdrop-blur-sm theme-border rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg"
+            className="
+              fixed inset-0 w-full h-full max-w-none max-h-none rounded-none
+              sm:relative sm:inset-auto sm:w-full sm:h-auto sm:max-w-2xl sm:max-h-[90vh] sm:rounded-2xl
+              theme-bg-card backdrop-blur-sm theme-border overflow-y-auto shadow-lg
+              flex flex-col
+            "
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b theme-border">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-violet-500/10 rounded-lg">
-                  <Building2 className="w-5 h-5 text-violet-600 dark:text-violet-400" />
+            <div className="flex items-start sm:items-center justify-between p-4 sm:p-6 border-b theme-border flex-shrink-0 sticky top-0 z-10 theme-bg-card backdrop-blur-sm">
+              <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+                <div className="p-2 bg-violet-500/10 rounded-lg flex-shrink-0">
+                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600 dark:text-violet-400" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold theme-text-primary">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base sm:text-xl font-semibold theme-text-primary leading-tight">
                     {actionType === 'proposal' ? 'Create Deal & Proposal' :
                      actionType === 'meeting' ? 'Create Meeting & Deal' :
                      'Create New Deal'}
                   </h2>
-                  <p className="text-sm theme-text-tertiary">
+                  <p className="text-xs sm:text-sm theme-text-tertiary mt-0.5 line-clamp-2">
                     {wizard.step === 'deal-type' && 'Choose the type of deal you\'re creating'}
                     {wizard.step === 'contact-selection' && 'Select a contact to continue'}
                     {wizard.step === 'deal-form' && 'Fill in deal details'}
@@ -114,18 +119,18 @@ export function DealWizard({
               </div>
               <button
                 onClick={handleClose}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors flex-shrink-0 min-h-[40px] min-w-[40px]"
               >
                 <X className="w-5 h-5 theme-text-tertiary" />
               </button>
             </div>
 
             {/* Step Progress */}
-            <div className="px-6 py-4 border-b theme-border">
-              <div className="flex items-center gap-2">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b theme-border flex-shrink-0">
+              <div className="flex items-center gap-1 sm:gap-2">
                 {/* Step 1: Deal Type */}
                 <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors",
                   wizard.step === 'deal-type' ? "bg-violet-500 text-white" :
                   wizard.dealType ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
@@ -138,7 +143,7 @@ export function DealWizard({
 
                 {/* Step 2: Contact & Deal Form */}
                 <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors",
                   wizard.step === 'contact-selection' || wizard.step === 'deal-form' ? "bg-violet-500 text-white" :
                   wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
@@ -151,16 +156,17 @@ export function DealWizard({
 
                 {/* Step 3: Success */}
                 <div className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors",
+                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors",
                   wizard.step === 'success' ? "bg-emerald-500 text-white" : "bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
                 )}>
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
             </div>
 
             {/* Step Content */}
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4 sm:p-6">
               <AnimatePresence mode="wait">
                 {/* Step 1: Deal Type Selection */}
                 {wizard.step === 'deal-type' && (
@@ -228,6 +234,7 @@ export function DealWizard({
                   </motion.div>
                 )}
               </AnimatePresence>
+              </div>
             </div>
           </motion.div>
 

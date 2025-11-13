@@ -783,43 +783,43 @@ export function MeetingDetail() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6 max-w-7xl">
+    <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-7xl min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 min-w-0">
+        <div className="space-y-1 sm:space-y-2 min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigate('/meetings')} variant="ghost" size="sm">
+            <Button onClick={() => navigate('/meetings')} variant="ghost" size="sm" className="min-h-[40px]">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              <span className="hidden sm:inline">Back</span>
             </Button>
           </div>
-          <h1 className="text-3xl font-bold">{meeting.title}</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold break-words">{meeting.title}</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground break-words">
             {new Date(meeting.meeting_start).toLocaleDateString('en-US', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
               day: 'numeric',
-            })} • {Math.round(meeting.duration_minutes)} minutes
+            })} • {Math.round(meeting.duration_minutes)} min
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">
           {meeting.sentiment_score !== null && (
             <Badge className={getSentimentColor(meeting.sentiment_score)}>
               {labelSentiment(meeting.sentiment_score)}
             </Badge>
           )}
-          <Button size="sm" onClick={handleGetActionItems} disabled={isExtracting}>
-            {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
+          <Button size="sm" onClick={handleGetActionItems} disabled={isExtracting} className="min-h-[40px] whitespace-nowrap">
+            {isExtracting ? 'Getting...' : 'Get Action Items'}
           </Button>
         </div>
       </div>
 
       {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 min-w-0">
         {/* Left Column - Video & Content */}
-        <div className="lg:col-span-8 space-y-4">
+        <div className="lg:col-span-8 space-y-3 sm:space-y-4 min-w-0">
           {/* Video Player */}
           {(meeting.fathom_recording_id || meeting.share_url) && (
             <div className="glassmorphism-card overflow-hidden">
@@ -1016,24 +1016,25 @@ export function MeetingDetail() {
         {/* End of Left Column */}
 
         {/* Right Column - Sidebar */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="lg:col-span-4 space-y-3 sm:space-y-4 min-w-0">
           {/* Unified Tasks Section - Static container, only task cards animate */}
-          <div className="section-card">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-lg">
+          <div className="section-card min-w-0">
+            <div className="flex items-center justify-between mb-4 min-w-0 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-semibold text-base sm:text-lg truncate">
                   Tasks ({tasks.length})
                 </h3>
               </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
                       onClick={() => setCreateTaskModalOpen(true)}
                       variant="default"
                       size="sm"
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 min-h-[40px] whitespace-nowrap"
                     >
                       <ListTodo className="w-4 h-4" />
-                      Add Task
+                      <span className="hidden sm:inline">Add Task</span>
+                      <span className="sm:hidden">Add</span>
                     </Button>
                   </div>
                 </div>

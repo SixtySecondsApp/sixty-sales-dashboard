@@ -48,7 +48,7 @@ export default function Email() {
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isComposerOpen, setIsComposerOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true); // Start collapsed on mobile
   const [selectedFolder, setSelectedFolder] = useState('INBOX');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
@@ -56,6 +56,30 @@ export default function Email() {
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const navigate = useNavigate();
+
+  // Auto-open sidebar on desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarCollapsed(false); // Auto-open on desktop
+      } else {
+        setIsSidebarCollapsed(true); // Auto-close on mobile
+      }
+    };
+
+    // Set initial state
+    handleResize();
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Helper to close sidebar on mobile after selection
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 1024) {
+      setIsSidebarCollapsed(true);
+    }
+  };
   
   // Google Integration
   const { data: integration } = useGoogleIntegration();
@@ -443,19 +467,30 @@ export default function Email() {
       )}
       
       {/* Header */}
-      <div className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
+      <div className="h-14 sm:h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between px-3 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Mobile Menu Button */}
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
+            className="lg:hidden p-2 min-h-[40px] min-w-[40px] rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors flex items-center justify-center"
+          >
+            <PanelLeft className="w-5 h-5" />
+          </motion.button>
+
+          {/* Desktop Toggle Button */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden lg:flex p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
           >
             {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </motion.button>
 
           <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+            <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-500" />
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Email</h1>
             {unreadCount > 0 && (
               <motion.span
@@ -573,16 +608,29 @@ export default function Email() {
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-4rem)]">
-        {/* Sidebar */}
+      <div className="flex h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-4rem)]">
+        {/* Mobile Sidebar Backdrop */}
         <AnimatePresence>
           {!isSidebarCollapsed && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsSidebarCollapsed(true)}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden"
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Sidebar - Mobile Drawer / Desktop Sidebar */}
+        <AnimatePresence>
+          {!isSidebarCollapsed && (
+            <motion.div
+              initial={{ x: -280, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -280, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden"
+              className="fixed lg:relative inset-y-0 left-0 z-50 lg:z-auto w-[280px] bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden"
             >
               <div className="p-4 space-y-4">
                 {/* Folders */}
@@ -596,7 +644,10 @@ export default function Email() {
                     <motion.button
                       key={folder.id}
                       whileHover={{ x: 4 }}
-                      onClick={() => setSelectedFolder(folder.id)}
+                      onClick={() => {
+                        setSelectedFolder(folder.id);
+                        closeSidebarOnMobile();
+                      }}
                       className={cn(
                         'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                         selectedFolder === folder.id
@@ -629,7 +680,10 @@ export default function Email() {
                       <motion.button
                         key={filter.id}
                         whileHover={{ x: 4 }}
-                        onClick={() => setReadFilter(filter.id as any)}
+                        onClick={() => {
+                          setReadFilter(filter.id as any);
+                          closeSidebarOnMobile();
+                        }}
                         className={cn(
                           'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                           readFilter === filter.id
@@ -662,6 +716,7 @@ export default function Email() {
                           onClick={() => {
                             setSelectedCategory(selectedCategory === category.id ? null : category.id);
                             setSelectedLabel(null); // Clear label when selecting category
+                            closeSidebarOnMobile();
                           }}
                           className={cn(
                             'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
@@ -704,6 +759,7 @@ export default function Email() {
                             onClick={() => {
                               setSelectedLabel(selectedLabel === label.id ? null : label.id);
                               setSelectedCategory(null); // Clear category when selecting label
+                              closeSidebarOnMobile();
                             }}
                             className={cn(
                               'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',

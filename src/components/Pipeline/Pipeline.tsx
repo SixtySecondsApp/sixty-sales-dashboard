@@ -775,13 +775,12 @@ function PipelineContent() {
               interval: 10,
             }}
           >
-            <div className="grid gap-3 pb-6 overflow-x-auto scrollbar-none" style={{
-              gridTemplateColumns: stages.length <= 4 
-                ? `repeat(${stages.length}, minmax(280px, 1fr))`
-                : `repeat(${stages.length}, minmax(280px, 350px))`,
+            <div className="grid gap-2 sm:gap-3 pb-4 sm:pb-6 overflow-x-auto snap-x snap-mandatory lg:snap-none scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent -mx-3 px-3 sm:mx-0 sm:px-0" style={{
+              gridTemplateColumns: stages.length <= 4
+                ? `repeat(${stages.length}, minmax(260px, 1fr))`
+                : `repeat(${stages.length}, minmax(260px, 350px))`,
               maxWidth: '100%',
-              scrollbarWidth: 'none', /* Firefox */
-              msOverflowStyle: 'none', /* IE and Edge */
+              scrollbarWidth: 'thin', /* Firefox */
             }}>
               {stages.map(stage => (
                 <PipelineColumn
@@ -878,7 +877,7 @@ function PipelineComponent() {
   return (
     <PipelineProvider>
       <div className="max-w-full w-full min-h-screen bg-white dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-        <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-hidden">
+        <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 overflow-hidden">
           <div className="relative">
             <PipelineContent />
           </div>
