@@ -443,19 +443,19 @@ export default function Email() {
       )}
       
       {/* Header */}
-      <div className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between px-6">
-        <div className="flex items-center gap-4">
+      <div className="h-14 sm:h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex items-center justify-between px-3 sm:px-6">
+        <div className="flex items-center gap-2 sm:gap-4">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
+            className="hidden lg:flex p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
           >
             {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </motion.button>
 
           <div className="flex items-center gap-2">
-            <Mail className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+            <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-500" />
             <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Email</h1>
             {unreadCount > 0 && (
               <motion.span

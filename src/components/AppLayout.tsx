@@ -177,7 +177,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </motion.button>
       )}
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Full Page with Scrolling */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <>
@@ -193,12 +193,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-              className="fixed right-0 top-0 bottom-0 w-full max-w-[280px] bg-white dark:bg-gray-900/50 backdrop-blur-xl border-l border-gray-200 dark:border-gray-800/50 p-6 z-50 lg:hidden transition-colors duration-200"
+              className="fixed inset-0 w-full bg-white dark:bg-gray-900/95 backdrop-blur-xl z-50 lg:hidden transition-colors duration-200 flex flex-col"
             >
-              <div className="relative h-full">
-                <div className="flex items-center justify-between mb-8">
+              {/* Fixed Header */}
+              <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg overflow-hidden">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden">
                       {userData?.avatar_url ? (
                         <img
                           src={userData.avatar_url}
@@ -207,63 +208,66 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         />
                       ) : (
                         <div className="w-full h-full bg-[#37bd7e]/20 flex items-center justify-center">
-                          <span className="text-sm font-medium text-[#37bd7e]">
+                          <span className="text-base sm:text-lg font-medium text-[#37bd7e]">
                             {userData?.first_name?.[0]}{userData?.last_name?.[0]}
                           </span>
                         </div>
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                      <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
                         {userData?.first_name} {userData?.last_name}
                       </span>
-                      <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
+                      <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">{userData?.stage}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => toggleMobileMenu()}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+                    className="p-2 sm:p-3 min-h-[44px] min-w-[44px] hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors flex items-center justify-center"
                   >
-                    <X className="w-5 h-5 text-gray-400" />
+                    <X className="w-6 h-6 text-gray-400" />
                   </button>
                 </div>
+              </div>
 
-                <nav className="space-y-2">
+              {/* Scrollable Navigation */}
+              <div className="flex-1 overflow-y-auto">
+                <nav className="p-4 sm:p-6 space-y-1 sm:space-y-2">
                   {menuItems.map((item) => (
                     <div key={item.href + item.label}>
                       <Link
                         to={item.href}
                         onClick={() => toggleMobileMenu()}
                         className={cn(
-                          'w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors',
+                          'w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] sm:min-h-[64px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
                             ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                             : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                         )}
                       >
                         <item.icon className={cn(
-                          'w-5 h-5',
+                          'w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
                             ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
                         )} />
                         <span>{item.label}</span>
                       </Link>
-                      
+
                       {item.subItems && (
-                        <div className="ml-8 mt-1 space-y-1">
+                        <div className="ml-10 sm:ml-12 mt-1 space-y-1">
                           {item.subItems.map((subItem) => (
                             <Link
                               key={subItem.href + subItem.label}
                               to={subItem.href}
                               onClick={() => toggleMobileMenu()}
                               className={cn(
-                                'w-full flex items-center gap-3 px-4 py-2 rounded-xl text-xs font-medium transition-colors',
+                                'w-full flex items-center gap-3 px-4 py-3 min-h-[48px] rounded-xl text-sm font-medium transition-colors',
                                 location.pathname === subItem.href
                                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                                   : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                               )}
                             >
-                              <subItem.icon className="w-4 h-4" />
+                              <subItem.icon className="w-5 h-5" />
                               <span>{subItem.label}</span>
                             </Link>
                           ))}
@@ -272,39 +276,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                   ))}
                 </nav>
+              </div>
 
-                <div className="absolute bottom-0 left-0 p-6 border-t border-gray-200 dark:border-gray-800 w-full space-y-2">
-                  <Link
-                    to="/settings"
-                    onClick={() => toggleMobileMenu()}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-                  >
-                    <Settings className="w-5 h-5" />
-                    Settings
-                  </Link>
+              {/* Fixed Footer with Settings and Logout */}
+              <div className="flex-shrink-0 p-4 sm:p-6 border-t border-gray-200 dark:border-gray-800 space-y-2">
+                <Link
+                  to="/settings"
+                  onClick={() => toggleMobileMenu()}
+                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors active:scale-[0.98]"
+                >
+                  <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
+                  Settings
+                </Link>
 
-                  <button 
-                    onClick={handleLogout}
-                    className={cn(
-                      "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-                      isImpersonating 
-                        ? "text-amber-400 hover:bg-amber-500/10" 
-                        : "text-red-400 hover:bg-red-500/10"
-                    )}
-                  >
-                    {isImpersonating ? (
-                      <>
-                        <UserX className="w-5 h-5" />
-                        Stop Impersonation
-                      </>
-                    ) : (
-                      <>
-                        <LogOut className="w-5 h-5" />
-                        Logout
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className={cn(
+                    "w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
+                    isImpersonating
+                      ? "text-amber-400 hover:bg-amber-500/10"
+                      : "text-red-400 hover:bg-red-500/10"
+                  )}
+                >
+                  {isImpersonating ? (
+                    <>
+                      <UserX className="w-6 h-6 sm:w-7 sm:h-7" />
+                      Stop Impersonation
+                    </>
+                  ) : (
+                    <>
+                      <LogOut className="w-6 h-6 sm:w-7 sm:h-7" />
+                      Logout
+                    </>
+                  )}
+                </button>
               </div>
             </motion.div>
           </>

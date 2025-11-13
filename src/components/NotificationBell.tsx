@@ -54,11 +54,18 @@ export function NotificationBell() {
   const handleToggle = () => {
     if (!isOpen && bellRef.current) {
       const rect = bellRef.current.getBoundingClientRect();
-      // Position the panel to the right of the bell icon with some offset
-      setPanelPosition({
-        top: rect.bottom + 8,
-        left: rect.left + rect.width + 8
-      });
+      const isMobile = window.innerWidth < 640;
+
+      if (isMobile) {
+        // On mobile, position as full-screen modal
+        setPanelPosition({ top: 0, left: 0 });
+      } else {
+        // On desktop, position relative to bell icon
+        setPanelPosition({
+          top: rect.bottom + 8,
+          left: Math.max(8, rect.left + rect.width - 384) // Prevent overflow on right
+        });
+      }
     }
     setIsOpen(!isOpen);
   };
@@ -109,11 +116,11 @@ export function NotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="fixed z-[200]"
-            style={{
+            className="fixed z-[200] inset-0 sm:inset-auto"
+            style={window.innerWidth >= 640 ? {
               top: `${panelPosition.top}px`,
               left: `${panelPosition.left}px`,
-            }}
+            } : {}}
           >
             <NotificationPanel onClose={() => setIsOpen(false)} />
           </motion.div>

@@ -510,9 +510,9 @@ const Calendar: React.FC = () => {
       )}
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Fixed Sidebar Container */}
+        {/* Fixed Sidebar Container - Hidden on mobile */}
         <div
-          className="relative bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 z-10 flex-shrink-0 overflow-hidden"
+          className="hidden lg:block relative bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 z-10 flex-shrink-0 overflow-hidden"
           style={{
             width: sidebarCollapsed ? '60px' : '320px',
             minWidth: sidebarCollapsed ? '60px' : '320px',
@@ -535,9 +535,9 @@ const Calendar: React.FC = () => {
         {/* Main Calendar Area with Flex-1 */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <Card className="m-4 mb-0 flex-shrink-0">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800/50">
-            <div className="flex items-center justify-between">
+        <Card className="m-2 sm:m-4 mb-0 flex-shrink-0">
+          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800/50">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <CalendarIcon className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />
