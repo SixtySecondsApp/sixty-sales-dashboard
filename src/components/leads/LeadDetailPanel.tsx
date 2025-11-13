@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { useUser } from '@/lib/hooks/useUser';
-import { triggerLeadPrep } from '@/lib/services/leadService';
+import { triggerLeadPrep, resetLeadPrep } from '@/lib/services/leadService';
 
 interface LeadDetailPanelProps {
   lead: LeadWithPrep | null;
@@ -157,15 +157,12 @@ Best regards`;
   const handleRerunPrep = async () => {
     setIsRerunning(true);
     try {
-      await supabase
-        .from('leads')
-        .update({ prep_status: 'pending' })
-        .eq('id', lead.id);
-      
-      await triggerLeadPrep();
+      // Remove current enrichment for this lead, then rerun
+      await resetLeadPrep(lead.id);
+      const { processed } = await triggerLeadPrep();
       toast.success('Re-running prep analysis...');
       if (onRefresh) {
-        setTimeout(onRefresh, 3000);
+        setTimeout(onRefresh, processed > 0 ? 1500 : 3000);
       }
     } catch (error) {
       console.error('Error rerunning prep:', error);

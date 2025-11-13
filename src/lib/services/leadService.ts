@@ -42,3 +42,22 @@ export async function refreshLeads(): Promise<void> {
   await triggerLeadPrep();
 }
 
+export async function resetLeadPrep(leadId?: string): Promise<{ reset_count: number }> {
+  const { data, error } = await supabase.functions.invoke('reset-lead-prep', {
+    method: 'POST',
+    body: leadId ? { lead_id: leadId } : {},
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to reset lead prep');
+  }
+
+  return { reset_count: data?.reset_count ?? 0 };
+}
+
+export async function resetAndRerunLeadPrep(leadId?: string): Promise<{ reset_count: number; processed: number }> {
+  const { reset_count } = await resetLeadPrep(leadId);
+  const { processed } = await triggerLeadPrep();
+  return { reset_count, processed };
+}
+
