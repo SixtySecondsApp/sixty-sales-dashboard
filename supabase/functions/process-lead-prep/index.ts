@@ -205,10 +205,28 @@ serve(async (req) => {
   }
 
   try {
+    let requestPayload: Record<string, unknown> | null = null;
+    try {
+      requestPayload = await req.json();
+    } catch {
+      requestPayload = null;
+    }
+
+    const requestedLeadIdsRaw =
+      Array.isArray(requestPayload?.lead_ids)
+        ? requestPayload?.lead_ids
+        : typeof requestPayload?.lead_id === "string"
+          ? [requestPayload.lead_id]
+          : null;
+
+    const requestedLeadIds = requestedLeadIdsRaw
+      ? Array.from(new Set(requestedLeadIdsRaw.filter((id): id is string => typeof id === "string" && id.trim().length > 0)))
+      : null;
+
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // Fetch leads that need prep
-    const { data: leads, error } = await supabase
+    // Fetch leads that need prep (optionally scoped to requested IDs)
+    let leadsQuery = supabase
       .from("leads")
       .select(`
         id,
@@ -239,9 +257,19 @@ serve(async (req) => {
         contact_id,
         source_id
       `)
-      .in("prep_status", ["pending", "failed"])
-      .order("created_at", { ascending: true })
-      .limit(BATCH_LIMIT);
+      .order("created_at", { ascending: true });
+
+    if (requestedLeadIds?.length) {
+      leadsQuery = leadsQuery
+        .in("id", requestedLeadIds)
+        .limit(Math.max(requestedLeadIds.length, 1));
+    } else {
+      leadsQuery = leadsQuery
+        .in("prep_status", ["pending", "failed"])
+        .limit(BATCH_LIMIT);
+    }
+
+    const { data: leads, error } = await leadsQuery;
 
     if (error) {
       console.error("[process-lead-prep] Query error:", error);
@@ -249,11 +277,14 @@ serve(async (req) => {
     }
 
     if (!leads || leads.length === 0) {
+      const emptyMessage = requestedLeadIds?.length
+        ? "Requested leads not available for prep"
+        : "No leads requiring prep";
       return new Response(
         JSON.stringify({ 
           success: true, 
           processed: 0, 
-          message: "No leads requiring prep"
+          message: emptyMessage
         }),
         {
           status: 200,
@@ -901,9 +932,48 @@ function removeVerboseIntro(text: string): string {
   return cleaned;
 }
 
+// Helper function to remove JSON artifacts from text (key names, quotes, braces)
+function removeJSONArtifacts(text: string): string {
+  if (!text) return text;
+  
+  let cleaned = text;
+  
+  // Remove JSON key patterns like "key_name": or "key_name":
+  cleaned = cleaned.replace(/"([a-z_]+)":\s*/gi, '');
+  
+  // Remove opening braces at the start
+  cleaned = cleaned.replace(/^\s*\{\s*/, '');
+  
+  // Remove closing braces at the end
+  cleaned = cleaned.replace(/\s*\}\s*$/, '');
+  
+  // Remove escaped quotes that might be left over
+  cleaned = cleaned.replace(/\\"/g, '"');
+  
+  // Remove leading/trailing quotes if they wrap the entire text
+  cleaned = cleaned.replace(/^"\s*(.+?)\s*"$/s, '$1');
+  
+  // Clean up any remaining JSON structure artifacts
+  cleaned = cleaned.replace(/\s*,\s*$/, ''); // Remove trailing commas
+  cleaned = cleaned.replace(/^\s*:\s*/, ''); // Remove leading colons
+  
+  return cleaned.trim();
+}
+
 // Helper function to try parsing JSON first, then fall back to text parsing
 function tryParseJSON<T>(text: string, fallbackParser: (text: string) => T | undefined): T | undefined {
   if (!text) return undefined;
+  
+  // Try to extract JSON from markdown code blocks first
+  const codeBlockMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (codeBlockMatch) {
+    try {
+      const parsed = JSON.parse(codeBlockMatch[1]);
+      return parsed as T;
+    } catch (e) {
+      console.warn("[process-lead-prep] Failed to parse JSON from code block, trying other methods:", e);
+    }
+  }
   
   // Try to extract JSON from the response
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -928,7 +998,17 @@ function parseProspectInfoFromText(text: string): ProspectInfo | undefined {
   // Try JSON parsing first
   const jsonResult = tryParseJSON<ProspectInfo>(text, () => undefined);
   if (jsonResult) {
-    return jsonResult;
+    // Clean string values in the parsed JSON
+    return {
+      background: jsonResult.background ? removeJSONArtifacts(jsonResult.background) : undefined,
+      role_and_responsibilities: jsonResult.role_and_responsibilities ? removeJSONArtifacts(jsonResult.role_and_responsibilities) : undefined,
+      pain_points: jsonResult.pain_points?.map(p => removeJSONArtifacts(p)),
+      decision_making_authority: jsonResult.decision_making_authority ? removeJSONArtifacts(jsonResult.decision_making_authority) : undefined,
+      communication_preferences: jsonResult.communication_preferences ? removeJSONArtifacts(jsonResult.communication_preferences) : undefined,
+      key_concerns: jsonResult.key_concerns?.map(c => removeJSONArtifacts(c)),
+      location: jsonResult.location ? removeJSONArtifacts(jsonResult.location) : undefined,
+      timezone: jsonResult.timezone ? removeJSONArtifacts(jsonResult.timezone) : undefined,
+    };
   }
 
   // Try to extract structured sections
@@ -966,6 +1046,10 @@ function parseProspectInfoFromText(text: string): ProspectInfo | undefined {
   const role = sections.role || sections.responsibilities || sections.position ||
     text.match(/(?:role|position|title)[:\-]?\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ||
     undefined;
+  
+  // Clean extracted values
+  const cleanedBackground = background ? removeJSONArtifacts(background) : undefined;
+  const cleanedRole = role ? removeJSONArtifacts(role) : undefined;
 
   // Extract pain points
   const painPoints = sections["pain points"] || sections.challenges || sections.issues
@@ -986,11 +1070,11 @@ function parseProspectInfoFromText(text: string): ProspectInfo | undefined {
     : undefined;
 
   return {
-    background: background,
-    role_and_responsibilities: role,
-    pain_points: painPoints,
-    decision_making_authority: authority,
-    key_concerns: concerns,
+    background: cleanedBackground,
+    role_and_responsibilities: cleanedRole,
+    pain_points: painPoints?.map(p => removeJSONArtifacts(p)),
+    decision_making_authority: authority ? removeJSONArtifacts(authority) : undefined,
+    key_concerns: concerns?.map(c => removeJSONArtifacts(c)),
   };
 }
 
@@ -1002,7 +1086,14 @@ function parseOfferInfoFromText(text: string): OfferInfo | undefined {
   // Try JSON parsing first
   const jsonResult = tryParseJSON<OfferInfo>(text, () => undefined);
   if (jsonResult) {
-    return jsonResult;
+    // Clean string values in the parsed JSON
+    return {
+      what_they_need: jsonResult.what_they_need ? removeJSONArtifacts(jsonResult.what_they_need) : undefined,
+      their_goals: jsonResult.their_goals?.map(g => removeJSONArtifacts(g)),
+      timeline: jsonResult.timeline ? removeJSONArtifacts(jsonResult.timeline) : undefined,
+      budget_indicator: jsonResult.budget_indicator ? removeJSONArtifacts(jsonResult.budget_indicator) : undefined,
+      decision_criteria: jsonResult.decision_criteria?.map(c => removeJSONArtifacts(c)),
+    };
   }
 
   // Extract bullet points (primary source of information)
@@ -1024,12 +1115,17 @@ function parseOfferInfoFromText(text: string): OfferInfo | undefined {
     ? bulletPoints.slice(3, 8)
     : bulletPoints.slice(0, 5);
 
+  // Clean extracted values
+  const cleanedWhatTheyNeed = whatTheyNeed ? removeJSONArtifacts(whatTheyNeed) : undefined;
+  const cleanedGoals = goals.length > 0 ? goals.map(g => removeJSONArtifacts(g)) : undefined;
+  const cleanedCriteria = bulletPoints.length > 8 ? bulletPoints.slice(8, 11).map(c => removeJSONArtifacts(c)) : undefined;
+  
   return {
-    what_they_need: whatTheyNeed,
-    their_goals: goals.length > 0 ? goals : undefined,
+    what_they_need: cleanedWhatTheyNeed,
+    their_goals: cleanedGoals,
     timeline: undefined,
     budget_indicator: undefined,
-    decision_criteria: bulletPoints.length > 8 ? bulletPoints.slice(8, 11) : undefined,
+    decision_criteria: cleanedCriteria,
   };
 }
 
@@ -1041,7 +1137,14 @@ function parseWhySixtySecondsFromText(text: string): WhySixtySeconds | undefined
   // Try JSON parsing first
   const jsonResult = tryParseJSON<WhySixtySeconds>(text, () => undefined);
   if (jsonResult) {
-    return jsonResult;
+    // Clean string values in the parsed JSON
+    return {
+      fit_assessment: jsonResult.fit_assessment ? removeJSONArtifacts(jsonResult.fit_assessment) : undefined,
+      key_alignment_points: jsonResult.key_alignment_points?.map(a => removeJSONArtifacts(a)),
+      specific_value_propositions: jsonResult.specific_value_propositions?.map(p => removeJSONArtifacts(p)),
+      potential_objections: jsonResult.potential_objections?.map(o => removeJSONArtifacts(o)),
+      competitive_advantages: jsonResult.competitive_advantages?.map(a => removeJSONArtifacts(a)),
+    };
   }
 
   // Extract bullet points (primary source)
@@ -1094,13 +1197,20 @@ function parseWhySixtySecondsFromText(text: string): WhySixtySeconds | undefined
   const advantages = sections.advantages?.length > 0
     ? sections.advantages
     : bulletPoints.slice(8, 10);
-
+  
+  // Clean extracted values
+  const cleanedFitAssessment = fitAssessment ? removeJSONArtifacts(fitAssessment) : undefined;
+  const cleanedAlignmentPoints = alignmentPoints.length > 0 ? alignmentPoints.map(a => removeJSONArtifacts(a)) : undefined;
+  const cleanedValueProps = valueProps.length > 0 ? valueProps.map(p => removeJSONArtifacts(p)) : undefined;
+  const cleanedObjections = objections.length > 0 ? objections.map(o => removeJSONArtifacts(o)) : undefined;
+  const cleanedAdvantages = advantages.length > 0 ? advantages.map(a => removeJSONArtifacts(a)) : undefined;
+  
   return {
-    fit_assessment: fitAssessment,
-    key_alignment_points: alignmentPoints.length > 0 ? alignmentPoints : undefined,
-    specific_value_propositions: valueProps.length > 0 ? valueProps : undefined,
-    potential_objections: objections.length > 0 ? objections : undefined,
-    competitive_advantages: advantages.length > 0 ? advantages : undefined,
+    fit_assessment: cleanedFitAssessment,
+    key_alignment_points: cleanedAlignmentPoints,
+    specific_value_propositions: cleanedValueProps,
+    potential_objections: cleanedObjections,
+    competitive_advantages: cleanedAdvantages,
   };
 }
 
@@ -1415,14 +1525,40 @@ function buildLeadPrepNotes(
     });
   };
 
-  // Helper function to truncate and clean text at word boundaries
+  // Helper function to truncate and clean text at sentence boundaries
+  // We keep a generous threshold so the UI can show full insights while
+  // still preventing runaway responses that would overwhelm the layout.
   const truncateText = (text: string, maxLength: number = 200): string => {
     if (!text) return "";
     const cleaned = text.trim().replace(/\s+/g, " ");
-    if (cleaned.length <= maxLength) return cleaned;
+
+    // Always allow substantial context before truncating so we don't cut
+    // legitimate insights short on the leads page.
+    const MIN_TRUNCATION_THRESHOLD = 1200;
+    const effectiveMax = Math.max(maxLength, MIN_TRUNCATION_THRESHOLD);
+
+    if (cleaned.length <= effectiveMax) return cleaned;
     
-    // Find the last space, period, comma, or newline before maxLength
-    const truncated = cleaned.slice(0, maxLength);
+    // Try to find complete sentences first (ending with . ! ?)
+    const sentenceEndRegex = /[.!?]\s+/g;
+    let lastSentenceEnd = -1;
+    let match;
+    
+    while ((match = sentenceEndRegex.exec(cleaned)) !== null) {
+      if (match.index + match[0].length <= effectiveMax) {
+        lastSentenceEnd = match.index + match[0].length;
+      } else {
+        break;
+      }
+    }
+    
+    // If we found a sentence end that's reasonable (at least 60% of the limit), use it
+    if (lastSentenceEnd > effectiveMax * 0.6) {
+      return cleaned.slice(0, lastSentenceEnd).trim();
+    }
+    
+    // Otherwise, find the last space, period, comma, or newline before the limit
+    const truncated = cleaned.slice(0, effectiveMax);
     const lastSpace = truncated.lastIndexOf(' ');
     const lastPeriod = truncated.lastIndexOf('.');
     const lastComma = truncated.lastIndexOf(',');
@@ -1430,18 +1566,18 @@ function buildLeadPrepNotes(
     
     // Use the best cut point (prefer sentence endings, then word boundaries)
     const cutPoints = [lastPeriod, lastComma, lastNewline, lastSpace].filter(p => p > 0);
-    const bestCutPoint = cutPoints.length > 0 ? Math.max(...cutPoints) : maxLength;
+    const bestCutPoint = cutPoints.length > 0 ? Math.max(...cutPoints) : effectiveMax;
     
-    // Only use the cut point if it's not too close to the start (at least 80% of maxLength)
+    // Only use the cut point if it's not too close to the start (at least 70% of the limit)
     // This ensures we don't cut off too much content
-    const finalCut = bestCutPoint > maxLength * 0.8 ? bestCutPoint : maxLength;
+    const finalCut = bestCutPoint > effectiveMax * 0.7 ? bestCutPoint : effectiveMax;
     
     // Add 1 to include the punctuation if we cut at a period or comma
     const includePunctuation = (lastPeriod > 0 && finalCut === lastPeriod) || 
                                (lastComma > 0 && finalCut === lastComma);
     const cutLength = includePunctuation ? finalCut + 1 : finalCut;
     
-    return cleaned.slice(0, cutLength).trim() + "...";
+    return cleaned.slice(0, cutLength).trim();
   };
 
   // Helper function to extract key points from verbose text
@@ -1451,10 +1587,12 @@ function buildLeadPrepNotes(
     return sentences.slice(0, maxPoints).map(s => s.trim());
   };
 
-  // Helper to clean text - remove verbose intros but preserve intentional bold for key info
+  // Helper to clean text - remove verbose intros, JSON artifacts, but preserve intentional bold for key info
   const cleanFieldText = (text: string | null | undefined): string => {
     if (!text) return '';
     let cleaned = removeVerboseIntro(text);
+    // Remove JSON artifacts (key names, quotes, braces)
+    cleaned = removeJSONArtifacts(cleaned);
     // Preserve markdown - let frontend handle rendering
     // Only clean up truly orphaned markers (at end of string without pair)
     // Don't remove properly paired **text** markers

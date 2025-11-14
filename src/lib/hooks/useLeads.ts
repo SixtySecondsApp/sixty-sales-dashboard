@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchLeads, triggerLeadPrep, type LeadWithPrep } from '@/lib/services/leadService';
+import { fetchLeads, triggerLeadPrep, reprocessLead, type LeadWithPrep } from '@/lib/services/leadService';
 
 const LEADS_QUERY_KEY = ['leads'];
 
@@ -22,6 +22,21 @@ export function useLeadPrepRunner() {
     },
   });
 }
+
+export function useLeadReprocessor() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (leadId: string) => reprocessLead(leadId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: LEADS_QUERY_KEY });
+    },
+  });
+}
+
+
+
+
 
 
 

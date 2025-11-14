@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { LeadList } from '@/components/leads/LeadList';
 import { LeadDetailPanel } from '@/components/leads/LeadDetailPanel';
 import { LeadPrepToolbar } from '@/components/leads/LeadPrepToolbar';
-import { useLeadPrepRunner, useLeads } from '@/lib/hooks/useLeads';
+import { useLeadPrepRunner, useLeads, useLeadReprocessor } from '@/lib/hooks/useLeads';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
 import logger from '@/lib/utils/logger';
@@ -12,8 +12,10 @@ export default function LeadsInbox() {
   const { data: leads = [], isLoading, isFetching, refetch } = useLeads();
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const { mutateAsync: runPrep, isPending } = useLeadPrepRunner();
+  const { mutateAsync: reprocessLead, isPending: isReprocessingLead } = useLeadReprocessor();
   const { userData: user } = useUser();
   const [isUploading, setIsUploading] = useState(false);
+  const [reprocessingLeadId, setReprocessingLeadId] = useState<string | null>(null);
 
   const selectedLead = useMemo(
     () => leads.find((lead) => lead.id === selectedLeadId) ?? leads[0] ?? null,
@@ -26,6 +28,19 @@ export default function LeadsInbox() {
       toast.success(processed ? `Generated prep for ${processed} lead(s)` : 'No leads needed prep');
     } catch (error: any) {
       toast.error(error?.message ?? 'Failed to generate prep');
+    }
+  };
+
+  const handleReprocessLead = async (leadId: string) => {
+    setReprocessingLeadId(leadId);
+    try {
+      await reprocessLead(leadId);
+      toast.success('Lead queued for reprocessing');
+      await refetch();
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Failed to reprocess lead');
+    } finally {
+      setReprocessingLeadId(null);
     }
   };
 
@@ -107,6 +122,9 @@ export default function LeadsInbox() {
               selectedLeadId={selectedLead?.id ?? null}
               onSelect={(id) => setSelectedLeadId(id)}
               isLoading={isLoading}
+              onReprocessLead={handleReprocessLead}
+              reprocessingLeadId={reprocessingLeadId}
+              isReprocessing={isReprocessingLead}
             />
           </div>
           {/* Lead Detail - Full width on mobile, flex-1 on desktop */}

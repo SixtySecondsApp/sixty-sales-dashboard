@@ -45,3 +45,21 @@ export async function refreshLeads(): Promise<void> {
   await triggerLeadPrep();
 }
 
+export async function reprocessLead(leadId: string): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.functions.invoke('reprocess-lead-prep', {
+    method: 'POST',
+    body: { lead_id: leadId },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to reprocess lead');
+  }
+
+  if (!data || (data as { success?: boolean }).success === false) {
+    const message = (data as { error?: string })?.error || 'Failed to reprocess lead';
+    throw new Error(message);
+  }
+
+  return data as Record<string, unknown>;
+}
+

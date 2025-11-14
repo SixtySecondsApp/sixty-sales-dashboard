@@ -2,19 +2,30 @@ import type { LeadWithPrep } from '@/lib/services/leadService';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
-import { useState, useMemo, useEffect } from 'react';
-import { Calendar, Clock, User, Tag, Building2 } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { Calendar, Clock, User, Tag, RotateCw, Loader2, Search } from 'lucide-react';
 
 interface LeadListProps {
   leads: LeadWithPrep[];
   selectedLeadId: string | null;
   onSelect: (leadId: string) => void;
   isLoading?: boolean;
+  onReprocessLead?: (leadId: string) => Promise<void> | void;
+  reprocessingLeadId?: string | null;
+  isReprocessing?: boolean;
 }
 
 type FilterType = 'all' | 'meeting_date' | 'booked_date';
 
-export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadListProps) {
+export function LeadList({
+  leads,
+  selectedLeadId,
+  onSelect,
+  isLoading,
+  onReprocessLead,
+  reprocessingLeadId,
+  isReprocessing,
+}: LeadListProps) {
   console.warn('🔵 [LeadList] Component rendering with', leads.length, 'leads');
   if (leads.length > 0) {
     console.warn('🔵 [LeadList] First lead sample:', {
@@ -27,13 +38,71 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
   }
   
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleToggleSearch = () => {
+    setIsSearchOpen((prev) => {
+      if (prev) {
+        setSearchQuery('');
+      }
+      return !prev;
+    });
+  };
+
+  useEffect(() => {
+    if (!isSearchOpen) return;
+
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isSearchOpen]);
 
   // Sort leads based on filter type
   const sortedLeads = useMemo(() => {
-    const sorted = [...leads];
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    const matchesQuery = (lead: LeadWithPrep) => {
+      if (!normalizedQuery) return true;
+
+      const owner = lead.owner as { first_name: string | null; last_name: string | null; email: string | null } | null;
+      const source = lead.source as { name: string | null; source_key: string | null } | null;
+      const contact = lead.contact as {
+        title: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        email: string | null;
+      } | null;
+
+      const values = [
+        lead.contact_name,
+        lead.contact_email,
+        lead.domain,
+        lead.meeting_title,
+        lead.booking_link_name,
+        lead.utm_source,
+        lead.external_source,
+        source?.name,
+        source?.source_key,
+        owner?.first_name,
+        owner?.last_name,
+        owner?.email,
+        contact?.title,
+        contact?.first_name,
+        contact?.last_name,
+        contact ? `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() : '',
+      ];
+
+      return values.some((value) => typeof value === 'string' && value.toLowerCase().includes(normalizedQuery));
+    };
+
+    const filtered = normalizedQuery ? leads.filter(matchesQuery) : [...leads];
     
     if (filterType === 'meeting_date') {
-      return sorted.sort((a, b) => {
+      return filtered.sort((a, b) => {
         const aDate = a.meeting_start ? new Date(a.meeting_start).getTime() : 0;
         const bDate = b.meeting_start ? new Date(b.meeting_start).getTime() : 0;
         return bDate - aDate; // Most recent first
@@ -41,7 +110,7 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
     }
     
     if (filterType === 'booked_date') {
-      return sorted.sort((a, b) => {
+      return filtered.sort((a, b) => {
         const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
         return bDate - aDate; // Most recent first
@@ -49,12 +118,15 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
     }
     
     // Default: sort by created_at (booked date)
-    return sorted.sort((a, b) => {
+    return filtered.sort((a, b) => {
       const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
       const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
       return bDate - aDate;
     });
-  }, [leads, filterType]);
+  }, [leads, filterType, searchQuery]);
+
+  const trimmedSearchQuery = searchQuery.trim();
+  const showSearchEmptyState = Boolean(trimmedSearchQuery) && sortedLeads.length === 0;
 
   if (isLoading) {
     return (
@@ -75,58 +147,108 @@ export function LeadList({ leads, selectedLeadId, onSelect, isLoading }: LeadLis
   return (
     <div className="flex flex-col h-full">
       {/* Filter Toolbar */}
-      <div className="flex items-center gap-2 px-4 sm:px-5 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Sort by:</span>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setFilterType('all')}
+      <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
+            Sort by:
+            <button
+              type="button"
+              onClick={handleToggleSearch}
+              className={cn(
+                'inline-flex h-6 w-6 items-center justify-center rounded-md border text-gray-500 transition-colors',
+                isSearchOpen
+                  ? 'border-emerald-500 bg-emerald-500 text-white'
+                  : 'border-gray-200 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 dark:text-gray-300'
+              )}
+              aria-label={isSearchOpen ? 'Close lead search' : 'Search leads'}
+              aria-pressed={isSearchOpen}
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setFilterType('all')}
+              className={cn(
+                'px-2 py-1 text-xs font-medium rounded-md transition-colors',
+                filterType === 'all'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              )}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilterType('meeting_date')}
+              className={cn(
+                'px-2 py-1 text-xs font-medium rounded-md transition-colors',
+                filterType === 'meeting_date'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              )}
+            >
+              Meeting Date
+            </button>
+            <button
+              onClick={() => setFilterType('booked_date')}
+              className={cn(
+                'px-2 py-1 text-xs font-medium rounded-md transition-colors',
+                filterType === 'booked_date'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              )}
+            >
+              Booked Date
+            </button>
+          </div>
+        </div>
+        <div className="ml-auto flex items-center">
+          <div
             className={cn(
-              'px-2 py-1 text-xs font-medium rounded-md transition-colors',
-              filterType === 'all'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              'flex h-8 items-center overflow-hidden rounded-md border transition-all duration-300 ease-out',
+              isSearchOpen
+                ? 'w-48 sm:w-60 border-gray-200 bg-white px-2 dark:border-gray-700 dark:bg-gray-900'
+                : 'pointer-events-none w-0 border-transparent px-0 opacity-0'
             )}
           >
-            All
-          </button>
-          <button
-            onClick={() => setFilterType('meeting_date')}
-            className={cn(
-              'px-2 py-1 text-xs font-medium rounded-md transition-colors',
-              filterType === 'meeting_date'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-            )}
-          >
-            Meeting Date
-          </button>
-          <button
-            onClick={() => setFilterType('booked_date')}
-            className={cn(
-              'px-2 py-1 text-xs font-medium rounded-md transition-colors',
-              filterType === 'booked_date'
-                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-            )}
-          >
-            Booked Date
-          </button>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search leads..."
+              className="h-full w-full bg-transparent text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
+            />
+          </div>
         </div>
       </div>
 
       {/* Lead List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800">
-        {sortedLeads.map((lead) => {
-          console.log('[LeadList] Mapping lead:', lead.id, lead.contact_email, lead.domain);
-          return (
-            <LeadListItem
-              key={lead.id}
-              lead={lead}
-              isSelected={selectedLeadId === lead.id}
-              onSelect={() => onSelect(lead.id)}
-            />
-          );
-        })}
+      <div className="flex-1 overflow-y-auto">
+        {showSearchEmptyState ? (
+          <div className="flex h-full items-center justify-center px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            No leads match “{trimmedSearchQuery}”. Try another name, company, or email.
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-200 dark:divide-gray-800">
+            {sortedLeads.map((lead) => {
+              console.log('[LeadList] Mapping lead:', lead.id, lead.contact_email, lead.domain);
+              return (
+                <LeadListItem
+                  key={lead.id}
+                  lead={lead}
+                  isSelected={selectedLeadId === lead.id}
+                  onSelect={() => onSelect(lead.id)}
+                  onReprocessLead={onReprocessLead}
+                  isReprocessingLead={reprocessingLeadId === lead.id}
+                  disableReprocess={
+                    Boolean(isReprocessing) && reprocessingLeadId !== null && reprocessingLeadId !== lead.id
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -136,9 +258,19 @@ interface LeadListItemProps {
   lead: LeadWithPrep;
   isSelected: boolean;
   onSelect: () => void;
+  onReprocessLead?: (leadId: string) => Promise<void> | void;
+  isReprocessingLead?: boolean;
+  disableReprocess?: boolean;
 }
 
-function LeadListItem({ lead, isSelected, onSelect }: LeadListItemProps) {
+function LeadListItem({
+  lead,
+  isSelected,
+  onSelect,
+  onReprocessLead,
+  isReprocessingLead,
+  disableReprocess,
+}: LeadListItemProps) {
   console.warn('🟢 [LeadListItem] Rendering for lead:', lead.id, {
     email: lead.contact_email,
     domain: lead.domain,
@@ -388,11 +520,29 @@ function LeadListItem({ lead, isSelected, onSelect }: LeadListItemProps) {
   const isInProgress = prepStatus === 'in_progress' || enrichStatus === 'in_progress';
   const hasFailed = prepStatus === 'failed' || enrichStatus === 'failed';
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect();
+    }
+  };
+
+  const handleReprocessClick = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (onReprocessLead) {
+      await onReprocessLead(lead.id);
+    }
+  };
+
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={handleKeyDown}
       className={cn(
-        'w-full text-left px-4 sm:px-5 py-6 min-h-[120px] transition-all active:scale-[0.99]',
+        'w-full text-left px-4 sm:px-5 py-6 min-h-[120px] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70',
         'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
         isSelected
           ? 'bg-emerald-100/70 dark:bg-emerald-500/20 border-l-4 border-emerald-500'
@@ -448,7 +598,14 @@ function LeadListItem({ lead, isSelected, onSelect }: LeadListItemProps) {
             </div>
             
             {/* Consolidated Status Badge */}
-            <div className="flex-shrink-0">
+            <div className="flex items-center gap-2">
+              {onReprocessLead && (
+                <ReprocessButton
+                  onClick={handleReprocessClick}
+                  isProcessing={isReprocessingLead}
+                  disabled={Boolean(disableReprocess)}
+                />
+              )}
               <ConsolidatedStatusBadge
                 prepStatus={prepStatus}
                 enrichStatus={enrichStatus}
@@ -492,7 +649,7 @@ function LeadListItem({ lead, isSelected, onSelect }: LeadListItemProps) {
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -561,5 +718,34 @@ function LabelBadge({ icon: Icon, label, variant }: LabelBadgeProps) {
       <Icon className="w-3 h-3" />
       <span className="truncate max-w-[120px]">{label}</span>
     </span>
+  );
+}
+
+interface ReprocessButtonProps {
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  isProcessing?: boolean;
+  disabled?: boolean;
+}
+
+function ReprocessButton({ onClick, isProcessing, disabled }: ReprocessButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || isProcessing}
+      title="Reprocess lead prep"
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+        'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800',
+        (disabled || isProcessing) && 'opacity-60 cursor-not-allowed'
+      )}
+    >
+      {isProcessing ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <RotateCw className="h-3 w-3" />
+      )}
+      <span>Reprocess</span>
+    </button>
   );
 }
