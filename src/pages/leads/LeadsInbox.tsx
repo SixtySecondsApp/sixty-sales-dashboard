@@ -33,8 +33,8 @@ export default function LeadsInbox() {
           onRefresh={() => refetch()}
         />
         <div className="flex flex-1 flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-800 overflow-hidden">
-          {/* Lead List - Full width on mobile, sidebar on desktop */}
-          <div className="w-full lg:w-96 lg:max-w-xl flex-shrink-0 overflow-y-auto h-64 lg:h-auto">
+          {/* Lead List - Full width on mobile, wider sidebar on desktop */}
+          <div className="w-full lg:w-[32rem] lg:max-w-[32rem] flex-shrink-0 overflow-y-auto h-64 lg:h-auto">
             <LeadList
               leads={leads}
               selectedLeadId={selectedLead?.id ?? null}

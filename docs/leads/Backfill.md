@@ -51,6 +51,58 @@ npx tsx scripts/backfillSavvyCalLeads.ts --file ./fixtures/savvycal-events.json
 
 The JSON can either be an array of webhook payloads or an object with a `data` array. Payloads must match SavvyCal’s webhook schema.
 
+### Quick sanity check: fetch the last 3 days
+
+To simply inspect recent bookings (without invoking the webhook pipeline), run:
+
+```bash
+export SAVVYCAL_SECRET_KEY="pt_secret_xxx" # or SAVVYCAL_API_TOKEN
+
+npx tsx scripts/fetchRecentSavvyCalBookings.ts \
+  --days 3 \
+  --output tmp/recent-bookings.json
+```
+
+Flags:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--days` | Rolling window size (defaults to 3). |
+| `--since` / `--until` | Override the ISO timestamps manually. |
+| `--scope` | Only return bookings for a SavvyCal scope slug. |
+| `--limit` | Cap the number of events returned (paginates automatically). |
+| `--state` | SavvyCal state filter (`all`, `confirmed`, etc.). Defaults to `all`. |
+| `--period` | Time filter (`past`, `upcoming`, `all`). Defaults to `all`. |
+| `--output` | Persist the retrieved payloads to disk for diffing. |
+| `--json` | Print the raw JSON response to stdout. |
+
+This script authenticates with the same `.env` secrets and prints a console table plus an optional JSON artifact for quick audits.
+
+### Export a custom range (new script)
+
+For longer windows (e.g. last 6 months), use the dedicated exporter which chunks the range and handles pagination automatically:
+
+```bash
+export SAVVYCAL_SECRET_KEY="pt_secret_xxx"
+
+npx tsx scripts/exportSavvyCalMeetings.ts \
+  --start 2025-01-01T00:00:00Z \
+  --end   2025-11-14T23:59:59Z \
+  --state all \
+  --period all \
+  --output tmp/savvycal-2025-ytd.json
+```
+
+Useful flags:
+
+| Flag | Description |
+| ---- | ----------- |
+| `--chunk-days` | Window size per API call (default 30). |
+| `--page-size`  | SavvyCal page size per request (max 100). |
+| `--scope`      | Limit to a specific SavvyCal scope slug. |
+| `--json`       | Print the full JSON payload to stdout. |
+| `--verbose`    | Log every API request for debugging. |
+
 ### 3. Verify Results
 
 Run these SQL checks (via Supabase SQL editor or `psql`):
@@ -92,6 +144,7 @@ Alternatively, trigger prep from the Leads inbox UI (`Generate Prep` button).
 1. Schedule the script (or translate it to a background job) if ongoing backfills are required.
 2. Review the leads in `/leads` and ensure owners are correctly assigned.
 3. Monitor analytics once events are in place (see `lead_source_summary` view).
+
 
 
 

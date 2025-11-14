@@ -14,7 +14,9 @@ export async function fetchLeads(): Promise<LeadWithPrep[]> {
     .select(`
       *,
       lead_prep_notes(*),
-      owner:profiles!leads_owner_id_fkey(id, first_name, last_name, email)
+      owner:profiles!leads_owner_id_fkey(id, first_name, last_name, email),
+      source:lead_sources!leads_source_id_fkey(id, name, source_key),
+      contact:contacts!leads_contact_id_fkey(id, title, first_name, last_name, email)
     `)
     .order('created_at', { ascending: false });
 

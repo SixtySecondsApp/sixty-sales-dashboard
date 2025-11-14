@@ -201,11 +201,26 @@ async function verifySignature(headers: Headers, rawBody: string): Promise<void>
 
 function parseSignature(signatureHeader: string): string {
   const trimmed = signatureHeader.trim();
-  if (trimmed.includes("=")) {
-    const [, signature] = trimmed.split("=", 2);
-    return signature;
+
+  // SavvyCal sends headers like "sha256=ABCDEF" (uppercase hex)
+  // Normalize casing and support comma-delimited formats just in case.
+  const parts = trimmed.split(",").map((part) => part.trim());
+
+  for (const part of parts) {
+    if (part.includes("=")) {
+      const [key, value] = part.split("=", 2);
+      if (key.toLowerCase() === "sha256") {
+        return value.toLowerCase();
+      }
+      if (!key && value) {
+        return value.toLowerCase();
+      }
+    } else if (part) {
+      return part.toLowerCase();
+    }
   }
-  return trimmed;
+
+  return trimmed.toLowerCase();
 }
 
 async function generateSignature(payload: string): Promise<string> {
@@ -260,6 +275,9 @@ async function processSavvyCalEvent(
   const externalEventId = event.id;
   const meetingId = event.payload.id;
 
+  // Check if this is a cancellation event
+  const isCancellation = isCancelledEvent(event);
+
   // Skip duplicate webhook deliveries
   const { data: existingEvent, error: selectEventError } = await supabase
     .from("lead_events")
@@ -273,12 +291,49 @@ async function processSavvyCalEvent(
   }
 
   if (existingEvent) {
+    // If this is a cancellation event and we have a lead_id, update the lead status
+    if (isCancellation && existingEvent.lead_id) {
+      await updateLeadCancellationStatus(supabase, existingEvent.lead_id, event);
+    }
     return {
       success: true,
       external_event_id: externalEventId,
       lead_id: existingEvent.lead_id ?? null,
       reason: "duplicate",
     };
+  }
+
+  // Handle cancellation events for existing leads
+  if (isCancellation) {
+    const { data: existingLead } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("external_source", "savvycal")
+      .eq("external_id", meetingId)
+      .maybeSingle();
+
+    if (existingLead) {
+      await updateLeadCancellationStatus(supabase, existingLead.id, event);
+      
+      // Still log the event
+      await supabase.from("lead_events").insert({
+        lead_id: existingLead.id,
+        external_source: "savvycal",
+        external_id: externalEventId,
+        event_type: event.type,
+        payload: event.payload,
+        payload_hash: await hashPayload(event.payload),
+        external_occured_at: event.occurred_at ?? null,
+        received_at: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        external_event_id: externalEventId,
+        lead_id: existingLead.id,
+        reason: "cancellation_processed",
+      };
+    }
   }
 
   const organizer = getOrganizer(event.payload);
@@ -347,8 +402,8 @@ async function processSavvyCalEvent(
 
   const status = determineLeadStatus(event);
 
-  // Build tags array: "Meeting Booked", source name, owner name
-  const tags: string[] = ["Meeting Booked"];
+  // Build tags array based on status
+  const tags: string[] = status === "cancelled" ? ["Meeting Cancelled"] : ["Meeting Booked"];
   
   // Add source name if available
   if (leadSource?.name) {
@@ -457,25 +512,47 @@ async function processSavvyCalEvent(
     console.error("Failed to insert lead event record", insertEventError);
   }
 
-  // Trigger company enrichment if this is a new company
-  if (isNewCompany && companyId) {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-    const enrichUrl = `${SUPABASE_URL}/functions/v1/enrich-company`;
+  // Skip enrichment and prep for cancelled leads
+  if (status !== "cancelled") {
+    // Trigger company enrichment if this is a new company
+    if (isNewCompany && companyId) {
+      const enrichUrl = `${SUPABASE_URL}/functions/v1/enrich-company`;
+      
+      // Fire and forget - don't wait for enrichment to complete
+      fetch(enrichUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({ company_id: companyId }),
+      }).catch((error) => {
+        console.error("Failed to trigger company enrichment:", error);
+        // Non-blocking - enrichment failure shouldn't fail lead creation
+      });
+      
+      console.log(`✅ Triggered enrichment for new company: ${companyId}`);
+    }
+
+    // Auto-enrich new lead - trigger lead prep generation
+    const prepUrl = `${SUPABASE_URL}/functions/v1/process-lead-prep`;
     
-    // Fire and forget - don't wait for enrichment to complete
-    fetch(enrichUrl, {
+    // Fire and forget - don't wait for prep generation to complete
+    fetch(prepUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       },
-      body: JSON.stringify({ company_id: companyId }),
+      body: JSON.stringify({}),
     }).catch((error) => {
-      console.error("Failed to trigger company enrichment:", error);
-      // Non-blocking - enrichment failure shouldn't fail lead creation
+      console.error("Failed to trigger lead prep generation:", error);
+      // Non-blocking - prep failure shouldn't fail lead creation
     });
     
-    console.log(`✅ Triggered enrichment for new company: ${companyId}`);
+    console.log(`✅ Triggered auto-enrichment for new lead: ${leadData.id}`);
+  } else {
+    console.log(`⏭️  Skipping enrichment for cancelled lead: ${leadData.id}`);
   }
 
   return {
@@ -543,13 +620,45 @@ function resolveLeadSource(payload: SavvyCalEventPayload): LeadSourceDetails {
   const scopeName = payload.scope?.name ?? "";
 
   const normalized = `${privateName} ${publicName} ${scopeName}`.toLowerCase();
+  const utmSource = (payload.metadata?.utm_source as string)?.toLowerCase() ?? "";
+  const utmMedium = (payload.metadata?.utm_medium as string)?.toLowerCase() ?? "";
 
-  if (normalized.includes("linkedin") || normalized.includes("linkedin ads")) {
+  // Check for Facebook Ads (via link name or UTM)
+  if (normalized.includes("facebook") || normalized.includes("facebook ads") || 
+      utmSource.includes("facebook") || utmMedium.includes("facebook")) {
+    return {
+      sourceKey: "facebook_ads",
+      name: "Facebook Ads",
+      channel: "paid_social",
+      medium: "facebook",
+      campaign: payload.metadata?.utm_campaign as string ?? undefined,
+    };
+  }
+
+  if (normalized.includes("linkedin") || normalized.includes("linkedin ads") ||
+      utmSource.includes("linkedin")) {
     return {
       sourceKey: "linkedin_ads",
       name: "LinkedIn Ads",
       channel: "paid_social",
       medium: "linkedin",
+      campaign: payload.metadata?.utm_campaign as string ?? undefined,
+    };
+  }
+
+  // Check for email outreach - check multiple variations
+  if (normalized.includes("email") || 
+      normalized.includes("outreach") || 
+      normalized.includes("mail") ||
+      normalized.includes("email outreach") ||
+      utmMedium.includes("email") ||
+      utmSource.includes("email") ||
+      utmSource.includes("outreach")) {
+    return {
+      sourceKey: "email_outreach",
+      name: "Email Outreach",
+      channel: "email",
+      medium: "email",
       campaign: payload.metadata?.utm_campaign as string ?? undefined,
     };
   }
@@ -721,11 +830,84 @@ async function hashPayload(payload: unknown): Promise<string> {
   return bufferToHex(digest);
 }
 
-function determineLeadStatus(event: SavvyCalWebhookEvent): "new" | "prepping" | "ready" | "converted" | "archived" {
+function determineLeadStatus(event: SavvyCalWebhookEvent): "new" | "prepping" | "ready" | "converted" | "archived" | "cancelled" {
   const state = event.payload.state?.toLowerCase();
   if (state === "cancelled" || state === "canceled") {
-    return "archived";
+    return "cancelled";
   }
   return "new";
+}
+
+/**
+ * Check if an event represents a cancellation
+ */
+function isCancelledEvent(event: SavvyCalWebhookEvent): boolean {
+  // Check event type
+  const eventType = event.type?.toLowerCase() || "";
+  if (eventType.includes("cancel") || eventType.includes("cancelled")) {
+    return true;
+  }
+
+  // Check payload state
+  const state = event.payload.state?.toLowerCase();
+  if (state === "cancelled" || state === "canceled") {
+    return true;
+  }
+
+  // Check for canceled_at timestamp
+  if (event.payload.canceled_at) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Update lead status to cancelled and add cancellation metadata
+ */
+async function updateLeadCancellationStatus(
+  supabase: SupabaseClient,
+  leadId: string,
+  event: SavvyCalWebhookEvent,
+): Promise<void> {
+  const cancellationTimestamp = event.payload.canceled_at || event.occurred_at || new Date().toISOString();
+  
+  // Get current tags and update them
+  const { data: currentLead } = await supabase
+    .from("leads")
+    .select("tags, metadata")
+    .eq("id", leadId)
+    .single();
+
+  const currentTags = (currentLead?.tags as string[]) || [];
+  const updatedTags = currentTags.filter(tag => tag !== "Meeting Booked");
+  if (!updatedTags.includes("Meeting Cancelled")) {
+    updatedTags.push("Meeting Cancelled");
+  }
+
+  const currentMetadata = (currentLead?.metadata as Record<string, unknown>) || {};
+  const updatedMetadata = {
+    ...currentMetadata,
+    cancelled_at: cancellationTimestamp,
+    cancellation_event_id: event.id,
+    cancellation_event_type: event.type,
+  };
+
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      status: "cancelled",
+      tags: updatedTags,
+      metadata: updatedMetadata,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", leadId);
+
+  if (error) {
+    console.error(`Failed to update lead ${leadId} to cancelled status:`, error);
+    throw error;
+  }
+
+  console.log(`✅ Updated lead ${leadId} to cancelled status`);
 }
 

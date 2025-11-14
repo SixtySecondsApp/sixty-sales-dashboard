@@ -1,19 +1,16 @@
-# Plan - Task View UX Improvements
+# Plan - Leads Inbox Presentation Upgrade
 
 ## Objectives
-- Make task pop-ups instantly communicate the task title, owner, and related meeting context.
-- Provide a quick, friendly way to change task status without opening the full edit form.
-- Keep advanced editing flows available on demand while reducing initial cognitive load.
+- Restore rich formatting for auto-generated lead prep notes so headings, bold text, and bullets render elegantly.
+- Prevent content truncation for long narratives or JSON blocks inside lead insights.
+- Keep the new renderer safe by default (no unsafe HTML) while matching the dark/light themes used elsewhere.
 
 ## Tasks
-- [x] Audit the current task detail modal and identify information gaps for meeting context and status updates.
-- [ ] Redesign the modal layout to highlight key summary details and surface meeting links prominently.
-- [ ] Implement quick status update controls and ensure they sync with existing task actions.
-- [ ] Validate the updated experience in kanban view, run lint checks, and document the change.
+- [x] Audit the existing `LeadDetailPanel` note rendering and catalogue markdown patterns coming from `process-lead-prep`.
+- [ ] Implement a structured renderer that supports paragraphs, bold emphasis, bullet lists, and fenced code blocks without using `dangerouslySetInnerHTML`.
+- [ ] Polish the card styling (spacing, typography, badges) and QA in both light/dark themes, then run lint/tests.
 
 ## Milestones
-- **Design Finalized** – Updated layout mock captured in code comments/readme for future reference.
-- **Summary Ready** – Modal shows concise header with title, owner, status, and meeting callouts.
-- **Actions Confirmed** – Status quick-actions work without opening the full edit flow and respect completion logic.
-- **QA Complete** – Basic lint/tests executed and UX smoke-tested in the tasks kanban.
-
+- **Parser Ready** – New renderer parses `**Label:**` sections, list bullets, and code fences into semantic React blocks.
+- **Visual Polish** – Lead cards use consistent spacing, typography, and badges matching the rest of the CRM.
+- **QA Complete** – Notes verified with multiple sample payloads; lint/tests run with no regressions.
