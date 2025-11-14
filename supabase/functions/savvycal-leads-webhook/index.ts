@@ -275,10 +275,11 @@ async function processSavvyCalEvent(
   const externalEventId = event.id;
   const meetingId = event.payload.id;
 
-  // Check if this is a cancellation event
+  // Check event type for cancellation or rescheduling
   const isCancellation = isCancelledEvent(event);
+  const isRescheduled = isRescheduledEvent(event);
 
-  // Skip duplicate webhook deliveries
+  // Skip duplicate webhook deliveries (same webhook event ID)
   const { data: existingEvent, error: selectEventError } = await supabase
     .from("lead_events")
     .select("id, lead_id")
@@ -295,6 +296,10 @@ async function processSavvyCalEvent(
     if (isCancellation && existingEvent.lead_id) {
       await updateLeadCancellationStatus(supabase, existingEvent.lead_id, event);
     }
+    // If this is a rescheduled event and we have a lead_id, update the lead with new meeting details
+    if (isRescheduled && existingEvent.lead_id) {
+      await updateLeadRescheduledStatus(supabase, existingEvent.lead_id, event);
+    }
     return {
       success: true,
       external_event_id: externalEventId,
@@ -303,37 +308,61 @@ async function processSavvyCalEvent(
     };
   }
 
+  // Check for existing lead by meeting ID (not webhook event ID)
+  // This handles rescheduled and cancelled events for existing meetings
+  const { data: existingLead } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("external_source", "savvycal")
+    .eq("external_id", meetingId)
+    .maybeSingle();
+
   // Handle cancellation events for existing leads
-  if (isCancellation) {
-    const { data: existingLead } = await supabase
-      .from("leads")
-      .select("id")
-      .eq("external_source", "savvycal")
-      .eq("external_id", meetingId)
-      .maybeSingle();
+  if (isCancellation && existingLead) {
+    await updateLeadCancellationStatus(supabase, existingLead.id, event);
+    
+    // Still log the event
+    await supabase.from("lead_events").insert({
+      lead_id: existingLead.id,
+      external_source: "savvycal",
+      external_id: externalEventId,
+      event_type: event.type,
+      payload: event.payload,
+      payload_hash: await hashPayload(event.payload),
+      external_occured_at: event.occurred_at ?? null,
+      received_at: new Date().toISOString(),
+    });
 
-    if (existingLead) {
-      await updateLeadCancellationStatus(supabase, existingLead.id, event);
-      
-      // Still log the event
-      await supabase.from("lead_events").insert({
-        lead_id: existingLead.id,
-        external_source: "savvycal",
-        external_id: externalEventId,
-        event_type: event.type,
-        payload: event.payload,
-        payload_hash: await hashPayload(event.payload),
-        external_occured_at: event.occurred_at ?? null,
-        received_at: new Date().toISOString(),
-      });
+    return {
+      success: true,
+      external_event_id: externalEventId,
+      lead_id: existingLead.id,
+      reason: "cancellation_processed",
+    };
+  }
 
-      return {
-        success: true,
-        external_event_id: externalEventId,
-        lead_id: existingLead.id,
-        reason: "cancellation_processed",
-      };
-    }
+  // Handle rescheduled events for existing leads
+  if (isRescheduled && existingLead) {
+    await updateLeadRescheduledStatus(supabase, existingLead.id, event);
+    
+    // Still log the event
+    await supabase.from("lead_events").insert({
+      lead_id: existingLead.id,
+      external_source: "savvycal",
+      external_id: externalEventId,
+      event_type: event.type,
+      payload: event.payload,
+      payload_hash: await hashPayload(event.payload),
+      external_occured_at: event.occurred_at ?? null,
+      received_at: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      external_event_id: externalEventId,
+      lead_id: existingLead.id,
+      reason: "rescheduled_processed",
+    };
   }
 
   const organizer = getOrganizer(event.payload);
@@ -842,9 +871,9 @@ function determineLeadStatus(event: SavvyCalWebhookEvent): "new" | "prepping" | 
  * Check if an event represents a cancellation
  */
 function isCancelledEvent(event: SavvyCalWebhookEvent): boolean {
-  // Check event type
+  // Check event type - SavvyCal sends "cancelled" as the event type
   const eventType = event.type?.toLowerCase() || "";
-  if (eventType.includes("cancel") || eventType.includes("cancelled")) {
+  if (eventType === "cancelled" || eventType.includes("cancel") || eventType.includes("cancelled")) {
     return true;
   }
 
@@ -856,6 +885,24 @@ function isCancelledEvent(event: SavvyCalWebhookEvent): boolean {
 
   // Check for canceled_at timestamp
   if (event.payload.canceled_at) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Check if an event represents a rescheduled meeting
+ */
+function isRescheduledEvent(event: SavvyCalWebhookEvent): boolean {
+  // Check event type - SavvyCal sends "event.changed" for rescheduled events
+  const eventType = event.type?.toLowerCase() || "";
+  if (eventType === "event.changed" || eventType.includes("rescheduled") || eventType.includes("changed")) {
+    return true;
+  }
+
+  // Check for rescheduled_at timestamp
+  if (event.payload.rescheduled_at) {
     return true;
   }
 
@@ -909,5 +956,82 @@ async function updateLeadCancellationStatus(
   }
 
   console.log(`✅ Updated lead ${leadId} to cancelled status`);
+}
+
+/**
+ * Update lead with rescheduled meeting details
+ */
+async function updateLeadRescheduledStatus(
+  supabase: SupabaseClient,
+  leadId: string,
+  event: SavvyCalWebhookEvent,
+): Promise<void> {
+  const rescheduledTimestamp = event.payload.rescheduled_at || event.occurred_at || new Date().toISOString();
+  
+  // Get current lead data
+  const { data: currentLead } = await supabase
+    .from("leads")
+    .select("tags, metadata, status, meeting_start, meeting_end")
+    .eq("id", leadId)
+    .single();
+
+  const currentTags = (currentLead?.tags as string[]) || [];
+  const updatedTags = [...currentTags];
+  
+  // Remove "Meeting Cancelled" tag if present (meeting was rescheduled, not cancelled)
+  const filteredTags = updatedTags.filter(tag => tag !== "Meeting Cancelled");
+  
+  // Add "Meeting Rescheduled" tag if not already present
+  if (!filteredTags.includes("Meeting Rescheduled")) {
+    filteredTags.push("Meeting Rescheduled");
+  }
+  
+  // Ensure "Meeting Booked" tag is present
+  if (!filteredTags.includes("Meeting Booked")) {
+    filteredTags.push("Meeting Booked");
+  }
+
+  const currentMetadata = (currentLead?.metadata as Record<string, unknown>) || {};
+  const updatedMetadata = {
+    ...currentMetadata,
+    rescheduled_at: rescheduledTimestamp,
+    rescheduled_event_id: event.id,
+    rescheduled_event_type: event.type,
+    // Track previous meeting time if available
+    previous_meeting_start: currentLead?.meeting_start ?? null,
+    previous_meeting_end: currentLead?.meeting_end ?? null,
+  };
+
+  // Update lead with new meeting details
+  const updateData: Record<string, unknown> = {
+    meeting_start: event.payload.start_at ?? null,
+    meeting_end: event.payload.end_at ?? null,
+    meeting_duration_minutes: event.payload.duration ?? null,
+    meeting_title: event.payload.summary ?? null,
+    meeting_description: event.payload.description ?? null,
+    meeting_url: event.payload.conferencing?.join_url ?? event.payload.location ?? null,
+    conferencing_type: event.payload.conferencing?.type ?? null,
+    conferencing_url: event.payload.conferencing?.join_url ?? null,
+    tags: filteredTags,
+    metadata: updatedMetadata,
+    updated_at: new Date().toISOString(),
+  };
+
+  // If lead was previously cancelled, change status back to "new"
+  if (currentLead?.status === "cancelled") {
+    updateData.status = "new";
+  }
+
+  const { error } = await supabase
+    .from("leads")
+    .update(updateData)
+    .eq("id", leadId);
+
+  if (error) {
+    console.error(`Failed to update lead ${leadId} with rescheduled meeting details:`, error);
+    throw error;
+  }
+
+  console.log(`✅ Updated lead ${leadId} with rescheduled meeting details`);
 }
 
