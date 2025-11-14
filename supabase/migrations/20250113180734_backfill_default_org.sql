@@ -265,3 +265,8 @@ ALTER TABLE google_integrations ALTER COLUMN org_id SET NOT NULL;
 -- Comments
 COMMENT ON TABLE organizations IS 'Default organization created for existing data migration. All existing users are members with owner role.';
 
+
+
+
+
+

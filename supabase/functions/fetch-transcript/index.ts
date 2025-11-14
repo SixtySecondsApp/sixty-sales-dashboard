@@ -17,23 +17,39 @@ async function fetchTranscriptFromFathom(
   try {
     console.log(`📄 Fetching transcript for recording ${recordingId}...`)
 
-    const response = await fetch(
-      `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`,
-      {
+    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
+    
+    // Try X-Api-Key first (preferred for Fathom API)
+    let response = await fetch(url, {
+      headers: {
+        'X-Api-Key': accessToken,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    console.log(`🔍 Transcript fetch response status (X-Api-Key): ${response.status}`)
+
+    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
+    if (response.status === 401) {
+      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
+      response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-      }
-    )
+      })
+      console.log(`🔍 Transcript fetch response status (Bearer): ${response.status}`)
+    }
+
+    if (response.status === 404) {
+      console.log('ℹ️  Transcript not yet available (still processing)')
+      return null
+    }
 
     if (!response.ok) {
-      console.error(`❌ Transcript fetch failed: HTTP ${response.status}`)
-      if (response.status === 404) {
-        console.log('ℹ️  Transcript not yet available (still processing)')
-        return null
-      }
-      throw new Error(`Failed to fetch transcript: ${response.status}`)
+      const errorText = await response.text()
+      console.error(`❌ Transcript fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
+      throw new Error(`Failed to fetch transcript: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
     }
 
     const data: FathomTranscriptResponse = await response.json()
@@ -220,6 +236,7 @@ serve(async (req) => {
       .from('fathom_integrations')
       .select('access_token')
       .eq('user_id', userId)
+      .eq('is_active', true)
       .single()
 
     if (integrationError || !fathomIntegration) {

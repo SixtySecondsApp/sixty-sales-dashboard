@@ -52,3 +52,4 @@ WHERE table_name = 'savvycal_source_mappings'
   AND column_name IN ('meeting_link', 'private_link')
 ORDER BY column_name;
 
+

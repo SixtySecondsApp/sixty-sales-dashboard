@@ -1067,6 +1067,7 @@ async function autoFetchTranscriptAndAnalyze(
 
       for (const item of uniqueAIActionItems) {
         // Align column names with UI and triggers (auto task creation expects assignee_email, deadline_at)
+        // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
         await supabase
           .from('meeting_action_items')
           .insert({
@@ -1082,6 +1083,8 @@ async function autoFetchTranscriptAndAnalyze(
             ai_confidence: item.confidence,
             needs_review: item.confidence < 0.8, // Low confidence items need review
             completed: false,
+            synced_to_task: false, // Explicitly prevent automatic task creation
+            task_id: null, // No task created yet - manual creation only
             timestamp_seconds: null,
             playback_url: null,
           })
@@ -1101,29 +1104,47 @@ async function autoFetchTranscriptAndAnalyze(
 
 /**
  * Fetch transcript from Fathom API
+ * Uses dual authentication: X-Api-Key first, then Bearer fallback
  */
 async function fetchTranscriptFromFathom(
   accessToken: string,
   recordingId: string
 ): Promise<string | null> {
   try {
-    const response = await fetch(
-      `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`,
-      {
+    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
+    
+    // Try X-Api-Key first (preferred for Fathom API)
+    let response = await fetch(url, {
+      headers: {
+        'X-Api-Key': accessToken,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    console.log(`🔍 Transcript fetch response status (X-Api-Key): ${response.status}`)
+
+    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
+    if (response.status === 401) {
+      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
+      response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-      }
-    )
+      })
+      console.log(`🔍 Transcript fetch response status (Bearer): ${response.status}`)
+    }
 
     if (response.status === 404) {
       // Transcript not yet available - Fathom still processing
+      console.log(`ℹ️  Transcript not yet available for recording ${recordingId} (404)`)
       return null
     }
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      const errorText = await response.text()
+      console.error(`❌ Transcript fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
+      throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
     }
 
     const data = await response.json()
@@ -1170,34 +1191,52 @@ async function fetchTranscriptFromFathom(
 
 /**
  * Fetch enhanced summary from Fathom API
+ * Uses dual authentication: X-Api-Key first, then Bearer fallback
  */
 async function fetchSummaryFromFathom(
   accessToken: string,
   recordingId: string
 ): Promise<any | null> {
   try {
-    const response = await fetch(
-      `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`,
-      {
+    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`
+    
+    // Try X-Api-Key first (preferred for Fathom API)
+    let response = await fetch(url, {
+      headers: {
+        'X-Api-Key': accessToken,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    console.log(`🔍 Summary fetch response status (X-Api-Key): ${response.status}`)
+
+    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
+    if (response.status === 401) {
+      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
+      response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-      }
-    )
+      })
+      console.log(`🔍 Summary fetch response status (Bearer): ${response.status}`)
+    }
 
     if (response.status === 404) {
       // Summary not yet available
+      console.log(`ℹ️  Summary not yet available for recording ${recordingId} (404)`)
       return null
     }
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+      const errorText = await response.text()
+      console.error(`❌ Summary fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
+      throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
     }
 
     return await response.json()
   } catch (error) {
-    console.error(`❌ Error fetching summary: ${error.message}`)
+    console.error(`❌ Error fetching summary: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return null
   }
 }
@@ -1366,6 +1405,18 @@ async function syncSingleCall(
       // Fire-and-forget - don't block sync on AI summarization
       condenseMeetingSummary(supabase, meeting.id, summaryText, call.title || 'Meeting')
         .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
+    }
+
+    // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
+    // Webhook syncs don't go through fetchFathomCalls, so we need to refresh here
+    try {
+      const refreshedToken = await refreshAccessToken(supabase, integration)
+      // Update integration object with refreshed token for subsequent API calls
+      integration.access_token = refreshedToken
+      console.log(`✅ Token refreshed for transcript/summary fetch`)
+    } catch (error) {
+      console.error(`⚠️  Token refresh failed (will attempt with existing token): ${error instanceof Error ? error.message : 'Unknown error'}`)
+      // Continue with existing token - it might still work
     }
 
     // AUTO-FETCH TRANSCRIPT AND SUMMARY
@@ -1722,6 +1773,7 @@ async function syncSingleCall(
         }
 
         // Insert new action item
+        // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
         const { error: actionItemError } = await supabase
           .from('meeting_action_items')
           .insert({
@@ -1732,6 +1784,8 @@ async function syncSingleCall(
             priority: actionItem.priority || 'medium',
             ai_generated: !userGenerated, // Inverted: user_generated=false means AI generated
             completed: completed,
+            synced_to_task: false, // Explicitly prevent automatic task creation
+            task_id: null, // No task created yet - manual creation only
             playback_url: playbackUrl,
           })
 

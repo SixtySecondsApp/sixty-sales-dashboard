@@ -20,13 +20,15 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Company, CompanyDeal, CompanyActivity, CompanyClient } from '@/lib/hooks/useCompany';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
+import type { Company, Deal } from '@/lib/database/models';
 
 interface CompanyHeaderProps {
   company: Company;
-  deals: CompanyDeal[];
-  activities: CompanyActivity[];
-  clients: CompanyClient[];
+  deals: Deal[];
+  activities: any[];
+  clients: any[];
+  graph?: ContactCompanyGraph;
 }
 
 export function CompanyHeader({ company, deals, activities, clients }: CompanyHeaderProps) {

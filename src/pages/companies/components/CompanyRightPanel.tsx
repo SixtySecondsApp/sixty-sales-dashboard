@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Company, CompanyDeal, CompanyActivity } from '@/lib/hooks/useCompany';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
+import type { Company, Deal } from '@/lib/database/models';
 import { useNextActions } from '@/lib/hooks/useNextActions';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { CompanyDealHealthWidget } from '@/components/CompanyDealHealthWidget';
@@ -31,8 +32,9 @@ import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 
 interface CompanyRightPanelProps {
   company: Company;
-  deals: CompanyDeal[];
-  activities: CompanyActivity[];
+  deals: Deal[];
+  activities: any[];
+  graph?: ContactCompanyGraph;
 }
 
 export function CompanyRightPanel({ company, deals, activities }: CompanyRightPanelProps) {

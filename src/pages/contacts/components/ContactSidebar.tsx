@@ -1,62 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { User, Users, Mail, Phone, Building2, TrendingUp, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
-import logger from '@/lib/utils/logger';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 
 interface ContactSidebarProps {
   contact: Contact;
+  graph?: ContactCompanyGraph;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
-  const [leadOwner, setLeadOwner] = useState<any>(null);
-  const [activitySummary, setActivitySummary] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!contact.id) return;
-      
-      try {
-        setLoading(true);
-        
-        // Fetch real data in parallel
-        const [ownerData, statsData] = await Promise.all([
-          ApiContactService.getContactOwner(contact.id),
-          ApiContactService.getContactStats(contact.id)
-        ]);
-        
-        setLeadOwner(ownerData);
-        setActivitySummary(statsData);
-      } catch (error) {
-        logger.error('Error fetching sidebar data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [contact.id]);
-
-  // Fallback data while loading or if no data
-  const defaultOwner = {
-    name: 'Unassigned',
-    title: 'No Sales Rep',
-    email: 'Not assigned',
+export function ContactSidebar({ contact, graph }: ContactSidebarProps) {
+  // Use graph data for insights
+  const insights = graph?.insights;
+  const activities = graph?.activities || [];
+  const meetings = graph?.meetings || [];
+  const deals = graph?.deals || [];
+  
+  // Compute stats from graph data
+  const stats = {
+    meetings: meetings.length,
+    emails: activities.filter(a => a.type === 'outbound' && a.details?.toLowerCase().includes('email')).length,
+    calls: activities.filter(a => a.type === 'outbound' && a.details?.toLowerCase().includes('call')).length,
+    totalDeals: deals.length,
+    engagementScore: insights?.daysSinceLastTouch !== undefined
+      ? Math.max(0, 100 - (insights.daysSinceLastTouch * 2)) // Simple engagement score
+      : 0
+  };
+  
+  const ownerInfo = {
+    name: contact.owner_id ? 'Assigned' : 'Unassigned',
+    title: 'Sales Rep',
+    email: contact.email,
     assigned_date: contact.created_at
   };
-
-  const defaultStats = {
-    meetings: 0,
-    emails: 0,
-    calls: 0,
-    totalDeals: 0,
-    engagementScore: 0
-  };
-
-  const ownerInfo = leadOwner || defaultOwner;
-  const stats = activitySummary || defaultStats;
 
   const getInitials = (name: string) => {
     if (!name) return 'NA';
@@ -113,8 +89,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <div>
               <p className="theme-text-tertiary text-xs">Last Contact</p>
               <p className="theme-text-primary">
-                {stats.recentActivities?.length > 0
-                  ? formatDate(stats.recentActivities[0].created_at)
+                {insights?.lastActivityDate
+                  ? formatDate(insights.lastActivityDate)
                   : 'No activity'
                 }
               </p>
@@ -214,11 +190,16 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             <div className="w-2 h-2 bg-current rounded-full"></div>
             <span className="text-current text-sm font-medium">Engagement Score</span>
           </div>
-          <div className="text-2xl font-bold text-white dark:text-white">{stats.engagementScore}%</div>
+          <div className="text-2xl font-bold text-white dark:text-white">{Math.round(stats.engagementScore)}%</div>
           <div className="text-xs theme-text-tertiary">
             {stats.engagementScore >= 80 ? 'Highly engaged' :
              stats.engagementScore >= 50 ? 'Moderately engaged' :
              'Low engagement'}
+            {insights?.daysSinceLastTouch !== undefined && insights.daysSinceLastTouch > 0 && (
+              <span className="block mt-1">
+                {insights.daysSinceLastTouch} day{insights.daysSinceLastTouch !== 1 ? 's' : ''} since last touch
+              </span>
+            )}
           </div>
         </div>
       </div>

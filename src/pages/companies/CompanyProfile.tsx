@@ -12,7 +12,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCompany } from '@/lib/hooks/useCompany';
+import { useContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import { CompanyHeader } from './components/CompanyHeader';
 import { CompanyTabs } from './components/CompanyTabs';
 import { CompanySidebar } from './components/CompanySidebar';
@@ -27,20 +27,26 @@ interface CompanyProfileProps {
 export default function CompanyProfile({ className }: CompanyProfileProps) {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
-  const { company, deals, activities, clients, isLoading, error } = useCompany(companyId);
+  
+  // Use the graph hook instead of useCompany
+  const { graph, isLoading, error } = useContactCompanyGraph('company', companyId);
+  
+  const company = graph?.company;
+  const deals = graph?.deals || [];
+  const activities = graph?.activities || [];
+  const clients: any[] = []; // Clients not in graph yet, can be added later
   
   // Debug: Log company profile state changes
   React.useEffect(() => {
     logger.log('📋 CompanyProfile render:', {
       companyId,
       companyName: company?.name,
-      companyStatus: company?.status,
       isLoading,
       error,
       dealsCount: deals?.length,
-      clientsCount: clients?.length
+      activitiesCount: activities?.length
     });
-  }, [companyId, company?.name, company?.status, isLoading, error, deals?.length, clients?.length]);
+  }, [companyId, company?.name, isLoading, error, deals?.length, activities?.length]);
   
   const [activeTab, setActiveTab] = useState<'overview' | 'deals' | 'contacts' | 'activities' | 'documents'>('overview');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -106,6 +112,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
             deals={deals}
             activities={activities}
             clients={clients}
+            graph={graph}
           />
         </div>
       </div>
@@ -119,6 +126,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
             company={company}
             deals={deals}
             activities={activities}
+            graph={graph}
           />
         </div>
       </div>
@@ -132,6 +140,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
               company={company}
               collapsed={sidebarCollapsed}
               onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+              graph={graph}
             />
           </div>
 
@@ -143,6 +152,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
               deals={deals}
               activities={activities}
               clients={clients}
+              graph={graph}
             />
           </div>
 
@@ -152,6 +162,7 @@ export default function CompanyProfile({ className }: CompanyProfileProps) {
               company={company}
               deals={deals}
               activities={activities}
+              graph={graph}
             />
           </div>
         </div>

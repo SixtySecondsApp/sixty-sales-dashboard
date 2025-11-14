@@ -8,14 +8,17 @@ Changed action item task creation from **automatic** to **manual** user control,
 ## ✅ Changes Implemented
 
 ### 1. **Disabled Automatic Task Creation Trigger**
-**File:** `supabase/migrations/20251031000001_disable_automatic_action_item_task_sync.sql`
+**Files:** 
+- `supabase/migrations/20251031000001_disable_automatic_action_item_task_sync.sql` (initial disable)
+- `supabase/migrations/20250115000000_final_disable_auto_task_creation.sql` (final enforcement)
 
 - Removed PostgreSQL trigger that automatically created tasks
-- Preserved the `auto_create_task_from_action_item()` function for manual use
+- Preserved the `auto_create_task_from_action_item()` and `auto_create_task_from_action_item_v2()` functions for manual use only
 - Tasks are now only created when users explicitly click "Create Task" button
+- Database defaults enforce `synced_to_task=false` and `task_id=NULL` on all new action items
+- All edge functions explicitly set these values to prevent any automatic task creation
 
-**To Apply Manually:**
-Run `MANUAL_DISABLE_AUTO_TASK_SYNC.sql` in Supabase SQL Editor
+**Migration Status:** ✅ Applied via `20250115000000_final_disable_auto_task_creation.sql`
 
 ### 2. **Created Manual Task Creation Edge Function**
 **File:** `supabase/functions/create-task-from-action-item/index.ts`
@@ -77,6 +80,27 @@ interface ActionItem {
 4. **Jump to Timestamp Button** *(existing, improved)*
    - Now flex-1 width for better layout
    - Plays meeting at specific moment
+
+### 4. **Workflow Webhook Stores Action Items Only**
+**File:** `supabase/functions/workflow-webhook/index.ts`
+
+- Removed the Fathom webhook logic that inserted directly into `tasks`
+- Every webhook payload now only inserts rows into `meeting_action_items`
+- **Explicitly sets `synced_to_task=false` and `task_id=null`** on all inserts
+- `task_id` stays `null` until a rep promotes the item via the UI / `create-task-from-action-item`
+- Guarantees that no Fathom payload can bypass manual review
+
+### 5. **Edge Function Hardening (January 2025)**
+**Files Updated:**
+- `supabase/functions/fathom-sync/index.ts` - Two action item insert locations
+- `supabase/functions/extract-action-items/index.ts` - Action item extraction
+- `supabase/functions/workflow-webhook/index.ts` - Webhook processing
+- `supabase/functions/reprocess-meetings-ai/index.ts` - Already had correct defaults
+
+**Changes:**
+- All edge functions now **explicitly set `synced_to_task: false` and `task_id: null`** when inserting action items
+- Prevents any possibility of automatic task creation even if database defaults change
+- Added clear comments marking these as critical for manual-only task creation
 
 ---
 
@@ -249,12 +273,14 @@ WHERE id = <action_item_id>
 
 ## 🚀 Deployment Checklist
 
-- [x] Create migration file
-- [x] Create edge function
-- [x] Update UI component
+- [x] Create migration file (`20251031000001_disable_automatic_action_item_task_sync.sql`)
+- [x] Create final enforcement migration (`20250115000000_final_disable_auto_task_creation.sql`)
+- [x] Create edge function (`create-task-from-action-item`)
+- [x] Update UI component (`MeetingDetail.tsx`)
+- [x] Harden all edge functions to explicitly set `synced_to_task=false`
 - [x] Deploy edge function ✅
-- [ ] **Run MANUAL_DISABLE_AUTO_TASK_SYNC.sql in Supabase SQL Editor**
-- [ ] Test in production
+- [x] **Apply migration `20250115000000_final_disable_auto_task_creation.sql`** ✅
+- [ ] Test in production (verify no automatic tasks are created)
 
 ---
 
@@ -311,8 +337,12 @@ WHERE task_id IS NOT NULL;
 
 ### Backend
 - `supabase/functions/create-task-from-action-item/index.ts` - Manual task creation
-- `supabase/migrations/20251031000001_disable_automatic_action_item_task_sync.sql` - Remove trigger
-- `MANUAL_DISABLE_AUTO_TASK_SYNC.sql` - Manual migration script
+- `supabase/migrations/20251031000001_disable_automatic_action_item_task_sync.sql` - Initial trigger removal
+- `supabase/migrations/20250115000000_final_disable_auto_task_creation.sql` - Final enforcement migration
+- `supabase/functions/fathom-sync/index.ts` - Fathom sync (hardened with explicit `synced_to_task=false`)
+- `supabase/functions/extract-action-items/index.ts` - Action item extraction (hardened)
+- `supabase/functions/workflow-webhook/index.ts` - Webhook processing (hardened)
+- `supabase/functions/reprocess-meetings-ai/index.ts` - AI reprocessing (already correct)
 
 ### Frontend
 - `src/pages/MeetingDetail.tsx` - UI implementation
@@ -321,9 +351,13 @@ WHERE task_id IS NOT NULL;
 
 ### Database
 - `meeting_action_items` table - Stores action items
+  - Default: `synced_to_task=false`, `task_id=NULL`
+  - Columns explicitly set by all edge functions
 - `tasks` table - Stores tasks
-- Trigger `trigger_auto_create_task_from_action_item` - **REMOVED**
-- Function `auto_create_task_from_action_item()` - Preserved but unused
+- Trigger `trigger_auto_create_task_from_action_item` - **REMOVED** (verified dropped)
+- Trigger `trigger_auto_create_task_from_action_item` (v2 variant) - **REMOVED** (verified dropped)
+- Function `auto_create_task_from_action_item()` - Preserved for manual use only (not triggered)
+- Function `auto_create_task_from_action_item_v2()` - Preserved for manual use only (not triggered)
 
 ---
 

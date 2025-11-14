@@ -77,3 +77,8 @@ COMMENT ON COLUMN leads.org_id IS 'Organization (tenant) that owns this lead';
 COMMENT ON COLUMN meetings.org_id IS 'Organization (tenant) that owns this meeting';
 COMMENT ON COLUMN calendar_events.org_id IS 'Organization (tenant) that owns this calendar event';
 
+
+
+
+
+

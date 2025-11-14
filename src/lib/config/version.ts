@@ -50,7 +50,10 @@ export function clearCacheAndReload(): void {
   }
   
   // Force reload from server (bypass cache)
-  window.location.reload(true);
+  // Use replace to avoid adding to history, and add cache-busting parameter
+  const url = new URL(window.location.href);
+  url.searchParams.set('_cacheBust', Date.now().toString());
+  window.location.replace(url.toString());
 }
 
 // Get version info

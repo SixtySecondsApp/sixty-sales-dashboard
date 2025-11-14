@@ -18,12 +18,14 @@ import {
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { Company } from '@/lib/hooks/useCompany';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
+import type { Company } from '@/lib/database/models';
 
 interface CompanySidebarProps {
   company: Company;
   collapsed: boolean;
   onToggle: () => void;
+  graph?: ContactCompanyGraph;
 }
 
 export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarProps) {

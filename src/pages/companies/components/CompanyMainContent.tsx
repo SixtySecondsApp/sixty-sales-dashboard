@@ -23,14 +23,17 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Company, CompanyDeal, CompanyActivity, CompanyClient } from '@/lib/hooks/useCompany';
+import { TimelineView } from '@/components/CRM/TimelineView';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
+import type { Company, Deal } from '@/lib/database/models';
 
 interface CompanyMainContentProps {
   activeTab: 'overview' | 'deals' | 'contacts' | 'activities' | 'documents';
   company: Company;
-  deals: CompanyDeal[];
-  activities: CompanyActivity[];
-  clients: CompanyClient[];
+  deals: Deal[];
+  activities: any[];
+  clients: any[];
+  graph?: ContactCompanyGraph;
 }
 
 export function CompanyMainContent({ 
@@ -38,7 +41,8 @@ export function CompanyMainContent({
   company, 
   deals, 
   activities, 
-  clients 
+  clients,
+  graph
 }: CompanyMainContentProps) {
   const navigate = useNavigate();
   const formatCurrency = (value: number) => {
@@ -232,7 +236,8 @@ export function CompanyMainContent({
           {deals.length > 0 ? (
             <div className="space-y-4">
               {deals.map((deal) => {
-                const StatusIcon = getDealStatusIcon(deal.status);
+                const stageName = (deal.deal_stages as any)?.name || 'Unknown Stage';
+                const StatusIcon = getDealStatusIcon(deal.status as any);
                 return (
                   <div
                     key={deal.id}
@@ -245,13 +250,13 @@ export function CompanyMainContent({
                           <h4 className="text-lg font-medium theme-text-primary mb-1 group-hover:text-blue-400 transition-colors">{deal.name}</h4>
                           <ExternalLink className="w-4 h-4 text-gray-500 dark:text-gray-500 group-hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100" />
                         </div>
-                        <p className="text-sm theme-text-tertiary">Stage: {deal.stage}</p>
+                        <p className="text-sm theme-text-tertiary">Stage: {stageName}</p>
                       </div>
                       <div className="text-right">
-                        <div className="text-xl font-bold theme-text-primary mb-1">{formatCurrency(deal.value)}</div>
+                        <div className="text-xl font-bold theme-text-primary mb-1">{formatCurrency(deal.value || 0)}</div>
                         <div className={cn(
                           "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
-                          getDealStatusColor(deal.status)
+                          getDealStatusColor(deal.status as any)
                         )}>
                           <StatusIcon className="w-3 h-3" />
                           {deal.status.replace('_', ' ')}
@@ -301,54 +306,26 @@ export function CompanyMainContent({
     >
       <div className="theme-bg-card backdrop-blur-xl rounded-xl theme-border">
         <div className="p-6 border-b border-gray-200 dark:border-gray-800/50">
-          <h3 className="text-lg font-semibold theme-text-primary">Activities ({activities.length})</h3>
+          <h3 className="text-lg font-semibold theme-text-primary">Activity Timeline</h3>
+          <p className="text-sm theme-text-tertiary mt-1">
+            All activities, meetings, leads, deals, and tasks for this company
+          </p>
         </div>
         <div className="p-6">
-          {activities.length > 0 ? (
-            <div className="space-y-4">
-              {activities.map((activity) => {
-                const Icon = getActivityTypeIcon(activity.type);
-                return (
-                  <div key={activity.id} className="flex items-start gap-4 p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800/30">
-                    <div className="w-10 h-10 rounded-lg bg-gray-200/50 dark:bg-gray-700/50 flex items-center justify-center">
-                      <Icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-base font-medium theme-text-primary capitalize">{activity.type}</span>
-                        <span className="text-sm theme-text-tertiary">•</span>
-                        <span className="text-sm theme-text-tertiary">{format(new Date(activity.date), 'MMM d, yyyy HH:mm')}</span>
-                        {activity.sales_rep && (
-                          <>
-                            <span className="text-sm theme-text-tertiary">•</span>
-                            <span className="text-sm text-blue-400">{activity.sales_rep}</span>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-sm theme-text-secondary mb-2">{activity.details || 'No details available'}</p>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className={cn(
-                          "px-2 py-1 rounded-full text-xs font-medium",
-                          activity.status === 'completed'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
-                        )}>
-                          {activity.status}
-                        </span>
-                        {activity.amount && (
-                          <span className="text-emerald-400 font-medium">{formatCurrency(activity.amount)}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-500">
-              No activities found for this company.
-            </div>
-          )}
+          <TimelineView
+            type="company"
+            id={company.id}
+            onItemClick={(item) => {
+              // Navigate to detail page based on item type
+              if (item.dealId) {
+                window.location.href = `/crm/deals/${item.dealId}`;
+              } else if (item.meetingId) {
+                window.location.href = `/meetings/${item.meetingId}`;
+              } else if (item.contactId) {
+                window.location.href = `/crm/contacts/${item.contactId}`;
+              }
+            }}
+          />
         </div>
       </div>
     </motion.div>

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfettiService } from '@/lib/services/confettiService';
 import { toast } from 'sonner';
+import { eventBus } from '@/lib/communication/EventBus';
 
 export function useActivitiesActions() {
   const queryClient = useQueryClient();
@@ -123,6 +124,13 @@ export function useActivitiesActions() {
       queryClient.invalidateQueries({ queryKey: ['activities-lazy'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
 
+      // Emit event for components listening to activity creation
+      eventBus.emit('activity:created', {
+        type: activity.type,
+        id: data.id,
+        clientName: activity.client_name,
+      });
+
       return data;
     } catch (error) {
       console.error('Error in addActivity:', error);
@@ -141,6 +149,8 @@ export function useActivitiesActions() {
     contactIdentifier?: string;
     contactIdentifierType?: string;
     deal_id?: string | null;
+    company_id?: string | null;
+    contact_id?: string | null;
   }) => {
     // Create the sale activity
     const saleActivity = await addActivity({
@@ -152,6 +162,8 @@ export function useActivitiesActions() {
       contactIdentifier: sale.contactIdentifier,
       contactIdentifierType: sale.contactIdentifierType,
       deal_id: sale.deal_id,
+      company_id: sale.company_id || null,
+      contact_id: sale.contact_id || null,
     });
 
     // Show celebration for sales

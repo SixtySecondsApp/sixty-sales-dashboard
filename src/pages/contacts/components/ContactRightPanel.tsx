@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Plus, MessageCircle, Mail, Phone, Calendar, Sparkles, ExternalLink, TrendingUp, AlertTriangle, Info, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ApiContactService } from '@/lib/services/apiContactService';
 import type { Contact } from '@/lib/database/models';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import logger from '@/lib/utils/logger';
 import { useNextActions } from '@/lib/hooks/useNextActions';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
@@ -14,13 +14,11 @@ import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 
 interface ContactRightPanelProps {
   contact: Contact;
+  graph?: ContactCompanyGraph;
 }
 
-export function ContactRightPanel({ contact }: ContactRightPanelProps) {
+export function ContactRightPanel({ contact, graph }: ContactRightPanelProps) {
   const navigate = useNavigate();
-  const [deals, setDeals] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
 
   // Get AI suggestions for this contact
@@ -33,30 +31,9 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
     status: 'pending',
   });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!contact.id) return;
-      
-      try {
-        setLoading(true);
-        
-        // Fetch real data in parallel
-        const [dealsData, activitiesData] = await Promise.all([
-          ApiContactService.getContactDeals(contact.id),
-          ApiContactService.getContactActivities(contact.id, 5)
-        ]);
-        
-        setDeals(dealsData || []);
-        setActivities(activitiesData || []);
-      } catch (error) {
-        logger.error('Error fetching right panel data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [contact.id]);
+  // Use graph data instead of fetching separately
+  const deals = graph?.deals || [];
+  const activities = graph?.activities || [];
 
   const handleDealClick = (dealId: string) => {
     // Navigate to deal detail page with return path
@@ -165,19 +142,19 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
             deals.map((deal) => (
               <div
                 key={deal.id}
-                className={`deal-card-clickable p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800/50 border-l-4 ${getStageColor(deal.stage_name)} group`}
+                className={`deal-card-clickable p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800/50 border-l-4 ${getStageColor((deal.deal_stages as any)?.name || '')} group`}
                 onClick={() => handleDealClick(deal.id)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-2 flex-1">
                     <h3 className="theme-text-primary font-medium text-sm group-hover:text-blue-400 transition-colors">
-                      {deal.title || deal.name || `Deal ${deal.id}`}
+                      {deal.name || `Deal ${deal.id}`}
                     </h3>
                     <Eye className="w-4 h-4 theme-text-tertiary group-hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all" />
                   </div>
                   <div className="flex items-center gap-2">
                     <DealHealthIndicator dealId={deal.id} />
-                    {getStageBadge(deal.stage_name)}
+                    {getStageBadge((deal.deal_stages as any)?.name || '')}
                   </div>
                 </div>
                 <p className="theme-text-tertiary text-xs mb-2">
@@ -185,10 +162,10 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
                 </p>
                 <div className="flex justify-between items-center">
                   <span className="theme-text-primary font-semibold">
-                    {formatCurrency(deal.value || deal.amount)}
+                    {formatCurrency(deal.value || 0)}
                   </span>
                   <span className="theme-text-tertiary text-xs">
-                    {deal.default_probability || deal.probability || 0}% probability
+                    {deal.probability || 0}% probability
                   </span>
                 </div>
               </div>
@@ -243,7 +220,7 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
 
         <div className="space-y-3">
           {activities.length > 0 ? (
-            activities.map((activity) => {
+            activities.slice(0, 5).map((activity) => {
               const { icon: Icon, color, bgColor, borderColor } = getActivityIcon(activity.type);
               return (
                 <div key={activity.id} className="p-3 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
@@ -254,16 +231,16 @@ export function ContactRightPanel({ contact }: ContactRightPanelProps) {
                         {activity.type?.charAt(0).toUpperCase() + activity.type?.slice(1)}
                       </Badge>
                       <span className="theme-text-primary text-sm font-medium">
-                        {activity.title || activity.description || `${activity.type} activity`}
+                        {activity.client_name || `${activity.type} activity`}
                       </span>
                     </div>
-                    <span className="theme-text-tertiary text-xs">{formatDate(activity.created_at)}</span>
+                    <span className="theme-text-tertiary text-xs">{formatDate(activity.date || activity.created_at)}</span>
                   </div>
-                  {activity.notes && (
-                    <p className="theme-text-secondary text-sm mb-2">{activity.notes}</p>
+                  {activity.details && (
+                    <p className="theme-text-secondary text-sm mb-2">{activity.details}</p>
                   )}
-                  {activity.deal_title && (
-                    <p className="theme-text-tertiary text-xs">Related to: {activity.deal_title}</p>
+                  {activity.deal_id && (
+                    <p className="theme-text-tertiary text-xs">Related to deal</p>
                   )}
                 </div>
               );

@@ -47,6 +47,8 @@ const WorkflowsTestSuite = lazyWithRetry(() => import('@/components/admin/Workfl
 const WorkflowsE2ETestSuite = lazyWithRetry(() => import('@/components/admin/WorkflowsE2ETestSuite'));
 const AIProviderSettings = lazyWithRetry(() => import('@/components/settings/AIProviderSettings'));
 const GoogleIntegrationTests = lazyWithRetry(() => import('@/components/admin/GoogleIntegrationTests').then(m => ({ default: m.GoogleIntegrationTests })));
+const SettingsSavvyCal = lazyWithRetry(() => import('@/pages/admin/SettingsSavvyCal'));
+const SettingsBookingSources = lazyWithRetry(() => import('@/pages/admin/SettingsBookingSources'));
 const SystemHealth = lazyWithRetry(() => import('@/pages/admin/SystemHealth'));
 const Database = lazyWithRetry(() => import('@/pages/admin/Database'));
 const Reports = lazyWithRetry(() => import('@/pages/admin/Reports'));
@@ -96,7 +98,7 @@ const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
 const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
 const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
-const SettingsPage = lazy(() => import('@/pages/Settings'));
+const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
@@ -117,10 +119,11 @@ const queryClient = new QueryClient({
   },
 });
 
-// Make queryClient globally available
+// Make queryClient and service worker utilities globally available
 declare global {
   interface Window {
     queryClient: QueryClient;
+    detectAndResolveCacheConflicts?: typeof detectAndResolveCacheConflicts;
   }
 }
 window.queryClient = queryClient;
@@ -251,6 +254,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/workflows-test" element={<AppLayout><WorkflowsTestSuite /></AppLayout>} />
                 <Route path="/admin/workflows-e2e" element={<AppLayout><WorkflowsE2ETestSuite /></AppLayout>} />
                 <Route path="/admin/google-integration" element={<AppLayout><GoogleIntegrationTests /></AppLayout>} />
+                <Route path="/admin/savvycal-settings" element={<AppLayout><SettingsSavvyCal /></AppLayout>} />
+                <Route path="/admin/booking-sources" element={<AppLayout><SettingsBookingSources /></AppLayout>} />
                 <Route path="/admin/system-health" element={<AppLayout><SystemHealth /></AppLayout>} />
                 <Route path="/admin/database" element={<AppLayout><Database /></AppLayout>} />
                 <Route path="/admin/reports" element={<AppLayout><Reports /></AppLayout>} />

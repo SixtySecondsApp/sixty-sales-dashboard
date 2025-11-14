@@ -4,16 +4,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTasks } from '@/lib/hooks/useTasks';
 import TaskForm from '@/components/TaskForm';
+import { TimelineView } from '@/components/CRM/TimelineView';
 import type { Contact, Task } from '@/lib/database/models';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
 
 interface ContactMainContentProps {
   contact: Contact;
   activeTab: string;
+  graph?: ContactCompanyGraph;
 }
 
-export function ContactMainContent({ contact, activeTab }: ContactMainContentProps) {
+export function ContactMainContent({ contact, activeTab, graph }: ContactMainContentProps) {
   // Use the real useTasks hook with contact filtering
   const { 
     tasks, 
@@ -289,6 +292,94 @@ export function ContactMainContent({ contact, activeTab }: ContactMainContentPro
           company={contact.company?.name || ''}
           onTaskCreated={handleTaskCreated}
         />
+      </div>
+    );
+  }
+
+  // For other tabs, show real content
+  if (activeTab === 'activity') {
+    return (
+      <div className="lg:col-span-2 space-y-6">
+        <div className="section-card">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-800/50">
+            <h2 className="text-lg font-semibold theme-text-primary">Activity Timeline</h2>
+            <p className="text-sm theme-text-tertiary mt-1">
+              All activities, meetings, leads, deals, and tasks for this contact
+            </p>
+          </div>
+          <div className="p-6">
+            <TimelineView
+              type="contact"
+              id={contact.id}
+              onItemClick={(item) => {
+                // Navigate to detail page based on item type
+                if (item.dealId) {
+                  window.location.href = `/crm/deals/${item.dealId}`;
+                } else if (item.meetingId) {
+                  window.location.href = `/meetings/${item.meetingId}`;
+                } else if (item.taskId) {
+                  // Could open task modal
+                  logger.log('Task clicked:', item.taskId);
+                }
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === 'deals') {
+    const deals = graph?.deals || [];
+    return (
+      <div className="lg:col-span-2 space-y-6">
+        <div className="section-card">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-800/50">
+            <h2 className="text-lg font-semibold theme-text-primary">Deals ({deals.length})</h2>
+          </div>
+          <div className="p-6">
+            {deals.length > 0 ? (
+              <div className="space-y-4">
+                {deals.map((deal) => {
+                  const stageName = (deal.deal_stages as any)?.name || 'Unknown Stage';
+                  return (
+                    <div
+                      key={deal.id}
+                      className="p-4 rounded-lg bg-gray-100/50 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 hover:border-gray-400 dark:hover:border-gray-600/50 hover:bg-gray-200/50 dark:hover:bg-gray-800/70 transition-all cursor-pointer group"
+                      onClick={() => window.location.href = `/crm/deals/${deal.id}`}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="theme-text-primary font-medium mb-1 group-hover:text-blue-400 transition-colors">
+                            {deal.name}
+                          </h3>
+                          <p className="theme-text-tertiary text-sm">{deal.description || 'No description'}</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xl font-bold theme-text-primary mb-1">
+                            £{deal.value?.toLocaleString() || 0}
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {stageName}
+                          </Badge>
+                        </div>
+                      </div>
+                      {deal.probability !== undefined && (
+                        <div className="text-sm theme-text-tertiary">
+                          {deal.probability}% probability
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 theme-text-tertiary">
+                <p className="text-sm">No deals found for this contact</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

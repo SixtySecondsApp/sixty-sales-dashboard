@@ -196,3 +196,8 @@ DROP FUNCTION IF EXISTS create_org_delete_policy(TEXT);
 -- Comments
 COMMENT ON FUNCTION can_access_org_data(UUID) IS 'Checks if current user can access data for a given organization (member or super admin)';
 
+
+
+
+
+

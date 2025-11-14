@@ -19,3 +19,4 @@ CREATE POLICY "Users can view booking sources"
   TO authenticated
   USING (true);
 
+

@@ -144,7 +144,21 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
 
       if (error) throw error;
 
-      const formattedKeys: ApiKey[] = (data || []).map(key => ({
+      // Type assertion for api_keys table data (table may not be in database.types.ts)
+      type ApiKeyRow = {
+        id: string;
+        name: string;
+        key_preview: string;
+        permissions?: string[] | null;
+        rate_limit?: number | null;
+        usage_count?: number | null;
+        last_used?: string | null;
+        created_at: string;
+        expires_at?: string | null;
+        is_active?: boolean | null;
+      };
+
+      const formattedKeys: ApiKey[] = ((data as ApiKeyRow[]) || []).map(key => ({
         id: key.id,
         name: key.name,
         key_preview: key.key_preview,

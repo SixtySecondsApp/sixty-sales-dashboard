@@ -193,12 +193,21 @@ export function useUserDealsHealth() {
           // Get owner name
           let ownerName = 'Unknown';
           if (deal?.owner_id) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', deal.owner_id)
-              .single();
-            ownerName = profile?.full_name || 'Unknown';
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('first_name, last_name, email')
+                .eq('id', deal.owner_id)
+                .single();
+              if (profile && !profileError) {
+                ownerName = profile.first_name || profile.last_name
+                  ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+                  : profile.email || 'Unknown';
+              }
+            } catch (err) {
+              // Silently handle profile fetch errors - owner name will remain 'Unknown'
+              console.warn(`[useUserDealsHealth] Failed to fetch profile for owner ${deal.owner_id}:`, err);
+            }
           }
 
           // Get meeting count for this deal

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/clientV2';
 
 export async function handleWorkflowWebhook(workflowId: string, payload: any) {
   console.log('🔗 Workflow webhook received:', { workflowId, payload });

@@ -479,23 +479,25 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           formData.details
         ].filter(Boolean).join(' - ');
 
-        await addActivity({
-          type: 'outbound',
-          client_name: formData.client_name || (selectedContact ? 
-            `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() || selectedContact.email :
-            'Bulk Outbound Session'),
-          details: outboundDetails,
-          quantity: activityCount, // Use 'quantity' field that Dashboard expects for stats
-          date: selectedDate.toISOString(),
-          deal_id: formData.deal_id,
-          // Only include identifier fields if contact is selected
-          ...(selectedContact
-            ? {
-                contactIdentifier: selectedContact.email,
-                contactIdentifierType: 'email' as const
-              }
-            : {})
-        });
+          await addActivity({
+            type: 'outbound',
+            client_name: formData.client_name || (selectedContact ? 
+              `${selectedContact.first_name || ''} ${selectedContact.last_name || ''}`.trim() || selectedContact.email :
+              'Bulk Outbound Session'),
+            details: outboundDetails,
+            quantity: activityCount, // Use 'quantity' field that Dashboard expects for stats
+            date: selectedDate.toISOString(),
+            deal_id: formData.deal_id,
+            company_id: formData.company_id || null,
+            contact_id: formData.contact_id || selectedContact?.id || null,
+            // Only include identifier fields if contact is selected
+            ...(selectedContact
+              ? {
+                  contactIdentifier: selectedContact.email,
+                  contactIdentifierType: 'email' as const
+                }
+              : {})
+          });
         
         logger.log(`✅ Outbound activity created with quantity: ${activityCount}`);
       } else if (selectedAction) {
@@ -833,6 +835,8 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
             saleType: monthly > 0 ? 'subscription' : 'one-off',
             date: selectedDate.toISOString(),
             deal_id: finalDealId,
+            company_id: formData.company_id || null,
+            contact_id: formData.contact_id || selectedContact?.id || null,
             contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
             // Pass the split values for proper recording
@@ -859,6 +863,9 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
             amount: sanitizedProposalAmount,
             date: selectedDate.toISOString(),
             deal_id: finalDealId,  // Use the finalDealId which includes the newly created deal
+            company_id: formData.company_id || null,
+            contact_id: formData.contact_id || selectedContact?.id || null,
+            meeting_id: formData.meeting_id || null,
             contactIdentifier: formData.contactIdentifier, // Already validated by system
             contactIdentifierType: formData.contactIdentifierType || 'email',
             status: selectedAction === 'meeting' ? (formData.status as 'completed' | 'pending' | 'cancelled' | 'no_show') : 'completed'

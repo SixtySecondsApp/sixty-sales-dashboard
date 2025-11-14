@@ -1,8 +1,13 @@
 import { type ReactNode, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { LeadWithPrep } from '@/lib/services/leadService';
-import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink, Activity } from 'lucide-react';
+import { format, formatDistanceToNow } from 'date-fns';
+import { useEventEmitter } from '@/lib/communication/EventBus';
+import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase/clientV2';
+import type { Activity as ActivityType } from '@/lib/hooks/useActivities';
 
 type LeadPrepNoteRecord = LeadWithPrep['lead_prep_notes'][number];
 
@@ -11,6 +16,44 @@ interface LeadDetailPanelProps {
 }
 
 export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
+  const emit = useEventEmitter();
+
+  // Fetch activities for the contact or company
+  const { data: activities = [], isLoading: activitiesLoading } = useQuery<ActivityType[]>({
+    queryKey: ['lead-activities', lead?.contact_id, lead?.company_id],
+    queryFn: async () => {
+      if (!lead || (!lead.contact_id && !lead.company_id)) {
+        return [];
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      let query = supabase
+        .from('activities')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .limit(5);
+
+      if (lead.contact_id) {
+        query = query.eq('contact_id', lead.contact_id);
+      } else if (lead.company_id) {
+        query = query.eq('company_id', lead.company_id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching activities:', error);
+        return [];
+      }
+
+      return (data || []) as ActivityType[];
+    },
+    enabled: !!lead && (!!lead.contact_id || !!lead.company_id),
+  });
+
   if (!lead) {
     return (
       <div className="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
@@ -19,7 +62,42 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
     );
   }
 
-  const meetingStart = lead.meeting_start ? format(new Date(lead.meeting_start), 'PPpp') : 'TBD';
+  const meetingStart = lead.meeting_start ? format(new Date(lead.meeting_start), 'PP, p') : 'TBD';
+
+  const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal' | 'sale') => {
+    const clientName = lead.contact_name || lead.contact_email || 'Prospect';
+    
+    // Derive website from domain or email
+    let companyWebsite: string | undefined;
+    if (lead.domain) {
+      companyWebsite = lead.domain.startsWith('www.') ? lead.domain : `www.${lead.domain}`;
+    } else if (lead.contact_email && lead.contact_email.includes('@')) {
+      const domain = lead.contact_email.split('@')[1]?.toLowerCase();
+      const freeDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'proton.me', 'aol.com'];
+      if (domain && !freeDomains.includes(domain)) {
+        companyWebsite = domain.startsWith('www.') ? domain : `www.${domain}`;
+      }
+    }
+
+    // Open Quick Add modal with prefilled data
+    await emit('modal:opened', {
+      type: 'quick-add',
+      context: {
+        preselectAction: type,
+        formId: 'quick-add',
+        initialData: {
+          client_name: clientName,
+          details: `From Lead: ${lead.meeting_title || 'Discovery Call'}`,
+          date: lead.meeting_start || new Date().toISOString(),
+          company_id: lead.company_id || null,
+          contact_id: lead.contact_id || null,
+          company_website: companyWebsite,
+          contact_email: lead.contact_email || null,
+          contact_phone: lead.contact_phone || null,
+        }
+      }
+    });
+  };
 
   return (
       <div className="h-full overflow-y-auto">
@@ -59,6 +137,14 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
           </div>
         </header>
 
+        {/* Quick Actions */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => handleQuickAdd('meeting')}>Add Meeting</Button>
+          <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('outbound')}>Add Outbound</Button>
+          <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('proposal')}>Add Proposal</Button>
+          <Button size="sm" variant="secondary" onClick={() => handleQuickAdd('sale')}>Add Sale</Button>
+        </div>
+
         <section className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
           <InfoTile icon={User} label="Contact" value={lead.contact_email ?? 'N/A'} />
           <InfoTile icon={Timer} label="Meeting" value={meetingStart} />
@@ -75,6 +161,63 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
             <p className="mt-2 text-sm text-emerald-900 dark:text-emerald-100/90 whitespace-pre-wrap">
               {lead.prep_summary}
             </p>
+          </section>
+        )}
+
+        {/* Recent Activities - Only show if there are activities */}
+        {(lead.contact_id || lead.company_id) && !activitiesLoading && activities.length > 0 && (
+          <section className="rounded-xl border border-gray-200 bg-white/95 p-4 shadow-sm dark:border-gray-800/70 dark:bg-gray-900/60">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <Activity className="h-4 w-4" />
+                Recent Activities
+              </h3>
+              {(lead.contact_id || lead.company_id) && (
+                <Link
+                  to={lead.contact_id ? `/crm/contacts/${lead.contact_id}` : `/companies/${lead.company_id}`}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition-colors"
+                >
+                  View All
+                </Link>
+              )}
+            </div>
+            <div className="space-y-2">
+              {activities.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-start gap-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-800/30 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
+                >
+                  <div className="flex-shrink-0 mt-0.5">
+                    <div className={`w-2 h-2 rounded-full ${
+                      activity.type === 'sale' ? 'bg-emerald-500' :
+                      activity.type === 'proposal' ? 'bg-blue-500' :
+                      activity.type === 'meeting' ? 'bg-purple-500' :
+                      'bg-gray-400'
+                    }`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-gray-900 dark:text-gray-100 capitalize">
+                          {activity.type}
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 line-clamp-1">
+                          {activity.details || activity.client_name}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-500 flex-shrink-0">
+                        {formatDistanceToNow(new Date(activity.date || activity.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                    {activity.amount && activity.amount > 0 && (
+                      <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                        ${activity.amount.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
@@ -206,7 +349,21 @@ function parseLeadNoteBody(body: string): LeadNoteBlock[] {
     return [];
   }
 
-  const normalized = body.replace(/\r\n/g, '\n').trim();
+  // Pre-clean: Remove malformed JSON artifacts and code blocks that might have leaked through
+  let normalized = body.replace(/\r\n/g, '\n').trim();
+  
+  // Remove malformed code blocks like ```json { or incomplete code blocks
+  normalized = normalized.replace(/```\s*(?:json\s*)?\{\s*/g, '');
+  normalized = normalized.replace(/```\s*(?:json\s*)?/g, '');
+  
+  // Remove orphaned JSON key patterns that might have leaked through
+  normalized = normalized.replace(/["']?([a-z_]+)["']?\s*:\s*/gi, '');
+  normalized = normalized.replace(/[a-z_]*_and_[a-z_]*["']?\s*:\s*/gi, '');
+  
+  // Remove orphaned braces
+  normalized = normalized.replace(/^\s*\{\s*/, '');
+  normalized = normalized.replace(/\s*\}\s*$/, '');
+  
   if (!normalized) {
     return [];
   }

@@ -111,8 +111,8 @@ export function DealHealthDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+        <div className="flex h-full min-h-[calc(100vh-160px)] sm:min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-120px)] flex-col rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800/60 dark:bg-gray-950/40 overflow-hidden p-6">
           <div className="animate-pulse space-y-4">
             <div className="h-24 bg-gray-200 dark:bg-gray-800 rounded-lg" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -127,8 +127,9 @@ export function DealHealthDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 text-gray-900 dark:text-gray-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+      <div className="flex h-full min-h-[calc(100vh-160px)] sm:min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-120px)] flex-col rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800/60 dark:bg-gray-950/40 overflow-hidden">
+        <div className="p-4 sm:p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
         <div>
@@ -258,7 +259,7 @@ export function DealHealthDashboard() {
 
       {/* Deals List */}
       {filteredAndSortedDeals.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="text-center py-12 rounded-lg">
           <Activity className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           {stats.total === 0 ? (
             <>
@@ -298,6 +299,7 @@ export function DealHealthDashboard() {
           ))}
         </div>
       )}
+        </div>
       </div>
     </div>
   );

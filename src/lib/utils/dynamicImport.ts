@@ -8,14 +8,53 @@ interface RetryOptions {
   showUserPrompt?: boolean;
 }
 
+// Enhanced error detection for chunk loading failures
+function isChunkLoadingError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  
+  const errorMessage = error.message.toLowerCase();
+  const errorString = String(error);
+  
+  // Check for various chunk loading error patterns
+  return (
+    errorMessage.includes('loading chunk') ||
+    errorMessage.includes('failed to fetch dynamically imported module') ||
+    errorMessage.includes('loading css chunk') ||
+    errorMessage.includes('failed to fetch') ||
+    errorMessage.includes('networkerror') ||
+    errorMessage.includes('network error') ||
+    errorString.includes('Failed to fetch') ||
+    errorString.includes('TypeError') ||
+    // Check for 404-like errors in the message
+    (errorMessage.includes('404') && errorMessage.includes('js')) ||
+    // Check for CORS or network issues
+    errorMessage.includes('cors') ||
+    errorMessage.includes('network request failed')
+  );
+}
+
+// Check if the error is likely due to a missing file (404)
+function isMissingFileError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  
+  const errorMessage = error.message.toLowerCase();
+  return (
+    errorMessage.includes('404') ||
+    errorMessage.includes('not found') ||
+    errorMessage.includes('failed to fetch') ||
+    // Network errors often indicate missing files
+    (errorMessage.includes('networkerror') && !errorMessage.includes('timeout'))
+  );
+}
+
 export async function retryableImport<T>(
   importFn: () => Promise<T>,
   options: RetryOptions = {}
 ): Promise<T> {
   const {
-    maxRetries = 2,
+    maxRetries = 3, // Increased from 2 to 3
     clearCacheOnFailure = true,
-    showUserPrompt = true
+    showUserPrompt = false // Changed default to false for better UX
   } = options;
 
   let lastError: Error;
@@ -26,26 +65,52 @@ export async function retryableImport<T>(
     } catch (error) {
       lastError = error as Error;
       
-      // Check if it's a chunk loading error
-      const isChunkError = error instanceof Error && (
-        error.message.includes('Loading chunk') ||
-        error.message.includes('Failed to fetch dynamically imported module') ||
-        error.message.includes('Loading CSS chunk')
-      );
-
-      if (isChunkError && attempt < maxRetries) {
-        console.warn(`Chunk loading failed (attempt ${attempt}/${maxRetries}), retrying...`, error);
+      const isChunkError = isChunkLoadingError(error);
+      const isMissingFile = isMissingFileError(error);
+      
+      // If it's a chunk error or missing file, handle it
+      if ((isChunkError || isMissingFile) && attempt < maxRetries) {
+        console.warn(
+          `Chunk loading failed (attempt ${attempt}/${maxRetries}). ` +
+          `Error: ${error instanceof Error ? error.message : String(error)}. Retrying...`
+        );
         
-        // Wait a bit before retry
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        // For missing file errors, try to reload the page after first retry
+        if (isMissingFile && attempt === 1) {
+          // Check if we can fetch the current HTML to see if it's a version mismatch
+          try {
+            const response = await fetch(window.location.href, { 
+              method: 'HEAD',
+              cache: 'no-store' 
+            });
+            if (!response.ok) {
+              // If we can't even fetch the HTML, likely a deployment issue
+              console.warn('Unable to fetch current page, may need full reload');
+            }
+          } catch (fetchError) {
+            // Ignore fetch errors during check
+          }
+        }
+        
         continue;
       }
 
-      // If it's the last attempt and a chunk error, offer cache clear
-      if (isChunkError && clearCacheOnFailure) {
-        console.error('Chunk loading failed after all retries. This may be due to cached assets.', error);
+      // If it's the last attempt and a chunk/missing file error, clear cache and reload
+      if ((isChunkError || isMissingFile) && clearCacheOnFailure) {
+        console.error(
+          'Chunk loading failed after all retries. ' +
+          'This is likely due to cached assets from a previous version. ' +
+          'Clearing cache and reloading...',
+          error
+        );
         
-        if (showUserPrompt) {
+        // For production, auto-reload without prompt for better UX
+        // In development, we might want to see the error
+        if (showUserPrompt && process.env.NODE_ENV === 'development') {
           const userWantsRefresh = confirm(
             'Unable to load the requested page. This may be due to cached assets from a previous version.\n\n' +
             'Would you like to clear your cache and reload the page to fix this issue?'
@@ -56,8 +121,11 @@ export async function retryableImport<T>(
             return Promise.reject(new Error('Reloading page to clear cache'));
           }
         } else {
-          // Auto-clear cache without user prompt
-          clearCacheAndReload();
+          // Auto-clear cache and reload (better UX for production)
+          // Small delay to allow error logging
+          setTimeout(() => {
+            clearCacheAndReload();
+          }, 100);
           return Promise.reject(new Error('Reloading page to clear cache'));
         }
       }

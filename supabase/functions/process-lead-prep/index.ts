@@ -938,14 +938,21 @@ function removeJSONArtifacts(text: string): string {
   
   let cleaned = text;
   
-  // Remove JSON key patterns like "key_name": or "key_name":
-  cleaned = cleaned.replace(/"([a-z_]+)":\s*/gi, '');
+  // Remove malformed code blocks first (```json { or ``` {)
+  cleaned = cleaned.replace(/```\s*(?:json\s*)?\{\s*/g, '');
+  cleaned = cleaned.replace(/```\s*(?:json\s*)?/g, '');
   
-  // Remove opening braces at the start
+  // Remove JSON key patterns like "key_name": or "key_name": or partial patterns like _and_responsibilities":
+  cleaned = cleaned.replace(/["']?([a-z_]+)["']?\s*:\s*/gi, '');
+  cleaned = cleaned.replace(/[a-z_]*_and_[a-z_]*["']?\s*:\s*/gi, '');
+  
+  // Remove opening braces at the start or after code blocks
   cleaned = cleaned.replace(/^\s*\{\s*/, '');
+  cleaned = cleaned.replace(/\s*\{\s*/g, ' ');
   
   // Remove closing braces at the end
   cleaned = cleaned.replace(/\s*\}\s*$/, '');
+  cleaned = cleaned.replace(/\s*\}\s*/g, ' ');
   
   // Remove escaped quotes that might be left over
   cleaned = cleaned.replace(/\\"/g, '"');
@@ -956,6 +963,12 @@ function removeJSONArtifacts(text: string): string {
   // Clean up any remaining JSON structure artifacts
   cleaned = cleaned.replace(/\s*,\s*$/, ''); // Remove trailing commas
   cleaned = cleaned.replace(/^\s*:\s*/, ''); // Remove leading colons
+  
+  // Remove any remaining orphaned quotes at start/end
+  cleaned = cleaned.replace(/^["']+|["']+$/g, '');
+  
+  // Clean up multiple spaces
+  cleaned = cleaned.replace(/\s+/g, ' ');
   
   return cleaned.trim();
 }
@@ -1591,8 +1604,22 @@ function buildLeadPrepNotes(
   const cleanFieldText = (text: string | null | undefined): string => {
     if (!text) return '';
     let cleaned = removeVerboseIntro(text);
+    
+    // Remove malformed code blocks first (before JSON artifact removal)
+    cleaned = cleaned.replace(/```\s*(?:json\s*)?\{\s*/g, '');
+    cleaned = cleaned.replace(/```\s*(?:json\s*)?/g, '');
+    cleaned = cleaned.replace(/```/g, ''); // Remove any remaining code block markers
+    
     // Remove JSON artifacts (key names, quotes, braces)
     cleaned = removeJSONArtifacts(cleaned);
+    
+    // Remove any remaining malformed JSON patterns
+    cleaned = cleaned.replace(/^\s*[{"']+\s*/, ''); // Remove leading quotes/braces
+    cleaned = cleaned.replace(/\s*[}"']+\s*$/, ''); // Remove trailing quotes/braces
+    
+    // Clean up multiple spaces and normalize whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ');
+    
     // Preserve markdown - let frontend handle rendering
     // Only clean up truly orphaned markers (at end of string without pair)
     // Don't remove properly paired **text** markers
@@ -1645,15 +1672,22 @@ function buildLeadPrepNotes(
     // Background - extract key points only, remove verbose intros, bold key info
     if (plan.prospect_info.background) {
       let cleanedBackground = cleanFieldText(plan.prospect_info.background);
-      const keyPoints = extractKeyPoints(cleanedBackground, 2);
-      if (keyPoints.length > 0) {
-        const cleanedPoints = keyPoints
-          .map(p => cleanFieldText(p))
-          .map(p => boldKeyInfo(p, names, titles))
-          .filter(Boolean);
-        if (cleanedPoints.length > 0) {
-          prospectLines.push(`**Background:** ${cleanedPoints.join(" ")}`);
+      // If background is still very long after cleaning, extract key points
+      if (cleanedBackground.length > 200) {
+        const keyPoints = extractKeyPoints(cleanedBackground, 2);
+        if (keyPoints.length > 0) {
+          const cleanedPoints = keyPoints
+            .map(p => cleanFieldText(p))
+            .map(p => boldKeyInfo(p, names, titles))
+            .filter(Boolean);
+          if (cleanedPoints.length > 0) {
+            prospectLines.push(`**Background:** ${cleanedPoints.join(" ")}`);
+          }
         }
+      } else if (cleanedBackground) {
+        // If it's already concise, use it directly
+        cleanedBackground = boldKeyInfo(cleanedBackground, names, titles);
+        prospectLines.push(`**Background:** ${cleanedBackground}`);
       }
     }
     
@@ -1750,7 +1784,7 @@ function buildLeadPrepNotes(
       let summary = cleanFieldText(truncateText(plan.offer_info.what_they_need, 200));
       if (summary) {
         summary = boldKeyInfo(summary, companyNames, []);
-        offerLines.push(`**What They Offer:**\n${summary}`);
+        offerLines.push(`**What They Offer:** ${summary}`);
       }
     }
     
@@ -1811,7 +1845,7 @@ function buildLeadPrepNotes(
       let assessment = plan.why_sixty_seconds.fit_assessment;
       // Remove verbose intros first, then clean and truncate
       assessment = removeVerboseIntro(assessment);
-      assessment = cleanFieldText(truncateText(assessment, 150));
+      assessment = cleanFieldText(truncateText(assessment, 200));
       if (assessment) {
         assessment = boldKeyInfo(assessment, companyNames, []);
         whyLines.push(`**Primary Fit:** ${assessment}`);

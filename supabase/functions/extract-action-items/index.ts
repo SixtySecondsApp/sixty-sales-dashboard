@@ -151,6 +151,8 @@ serve(async (req) => {
         completed: false,
         ai_generated: true,
         ai_confidence: item.confidence ?? null,
+        synced_to_task: false, // Explicitly prevent automatic task creation
+        task_id: null, // No task created yet - manual creation only
         timestamp_seconds: null,
         playback_url: null,
       }

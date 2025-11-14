@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ContactProfileSkeleton } from '@/components/ui/contact-skeleton';
 import { ContactHeader } from './components/ContactHeader';
@@ -9,59 +9,21 @@ import { ContactTabs } from './components/ContactTabs';
 import { ContactSidebar } from './components/ContactSidebar';
 import { ContactMainContent } from './components/ContactMainContent';
 import { ContactRightPanel } from './components/ContactRightPanel';
-import { ApiContactService } from '@/lib/services/apiContactService';
-import type { Contact } from '@/lib/database/models';
-import logger from '@/lib/utils/logger';
+import { useContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 
 const ContactRecord: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [contact, setContact] = useState<Contact | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [childComponentsReady, setChildComponentsReady] = useState(false);
+  
+  // Use the graph hook to fetch all related data
+  const { graph, isLoading, error } = useContactCompanyGraph('contact', id);
+  
+  const contact = graph?.contact;
+  const loading = isLoading;
 
-  useEffect(() => {
-    const fetchContact = async () => {
-      if (!id) {
-        setError('Contact ID is required');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        
-        logger.log('Fetching contact with ID:', id);
-        const contactData = await ApiContactService.getContactById(id, true);
-        
-        if (!contactData) {
-          setError('Contact not found');
-          return;
-        }
-        
-        logger.log('Contact data received:', contactData);
-        setContact(contactData);
-        
-        // Add a small delay to allow child components to initialize
-        setTimeout(() => {
-          setChildComponentsReady(true);
-          setLoading(false);
-        }, 300);
-      } catch (err) {
-        logger.error('Error fetching contact:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load contact');
-        setLoading(false);
-      }
-    };
-
-    fetchContact();
-  }, [id]);
-
-  // Show skeleton loader until both contact data and child components are ready
-  if (loading || !childComponentsReady) {
+  // Show skeleton loader while loading
+  if (loading) {
     return <ContactProfileSkeleton />;
   }
 
@@ -72,7 +34,7 @@ const ContactRecord: React.FC = () => {
           <Alert variant="destructive" className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300">
             <AlertCircle className="h-4 w-4 text-red-700 dark:text-red-400" />
             <AlertDescription className="text-red-700 dark:text-red-300">
-              {error}
+              {error instanceof Error ? error.message : 'Failed to load contact'}
             </AlertDescription>
           </Alert>
           <div className="mt-4">
@@ -152,7 +114,7 @@ const ContactRecord: React.FC = () => {
           >
             {/* Left Sidebar */}
             <div className="lg:col-span-3">
-              <ContactSidebar contact={contact} />
+              <ContactSidebar contact={contact} graph={graph} />
             </div>
 
             {/* Main Content */}
@@ -160,12 +122,13 @@ const ContactRecord: React.FC = () => {
               <ContactMainContent
                 contact={contact}
                 activeTab={activeTab}
+                graph={graph}
               />
             </div>
 
             {/* Right Panel */}
             <div className="lg:col-span-3">
-              <ContactRightPanel contact={contact} />
+              <ContactRightPanel contact={contact} graph={graph} />
             </div>
           </motion.div>
         </div>

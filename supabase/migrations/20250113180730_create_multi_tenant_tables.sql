@@ -230,3 +230,8 @@ COMMENT ON FUNCTION is_org_member(UUID, UUID) IS 'Checks if a user is a member o
 COMMENT ON FUNCTION get_org_role(UUID, UUID) IS 'Gets the role of a user in an organization';
 COMMENT ON FUNCTION is_super_admin(UUID) IS 'Checks if a user is a super admin (is_admin flag)';
 
+
+
+
+
+

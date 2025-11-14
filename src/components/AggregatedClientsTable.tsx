@@ -372,7 +372,7 @@ const AggregatedClientsTableComponent = ({ className }: AggregatedClientsTablePr
           >
             <Filter className="w-4 h-4 mr-2" />
             Filters
-            {(filters.status || filters.searchQuery || filters.minValue || filters.maxValue || filters.salesRep || filters.hasSubscriptions !== undefined) && (
+            {(filters.status || filters.searchQuery || filters.minValue || filters.maxValue || filters.hasSubscriptions !== undefined || selectedOwnerId !== userData?.id) && (
               <span className="ml-2 bg-emerald-500 text-white text-xs rounded-full px-2 py-0.5">
                 Active
               </span>

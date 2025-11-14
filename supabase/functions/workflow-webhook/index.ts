@@ -391,6 +391,7 @@ async function processActionItemsPayload(supabase: any, payload: any, fathomId: 
     const isSalesRepTask = actionItemData.is_sales_rep_task
 
     // Insert action item (always stored in meeting_action_items)
+    // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
     const { data: actionItem, error } = await supabase
       .from('meeting_action_items')
       .insert({
@@ -404,6 +405,8 @@ async function processActionItemsPayload(supabase: any, payload: any, fathomId: 
         completed: item.completed || false,
         ai_generated: item.ai_generated || false,
         is_sales_rep_task: isSalesRepTask, // New field to track task type
+        synced_to_task: false, // Explicitly prevent automatic task creation
+        task_id: null, // No task created yet - manual creation only
         timestamp_seconds: parseTimestamp(item.recording_timestamp),
         playback_url: item.recording_playback_url
       })
@@ -412,41 +415,11 @@ async function processActionItemsPayload(supabase: any, payload: any, fathomId: 
 
     if (error) throw error
 
-    // Only create task in tasks table if it's a sales rep task
-    let taskId = null
-    if (isSalesRepTask && actionItemData.create_task) {
-      const { data: task, error: taskError } = await supabase
-        .from('tasks')
-        .insert({
-          title: item.item || actionItemData.title,
-          description: item.description || `From Fathom meeting action item`,
-          priority: actionItemData.priority || 'medium',  // Use priority directly, not priority_id
-          owner_id: actionItemData.user_id || userId,  // Using owner_id correctly
-          category: actionItemData.category,
-          due_date: item.due_date || actionItemData.deadline,
-          meeting_id: meeting.id,
-          meeting_action_item_id: actionItem.id, // Link to action item for syncing
-          status: 'pending',
-          completed: false,
-          task_type: 'follow_up' // Default task type for Fathom tasks
-        })
-        .select()
-        .single()
-      
-      if (!taskError && task) {
-        taskId = task.id
-        
-        // Update action item with task reference
-        await supabase
-          .from('meeting_action_items')
-          .update({ linked_task_id: task.id })
-          .eq('id', actionItem.id)
-      }
-    }
-
+    // Automatic task creation is intentionally disabled.
+    // Reps will review action items in the UI and create tasks manually.
     results.push({
       action_item_id: actionItem.id,
-      task_id: taskId,
+      task_id: null,
       is_sales_rep_task: isSalesRepTask
     })
   }

@@ -9,14 +9,16 @@ import {
   Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Company, CompanyDeal, CompanyActivity } from '@/lib/hooks/useCompany';
+import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
+import type { Company, Deal } from '@/lib/database/models';
 
 interface CompanyTabsProps {
   activeTab: 'overview' | 'deals' | 'contacts' | 'activities' | 'documents';
   onTabChange: (tab: 'overview' | 'deals' | 'contacts' | 'activities' | 'documents') => void;
   company: Company;
-  deals: CompanyDeal[];
-  activities: CompanyActivity[];
+  deals: Deal[];
+  activities: any[];
+  graph?: ContactCompanyGraph;
 }
 
 export function CompanyTabs({ activeTab, onTabChange, company, deals, activities }: CompanyTabsProps) {
