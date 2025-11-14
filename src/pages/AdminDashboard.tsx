@@ -15,7 +15,9 @@ import {
   Activity,
   Database,
   FileText,
-  BarChart3
+  BarChart3,
+  Calendar,
+  Tag
 } from 'lucide-react';
 
 interface AdminCard {
@@ -136,6 +138,24 @@ export default function AdminDashboard() {
       icon: <Settings className="w-6 h-6" />,
       path: '/admin/google-integration',
       color: 'from-amber-500 to-amber-600',
+      category: 'Integrations'
+    },
+    {
+      id: 'savvycal-settings',
+      title: 'SavvyCal Sources',
+      description: 'Map SavvyCal booking link IDs to lead sources for conversion tracking',
+      icon: <Calendar className="w-6 h-6" />,
+      path: '/admin/savvycal-settings',
+      color: 'from-emerald-500 to-emerald-600',
+      category: 'Integrations'
+    },
+    {
+      id: 'booking-sources',
+      title: 'Booking Sources',
+      description: 'Manage predefined booking sources for SavvyCal link mappings',
+      icon: <Tag className="w-6 h-6" />,
+      path: '/admin/booking-sources',
+      color: 'from-indigo-500 to-indigo-600',
       category: 'Integrations'
     },
 

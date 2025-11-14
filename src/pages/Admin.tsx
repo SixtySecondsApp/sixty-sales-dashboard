@@ -11,6 +11,8 @@ import WorkflowsTestSuite from '@/components/admin/WorkflowsTestSuite';
 import WorkflowsE2ETestSuite from '@/components/admin/WorkflowsE2ETestSuite';
 import { GoogleIntegrationTests } from '@/components/admin/GoogleIntegrationTests';
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
+import SettingsSavvyCal from '@/pages/admin/SettingsSavvyCal';
+import SettingsBookingSources from '@/pages/admin/SettingsBookingSources';
 import { 
   UsersIcon, 
   PanelLeft, 
@@ -22,7 +24,9 @@ import {
   TestTube,
   FlaskConical,
   Sparkles,
-  Settings
+  Settings,
+  Calendar,
+  Tag
 } from 'lucide-react';
 
 export default function Admin() {
@@ -120,6 +124,20 @@ export default function Admin() {
                 <Settings className="w-4 h-4" />
                 Google Tests
               </TabsTrigger>
+              <TabsTrigger
+                value="savvycal-settings"
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white"
+              >
+                <Calendar className="w-4 h-4" />
+                SavvyCal Sources
+              </TabsTrigger>
+              <TabsTrigger
+                value="booking-sources"
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white"
+              >
+                <Tag className="w-4 h-4" />
+                Booking Sources
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="users" className="space-y-0">
@@ -164,6 +182,14 @@ export default function Admin() {
 
             <TabsContent value="google-integration" className="space-y-0">
               <GoogleIntegrationTests />
+            </TabsContent>
+
+            <TabsContent value="savvycal-settings" className="space-y-0">
+              <SettingsSavvyCal />
+            </TabsContent>
+
+            <TabsContent value="booking-sources" className="space-y-0">
+              <SettingsBookingSources />
             </TabsContent>
           </Tabs>
         </div>

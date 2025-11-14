@@ -1,13 +1,24 @@
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LeadPrepToolbarProps {
   isProcessing: boolean;
   onGenerate: () => void;
   onRefresh: () => void;
+  onUpload?: (file: File) => void;
+  isUploading?: boolean;
 }
 
-export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh }: LeadPrepToolbarProps) {
+export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload, isUploading }: LeadPrepToolbarProps) {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUpload) {
+      onUpload(file);
+    }
+    // Reset input
+    e.target.value = '';
+  };
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-800/60 dark:bg-gray-950/40">
       <div>
@@ -18,9 +29,31 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh }: LeadPre
       </div>
 
       <div className="flex items-center gap-2">
+        {onUpload && (
+          <label htmlFor="savvycal-csv-upload" className="cursor-pointer">
+            <button
+              disabled={isProcessing || isUploading}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60',
+                'dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60'
+              )}
+            >
+              <Upload className="h-4 w-4" />
+              {isUploading ? 'Uploading…' : 'Import SavvyCal CSV'}
+            </button>
+          </label>
+        )}
+        <input
+          id="savvycal-csv-upload"
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+          className="hidden"
+          disabled={isProcessing || isUploading}
+        />
         <button
           onClick={onRefresh}
-          disabled={isProcessing}
+          disabled={isProcessing || isUploading}
           className={cn(
             'inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60',
             'dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800/60'
@@ -31,7 +64,7 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh }: LeadPre
         </button>
         <button
           onClick={onGenerate}
-          disabled={isProcessing}
+          disabled={isProcessing || isUploading}
           className={cn(
             'inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-75'
           )}
@@ -43,6 +76,7 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh }: LeadPre
     </div>
   );
 }
+
 
 
 
