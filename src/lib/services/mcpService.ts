@@ -160,11 +160,9 @@ class MCPServerConnection {
     });
 
     this.process.stderr.on('data', (data: Buffer) => {
-      console.error(`MCP Server ${this.config.name} stderr:`, data.toString());
     });
 
     this.process.on('exit', (code: number) => {
-      console.log(`MCP Server ${this.config.name} exited with code ${code}`);
       this.status.status = 'disconnected';
     });
   }
@@ -223,7 +221,6 @@ class MCPServerConnection {
         }
       }
     } catch (error) {
-      console.error(`Failed to parse MCP message from ${this.config.name}:`, error);
     }
   }
 
@@ -532,7 +529,6 @@ export class MCPService {
         try {
           result[name] = await server.listTools();
         } catch (error) {
-          console.error(`Failed to list tools from ${name}:`, error);
           result[name] = [];
         }
       }

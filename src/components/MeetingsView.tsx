@@ -120,18 +120,11 @@ export function MeetingsView({
         setError(null);
         
         const { data: { user } } = await supabase.auth.getUser();
-        console.log('🔍 Fetching meetings for user:', user?.id);
-        console.log('🔍 Selected owner ID:', selectedOwnerId);
-        console.log('🔍 Search query:', searchQuery);
-        
         // First, let's check if there are ANY meetings in the table
         const { data: allMeetings, error: allError } = await supabase
           .from('meetings')
           .select('id, title, owner_user_id')
           .limit(5);
-        
-        console.log('📊 Sample meetings in database:', allMeetings, allError);
-        
         let query = supabase
           .from('meetings')
           .select(`
@@ -149,32 +142,21 @@ export function MeetingsView({
 
         // Apply owner filter
         if (selectedOwnerId) {
-          console.log('🔍 Applying owner filter:', selectedOwnerId);
           query = query.eq('owner_user_id', selectedOwnerId);
         } else {
-          console.log('🔍 No owner filter applied - showing all meetings');
         }
 
         const { data: meetingsData, error: meetingsError } = await query;
-        console.log('📊 Final meetings query result:', { 
-          count: meetingsData?.length || 0,
-          data: meetingsData, 
-          error: meetingsError 
-        });
-
         if (meetingsError) {
           logger.error('❌ Meetings query failed:', meetingsError);
           // Don't throw error, just log it and show empty state
-          console.error('Meetings fetch error:', meetingsError);
           setMeetings([]);
         } else {
-          console.log(`✅ Found ${meetingsData?.length || 0} meetings`);
           setMeetings(meetingsData || []);
         }
         
         setIsLoading(false);
       } catch (error) {
-        console.error('Error fetching meetings:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch meetings');
         setIsLoading(false);
       }
@@ -259,7 +241,6 @@ export function MeetingsView({
       
       toast.success(`Successfully deleted ${authorizedMeetings.length} meetings`);
     } catch (error) {
-      console.error('Error deleting meetings:', error);
       toast.error('Failed to delete selected meetings');
     }
   };
@@ -359,7 +340,6 @@ export function MeetingsView({
 
   const handleEditMeeting = (meeting: Meeting) => {
     // Handle edit meeting
-    console.log('Edit meeting:', meeting.id);
   };
 
   const handleDeleteMeeting = (meeting: Meeting) => {
@@ -389,7 +369,6 @@ export function MeetingsView({
 
   const handleAddMeeting = () => {
     // Navigate to add meeting page when available
-    console.log('Add new meeting');
   };
 
   // Format sentiment for display

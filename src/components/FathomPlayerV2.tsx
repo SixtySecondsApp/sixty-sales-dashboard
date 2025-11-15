@@ -110,7 +110,6 @@ const FathomPlayerV2 = React.forwardRef<FathomPlayerV2Handle, FathomPlayerV2Prop
     // Set new timeout
     timeoutRef.current = window.setTimeout(() => {
       if (!loaded) {
-        console.warn('[FathomPlayerV2] Iframe failed to load within timeout:', timeoutMs, 'ms')
         setFailed(true)
         onError?.()
       }

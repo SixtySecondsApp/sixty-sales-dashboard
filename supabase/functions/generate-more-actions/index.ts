@@ -80,9 +80,6 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    console.log(`[generate-more-actions] Generating additional actions for meeting ${meetingId}`)
-
     // Fetch meeting with transcript
     const { data: meeting, error: meetingError } = await supabaseClient
       .from('meetings')
@@ -122,8 +119,6 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
 
     const existingTaskList: ExistingTask[] = existingTasks || []
-    console.log(`[generate-more-actions] Found ${existingTaskList.length} existing tasks`)
-
     // Generate additional actions with Claude
     const newActions = await generateAdditionalActions(
       meeting,
@@ -149,9 +144,6 @@ serve(async (req) => {
       meeting,
       user.id
     )
-
-    console.log(`[generate-more-actions] Created ${createdTasks.length} new tasks`)
-
     return new Response(
       JSON.stringify({
         tasks: createdTasks,
@@ -162,7 +154,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('[generate-more-actions] Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -180,7 +171,6 @@ async function generateAdditionalActions(
 ): Promise<GeneratedAction[]> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
-    console.error('[generateAdditionalActions] ANTHROPIC_API_KEY not configured')
     throw new Error('AI service not configured')
   }
 
@@ -245,9 +235,6 @@ Return as JSON array:
     "timestamp_seconds": 900
   }
 ]`
-
-  console.log('[generateAdditionalActions] Calling Claude API')
-
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -272,7 +259,6 @@ Return as JSON array:
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('[generateAdditionalActions] Claude API error:', errorText)
     throw new Error('AI service error')
   }
 
@@ -289,7 +275,6 @@ Return as JSON array:
     const actions = JSON.parse(aiResponse)
     return Array.isArray(actions) ? actions : []
   } catch (parseError) {
-    console.error('[generateAdditionalActions] Failed to parse AI response:', parseError)
     return []
   }
 }
@@ -338,15 +323,11 @@ async function createTasksFromActions(
         .single()
 
       if (taskError) {
-        console.error('[createTasksFromActions] Task creation error:', taskError)
         continue
       }
 
       createdTasks.push(task)
-      console.log(`[createTasksFromActions] Created task: ${task.title}`)
-
     } catch (error) {
-      console.error('[createTasksFromActions] Error creating task:', error)
     }
   }
 

@@ -8,9 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  console.log('[Google OAuth Callback] Request method:', req.method);
-  console.log('[Google OAuth Callback] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -30,16 +27,9 @@ serve(async (req) => {
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
-    
-    console.log('[Google OAuth Callback] Received code:', code ? 'present' : 'missing');
-    console.log('[Google OAuth Callback] Received state:', state ? 'present' : 'missing');
-    console.log('[Google OAuth Callback] Error:', error);
-
     // Handle OAuth errors
     if (error) {
       const errorDescription = url.searchParams.get('error_description');
-      console.error('[Google OAuth Callback] OAuth error:', error, errorDescription);
-      
       // Redirect to app with error
       const redirectUrl = new URL(Deno.env.get('FRONTEND_URL') || 'http://localhost:5173');
       redirectUrl.pathname = '/integrations';
@@ -74,12 +64,8 @@ serve(async (req) => {
       .single();
 
     if (stateError || !oauthState) {
-      console.error('[Google OAuth Callback] Invalid state:', stateError);
       throw new Error('Invalid or expired state parameter');
     }
-
-    console.log('[Google OAuth Callback] State validated for user:', oauthState.user_id);
-
     // Exchange authorization code for tokens
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
@@ -104,10 +90,7 @@ serve(async (req) => {
     });
 
     const tokenData = await tokenResponse.json();
-    console.log('[Google OAuth Callback] Token exchange response status:', tokenResponse.status);
-
     if (!tokenResponse.ok) {
-      console.error('[Google OAuth Callback] Token exchange failed:', tokenData);
       throw new Error(tokenData.error_description || 'Failed to exchange authorization code');
     }
 
@@ -119,8 +102,6 @@ serve(async (req) => {
     });
 
     const userInfo = await userInfoResponse.json();
-    console.log('[Google OAuth Callback] User info retrieved:', userInfo.email);
-
     // Calculate token expiration
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
@@ -141,7 +122,6 @@ serve(async (req) => {
       });
 
     if (insertError) {
-      console.error('[Google OAuth Callback] Failed to store tokens:', insertError);
       throw new Error('Failed to save Google integration');
     }
 
@@ -150,9 +130,6 @@ serve(async (req) => {
       .from('google_oauth_states')
       .delete()
       .eq('state', state);
-
-    console.log('[Google OAuth Callback] Integration successful for user:', oauthState.user_id);
-
     // Log the successful integration
     await supabase
       .from('google_service_logs')
@@ -173,8 +150,6 @@ serve(async (req) => {
     
     return Response.redirect(redirectUrl.toString(), 302);
   } catch (error) {
-    console.error('[Google OAuth Callback] Error:', error);
-    
     // Redirect to app with error
     const redirectUrl = new URL(Deno.env.get('FRONTEND_URL') || 'http://localhost:5173');
     redirectUrl.pathname = '/integrations';

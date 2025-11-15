@@ -1,4 +1,9 @@
-import React, { useState } from 'react';
+/**
+ * Contact Record Component
+ * Enhanced contact view with AI insights, meeting summaries, and health metrics
+ */
+
+import React, { useState, useEffect } from 'react';
 import {
   Mail,
   Building2,
@@ -20,71 +25,149 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ContactRecordService } from '@/lib/services/contactRecordService';
+import { useCopilot } from '@/lib/contexts/CopilotContext';
+import { CopilotService } from '@/lib/services/copilotService';
+import type { ContactRecordData, ActionItem, Activity as ActivityType } from './copilot/types';
+import logger from '@/lib/utils/logger';
 
 interface ContactRecordProps {
-  contact?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    company?: string;
-    title?: string;
-    location?: string;
-    status?: 'active' | 'inactive';
-    tags?: string[];
-  };
+  contactId?: string;
+  contact?: Partial<ContactRecordData>;
   onEdit?: () => void;
-  onDraftEmail?: () => void;
+  onDraftEmail?: (contactId?: string) => void;
   onOpenCopilot?: () => void;
 }
 
-interface ActivityItem {
-  id: string;
-  type: 'email' | 'meeting' | 'reply' | 'linkedin';
-  title: string;
-  timestamp: string;
-}
-
-interface ActionItem {
-  id: string;
-  text: string;
-  completed: boolean;
-}
-
 export const ContactRecord: React.FC<ContactRecordProps> = ({
-  contact = {
-    id: '1',
-    firstName: 'Alexander',
-    lastName: 'Wolf',
-    email: 'alexander@alexanderwolfagency.com',
-    company: 'Alexander Wolf Agency',
-    title: 'Founder & CEO',
-    location: 'New York, USA',
-    status: 'active',
-    tags: ['High Value']
-  },
+  contactId,
+  contact: propContact,
   onEdit,
   onDraftEmail,
   onOpenCopilot
 }) => {
-  const [actionItems, setActionItems] = useState<ActionItem[]>([
-    { id: '1', text: 'Send proposal with phased approach', completed: true },
-    { id: '2', text: 'Share Crimson Literary case study', completed: false },
-    { id: '3', text: 'Schedule Q1 budget review call', completed: false }
-  ]);
+  const [contactData, setContactData] = useState<ContactRecordData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const { openCopilot, setContext } = useCopilot();
 
-  const activities: ActivityItem[] = [
-    { id: '1', type: 'email', title: 'Opened email "Q4 Proposal"', timestamp: '2 hours ago' },
-    { id: '2', type: 'meeting', title: 'Completed meeting', timestamp: '3 days ago' },
-    { id: '3', type: 'reply', title: 'Replied to your email', timestamp: '5 days ago' },
-    { id: '4', type: 'linkedin', title: 'Viewed your LinkedIn profile', timestamp: '1 week ago' }
-  ];
+  // Fetch contact data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (propContact) {
+        // Use provided contact data
+        setContactData(propContact as ContactRecordData);
+        setIsLoading(false);
+        return;
+      }
 
-  const getInitials = () => {
-    return `${contact.firstName[0]}${contact.lastName[0]}`.toUpperCase();
+      if (!contactId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        // Set Copilot context
+        setContext({ contactId, currentView: 'contact' });
+
+        const data = await ContactRecordService.getContactRecord(contactId);
+        setContactData(data);
+      } catch (err) {
+        logger.error('Error fetching contact record:', err);
+        setError(err instanceof Error ? err : new Error('Failed to load contact'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [contactId, propContact, setContext]);
+
+  const handleToggleActionItem = async (itemId: string, completed: boolean) => {
+    if (!contactData) return;
+
+    try {
+      await ContactRecordService.updateActionItem(contactData.id, itemId, completed);
+      
+      // Update local state
+      setContactData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          lastMeeting: prev.lastMeeting ? {
+            ...prev.lastMeeting,
+            actionItems: prev.lastMeeting.actionItems.map(ai =>
+              ai.id === itemId ? { ...ai, completed } : ai
+            )
+          } : undefined
+        };
+      });
+    } catch (err) {
+      logger.error('Error updating action item:', err);
+    }
   };
 
-  const getActivityIcon = (type: ActivityItem['type']) => {
+  const handleDraftEmail = async () => {
+    if (!contactData) return;
+
+    try {
+      const emailDraft = await CopilotService.draftEmail(
+        contactData.id,
+        `Follow-up email for ${contactData.firstName} ${contactData.lastName}`,
+        'professional'
+      );
+      onDraftEmail?.(contactData.id);
+    } catch (err) {
+      logger.error('Error drafting email:', err);
+      onDraftEmail?.(contactData.id);
+    }
+  };
+
+  const handleOpenCopilot = () => {
+    if (contactData) {
+      openCopilot(`Tell me about ${contactData.firstName} ${contactData.lastName}`);
+    } else {
+      onOpenCopilot?.();
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-32 bg-gray-800/50 rounded-xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="h-64 bg-gray-800/50 rounded-xl" />
+            <div className="h-64 bg-gray-800/50 rounded-xl" />
+            <div className="h-64 bg-gray-800/50 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !contactData) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+          <p className="text-red-400">
+            {error?.message || 'Contact not found'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const contact = contactData;
+
+  const getInitials = () => {
+    return `${contact.firstName[0] || ''}${contact.lastName[0] || ''}`.toUpperCase() || '?';
+  };
+
+  const getActivityIcon = (type: ActivityType['type']) => {
     switch (type) {
       case 'email':
         return MailOpen;
@@ -94,12 +177,16 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
         return Mail;
       case 'linkedin':
         return Linkedin;
+      case 'call':
+        return Phone;
+      case 'task':
+        return CheckCircle2;
       default:
         return Clock;
     }
   };
 
-  const getActivityColor = (type: ActivityItem['type']) => {
+  const getActivityColor = (type: ActivityType['type']) => {
     switch (type) {
       case 'email':
         return 'bg-blue-500/20 text-blue-400';
@@ -109,18 +196,17 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
         return 'bg-purple-500/20 text-purple-400';
       case 'linkedin':
         return 'bg-blue-500/20 text-blue-400';
+      case 'call':
+        return 'bg-green-500/20 text-green-400';
       default:
         return 'bg-gray-500/20 text-gray-400';
     }
   };
 
-  const toggleActionItem = (id: string) => {
-    setActionItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, completed: !item.completed } : item
-      )
-    );
-  };
+  // Get primary AI insight for banner
+  const primaryInsight = contact.aiInsights && contact.aiInsights.length > 0
+    ? contact.aiInsights[0]
+    : null;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -179,26 +265,26 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
       </div>
 
       {/* AI Insights Banner */}
-      <div className="mb-6 bg-blue-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl p-4">
-        <div className="flex gap-3">
-          <Sparkles className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-blue-300 mb-1">AI Insight</p>
-            <p className="text-sm text-gray-300 mb-3">
-              {contact.firstName} has opened your last 3 emails within 1 hour of receiving them. High engagement indicates strong interest. Best time to follow up: Mornings 9-10 AM EST.
-            </p>
-            {onOpenCopilot && (
+      {primaryInsight && (
+        <div className="mb-6 bg-blue-500/10 backdrop-blur-sm border-l-4 border-blue-500/50 rounded-xl p-4">
+          <div className="flex gap-3">
+            <Sparkles className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-300 mb-1">AI Insight</p>
+              <p className="text-sm text-gray-300 mb-3">
+                {primaryInsight.content}
+              </p>
               <button
-                onClick={onOpenCopilot}
+                onClick={handleOpenCopilot}
                 className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-1"
               >
                 Ask Copilot about this contact
                 <ArrowRight className="w-3 h-3" />
               </button>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Contact Details Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -210,8 +296,18 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
               Deal Health
             </h4>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-emerald-400">78</span>
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
+              <span className={cn(
+                'text-2xl font-bold',
+                contact.dealHealth.score >= 70 ? 'text-emerald-400' :
+                contact.dealHealth.score >= 50 ? 'text-blue-400' : 'text-amber-400'
+              )}>
+                {contact.dealHealth.score}
+              </span>
+              <TrendingUp className={cn(
+                'w-5 h-5',
+                contact.dealHealth.score >= 70 ? 'text-emerald-400' :
+                contact.dealHealth.score >= 50 ? 'text-blue-400' : 'text-amber-400'
+              )} />
             </div>
           </div>
 
@@ -219,30 +315,69 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-medium text-gray-400">Engagement</span>
-                <span className="text-xs font-semibold text-emerald-400">High</span>
+                <span className={cn(
+                  'text-xs font-semibold',
+                  contact.dealHealth.metrics.engagement.value >= 70 ? 'text-emerald-400' :
+                  contact.dealHealth.metrics.engagement.value >= 40 ? 'text-blue-400' : 'text-gray-400'
+                )}>
+                  {contact.dealHealth.metrics.engagement.label}
+                </span>
               </div>
               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full w-4/5 bg-gradient-to-r from-emerald-500 to-emerald-400" />
+                <div
+                  className={cn(
+                    'h-full bg-gradient-to-r',
+                    contact.dealHealth.metrics.engagement.value >= 70 ? 'from-emerald-500 to-emerald-400' :
+                    contact.dealHealth.metrics.engagement.value >= 40 ? 'from-blue-500 to-blue-400' : 'from-gray-500 to-gray-400'
+                  )}
+                  style={{ width: `${contact.dealHealth.metrics.engagement.value}%` }}
+                />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-medium text-gray-400">Momentum</span>
-                <span className="text-xs font-semibold text-blue-400">Strong</span>
+                <span className={cn(
+                  'text-xs font-semibold',
+                  contact.dealHealth.metrics.momentum.value >= 70 ? 'text-emerald-400' :
+                  contact.dealHealth.metrics.momentum.value >= 40 ? 'text-blue-400' : 'text-gray-400'
+                )}>
+                  {contact.dealHealth.metrics.momentum.label}
+                </span>
               </div>
               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full w-3/4 bg-gradient-to-r from-blue-500 to-blue-400" />
+                <div
+                  className={cn(
+                    'h-full bg-gradient-to-r',
+                    contact.dealHealth.metrics.momentum.value >= 70 ? 'from-emerald-500 to-emerald-400' :
+                    contact.dealHealth.metrics.momentum.value >= 40 ? 'from-blue-500 to-blue-400' : 'from-gray-500 to-gray-400'
+                  )}
+                  style={{ width: `${contact.dealHealth.metrics.momentum.value}%` }}
+                />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-medium text-gray-400">Response Time</span>
-                <span className="text-xs font-semibold text-emerald-400">Fast</span>
+                <span className={cn(
+                  'text-xs font-semibold',
+                  contact.dealHealth.metrics.responseTime.value >= 70 ? 'text-emerald-400' :
+                  contact.dealHealth.metrics.responseTime.value >= 40 ? 'text-blue-400' : 'text-gray-400'
+                )}>
+                  {contact.dealHealth.metrics.responseTime.label}
+                </span>
               </div>
               <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full w-[90%] bg-gradient-to-r from-emerald-500 to-emerald-400" />
+                <div
+                  className={cn(
+                    'h-full bg-gradient-to-r',
+                    contact.dealHealth.metrics.responseTime.value >= 70 ? 'from-emerald-500 to-emerald-400' :
+                    contact.dealHealth.metrics.responseTime.value >= 40 ? 'from-blue-500 to-blue-400' : 'from-gray-500 to-gray-400'
+                  )}
+                  style={{ width: `${contact.dealHealth.metrics.responseTime.value}%` }}
+                />
               </div>
             </div>
           </div>
@@ -257,23 +392,23 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Total Meetings</span>
-              <span className="text-sm font-semibold text-gray-100">5</span>
+              <span className="text-sm font-semibold text-gray-100">{contact.stats.totalMeetings}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Emails Sent</span>
-              <span className="text-sm font-semibold text-gray-100">12</span>
+              <span className="text-sm font-semibold text-gray-100">{contact.stats.emailsSent}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Avg Response Time</span>
-              <span className="text-sm font-semibold text-emerald-400">2.3 hours</span>
+              <span className="text-sm font-semibold text-emerald-400">{contact.stats.avgResponseTime}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Deal Value</span>
-              <span className="text-sm font-semibold text-gray-100">£65,000</span>
+              <span className="text-sm font-semibold text-gray-100">£{contact.stats.dealValue.toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-400">Close Probability</span>
-              <span className="text-sm font-semibold text-emerald-400">78%</span>
+              <span className="text-sm font-semibold text-emerald-400">{contact.stats.closeProbability}%</span>
             </div>
           </div>
         </div>
@@ -286,7 +421,7 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
           </h4>
           <div className="space-y-2">
             <Button
-              onClick={onDraftEmail}
+              onClick={handleDraftEmail}
               className="w-full px-4 py-2 text-sm font-semibold bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20"
             >
               <Mail className="w-4 h-4 mr-2" />
@@ -320,95 +455,115 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
       {/* Recent Activity & Meeting Summaries */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Last Meeting Summary */}
-        <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-semibold text-gray-100 flex items-center gap-2">
-              <Video className="w-4 h-4 text-purple-400" />
-              Last Meeting Summary
-            </h4>
-            <span className="text-xs text-gray-500">Nov 1, 2025</span>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <h5 className="text-xs font-semibold text-gray-400 uppercase mb-2">Key Discussion Points</h5>
-              <ul className="space-y-1.5 text-sm text-gray-300">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400">•</span>
-                  Discussed Q1 2026 budget allocation for content services
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400">•</span>
-                  {contact.firstName} expressed concerns about implementation timeline
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-400">•</span>
-                  Requested case studies from similar literary agencies
-                </li>
-              </ul>
+        {contact.lastMeeting ? (
+          <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-sm font-semibold text-gray-100 flex items-center gap-2">
+                <Video className="w-4 h-4 text-purple-400" />
+                Last Meeting Summary
+              </h4>
+              <span className="text-xs text-gray-500">
+                {contact.lastMeeting.date.toLocaleDateString()}
+              </span>
             </div>
 
-            <div>
-              <h5 className="text-xs font-semibold text-gray-400 uppercase mb-2">Action Items</h5>
-              <div className="space-y-2">
-                {actionItems.map(item => {
-                  const Icon = item.completed ? CheckCircle2 : Clock;
-                  return (
-                    <label
-                      key={item.id}
-                      className="flex items-start gap-2 cursor-pointer group"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.completed}
-                        onChange={() => toggleActionItem(item.id)}
-                        className="mt-1"
-                      />
-                      <span
-                        className={cn(
-                          'text-sm',
-                          item.completed
-                            ? 'text-gray-500 line-through'
-                            : 'text-gray-300 group-hover:text-gray-100'
-                        )}
-                      >
-                        {item.text}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-gray-800/50">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-400">Meeting Sentiment</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-emerald-400">Positive</span>
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <div
-                        key={i}
-                        className={cn(
-                          'w-1 h-4 rounded-full',
-                          i <= 4 ? 'bg-emerald-500' : 'bg-gray-700'
-                        )}
-                      />
+            <div className="space-y-4">
+              {contact.lastMeeting.discussionPoints.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-semibold text-gray-400 uppercase mb-2">Key Discussion Points</h5>
+                  <ul className="space-y-1.5 text-sm text-gray-300">
+                    {contact.lastMeeting.discussionPoints.map((point, index) => (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-blue-400">•</span>
+                        {point}
+                      </li>
                     ))}
+                  </ul>
+                </div>
+              )}
+
+              {contact.lastMeeting.actionItems.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-semibold text-gray-400 uppercase mb-2">Action Items</h5>
+                  <div className="space-y-2">
+                    {contact.lastMeeting.actionItems.map(item => {
+                      const Icon = item.completed ? CheckCircle2 : Clock;
+                      return (
+                        <label
+                          key={item.id}
+                          className="flex items-start gap-2 cursor-pointer group"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.completed}
+                            onChange={() => handleToggleActionItem(item.id, !item.completed)}
+                            className="mt-1"
+                          />
+                          <span
+                            className={cn(
+                              'text-sm',
+                              item.completed
+                                ? 'text-gray-500 line-through'
+                                : 'text-gray-300 group-hover:text-gray-100'
+                            )}
+                          >
+                            {item.text}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-gray-800/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400">Meeting Sentiment</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      'text-xs font-medium',
+                      contact.lastMeeting.sentiment === 'positive' ? 'text-emerald-400' :
+                      contact.lastMeeting.sentiment === 'negative' ? 'text-red-400' : 'text-gray-400'
+                    )}>
+                      {contact.lastMeeting.sentiment.charAt(0).toUpperCase() + contact.lastMeeting.sentiment.slice(1)}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <div
+                          key={i}
+                          className={cn(
+                            'w-1 h-4 rounded-full',
+                            i <= contact.lastMeeting!.sentimentScore
+                              ? contact.lastMeeting!.sentiment === 'positive' ? 'bg-emerald-500' :
+                                contact.lastMeeting!.sentiment === 'negative' ? 'bg-red-500' : 'bg-gray-500'
+                              : 'bg-gray-700'
+                          )}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <Button
-              variant="outline"
-              className="w-full px-4 py-2 text-sm font-semibold bg-gray-800/50 hover:bg-gray-800 text-gray-300 border border-gray-700/50"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              View Full Transcript
-            </Button>
+              {contact.lastMeeting.transcriptUrl && (
+                <Button
+                  variant="outline"
+                  className="w-full px-4 py-2 text-sm font-semibold bg-gray-800/50 hover:bg-gray-800 text-gray-300 border border-gray-700/50"
+                  onClick={() => window.open(contact.lastMeeting!.transcriptUrl, '_blank')}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  View Full Transcript
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
+            <div className="flex items-center justify-center h-32">
+              <p className="text-sm text-gray-500">No meeting summaries available</p>
+            </div>
+          </div>
+        )}
 
         {/* Recent Activity Timeline */}
         <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-6">
@@ -418,27 +573,32 @@ export const ContactRecord: React.FC<ContactRecordProps> = ({
           </h4>
 
           <div className="space-y-4">
-            {activities.map(activity => {
-              const Icon = getActivityIcon(activity.type);
-              return (
-                <div key={activity.id} className="flex gap-3">
-                  <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', getActivityColor(activity.type))}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-300 mb-1">{activity.title}</p>
-                    <p className="text-xs text-gray-500">{activity.timestamp}</p>
-                  </div>
-                </div>
-              );
-            })}
-
-            <Button
-              variant="ghost"
-              className="w-full px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/30"
-            >
-              View All Activity
-            </Button>
+            {contact.recentActivity.length > 0 ? (
+              <>
+                {contact.recentActivity.map(activity => {
+                  const Icon = getActivityIcon(activity.type);
+                  return (
+                    <div key={activity.id} className="flex gap-3">
+                      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', getActivityColor(activity.type))}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-300 mb-1">{activity.title}</p>
+                        <p className="text-xs text-gray-500">{activity.timestamp}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <Button
+                  variant="ghost"
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/30"
+                >
+                  View All Activity
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
+            )}
           </div>
         </div>
       </div>

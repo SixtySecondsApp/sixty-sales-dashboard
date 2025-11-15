@@ -136,12 +136,8 @@ async function main() {
 
   const events = await fetchSavvyCalEvents(savvyCalToken ?? '', options);
   if (!events.length) {
-    console.log('No events found for backfill.');
     return;
   }
-
-  console.log(`Fetched ${events.length} event(s) from SavvyCal. Sending in batches of ${options.batchSize}…`);
-
   for (let i = 0; i < events.length; i += options.batchSize) {
     const batch = events.slice(i, i + options.batchSize);
     const { data, error } = await supabase.functions.invoke('savvycal-leads-webhook', {
@@ -150,21 +146,12 @@ async function main() {
     });
 
     if (error) {
-      console.error('Error ingesting batch:', error);
       break;
     }
-
-    console.log(
-      `Processed batch ${Math.floor(i / options.batchSize) + 1}:`,
-      JSON.stringify(data),
-    );
   }
-
-  console.log('Backfill complete.');
 }
 
 main().catch((error) => {
-  console.error('Backfill failed:', error);
   process.exit(1);
 });
 

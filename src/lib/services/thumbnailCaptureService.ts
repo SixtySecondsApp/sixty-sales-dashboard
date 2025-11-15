@@ -50,7 +50,6 @@ export async function captureThumbnailFromIframe(
       // This will fail due to CORS, but we'll try anyway
       ctx.drawImage(iframeElement, 0, 0, rect.width, rect.height);
     } catch (corsError) {
-      console.log('CORS prevents direct iframe capture, using alternative method...');
       // Fallback: Use backend screenshot service instead
       return await captureViaBackend(options);
     }
@@ -70,7 +69,6 @@ export async function captureThumbnailFromIframe(
     // Upload to backend
     return await uploadThumbnail(blob, options);
   } catch (error) {
-    console.error('Thumbnail capture error:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

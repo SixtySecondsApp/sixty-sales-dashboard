@@ -25,9 +25,6 @@ interface ActivityInsert {
 }
 
 // Remove COLUMN_ORDER and EXPECTED_COLUMNS constants
-
-console.log('Function "bulk-import-activities" up and running! (Accepts JSON)');
-
 export default async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests explicitly
   if (req.method === 'OPTIONS') {
@@ -56,7 +53,6 @@ export default async (req: Request): Promise<Response> => {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(authHeader.replace('Bearer ', ''));
 
     if (userError || !user) {
-      console.error('Auth Error:', userError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 401,
@@ -71,14 +67,11 @@ export default async (req: Request): Promise<Response> => {
       .single();
 
     if (profileError || !profile?.is_admin) {
-      console.error('Admin Check Error:', profileError);
       return new Response(JSON.stringify({ error: 'Unauthorized: Admin role required.' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 403, // Forbidden
       });
     }
-    console.log(`Admin user ${user.id} authorized.`);
-
     // 3. Get JSON data from request body
     let activitiesToInsert: ActivityInsert[];
     try {
@@ -127,10 +120,7 @@ export default async (req: Request): Promise<Response> => {
          validActivities.push(activity);
       }
     });
-
-    console.log(`Validated ${validActivities.length} valid activity objects. Skipped ${skippedCount} due to validation errors.`);
     if (validationErrors.length > 0) {
-      console.warn("Validation Issues Found:", validationErrors.slice(0, 20)); // Log first few errors
     }
 
     // 5. Perform Bulk Insert with validated data
@@ -142,11 +132,9 @@ export default async (req: Request): Promise<Response> => {
         .insert(validActivities as any); // Insert validated activities
 
       if (insertError) {
-        console.error('Database Insert Error:', insertError);
         dbError = insertError; // Store error to return later
       } else {
          insertedCount = count ?? 0;
-         console.log(`Successfully inserted ${insertedCount} activities.`);
       }
     }
 
@@ -176,7 +164,6 @@ export default async (req: Request): Promise<Response> => {
     });
 
   } catch (error) {
-    console.error('Unhandled Function Error:', error);
     return new Response(JSON.stringify({ error: error.message || 'Internal Server Error' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,

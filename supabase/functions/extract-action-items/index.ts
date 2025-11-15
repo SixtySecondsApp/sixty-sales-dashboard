@@ -31,10 +31,8 @@ async function ensureTranscriptAvailable(supabaseClient: any, authHeader: string
     if (!res.ok && res.status !== 202) {
       // Log but don't fail hard; analysis may still proceed if transcript already present
       const txt = await res.text().catch(() => '')
-      console.warn('[extract-action-items] fetch-transcript returned non-ok:', res.status, txt)
     }
   } catch (e) {
-    console.warn('[extract-action-items] Failed to call fetch-transcript:', e)
   }
 }
 
@@ -164,7 +162,6 @@ serve(async (req) => {
       if (!insertErr) {
         createdCount++
       } else {
-        console.error('[extract-action-items] Insert error:', insertErr)
       }
     }
 
@@ -173,7 +170,6 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
-    console.error('[extract-action-items] Unexpected error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: (error as Error).message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

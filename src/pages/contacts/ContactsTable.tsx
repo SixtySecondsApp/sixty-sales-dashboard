@@ -360,7 +360,6 @@ export default function ContactsTable() {
       
       toast.success(`Successfully deleted ${selectedIds.length} contacts`);
     } catch (error) {
-      console.error('Error deleting contacts:', error);
       toast.error('Failed to delete selected contacts');
     }
   };

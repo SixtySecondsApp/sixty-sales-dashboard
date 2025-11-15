@@ -17,7 +17,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing Supabase configuration. Please check your .env file.');
   process.exit(1);
 }
 
@@ -33,12 +32,8 @@ const PLAYWRIGHT_EMAIL = 'playwright@test.com';
 const PLAYWRIGHT_PASSWORD = process.env.PLAYWRIGHT_TEST_PASSWORD || 'TestPassword123!';
 
 async function setupPlaywrightUser() {
-  console.log('🎭 Setting up Playwright test user...\n');
-
   try {
     // Step 1: Create Playwright user if it doesn't exist
-    console.log('1️⃣ Checking if Playwright user exists...');
-    
     const { data: existingUser, error: checkError } = await supabase.auth.admin.getUserByEmail(
       PLAYWRIGHT_EMAIL
     );
@@ -46,8 +41,6 @@ async function setupPlaywrightUser() {
     let playwrightUserId: string;
 
     if (!existingUser || checkError) {
-      console.log('   Creating new Playwright user...');
-      
       const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
         email: PLAYWRIGHT_EMAIL,
         password: PLAYWRIGHT_PASSWORD,
@@ -59,35 +52,25 @@ async function setupPlaywrightUser() {
       });
 
       if (createError) {
-        console.error('❌ Error creating user:', createError);
         process.exit(1);
       }
 
       playwrightUserId = newUser.user.id;
-      console.log('   ✅ Playwright user created');
     } else {
       playwrightUserId = existingUser.user.id;
-      console.log('   ✅ Playwright user already exists');
     }
 
     // Step 2: Get Andrew's user data
-    console.log('\n2️⃣ Fetching andrew.bryce user data...');
-    
     const { data: andrewUser, error: andrewError } = await supabase.auth.admin.getUserByEmail(
       ANDREW_EMAIL
     );
 
     if (andrewError || !andrewUser) {
-      console.error('❌ Could not find andrew.bryce user:', andrewError);
       process.exit(1);
     }
 
     const andrewUserId = andrewUser.user.id;
-    console.log('   ✅ Found andrew.bryce user');
-
     // Step 3: Copy profile data
-    console.log('\n3️⃣ Copying profile data...');
-    
     const { data: andrewProfile } = await supabase
       .from('profiles')
       .select('*')
@@ -108,15 +91,11 @@ async function setupPlaywrightUser() {
         });
 
       if (profileError) {
-        console.error('⚠️  Warning: Could not update profile:', profileError);
       } else {
-        console.log('   ✅ Profile data copied');
       }
     }
 
     // Step 4: Copy organization memberships
-    console.log('\n4️⃣ Copying organization memberships...');
-    
     const { data: orgMemberships } = await supabase
       .from('organization_members')
       .select('*')
@@ -133,12 +112,9 @@ async function setupPlaywrightUser() {
             created_at: new Date().toISOString(),
           });
       }
-      console.log(`   ✅ Copied ${orgMemberships.length} organization memberships`);
     }
 
     // Step 5: Copy calendar integration settings (without tokens)
-    console.log('\n5️⃣ Setting up calendar integration...');
-    
     const { data: calendarIntegration } = await supabase
       .from('calendar_integrations')
       .select('*')
@@ -158,15 +134,11 @@ async function setupPlaywrightUser() {
         });
 
       if (calendarError) {
-        console.error('⚠️  Warning: Could not copy calendar settings:', calendarError);
       } else {
-        console.log('   ✅ Calendar integration settings copied');
       }
     }
 
     // Step 6: Create sample test data
-    console.log('\n6️⃣ Creating sample test data...');
-    
     // Copy recent deals
     const { data: deals } = await supabase
       .from('deals')
@@ -194,7 +166,6 @@ async function setupPlaywrightUser() {
             created_at: new Date().toISOString(),
           });
       }
-      console.log(`   ✅ Created ${deals.length} test deals`);
     }
 
     // Copy recent tasks
@@ -221,7 +192,6 @@ async function setupPlaywrightUser() {
             created_at: new Date().toISOString(),
           });
       }
-      console.log(`   ✅ Created ${tasks.length} test tasks`);
     }
 
     // Copy recent calendar events
@@ -250,12 +220,9 @@ async function setupPlaywrightUser() {
             created_at: new Date().toISOString(),
           });
       }
-      console.log(`   ✅ Created ${events.length} test calendar events`);
     }
 
     // Step 7: Create test environment file
-    console.log('\n7️⃣ Creating test environment configuration...');
-    
     const testEnvContent = `# Playwright Test User Configuration
 TEST_USER_EMAIL=${PLAYWRIGHT_EMAIL}
 TEST_USER_PASSWORD=${PLAYWRIGHT_PASSWORD}
@@ -266,17 +233,7 @@ TEST_USER_ID=${playwrightUserId}
 
     const fs = await import('fs');
     fs.writeFileSync('.env.test', testEnvContent);
-    console.log('   ✅ Created .env.test file');
-
-    console.log('\n✨ Playwright test user setup complete!\n');
-    console.log('📝 Test user credentials:');
-    console.log(`   Email: ${PLAYWRIGHT_EMAIL}`);
-    console.log(`   Password: ${PLAYWRIGHT_PASSWORD}`);
-    console.log(`   User ID: ${playwrightUserId}`);
-    console.log('\n💡 Add the .env.test values to your main .env file for testing');
-    
   } catch (error) {
-    console.error('\n❌ Setup failed:', error);
     process.exit(1);
   }
 }

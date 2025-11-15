@@ -115,7 +115,6 @@ export default function CustomGPTConfigModal({
         }));
       }
     } catch (error) {
-      console.error('Error loading assistants:', error);
       setError('Failed to load assistants. Please add your OpenAI API key by setting VITE_OPENAI_API_KEY in your .env file.');
       setAssistants([]);
     } finally {
@@ -142,7 +141,6 @@ export default function CustomGPTConfigModal({
         ]);
       }
     } catch (error) {
-      console.error('Error loading OpenAI models:', error);
       // Fallback to default models
       setOpenAIModels([
         { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },

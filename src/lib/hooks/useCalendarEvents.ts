@@ -124,7 +124,6 @@ export function useAutoLinkEventsToContacts() {
   return useMutation({
     mutationFn: () => calendarService.autoLinkEventsToContacts(),
     onSuccess: (linkedCount) => {
-      console.log(`Auto-linked ${linkedCount} events to contacts`);
       queryClient.invalidateQueries({ queryKey: ['calendar', 'db', 'events'] });
     },
   });
@@ -153,8 +152,6 @@ export function useCalendarEventSubscription(
           table: 'calendar_events',
         },
         (payload) => {
-          console.log('Calendar event changed:', payload);
-          
           // Invalidate the calendar events cache
           queryClient.invalidateQueries({ queryKey: ['calendar', 'db', 'events'] });
           

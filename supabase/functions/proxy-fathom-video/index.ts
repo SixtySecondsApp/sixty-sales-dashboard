@@ -22,9 +22,6 @@ serve(async (req) => {
     if (!targetUrl) {
       return new Response('Missing url parameter', { status: 400, headers: corsHeaders })
     }
-
-    console.log(`📡 Proxying: ${targetUrl}`)
-
     // Fetch the Fathom page
     const response = await fetch(targetUrl, {
       headers: {
@@ -153,7 +150,6 @@ serve(async (req) => {
       }
     })
   } catch (error) {
-    console.error('Proxy error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

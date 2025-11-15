@@ -12,14 +12,10 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function checkSupabaseTables() {
   try {
-    console.log('📋 Checking tables in Supabase database...');
-    
     // Try to get schema information via SQL
     const { data, error } = await supabase.rpc('get_tables_info', {});
     
     if (error) {
-      console.log('🔍 Trying alternative approach...');
-      
       // Check existing tables by trying to query them
       const knownTables = ['deals', 'deal_stages', 'activities', 'profiles', 'companies', 'contacts'];
       
@@ -30,20 +26,13 @@ async function checkSupabaseTables() {
           .limit(1);
         
         if (tableError) {
-          console.log(`❌ ${table}: ${tableError.message}`);
         } else {
-          console.log(`✅ ${table}: exists`);
         }
       }
       
       return;
     }
-    
-    console.log('✅ Tables found:');
-    console.table(data);
-    
   } catch (err) {
-    console.error('❌ Error:', err);
   }
 }
 

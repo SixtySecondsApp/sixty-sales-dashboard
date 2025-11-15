@@ -52,7 +52,6 @@ export const WorkflowTestPanel: React.FC<WorkflowTestPanelProps> = ({
       // Set current environment in service
       workflowEnvironmentService.setActiveEnvironment(currentEnvironment);
     } catch (err) {
-      console.error('Failed to load test data:', err);
       setError('Failed to load test data');
     } finally {
       setIsLoading(false);
@@ -88,7 +87,6 @@ export const WorkflowTestPanel: React.FC<WorkflowTestPanelProps> = ({
 
       setTestResults(result);
     } catch (err) {
-      console.error('Test execution failed:', err);
       setError('Test execution failed');
     } finally {
       setIsLoading(false);
@@ -114,7 +112,6 @@ export const WorkflowTestPanel: React.FC<WorkflowTestPanelProps> = ({
 
       await loadTestData();
     } catch (err) {
-      console.error('Failed to pin input:', err);
       setError('Failed to pin input');
     }
   };
@@ -135,7 +132,6 @@ export const WorkflowTestPanel: React.FC<WorkflowTestPanelProps> = ({
         setError('Failed to promote environment');
       }
     } catch (err) {
-      console.error('Failed to promote environment:', err);
       setError('Failed to promote environment');
     } finally {
       setIsLoading(false);

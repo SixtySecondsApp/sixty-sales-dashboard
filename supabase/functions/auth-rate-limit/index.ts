@@ -59,7 +59,6 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Rate limit check error:', error)
       // If we can't check rate limits, allow the request (fail open)
       return new Response(
         JSON.stringify({ allowed: true } as RateLimitResponse),
@@ -109,7 +108,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Rate limit service error:', error)
     // Fail open - don't block users if rate limiting is broken
     return new Response(
       JSON.stringify({ allowed: true } as RateLimitResponse),

@@ -116,7 +116,6 @@ export default function SmartTasksAdmin() {
       if (error) throw error;
       setTemplates(data || []);
     } catch (error) {
-      console.error('Error fetching templates:', error);
       toast.error('Failed to load smart task templates');
     } finally {
       setLoading(false);
@@ -154,7 +153,6 @@ export default function SmartTasksAdmin() {
       resetForm();
       fetchTemplates();
     } catch (error: any) {
-      console.error('Error saving template:', error);
       if (error.message?.includes('duplicate')) {
         toast.error('A template with this trigger and title already exists');
       } else {
@@ -176,7 +174,6 @@ export default function SmartTasksAdmin() {
       toast.success('Template deleted successfully');
       fetchTemplates();
     } catch (error) {
-      console.error('Error deleting template:', error);
       toast.error('Failed to delete template');
     }
   };
@@ -192,7 +189,6 @@ export default function SmartTasksAdmin() {
       toast.success(`Template ${!currentStatus ? 'activated' : 'deactivated'}`);
       fetchTemplates();
     } catch (error) {
-      console.error('Error toggling template:', error);
       toast.error('Failed to update template status');
     }
   };

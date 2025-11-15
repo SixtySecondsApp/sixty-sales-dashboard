@@ -10,8 +10,6 @@ import {
 } from './gmail-actions.ts';
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  console.log('[Google Gmail] Refreshing access token...');
-  
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
   
@@ -30,7 +28,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Gmail] Token refresh failed:', errorData);
     throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
   }
 
@@ -49,11 +46,8 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
     .eq('user_id', userId);
   
   if (updateError) {
-    console.error('[Google Gmail] Failed to update access token:', updateError);
     throw new Error('Failed to update access token in database');
   }
-  
-  console.log('[Google Gmail] Access token refreshed successfully');
   return data.access_token;
 }
 
@@ -77,9 +71,6 @@ interface ListEmailsRequest {
 }
 
 serve(async (req) => {
-  console.log('[Google Gmail] Request method:', req.method);
-  console.log('[Google Gmail] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -115,12 +106,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google Gmail] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google Gmail] User verified:', user.id);
-
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
@@ -130,7 +117,6 @@ serve(async (req) => {
       .single();
 
     if (integrationError || !integration) {
-      console.error('[Google Gmail] No active Google integration found:', integrationError);
       throw new Error('Google integration not found. Please connect your Google account first.');
     }
 
@@ -140,7 +126,6 @@ serve(async (req) => {
     let accessToken = integration.access_token;
     
     if (expiresAt <= now) {
-      console.log('[Google Gmail] Token expired, refreshing...');
       accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
@@ -233,8 +218,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[Google Gmail] Error:', error);
-    
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
@@ -252,8 +235,6 @@ serve(async (req) => {
 });
 
 async function sendEmail(accessToken: string, request: SendEmailRequest): Promise<any> {
-  console.log('[Google Gmail] Sending email to:', request.to);
-
   // Create the email message in RFC 2822 format
   const emailLines = [
     `To: ${request.to}`,
@@ -284,13 +265,10 @@ async function sendEmail(accessToken: string, request: SendEmailRequest): Promis
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Gmail] Send email error:', errorData);
     throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Gmail] Email sent successfully:', data.id);
-  
   return {
     success: true,
     messageId: data.id,
@@ -299,8 +277,6 @@ async function sendEmail(accessToken: string, request: SendEmailRequest): Promis
 }
 
 async function listEmails(accessToken: string, request: ListEmailsRequest): Promise<any> {
-  console.log('[Google Gmail] Listing emails with query:', request.query);
-
   const params = new URLSearchParams();
   if (request.query) params.set('q', request.query);
   if (request.maxResults) params.set('maxResults', request.maxResults.toString());
@@ -315,13 +291,10 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
 
   if (!listResponse.ok) {
     const errorData = await listResponse.json();
-    console.error('[Google Gmail] List emails error:', errorData);
     throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const listData = await listResponse.json();
-  console.log('[Google Gmail] Found', listData.messages?.length || 0, 'email IDs');
-  
   // If no messages, return empty array
   if (!listData.messages || listData.messages.length === 0) {
     return {
@@ -344,21 +317,17 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
       );
       
       if (!messageResponse.ok) {
-        console.error(`[Google Gmail] Failed to fetch message ${msg.id}`);
         return msg; // Return the basic message if fetch fails
       }
       
       const fullMessage = await messageResponse.json();
       return fullMessage;
     } catch (error) {
-      console.error(`[Google Gmail] Error fetching message ${msg.id}:`, error);
       return msg; // Return the basic message if error occurs
     }
   });
   
   const fullMessages = await Promise.all(messagePromises);
-  console.log('[Google Gmail] Fetched full details for', fullMessages.length, 'messages');
-  
   return {
     messages: fullMessages,
     nextPageToken: listData.nextPageToken,
@@ -367,8 +336,6 @@ async function listEmails(accessToken: string, request: ListEmailsRequest): Prom
 }
 
 async function getLabels(accessToken: string): Promise<any> {
-  console.log('[Google Gmail] Fetching labels');
-
   const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/labels', {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -377,20 +344,16 @@ async function getLabels(accessToken: string): Promise<any> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Gmail] Get labels error:', errorData);
     throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Gmail] Found', data.labels?.length || 0, 'labels');
-  
   // Fetch full details for each label to get colors and other metadata
   const labelPromises = data.labels?.map(async (label: any) => {
     try {
       const fullLabel = await getFullLabel(accessToken, label.id);
       return fullLabel;
     } catch (error) {
-      console.error(`Failed to fetch label ${label.id}:`, error);
       return label; // Return basic label if fetch fails
     }
   }) || [];
@@ -403,8 +366,6 @@ async function getLabels(accessToken: string): Promise<any> {
 }
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  console.log('[Google Gmail] Refreshing access token...');
-  
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
   
@@ -423,7 +384,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Gmail] Token refresh error:', errorData);
     throw new Error('Failed to refresh access token');
   }
 
@@ -441,8 +401,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId);
-  
-  console.log('[Google Gmail] Access token refreshed successfully');
   return newAccessToken;
 }
 
@@ -452,8 +410,6 @@ async function syncEmailsToContacts(
   userId: string, 
   integrationId: string
 ): Promise<any> {
-  console.log('[Google Gmail] Syncing emails to contacts...');
-  
   try {
     // Get or create sync status
     let { data: syncStatus, error: statusError } = await supabase
@@ -476,7 +432,6 @@ async function syncEmailsToContacts(
         .single();
       
       if (createError) {
-        console.error('[Google Gmail] Failed to create sync status:', createError);
         throw new Error('Failed to initialize sync status');
       }
       
@@ -490,7 +445,6 @@ async function syncEmailsToContacts(
       .eq('owner_id', userId);
     
     if (contactsError || !contacts || contacts.length === 0) {
-      console.log('[Google Gmail] No contacts found for user');
       return {
         success: true,
         message: 'No contacts to sync',
@@ -520,7 +474,6 @@ async function syncEmailsToContacts(
     
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('[Google Gmail] List emails error:', errorData);
       throw new Error(`Gmail API error: ${errorData.error?.message || 'Unknown error'}`);
     }
     
@@ -609,7 +562,6 @@ async function syncEmailsToContacts(
           syncedCount++;
         }
       } catch (err) {
-        console.error(`[Google Gmail] Error processing message ${message.id}:`, err);
       }
     }
     
@@ -623,9 +575,6 @@ async function syncEmailsToContacts(
         updated_at: new Date().toISOString(),
       })
       .eq('integration_id', integrationId);
-    
-    console.log(`[Google Gmail] Synced ${syncedCount} emails`);
-    
     return {
       success: true,
       syncedCount,
@@ -633,8 +582,6 @@ async function syncEmailsToContacts(
       hasMore: !!data.nextPageToken,
     };
   } catch (error) {
-    console.error('[Google Gmail] Sync error:', error);
-    
     // Update sync status with error
     await supabase
       .from('email_sync_status')

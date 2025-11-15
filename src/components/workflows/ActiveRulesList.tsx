@@ -26,7 +26,6 @@ const ActiveRulesList: React.FC<ActiveRulesListProps> = ({ onSelectWorkflow, onR
       
       setRules(data || []);
     } catch (error) {
-      console.error('Error loading rules:', error);
     } finally {
       setLoading(false);
     }

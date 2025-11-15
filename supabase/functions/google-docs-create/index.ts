@@ -26,17 +26,12 @@ serve(async (req) => {
   try {
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
-    console.log('Authorization header present:', !!authHeader);
-    console.log('Authorization header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'null');
-
     if (!authHeader) {
       throw new Error('No Authorization header provided');
     }
 
     // Extract the JWT token from the Authorization header
     const jwt = authHeader.replace('Bearer ', '');
-    console.log('Extracted JWT token length:', jwt.length);
-    
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -51,25 +46,17 @@ serve(async (req) => {
     );
 
     // Get user session using the JWT token directly
-    console.log('Attempting to get user from JWT...');
     const {
       data: { user },
       error: userError
     } = await supabaseClient.auth.getUser(jwt);
-
-    console.log('User retrieval result:', { user: !!user, error: userError });
-
     if (userError) {
-      console.error('User retrieval error:', userError);
       throw new Error(`Authentication error: ${userError.message}`);
     }
 
     if (!user) {
       throw new Error('User not authenticated - no user returned');
     }
-
-    console.log('Successfully authenticated user:', user.email);
-
     // Get Google integration for user
     const { data: integration, error: integrationError } = await supabaseClient
       .from('google_integrations')
@@ -90,19 +77,13 @@ serve(async (req) => {
     }
 
     // Get access token from integration
-    console.log('Fetching Google access token for user:', user.id);
     const { data: tokenData, error: tokenError } = await supabaseClient
       .rpc('get_google_access_token', { p_user_id: user.id });
-
-    console.log('Token RPC response:', { tokenData: !!tokenData, error: tokenError });
-
     if (tokenError) {
-      console.error('Token RPC error:', tokenError);
       throw new Error(`Failed to get Google access token: ${tokenError.message}`);
     }
 
     if (!tokenData) {
-      console.error('No token data returned from RPC');
       throw new Error('No Google access token returned from database');
     }
 
@@ -110,13 +91,11 @@ serve(async (req) => {
     
     // Additional validation - check token format
     if (typeof accessToken !== 'string' || accessToken.length < 10) {
-      console.error('Invalid access token format:', typeof accessToken, accessToken ? accessToken.length : 'null');
       throw new Error('Invalid Google access token format');
     }
 
     // For testing: if it's a test token, return mock success
     if (accessToken.startsWith('test_access_token_')) {
-      console.log('Detected test token, returning mock response');
       const mockDocumentId = 'test_doc_' + Date.now();
       const mockResponse = {
         documentId: mockDocumentId,
@@ -136,15 +115,9 @@ serve(async (req) => {
     }
 
     // Create the document using Google Docs API
-    console.log('Creating Google Doc with title:', title);
-    console.log('Access token available:', !!accessToken);
-    console.log('Access token first 10 chars:', accessToken ? accessToken.substring(0, 10) : 'null');
-    
     const createPayload = {
       title: title,
     };
-    console.log('Request payload:', JSON.stringify(createPayload, null, 2));
-    
     const createResponse = await fetch('https://docs.googleapis.com/v1/documents', {
       method: 'POST',
       headers: {
@@ -153,58 +126,34 @@ serve(async (req) => {
       },
       body: JSON.stringify(createPayload),
     });
-
-    console.log('Google Docs API response status:', createResponse.status);
-    console.log('Google Docs API response headers:', Object.fromEntries(createResponse.headers.entries()));
-
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      console.error('Google Docs API error:', errorText);
-      console.error('Response status:', createResponse.status);
-      console.error('Response headers:', Object.fromEntries(createResponse.headers.entries()));
-      
       // Try to parse the error response for more details
       try {
         const errorJson = JSON.parse(errorText);
-        console.error('Parsed error details:', errorJson);
       } catch (parseError) {
-        console.error('Could not parse error response as JSON');
       }
       
       throw new Error(`Failed to create document: ${createResponse.status} - ${errorText}`);
     }
 
     const docData = await createResponse.json();
-    console.log('Google Docs API full response:', JSON.stringify(docData, null, 2));
-    
     const documentId = docData.documentId;
     
     if (!documentId) {
-      console.error('No document ID in response:', docData);
-      console.error('Available properties in response:', Object.keys(docData));
       throw new Error('No document ID returned from Google Docs API');
     }
-    
-    console.log('Created document with ID:', documentId);
-    
     // Verify the document was actually created by attempting to get it
-    console.log('Verifying document exists...');
     const verifyResponse = await fetch(`https://docs.googleapis.com/v1/documents/${documentId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
       },
     });
-    
-    console.log('Document verification status:', verifyResponse.status);
-    
     if (!verifyResponse.ok) {
       const verifyError = await verifyResponse.text();
-      console.error('Document verification failed:', verifyError);
-      console.error('Document may not have been created properly');
       // Don't throw here - continue with the flow but log the issue
     } else {
-      console.log('Document verification successful - document exists');
     }
 
     // Format content for batch update
@@ -236,7 +185,6 @@ serve(async (req) => {
 
     if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
-      console.error('Google Docs update error:', errorText);
       // Document was created but not updated - still return success
     }
 
@@ -254,7 +202,6 @@ serve(async (req) => {
         });
 
       if (dbError) {
-        console.warn('Failed to store document reference:', dbError);
         // Non-critical error - document was still created
       }
     }
@@ -272,7 +219,6 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in google-docs-create function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       {

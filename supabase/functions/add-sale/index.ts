@@ -80,7 +80,6 @@ serve(async (req) => {
       .single()
 
     if (error) {
-      console.error('Database error:', error)
       throw new Error('Failed to create sale')
     }
 
@@ -99,7 +98,6 @@ serve(async (req) => {
       .single()
 
     if (insertError) {
-      console.error('[Database]', insertError)
       throw insertError
     }
 
@@ -111,7 +109,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

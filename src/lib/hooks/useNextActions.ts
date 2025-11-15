@@ -85,9 +85,6 @@ export function useNextActions(options: UseNextActionsOptions = {}): UseNextActi
   // Real-time subscription
   useEffect(() => {
     if (!enableRealtime || !user) return
-
-    console.log('[useNextActions] Setting up real-time subscription')
-
     const channel = supabase
       .channel('next_action_suggestions_changes')
       .on(
@@ -99,8 +96,6 @@ export function useNextActions(options: UseNextActionsOptions = {}): UseNextActi
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[useNextActions] Real-time update:', payload)
-
           // Invalidate and refetch on any change
           queryClient.invalidateQueries({ queryKey: ['nextActions'] })
         }
@@ -108,7 +103,6 @@ export function useNextActions(options: UseNextActionsOptions = {}): UseNextActi
       .subscribe()
 
     return () => {
-      console.log('[useNextActions] Cleaning up real-time subscription')
       channel.unsubscribe()
     }
   }, [enableRealtime, user, queryClient])

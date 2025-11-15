@@ -13,8 +13,6 @@ const supabase = createClient(
 
 async function testUserActivities() {
   try {
-    console.log('🔍 Testing user activities query...\n');
-
     // Get all users who have activities
     const { data: users, error: usersError } = await supabase
       .from('activities')
@@ -23,15 +21,11 @@ async function testUserActivities() {
       .limit(5);
 
     if (usersError) throw usersError;
-
-    console.log('Sample users with activities:');
-    users?.forEach(u => console.log(`- User ID: ${u.user_id?.substring(0, 8)}... Rep: ${u.sales_rep}`));
+    users?.forEach(u => undefined);
 
     // Get activities for the first user
     if (users && users.length > 0) {
       const testUserId = users[0].user_id;
-      console.log(`\nFetching activities for user: ${testUserId.substring(0, 8)}...`);
-
       const { data: userActivities, error: activitiesError } = await supabase
         .from('activities')
         .select(`
@@ -52,19 +46,11 @@ async function testUserActivities() {
         .limit(10);
 
       if (activitiesError) throw activitiesError;
-
-      console.log(`\nFound ${userActivities?.length || 0} proposals for this user:`);
       userActivities?.forEach(activity => {
-        console.log(`\nClient: ${activity.client_name}`);
-        console.log(`Amount: ${activity.amount ? `£${activity.amount}` : 'null'}`);
-        console.log(`Status: ${activity.status}`);
-        console.log(`Date: ${new Date(activity.date).toLocaleDateString()}`);
-        console.log(`Has deal: ${activity.deal_id ? 'Yes' : 'No'}`);
       });
     }
 
     // Check if there are any recent activities with amounts
-    console.log('\n\nRecent activities with amounts (any user):');
     const { data: recentWithAmounts, error: recentError } = await supabase
       .from('activities')
       .select('client_name, amount, type, sales_rep, date')
@@ -76,11 +62,9 @@ async function testUserActivities() {
     if (recentError) throw recentError;
 
     recentWithAmounts?.forEach(a => {
-      console.log(`${new Date(a.date).toLocaleDateString()} - ${a.type} - ${a.client_name} - £${a.amount} - ${a.sales_rep}`);
     });
 
   } catch (error) {
-    console.error('❌ Error:', error);
   }
 }
 

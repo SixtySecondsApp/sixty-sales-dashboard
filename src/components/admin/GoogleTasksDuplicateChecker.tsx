@@ -30,7 +30,6 @@ export function GoogleTasksDuplicateChecker() {
         orphanedMappings: orphanedMappings.length
       });
     } catch (err) {
-      console.error('Error checking for duplicates:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
@@ -56,7 +55,6 @@ export function GoogleTasksDuplicateChecker() {
         checkForDuplicates();
       }, 1000);
     } catch (err) {
-      console.error('Error during cleanup:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);

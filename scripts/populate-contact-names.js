@@ -9,12 +9,9 @@ const client = new Client({
 
 async function populateContactNames() {
   try {
-    console.log('🔧 Populating contact names from legacy deal data...\n');
-    
     await client.connect();
 
     // Check current state of contact names
-    console.log('📊 Step 1: Check current contact name population');
     const nameStats = await client.query(`
       SELECT 
         COUNT(*) as total_contacts,
@@ -23,11 +20,7 @@ async function populateContactNames() {
         COUNT(last_name) as contacts_with_last_name
       FROM contacts;
     `);
-    
-    console.table(nameStats.rows);
-
     // Find contacts linked to deals that have contact_name but the contact doesn't have a name
-    console.log('\n📋 Step 2: Find contacts that can be named from deal data');
     const namableContacts = await client.query(`
       SELECT DISTINCT
         c.id as contact_id,
@@ -44,13 +37,7 @@ async function populateContactNames() {
       ORDER BY deal_count DESC
       LIMIT 100;
     `);
-    
-    console.log(`\nFound ${namableContacts.rows.length} contacts that can be named:`);
-    console.table(namableContacts.rows);
-
     if (namableContacts.rows.length > 0) {
-      console.log('\n🔄 Updating contact names...');
-      
       let updatedCount = 0;
       for (const contact of namableContacts.rows) {
         try {
@@ -68,19 +55,13 @@ async function populateContactNames() {
               updated_at = NOW()
             WHERE id = $3;
           `, [firstName, lastName, contact.contact_id]);
-          
-          console.log(`  ✅ Updated: ${contact.email} → ${fullName}`);
           updatedCount++;
         } catch (error) {
-          console.log(`  ❌ Failed to update ${contact.email}: ${error.message}`);
         }
       }
-      
-      console.log(`\n🎉 Updated ${updatedCount} contact names!`);
     }
 
     // Handle contacts that don't have deal names - extract names from emails
-    console.log('\n📧 Step 3: Extract names from email addresses for remaining contacts');
     const emailNameableContacts = await client.query(`
       SELECT 
         c.id as contact_id,
@@ -94,9 +75,6 @@ async function populateContactNames() {
         AND LENGTH(c.email) > 5
       LIMIT 100;
     `);
-    
-    console.log(`\nFound ${emailNameableContacts.rows.length} contacts with extractable email names:`);
-    
     if (emailNameableContacts.rows.length > 0) {
       let emailUpdatedCount = 0;
       for (const contact of emailNameableContacts.rows) {
@@ -127,20 +105,14 @@ async function populateContactNames() {
                 updated_at = NOW()
               WHERE id = $3;
             `, [firstName, lastName, contact.contact_id]);
-            
-            console.log(`  ✅ Extracted: ${contact.email} → ${extractedName}`);
             emailUpdatedCount++;
           }
         } catch (error) {
-          console.log(`  ❌ Failed to extract name from ${contact.email}: ${error.message}`);
         }
       }
-      
-      console.log(`\n🎉 Extracted ${emailUpdatedCount} names from emails!`);
     }
 
     // Final verification
-    console.log('\n📊 Final verification - updated contact names:');
     const finalStats = await client.query(`
       SELECT 
         COUNT(*) as total_contacts,
@@ -148,11 +120,7 @@ async function populateContactNames() {
         COUNT(CASE WHEN full_name IS NOT NULL AND full_name != '' THEN 1 END) as contacts_with_valid_names
       FROM contacts;
     `);
-    
-    console.table(finalStats.rows);
-
     // Show some examples
-    console.log('\n📋 Sample updated contacts:');
     const sampleUpdated = await client.query(`
       SELECT 
         c.email,
@@ -165,14 +133,9 @@ async function populateContactNames() {
       ORDER BY c.updated_at DESC
       LIMIT 10;
     `);
-    
-    console.table(sampleUpdated.rows);
-
   } catch (error) {
-    console.error('❌ Population failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

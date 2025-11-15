@@ -8,20 +8,8 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
-
-console.log('================================');
-console.log('WORKFLOW TABLE FIX');
-console.log('================================\n');
-console.log('The Supabase schema cache is out of sync.');
-console.log('\nPlease follow these steps:\n');
-console.log('1. Go to your Supabase Dashboard');
-console.log('2. Navigate to the SQL Editor');
-console.log('3. Run the following SQL:\n');
-console.log('================================\n');
-
 const sql = `
 -- Drop the existing table if it exists
 DROP TABLE IF EXISTS public.user_automation_rules CASCADE;
@@ -76,9 +64,3 @@ GRANT ALL ON public.user_automation_rules TO authenticated;
 -- Refresh schema cache
 NOTIFY pgrst, 'reload schema';
 `;
-
-console.log(sql);
-console.log('\n================================');
-console.log('4. After running the SQL, refresh your browser');
-console.log('5. Try saving a workflow again');
-console.log('================================\n');

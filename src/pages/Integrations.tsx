@@ -76,7 +76,6 @@ export default function Integrations() {
       const connected = await googleTasksSync.isConnected();
       setTasksConnected(connected);
     } catch (error) {
-      console.error('Failed to check Google Tasks connection:', error);
     }
   };
 
@@ -94,19 +93,14 @@ export default function Integrations() {
   // Event handlers using the store
   const handleConnectGoogle = async () => {
     try {
-      console.log('Initiating Google OAuth...');
       const authUrl = await connect();
-      console.log('Received auth URL:', authUrl);
       // Redirect to the OAuth URL
       if (authUrl) {
-        console.log('Redirecting to:', authUrl);
         window.location.href = authUrl;
       } else {
-        console.error('No auth URL received');
         toast.error('Failed to get authentication URL');
       }
     } catch (error: any) {
-      console.error('OAuth initiation error:', error);
       toast.error(error.message || 'Failed to initiate Google authentication');
     }
   };
@@ -116,7 +110,6 @@ export default function Integrations() {
       await disconnect();
       toast.success('Google account disconnected');
     } catch (error: any) {
-      console.error('Disconnect error:', error);
       toast.error(error.message || 'Failed to disconnect Google account');
     }
   };
@@ -129,7 +122,6 @@ export default function Integrations() {
       const action = newValue ? 'enabled' : 'disabled';
       toast.success(`Google ${service.charAt(0).toUpperCase() + service.slice(1)} ${action}`);
     } catch (error: any) {
-      console.error('Error toggling service:', error);
       toast.error(`Failed to toggle ${service}`);
     }
   };

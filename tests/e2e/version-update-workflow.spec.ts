@@ -149,7 +149,6 @@ test.describe('Version Update Workflow - E2E Tests', () => {
         window.location.reload = () => {
           // Add a marker to indicate reload was called
           (window as any).__reloadCalled = true;
-          console.log('Mock reload called');
         };
       });
 
@@ -158,7 +157,6 @@ test.describe('Version Update Workflow - E2E Tests', () => {
         (window as any).caches = {
           keys: () => Promise.resolve(['cache1', 'cache2']),
           delete: (name: string) => {
-            console.log(`Mock cache delete: ${name}`);
             return Promise.resolve(true);
           }
         };
@@ -454,7 +452,6 @@ test.describe('Version Update Workflow - E2E Tests', () => {
       await expect(page.getByText('Updating...')).toBeVisible();
 
       // Verify functionality works in all browsers
-      console.log(`Test passed in ${browserName}`);
     });
   });
 

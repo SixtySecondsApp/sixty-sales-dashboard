@@ -41,7 +41,6 @@ export default function GoogleCallback() {
 
         // Check for OAuth errors from Google
         if (error) {
-          console.error('OAuth error from Google:', error, errorDescription);
           setStatus('error');
           setMessage(errorDescription || error || 'Authentication failed');
           
@@ -54,7 +53,6 @@ export default function GoogleCallback() {
 
         // Validate we have required parameters
         if (!code || !state) {
-          console.error('Missing code or state parameter');
           setStatus('error');
           setMessage('Invalid authentication response');
           
@@ -63,8 +61,6 @@ export default function GoogleCallback() {
           }, 2000);
           return;
         }
-
-        console.log('Processing OAuth callback with code and state');
         setMessage('Exchanging authorization code...');
 
         // Call the Edge Function to exchange the code for tokens
@@ -77,7 +73,6 @@ export default function GoogleCallback() {
           // Try to surface deeper context if provided by supabase-js
           // @ts-expect-error context may exist on the error
           const context = (exchangeError as any)?.context;
-          console.error('Exchange error:', exchangeError, context);
           setStatus('error');
           setMessage(
             (context && (context.error || context.message)) ||
@@ -92,7 +87,6 @@ export default function GoogleCallback() {
         }
 
         if (!data || !data.success) {
-          console.error('Exchange failed:', data);
           setStatus('error');
           setMessage(data?.error || 'Failed to complete authentication');
           
@@ -103,7 +97,6 @@ export default function GoogleCallback() {
         }
 
         // Success!
-        console.log('OAuth exchange successful:', data);
         setStatus('success');
         setMessage(`Successfully connected to Google as ${data.email}!`);
         toast.success('Google account connected successfully');
@@ -114,7 +107,6 @@ export default function GoogleCallback() {
         }, 1500);
 
       } catch (error: any) {
-        console.error('Unexpected error in OAuth callback:', error);
         setStatus('error');
         setMessage(error.message || 'An unexpected error occurred');
         

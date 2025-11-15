@@ -12,25 +12,17 @@ async function getStages() {
     .order('order_position', { ascending: true });
   
   if (error) {
-    console.log('Error:', error.message);
     return;
   }
-  
-  console.log('Current Deal Stages:');
-  console.log('===================');
   stages.forEach(stage => {
     const isUnwanted = ['Lead', 'Qualified', 'Closed Won'].includes(stage.name);
     const marker = isUnwanted ? '❌ REMOVE' : '✅ KEEP';
-    console.log(`${marker} ${stage.name} (ID: ${stage.id}) - Order: ${stage.order_position}`);
   });
   
   // Get the first non-unwanted stage to use as default
   const firstGoodStage = stages.find(s => !['Lead', 'Qualified', 'Closed Won'].includes(s.name));
-  console.log('\n📋 Recommended default stage for API:');
   if (firstGoodStage) {
-    console.log(`Use "${firstGoodStage.name}" (ID: ${firstGoodStage.id}) as default instead of "Lead"`);
   } else {
-    console.log('No good stages found - you may need to create proper stages first');
   }
 }
 

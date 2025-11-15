@@ -218,7 +218,6 @@ export async function findCompanyByDomain(
 
   if (error && error.code !== 'PGRST116') {
     // PGRST116 = no rows returned
-    console.error('Error finding company by domain:', error);
     return null;
   }
 
@@ -249,7 +248,6 @@ export async function findCompanyByFuzzyName(
     .eq('owner_id', userId);
 
   if (error) {
-    console.error('Error fetching companies for fuzzy match:', error);
     return null;
   }
 
@@ -275,9 +273,6 @@ export async function findCompanyByFuzzyName(
   }
 
   if (bestMatch) {
-    console.log(
-      `Fuzzy matched "${name}" to "${bestMatch.name}" (similarity: ${highestSimilarity.toFixed(2)})`
-    );
   }
 
   return bestMatch;
@@ -318,7 +313,6 @@ export async function createCompanyFromDomain(
         .single();
 
       if (updateError) {
-        console.error('Error updating company domain:', updateError);
         return existingCompany;
       }
 
@@ -343,11 +337,8 @@ export async function createCompanyFromDomain(
     .single();
 
   if (error) {
-    console.error('Error creating company from domain:', error);
     return null;
   }
-
-  console.log(`Created new company: ${companyName} (${domain})`);
   return data;
 }
 

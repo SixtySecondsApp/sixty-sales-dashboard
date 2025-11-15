@@ -121,7 +121,6 @@ export default function PromptTemplatesModal({
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading templates:', error);
         // Use default templates if database is empty
         setTemplates(DEFAULT_TEMPLATES.map((t, i) => ({ 
           ...t, 
@@ -133,7 +132,6 @@ export default function PromptTemplatesModal({
         setTemplates(data || []);
       }
     } catch (error) {
-      console.error('Error loading templates:', error);
     } finally {
       setLoading(false);
     }
@@ -171,7 +169,6 @@ export default function PromptTemplatesModal({
       setEditingTemplate(null);
       setIsCreating(false);
     } catch (error) {
-      console.error('Error saving template:', error);
     }
   };
 
@@ -187,7 +184,6 @@ export default function PromptTemplatesModal({
       if (error) throw error;
       await loadTemplates();
     } catch (error) {
-      console.error('Error deleting template:', error);
     }
   };
 

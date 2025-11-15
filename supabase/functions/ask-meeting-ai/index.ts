@@ -69,7 +69,6 @@ serve(async (req) => {
       .single()
 
     if (meetingError || !meeting) {
-      console.error('[ask-meeting-ai] Meeting not found:', meetingError)
       return new Response(
         JSON.stringify({ error: 'Meeting not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,7 +85,6 @@ serve(async (req) => {
     // Get Anthropic API key
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!anthropicApiKey) {
-      console.error('[ask-meeting-ai] ANTHROPIC_API_KEY not configured')
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -126,9 +124,6 @@ Instructions:
 - Be concise but thorough in your responses
 - Reference specific moments or speakers when relevant
 - Maintain a helpful, professional tone`
-
-    console.log('[ask-meeting-ai] Calling Claude API with', messages.length, 'messages')
-
     // Call Claude Haiku 4 API
     const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -149,7 +144,6 @@ Instructions:
 
     if (!anthropicResponse.ok) {
       const errorText = await anthropicResponse.text()
-      console.error('[ask-meeting-ai] Claude API error:', errorText)
       return new Response(
         JSON.stringify({ error: 'AI service error', details: errorText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -158,16 +152,12 @@ Instructions:
 
     const anthropicData = await anthropicResponse.json()
     const aiResponse = anthropicData.content[0]?.text || 'I apologize, but I could not generate a response.'
-
-    console.log('[ask-meeting-ai] Success - response length:', aiResponse.length)
-
     return new Response(
       JSON.stringify({ response: aiResponse }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('[ask-meeting-ai] Unexpected error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

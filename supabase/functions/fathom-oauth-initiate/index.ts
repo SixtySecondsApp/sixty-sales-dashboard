@@ -35,9 +35,6 @@ serve(async (req) => {
     if (userError || !user) {
       throw new Error('Unauthorized: No valid session')
     }
-
-    console.log('🔐 Initiating OAuth for user:', user.id)
-
     // Create service role client for bypassing RLS when storing OAuth state
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -59,7 +56,6 @@ serve(async (req) => {
       .single()
 
     if (existingIntegration) {
-      console.log('⚠️  User already has active Fathom integration')
       return new Response(
         JSON.stringify({
           error: 'Integration already exists',
@@ -94,7 +90,6 @@ serve(async (req) => {
       })
 
     if (stateError) {
-      console.error('Failed to store OAuth state:', stateError)
       // Continue anyway - state validation is best-effort
     }
 
@@ -106,9 +101,6 @@ serve(async (req) => {
     authUrl.searchParams.set('response_type', 'code')
     authUrl.searchParams.set('scope', 'public_api') // Only supported scope
     authUrl.searchParams.set('state', state)
-
-    console.log('✅ OAuth URL generated successfully')
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -121,8 +113,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ OAuth initiation error:', error)
-
     return new Response(
       JSON.stringify({
         error: error.message || 'Failed to initiate OAuth',

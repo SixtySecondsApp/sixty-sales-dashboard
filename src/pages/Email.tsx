@@ -124,10 +124,8 @@ export default function Email() {
   // Debug logging
   useEffect(() => {
     if (gmailData) {
-      console.log('Gmail data received:', gmailData);
     }
     if (gmailError) {
-      console.error('Gmail error:', gmailError);
     }
   }, [gmailData, gmailError]);
   
@@ -155,12 +153,8 @@ export default function Email() {
     try {
       // Check different possible data structures from the Edge Function
       const messages = gmailData?.messages || gmailData?.emails || [];
-      
-      console.log('Processing Gmail messages:', messages?.length || 0);
-      
       // If no messages, return empty array (not mock data) to show "no emails" state
       if (!Array.isArray(messages) || messages.length === 0) {
-        console.log('No Gmail messages found');
         return []; // Return empty array instead of mock data when connected but no emails
       }
       
@@ -199,7 +193,6 @@ export default function Email() {
         if (!isNaN(parsedDate.getTime())) {
           timestamp = parsedDate;
         } else {
-          console.warn('Invalid date from Gmail:', dateHeader);
         }
       } else if (msg.internalDate) {
         // Gmail API also provides internalDate as a timestamp in milliseconds
@@ -219,7 +212,6 @@ export default function Email() {
         try {
           body = atob(msg.payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
         } catch (e) {
-          console.error('Failed to decode body:', e);
         }
       } else if (!body && msg.payload?.parts) {
         const textPart = msg.payload.parts.find((p: any) => p.mimeType === 'text/plain');
@@ -227,7 +219,6 @@ export default function Email() {
           try {
             body = atob(textPart.body.data.replace(/-/g, '+').replace(/_/g, '/'));
           } catch (e) {
-            console.error('Failed to decode part body:', e);
           }
         }
       }
@@ -278,7 +269,6 @@ export default function Email() {
             }]
           };
         } catch (error) {
-          console.error('Error processing email message:', error, msg);
           // Return a fallback email object
           return {
             id: msg.id || `error-${Date.now()}`,
@@ -298,7 +288,6 @@ export default function Email() {
         }
       });
     } catch (error) {
-      console.error('Error processing Gmail data:', error);
       return [];
     }
   }, [gmailData, isGmailEnabled, labelsData, emailsLoading, gmailError]);
@@ -555,7 +544,6 @@ export default function Email() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={async () => {
-                  console.log('Testing Gmail API directly...');
                   try {
                     // Test with the exact format expected by the Edge Function
                     const response = await supabase.functions.invoke('google-gmail?action=list', {
@@ -564,10 +552,7 @@ export default function Email() {
                         maxResults: 10
                       }
                     });
-                    console.log('Direct API response:', response);
-                    
                     if (response.error) {
-                      console.error('Error details:', response.error);
                       toast.error(`API Error: ${response.error.message || response.error}`);
                       
                       // Check if it's an authentication issue
@@ -575,16 +560,9 @@ export default function Email() {
                         toast.info('Try reconnecting your Google account in Settings');
                       }
                     } else if (response.data) {
-                      console.log('Success! Data structure:', {
-                        hasMessages: !!response.data.messages,
-                        hasEmails: !!response.data.emails,
-                        isArray: Array.isArray(response.data),
-                        keys: Object.keys(response.data)
-                      });
                       toast.success('Check console for API response structure');
                     }
                   } catch (err) {
-                    console.error('Direct API error:', err);
                     toast.error('Failed to call Gmail API');
                   }
                 }}

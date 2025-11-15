@@ -37,13 +37,17 @@ import {
   ExternalLink as LinkIcon,
   Mail,
   Calendar,
-  Sparkles
+  Sparkles,
+  UserPlus
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
 import logger from '@/lib/utils/logger';
 import { useEventListener } from '@/lib/communication/EventBus';
 import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
+import { SmartSearch } from '@/components/SmartSearch';
+import { useCopilot } from '@/lib/contexts/CopilotContext';
+import { useNavigate } from 'react-router-dom';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -53,6 +57,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isSmartSearchOpen, setIsSmartSearchOpen] = useState(false);
+  const navigate = useNavigate();
+  const { openCopilot } = useCopilot();
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
@@ -92,10 +99,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setHasMounted(true);
   }, []);
 
+  // Keyboard shortcut for SmartSearch (⌘K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSmartSearchOpen(true);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+    { icon: Sparkles, label: 'AI Copilot', href: '/copilot' },
     { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
-    { icon: Sparkles, label: 'Leads', href: '/leads' },
+    { icon: UserPlus, label: 'Leads', href: '/leads' },
     { icon: Activity, label: 'Deal Health', href: '/crm/health' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
@@ -525,6 +546,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
+        <SmartSearch
+          isOpen={isSmartSearchOpen}
+          onClose={() => setIsSmartSearchOpen(false)}
+          onOpenCopilot={() => {
+            navigate('/copilot');
+            setIsSmartSearchOpen(false);
+          }}
+          onDraftEmail={() => {
+            // Could navigate to email page or open email modal
+            setIsSmartSearchOpen(false);
+          }}
+          onAddContact={() => {
+            navigate('/crm?tab=contacts');
+            setIsSmartSearchOpen(false);
+          }}
+          onScheduleMeeting={() => {
+            navigate('/meetings');
+            setIsSmartSearchOpen(false);
+          }}
+          onSelectContact={(contactId) => {
+            navigate(`/crm/contacts/${contactId}`);
+            setIsSmartSearchOpen(false);
+          }}
+          onAskCopilot={(query) => {
+            openCopilot(query);
+            navigate('/copilot');
+            setIsSmartSearchOpen(false);
+          }}
+        />
       </main>
     </div>
     </div>

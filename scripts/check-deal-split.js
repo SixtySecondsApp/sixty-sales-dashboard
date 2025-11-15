@@ -19,23 +19,17 @@ async function checkDealSplit() {
     .select('*')
     .eq('id', dealId)
     .single();
-
-  console.log('Deal:', deal);
-  if (dealError) console.log('Deal error:', dealError);
+  if (dealError) {}
 
   // Check activities for this deal
   const { data: activities } = await supabase
     .from('activities')
     .select('*')
     .eq('deal_id', dealId);
-
-  console.log('\nActivities for deal:');
   if (activities && activities.length > 0) {
     activities.forEach(a => {
-      console.log(`- User: ${a.user_id}, Amount: ${a.amount}, Details: ${a.details}, is_split: ${a.is_split}`);
     });
   } else {
-    console.log('No activities found');
   }
 
   // Check splits
@@ -43,14 +37,10 @@ async function checkDealSplit() {
     .from('deal_splits')
     .select('*')
     .eq('deal_id', dealId);
-
-  console.log('\nSplits for deal:');
   if (splits && splits.length > 0) {
     splits.forEach(s => {
-      console.log(`- User: ${s.user_id}, Percentage: ${s.percentage}%`);
     });
   } else {
-    console.log('No splits found');
   }
 }
 

@@ -8,6 +8,7 @@ import PerformanceMonitor from '@/lib/utils/performanceMonitor';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { ViewModeProvider } from '@/contexts/ViewModeContext';
+import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
@@ -100,6 +101,7 @@ const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
+const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -201,9 +203,11 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <ViewModeProvider>
-            <StateProvider>
-            <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
-            </StateProvider>
+            <CopilotProvider>
+              <StateProvider>
+                <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
+              </StateProvider>
+            </CopilotProvider>
           </ViewModeProvider>
         </AuthProvider>
       </QueryClientProvider>
@@ -237,6 +241,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/debug-auth" element={<DebugAuth />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+                <Route path="/copilot" element={<AppLayout><Copilot /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
                 <Route path="/crm" element={<AppLayout><ElegantCRM /></AppLayout>} />

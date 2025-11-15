@@ -13,7 +13,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
@@ -21,23 +20,15 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function fixSplitActivities() {
   try {
-    console.log('Checking for deal splits without activities...');
-    
     // Get all deal splits
     const { data: splits, error: splitsError } = await supabase
       .from('deal_splits_with_users')
       .select('*');
     
     if (splitsError) {
-      console.error('Error fetching splits:', splitsError);
       return;
     }
-    
-    console.log(`Found ${splits.length} deal splits`);
-    
     for (const split of splits) {
-      console.log(`\nChecking split for deal ${split.deal_id}, user ${split.user_id} (${split.percentage}%)`);
-      
       // Check if split activity exists
       const { data: splitActivity } = await supabase
         .from('activities')
@@ -48,8 +39,6 @@ async function fixSplitActivities() {
         .single();
       
       if (!splitActivity) {
-        console.log(`  ❌ No split activity found for user ${split.full_name}`);
-        
         // Get the deal details
         const { data: deal } = await supabase
           .from('deals')
@@ -58,8 +47,6 @@ async function fixSplitActivities() {
           .single();
         
         if (deal) {
-          console.log(`  📦 Deal: ${deal.name} (${deal.company}), Value: ${deal.value}`);
-          
           // Check if there's an original activity
           const { data: originalActivity } = await supabase
             .from('activities')
@@ -70,8 +57,6 @@ async function fixSplitActivities() {
             .single();
           
           if (originalActivity) {
-            console.log(`  ✅ Found original activity for ${originalActivity.client_name}`);
-            
             // Create the missing split activity
             const splitAmount = deal.value * (split.percentage / 100);
             const baseDetails = originalActivity.details?.replace(/ \(\d+% retained after split\)/, '').replace(/ \(\d+% split\)/, '') || 'Sale';
@@ -100,10 +85,7 @@ async function fixSplitActivities() {
               .insert([newSplitActivity]);
             
             if (createError) {
-              console.error(`  ❌ Failed to create split activity:`, createError);
             } else {
-              console.log(`  ✅ Created split activity for ${split.full_name} (${splitAmount})`);
-              
               // Now update the original activity
               const { data: allSplits } = await supabase
                 .from('deal_splits')
@@ -126,24 +108,16 @@ async function fixSplitActivities() {
                 .eq('id', originalActivity.id);
               
               if (updateError) {
-                console.error(`  ❌ Failed to update original activity:`, updateError);
               } else {
-                console.log(`  ✅ Updated original activity to ${ownerPercentage}% (${ownerAmount})`);
               }
             }
           } else {
-            console.log(`  ⚠️  No original activity found for this deal`);
           }
         }
       } else {
-        console.log(`  ✅ Split activity already exists`);
       }
     }
-    
-    console.log('\n✅ Finished checking and fixing split activities');
-    
   } catch (error) {
-    console.error('Error fixing split activities:', error);
   }
 }
 

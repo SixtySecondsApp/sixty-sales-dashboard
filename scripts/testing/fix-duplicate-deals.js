@@ -8,8 +8,6 @@ const supabase = createClient(
 
 async function fixDuplicateDeals() {
   try {
-    console.log('🔍 Finding activities with duplicate deal_ids...');
-    
     // Get all sale activities
     const { data: activities, error: activitiesError } = await supabase
       .from('activities')
@@ -20,12 +18,8 @@ async function fixDuplicateDeals() {
       .order('date', { ascending: false });
     
     if (activitiesError) {
-      console.error('❌ Error fetching activities:', activitiesError);
       return;
     }
-    
-    console.log(`📋 Found ${activities.length} completed sale activities with deal_ids`);
-    
     // Group activities by deal_id to find duplicates
     const dealIdGroups = activities.reduce((groups, activity) => {
       const dealId = activity.deal_id;
@@ -38,18 +32,12 @@ async function fixDuplicateDeals() {
     
     // Find deal_ids that have multiple activities
     const duplicateDeals = Object.entries(dealIdGroups).filter(([dealId, activities]) => activities.length > 1);
-    
-    console.log(`🎯 Found ${duplicateDeals.length} deal_ids with multiple activities`);
-    
     if (duplicateDeals.length === 0) {
-      console.log('✅ No duplicate deal_ids found - all activities have unique deals');
       return;
     }
     
     // Process each duplicate deal group
     for (const [dealId, duplicateActivities] of duplicateDeals) {
-      console.log(`\n🔧 Processing deal_id ${dealId} with ${duplicateActivities.length} activities:`);
-      
       // Get the original deal details
       const { data: originalDeal, error: dealError } = await supabase
         .from('deals')
@@ -58,7 +46,6 @@ async function fixDuplicateDeals() {
         .single();
         
       if (dealError || !originalDeal) {
-        console.error(`❌ Could not fetch original deal ${dealId}:`, dealError);
         continue;
       }
       
@@ -68,8 +55,6 @@ async function fixDuplicateDeals() {
       // Keep the oldest activity with the original deal, create new deals for others
       for (let i = 1; i < duplicateActivities.length; i++) {
         const activity = duplicateActivities[i];
-        console.log(`  📝 Creating new deal for activity ${activity.id} (${activity.client_name})`);
-        
         // Generate a new UUID for the deal
         const { data: newDealResult, error: createError } = await supabase
           .from('deals')
@@ -103,13 +88,10 @@ async function fixDuplicateDeals() {
           .single();
         
         if (createError) {
-          console.error(`❌ Error creating new deal for activity ${activity.id}:`, createError);
           continue;
         }
         
         const newDealId = newDealResult.id;
-        console.log(`  ✅ Created new deal ${newDealId}`);
-        
         // Update the activity to point to the new deal
         const { error: updateError } = await supabase
           .from('activities')
@@ -120,18 +102,11 @@ async function fixDuplicateDeals() {
           .eq('id', activity.id);
         
         if (updateError) {
-          console.error(`❌ Error updating activity ${activity.id}:`, updateError);
         } else {
-          console.log(`  ✅ Updated activity ${activity.id} to point to new deal ${newDealId}`);
         }
       }
     }
-    
-    console.log('\n🎉 Migration completed! Each sale activity now has its own unique deal.');
-    console.log('🔄 Refresh your client table to see the changes.');
-    
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
   }
 }
 

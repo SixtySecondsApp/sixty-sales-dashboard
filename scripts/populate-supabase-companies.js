@@ -20,9 +20,6 @@ const neonClient = new Client({
 
 async function populateSupabaseCompanies() {
   try {
-    console.log('📥 Populating Supabase companies table...');
-    console.log('⚠️  Make sure you created the companies table in Supabase first!');
-    
     await neonClient.connect();
     
     // Get all companies data from Neon
@@ -39,9 +36,6 @@ async function populateSupabaseCompanies() {
       WHERE name IS NOT NULL
       ORDER BY created_at DESC;
     `);
-    
-    console.log(`Found ${companiesResult.rows.length} companies to migrate`);
-    
     // Insert in batches
     const batchSize = 20;
     let successCount = 0;
@@ -65,18 +59,11 @@ async function populateSupabaseCompanies() {
         );
       
       if (batchError) {
-        console.error(`❌ Batch ${Math.floor(i/batchSize) + 1} failed:`, batchError.message);
         errorCount += batch.length;
       } else {
         successCount += batch.length;
-        console.log(`✅ Batch ${Math.floor(i/batchSize) + 1}: ${batch.length} companies`);
       }
     }
-    
-    console.log(`\n🎉 Migration complete!`);
-    console.log(`✅ Successfully migrated: ${successCount} companies`);
-    console.log(`❌ Failed: ${errorCount} companies`);
-    
     // Verify
     const { data: verifyData, error: verifyError, count } = await supabase
       .from('companies')
@@ -84,16 +71,10 @@ async function populateSupabaseCompanies() {
       .limit(3);
     
     if (verifyError) {
-      console.error('❌ Verification failed:', verifyError);
     } else {
-      console.log(`\n✅ Final verification: ${count} companies in Supabase`);
-      console.table(verifyData);
-      console.log('\n🚀 CRM is now ready!');
-      console.log('   Navigate to http://localhost:5175/companies to test');
     }
     
   } catch (error) {
-    console.error('❌ Population failed:', error);
   } finally {
     await neonClient.end();
   }

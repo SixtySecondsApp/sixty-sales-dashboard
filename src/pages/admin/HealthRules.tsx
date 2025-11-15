@@ -46,7 +46,6 @@ export default function HealthRulesPage() {
 
       setRules(data || []);
     } catch (error) {
-      console.error('Error fetching rules:', error);
       toast.error('Failed to load health rules');
     } finally {
       setLoading(false);
@@ -70,7 +69,6 @@ export default function HealthRulesPage() {
       toast.success(`Rule ${!currentStatus ? 'activated' : 'deactivated'}`);
       fetchRules();
     } catch (error) {
-      console.error('Error toggling rule:', error);
       toast.error('Failed to toggle rule');
     }
   };
@@ -97,7 +95,6 @@ export default function HealthRulesPage() {
       toast.success('Rule deleted');
       fetchRules();
     } catch (error) {
-      console.error('Error deleting rule:', error);
       toast.error('Failed to delete rule');
     }
   };
@@ -363,7 +360,6 @@ function RuleEditModal({ rule, onClose, onSave }: RuleEditModalProps) {
 
       onSave();
     } catch (error) {
-      console.error('Error saving rule:', error);
       toast.error('Failed to save rule');
     } finally {
       setSaving(false);

@@ -231,7 +231,6 @@ export class ServiceErrorBoundary extends React.Component<
     try {
       services.notificationService.sendTaskNotification('error-' + Date.now(), 'system');
     } catch (notificationError) {
-      console.warn('Failed to send error notification:', notificationError);
     }
   }
 

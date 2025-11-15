@@ -96,8 +96,6 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
-    console.error('Error in tasks API:', error)
-    
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })
@@ -245,7 +243,6 @@ async function handleTasksList(client: any, url: URL, userId: string, permission
     return createSuccessResponse(processedTasks, 200, count, pagination)
 
   } catch (error) {
-    console.error('Error fetching tasks:', error)
     throw new Error(error.message || 'Failed to fetch tasks')
   }
 }
@@ -348,7 +345,6 @@ async function handleSingleTask(client: any, taskId: string, userId: string, per
     return createSuccessResponse(processedTask)
 
   } catch (error) {
-    console.error('Error fetching task:', error)
     throw new Error(error.message || 'Failed to fetch task')
   }
 }
@@ -419,7 +415,6 @@ async function handleCreateTask(client: any, body: any, userId: string) {
       .single()
 
     if (error) {
-      console.error('Database error creating task:', error)
       throw error
     }
 
@@ -437,7 +432,6 @@ async function handleCreateTask(client: any, body: any, userId: string) {
     return createSuccessResponse(processedTask, 201)
 
   } catch (error) {
-    console.error('Error creating task:', error)
     throw new Error(error.message || 'Failed to create task')
   }
 }
@@ -546,7 +540,6 @@ async function handleUpdateTask(client: any, taskId: string, body: any, userId: 
     return createSuccessResponse(processedTask)
 
   } catch (error) {
-    console.error('Error updating task:', error)
     throw new Error(error.message || 'Failed to update task')
   }
 }
@@ -586,7 +579,6 @@ async function handleDeleteTask(client: any, taskId: string, userId: string, per
     return createSuccessResponse({ id: taskId, deleted: true })
 
   } catch (error) {
-    console.error('Error deleting task:', error)
     throw new Error(error.message || 'Failed to delete task')
   }
 }

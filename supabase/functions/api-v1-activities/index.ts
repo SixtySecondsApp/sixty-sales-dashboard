@@ -96,8 +96,6 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
-    console.error('Error in activities API:', error)
-    
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })
@@ -263,7 +261,6 @@ async function handleActivitiesList(client: any, url: URL, userId: string, permi
     return createSuccessResponse(processedActivities, 200, count, pagination)
 
   } catch (error) {
-    console.error('Error fetching activities:', error)
     throw new Error(error.message || 'Failed to fetch activities')
   }
 }
@@ -351,7 +348,6 @@ async function handleSingleActivity(client: any, activityId: string, userId: str
     return createSuccessResponse(processedActivity)
 
   } catch (error) {
-    console.error('Error fetching activity:', error)
     throw new Error(error.message || 'Failed to fetch activity')
   }
 }
@@ -431,7 +427,6 @@ async function handleCreateActivity(client: any, body: any, userId: string) {
       .single()
 
     if (error) {
-      console.error('Database error creating activity:', error)
       throw error
     }
 
@@ -447,7 +442,6 @@ async function handleCreateActivity(client: any, body: any, userId: string) {
     return createSuccessResponse(processedActivity, 201)
 
   } catch (error) {
-    console.error('Error creating activity:', error)
     throw new Error(error.message || 'Failed to create activity')
   }
 }
@@ -554,7 +548,6 @@ async function handleUpdateActivity(client: any, activityId: string, body: any, 
     return createSuccessResponse(processedActivity)
 
   } catch (error) {
-    console.error('Error updating activity:', error)
     throw new Error(error.message || 'Failed to update activity')
   }
 }
@@ -594,7 +587,6 @@ async function handleDeleteActivity(client: any, activityId: string, userId: str
     return createSuccessResponse({ id: activityId, deleted: true })
 
   } catch (error) {
-    console.error('Error deleting activity:', error)
     throw new Error(error.message || 'Failed to delete activity')
   }
 }

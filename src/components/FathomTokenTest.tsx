@@ -16,16 +16,11 @@ export function FathomTokenTest() {
     setResult(null);
 
     try {
-      console.log('🧪 Testing Fathom token...');
-
       const { data, error } = await supabase.functions.invoke('test-fathom-token');
 
       if (error) {
-        console.error('❌ Edge Function error:', error);
         throw error;
       }
-
-      console.log('📊 Test result:', data);
       setResult(data);
 
       // Show user-friendly alert
@@ -35,7 +30,6 @@ export function FathomTokenTest() {
         alert(`❌ Token Invalid\n\n${data.message}\n\nRecommendation: ${data.recommendation || 'Reconnect your Fathom account'}`);
       }
     } catch (error) {
-      console.error('❌ Test error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setResult({
         success: false,

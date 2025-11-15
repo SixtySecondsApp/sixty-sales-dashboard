@@ -208,7 +208,6 @@ const TestingLab: React.FC<TestingLabProps> = ({ workflow }) => {
       calculatePlayerStats(results || []);
       
     } catch (error) {
-      console.error('Error loading testing data:', error);
     } finally {
       setLoading(false);
     }
@@ -359,12 +358,7 @@ const TestingLab: React.FC<TestingLabProps> = ({ workflow }) => {
       // Update achievements and player stats
       await updateAchievements(testResult);
       await loadTestingData(); // Refresh all data
-
-      console.log(`🧪 Test ${passed ? 'PASSED' : 'FAILED'}: ${scenario.name}`, result);
-
     } catch (error) {
-      console.error('Test execution failed:', error);
-      
       const testResult: TestResult = {
         id: Date.now().toString(),
         scenario_id: scenario.id,

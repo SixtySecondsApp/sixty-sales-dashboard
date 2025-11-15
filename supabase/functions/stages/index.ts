@@ -57,7 +57,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in stages function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -108,7 +107,6 @@ async function handleStagesList(supabaseClient: any, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching stages:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message
@@ -155,7 +153,6 @@ async function handleSingleStage(supabaseClient: any, stageId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching stage:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -200,7 +197,6 @@ async function handleCreateStage(supabaseClient: any, body: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error creating stage:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -232,7 +228,6 @@ async function handleUpdateStage(supabaseClient: any, stageId: string, body: any
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error updating stage:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -278,7 +273,6 @@ async function handleDeleteStage(supabaseClient: any, stageId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error deleting stage:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message

@@ -89,7 +89,6 @@ export default function NotificationsSettings() {
       if (error) throw error
       toast.success('Notification preferences saved')
     } catch (e) {
-      console.error('[NotificationsSettings] Save error:', e)
       toast.error(e instanceof Error ? e.message : 'Failed to save preferences')
     } finally {
       setSaving(false)

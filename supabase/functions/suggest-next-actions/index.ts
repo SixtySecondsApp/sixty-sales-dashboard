@@ -111,9 +111,6 @@ serve(async (req) => {
         }
       }
     )
-
-    console.log(`[suggest-next-actions] Processing ${activityType} ${activityId}`)
-
     // Check if suggestions already exist (unless force regenerate)
     if (!forceRegenerate) {
       const { data: existingSuggestions } = await supabaseClient
@@ -125,7 +122,6 @@ serve(async (req) => {
         .limit(1)
 
       if (existingSuggestions && existingSuggestions.length > 0) {
-        console.log('[suggest-next-actions] Suggestions already exist, skipping')
         return new Response(
           JSON.stringify({ message: 'Suggestions already exist', skipped: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -161,18 +157,12 @@ serve(async (req) => {
       context,
       suggestions
     )
-
-    console.log(`[suggest-next-actions] Generated ${storedSuggestions.length} suggestions`)
-
     // AUTO-CREATE TASKS from suggestions (NEW UNIFIED SYSTEM)
     const createdTasks = await autoCreateTasksFromSuggestions(
       supabaseClient,
       storedSuggestions,
       context
     )
-
-    console.log(`[suggest-next-actions] Auto-created ${createdTasks.length} tasks`)
-
     // Create notification for user if tasks were created
     if (createdTasks.length > 0 && context.type === 'meeting') {
       try {
@@ -191,10 +181,8 @@ serve(async (req) => {
             p_task_count: createdTasks.length,
             p_task_ids: taskIds
           });
-          console.log(`[suggest-next-actions] Created notification for ${createdTasks.length} tasks`);
         }
       } catch (notifError) {
-        console.error('[suggest-next-actions] Failed to create notification:', notifError);
         // Don't fail the whole request if notification fails
       }
     }
@@ -210,7 +198,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('[suggest-next-actions] Error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -248,7 +235,6 @@ async function fetchActivityContext(
       .single()
 
     if (error || !meeting) {
-      console.error('[fetchActivityContext] Meeting fetch error:', error)
       return null
     }
 
@@ -314,7 +300,6 @@ async function fetchActivityContext(
       .single()
 
     if (error || !activity) {
-      console.error('[fetchActivityContext] Activity fetch error:', error)
       return null
     }
 
@@ -345,7 +330,6 @@ async function generateSuggestionsWithClaude(
 ): Promise<NextActionSuggestion[]> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
-    console.error('[generateSuggestionsWithClaude] ANTHROPIC_API_KEY not configured')
     throw new Error('AI service not configured')
   }
 
@@ -440,9 +424,6 @@ IMPORTANT:
 - Use "task_category" not "action_type". Valid categories: call, email, meeting, follow_up, proposal, demo, general
 - Include "timestamp_seconds" if you can identify when this was discussed (omit if unsure)
 - timestamp_seconds should be the approximate seconds from start of meeting`
-
-  console.log('[generateSuggestionsWithClaude] Calling Claude API')
-
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -467,21 +448,15 @@ IMPORTANT:
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error('[generateSuggestionsWithClaude] Claude API error:', errorText)
     throw new Error('AI service error')
   }
 
   const responseData = await response.json()
   let aiResponse = responseData.content[0]?.text || '[]'
-
-  console.log('[generateSuggestionsWithClaude] AI response length:', aiResponse.length)
-  console.log('[generateSuggestionsWithClaude] Raw AI response:', aiResponse.substring(0, 500))
-
   // Strip markdown code blocks if present (```json ... ```)
   const codeBlockMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
   if (codeBlockMatch) {
     aiResponse = codeBlockMatch[1].trim()
-    console.log('[generateSuggestionsWithClaude] Stripped markdown code blocks')
   }
 
   // Parse JSON response
@@ -489,8 +464,6 @@ IMPORTANT:
     const suggestions = JSON.parse(aiResponse)
     return Array.isArray(suggestions) ? suggestions : []
   } catch (parseError) {
-    console.error('[generateSuggestionsWithClaude] Failed to parse AI response:', parseError)
-    console.error('[generateSuggestionsWithClaude] Raw response:', aiResponse.substring(0, 200))
     return []
   }
 }
@@ -572,9 +545,6 @@ async function storeSuggestions(
     // Validate task category is one of the allowed values
     const validCategories = ['call', 'email', 'meeting', 'follow_up', 'proposal', 'demo', 'general']
     const action_type = validCategories.includes(taskCategory) ? taskCategory : 'general'
-
-    console.log(`[storeSuggestions] Mapping task_category "${taskCategory}" to action_type "${action_type}"`)
-
     // Extract timestamp if provided
     const timestamp_seconds = (suggestion as any).timestamp_seconds || null
 
@@ -598,7 +568,6 @@ async function storeSuggestions(
     }
 
     if (timestamp_seconds) {
-      console.log(`[storeSuggestions] Suggestion "${suggestion.title}" includes timestamp: ${timestamp_seconds}s`)
     }
 
     const { data, error } = await supabase
@@ -608,7 +577,6 @@ async function storeSuggestions(
       .single()
 
     if (error) {
-      console.error('[storeSuggestions] Insert error:', error)
     } else {
       storedSuggestions.push(data)
     }
@@ -640,7 +608,6 @@ async function autoCreateTasksFromSuggestions(
   }
 
   if (!ownerId) {
-    console.log('[autoCreateTasksFromSuggestions] No owner found, skipping task creation')
     return []
   }
 
@@ -687,7 +654,6 @@ async function autoCreateTasksFromSuggestions(
         .single()
 
       if (taskError) {
-        console.error('[autoCreateTasksFromSuggestions] Task creation error:', taskError)
         continue
       }
 
@@ -698,10 +664,7 @@ async function autoCreateTasksFromSuggestions(
         .eq('id', suggestion.id)
 
       createdTasks.push(task)
-      console.log(`[autoCreateTasksFromSuggestions] Created task: ${task.title}`)
-
     } catch (error) {
-      console.error('[autoCreateTasksFromSuggestions] Error creating task for suggestion:', error)
     }
   }
 

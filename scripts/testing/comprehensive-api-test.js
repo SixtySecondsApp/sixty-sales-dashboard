@@ -143,14 +143,11 @@ async function testEntityCRUD(entity) {
 }
 
 async function runComprehensiveTest() {
-  console.log('🚀 Running Comprehensive API Test (Full CRUD)\n')
-  
   const allResults = []
   let totalTests = 0
   let passedTests = 0
 
   for (const entity of entities) {
-    console.log(`Testing ${entity}...`)
     const entityResults = await testEntityCRUD(entity)
     
     for (const result of entityResults) {
@@ -160,9 +157,6 @@ async function runComprehensiveTest() {
       const icon = result.status === 'success' ? '✅' : 
                    result.status === 'failed' ? '❌' : 
                    '⏭️'
-      
-      console.log(`  ${icon} ${result.operation}: ${result.status}`)
-      
       if (result.status === 'success') {
         passedTests++
       }
@@ -171,16 +165,9 @@ async function runComprehensiveTest() {
     // Small delay between entities
     await new Promise(resolve => setTimeout(resolve, 200))
   }
-
-  console.log(`\n📊 Final Results: ${passedTests}/${totalTests} tests passed`)
-  console.log(`📈 Success Rate: ${Math.round((passedTests/totalTests) * 100)}%`)
-
   if (passedTests >= 25) {
-    console.log('🎉 EXCELLENT: Major improvement achieved!')
   } else if (passedTests >= 20) {
-    console.log('🌟 GOOD: Significant improvement made')
   } else {
-    console.log('⚠️ Still needs work')
   }
 
   // Save detailed results
@@ -195,9 +182,6 @@ async function runComprehensiveTest() {
       successRate: Math.round((passedTests/totalTests) * 100)
     }
   }
-
-  console.log(`\n💾 Results saved to: comprehensive-api-test-${timestamp}.json`)
-  
   return report
 }
 
@@ -206,7 +190,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   runComprehensiveTest()
     .then(() => process.exit(0))
     .catch(error => {
-      console.error('Test failed:', error.message)
       process.exit(1)
     })
 }

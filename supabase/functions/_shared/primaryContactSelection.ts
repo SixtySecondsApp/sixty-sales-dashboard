@@ -99,7 +99,6 @@ export async function selectPrimaryContact(
     .eq('owner_id', userId)
 
   if (error || !contacts || contacts.length === 0) {
-    console.error('Error fetching contacts for primary selection:', error)
     return contactIds[0]
   }
 
@@ -177,16 +176,6 @@ export async function selectPrimaryContact(
   const winner = scores[0]
 
   const displayName = winner.contact.full_name || `${winner.contact.first_name} ${winner.contact.last_name}`.trim()
-
-  console.log('Primary contact selection:', {
-    winner: {
-      name: displayName,
-      email: winner.contact.email,
-      score: winner.score.toFixed(2),
-      reasons: winner.reasons,
-    },
-  })
-
   return winner.contact.id
 }
 

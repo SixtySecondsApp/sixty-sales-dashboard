@@ -52,7 +52,6 @@ export function useDealHealthScore(dealId: string | null) {
       const score = await getDealHealthScore(dealId);
       setHealthScore(score);
     } catch (err) {
-      console.error('[useDealHealthScore] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch health score');
     } finally {
       setLoading(false);
@@ -77,7 +76,6 @@ export function useDealHealthScore(dealId: string | null) {
 
       toast.success('Health score updated');
     } catch (err) {
-      console.error('[useDealHealthScore] Error calculating:', err);
       setError(err instanceof Error ? err.message : 'Failed to calculate health score');
       toast.error('Failed to update health score');
     } finally {
@@ -102,7 +100,6 @@ export function useDealHealthScore(dealId: string | null) {
           filter: `deal_id=eq.${dealId}`,
         },
         (payload) => {
-          console.log('[useDealHealthScore] Real-time update:', payload);
           if (payload.eventType === 'DELETE') {
             setHealthScore(null);
           } else {
@@ -206,7 +203,6 @@ export function useUserDealsHealth() {
               }
             } catch (err) {
               // Silently handle profile fetch errors - owner name will remain 'Unknown'
-              console.warn(`[useUserDealsHealth] Failed to fetch profile for owner ${deal.owner_id}:`, err);
             }
           }
 
@@ -232,7 +228,6 @@ export function useUserDealsHealth() {
 
       setHealthScores(enrichedScores);
     } catch (err) {
-      console.error('[useUserDealsHealth] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch health scores');
     } finally {
       setLoading(false);
@@ -257,7 +252,6 @@ export function useUserDealsHealth() {
 
       toast.success(`Health calculated for ${scores.length} deals`);
     } catch (err) {
-      console.error('[useUserDealsHealth] Error calculating:', err);
       setError(err instanceof Error ? err.message : 'Failed to calculate health scores');
       toast.error('Failed to calculate health scores');
     } finally {
@@ -285,7 +279,6 @@ export function useUserDealsHealth() {
 
       toast.success(`Updated ${updated.length} stale scores, ${skipped} were fresh`);
     } catch (err) {
-      console.error('[useUserDealsHealth] Error smart refreshing:', err);
       setError(err instanceof Error ? err.message : 'Failed to refresh health scores');
       toast.error('Failed to refresh health scores');
     } finally {
@@ -310,7 +303,6 @@ export function useUserDealsHealth() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[useUserDealsHealth] Real-time update:', payload);
           fetchHealthScores(); // Refresh all scores
         }
       )
@@ -357,7 +349,6 @@ export function useDealHealthAlerts(dealId: string | null) {
       const data = await getDealAlerts(dealId);
       setAlerts(data);
     } catch (err) {
-      console.error('[useDealHealthAlerts] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch alerts');
     } finally {
       setLoading(false);
@@ -381,7 +372,6 @@ export function useDealHealthAlerts(dealId: string | null) {
           filter: `deal_id=eq.${dealId}`,
         },
         (payload) => {
-          console.log('[useDealHealthAlerts] Real-time update:', payload);
           fetchAlerts();
         }
       )
@@ -439,7 +429,6 @@ export function useActiveAlerts() {
       setAlerts(alertsData);
       setStats(statsData);
     } catch (err) {
-      console.error('[useActiveAlerts] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch alerts');
     } finally {
       setLoading(false);
@@ -459,7 +448,6 @@ export function useActiveAlerts() {
         }
         return success;
       } catch (err) {
-        console.error('[useActiveAlerts] Error acknowledging:', err);
         toast.error('Failed to acknowledge alert');
         return false;
       }
@@ -478,7 +466,6 @@ export function useActiveAlerts() {
         }
         return success;
       } catch (err) {
-        console.error('[useActiveAlerts] Error resolving:', err);
         toast.error('Failed to resolve alert');
         return false;
       }
@@ -497,7 +484,6 @@ export function useActiveAlerts() {
         }
         return success;
       } catch (err) {
-        console.error('[useActiveAlerts] Error dismissing:', err);
         toast.error('Failed to dismiss alert');
         return false;
       }
@@ -522,7 +508,6 @@ export function useActiveAlerts() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('[useActiveAlerts] Real-time update:', payload);
           fetchAlerts();
         }
       )
@@ -642,7 +627,6 @@ export function useContactDealHealth(contactId: string | null) {
         activeAlerts: alerts?.length || 0,
       });
     } catch (err) {
-      console.error('[useContactDealHealth] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch contact health');
     } finally {
       setLoading(false);
@@ -774,7 +758,6 @@ export function useCompanyDealHealth(companyId: string | null) {
         atRiskValue,
       });
     } catch (err) {
-      console.error('[useCompanyDealHealth] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch company health');
     } finally {
       setLoading(false);

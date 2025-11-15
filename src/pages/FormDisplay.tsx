@@ -64,7 +64,6 @@ export default function FormDisplay() {
           setFormConfig(null);
         }
       } catch (error) {
-        console.error('Error loading form:', error);
         setFormConfig(null);
       } finally {
         setIsLoading(false);
@@ -134,14 +133,6 @@ export default function FormDisplay() {
         const channel = new BroadcastChannel('workflow-form-submissions');
         
         const isTestMode = window.location.pathname.includes('/form-test/');
-        console.log('[FormDisplay] Form submission details:', {
-          formId,
-          workflowId: storedForm.workflow_id,
-          isTestMode,
-          url: window.location.pathname,
-          eventData
-        });
-        
         // Broadcast to all tabs
         channel.postMessage({
           type: isTestMode ? 'formTestSubmission' : 'formSubmitted',
@@ -151,9 +142,6 @@ export default function FormDisplay() {
             timestamp: new Date().toISOString()
           }
         });
-        
-        console.log('[FormDisplay] Broadcasted form submission to all tabs');
-        
         // Also dispatch local events for backward compatibility
         const event = new CustomEvent('formSubmitted', {
           detail: eventData
@@ -182,7 +170,6 @@ export default function FormDisplay() {
         }, 2000);
       }
     } catch (error) {
-      console.error('Error submitting form:', error);
       // Show error message
     } finally {
       setIsSubmitting(false);

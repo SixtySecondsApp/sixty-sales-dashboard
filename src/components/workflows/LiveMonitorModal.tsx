@@ -136,7 +136,6 @@ const LiveMonitorModal: React.FC<LiveMonitorModalProps> = ({
       setExecutions(allExecutions);
       calculateStats(allExecutions);
     } catch (error) {
-      console.error('Failed to load executions:', error);
     }
   };
 

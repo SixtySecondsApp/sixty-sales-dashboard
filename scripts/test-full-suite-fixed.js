@@ -1,10 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 import { readFileSync } from 'fs';
-
-console.log('🧪 COMPREHENSIVE SALES DASHBOARD TEST SUITE (FIXED)');
-console.log('=' .repeat(50));
-
 const results = {
   passed: 0,
   failed: 0,
@@ -13,15 +9,11 @@ const results = {
 
 function logResult(test, status, message, details = null) {
   const icons = { pass: '✅', fail: '❌', warn: '⚠️' };
-  console.log(`${icons[status]} ${test}: ${message}`);
-  if (details) console.log(`   ${details}`);
+  if (details) {}
   results[status === 'pass' ? 'passed' : status === 'fail' ? 'failed' : 'warnings']++;
 }
 
 async function testEnvironmentVariables() {
-  console.log('\n📋 TESTING ENVIRONMENT VARIABLES');
-  console.log('-'.repeat(30));
-  
   const vars = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY', 
@@ -39,9 +31,6 @@ async function testEnvironmentVariables() {
 }
 
 async function testSupabaseConnection() {
-  console.log('\n🔌 TESTING SUPABASE CONNECTIVITY');
-  console.log('-'.repeat(30));
-  
   try {
     // Test with anon key
     const supabaseAnon = createClient(
@@ -78,9 +67,6 @@ async function testSupabaseConnection() {
 }
 
 async function testDatabaseTables() {
-  console.log('\n🗃️ TESTING DATABASE TABLES');
-  console.log('-'.repeat(30));
-  
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
@@ -118,9 +104,6 @@ async function testDatabaseTables() {
 }
 
 async function testDataCounts() {
-  console.log('\n📊 TESTING DATA COUNTS');
-  console.log('-'.repeat(30));
-  
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
@@ -146,9 +129,6 @@ async function testDataCounts() {
 }
 
 async function testEdgeFunctions() {
-  console.log('\n⚡ TESTING EDGE FUNCTIONS');
-  console.log('-'.repeat(30));
-  
   const baseUrl = process.env.VITE_SUPABASE_URL?.replace('/rest/v1', '') + '/functions/v1';
   const headers = {
     'Content-Type': 'application/json',
@@ -184,9 +164,6 @@ async function testEdgeFunctions() {
 }
 
 async function testAPIEndpoints() {
-  console.log('\n🔗 TESTING API ENDPOINTS');
-  console.log('-'.repeat(30));
-  
   // Test the main API configuration by reading the config file directly
   try {
     const configContent = readFileSync('./src/lib/config.ts', 'utf8');
@@ -218,29 +195,16 @@ async function testAPIEndpoints() {
 }
 
 async function runFullTestSuite() {
-  console.log(`Starting test suite at ${new Date().toISOString()}\n`);
-  
   await testEnvironmentVariables();
   await testSupabaseConnection();
   await testDatabaseTables();
   await testDataCounts();
   await testEdgeFunctions();
   await testAPIEndpoints();
-  
-  console.log('\n📈 TEST SUMMARY');
-  console.log('=' .repeat(50));
-  console.log(`✅ Passed: ${results.passed}`);
-  console.log(`❌ Failed: ${results.failed}`);
-  console.log(`⚠️  Warnings: ${results.warnings}`);
-  console.log(`📊 Total: ${results.passed + results.failed + results.warnings}`);
-  
   if (results.failed > 0) {
-    console.log('\n🚨 CRITICAL ISSUES FOUND - Please address failed tests');
     process.exit(1);
   } else if (results.warnings > 0) {
-    console.log('\n⚠️  WARNINGS FOUND - Some features may not work');
   } else {
-    console.log('\n🎉 ALL TESTS PASSED - System should be working correctly');
   }
 }
 

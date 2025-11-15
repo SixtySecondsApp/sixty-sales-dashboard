@@ -74,7 +74,6 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('[AskAIChat] API Error:', errorData);
         throw new Error(errorData.details || errorData.error || 'Failed to get AI response');
       }
 
@@ -89,7 +88,6 @@ export function AskAIChat({ meetingId }: AskAIChatProps) {
       setMessages(prev => [...prev, aiMessage]);
 
     } catch (err) {
-      console.error('[AskAIChat] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to get AI response');
       // Remove the user message if request failed
       setMessages(prev => prev.slice(0, -1));

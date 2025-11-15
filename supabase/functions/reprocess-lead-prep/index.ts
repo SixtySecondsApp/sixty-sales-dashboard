@@ -6,7 +6,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error("[reprocess-lead-prep] Missing Supabase credentials");
 }
 
 serve(async (req) => {
@@ -122,7 +121,6 @@ serve(async (req) => {
         processError = processResult?.error as string ?? "Failed to trigger process-lead-prep";
       }
     } catch (error) {
-      console.error("[reprocess-lead-prep] Failed to trigger process-lead-prep", error);
       processError = error instanceof Error ? error.message : String(error);
     }
 
@@ -141,7 +139,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("[reprocess-lead-prep] Error:", error);
     return new Response(
       JSON.stringify({
         error: "Internal server error",

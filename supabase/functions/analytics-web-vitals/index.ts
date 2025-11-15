@@ -46,10 +46,8 @@ serve(async (req) => {
         .insert([webVitalData])
 
       if (error) {
-        console.error('Database error:', error)
         // For now, just log the error and return success to prevent blocking the UI
         // TODO: Create web_vitals_metrics table in database
-        console.log('Web vitals data received:', webVitalData)
         return new Response(JSON.stringify({ 
           status: 'logged',
           message: 'Web vitals data logged (table creation pending)'
@@ -74,7 +72,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Web vitals analytics error:', error)
     return new Response(JSON.stringify({ 
       status: 'error',
       error: error.message,

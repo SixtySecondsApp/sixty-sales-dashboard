@@ -25,17 +25,6 @@ serve(async (req) => {
   // Get request metadata for logging
   const timestamp = new Date().toISOString()
   const requestId = crypto.randomUUID().substring(0, 8)
-
-  console.log(`
-╔════════════════════════════════════════════════════════════════
-║ 📡 FATHOM WEBHOOK RECEIVED
-║ Request ID: ${requestId}
-║ Timestamp: ${timestamp}
-║ Method: ${req.method}
-║ User-Agent: ${req.headers.get('user-agent') || 'N/A'}
-╚════════════════════════════════════════════════════════════════
-  `)
-
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -52,31 +41,8 @@ serve(async (req) => {
     const payload = await req.json()
 
     // Enhanced logging with full payload structure
-    console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ 📦 WEBHOOK PAYLOAD ANALYSIS (Request ${requestId})
-├─────────────────────────────────────────────────────────────────
-│ Recording ID: ${payload.recording_id || 'MISSING'}
-│ Title: ${payload.title || payload.meeting_title || 'MISSING'}
-│ Recorded By: ${payload.recorded_by?.email || 'MISSING'}
-│ Team: ${payload.recorded_by?.team || 'N/A'}
-│ Recording Start: ${payload.recording_start_time || 'MISSING'}
-│ Recording End: ${payload.recording_end_time || 'MISSING'}
-├─────────────────────────────────────────────────────────────────
-│ Data Availability:
-│ ✓ Transcript: ${!!payload.transcript ? 'YES' : 'NO'}
-│ ✓ Summary: ${!!payload.default_summary ? 'YES' : 'NO'}
-│ ✓ Action Items: ${Array.isArray(payload.action_items) && payload.action_items.length > 0 ? `YES (${payload.action_items.length})` : 'NO'}
-│ ✓ Calendar Invitees: ${payload.calendar_invitees?.length || 0} participants
-├─────────────────────────────────────────────────────────────────
-│ Full Payload Keys: ${Object.keys(payload).join(', ')}
-└─────────────────────────────────────────────────────────────────
-    `)
-
     // Log raw payload for debugging (first 1000 chars)
     const payloadStr = JSON.stringify(payload, null, 2)
-    console.log(`📋 Raw Payload Preview:\n${payloadStr.substring(0, 1000)}${payloadStr.length > 1000 ? '...' : ''}`)
-
     // Extract recording ID from payload
     // Try multiple possible field names based on Fathom's API
     const recordingId = payload.recording_id ||
@@ -84,7 +50,6 @@ serve(async (req) => {
                        extractRecordingIdFromUrl(payload.share_url || payload.url)
 
     if (!recordingId) {
-      console.error('❌ No recording_id found in webhook payload')
       return new Response(
         JSON.stringify({
           success: false,
@@ -96,28 +61,11 @@ serve(async (req) => {
         }
       )
     }
-
-    console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ 🎯 PROCESSING RECORDING
-│ ID: ${recordingId}
-│ Request ID: ${requestId}
-└─────────────────────────────────────────────────────────────────
-    `)
-
     // Determine user_id from recorded_by email
     let userId: string | null = null
     const recordedByEmail = payload.recorded_by?.email
 
     if (recordedByEmail) {
-      console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ 👤 USER LOOKUP (Request ${requestId})
-│ Searching for: ${recordedByEmail}
-├─────────────────────────────────────────────────────────────────
-│ Step 1: Checking fathom_integrations table...
-      `)
-
       // Look up user by email in fathom_integrations table
       const { data: integration, error: integrationError } = await supabase
         .from('fathom_integrations')
@@ -127,58 +75,28 @@ serve(async (req) => {
         .single()
 
       if (integrationError) {
-        console.log(`│ ⚠️  Integration query error: ${integrationError.message}`)
       }
 
       if (integration) {
         userId = integration.user_id
-        console.log(`│ ✅ Found active integration!
-│    Email: ${integration.fathom_user_email}
-│    User ID: ${userId}
-│    Created: ${integration.created_at}
-└─────────────────────────────────────────────────────────────────
-        `)
       } else {
-        console.log(`│ ❌ No active integration found
-├─────────────────────────────────────────────────────────────────
-│ Step 2: Checking auth.users as fallback...
-        `)
-
         // Try auth.users as fallback
         const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers()
 
         if (usersError) {
-          console.log(`│ ⚠️  Auth users query error: ${usersError.message}`)
         }
 
         const matchedUser = users.find(u => u.email === recordedByEmail)
 
         if (matchedUser) {
           userId = matchedUser.id
-          console.log(`│ ✅ Found user in auth.users!
-│    Email: ${matchedUser.email}
-│    User ID: ${userId}
-│    Created: ${matchedUser.created_at}
-└─────────────────────────────────────────────────────────────────
-          `)
         } else {
-          console.log(`│ ❌ No user found in auth.users
-│ Total users checked: ${users.length}
-└─────────────────────────────────────────────────────────────────
-          `)
         }
       }
     } else {
-      console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ ❌ USER LOOKUP FAILED (Request ${requestId})
-│ Reason: No recorded_by.email in payload
-└─────────────────────────────────────────────────────────────────
-      `)
     }
 
     if (!userId) {
-      console.error('❌ Could not determine user_id for webhook')
       return new Response(
         JSON.stringify({
           success: false,
@@ -192,15 +110,6 @@ serve(async (req) => {
     }
 
     // Call the main fathom-sync function with webhook mode
-    console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ 🔄 CALLING SYNC FUNCTION (Request ${requestId})
-│ URL: ${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync
-│ User ID: ${userId}
-│ Recording ID: ${recordingId}
-└─────────────────────────────────────────────────────────────────
-    `)
-
     const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
     const syncStartTime = Date.now()
 
@@ -223,39 +132,10 @@ serve(async (req) => {
 
     if (!syncResponse.ok) {
       const errorText = await syncResponse.text()
-      console.error(`
-┌─────────────────────────────────────────────────────────────────
-│ ❌ SYNC FUNCTION FAILED (Request ${requestId})
-│ Status: ${syncResponse.status}
-│ Duration: ${syncDuration}ms
-│ Error: ${errorText}
-└─────────────────────────────────────────────────────────────────
-      `)
       throw new Error(`Sync failed: ${errorText}`)
     }
 
     const syncResult = await syncResponse.json()
-    console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ ✅ SYNC COMPLETED (Request ${requestId})
-│ Duration: ${syncDuration}ms
-│ Meetings Synced: ${syncResult.meetings_synced || 0}
-│ Errors: ${syncResult.errors?.length || 0}
-├─────────────────────────────────────────────────────────────────
-│ Result: ${JSON.stringify(syncResult, null, 2)}
-└─────────────────────────────────────────────────────────────────
-    `)
-
-    console.log(`
-╔════════════════════════════════════════════════════════════════
-║ ✅ WEBHOOK PROCESSING COMPLETE
-║ Request ID: ${requestId}
-║ Recording ID: ${recordingId}
-║ User ID: ${userId}
-║ Total Duration: ${Date.now() - new Date(timestamp).getTime()}ms
-╚════════════════════════════════════════════════════════════════
-    `)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -275,20 +155,6 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
-
-    console.error(`
-╔════════════════════════════════════════════════════════════════
-║ ❌ WEBHOOK ERROR
-║ Request ID: ${requestId || 'N/A'}
-║ Timestamp: ${new Date().toISOString()}
-╠════════════════════════════════════════════════════════════════
-║ Error: ${errorMessage}
-║
-║ Stack Trace:
-║ ${errorStack || 'No stack trace available'}
-╚════════════════════════════════════════════════════════════════
-    `)
-
     return new Response(
       JSON.stringify({
         success: false,

@@ -45,7 +45,7 @@ export function DealHealthDashboard() {
   React.useEffect(() => {
     if (!loading && healthScores.length > 0) {
       // Smart refresh in background (don't block UI)
-      smartRefresh(24).catch(err => console.error('Background smart refresh failed:', err));
+      smartRefresh(24).catch(err => undefined);
     }
   }, []);
 

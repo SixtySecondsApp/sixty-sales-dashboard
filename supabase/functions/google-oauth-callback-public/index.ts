@@ -91,8 +91,6 @@ serve(async (req) => {
       });
     }
   } catch (error) {
-    console.error('[Google OAuth Callback] Error:', error);
-    
     // Return error response
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
@@ -122,12 +120,8 @@ async function processOAuthCallback(code: string, state: string): Promise<{ succ
       .single();
 
     if (stateError || !oauthState) {
-      console.error('[Google OAuth Callback] Invalid state:', stateError);
-      
       // For now, if state is not found, we'll still try to process it
       // This is for testing purposes - in production, you'd want to fail here
-      console.log('[Google OAuth Callback] WARNING: Processing without state validation (testing mode)');
-      
       // Create a mock state for testing
       const mockState = {
         user_id: null, // Will need to be set from somewhere else
@@ -138,9 +132,6 @@ async function processOAuthCallback(code: string, state: string): Promise<{ succ
       // Try to exchange the code anyway for testing
       return await exchangeCodeForTokens(code, mockState.redirect_uri, '', supabase);
     }
-
-    console.log('[Google OAuth Callback] State validated for user:', oauthState.user_id);
-
     // Exchange code for tokens
     const result = await exchangeCodeForTokens(code, oauthState.redirect_uri, oauthState.code_verifier, supabase, oauthState.user_id);
     
@@ -154,7 +145,6 @@ async function processOAuthCallback(code: string, state: string): Promise<{ succ
     
     return result;
   } catch (error) {
-    console.error('[Google OAuth Callback] Processing error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -194,10 +184,7 @@ async function exchangeCodeForTokens(
     });
 
     const tokenData = await tokenResponse.json();
-    console.log('[Google OAuth Callback] Token exchange response status:', tokenResponse.status);
-
     if (!tokenResponse.ok) {
-      console.error('[Google OAuth Callback] Token exchange failed:', tokenData);
       return { success: false, error: tokenData.error_description || 'Failed to exchange authorization code' };
     }
 
@@ -209,8 +196,6 @@ async function exchangeCodeForTokens(
     });
 
     const userInfo = await userInfoResponse.json();
-    console.log('[Google OAuth Callback] User info retrieved:', userInfo.email);
-
     // If we don't have a userId, try to find it by email
     if (!userId) {
       const { data: userData } = await supabase
@@ -223,7 +208,6 @@ async function exchangeCodeForTokens(
         userId = userData.id;
       } else {
         // For testing, we'll store without a user_id
-        console.log('[Google OAuth Callback] WARNING: No user found for email:', userInfo.email);
       }
     }
 
@@ -248,16 +232,13 @@ async function exchangeCodeForTokens(
         });
 
       if (insertError) {
-        console.error('[Google OAuth Callback] Failed to store tokens:', insertError);
         return { success: false, error: 'Failed to save Google integration' };
       }
     } else {
-      console.log('[Google OAuth Callback] Skipping database storage - no user_id');
     }
 
     return { success: true, email: userInfo.email };
   } catch (error) {
-    console.error('[Google OAuth Callback] Token exchange error:', error);
     return { success: false, error: error.message };
   }
 }

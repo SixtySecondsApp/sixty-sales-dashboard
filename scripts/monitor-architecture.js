@@ -36,8 +36,6 @@ class ArchitectureMonitor {
    * Analyze all TypeScript/React files
    */
   analyzeComponents() {
-    console.log('🔍 Analyzing component architecture...\n');
-    
     this.walkDirectory(this.srcPath);
     this.generateReport();
   }
@@ -100,7 +98,6 @@ class ArchitectureMonitor {
       this.checkThresholds(metrics);
       
     } catch (error) {
-      console.warn(`⚠️  Could not analyze ${filePath}: ${error.message}`);
     }
   }
 
@@ -193,11 +190,6 @@ class ArchitectureMonitor {
     }
 
     if (warnings.length > 0) {
-      console.warn(
-        `⚠️  ${metrics.name}\n` +
-        `   Path: ${metrics.path}\n` +
-        `   Issues: ${warnings.join(', ')}`
-      );
     }
   }
 
@@ -212,42 +204,19 @@ class ArchitectureMonitor {
     );
     const complex = metrics.filter(m => m.complexity > 15);
     const components = metrics.filter(m => m.isComponent);
-
-    console.log(`\n📊 Architecture Monitoring Report`);
-    console.log(`═══════════════════════════════════════════`);
-    console.log(`Total Files Analyzed: ${metrics.length}`);
-    console.log(`React Components: ${components.length}`);
-    console.log(`Over-sized Files: ${overSized.length}`);
-    console.log(`High Complexity Files: ${complex.length}`);
-    console.log(`Size Threshold: ${this.config.maxLines} lines, ${Math.round(this.config.maxFileSize / 1024)}KB`);
-
     if (overSized.length > 0) {
-      console.log(`\n⚠️  Files Exceeding Size Thresholds:`);
-      console.log(`────────────────────────────────────────────`);
-      
       overSized
         .sort((a, b) => b.lineCount - a.lineCount)
         .slice(0, 10) // Top 10 largest
         .forEach(file => {
-          console.log(`${file.name}`);
-          console.log(`  Path: ${file.path}`);
-          console.log(`  Lines: ${file.lineCount} | Size: ${Math.round(file.fileSize / 1024)}KB | Complexity: ${file.complexity}`);
-          console.log(`  Imports: ${file.imports} | Exports: ${file.exports}`);
-          console.log('');
         });
     }
 
     if (complex.length > 0) {
-      console.log(`\n🧠 High Complexity Files (>15):`);
-      console.log(`────────────────────────────────────────────`);
-      
       complex
         .sort((a, b) => b.complexity - a.complexity)
         .slice(0, 5)
         .forEach(file => {
-          console.log(`${file.name} (Complexity: ${file.complexity})`);
-          console.log(`  Path: ${file.path}`);
-          console.log('');
         });
     }
 
@@ -255,37 +224,15 @@ class ArchitectureMonitor {
     const avgLines = Math.round(metrics.reduce((sum, m) => sum + m.lineCount, 0) / metrics.length);
     const avgComplexity = Math.round(metrics.reduce((sum, m) => sum + m.complexity, 0) / metrics.length);
     const avgFileSize = Math.round(metrics.reduce((sum, m) => sum + m.fileSize, 0) / metrics.length / 1024);
-
-    console.log(`\n📈 Average Statistics:`);
-    console.log(`────────────────────────────────────────────`);
-    console.log(`Average Lines: ${avgLines}`);
-    console.log(`Average Complexity: ${avgComplexity}`);
-    console.log(`Average File Size: ${avgFileSize}KB`);
-
     // Recommendations
-    console.log(`\n💡 Recommendations:`);
-    console.log(`────────────────────────────────────────────`);
-    
     if (overSized.length > 0) {
-      console.log(`• Consider breaking down ${overSized.length} large files into smaller components`);
     }
     
     if (complex.length > 0) {
-      console.log(`• Refactor ${complex.length} high-complexity files for better maintainability`);
     }
     
     if (overSized.length === 0 && complex.length === 0) {
-      console.log(`✅ All files are within recommended thresholds!`);
     }
-
-    console.log(`\n🔧 Quick Wins Status:`);
-    console.log(`────────────────────────────────────────────`);
-    console.log(`✅ TypeScript strict mode configuration ready`);
-    console.log(`✅ ESLint SOLID rules implemented`);
-    console.log(`✅ Error boundaries in place`);
-    console.log(`✅ Component size monitoring active`);
-    console.log(`✅ Type guard utilities available`);
-    
     // Generate JSON report
     this.generateJsonReport(metrics);
   }
@@ -310,7 +257,6 @@ class ArchitectureMonitor {
     };
 
     fs.writeFileSync('architecture-report.json', JSON.stringify(report, null, 2));
-    console.log(`\n📄 JSON report saved to architecture-report.json`);
   }
 }
 

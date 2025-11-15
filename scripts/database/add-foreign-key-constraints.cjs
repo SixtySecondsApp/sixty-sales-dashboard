@@ -7,8 +7,6 @@ const supabase = createClient(
 );
 
 async function addForeignKeyConstraints() {
-  console.log('Adding foreign key constraints to meetings table...');
-
   const constraints = [
     {
       name: 'fk_meetings_created_by',
@@ -30,28 +28,21 @@ async function addForeignKeyConstraints() {
 
   for (const constraint of constraints) {
     try {
-      console.log(`Adding constraint: ${constraint.name}`);
-      
       // Try to execute raw SQL using rpc
       const { data, error } = await supabase.rpc('exec', {
         sql: constraint.sql
       });
 
       if (error) {
-        console.log(`Error adding ${constraint.name}:`, error.message);
         if (error.message.includes('already exists')) {
-          console.log(`Constraint ${constraint.name} already exists - skipping`);
         }
       } else {
-        console.log(`Successfully added constraint: ${constraint.name}`);
       }
     } catch (err) {
-      console.log(`Exception adding ${constraint.name}:`, err.message);
     }
   }
 
   // Test if relationships now work
-  console.log('\nTesting relationship...');
   try {
     const { data, error } = await supabase
       .from('meetings')
@@ -63,19 +54,14 @@ async function addForeignKeyConstraints() {
       .limit(1);
 
     if (error) {
-      console.log('Relationship test error:', error);
     } else {
-      console.log('Relationship test successful:', data);
     }
   } catch (err) {
-    console.log('Relationship test exception:', err.message);
   }
 }
 
 addForeignKeyConstraints().then(() => {
-  console.log('Foreign key constraint process complete');
   process.exit(0);
 }).catch(err => {
-  console.error('Process failed:', err);
   process.exit(1);
 });

@@ -7,8 +7,6 @@ const supabase = createClient(
 );
 
 async function createCompaniesTableDirect() {
-  console.log('🚀 Creating companies table via direct SQL...');
-  
   try {
     // Execute SQL directly using the PostgreSQL driver through Supabase
     const { data, error } = await supabase.rpc('exec', {
@@ -72,47 +70,8 @@ async function createCompaniesTableDirect() {
     });
 
     if (error) {
-      console.error('❌ Failed via RPC, trying manual approach...');
-      console.log('Please run this SQL manually in Supabase SQL Editor:');
-      console.log('================================');
-      console.log(`
-CREATE TABLE IF NOT EXISTS companies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  domain TEXT UNIQUE,
-  industry TEXT,
-  size TEXT CHECK (size IN ('startup', 'small', 'medium', 'large', 'enterprise')),
-  website TEXT,
-  address TEXT,
-  phone TEXT,
-  description TEXT,
-  linkedin_url TEXT,
-  owner_id UUID REFERENCES profiles(id) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_companies_domain ON companies(domain);
-CREATE INDEX IF NOT EXISTS idx_companies_owner_id ON companies(owner_id);
-CREATE INDEX IF NOT EXISTS idx_companies_name ON companies(name);
-
-ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own companies" ON companies
-  FOR SELECT USING (auth.uid() = owner_id);
-CREATE POLICY "Users can insert their own companies" ON companies
-  FOR INSERT WITH CHECK (auth.uid() = owner_id);
-CREATE POLICY "Users can update their own companies" ON companies
-  FOR UPDATE USING (auth.uid() = owner_id);
-CREATE POLICY "Users can delete their own companies" ON companies
-  FOR DELETE USING (auth.uid() = owner_id);
-      `);
-      console.log('================================');
       return;
     }
-
-    console.log('✅ Companies table created successfully!');
-    
     // Test the table
     const { data: testData, error: testError } = await supabase
       .from('companies')
@@ -120,13 +79,10 @@ CREATE POLICY "Users can delete their own companies" ON companies
       .limit(1);
 
     if (testError) {
-      console.error('❌ Error testing companies table:', testError);
     } else {
-      console.log('✅ Companies table test successful!');
     }
 
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
   }
 }
 

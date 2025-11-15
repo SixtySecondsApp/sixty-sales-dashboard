@@ -38,7 +38,6 @@ export function useDealsActions() {
     const { data, error } = await query.limit(10); // Limit to prevent large queries
 
     if (error) {
-      console.error('Error finding deals by client:', error);
       // Return empty array instead of throwing to prevent breaking the flow
       return [];
     }

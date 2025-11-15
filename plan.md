@@ -1,23 +1,18 @@
-# Plan - Leads Inbox Presentation Upgrade
+# Plan - Logging Cleanup Initiative
 
 ## Objectives
-- Restore rich formatting for auto-generated lead prep notes so headings, bold text, and bullets render elegantly.
-- Prevent content truncation for long narratives or JSON blocks inside lead insights.
-- Keep the new renderer safe by default (no unsafe HTML) while matching the dark/light themes used elsewhere.
-- Remove seconds from the meeting time display on the `/leads` page so values read like “Nov 18, 2025, 12:30 PM”.
-- Add an animated search affordance to the /leads list so reps can quickly filter the queue without leaving the pipeline context.
+- Eliminate noisy console/file logging throughout the app that is driving memory growth and UI slowdowns.
+- Preserve essential telemetry by routing any remaining critical logs through existing analytics/monitoring utilities.
+- Validate that builds, linting, and key user flows remain unaffected post-cleanup.
 
 ## Tasks
-- [x] Audit the existing `LeadDetailPanel` note rendering and catalogue markdown patterns coming from `process-lead-prep`.
-- [ ] Implement a structured renderer that supports paragraphs, bold emphasis, bullet lists, and fenced code blocks without using `dangerouslySetInnerHTML`.
-- [ ] Polish the card styling (spacing, typography, badges) and QA in both light/dark themes, then run lint/tests.
-- [ ] Update `LeadDetailPanel` timestamp formatting to drop seconds from the Meeting tile.
-- [ ] Smoke test the `/leads` page to confirm the new format renders as expected.
-- [ ] Add a toolbar search icon that reveals a collapsible search input within `LeadList`.
-- [ ] Filter visible leads by query with graceful empty states and document/testing notes.
+- [ ] Inventory logging usage across frontend, backend scripts, and edge functions.
+- [ ] Categorize logs into `retain`, `downgrade`, or `remove` buckets with justification.
+- [ ] Refactor or remove verbose logs, ensuring replacements use lightweight debug utilities when needed.
+- [ ] Update related documentation/comments so future log usage stays intentional.
+- [ ] Run lint/tests and perform targeted smoke tests (e.g., CRM dashboard load, proposal workflow).
 
 ## Milestones
-- **Parser Ready** – New renderer parses `**Label:**` sections, list bullets, and code fences into semantic React blocks.
-- **Visual Polish** – Lead cards use consistent spacing, typography, and badges matching the rest of the CRM.
-- **QA Complete** – Notes verified with multiple sample payloads; lint/tests run with no regressions.
-- **Meeting Display Polished** – Meeting tile shows localized date/time without seconds and matches product copy.
+- **Logging Inventory Complete** – Comprehensive list of log-heavy modules with decisions recorded.
+- **Cleanup Applied** – Unnecessary logs removed or gated; critical monitoring pathways unchanged.
+- **QA & Verification** – Lint/tests pass and manual smoke tests confirm no regressions or missing telemetry.

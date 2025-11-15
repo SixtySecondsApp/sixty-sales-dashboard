@@ -210,7 +210,6 @@ export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRule
 
       onSave(formData);
     } catch (error) {
-      console.error('Failed to save automation rule:', error);
     }
   };
 
@@ -219,8 +218,6 @@ export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRule
     
     try {
       // Simulate rule execution
-      console.log('Testing rule:', formData);
-      
       // In a real implementation, you'd call an API endpoint to test the rule
       setTimeout(() => {
         setTestMode(false);
@@ -228,7 +225,6 @@ export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRule
       }, 2000);
       
     } catch (error) {
-      console.error('Rule test failed:', error);
       setTestMode(false);
     }
   };

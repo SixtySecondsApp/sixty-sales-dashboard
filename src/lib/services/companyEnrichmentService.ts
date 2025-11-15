@@ -52,7 +52,6 @@ export async function enrichCompanyWithPerplexity(
   const perplexityApiKey = import.meta.env.VITE_PERPLEXITY_API_KEY;
 
   if (!perplexityApiKey) {
-    console.warn('Perplexity API key not configured, skipping enrichment');
     return {};
   }
 
@@ -109,9 +108,6 @@ export async function enrichCompanyWithPerplexity(
 
     // Parse JSON response
     const enrichmentData = JSON.parse(content);
-
-    console.log('✅ Successfully enriched company with Perplexity:', companyName);
-
     return {
       ...enrichmentData,
       enrichment_source: 'perplexity' as const,
@@ -119,7 +115,6 @@ export async function enrichCompanyWithPerplexity(
       confidence_score: 0.85,
     };
   } catch (error) {
-    console.error('Error enriching company with Perplexity:', error);
     return {};
   }
 }
@@ -134,7 +129,6 @@ export async function enrichCompanyWithApollo(
   const apolloApiKey = import.meta.env.VITE_APOLLO_API_KEY;
 
   if (!apolloApiKey) {
-    console.warn('Apollo API key not configured, skipping enrichment');
     return {};
   }
 
@@ -162,9 +156,6 @@ export async function enrichCompanyWithApollo(
     if (!org) {
       throw new Error('No organization data in Apollo response');
     }
-
-    console.log('✅ Successfully enriched company with Apollo:', org.name);
-
     // Map Apollo data to our format
     return {
       name: org.name,
@@ -186,7 +177,6 @@ export async function enrichCompanyWithApollo(
       confidence_score: 0.9, // Apollo generally has high-quality data
     };
   } catch (error) {
-    console.error('Error enriching company with Apollo:', error);
     return {};
   }
 }
@@ -200,21 +190,17 @@ export async function enrichCompany(
   domain: string
 ): Promise<boolean> {
   try {
-    console.log(`🔍 Enriching company: ${companyName} (${domain})`);
-
     // Try Perplexity first
     let enrichmentData = await enrichCompanyWithPerplexity(companyName, domain);
 
     // If Perplexity didn't provide enough data, try Apollo as backup
     if (!enrichmentData.description || !enrichmentData.industry) {
-      console.log('⚠️ Perplexity data incomplete, trying Apollo as backup...');
       const apolloData = await enrichCompanyWithApollo(domain);
       enrichmentData = { ...enrichmentData, ...apolloData };
     }
 
     // If we still don't have data, return false
     if (Object.keys(enrichmentData).length === 0) {
-      console.warn('❌ No enrichment data available for company');
       return false;
     }
 
@@ -234,17 +220,13 @@ export async function enrichCompany(
       .eq('id', companyId);
 
     if (error) {
-      console.error('Error updating company with enrichment data:', error);
       return false;
     }
 
     // Optionally store raw enrichment data in a separate table
     // (You could create a company_enrichment_history table for this)
-
-    console.log(`✅ Successfully enriched company ${companyName}`);
     return true;
   } catch (error) {
-    console.error('Error in enrichCompany:', error);
     return false;
   }
 }

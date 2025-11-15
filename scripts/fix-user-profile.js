@@ -20,7 +20,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing Supabase environment variables');
   process.exit(1);
 }
 
@@ -72,8 +71,6 @@ const userProfiles = {
 
 async function fixUserProfiles() {
   try {
-    console.log('🔧 Fixing user profiles...\n');
-
     // First, let's see what columns actually exist in the profiles table
     const { data: sampleProfile, error: sampleError } = await supabase
       .from('profiles')
@@ -82,27 +79,20 @@ async function fixUserProfiles() {
       .single();
 
     if (sampleProfile) {
-      console.log('📊 Available columns in profiles table:');
-      console.log(Object.keys(sampleProfile).join(', '));
-      console.log('\n');
     }
 
     // Update each user profile
     for (const [email, profileData] of Object.entries(userProfiles)) {
-      console.log(`📝 Updating profile for ${email}...`);
-
       // First get the user to get their ID
       const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
       
       if (usersError) {
-        console.error('❌ Error fetching users:', usersError);
         continue;
       }
 
       const user = users?.find(u => u.email === email);
       
       if (!user) {
-        console.log(`⚠️ User not found: ${email}`);
         continue;
       }
 
@@ -145,7 +135,6 @@ async function fixUserProfiles() {
       if (updateError) {
         // If update fails, try to create the profile
         if (updateError.code === 'PGRST116') {
-          console.log(`  Creating new profile...`);
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
@@ -156,31 +145,18 @@ async function fixUserProfiles() {
             .single();
 
           if (createError) {
-            console.error(`❌ Error creating profile:`, createError);
           } else {
-            console.log(`✅ Profile created successfully`);
             if (profileData.is_admin) {
-              console.log(`  👑 Admin privileges granted`);
             }
           }
         } else {
-          console.error(`❌ Error updating profile:`, updateError);
         }
       } else {
-        console.log(`✅ Profile updated successfully`);
         if (profileData.is_admin) {
-          console.log(`  👑 Admin privileges confirmed`);
         }
-        console.log(`  📊 Stage: ${profileData.stage}`);
-        console.log(`  👤 Name: ${profileData.first_name} ${profileData.last_name}`);
       }
     }
-
-    console.log('\n✨ Profile fixes complete!');
-    console.log('\n📌 Note: If some columns were not updated, they may not exist in your database schema.');
-    console.log('You may need to run a migration to add missing columns like stage, is_admin, role, etc.');
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
   }
 }
 

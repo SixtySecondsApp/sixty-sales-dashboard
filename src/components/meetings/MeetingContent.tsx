@@ -179,7 +179,6 @@ class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Content Tab Error:', error, errorInfo);
   }
 
   render() {

@@ -96,8 +96,6 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
-    console.error('Error in companies API:', error)
-    
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })
@@ -164,7 +162,6 @@ async function handleCompaniesList(client: any, url: URL, userId: string, permis
     return createSuccessResponse(processedCompanies, 200, count, pagination)
 
   } catch (error) {
-    console.error('Error fetching companies:', error)
     throw new Error(error.message || 'Failed to fetch companies')
   }
 }
@@ -220,7 +217,6 @@ async function handleSingleCompany(client: any, companyId: string, userId: strin
     return createSuccessResponse(processedCompany)
 
   } catch (error) {
-    console.error('Error fetching company:', error)
     throw new Error(error.message || 'Failed to fetch company')
   }
 }
@@ -273,14 +269,12 @@ async function handleCreateCompany(client: any, body: any, userId: string) {
       .single()
 
     if (error) {
-      console.error('Database error creating company:', error)
       throw error
     }
 
     return createSuccessResponse(company, 201)
 
   } catch (error) {
-    console.error('Error creating company:', error)
     throw new Error(error.message || 'Failed to create company')
   }
 }
@@ -345,7 +339,6 @@ async function handleUpdateCompany(client: any, companyId: string, body: any, us
     return createSuccessResponse(company)
 
   } catch (error) {
-    console.error('Error updating company:', error)
     throw new Error(error.message || 'Failed to update company')
   }
 }
@@ -395,7 +388,6 @@ async function handleDeleteCompany(client: any, companyId: string, userId: strin
     return createSuccessResponse({ id: companyId, deleted: true })
 
   } catch (error) {
-    console.error('Error deleting company:', error)
     throw new Error(error.message || 'Failed to delete company')
   }
 }

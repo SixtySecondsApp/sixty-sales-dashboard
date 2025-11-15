@@ -167,7 +167,6 @@ export async function authenticateRequest(req: Request): Promise<{
     .rpc('validate_api_key', { key_text: apiKey })
 
   if (error) {
-    console.error('Error validating API key:', error)
     throw new Error('API key validation failed')
   }
 
@@ -253,7 +252,6 @@ export async function logApiUsage(
     })
 
   } catch (error) {
-    console.error('Error logging API usage:', error)
     // Don't fail the request if logging fails
   }
 }
@@ -288,7 +286,6 @@ export async function checkRateLimit(client: any, apiKey: string): Promise<{
       resetTime: Date.now() + 3600000 // Next hour
     }
   } catch (error) {
-    console.error('Rate limit check error:', error)
     return { allowed: false, current: 0, limit: 0, resetTime: Date.now() + 3600000 }
   }
 }

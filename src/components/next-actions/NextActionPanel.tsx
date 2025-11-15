@@ -79,7 +79,6 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
       await acceptAll()
       onClose()
     } catch (error) {
-      console.error('Failed to accept all suggestions:', error)
     }
   }
 
@@ -88,7 +87,6 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
       await dismissAll('Dismissed all via panel')
       onClose()
     } catch (error) {
-      console.error('Failed to dismiss all suggestions:', error)
     }
   }
 
@@ -96,7 +94,6 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
     try {
       await regenerate()
     } catch (error) {
-      console.error('Failed to regenerate suggestions:', error)
     }
   }
 
@@ -104,7 +101,6 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
     try {
       await acceptSuggestion(suggestionId)
     } catch (error) {
-      console.error('Failed to accept suggestion:', error)
     }
   }
 
@@ -112,7 +108,6 @@ export const NextActionPanel: React.FC<NextActionPanelProps> = ({
     try {
       await dismissSuggestion(suggestionId, 'Dismissed from panel')
     } catch (error) {
-      console.error('Failed to dismiss suggestion:', error)
     }
   }
 

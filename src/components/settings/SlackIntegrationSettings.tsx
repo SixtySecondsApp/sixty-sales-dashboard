@@ -45,7 +45,6 @@ export function SlackIntegrationSettings() {
 
       if (error && error.code !== 'PGRST116') {
         // PGRST116 = not found, which is okay
-        console.error('Error loading Slack config:', error);
         toast.error('Failed to load Slack configuration');
         return;
       }
@@ -60,7 +59,6 @@ export function SlackIntegrationSettings() {
         setNotifyOverdue(data.notification_types?.overdue ?? true);
       }
     } catch (error: any) {
-      console.error('Error loading Slack config:', error);
     } finally {
       setInitialLoad(false);
     }
@@ -113,7 +111,6 @@ export function SlackIntegrationSettings() {
       // Reload config to get the ID and confirm save
       await loadSlackConfig();
     } catch (error: any) {
-      console.error('Error saving Slack config:', error);
       toast.error('Failed to save Slack integration', {
         description: error.message,
       });
@@ -143,7 +140,6 @@ export function SlackIntegrationSettings() {
       setWorkspaceName('');
       setEnabled(false);
     } catch (error: any) {
-      console.error('Error deleting Slack config:', error);
       toast.error('Failed to remove Slack integration', {
         description: error.message,
       });
@@ -178,7 +174,6 @@ export function SlackIntegrationSettings() {
         description: 'Check your Slack channel for the test message.',
       });
     } catch (error: any) {
-      console.error('Error sending test notification:', error);
       toast.error('Failed to send test notification', {
         description: error.message,
       });

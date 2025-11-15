@@ -37,7 +37,6 @@ const TasksPage: React.FC = () => {
       const connected = await googleTasksSync.isConnected();
       setIsGoogleConnected(connected);
     } catch (error) {
-      console.error('Failed to check Google connection:', error);
     }
   };
 
@@ -66,7 +65,6 @@ const TasksPage: React.FC = () => {
 
       if (error) {
         toast.error('Failed to load task');
-        console.error('Error loading task:', error);
         // Remove the task_id param from URL
         searchParams.delete('task_id');
         setSearchParams(searchParams);
@@ -81,7 +79,6 @@ const TasksPage: React.FC = () => {
         setSearchParams(searchParams);
       }
     } catch (error) {
-      console.error('Error fetching task:', error);
       toast.error('Failed to open task');
       // Remove the task_id param from URL
       searchParams.delete('task_id');
@@ -118,7 +115,6 @@ const TasksPage: React.FC = () => {
     } catch (error) {
       setSyncStatus('error');
       toast.error('Failed to sync with Google Tasks');
-      console.error('Sync error:', error);
     } finally {
       setIsSyncing(false);
       setTimeout(() => setSyncStatus('idle'), 3000);

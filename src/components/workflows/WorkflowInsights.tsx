@@ -158,7 +158,6 @@ const WorkflowInsights: React.FC = () => {
       ]);
       
     } catch (error) {
-      console.error('Error loading analytics data:', error);
     } finally {
       setLoading(false);
     }
@@ -213,7 +212,6 @@ const WorkflowInsights: React.FC = () => {
       });
       
     } catch (error) {
-      console.error('Error loading key metrics:', error);
     }
   };
 
@@ -251,7 +249,6 @@ const WorkflowInsights: React.FC = () => {
       setExecutionTrend(trendData);
       
     } catch (error) {
-      console.error('Error loading execution trends:', error);
     }
   };
 
@@ -270,7 +267,6 @@ const WorkflowInsights: React.FC = () => {
       
       setPerformanceData(perfData);
     } catch (error) {
-      console.error('Error loading performance data:', error);
     }
   };
 
@@ -301,7 +297,6 @@ const WorkflowInsights: React.FC = () => {
       setWorkflowDistribution(distData);
       
     } catch (error) {
-      console.error('Error loading workflow distribution:', error);
     }
   };
 
@@ -337,7 +332,6 @@ const WorkflowInsights: React.FC = () => {
       setTopWorkflows(topWorkflowsData);
       
     } catch (error) {
-      console.error('Error loading top workflows:', error);
     }
   };
 

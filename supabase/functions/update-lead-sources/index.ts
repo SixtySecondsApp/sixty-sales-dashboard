@@ -41,8 +41,6 @@ serve(async (req) => {
     const results = [];
 
     for (const update of updates) {
-      console.log(`Processing: ${update.domain} (${update.contactName || "N/A"})`);
-
       // Find matching leads
       let query = supabase
         .from("leads")
@@ -57,7 +55,6 @@ serve(async (req) => {
       const { data: leads, error: findError } = await query;
 
       if (findError) {
-        console.error(`Error finding leads for ${update.domain}:`, findError);
         results.push({
           domain: update.domain,
           success: false,
@@ -68,7 +65,6 @@ serve(async (req) => {
       }
 
       if (!leads || leads.length === 0) {
-        console.log(`No leads found for ${update.domain}`);
         results.push({
           domain: update.domain,
           success: false,
@@ -89,7 +85,6 @@ serve(async (req) => {
 
       if (existingSource) {
         sourceId = existingSource.id;
-        console.log(`Using existing source: ${update.newSourceName}`);
       } else {
         const { data: newSource, error: createError } = await supabase
           .from("lead_sources")
@@ -104,7 +99,6 @@ serve(async (req) => {
           .single();
 
         if (createError) {
-          console.error(`Error creating source:`, createError);
           results.push({
             domain: update.domain,
             success: false,
@@ -115,7 +109,6 @@ serve(async (req) => {
         }
 
         sourceId = newSource.id;
-        console.log(`Created new source: ${update.newSourceName}`);
       }
 
       // Update each lead
@@ -132,10 +125,8 @@ serve(async (req) => {
           .eq("id", lead.id);
 
         if (updateError) {
-          console.error(`Error updating lead ${lead.id}:`, updateError);
         } else {
           updatedCount++;
-          console.log(`Updated lead ${lead.id} (${lead.contact_name || lead.contact_email})`);
         }
       }
 
@@ -156,7 +147,6 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
-    console.error("Error:", error);
     return new Response(
       JSON.stringify({ error: error.message || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

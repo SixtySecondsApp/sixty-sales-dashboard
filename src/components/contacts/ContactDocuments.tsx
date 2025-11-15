@@ -119,14 +119,12 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
         .order('updated_at', { ascending: false });
 
       if (error) {
-        console.error('Error loading documents:', error);
         toast.error('Failed to load documents');
         return;
       }
 
       setDocuments(data || []);
     } catch (error) {
-      console.error('Error loading documents:', error);
       toast.error('Failed to load documents');
     } finally {
       setLoading(false);
@@ -234,7 +232,6 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
       });
 
       if (error) {
-        console.error('Error creating document:', error);
         toast.error('Failed to create document');
         return;
       }
@@ -253,7 +250,6 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
         window.open(data.webEditLink, '_blank');
       }
     } catch (error) {
-      console.error('Error creating document:', error);
       toast.error('Failed to create document');
     } finally {
       setCreating(false);
@@ -289,7 +285,6 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
       });
 
       if (error) {
-        console.error('Error sharing document:', error);
         toast.error('Failed to share document');
         return;
       }
@@ -297,7 +292,6 @@ const ContactDocuments: React.FC<ContactDocumentsProps> = ({
       toast.success('Document sharing updated');
       loadDocuments(true);
     } catch (error) {
-      console.error('Error sharing document:', error);
       toast.error('Failed to share document');
     }
   };

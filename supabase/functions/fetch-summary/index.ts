@@ -20,8 +20,6 @@ async function fetchSummaryFromFathom(
   recordingId: string
 ): Promise<FathomSummaryResponse | null> {
   try {
-    console.log(`📝 Fetching summary for recording ${recordingId}...`)
-
     const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`
     
     // Try X-Api-Key first (preferred for Fathom API)
@@ -31,38 +29,28 @@ async function fetchSummaryFromFathom(
         'Content-Type': 'application/json',
       },
     })
-
-    console.log(`🔍 Summary fetch response status (X-Api-Key): ${response.status}`)
-
     // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
     if (response.status === 401) {
-      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
       response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       })
-      console.log(`🔍 Summary fetch response status (Bearer): ${response.status}`)
     }
 
     if (response.status === 404) {
-      console.log('ℹ️  Summary not yet available (still processing)')
       return null
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Summary fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
       throw new Error(`Failed to fetch summary: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
     }
 
     const data: FathomSummaryResponse = await response.json()
-    console.log(`✅ Summary fetched: ${data.summary?.length || 0} characters`)
-
     return data
   } catch (error) {
-    console.error(`❌ Error fetching summary:`, error)
     throw error
   }
 }
@@ -100,9 +88,6 @@ serve(async (req) => {
     if (!meetingId) {
       throw new Error('Missing meetingId parameter')
     }
-
-    console.log(`📋 Fetching summary for meeting ${meetingId}`)
-
     // Get meeting details
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
@@ -128,7 +113,6 @@ serve(async (req) => {
 
     // Check if enhanced summary already exists
     if (meeting.summary && meeting.coach_summary) {
-      console.log('ℹ️  Enhanced summary already exists, returning cached version')
       return new Response(
         JSON.stringify({
           success: true,
@@ -194,12 +178,8 @@ serve(async (req) => {
       .eq('id', meetingId)
 
     if (updateError) {
-      console.error('❌ Error updating meeting with summary:', updateError)
       throw updateError
     }
-
-    console.log(`✅ Enhanced summary saved to meeting ${meetingId}`)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -217,7 +197,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Error in fetch-summary function:', error)
     return new Response(
       JSON.stringify({
         success: false,

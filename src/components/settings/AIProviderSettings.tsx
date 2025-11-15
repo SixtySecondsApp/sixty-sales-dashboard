@@ -50,7 +50,6 @@ export default function AIProviderSettings() {
         })));
       }
     } catch (error) {
-      console.error('Error loading API keys:', error);
     }
   };
 
@@ -91,7 +90,6 @@ export default function AIProviderSettings() {
           : key
       ));
     } catch (error) {
-      console.error('Error testing API key:', error);
       setApiKeys(keys => keys.map(key => 
         key.provider === provider 
           ? { ...key, isValid: false }
@@ -119,7 +117,6 @@ export default function AIProviderSettings() {
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
-      console.error('Error saving API keys:', error);
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } finally {

@@ -8,15 +8,12 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function forceSchemaRefresh() {
-  console.log('Forcing Supabase schema refresh...\n');
-  
   try {
     // Try to alter the table to add the columns if they don't exist
     const alterTableSQL = `
@@ -39,20 +36,9 @@ async function forceSchemaRefresh() {
 
     if (alterError) {
       // If the RPC doesn't exist, try another approach
-      console.log('Note: Could not execute SQL via RPC. You need to run this SQL manually in Supabase Dashboard.\n');
-      console.log('Please go to: https://app.supabase.com/project/ewtuefzeogytgmsnkpmb/editor');
-      console.log('And run this SQL:\n');
-      console.log('================================\n');
-      console.log(alterTableSQL);
-      console.log('\n================================\n');
-      console.log('After running the SQL, wait 30 seconds for the schema cache to refresh, then try saving workflows again.');
       return;
     }
-
-    console.log('✅ Schema alteration executed successfully');
-    
     // Wait a moment for schema to refresh
-    console.log('⏳ Waiting for schema cache to refresh...');
     await new Promise(resolve => setTimeout(resolve, 5000));
     
     // Test if it works now
@@ -74,24 +60,11 @@ async function forceSchemaRefresh() {
       .insert(testWorkflow);
     
     if (insertError && insertError.message.includes('canvas_data')) {
-      console.log('❌ Schema cache still not refreshed');
-      console.log('\nThe schema cache needs to be manually refreshed in Supabase Dashboard.');
-      console.log('Please follow these steps:\n');
-      console.log('1. Go to: https://app.supabase.com/project/ewtuefzeogytgmsnkpmb/editor');
-      console.log('2. Run the SQL shown above');
-      console.log('3. Wait 30 seconds for the cache to refresh');
-      console.log('4. Try saving workflows again');
     } else if (insertError && insertError.message.includes('user_id')) {
-      console.log('✅ Schema is working correctly (FK constraint expected)');
-      console.log('You can now save workflows!');
     } else {
-      console.log('✅ Schema refresh successful!');
-      console.log('You can now save workflows!');
     }
     
   } catch (error) {
-    console.error('Error:', error);
-    console.log('\nPlease run the SQL manually in Supabase Dashboard as shown above.');
   }
 }
 

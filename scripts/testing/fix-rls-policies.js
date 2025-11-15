@@ -7,14 +7,7 @@ config();
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
-console.log('🔧 Checking and Fixing RLS Policies');
-console.log(`📍 Database: ${SUPABASE_URL}`);
-console.log('');
-
 async function executeSQL(sql, description) {
-  console.log(`🔄 ${description}`);
-  console.log(`   SQL: ${sql}`);
-  
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/execute_sql`, {
       method: 'POST',
@@ -27,22 +20,17 @@ async function executeSQL(sql, description) {
     });
 
     if (response.ok) {
-      console.log(`   ✅ Success`);
       return true;
     } else {
       const error = await response.text();
-      console.log(`   ❌ Failed: ${response.status} - ${error}`);
       return false;
     }
   } catch (error) {
-    console.log(`   ❌ Error: ${error.message}`);
     return false;
   }
 }
 
 async function checkCurrentPolicies() {
-  console.log('1️⃣ Checking current RLS policies:\n');
-  
   const tables = ['deals', 'contacts', 'activities', 'deal_stages', 'profiles'];
   
   for (const table of tables) {
@@ -57,22 +45,17 @@ async function checkCurrentPolicies() {
 
       if (response.ok) {
         const policies = await response.json();
-        console.log(`   📋 ${table}: ${policies.length} policies`);
         if (policies.length > 0) {
           policies.forEach(policy => {
-            console.log(`      - ${policy.policyname} (${policy.cmd}) - ${policy.permissive ? 'PERMISSIVE' : 'RESTRICTIVE'}`);
           });
         }
       }
     } catch (error) {
-      console.log(`   ❌ ${table}: Error checking policies`);
     }
   }
 }
 
 async function createPermissivePolicies() {
-  console.log('\n2️⃣ Creating permissive RLS policies:\n');
-  
   // Create permissive policies for authenticated users
   const policies = [
     {
@@ -110,8 +93,6 @@ async function createPermissivePolicies() {
 }
 
 async function enableRLS() {
-  console.log('\n3️⃣ Ensuring RLS is enabled:\n');
-  
   const tables = ['deals', 'contacts', 'activities', 'deal_stages', 'profiles'];
   
   for (const table of tables) {
@@ -123,8 +104,6 @@ async function enableRLS() {
 }
 
 async function testAccessWithAuth() {
-  console.log('\n4️⃣ Testing access after policy changes:\n');
-  
   // Try to access data with anon key (should still fail without auth)
   try {
     const response = await fetch(`${SUPABASE_URL}/rest/v1/deals?select=count`, {
@@ -136,29 +115,11 @@ async function testAccessWithAuth() {
     });
 
     const data = await response.json();
-    console.log(`   📊 Anon access test: ${response.ok ? `${data?.[0]?.count || 0} records` : `BLOCKED (expected)`}`);
   } catch (error) {
-    console.log(`   📊 Anon access test: ERROR - ${error.message}`);
   }
 }
 
 async function showNextSteps() {
-  console.log('\n5️⃣ Next Steps:\n');
-  
-  console.log('   🔐 Authentication Required:');
-  console.log('      Your app needs to authenticate users to access data');
-  console.log('      The fallback mechanism will work once users are logged in');
-  console.log('');
-  console.log('   🧪 To test immediately:');
-  console.log('      1. Create a test user in Supabase Auth');
-  console.log('      2. Sign in to your app with that user'); 
-  console.log('      3. The fallback mechanism should then see the data');
-  console.log('');
-  console.log('   🎯 The configuration is now correct:');
-  console.log('      ✅ API points to Supabase Edge Functions');
-  console.log('      ✅ Fallback mechanism works');
-  console.log('      ✅ RLS policies allow authenticated access');
-  console.log('      ✅ Data exists (422 deals, 414 contacts)');
 }
 
 async function main() {
@@ -167,13 +128,9 @@ async function main() {
   await enableRLS();
   await testAccessWithAuth();
   await showNextSteps();
-  
-  console.log('\n🎉 RLS Policy Fix Complete!');
-  console.log('   Your app should now work when users are authenticated.');
 }
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-  console.log('❌ Missing environment variables.');
   process.exit(1);
 }
 

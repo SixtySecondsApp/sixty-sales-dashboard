@@ -45,45 +45,7 @@ const EXAMPLE_TOOLS = [
     description: "Step 5: List upcoming events"
   }
 ];
-
-console.log("📅 Google Calendar MCP Server - Test Examples");
-console.log("============================================");
-console.log("");
-
-console.log("🔧 Setup Instructions:");
-console.log("1. Copy .env.example to .env");
-console.log("2. Add your Google OAuth credentials to .env");
-console.log("3. Start the MCP server: npm start");
-console.log("4. Use these tool examples to test functionality:");
-console.log("");
-
 EXAMPLE_TOOLS.forEach((tool, index) => {
-  console.log(`${index + 1}. ${tool.name}`);
-  console.log(`   Description: ${tool.description}`);
-  
   if (tool.args) {
-    console.log("   Example arguments:");
-    console.log("   " + JSON.stringify(tool.args, null, 2).split('\n').join('\n   '));
   }
-  
-  console.log("");
 });
-
-console.log("🚀 Authentication Flow:");
-console.log("1. Call calendar_get_auth_url");
-console.log("2. Visit the returned URL in your browser");
-console.log("3. Grant permissions to your app");
-console.log("4. Copy the authorization code");
-console.log("5. Call calendar_authenticate with the code");
-console.log("6. Use any other calendar tools!");
-console.log("");
-
-console.log("💡 Pro Tips:");
-console.log("- Store tokens securely for production use");
-console.log("- Use refresh tokens for long-lived applications");
-console.log("- Handle authentication errors gracefully");
-console.log("- Test with different calendar scenarios");
-console.log("");
-
-console.log("📚 Available Tools: " + EXAMPLE_TOOLS.length + " calendar operations");
-console.log("🔗 Documentation: See README.md for complete API reference");

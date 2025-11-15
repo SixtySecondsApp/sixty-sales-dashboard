@@ -18,8 +18,6 @@ serve(async (req) => {
     )
 
     const data = await req.json()
-    console.log('Webhook received:', data.topic)
-
     switch (data.topic) {
       case 'summary':
         return await handleSummary(supabase, data)
@@ -31,7 +29,6 @@ serve(async (req) => {
         throw new Error(`Unknown topic: ${data.topic}`)
     }
   } catch (error) {
-    console.error('Webhook error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 

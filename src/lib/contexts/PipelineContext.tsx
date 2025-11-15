@@ -91,7 +91,6 @@ export function PipelineProvider({ children }: PipelineProviderProps) {
   // Set selectedOwnerId to current user when userData loads
   useEffect(() => {
     if (userData?.id && !hasInitialized) {
-      console.log('[PipelineContext] Initializing to My Items:', userData.id);
       setSelectedOwnerId(userData.id);
       setHasInitialized(true);
     }

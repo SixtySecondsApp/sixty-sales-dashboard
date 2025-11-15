@@ -39,7 +39,6 @@ export function useTaskNotifications() {
       setNotifications(data || []);
       setUnreadCount((data || []).filter(n => !n.read).length);
     } catch (error) {
-      console.error('Error fetching notifications:', error);
     } finally {
       setLoading(false);
     }
@@ -58,7 +57,6 @@ export function useTaskNotifications() {
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Error marking notification as read:', error);
     }
   };
 
@@ -75,7 +73,6 @@ export function useTaskNotifications() {
         toast.success(`Marked ${count} notification${count > 1 ? 's' : ''} as read`);
       }
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
     }
   };
 

@@ -162,7 +162,6 @@ export class EventBus {
           toRemove.push(subscriptionId);
         }
       } catch (error) {
-        console.error(`Error in event listener for ${eventName}:`, error);
       }
     }
 
@@ -326,7 +325,6 @@ class EventBusWithMiddleware extends EventBus {
         if (mw.onError) {
           mw.onError(error as Error, eventName, data);
         }
-        console.error('Event middleware error (before):', error);
       }
     }
 
@@ -343,7 +341,6 @@ class EventBusWithMiddleware extends EventBus {
           if (mw.onError) {
             mw.onError(error as Error, eventName, data);
           }
-          console.error('Event middleware error (after):', error);
         }
       }
     } catch (error) {
@@ -372,7 +369,6 @@ export const eventDebugUtils = {
   enableEventLogging(): () => void {
     return enhancedEventBus.addMiddleware({
       beforeEmit: (eventName, data) => {
-        console.log(`🔵 Event: ${eventName}`, data);
       }
     });
   },
@@ -391,7 +387,6 @@ export const eventDebugUtils = {
         const startTime = timings.get(eventName);
         if (startTime) {
           const duration = performance.now() - startTime;
-          console.log(`⚡ Event ${eventName} took ${duration.toFixed(2)}ms`);
           timings.delete(eventName);
         }
       }

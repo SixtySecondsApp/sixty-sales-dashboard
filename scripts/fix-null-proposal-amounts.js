@@ -13,8 +13,6 @@ const supabase = createClient(
 
 async function fixNullProposalAmounts() {
   try {
-    console.log('🔧 Fixing proposals with null amounts...\n');
-
     // Find recent proposals with null amounts
     const { data: nullProposals, error: findError } = await supabase
       .from('activities')
@@ -25,11 +23,7 @@ async function fixNullProposalAmounts() {
       .order('date', { ascending: false });
 
     if (findError) throw findError;
-
-    console.log(`Found ${nullProposals?.length || 0} proposals with null amounts from the last 7 days`);
-
     if (!nullProposals || nullProposals.length === 0) {
-      console.log('No proposals to fix');
       return;
     }
 
@@ -54,15 +48,10 @@ async function fixNullProposalAmounts() {
         amount: amount
       });
     });
-
-    console.log('\nProposed updates:');
     updates.forEach(u => {
-      console.log(`  ${u.client}: £${u.amount}`);
     });
 
     // Actually update the proposals
-    console.log('\n🚀 Applying updates...\n');
-    
     for (const update of updates) {
       const { error } = await supabase
         .from('activities')
@@ -70,16 +59,10 @@ async function fixNullProposalAmounts() {
         .eq('id', update.id);
         
       if (error) {
-        console.error(`Failed to update ${update.client}:`, error);
       } else {
-        console.log(`✅ Updated ${update.client} with £${update.amount}`);
       }
     }
-    
-    console.log('\n✨ Migration complete!');
-
   } catch (error) {
-    console.error('❌ Error:', error);
   }
 }
 

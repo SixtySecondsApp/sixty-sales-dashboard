@@ -44,7 +44,6 @@ class FormStorageService {
         .single();
 
       if (error) {
-        console.error('Error storing form config:', error);
         // Fallback to local storage for development
         this.storeFormLocally(formId, config, workflowId, isTest);
         return null;
@@ -57,7 +56,6 @@ class FormStorageService {
 
       return data;
     } catch (error) {
-      console.error('Error storing form config:', error);
       // Fallback to local storage
       this.storeFormLocally(formId, config, workflowId, isTest);
       return null;
@@ -81,7 +79,6 @@ class FormStorageService {
         .single();
 
       if (error) {
-        console.error('Error fetching form config:', error);
         // Fallback to local storage
         return this.getFormLocally(formId);
       }
@@ -93,7 +90,6 @@ class FormStorageService {
 
       return data;
     } catch (error) {
-      console.error('Error fetching form config:', error);
       // Fallback to local storage
       return this.getFormLocally(formId);
     }
@@ -110,7 +106,6 @@ class FormStorageService {
         .eq('form_id', formId);
 
       if (error) {
-        console.error('Error deleting form config:', error);
         return false;
       }
 
@@ -121,7 +116,6 @@ class FormStorageService {
 
       return true;
     } catch (error) {
-      console.error('Error deleting form config:', error);
       return false;
     }
   }
@@ -160,7 +154,6 @@ class FormStorageService {
         this.formCache.set(formId, formData);
         return formData;
       } catch (error) {
-        console.error('Error parsing local form data:', error);
       }
     }
     return null;

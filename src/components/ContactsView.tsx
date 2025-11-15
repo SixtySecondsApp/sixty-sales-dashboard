@@ -228,7 +228,6 @@ export function ContactsView({
         
         setInternalIsLoading(false);
       } catch (error) {
-        console.error('Error fetching contacts:', error);
         setError(error instanceof Error ? error.message : 'Failed to fetch contacts');
         setInternalIsLoading(false);
       }
@@ -327,7 +326,6 @@ export function ContactsView({
       
       toast.success(`Successfully deleted ${authorizedContacts.length} contacts`);
     } catch (error) {
-      console.error('Error deleting contacts:', error);
       toast.error('Failed to delete selected contacts');
     }
   };
@@ -428,7 +426,6 @@ export function ContactsView({
 
   const handleEditContact = (contact: Contact) => {
     // Handle edit contact
-    console.log('Edit contact:', contact.id);
   };
 
   const handleDeleteContact = (contact: Contact) => {
@@ -458,7 +455,6 @@ export function ContactsView({
 
   const handleAddContact = () => {
     // Navigate to add contact page when available
-    console.log('Add new contact');
   };
 
   if (isLoading) {

@@ -13,8 +13,6 @@ export default function TestNotifications() {
   const createTestNotifications = async () => {
     try {
       setIsCreating(true);
-      console.log('🔔 Creating test notifications...');
-      
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -93,7 +91,6 @@ export default function TestNotifications() {
       toast.success(`Created ${createdCount} test notifications!`);
       refetch();
     } catch (error) {
-      console.error('Error creating test notifications:', error);
       toast.error('Failed to create test notifications');
     } finally {
       setIsCreating(false);
@@ -121,7 +118,6 @@ export default function TestNotifications() {
       toast.success('All notifications cleared');
       refetch();
     } catch (error) {
-      console.error('Error clearing notifications:', error);
       toast.error('Failed to clear notifications');
     } finally {
       setIsClearing(false);
@@ -157,7 +153,6 @@ export default function TestNotifications() {
         refetch();
       }
     } catch (error) {
-      console.error('Error creating custom notification:', error);
       toast.error('Failed to create custom notification');
     }
   };

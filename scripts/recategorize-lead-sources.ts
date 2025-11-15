@@ -11,7 +11,6 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error('❌ Missing Supabase credentials');
   process.exit(1);
 }
 
@@ -39,8 +38,6 @@ const updates: LeadSourceUpdate[] = [
 ];
 
 async function recategorizeLeads() {
-  console.log('🔄 Starting lead source recategorization...\n');
-
   const functionUrl = `${SUPABASE_URL}/functions/v1/update-lead-sources`;
 
   try {
@@ -50,20 +47,14 @@ async function recategorizeLeads() {
     });
 
     if (error) {
-      console.error('❌ Error calling edge function:', error);
       throw error;
     }
 
     if (data) {
-      console.log('\n📊 Results:');
-      console.log(JSON.stringify(data, null, 2));
-      
       if (data.success) {
-        console.log(`\n✅ Successfully updated ${data.totalUpdated} lead(s)`);
       }
     }
   } catch (error: any) {
-    console.error('❌ Error:', error.message);
     process.exit(1);
   }
 }

@@ -63,14 +63,10 @@ class NotificationService {
         .single();
 
       if (error) {
-        console.error('[NotificationService] Error creating notification:', error);
         return null;
       }
-
-      console.log('[NotificationService] Created notification:', data);
       return data;
     } catch (error) {
-      console.error('[NotificationService] Exception creating notification:', error);
       return null;
     }
   }
@@ -96,14 +92,10 @@ class NotificationService {
         .select();
 
       if (error) {
-        console.error('[NotificationService] Error creating bulk notifications:', error);
         return [];
       }
-
-      console.log(`[NotificationService] Created ${data.length} notifications`);
       return data || [];
     } catch (error) {
-      console.error('[NotificationService] Exception creating bulk notifications:', error);
       return [];
     }
   }
@@ -146,13 +138,11 @@ class NotificationService {
       const { data, error } = await query;
 
       if (error) {
-        console.error('[NotificationService] Error fetching notifications:', error);
         return [];
       }
 
       return data || [];
     } catch (error) {
-      console.error('[NotificationService] Exception fetching notifications:', error);
       return [];
     }
   }
@@ -169,13 +159,11 @@ class NotificationService {
         .rpc('get_unread_notification_count');
 
       if (error) {
-        console.error('[NotificationService] Error getting unread count:', error);
         return 0;
       }
 
       return data || 0;
     } catch (error) {
-      console.error('[NotificationService] Exception getting unread count:', error);
       return 0;
     }
   }
@@ -189,7 +177,6 @@ class NotificationService {
         .rpc('mark_notification_read', { notification_id: notificationId });
 
       if (error) {
-        console.error('[NotificationService] Error marking notification as read:', error);
         return false;
       }
 
@@ -197,7 +184,6 @@ class NotificationService {
       this.updateUnreadCount();
       return true;
     } catch (error) {
-      console.error('[NotificationService] Exception marking notification as read:', error);
       return false;
     }
   }
@@ -211,7 +197,6 @@ class NotificationService {
         .rpc('mark_all_notifications_read');
 
       if (error) {
-        console.error('[NotificationService] Error marking all notifications as read:', error);
         return false;
       }
 
@@ -219,7 +204,6 @@ class NotificationService {
       this.notifyUnreadCountListeners(0);
       return true;
     } catch (error) {
-      console.error('[NotificationService] Exception marking all as read:', error);
       return false;
     }
   }
@@ -235,7 +219,6 @@ class NotificationService {
         .eq('id', notificationId);
 
       if (error) {
-        console.error('[NotificationService] Error deleting notification:', error);
         return false;
       }
 
@@ -243,7 +226,6 @@ class NotificationService {
       this.updateUnreadCount();
       return true;
     } catch (error) {
-      console.error('[NotificationService] Exception deleting notification:', error);
       return false;
     }
   }
@@ -268,8 +250,6 @@ class NotificationService {
         },
         (payload) => {
           const notification = payload.new as Notification;
-          console.log('[NotificationService] New notification received:', notification);
-          
           // Show toast notification
           this.showToastNotification(notification);
           
@@ -281,8 +261,6 @@ class NotificationService {
         }
       )
       .subscribe();
-
-    console.log('[NotificationService] Subscribed to notifications for user:', userId);
   }
 
   /**
@@ -292,7 +270,6 @@ class NotificationService {
     if (this.channel) {
       supabase.removeChannel(this.channel);
       this.channel = null;
-      console.log('[NotificationService] Unsubscribed from notifications');
     }
   }
 
@@ -332,7 +309,6 @@ class NotificationService {
       try {
         listener(notification);
       } catch (error) {
-        console.error('[NotificationService] Error in notification listener:', error);
       }
     });
   }
@@ -345,7 +321,6 @@ class NotificationService {
       try {
         listener(count);
       } catch (error) {
-        console.error('[NotificationService] Error in unread count listener:', error);
       }
     });
   }

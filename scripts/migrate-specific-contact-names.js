@@ -20,12 +20,9 @@ const supabase = createClient(
 
 async function migrateSpecificContactNames() {
   try {
-    console.log('🔄 Starting targeted contact names migration...\n');
-    
     await neonClient.connect();
 
     // Step 1: Get contacts WITHOUT names from Supabase
-    console.log('📊 Step 1: Finding contacts without names in Supabase');
     const { data: contactsWithoutNames, error: fetchError } = await supabase
       .from('contacts')
       .select('id, email')
@@ -33,12 +30,7 @@ async function migrateSpecificContactNames() {
       .order('email');
 
     if (fetchError) throw fetchError;
-
-    console.log(`Found ${contactsWithoutNames.length} contacts without names in Supabase\n`);
-
     // Step 2: For each contact, try to find their name in Neon
-    console.log('🔄 Step 2: Looking up names in Neon database\n');
-    
     let updatedCount = 0;
     let notFoundCount = 0;
 
@@ -63,7 +55,6 @@ async function migrateSpecificContactNames() {
           .eq('id', contact.id);
 
         if (!error) {
-          console.log(`✅ Updated: ${contact.email} → ${neonContact.rows[0].first_name} ${neonContact.rows[0].last_name || ''}`);
           updatedCount++;
         }
       } else {
@@ -92,7 +83,6 @@ async function migrateSpecificContactNames() {
             .eq('id', contact.id);
 
           if (!error) {
-            console.log(`✅ Updated from deals: ${contact.email} → ${neonDeal.rows[0].contact_name}`);
             updatedCount++;
           }
         } else {
@@ -100,15 +90,7 @@ async function migrateSpecificContactNames() {
         }
       }
     }
-
-    console.log(`\n📊 Migration Summary:`);
-    console.log(`   Contacts without names: ${contactsWithoutNames.length}`);
-    console.log(`   Successfully updated: ${updatedCount}`);
-    console.log(`   Not found in Neon: ${notFoundCount}`);
-
     // Step 3: Handle is_primary flag
-    console.log('\n🔄 Step 3: Migrating is_primary flags from Neon\n');
-    
     // Get all primary contacts from Neon
     const primaryContacts = await neonClient.query(`
       SELECT email, is_primary
@@ -116,9 +98,6 @@ async function migrateSpecificContactNames() {
       WHERE is_primary = true
         AND email IS NOT NULL;
     `);
-
-    console.log(`Found ${primaryContacts.rows.length} primary contacts in Neon`);
-
     let primaryUpdated = 0;
     for (const neonPrimary of primaryContacts.rows) {
       const { error } = await supabase
@@ -130,11 +109,7 @@ async function migrateSpecificContactNames() {
         primaryUpdated++;
       }
     }
-
-    console.log(`Updated ${primaryUpdated} contacts as primary`);
-
     // Final verification
-    console.log('\n📊 Final verification:');
     const { count: totalCount } = await supabase
       .from('contacts')
       .select('*', { count: 'exact', head: true });
@@ -148,16 +123,9 @@ async function migrateSpecificContactNames() {
       .from('contacts')
       .select('*', { count: 'exact', head: true })
       .eq('is_primary', true);
-
-    console.log(`   Total contacts: ${totalCount}`);
-    console.log(`   Contacts with names: ${namedCount}`);
-    console.log(`   Primary contacts: ${primaryCount}`);
-
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
-    console.log('\n🔌 Database connections closed');
   }
 }
 

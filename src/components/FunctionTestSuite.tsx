@@ -81,16 +81,12 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       // Cleanup any remaining test data when component unmounts
       const remainingData = cleanupDataRef.current;
       if (Object.keys(remainingData).length > 0) {
-        console.log('🧹 Function Test Suite unmounting - cleaning up remaining test data...', remainingData);
-        
         // Perform cleanup without waiting (fire and forget)
         Object.entries(remainingData).forEach(([entityType, ids]) => {
           ids.forEach(async (id) => {
             try {
               await performCleanupOperation(entityType, id);
-              console.log(`🧹 Cleaned up ${entityType}: ${id.substring(0, 8)}... on unmount`);
             } catch (error) {
-              console.warn(`⚠️ Failed to cleanup ${entityType} on unmount:`, error);
             }
           });
         });
@@ -277,7 +273,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       if (error) throw error;
       return stages || [];
     } catch (error) {
-      console.error('Failed to get deal stages:', error);
       return [];
     }
   };
@@ -1431,14 +1426,10 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }]);
 
       try {
-        console.log(`🧪 Starting EditActivityForm test: ${testCase.name}`);
         const result = await testCase.test();
-        console.log(`✅ EditActivityForm test completed: ${testCase.name}`, result);
-        
         allResults.push(result);
         completedTests++;
       } catch (error) {
-        console.error(`❌ EditActivityForm test failed: ${testCase.name}`, error);
         allResults.push({
           function: 'editactivityform',
           operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -1756,9 +1747,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }]);
       
       try {
-        console.log(`🧪 Starting Pipeline test: ${testCase.name}`);
         const result = await testCase.test();
-        console.log(`✅ Pipeline test ${testCase.name} completed:`, result);
         allResults.push(result);
         setResults([...allResults]);
         
@@ -1768,7 +1757,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         // Small delay between tests
         await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error) {
-        console.error(`❌ Pipeline test ${testCase.name} failed with error:`, error);
         const errorResult = {
           function: 'pipeline',
           operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -1833,10 +1821,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }]);
       
       try {
-        console.log(`🧪 Starting Pipeline Ticket Creation test: ${testCase.name}`);
         const result = await testCase.test();
-        console.log(`✅ Pipeline Ticket test ${testCase.name} completed:`, result);
-        
         // Track created ticket IDs for cleanup
         if (result.data?.deal?.id) {
           testTicketIds.push(result.data.deal.id);
@@ -1848,7 +1833,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         completedTests++;
         setProgress((completedTests / totalTests) * 100);
       } catch (error) {
-        console.error(`❌ Pipeline Ticket test ${testCase.name} failed with error:`, error);
         const errorResult = {
           function: 'pipeline_ticket',
           operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -2102,9 +2086,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       // Update the deal revenue (which will auto-calculate value via trigger)
       const newOneOffRevenue = 35000;
       const expectedValue = 35000; // Since monthly_mrr will be 0, value = 35000 + (0 * 3) = 35000
-      
-      console.log(`🔧 Updating deal ${deal.id} one_off_revenue from ${deal.one_off_revenue} to ${newOneOffRevenue}, expected value: ${expectedValue}`);
-      
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update({ 
@@ -2116,12 +2097,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .single();
       
       if (updateError) {
-        console.error('Update error:', updateError);
         throw updateError;
       }
-      
-      console.log('Updated deal result:', updatedDeal);
-      
       // Wait a moment and re-fetch to see if there's a trigger affecting the value
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -2132,12 +2109,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .single();
       
       if (refetchError) {
-        console.error('Refetch error:', refetchError);
         throw refetchError;
       }
-      
-      console.log('Refetched deal:', refetchedDeal);
-      
       // Use the refetched deal for verification
       const finalValue = refetchedDeal.value;
       
@@ -2292,9 +2265,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       };
       
       const expectedCalculatedValue = 35000 + (1500 * 3); // 39500
-      
-      console.log(`🔧 Updating all fields for deal ${deal.id}`, comprehensiveUpdate);
-      
       const { data: updatedDeal, error: updateError } = await supabase
         .from('deals')
         .update(comprehensiveUpdate)
@@ -2303,12 +2273,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .single();
       
       if (updateError) {
-        console.error('Comprehensive update error:', updateError);
         throw updateError;
       }
-      
-      console.log('Comprehensive update result:', updatedDeal);
-      
       // Wait a moment and re-fetch to see if there's a trigger affecting the values
       await new Promise(resolve => setTimeout(resolve, 100));
       
@@ -2319,12 +2285,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         .single();
       
       if (refetchError) {
-        console.error('Comprehensive refetch error:', refetchError);
         throw refetchError;
       }
-      
-      console.log('Comprehensive refetched deal:', refetchedDeal);
-      
       // Verify multiple updates using refetched data
       const verifications = [
         { field: 'name', expected: comprehensiveUpdate.name, actual: refetchedDeal.name },
@@ -2916,9 +2878,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }]);
       
       try {
-        console.log(`🧪 Starting Comprehensive Pipeline test: ${testCase.name}`);
         const result = await testCase.test();
-        console.log(`✅ Comprehensive Pipeline test ${testCase.name} completed:`, result);
         allResults.push(result);
         setResults([...allResults]);
         
@@ -2928,7 +2888,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         // Small delay between tests
         await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error) {
-        console.error(`❌ Comprehensive Pipeline test ${testCase.name} failed with error:`, error);
         const errorResult = {
           function: 'comprehensive_pipeline',
           operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -4384,9 +4343,7 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }]);
       
       try {
-        console.log(`🧪 Starting QuickAdd test: ${testCase.name}`);
         const result = await testCase.test();
-        console.log(`✅ QuickAdd test ${testCase.name} completed:`, result);
         allResults.push(result);
         setResults([...allResults]);
         
@@ -4396,7 +4353,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
         // Small delay between tests
         await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error) {
-        console.error(`❌ QuickAdd test ${testCase.name} failed with error:`, error);
         const errorResult = {
           function: 'quickadd',
           operation: testCase.name.toLowerCase().replace(' ', '_'),
@@ -4465,7 +4421,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       for (const testCase of quickAddTests) {
         try {
-          console.log(`🧪 Starting QuickAdd test (All Tests): ${testCase.name}`);
           setResults(prev => [...prev, { 
             function: 'quickadd', 
             operation: testCase.name.toLowerCase().replace(' ', '_'), 
@@ -4473,7 +4428,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           }]);
           
           const result = await testCase.test();
-          console.log(`✅ QuickAdd test ${testCase.name} completed (All Tests):`, result);
           setResults(prev => {
             const updated = [...prev];
             updated[updated.length - 1] = result;
@@ -4487,7 +4441,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           // Small delay between tests
           await new Promise(resolve => setTimeout(resolve, 200));
         } catch (error) {
-          console.error(`❌ QuickAdd test ${testCase.name} failed in All Tests with error:`, error);
           const errorResult = {
             function: 'quickadd',
             operation: testCase.name.toLowerCase().replace(' ', '_'),
@@ -4533,7 +4486,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       for (const testCase of pipelineTests) {
         try {
-          console.log(`🧪 Starting Pipeline test (All Tests): ${testCase.name}`);
           setResults(prev => [...prev, { 
             function: 'pipeline', 
             operation: testCase.name.toLowerCase().replace(/\s+/g, '_'), 
@@ -4541,7 +4493,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           }]);
           
           const result = await testCase.test();
-          console.log(`✅ Pipeline test ${testCase.name} completed (All Tests):`, result);
           setResults(prev => {
             const updated = [...prev];
             updated[updated.length - 1] = result;
@@ -4555,7 +4506,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           // Small delay between tests
           await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
-          console.error(`❌ Pipeline test ${testCase.name} failed in All Tests with error:`, error);
           const errorResult = {
             function: 'pipeline',
             operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -4603,7 +4553,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
       for (const testCase of comprehensiveTests) {
         try {
-          console.log(`🧪 Starting Comprehensive Pipeline test (All Tests): ${testCase.name}`);
           setResults(prev => [...prev, { 
             function: 'comprehensive_pipeline', 
             operation: testCase.name.toLowerCase().replace(/\s+/g, '_'), 
@@ -4611,7 +4560,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           }]);
           
           const result = await testCase.test();
-          console.log(`✅ Comprehensive Pipeline test ${testCase.name} completed (All Tests):`, result);
           setResults(prev => {
             const updated = [...prev];
             updated[updated.length - 1] = result;
@@ -4625,7 +4573,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
           // Small delay between tests
           await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
-          console.error(`❌ Comprehensive Pipeline test ${testCase.name} failed in All Tests with error:`, error);
           const errorResult = {
             function: 'comprehensive_pipeline',
             operation: testCase.name.toLowerCase().replace(/\s+/g, '_'),
@@ -4669,7 +4616,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       
     } catch (error) {
       toast.error('Error running all tests');
-      console.error('All tests error:', error);
     } finally {
       setIsRunningAll(false);
     }
@@ -4837,7 +4783,6 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       }
     } catch (error) {
       toast.error('Error running function tests');
-      console.error('Function test error:', error);
     } finally {
       setIsRunning(false);
     }
@@ -4923,11 +4868,8 @@ export const FunctionTestSuite: React.FC<FunctionTestSuiteProps> = ({ onClose })
       } else {
         toast.warning('⚠️ Some cleanup operations may have failed');
       }
-      
-      console.log('Manual cleanup results:', cleanupResults);
     } catch (error) {
       toast.error('Failed to perform manual cleanup');
-      console.error('Manual cleanup error:', error);
     }
   };
 

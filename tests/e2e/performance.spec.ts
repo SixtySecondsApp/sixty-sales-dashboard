@@ -93,9 +93,6 @@ test.describe('Performance and Accessibility Tests', () => {
           resolve(metrics);
         });
       });
-      
-      console.log('Performance metrics:', metrics);
-      
       // Assert reasonable performance
       expect(metrics.ttfb).toBeLessThan(1000); // TTFB under 1 second
       expect(metrics.domContentLoaded).toBeLessThan(2000); // DOM ready under 2 seconds
@@ -154,9 +151,6 @@ test.describe('Performance and Accessibility Tests', () => {
       await page.waitForLoadState('networkidle');
       
       const totalTime = Date.now() - startTime;
-      
-      console.log(`Made ${requestCount} API requests in ${totalTime}ms`);
-      
       // Should complete within reasonable time even with multiple requests
       expect(totalTime).toBeLessThan(3000);
     });

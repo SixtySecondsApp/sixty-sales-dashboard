@@ -51,7 +51,6 @@ export const PipelineRecommendationNotification: React.FC = () => {
           filter: `status=eq.pending`,
         },
         (payload) => {
-          console.log('New recommendation:', payload);
           fetchRecommendations();
         }
       )
@@ -78,7 +77,6 @@ export const PipelineRecommendationNotification: React.FC = () => {
 
       setRecommendations(data || []);
     } catch (error) {
-      console.error('Error fetching recommendations:', error);
     } finally {
       setLoading(false);
     }
@@ -102,9 +100,7 @@ export const PipelineRecommendationNotification: React.FC = () => {
       setRecommendations((prev) => prev.filter((r) => r.id !== recommendationId));
 
       // Show success message (you can use a toast library here)
-      console.log('Recommendation approved successfully');
     } catch (error) {
-      console.error('Error approving recommendation:', error);
       alert('Failed to approve recommendation. Please try again.');
     } finally {
       setProcessingId(null);
@@ -127,10 +123,7 @@ export const PipelineRecommendationNotification: React.FC = () => {
 
       // Remove from list
       setRecommendations((prev) => prev.filter((r) => r.id !== recommendationId));
-
-      console.log('Recommendation rejected successfully');
     } catch (error) {
-      console.error('Error rejecting recommendation:', error);
       alert('Failed to reject recommendation. Please try again.');
     } finally {
       setProcessingId(null);

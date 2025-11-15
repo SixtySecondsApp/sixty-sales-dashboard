@@ -118,9 +118,6 @@ IMPORTANT:
 
     const data = await response.json();
     const aiResponse = data.content[0].text;
-
-    console.log('[AI Response]', aiResponse);
-
     // Parse JSON from AI response
     const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -143,14 +140,11 @@ IMPORTANT:
     // Validate task_type
     const validTaskTypes = ['call', 'email', 'meeting', 'follow_up', 'proposal', 'demo', 'general'];
     if (!validTaskTypes.includes(analysis.task_type)) {
-      console.warn(`Invalid task_type: ${analysis.task_type}, defaulting to follow_up`);
       analysis.task_type = 'follow_up';
     }
 
     return analysis;
   } catch (error) {
-    console.error('[AI Analysis Error]', error);
-
     // Fallback to heuristic-based analysis
     return fallbackAnalysis(request);
   }
@@ -272,14 +266,6 @@ serve(async (req) => {
 
     // Analyze with AI
     const analysis = await analyzeActionItemWithAI(analysisRequest);
-
-    console.log('[AI Analysis Result]', {
-      action_item_id,
-      task_type: analysis.task_type,
-      ideal_deadline: analysis.ideal_deadline,
-      confidence: analysis.confidence_score,
-    });
-
     // Save analysis results to database
     const { data: saveResult, error: saveError } = await supabase.rpc(
       'apply_ai_analysis_to_task',
@@ -293,7 +279,6 @@ serve(async (req) => {
     );
 
     if (saveError) {
-      console.error('[Save Error]', saveError);
       return new Response(
         JSON.stringify({
           error: 'Failed to save analysis results',
@@ -303,9 +288,6 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    console.log('[Save Result]', saveResult);
-
     return new Response(
       JSON.stringify({
         ...analysis,
@@ -314,7 +296,6 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[Error]', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

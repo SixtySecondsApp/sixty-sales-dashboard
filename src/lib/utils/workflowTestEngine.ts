@@ -504,9 +504,6 @@ export class WorkflowTestEngine {
         const actualValue = testData[field];
         const expected = expectedValue.replace(/['"]/g, ''); // Remove quotes if present
         const expectedNum = parseFloat(expected);
-        
-        console.log('Raw condition evaluation:', { field, operator, actualValue, expected, testData });
-        
         switch (operator) {
           case '>':
             result = parseFloat(actualValue) > expectedNum;
@@ -569,7 +566,6 @@ export class WorkflowTestEngine {
         const expectedType = node.data.activityType || node.data.value || 'proposal_sent';
         result = activityType === expectedType;
         message = `Activity type "${activityType}" === "${expectedType}" = ${result}`;
-        console.log('Activity type check:', { activityType, expectedType, result, nodeData: node.data });
         break;
 
       case 'custom_field':
@@ -595,7 +591,6 @@ export class WorkflowTestEngine {
           const expectedType = node.data.value || 'proposal_sent';
           result = activityType === expectedType;
           message = `Activity type "${activityType}" === "${expectedType}" = ${result}`;
-          console.log('Default activity type check:', { activityType, expectedType, result, nodeData: node.data });
         } else if (node.data.field && node.data.value !== undefined) {
           const fieldName = node.data.field;
           const fieldValue = testData[fieldName];
@@ -604,7 +599,6 @@ export class WorkflowTestEngine {
           message = `Field "${fieldName}" === "${expectedValue}" = ${result} (actual: "${fieldValue}")`;
         } else {
           // Default to checking if the node has any specific condition data
-          console.log('Unknown condition, defaulting to pass:', { conditionType, nodeData: node.data });
           result = true; // Default to passing for unknown conditions
           message = `Unknown condition type "${conditionType}" - defaulting to pass`;
         }
@@ -994,8 +988,6 @@ export class WorkflowTestEngine {
       return result;
     } catch (error) {
       // If real database operation fails, fall back to mock
-      console.warn('Failed to persist meeting to database, using mock data:', error);
-      
       const mockResult = {
         success: true,
         operation: node.data.config?.updateOnly ? 'update' : 'upsert',
@@ -1065,8 +1057,6 @@ export class WorkflowTestEngine {
       return result;
     } catch (error) {
       // If Google Docs creation fails, fall back to mock data
-      console.warn('Failed to create real Google Doc, using mock data:', error);
-      
       const mockResult = {
         success: true,
         docId: `mock_doc_${Date.now()}`,

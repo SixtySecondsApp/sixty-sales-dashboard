@@ -363,7 +363,6 @@ export function DecoupledQuickAdd({ isOpen, onClose }: DecoupledQuickAddProps) {
   useEventListener('ui:notification', ({ message, type }) => {
     // This would typically integrate with your existing toast system
     // For now, we'll let the service adapter handle it
-    console.log(`Notification [${type}]: ${message}`);
   });
 
   return (

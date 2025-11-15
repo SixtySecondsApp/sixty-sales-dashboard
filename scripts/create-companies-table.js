@@ -7,8 +7,6 @@ const supabase = createClient(
 );
 
 async function createCompaniesTable() {
-  console.log('🚀 Creating companies table in Supabase...');
-  
   try {
     // Try to query the companies table to see if it exists
     const { data: testData, error: testError } = await supabase
@@ -17,18 +15,12 @@ async function createCompaniesTable() {
       .limit(1);
 
     if (!testError) {
-      console.log('✅ Companies table already exists!');
-      console.log(`Found ${testData?.length || 0} records in companies table`);
       return;
     }
 
     if (testError && !testError.message.includes('does not exist')) {
-      console.error('❌ Unexpected error checking companies table:', testError);
       return;
     }
-
-    console.log('📋 Companies table does not exist. Creating...');
-
     // Create the companies table using raw SQL
     const { error: createError } = await supabase
       .from('_supabase_migrations')
@@ -127,25 +119,14 @@ async function createCompaniesTable() {
       CREATE POLICY "Users can delete their own companies" ON companies
         FOR DELETE USING (auth.uid() = owner_id);
     `;
-
-    console.log('📝 Executing SQL to create companies table...');
-    
     // Execute the SQL directly using the SQL editor approach
     const { error: sqlError } = await supabase.rpc('exec_sql', {
       sql: createTableSQL
     });
 
     if (sqlError) {
-      console.error('❌ Error creating companies table via RPC:', sqlError);
-      console.log('💡 Please run this SQL manually in the Supabase SQL editor:');
-      console.log('---');
-      console.log(createTableSQL);
-      console.log('---');
       return;
     }
-
-    console.log('✅ Companies table created successfully!');
-    
     // Test the table
     const { data: finalTestData, error: finalTestError } = await supabase
       .from('companies')
@@ -153,14 +134,10 @@ async function createCompaniesTable() {
       .limit(1);
 
     if (finalTestError) {
-      console.error('❌ Error testing companies table:', finalTestError);
     } else {
-      console.log('✅ Companies table test successful!');
     }
 
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
-    console.log('💡 Please create the companies table manually in Supabase SQL editor.');
   }
 }
 

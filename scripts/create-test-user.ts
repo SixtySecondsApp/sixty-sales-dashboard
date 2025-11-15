@@ -15,7 +15,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Missing Supabase configuration. Check VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE_ROLE_KEY in .env.local');
   process.exit(1);
 }
 
@@ -30,11 +29,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 async function createTestUser() {
   const testEmail = 'test@playwright.local';
   const testPassword = 'TestPassword123!';
-  
-  console.log('🚀 Creating test user for Playwright testing...');
-  console.log(`📧 Email: ${testEmail}`);
-  console.log(`🔑 Password: ${testPassword}`);
-  
   try {
     // Create user using admin API
     const { data: user, error: createError } = await supabase.auth.admin.createUser({
@@ -49,8 +43,6 @@ async function createTestUser() {
 
     if (createError) {
       if (createError.message.includes('already registered')) {
-        console.log('✅ Test user already exists');
-        
         // Update existing user to ensure they have admin permissions
         const { data: existingUsers } = await supabase.auth.admin.listUsers();
         const existingUser = existingUsers?.users?.find(u => u.email === testEmail);
@@ -64,17 +56,13 @@ async function createTestUser() {
           });
           
           if (updateError) {
-            console.error('❌ Failed to update test user:', updateError.message);
           } else {
-            console.log('✅ Updated test user with admin permissions');
           }
         }
       } else {
         throw createError;
       }
     } else {
-      console.log('✅ Test user created successfully');
-      console.log(`👤 User ID: ${user?.user?.id}`);
     }
 
     // Update test environment file
@@ -96,19 +84,7 @@ VITE_SUPABASE_ANON_KEY=${process.env.VITE_SUPABASE_ANON_KEY}
     await import('fs/promises').then(fs => 
       fs.writeFile('.env.test', testEnvContent, 'utf-8')
     );
-    
-    console.log('✅ Updated .env.test with test user credentials');
-    console.log('');
-    console.log('🎭 Playwright Test User Ready!');
-    console.log('');
-    console.log('You can now run Playwright tests with:');
-    console.log('  npx playwright test');
-    console.log('');
-    console.log('Or run with UI:');
-    console.log('  npx playwright test --headed');
-
   } catch (error) {
-    console.error('❌ Failed to create test user:', error);
     process.exit(1);
   }
 }

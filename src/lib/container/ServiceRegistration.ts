@@ -44,6 +44,7 @@ export function configureServices(): void {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
+          debug: false, // Disable debug logging
         },
         db: {
           schema: 'public'
@@ -134,10 +135,10 @@ function registerDevelopmentServices(): void {
     container.registerSingleton(
       SERVICE_TOKENS.LOGGER,
       () => ({
-        debug: (message: string, ...args: any[]) => console.debug('[DEBUG]', message, ...args),
-        info: (message: string, ...args: any[]) => console.info('[INFO]', message, ...args),
-        warn: (message: string, ...args: any[]) => console.warn('[WARN]', message, ...args),
-        error: (message: string, ...args: any[]) => console.error('[ERROR]', message, ...args),
+        debug: (message: string, ...args: any[]) => undefined,
+        info: (message: string, ...args: any[]) => undefined,
+        warn: (message: string, ...args: any[]) => undefined,
+        error: (message: string, ...args: any[]) => undefined,
       })
     );
 
@@ -187,16 +188,12 @@ function registerProductionServices(): void {
       () => ({
         debug: (message: string, ...args: any[]) => {
           // In production, you might send to a logging service
-          console.debug(JSON.stringify({ level: 'DEBUG', message, data: args, timestamp: new Date().toISOString() }));
         },
         info: (message: string, ...args: any[]) => {
-          console.info(JSON.stringify({ level: 'INFO', message, data: args, timestamp: new Date().toISOString() }));
         },
         warn: (message: string, ...args: any[]) => {
-          console.warn(JSON.stringify({ level: 'WARN', message, data: args, timestamp: new Date().toISOString() }));
         },
         error: (message: string, ...args: any[]) => {
-          console.error(JSON.stringify({ level: 'ERROR', message, data: args, timestamp: new Date().toISOString() }));
         },
       })
     );
@@ -215,13 +212,9 @@ export function initializeServices(): void {
     const errors = config.validateConfig();
     
     if (errors.length > 0) {
-      console.error('Configuration validation failed:', errors);
       throw new Error(`Configuration errors: ${errors.join(', ')}`);
     }
-    
-    console.log('Service container initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize service container:', error);
     throw error;
   }
 }

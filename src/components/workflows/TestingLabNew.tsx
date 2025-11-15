@@ -221,7 +221,6 @@ const TestingLabNew: React.FC<TestingLabNewProps> = ({ workflow }) => {
       
       setTestHistory(executions);
     } catch (error) {
-      console.error('Failed to load test history:', error);
     }
   };
 

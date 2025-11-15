@@ -21,11 +21,6 @@ serve(async (req) => {
 
   try {
     const { batchSize = 10, dryRun = false } = await req.json().catch(() => ({}))
-
-    console.log(`🚀 Starting thumbnail backfill...`)
-    console.log(`📊 Batch size: ${batchSize}`)
-    console.log(`🧪 Dry run: ${dryRun}`)
-
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -62,9 +57,6 @@ serve(async (req) => {
         }
       )
     }
-
-    console.log(`📋 Found ${meetings.length} meetings without thumbnails`)
-
     const progress: BackfillProgress = {
       total: meetings.length,
       processed: 0,
@@ -94,15 +86,11 @@ serve(async (req) => {
     // Process each meeting
     for (const meeting of meetings) {
       try {
-        console.log(`\n📸 Processing: ${meeting.title} (ID: ${meeting.id})`)
-
         const embedUrl = buildEmbedUrl(meeting.share_url, meeting.fathom_recording_id)
         if (!embedUrl) {
-          console.warn('⚠️  Could not construct embed URL from share_url or recording id')
         }
 
         if (dryRun) {
-          console.log(`🧪 [DRY RUN] Would generate thumbnail for: ${embedUrl}`)
           progress.processed++
           progress.successful++
           continue
@@ -138,7 +126,6 @@ serve(async (req) => {
             }
           } else {
             const errText = await thumbnailResponse.text().catch(() => '')
-            console.warn(`Thumbnail service error: ${thumbnailResponse.status} ${errText}`)
           }
         }
 
@@ -157,8 +144,6 @@ serve(async (req) => {
         if (updateError) {
           throw new Error(`Failed to update meeting: ${updateError.message}`)
         }
-
-        console.log(`✅ Success: ${thumbnailUrl}`)
         progress.successful++
 
         // Rate limiting: wait 1 second between requests to avoid overwhelming Microlink free tier
@@ -167,7 +152,6 @@ serve(async (req) => {
         }
 
       } catch (error) {
-        console.error(`❌ Failed for meeting ${meeting.id}:`, error)
         progress.failed++
         progress.errors.push({
           id: meeting.id,
@@ -177,12 +161,6 @@ serve(async (req) => {
 
       progress.processed++
     }
-
-    console.log(`\n📊 Backfill complete:`)
-    console.log(`   Total: ${progress.total}`)
-    console.log(`   Successful: ${progress.successful}`)
-    console.log(`   Failed: ${progress.failed}`)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -196,7 +174,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Backfill error:', error)
     return new Response(
       JSON.stringify({
         success: false,

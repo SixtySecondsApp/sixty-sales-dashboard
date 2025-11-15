@@ -104,11 +104,9 @@ export function initializeServiceLayer(): Promise<void> {
       }
 
       isInitialized = true;
-      console.log('✅ Service layer initialized successfully');
       resolve();
 
     } catch (error) {
-      console.error('❌ Failed to initialize service layer:', error);
       reject(error);
     }
   });
@@ -172,7 +170,6 @@ export function createServiceMiddleware() {
           services.logger.warn('Network error detected, considering retry');
         }
       } else {
-        console.error(`Service error in ${context} (service layer not initialized):`, error);
       }
     },
 

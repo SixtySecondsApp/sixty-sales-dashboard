@@ -39,9 +39,6 @@ export function GoogleTasksBackgroundSync() {
           .limit(10); // Process in batches
 
         if (!pendingTasks || pendingTasks.length === 0) return;
-
-        console.log(`[Background Sync] Found ${pendingTasks.length} pending tasks to sync`);
-
         // Sync each pending task
         for (const task of pendingTasks) {
           await syncService.syncTaskImmediately(task, userData.id);
@@ -50,9 +47,7 @@ export function GoogleTasksBackgroundSync() {
         }
 
         lastSyncRef.current = new Date();
-        console.log(`[Background Sync] Completed syncing ${pendingTasks.length} tasks`);
       } catch (error) {
-        console.error('[Background Sync] Error syncing pending tasks:', error);
       }
     };
 
@@ -87,7 +82,6 @@ export function GoogleTasksBackgroundSync() {
         (payload) => {
           // When a new task is created, sync it immediately
           if (payload.new && payload.new.sync_status === 'pending_sync' && !payload.new.google_task_id) {
-            console.log('[Background Sync] New task detected, syncing...', payload.new.title);
             syncService.syncTaskImmediately(payload.new as any, userData.id);
           }
         }
@@ -103,7 +97,6 @@ export function GoogleTasksBackgroundSync() {
         (payload) => {
           // When a task is updated and needs sync
           if (payload.new && payload.new.sync_status === 'pending_sync' && payload.new.google_task_id) {
-            console.log('[Background Sync] Task update detected, syncing...', payload.new.title);
             syncService.syncTaskUpdateImmediately(payload.new.id as string, userData.id);
           }
         }

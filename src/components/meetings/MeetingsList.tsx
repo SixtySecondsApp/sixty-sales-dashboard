@@ -245,7 +245,6 @@ const MeetingsList: React.FC = () => {
       setThumbnailsEnsured(false)
       calculateStats(data || [])
     } catch (error) {
-      console.error('Error fetching meetings:', error)
     } finally {
       setLoading(false)
     }

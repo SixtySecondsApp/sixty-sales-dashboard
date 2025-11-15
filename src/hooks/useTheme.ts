@@ -93,7 +93,6 @@ export function useTheme() {
     try {
       localStorage.setItem(STORAGE_KEY, mode)
     } catch {
-      console.warn('Failed to persist theme preference')
     }
 
     const resolved = resolveTheme(mode)
@@ -133,7 +132,6 @@ export function useTheme() {
         return () => mediaQuery.removeListener(handleChange)
       }
     } catch {
-      console.warn('Failed to listen for system theme changes')
     }
   }, [themeMode])
 

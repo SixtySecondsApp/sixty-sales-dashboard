@@ -12,15 +12,12 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function checkRecentActivities() {
-  console.log('🔍 Checking Recent Activities Created from Pipeline Movements\n');
-  
   // Get activities created in the last hour
   const oneHourAgo = new Date();
   oneHourAgo.setHours(oneHourAgo.getHours() - 1);
@@ -41,24 +38,11 @@ async function checkRecentActivities() {
     .order('created_at', { ascending: false });
   
   if (error) {
-    console.error('Error fetching activities:', error);
     return;
   }
-  
-  console.log(`Found ${recentActivities.length} deal-related activities created in the last hour:\n`);
-  
   if (recentActivities.length === 0) {
-    console.log('No recent activities found.');
   } else {
     recentActivities.forEach(activity => {
-      console.log(`📌 ${activity.type.toUpperCase()} Activity`);
-      console.log(`   Client: ${activity.client_name}`);
-      console.log(`   Details: ${activity.details}`);
-      console.log(`   Amount: $${activity.amount || 0}`);
-      console.log(`   Deal: ${activity.deals?.name || activity.deals?.company || 'Unknown'} (${activity.deal_id})`);
-      console.log(`   Created: ${new Date(activity.created_at).toLocaleString()}`);
-      console.log(`   Status: ${activity.status}`);
-      console.log('');
     });
   }
   
@@ -74,9 +58,7 @@ async function checkRecentActivities() {
     .order('created_at', { ascending: false });
   
   if (!todayError && todaysActivities) {
-    console.log(`\n📅 Today's Proposal Activities: ${todaysActivities.length} found`);
     todaysActivities.forEach(act => {
-      console.log(`   - ${act.client_name} at ${new Date(act.created_at).toLocaleTimeString()}`);
     });
   }
 }

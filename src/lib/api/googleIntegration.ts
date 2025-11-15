@@ -65,7 +65,6 @@ export class GoogleIntegrationAPI {
     }
 
     // If RPC fails, try direct query (this now works!)
-    console.log('RPC function not available or returned null, trying direct query');
     const { data: directData, error: directError } = await supabase
       .from('google_integrations')
       .select('*')
@@ -74,7 +73,6 @@ export class GoogleIntegrationAPI {
       .maybeSingle();
 
     if (directError && directError.code !== 'PGRST116') {
-      console.error('Failed to fetch integration status:', directError);
       return null;
     }
     
@@ -165,8 +163,6 @@ export class GoogleIntegrationAPI {
     // For now, this is a placeholder
     // In the future, this would call service-specific Edge Functions
     // to enable/disable specific Google services
-    console.log(`Toggle ${service}: ${enabled}`);
-    
     // TODO: Implement when service proxy functions are created
     // This would involve:
     // 1. Updating service preferences in database
@@ -193,7 +189,6 @@ export class GoogleIntegrationAPI {
     if (expiresAt.getTime() - now.getTime() < fiveMinutes) {
       // TODO: Implement token refresh logic
       // This would involve calling a refresh-token Edge Function
-      console.log('Token needs refreshing');
       return false;
     }
 

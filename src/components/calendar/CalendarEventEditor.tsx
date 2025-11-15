@@ -220,9 +220,6 @@ export function CalendarEventEditor({
         calendarId: 'primary',
         allDay
       };
-
-      console.log('Creating event with data:', googleEventData);
-
       if (event?.id) {
         await updateEvent.mutateAsync({
           eventId: event.id,
@@ -262,7 +259,6 @@ export function CalendarEventEditor({
       
       handleClose();
     } catch (error) {
-      console.error('Event save error:', error);
       toast.error(`Failed to save event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };

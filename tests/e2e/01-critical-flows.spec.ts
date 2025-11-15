@@ -37,7 +37,6 @@ test.describe('Critical User Flows', () => {
     );
 
     if (staticResourceErrors.length > 0) {
-      console.log('404 errors found for static resources:', staticResourceErrors);
     }
 
     expect(staticResourceErrors).toHaveLength(0);
@@ -67,7 +66,6 @@ test.describe('Critical User Flows', () => {
     );
 
     if (criticalErrors.length > 0) {
-      console.log('Console errors found:', criticalErrors);
     }
 
     expect(criticalErrors).toHaveLength(0);
@@ -132,7 +130,6 @@ test.describe('Critical User Flows', () => {
       // Modal should be hidden
       await expect(modal).toBeHidden();
     } else {
-      console.log('QuickAdd trigger not found, skipping test');
     }
   });
 
@@ -172,7 +169,6 @@ test.describe('Critical User Flows', () => {
       // Should show success message
       await expect(page.locator('text=/Task created|Success|Added successfully/i')).toBeVisible({ timeout: 10000 });
     } else {
-      console.log('QuickAdd not available, skipping task creation test');
     }
   });
 
@@ -231,7 +227,6 @@ test.describe('Critical User Flows', () => {
 
     // Check for 403 errors
     if (forbiddenRequests.length > 0) {
-      console.log('403 Forbidden errors detected:', forbiddenRequests);
     }
 
     expect(forbiddenRequests).toHaveLength(0);
@@ -307,7 +302,6 @@ test.describe('Critical User Flows', () => {
     for (const link of navigationLinks) {
       const element = page.locator(link.selector).first();
       if (await element.count() > 0) {
-        console.log(`Navigating to ${link.name}`);
         await element.click();
         await page.waitForLoadState('networkidle');
         
@@ -316,7 +310,6 @@ test.describe('Critical User Flows', () => {
         const errorCount = await errorMessages.count();
         
         if (errorCount > 0) {
-          console.log(`Error found on ${link.name} page`);
         }
         
         expect(errorCount).toBe(0);

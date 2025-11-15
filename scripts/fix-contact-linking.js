@@ -9,12 +9,9 @@ const client = new Client({
 
 async function fixContactLinking() {
   try {
-    console.log('🔍 Investigating contact linking issue...\n');
-    
     await client.connect();
 
     // Check if primary_contact_id values exist in contacts table
-    console.log('📊 Step 1: Check if primary_contact_id values exist in contacts');
     const orphanedDeals = await client.query(`
       SELECT 
         d.id,
@@ -26,9 +23,6 @@ async function fixContactLinking() {
       WHERE d.primary_contact_id IS NOT NULL
       LIMIT 10;
     `);
-    
-    console.table(orphanedDeals.rows);
-
     // Count orphaned vs linked
     const linkStats = await client.query(`
       SELECT 
@@ -38,16 +32,10 @@ async function fixContactLinking() {
       LEFT JOIN contacts c ON d.primary_contact_id = c.id
       WHERE d.primary_contact_id IS NOT NULL;
     `);
-    
-    console.log('\n📈 Link Statistics:');
-    console.table(linkStats.rows);
-
     // If we have orphaned deals, let's fix them by matching email addresses
     const orphanedCount = parseInt(linkStats.rows[0].orphaned_count);
     
     if (orphanedCount > 0) {
-      console.log(`\n🔧 Found ${orphanedCount} orphaned deals. Attempting to fix by email matching...`);
-      
       // Find deals that can be matched by email
       const matchableDeals = await client.query(`
         SELECT 
@@ -65,13 +53,7 @@ async function fixContactLinking() {
           AND d.contact_email IS NOT NULL
         LIMIT 20;
       `);
-      
-      console.log(`\n📋 Found ${matchableDeals.rows.length} deals that can be fixed by email matching:`);
-      console.table(matchableDeals.rows);
-      
       if (matchableDeals.rows.length > 0) {
-        console.log('\n🔄 Fixing contact links...');
-        
         let fixedCount = 0;
         for (const match of matchableDeals.rows) {
           try {
@@ -80,22 +62,15 @@ async function fixContactLinking() {
               SET primary_contact_id = $1 
               WHERE id = $2;
             `, [match.contact_id, match.deal_id]);
-            
-            console.log(`  ✅ Fixed: ${match.deal_name} → ${match.full_name}`);
             fixedCount++;
           } catch (error) {
-            console.log(`  ❌ Failed to fix ${match.deal_name}: ${error.message}`);
           }
         }
-        
-        console.log(`\n🎉 Fixed ${fixedCount} contact links!`);
       }
     } else {
-      console.log('\n✅ All deals are properly linked to contacts!');
     }
 
     // Final verification
-    console.log('\n📊 Final verification - checking a few fixed deals:');
     const verificationDeals = await client.query(`
       SELECT 
         d.id,
@@ -108,14 +83,9 @@ async function fixContactLinking() {
       WHERE d.primary_contact_id IS NOT NULL
       LIMIT 5;
     `);
-    
-    console.table(verificationDeals.rows);
-
   } catch (error) {
-    console.error('❌ Fix failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

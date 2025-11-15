@@ -13,8 +13,6 @@ const supabase = createClient(
 
 async function showProposalAmounts() {
   try {
-    console.log('💰 Showing Proposal Amounts in Activity Table\n');
-
     // Get recent proposal activities with amounts
     const { data: proposals, error } = await supabase
       .from('activities')
@@ -24,11 +22,6 @@ async function showProposalAmounts() {
       .limit(20);
 
     if (error) throw error;
-
-    console.log('Recent Proposal Activities:\n');
-    console.log('Date         | Client                    | Amount    | Status    | Details');
-    console.log('-------------|---------------------------|-----------|-----------|----------------------------------');
-
     proposals.forEach(proposal => {
       const date = new Date(proposal.date).toLocaleDateString('en-GB');
       const client = (proposal.client_name || 'Unknown').substring(0, 25).padEnd(25);
@@ -37,8 +30,6 @@ async function showProposalAmounts() {
         : '-'.padEnd(9);
       const status = (proposal.status || 'unknown').padEnd(9);
       const details = (proposal.details || '').substring(0, 30);
-
-      console.log(`${date} | ${client} | ${amount} | ${status} | ${details}...`);
     });
 
     // Get summary statistics
@@ -53,17 +44,9 @@ async function showProposalAmounts() {
       const avg = total / stats.length;
       const max = Math.max(...stats.map(p => p.amount || 0));
       const min = Math.min(...stats.filter(p => p.amount > 0).map(p => p.amount));
-
-      console.log('\n📊 Proposal Amount Statistics:');
-      console.log(`   Total proposals with amounts: ${stats.length}`);
-      console.log(`   Total value: £${total.toLocaleString()}`);
-      console.log(`   Average value: £${Math.round(avg).toLocaleString()}`);
-      console.log(`   Highest value: £${max.toLocaleString()}`);
-      console.log(`   Lowest value: £${min.toLocaleString()}`);
     }
 
     // Check for any deals that might have been created from these proposals
-    console.log('\n🔗 Checking for Related Deals...');
     const { data: deals, error: dealsError } = await supabase
       .from('deals')
       .select('name, company, value, one_off_revenue, monthly_mrr, annual_value')
@@ -71,23 +54,16 @@ async function showProposalAmounts() {
       .limit(10);
 
     if (!dealsError && deals && deals.length > 0) {
-      console.log('\nRecent Deals (for comparison):');
-      console.log('Company                   | Old Value | One-off   | Monthly   | Annual');
-      console.log('--------------------------|-----------|-----------|-----------|----------');
-      
       deals.forEach(deal => {
         const company = (deal.company || deal.name || 'Unknown').substring(0, 24).padEnd(24);
         const oldValue = deal.value ? `£${deal.value.toLocaleString()}`.padEnd(9) : '-'.padEnd(9);
         const oneOff = deal.one_off_revenue ? `£${deal.one_off_revenue.toLocaleString()}`.padEnd(9) : '-'.padEnd(9);
         const monthly = deal.monthly_mrr ? `£${deal.monthly_mrr.toLocaleString()}`.padEnd(9) : '-'.padEnd(9);
         const annual = deal.annual_value ? `£${deal.annual_value.toLocaleString()}`.padEnd(9) : '-'.padEnd(9);
-        
-        console.log(`${company} | ${oldValue} | ${oneOff} | ${monthly} | ${annual}`);
       });
     }
 
   } catch (error) {
-    console.error('❌ Error:', error);
   }
 }
 

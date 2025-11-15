@@ -966,10 +966,8 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
         }
       } catch (dbError) {
         // Silently fail - we already have default templates loaded
-        console.log('Using default templates (database table not yet available)');
       }
     } catch (error) {
-      console.error('Error in loadTemplates:', error);
       // Ensure we always have templates
       setTemplates(getDefaultTemplates());
     } finally {
@@ -987,7 +985,6 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
           .eq('id', template.id);
       } catch (dbError) {
         // Silently fail - template selection should still work
-        console.log('Could not update usage count (database table not yet available)');
       }
 
       // Convert template to workflow format for the canvas
@@ -1006,7 +1003,6 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
 
       onSelectTemplate(workflowData);
     } catch (error) {
-      console.error('Error selecting template:', error);
       // Still try to use the template even if there was an error
       const workflowData = {
         id: template.id,

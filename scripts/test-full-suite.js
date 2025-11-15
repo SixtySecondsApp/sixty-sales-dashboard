@@ -1,9 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
-
-console.log('🧪 COMPREHENSIVE SALES DASHBOARD TEST SUITE');
-console.log('=' .repeat(50));
-
 const results = {
   passed: 0,
   failed: 0,
@@ -12,15 +8,11 @@ const results = {
 
 function logResult(test, status, message, details = null) {
   const icons = { pass: '✅', fail: '❌', warn: '⚠️' };
-  console.log(`${icons[status]} ${test}: ${message}`);
-  if (details) console.log(`   ${details}`);
+  if (details) {}
   results[status === 'pass' ? 'passed' : status === 'fail' ? 'failed' : 'warnings']++;
 }
 
 async function testEnvironmentVariables() {
-  console.log('\n📋 TESTING ENVIRONMENT VARIABLES');
-  console.log('-'.repeat(30));
-  
   const vars = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY', 
@@ -38,9 +30,6 @@ async function testEnvironmentVariables() {
 }
 
 async function testSupabaseConnection() {
-  console.log('\n🔌 TESTING SUPABASE CONNECTIVITY');
-  console.log('-'.repeat(30));
-  
   try {
     // Test with anon key
     const supabaseAnon = createClient(
@@ -77,9 +66,6 @@ async function testSupabaseConnection() {
 }
 
 async function testDatabaseTables() {
-  console.log('\n🗃️ TESTING DATABASE TABLES');
-  console.log('-'.repeat(30));
-  
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
@@ -117,9 +103,6 @@ async function testDatabaseTables() {
 }
 
 async function testDataCounts() {
-  console.log('\n📊 TESTING DATA COUNTS');
-  console.log('-'.repeat(30));
-  
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
@@ -145,9 +128,6 @@ async function testDataCounts() {
 }
 
 async function testEdgeFunctions() {
-  console.log('\n⚡ TESTING EDGE FUNCTIONS');
-  console.log('-'.repeat(30));
-  
   const baseUrl = process.env.VITE_SUPABASE_URL?.replace('/rest/v1', '') + '/functions/v1';
   const headers = {
     'Content-Type': 'application/json',
@@ -182,9 +162,6 @@ async function testEdgeFunctions() {
 }
 
 async function testCORS() {
-  console.log('\n🌐 TESTING CORS CONFIGURATION');
-  console.log('-'.repeat(30));
-  
   const baseUrl = process.env.VITE_SUPABASE_URL?.replace('/rest/v1', '') + '/functions/v1';
   
   try {
@@ -200,8 +177,6 @@ async function testCORS() {
     
     if (corsHeaders['Access-Control-Allow-Origin']) {
       logResult('CORS Headers', 'pass', 'Present and configured');
-      console.log(`   Origin: ${corsHeaders['Access-Control-Allow-Origin']}`);
-      console.log(`   Methods: ${corsHeaders['Access-Control-Allow-Methods']}`);
     } else {
       logResult('CORS Headers', 'fail', 'Missing or misconfigured');
     }
@@ -211,9 +186,6 @@ async function testCORS() {
 }
 
 async function testAuthFlow() {
-  console.log('\n🔐 TESTING AUTHENTICATION FLOW');
-  console.log('-'.repeat(30));
-  
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.VITE_SUPABASE_ANON_KEY
@@ -248,9 +220,6 @@ async function testAuthFlow() {
 }
 
 async function testAPIEndpoints() {
-  console.log('\n🔗 TESTING API ENDPOINTS');
-  console.log('-'.repeat(30));
-  
   // Test the main API configuration
   try {
     const { API_BASE_URL } = await import('../src/lib/config.ts');
@@ -269,8 +238,6 @@ async function testAPIEndpoints() {
 }
 
 async function runFullTestSuite() {
-  console.log(`Starting test suite at ${new Date().toISOString()}\n`);
-  
   await testEnvironmentVariables();
   await testSupabaseConnection();
   await testDatabaseTables();
@@ -279,21 +246,10 @@ async function runFullTestSuite() {
   await testCORS();
   await testAuthFlow();
   await testAPIEndpoints();
-  
-  console.log('\n📈 TEST SUMMARY');
-  console.log('=' .repeat(50));
-  console.log(`✅ Passed: ${results.passed}`);
-  console.log(`❌ Failed: ${results.failed}`);
-  console.log(`⚠️  Warnings: ${results.warnings}`);
-  console.log(`📊 Total: ${results.passed + results.failed + results.warnings}`);
-  
   if (results.failed > 0) {
-    console.log('\n🚨 CRITICAL ISSUES FOUND - Please address failed tests');
     process.exit(1);
   } else if (results.warnings > 0) {
-    console.log('\n⚠️  WARNINGS FOUND - Some features may not work');
   } else {
-    console.log('\n🎉 ALL TESTS PASSED - System should be working correctly');
   }
 }
 

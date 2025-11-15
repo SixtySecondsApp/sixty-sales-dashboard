@@ -147,7 +147,6 @@ export const CalendarAIAssistant: React.FC<CalendarAIAssistantProps> = ({
       const response = await processUserInput(message);
       setMessages(prev => [...prev, response]);
     } catch (error) {
-      console.error('Failed to process message:', error);
       const errorMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
         type: 'assistant',

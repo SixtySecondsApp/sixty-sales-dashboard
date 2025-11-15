@@ -20,14 +20,10 @@ const neonClient = new Client({
 
 async function simpleCompaniesMigration() {
   try {
-    console.log('🔧 Simple companies migration to Supabase...');
-    
     // Connect to Neon
     await neonClient.connect();
     
     // Get a small sample of companies data from Neon first
-    console.log('📊 Getting sample companies data from Neon...');
-    
     const companiesResult = await neonClient.query(`
       SELECT 
         name, 
@@ -41,15 +37,8 @@ async function simpleCompaniesMigration() {
       ORDER BY created_at DESC
       LIMIT 10;
     `);
-    
-    console.log(`Found ${companiesResult.rows.length} companies to test with`);
-    
     // Try to insert a single company first to see what happens
-    console.log('\n🧪 Testing with single company insert...');
-    
     const testCompany = companiesResult.rows[0];
-    console.log('Test company:', testCompany.name);
-    
     const { data: insertData, error: insertError } = await supabase
       .from('companies')
       .insert({
@@ -63,11 +52,7 @@ async function simpleCompaniesMigration() {
       .select();
     
     if (insertError) {
-      console.error('❌ Insert failed:', insertError);
-      
       // Let's see what tables DO exist and if we can create companies manually
-      console.log('\n🔍 Let me check what we can do...');
-      
       // Check if we can at least query existing tables
       const { data: dealsTest, error: dealsError } = await supabase
         .from('deals')
@@ -75,36 +60,11 @@ async function simpleCompaniesMigration() {
         .limit(1);
       
       if (dealsError) {
-        console.error('❌ Cannot even access deals table:', dealsError);
       } else {
-        console.log('✅ Deals table accessible, but companies table missing');
-        console.log('💡 Solution: You need to manually create the companies table in Supabase');
-        console.log('   Go to your Supabase dashboard SQL editor and run:');
-        console.log(`
-CREATE TABLE companies (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  domain TEXT UNIQUE,
-  industry TEXT,
-  size TEXT,
-  website TEXT,
-  description TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_companies_domain ON companies(domain);
-CREATE INDEX idx_companies_name ON companies(name);
-        `);
       }
       
     } else {
-      console.log('✅ Successfully inserted test company!');
-      console.table(insertData);
-      
       // If successful, insert more companies
-      console.log('\n📥 Inserting more companies...');
-      
       let successCount = 1; // Already inserted one
       for (let i = 1; i < Math.min(5, companiesResult.rows.length); i++) {
         const company = companiesResult.rows[i];
@@ -121,30 +81,21 @@ CREATE INDEX idx_companies_name ON companies(name);
           });
         
         if (batchError) {
-          console.log(`❌ Failed to insert ${company.name}: ${batchError.message}`);
         } else {
-          console.log(`✅ Inserted: ${company.name}`);
           successCount++;
         }
       }
-      
-      console.log(`\n🎉 Successfully inserted ${successCount} companies`);
-      
       // Test the companies page
       const { data: finalTest, error: finalError, count } = await supabase
         .from('companies')
         .select('*', { count: 'exact' });
       
       if (finalError) {
-        console.error('❌ Final test failed:', finalError);
       } else {
-        console.log(`\n✅ Companies table working! Total count: ${count}`);
-        console.log('🚀 Navigate to http://localhost:5175/companies to test the CRM page');
       }
     }
     
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
   }

@@ -31,15 +31,12 @@ const OPENROUTER_MODEL = "google/gemini-2.5-flash";
 const BATCH_LIMIT = 12;
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  console.error("Missing Supabase configuration for process-lead-prep function");
 }
 
 if (!OPENAI_API_KEY) {
-  console.warn("[process-lead-prep] OPENAI_API_KEY not configured. Falling back to static prep output.");
 }
 
 if (!GEMINI_API_KEY) {
-  console.warn("[process-lead-prep] GEMINI_API_KEY not configured. Company research will be skipped.");
 }
 
 interface CompanyRecord {
@@ -272,7 +269,6 @@ serve(async (req) => {
     const { data: leads, error } = await leadsQuery;
 
     if (error) {
-      console.error("[process-lead-prep] Query error:", error);
       throw error;
     }
 
@@ -337,10 +333,6 @@ serve(async (req) => {
 
         processed += 1;
       } catch (leadError) {
-        console.error("[process-lead-prep] Failed to process lead prep", {
-          leadId: lead.id,
-          error: leadError,
-        });
         await markLeadFailed(supabase, lead, leadError as Error, now);
       }
     }
@@ -356,8 +348,6 @@ serve(async (req) => {
       },
     );
   } catch (error) {
-    console.error("[process-lead-prep] Top-level error:", error);
-    
     let errorMessage = "Unknown error";
     if (error instanceof Error) {
       errorMessage = error.message || error.name || "Unknown error";
@@ -402,7 +392,6 @@ async function lockLead(
     .maybeSingle();
 
   if (error) {
-    console.error("[process-lead-prep] Failed to lock lead", { leadId: lead.id, error });
     throw error;
   }
 
@@ -455,7 +444,6 @@ Only include facts you are reasonably confident in from the last 12 months. Resp
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.warn("[process-lead-prep] Gemini API error:", errorText);
       return null;
     }
 
@@ -495,7 +483,6 @@ Only include facts you are reasonably confident in from the last 12 months. Resp
       raw: parsed,
     };
   } catch (error) {
-    console.warn("[process-lead-prep] Failed to fetch Gemini company research", error);
     return null;
   }
 }
@@ -513,7 +500,6 @@ async function generateLeadPrepPlan(
     const domain = extractDomainFromEmail(email) || lead.domain || lead.company?.domain || "";
     
     if (!email || !domain) {
-      console.warn("[process-lead-prep] Missing email or domain, using fallback");
       return buildFallbackPlan(lead, research);
     }
 
@@ -555,13 +541,10 @@ async function generateLeadPrepPlan(
 
     // Log any failures
     if (prospectInfo.status === 'rejected') {
-      console.warn("[process-lead-prep] Failed to generate prospect info:", prospectInfo.reason);
     }
     if (offerInfo.status === 'rejected') {
-      console.warn("[process-lead-prep] Failed to generate offer info:", offerInfo.reason);
     }
     if (whySixtySeconds.status === 'rejected') {
-      console.warn("[process-lead-prep] Failed to generate why Sixty Seconds:", whySixtySeconds.reason);
     }
 
     // Add location and timezone to prospect info
@@ -575,7 +558,6 @@ async function generateLeadPrepPlan(
 
     // If all three calls failed, fall back to static plan
     if (!prospectInfoResult && !offerInfoResult && !whySixtySecondsResult) {
-      console.warn("[process-lead-prep] All Gemini calls failed, using fallback plan");
       return buildFallbackPlan(lead, research);
     }
 
@@ -586,7 +568,6 @@ async function generateLeadPrepPlan(
       company_info: buildCompanyInfoFromResearch(research, lead),
     };
   } catch (error) {
-    console.warn("[process-lead-prep] Falling back to static prep plan:", error);
     return buildFallbackPlan(lead, research);
   }
 }
@@ -635,7 +616,6 @@ Important:
     const cleanedResponse = removeVerboseIntro(response);
     return parseProspectInfoFromText(cleanedResponse);
   } catch (error) {
-    console.warn("[process-lead-prep] Failed to generate prospect info:", error);
     return undefined;
   }
 }
@@ -668,7 +648,6 @@ Important:
     const cleanedResponse = removeVerboseIntro(response);
     return parseOfferInfoFromText(cleanedResponse);
   } catch (error) {
-    console.warn("[process-lead-prep] Failed to generate offer info:", error);
     return undefined;
   }
 }
@@ -704,7 +683,6 @@ Important:
     const cleanedResponse = removeVerboseIntro(response);
     return parseWhySixtySecondsFromText(cleanedResponse);
   } catch (error) {
-    console.warn("[process-lead-prep] Failed to generate why Sixty Seconds:", error);
     return undefined;
   }
 }
@@ -716,15 +694,12 @@ async function callGeminiAPI(prompt: string, retries = 3): Promise<string | null
     if (result) {
       return result;
     }
-    console.warn("[process-lead-prep] Direct Gemini API failed, trying OpenRouter fallback...");
   }
 
   // Fallback to OpenRouter if direct API fails or is not configured
   if (OPENROUTER_API_KEY) {
     return await callOpenRouterAPI(prompt, retries);
   }
-
-  console.warn("[process-lead-prep] Neither GEMINI_API_KEY nor OPENROUTER_API_KEY configured");
   return null;
 }
 
@@ -733,8 +708,6 @@ async function callDirectGeminiAPI(prompt: string, retries = 3): Promise<string 
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`[process-lead-prep] Calling direct Gemini API with model: ${GEMINI_MODEL} (attempt ${attempt}/${retries})`);
-      
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -768,17 +741,9 @@ async function callDirectGeminiAPI(prompt: string, retries = 3): Promise<string 
         
         if (isRetryable && attempt < retries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
-          console.warn(`[process-lead-prep] Direct Gemini API error (retryable): ${response.status}. Retrying in ${delay}ms...`, errorData);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
-
-        console.error("[process-lead-prep] Direct Gemini API error:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          attempt,
-        });
         return null;
       }
 
@@ -790,20 +755,15 @@ async function callDirectGeminiAPI(prompt: string, retries = 3): Promise<string 
         .trim();
 
       if (!text) {
-        console.warn("[process-lead-prep] Direct Gemini API returned empty response");
         return null;
       }
-
-      console.log(`[process-lead-prep] Direct Gemini API success, response length: ${text.length}`);
       return text;
     } catch (error) {
       if (attempt < retries) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-        console.warn(`[process-lead-prep] Direct Gemini API network error. Retrying in ${delay}ms...`, error);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      console.error("[process-lead-prep] Failed to call direct Gemini API after retries:", error);
       return null;
     }
   }
@@ -816,8 +776,6 @@ async function callOpenRouterAPI(prompt: string, retries = 3): Promise<string | 
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`[process-lead-prep] Calling OpenRouter API with model: ${OPENROUTER_MODEL} (attempt ${attempt}/${retries})`);
-      
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -853,17 +811,9 @@ async function callOpenRouterAPI(prompt: string, retries = 3): Promise<string | 
         
         if (isRetryable && attempt < retries) {
           const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff, max 10s
-          console.warn(`[process-lead-prep] OpenRouter API error (retryable): ${response.status}. Retrying in ${delay}ms...`, errorData);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
-
-        console.error("[process-lead-prep] OpenRouter API error:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          attempt,
-        });
         return null;
       }
 
@@ -871,20 +821,15 @@ async function callOpenRouterAPI(prompt: string, retries = 3): Promise<string | 
       const text = data.choices?.[0]?.message?.content?.trim() || "";
 
       if (!text) {
-        console.warn("[process-lead-prep] OpenRouter API returned empty response");
         return null;
       }
-
-      console.log(`[process-lead-prep] OpenRouter API success, response length: ${text.length}`);
       return text;
     } catch (error) {
       if (attempt < retries) {
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
-        console.warn(`[process-lead-prep] OpenRouter API network error. Retrying in ${delay}ms...`, error);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
-      console.error("[process-lead-prep] Failed to call OpenRouter API after retries:", error);
       return null;
     }
   }
@@ -984,7 +929,6 @@ function tryParseJSON<T>(text: string, fallbackParser: (text: string) => T | und
       const parsed = JSON.parse(codeBlockMatch[1]);
       return parsed as T;
     } catch (e) {
-      console.warn("[process-lead-prep] Failed to parse JSON from code block, trying other methods:", e);
     }
   }
   
@@ -995,7 +939,6 @@ function tryParseJSON<T>(text: string, fallbackParser: (text: string) => T | und
       const parsed = JSON.parse(jsonMatch[0]);
       return parsed as T;
     } catch (e) {
-      console.warn("[process-lead-prep] Failed to parse JSON, falling back to text parsing:", e);
     }
   }
   
@@ -1346,7 +1289,6 @@ async function markLeadFailed(
     .eq("id", lead.id);
 
   if (error) {
-    console.error("[process-lead-prep] Failed to mark lead as failed", { leadId: lead.id, error });
   }
 }
 

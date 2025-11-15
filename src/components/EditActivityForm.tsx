@@ -112,7 +112,6 @@ const ACTIVITY_TYPES = {
 };
 
 export function EditActivityForm({ activity, onSave, onCancel }: EditActivityFormProps) {
-  console.log('🚀 Enhanced EditActivityForm loaded!', { activity });
   const { updateDeal } = useDeals();
   
   // Contact search modal state

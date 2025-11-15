@@ -64,7 +64,6 @@ export const LazySalesActivityChart: React.FC<LazySalesActivityChartProps> = ({ 
         const module = await import('@/components/SalesActivityChart');
         setSalesActivityChartComponent(() => module.default);
       } catch (error) {
-        console.error('Failed to load SalesActivityChart:', error);
       }
     };
 

@@ -25,8 +25,6 @@ interface LogoRequest {
  * - AWS_REGION (optional, defaults to eu-west-2)
  */
 serve(async (req) => {
-  console.log(`🚀 Fetch logo function invoked: ${req.method} ${req.url}`)
-  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -64,7 +62,6 @@ serve(async (req) => {
     const logoDevSecretKey = Deno.env.get('LOGOS_DEV_SECRET_KEY')
 
     if (!awsAccessKeyId || !awsSecretAccessKey || !logosBucket) {
-      console.error('❌ AWS credentials or bucket name missing')
       return new Response(
         JSON.stringify({ error: 'S3 configuration missing' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -72,7 +69,6 @@ serve(async (req) => {
     }
 
     if (!logoDevApiKey || !logoDevSecretKey) {
-      console.error('❌ Logo.dev API key or secret key missing')
       return new Response(
         JSON.stringify({ error: 'Logo.dev credentials missing' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -94,7 +90,6 @@ serve(async (req) => {
     try {
       const existingObject = await s3Client.getObject(s3Key)
       if (existingObject) {
-        console.log(`✅ Logo found in S3 cache for ${normalizedDomain}`)
         // Return direct S3 URL (bucket policy allows public read for logos/*)
         const s3Url = `https://${logosBucket}.s3.${awsRegion}.amazonaws.com/${s3Key}`
         return new Response(
@@ -103,11 +98,7 @@ serve(async (req) => {
         )
       }
     } catch (error) {
-      console.log(`ℹ️ Logo not found in S3 for ${normalizedDomain}, fetching from logo.dev...`)
     }
-
-    console.log(`ℹ️ Fetching logo for ${normalizedDomain} from logo.dev...`)
-
     // Fetch from logo.dev API
     // Try multiple authentication methods:
     // 1. API key as token param + secret in Authorization header
@@ -119,38 +110,30 @@ serve(async (req) => {
     // Method 1: API key in query, secret in header
     try {
       const logoDevUrl = `https://img.logo.dev/${normalizedDomain}?token=${logoDevApiKey}&size=128&format=png&retina=true`
-      console.log(`📥 Fetching logo from logo.dev (method 1: token + auth header)`)
       logoResponse = await fetch(logoDevUrl, {
         headers: {
           'Authorization': `Bearer ${logoDevSecretKey}`,
         },
       })
       if (logoResponse.ok) {
-        console.log(`✅ Logo fetched successfully with method 1`)
       } else {
         lastError = `Method 1 failed: ${logoResponse.status} ${logoResponse.statusText}`
-        console.log(`⚠️ ${lastError}`)
       }
     } catch (error: any) {
       lastError = `Method 1 exception: ${error?.message || String(error)}`
-      console.log(`⚠️ ${lastError}`)
     }
     
     // Method 2: Both keys as query parameters
     if (!logoResponse || !logoResponse.ok) {
       try {
         const logoDevUrl = `https://img.logo.dev/${normalizedDomain}?token=${logoDevApiKey}&secret=${logoDevSecretKey}&size=128&format=png&retina=true`
-        console.log(`📥 Fetching logo from logo.dev (method 2: both keys in query)`)
         logoResponse = await fetch(logoDevUrl)
         if (logoResponse.ok) {
-          console.log(`✅ Logo fetched successfully with method 2`)
         } else {
           lastError = `Method 2 failed: ${logoResponse.status} ${logoResponse.statusText}`
-          console.log(`⚠️ ${lastError}`)
         }
       } catch (error: any) {
         lastError = `Method 2 exception: ${error?.message || String(error)}`
-        console.log(`⚠️ ${lastError}`)
       }
     }
     
@@ -158,24 +141,18 @@ serve(async (req) => {
     if (!logoResponse || !logoResponse.ok) {
       try {
         const logoDevUrl = `https://img.logo.dev/${normalizedDomain}?token=${logoDevApiKey}&size=128&format=png&retina=true`
-        console.log(`📥 Fetching logo from logo.dev (method 3: API key only)`)
         logoResponse = await fetch(logoDevUrl)
         if (logoResponse.ok) {
-          console.log(`✅ Logo fetched successfully with method 3`)
         } else {
           lastError = `Method 3 failed: ${logoResponse.status} ${logoResponse.statusText}`
-          console.log(`⚠️ ${lastError}`)
         }
       } catch (error: any) {
         lastError = `Method 3 exception: ${error?.message || String(error)}`
-        console.log(`⚠️ ${lastError}`)
       }
     }
     
     if (!logoResponse || !logoResponse.ok) {
       const errorText = await logoResponse?.text().catch(() => 'Unable to read error response')
-      console.error(`❌ Logo.dev API error: ${lastError || 'All methods failed'}`)
-      console.error(`   Response: ${errorText}`)
       return new Response(
         JSON.stringify({ 
           error: `Failed to fetch logo from logo.dev: ${lastError || 'All authentication methods failed'}`,
@@ -189,7 +166,6 @@ serve(async (req) => {
     const logoBuffer = await logoResponse.arrayBuffer()
     
     if (logoBuffer.byteLength === 0) {
-      console.error('❌ Empty logo response from logo.dev')
       return new Response(
         JSON.stringify({ error: 'Empty logo response', logo_url: null }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -197,16 +173,12 @@ serve(async (req) => {
     }
 
     // Upload to S3
-    console.log(`📤 Uploading logo to S3: ${s3Key}`)
     await s3Client.putObject(s3Key, new Uint8Array(logoBuffer), {
       metadata: {
         'Content-Type': 'image/png',
         'Cache-Control': 'public, max-age=31536000, immutable',
       },
     })
-
-    console.log(`✅ Logo uploaded to S3: ${s3Key}`)
-    
     // Return direct S3 URL (bucket policy allows public read for logos/*)
     const s3Url = `https://${logosBucket}.s3.${awsRegion}.amazonaws.com/${s3Key}`
 
@@ -216,7 +188,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error fetching logo:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error', logo_url: null }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

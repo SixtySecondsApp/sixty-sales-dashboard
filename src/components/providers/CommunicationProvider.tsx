@@ -70,7 +70,6 @@ export function CommunicationProvider({
           setError(errorMessage);
           
           if (fallbackToOriginal) {
-            console.warn('Communication layer initialization failed, falling back to original implementation');
             setIsInitialized(true);
             setIsHealthy(false); // Marked as unhealthy but initialized for fallback
           }

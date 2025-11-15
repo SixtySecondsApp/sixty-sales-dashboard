@@ -60,12 +60,10 @@ class FixedEdgeFunction {
       const jwtSecret = process.env.SUPABASE_JWT_SECRET;
       
       if (!supabaseUrl || !supabaseServiceKey) {
-        console.error('Missing critical environment variables');
         return this.createErrorResponse('Server configuration error', 500, undefined, securityHeaders);
       }
       
       if (!jwtSecret) {
-        console.error('Missing JWT secret');
         return this.createErrorResponse('Server configuration error', 500, undefined, securityHeaders);
       }
 
@@ -111,7 +109,6 @@ class FixedEdgeFunction {
         const { data: apiKey, error: keyGenError } = await this.supabaseClient.rpc('generate_api_key', { user_uuid: userId });
         
         if (keyGenError) {
-          console.error('Failed to generate API key:', keyGenError);
           if (keyGenError.code === '42883') { // Function does not exist
             return this.createErrorResponse('Server configuration error', 500, 'API key generation function not available', securityHeaders);
           }
@@ -126,7 +123,6 @@ class FixedEdgeFunction {
         const { data: hashedKey, error: hashError } = await this.supabaseClient.rpc('hash_api_key', { key_text: apiKey });
         
         if (hashError) {
-          console.error('Failed to hash API key:', hashError);
           if (hashError.code === '42883') { // Function does not exist
             return this.createErrorResponse('Server configuration error', 500, 'API key hashing function not available', securityHeaders);
           }
@@ -160,8 +156,6 @@ class FixedEdgeFunction {
           .single();
 
         if (dbError) {
-          console.error('Database insertion error:', dbError);
-          
           // FIXED: Handle specific database errors with appropriate responses
           if (dbError.code === '42P01') { // Table does not exist
             return this.createErrorResponse('Database configuration error', 500, 'API keys table not found - please contact support', securityHeaders);
@@ -205,12 +199,10 @@ class FixedEdgeFunction {
         });
 
       } catch (dbOperationError: any) {
-        console.error('Database operation failed:', dbOperationError);
         return this.createErrorResponse('Database operation failed', 500, 'Unable to complete database operation', securityHeaders);
       }
 
     } catch (error: any) {
-      console.error('Unexpected error:', error);
       // FIXED: Never expose internal errors to clients
       return this.createErrorResponse('Internal server error', 500, undefined, securityHeaders);
     }
@@ -276,7 +268,6 @@ class FixedEdgeFunction {
       const { data: { user }, error: authError } = await this.supabaseClient.auth.getUser(token);
       
       if (authError || !user) {
-        console.error('JWT verification failed:', authError?.message);
         return { userId: '', error: 'Invalid or expired token' };
       }
       
@@ -288,7 +279,6 @@ class FixedEdgeFunction {
       
       return { userId: user.id };
     } catch (e) {
-      console.error('JWT verification exception:', e);
       return { userId: '', error: 'Token verification failed' };
     }
   }

@@ -33,7 +33,6 @@ export class AIActionItemAnalysisService {
     const { data, error } = await supabase.rpc('get_pending_ai_analysis');
 
     if (error) {
-      console.error('Error fetching pending AI analysis:', error);
       throw error;
     }
 
@@ -50,13 +49,11 @@ export class AIActionItemAnalysisService {
       });
 
       if (error) {
-        console.error('Error calling AI analysis function:', error);
         throw error;
       }
 
       return data as AIAnalysisResult;
     } catch (err) {
-      console.error('Error analyzing action item:', err);
       throw err;
     }
   }
@@ -78,13 +75,11 @@ export class AIActionItemAnalysisService {
       });
 
       if (error) {
-        console.error('Error applying AI analysis:', error);
         throw error;
       }
 
       return data as boolean;
     } catch (err) {
-      console.error('Error applying analysis to task:', err);
       throw err;
     }
   }
@@ -132,13 +127,6 @@ export class AIActionItemAnalysisService {
         await this.applyAnalysisToTask(item.action_item_id, analysis);
 
         results.succeeded++;
-
-        console.log(`[AI Analysis] Success for action item ${item.action_item_id}:`, {
-          title: item.title,
-          task_type: analysis.task_type,
-          deadline: analysis.ideal_deadline,
-          confidence: analysis.confidence_score
-        });
       } catch (err) {
         results.failed++;
         const error = err as Error;
@@ -147,9 +135,6 @@ export class AIActionItemAnalysisService {
           actionItemId: item.action_item_id,
           error: error.message
         });
-
-        console.error(`[AI Analysis] Failed for action item ${item.action_item_id}:`, error);
-
         if (onError) {
           onError(item, error);
         }
@@ -206,7 +191,6 @@ export class AIActionItemAnalysisService {
       .select('ai_analyzed_at, ai_confidence_score, task_id');
 
     if (error) {
-      console.error('Error fetching analysis stats:', error);
       throw error;
     }
 

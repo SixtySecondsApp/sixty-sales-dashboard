@@ -242,7 +242,6 @@ export async function cacheMiddleware(
 
     return response;
   } catch (error) {
-    console.error('Cache middleware error:', error);
     return await handler(); // Fallback to uncached response
   }
 }
@@ -279,16 +278,12 @@ export async function warmupCache(
       try {
         const data = await query();
         cache.set(key, data);
-        console.log(`Cache warmed up for key: ${key}`);
       } catch (error) {
-        console.error(`Failed to warm up cache for key ${key}:`, error);
       }
     });
 
     await Promise.all(warmupPromises);
-    console.log('Cache warmup completed');
   } catch (error) {
-    console.error('Cache warmup failed:', error);
   }
 }
 

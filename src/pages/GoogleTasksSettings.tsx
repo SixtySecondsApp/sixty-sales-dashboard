@@ -72,7 +72,6 @@ export default function GoogleTasksSettings() {
       if (error) throw error;
       setListConfigs(data || []);
     } catch (error) {
-      console.error('Failed to load configurations:', error);
       toast.error('Failed to load sync configurations');
     } finally {
       setIsLoading(false);
@@ -88,7 +87,6 @@ export default function GoogleTasksSettings() {
       if (error) throw error;
       setAvailableLists(data?.items || []);
     } catch (error) {
-      console.error('Failed to load Google Task lists:', error);
     }
   };
 
@@ -175,7 +173,6 @@ export default function GoogleTasksSettings() {
       toast.success('Sync configurations saved successfully');
       await loadConfigurations(); // Reload to get IDs
     } catch (error) {
-      console.error('Failed to save configurations:', error);
       toast.error('Failed to save configurations');
     } finally {
       setIsSaving(false);

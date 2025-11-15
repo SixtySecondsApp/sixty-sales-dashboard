@@ -31,18 +31,11 @@ const migrations = [
 
 async function runMigrations() {
   try {
-    console.log('🚀 Starting CRM migrations...\n');
-    
     await client.connect();
-    console.log('✅ Connected to Neon database\n');
-
     for (const migration of migrations) {
-      console.log(`📄 Running migration: ${migration}`);
-      
       const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', migration);
       
       if (!fs.existsSync(migrationPath)) {
-        console.log(`⚠️  Migration file not found: ${migration}`);
         continue;
       }
       
@@ -50,35 +43,21 @@ async function runMigrations() {
       
       try {
         const result = await client.query(sql);
-        console.log(`✅ Migration completed: ${migration}`);
-        
         // If this is the migration summary migration, show results
         if (migration.includes('migrate_existing_data')) {
-          console.log('\n📊 Migration Summary:');
           if (result.rows && result.rows.length > 0) {
-            console.table(result.rows);
           }
         }
         
       } catch (error) {
-        console.error(`❌ Error in migration ${migration}:`, error.message);
-        
         // Continue with other migrations even if one fails
         if (error.message.includes('already exists')) {
-          console.log(`   (Table/constraint already exists - continuing...)`);
         } else {
           throw error;
         }
       }
-      
-      console.log('');
     }
-    
-    console.log('🎉 All CRM migrations completed successfully!');
-    
     // Run a quick validation query
-    console.log('\n🔍 Validating new tables...');
-    
     const validation = await client.query(`
       SELECT 
         schemaname, 
@@ -88,25 +67,16 @@ async function runMigrations() {
       WHERE tablename IN ('companies', 'contacts', 'deal_contacts', 'contact_preferences', 'activity_sync_rules')
       ORDER BY tablename;
     `);
-    
-    console.log('📋 New CRM tables created:');
-    console.table(validation.rows);
-    
     // Check migration summary if view exists
     try {
       const summary = await client.query('SELECT * FROM migration_summary ORDER BY entity;');
-      console.log('\n📈 Data migration summary:');
-      console.table(summary.rows);
     } catch (e) {
-      console.log('📈 Migration summary view not available');
     }
     
   } catch (error) {
-    console.error('❌ Migration failed:', error);
     process.exit(1);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

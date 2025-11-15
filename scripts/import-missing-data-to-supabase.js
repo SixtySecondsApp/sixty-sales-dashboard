@@ -20,36 +20,24 @@ const neonClient = new Client({
 
 async function importMissingData() {
   try {
-    console.log('🚀 IMPORTING MISSING DATA TO SUPABASE');
-    console.log('=' + '='.repeat(40));
-    
     // Connect to Neon
     await neonClient.connect();
     
     // Step 1: Import Companies with missing details
-    console.log('\n🏢 Step 1: Importing company data...');
     await importCompanyData();
     
     // Step 2: Import Contacts with missing details  
-    console.log('\n📞 Step 2: Importing contact data...');
     await importContactData();
     
     // Step 3: Create missing contacts from activities
-    console.log('\n👥 Step 3: Creating contacts from activity data...');
     await createContactsFromActivities();
     
     // Step 4: Update deal relationships
-    console.log('\n💼 Step 4: Fixing deal relationships...');
     await fixDealRelationships();
     
     // Step 5: Populate missing contact details from deals
-    console.log('\n📋 Step 5: Populating contact details from deals...');
     await populateContactDetailsFromDeals();
-    
-    console.log('\n✅ MIGRATION COMPLETE!');
-    
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
   }
@@ -76,9 +64,6 @@ async function importCompanyData() {
       FROM companies
       ORDER BY created_at
     `);
-    
-    console.log(`Found ${companiesResult.rows.length} companies in Neon`);
-    
     // Insert companies to Supabase in batches
     const batchSize = 50;
     let importedCount = 0;
@@ -95,18 +80,12 @@ async function importCompanyData() {
         });
       
       if (error) {
-        console.error(`❌ Batch ${Math.floor(i/batchSize) + 1} failed:`, error.message);
         errors++;
       } else {
         importedCount += batch.length;
-        console.log(`✅ Imported companies batch ${Math.floor(i/batchSize) + 1}`);
       }
     }
-    
-    console.log(`📊 Companies: ${importedCount} imported, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Company import failed:', error.message);
   }
 }
 
@@ -132,9 +111,6 @@ async function importContactData() {
       FROM contacts
       ORDER BY created_at
     `);
-    
-    console.log(`Found ${contactsResult.rows.length} contacts in Neon`);
-    
     // Insert contacts to Supabase in batches
     const batchSize = 50;
     let importedCount = 0;
@@ -151,18 +127,12 @@ async function importContactData() {
         });
       
       if (error) {
-        console.error(`❌ Contacts batch ${Math.floor(i/batchSize) + 1} failed:`, error.message);
         errors++;
       } else {
         importedCount += batch.length;
-        console.log(`✅ Imported contacts batch ${Math.floor(i/batchSize) + 1}`);
       }
     }
-    
-    console.log(`📊 Contacts: ${importedCount} imported, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Contact import failed:', error.message);
   }
 }
 
@@ -184,9 +154,6 @@ async function createContactsFromActivities() {
         AND contact_identifier != ''
       ORDER BY client_name
     `);
-    
-    console.log(`Found ${unmappedActivities.rows.length} potential contacts from activities`);
-    
     let createdCount = 0;
     let errors = 0;
     
@@ -226,23 +193,16 @@ async function createContactsFromActivities() {
           .single();
         
         if (error) {
-          console.error(`❌ Failed to create contact for ${activity.client_name}:`, error.message);
           errors++;
         } else {
           createdCount++;
-          console.log(`✅ Created contact: ${activity.client_name} (${activity.contact_identifier})`);
         }
         
       } catch (error) {
-        console.error(`❌ Error processing ${activity.client_name}:`, error.message);
         errors++;
       }
     }
-    
-    console.log(`📊 New contacts: ${createdCount} created, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Create contacts from activities failed:', error.message);
   }
 }
 
@@ -264,9 +224,6 @@ async function fixDealRelationships() {
         AND contact_email IS NOT NULL
         AND contact_email != ''
     `);
-    
-    console.log(`Found ${dealsWithContactInfo.rows.length} deals needing relationship fixes`);
-    
     let fixedCount = 0;
     let errors = 0;
     
@@ -298,25 +255,18 @@ async function fixDealRelationships() {
               .eq('id', deal.id);
             
             if (error) {
-              console.error(`❌ Failed to update deal ${deal.name}:`, error.message);
               errors++;
             } else {
               fixedCount++;
-              console.log(`✅ Fixed relationships for deal: ${deal.name}`);
             }
           }
         }
         
       } catch (error) {
-        console.error(`❌ Error processing deal ${deal.name}:`, error.message);
         errors++;
       }
     }
-    
-    console.log(`📊 Deal relationships: ${fixedCount} fixed, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Fix deal relationships failed:', error.message);
   }
 }
 
@@ -334,9 +284,6 @@ async function populateContactDetailsFromDeals() {
         AND contact_email != ''
         AND (contact_name IS NOT NULL OR contact_phone IS NOT NULL)
     `);
-    
-    console.log(`Found ${dealsWithDetails.rows.length} deals with contact details to populate`);
-    
     let updatedCount = 0;
     let errors = 0;
     
@@ -375,25 +322,18 @@ async function populateContactDetailsFromDeals() {
               .eq('id', contact.id);
             
             if (error) {
-              console.error(`❌ Failed to update contact ${dealContact.contact_email}:`, error.message);
               errors++;
             } else {
               updatedCount++;
-              console.log(`✅ Updated contact details: ${dealContact.contact_email}`);
             }
           }
         }
         
       } catch (error) {
-        console.error(`❌ Error processing contact ${dealContact.contact_email}:`, error.message);
         errors++;
       }
     }
-    
-    console.log(`📊 Contact details: ${updatedCount} updated, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Populate contact details failed:', error.message);
   }
 }
 

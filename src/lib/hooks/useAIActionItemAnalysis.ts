@@ -41,14 +41,12 @@ export function useAIActionItemAnalysis(options?: UseAIActionItemAnalysisOptions
           setProgress({ current, total });
         },
         onError: (item, err) => {
-          console.error('Error processing item:', item, err);
         }
       });
 
       setStats(results);
       return results;
     } catch (err) {
-      console.error('Error processing pending AI analysis:', err);
       setError(err as Error);
       throw err;
     } finally {
@@ -72,7 +70,6 @@ export function useAIActionItemAnalysis(options?: UseAIActionItemAnalysisOptions
 
       return result;
     } catch (err) {
-      console.error('Error processing action item:', err);
       setError(err as Error);
       throw err;
     } finally {
@@ -88,7 +85,6 @@ export function useAIActionItemAnalysis(options?: UseAIActionItemAnalysisOptions
       const analysisStats = await AIActionItemAnalysisService.getAnalysisStats();
       return analysisStats;
     } catch (err) {
-      console.error('Error fetching analysis stats:', err);
       setError(err as Error);
       throw err;
     }

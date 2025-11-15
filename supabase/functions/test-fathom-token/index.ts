@@ -35,9 +35,6 @@ serve(async (req) => {
     if (userError || !user) {
       throw new Error('Unauthorized: Invalid token')
     }
-
-    console.log('🧪 Testing Fathom token for user:', user.id)
-
     // Get integration
     const { data: integration, error: integrationError } = await supabase
       .from('fathom_integrations')
@@ -49,21 +46,8 @@ serve(async (req) => {
     if (integrationError || !integration) {
       throw new Error('No active Fathom integration found')
     }
-
-    console.log('📋 Integration details:')
-    console.log('  - ID:', integration.id)
-    console.log('  - Email:', integration.fathom_user_email)
-    console.log('  - Token expires:', integration.token_expires_at)
-    console.log('  - Scopes:', integration.scopes)
-    console.log('  - Token length:', integration.access_token?.length)
-    console.log('  - Token preview:', integration.access_token?.substring(0, 20) + '...')
-
     // Test the token with Fathom API
-    console.log('🧪 Testing token with Fathom API...')
-
     const testUrl = 'https://api.fathom.ai/external/v1/meetings?limit=1'
-    console.log('📡 Calling:', testUrl)
-
     // OAuth tokens typically use Bearer, API keys use X-Api-Key
     // Try Bearer first (standard OAuth)
     let response = await fetch(testUrl, {
@@ -71,22 +55,14 @@ serve(async (req) => {
         'Authorization': `Bearer ${integration.access_token}`,
       },
     })
-
-    console.log('📊 Response status (Bearer):', response.status)
-
     // If Bearer fails with 401, try X-Api-Key
     if (response.status === 401) {
-      console.log('⚠️  Bearer auth failed, trying X-Api-Key...')
       response = await fetch(testUrl, {
         headers: {
           'X-Api-Key': integration.access_token,
         },
       })
-      console.log('📊 Response status (X-Api-Key):', response.status)
     }
-
-    console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()))
-
     let responseData
     const responseText = await response.text()
 
@@ -95,9 +71,6 @@ serve(async (req) => {
     } catch (e) {
       responseData = responseText
     }
-
-    console.log('📦 Response body:', responseData)
-
     if (response.ok) {
       // Normalize count across possible shapes: items | meetings | data | calls | array directly
       let meetingsCount = 0
@@ -165,8 +138,6 @@ serve(async (req) => {
       )
     }
   } catch (error) {
-    console.error('❌ Test error:', error)
-
     return new Response(
       JSON.stringify({
         success: false,

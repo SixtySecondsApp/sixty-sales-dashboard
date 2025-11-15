@@ -21,8 +21,6 @@ function getCorsHeaders(req: Request) {
 }
 
 serve(async (req) => {
-  console.log('[Google OAuth Exchange] Request method:', req.method);
-  
   // Get CORS headers
   const corsHeaders = getCorsHeaders(req);
   
@@ -51,9 +49,6 @@ serve(async (req) => {
     if (!code || !state) {
       throw new Error('Missing code or state parameter');
     }
-
-    console.log('[Google OAuth Exchange] Received code and state');
-
     // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -70,12 +65,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google OAuth Exchange] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google OAuth Exchange] User verified:', user.id);
-
     // Retrieve the state and PKCE verifier from database
     const { data: oauthState, error: stateError } = await supabase
       .from('google_oauth_states')
@@ -85,12 +76,8 @@ serve(async (req) => {
       .single();
 
     if (stateError || !oauthState) {
-      console.error('[Google OAuth Exchange] Invalid state:', stateError);
       throw new Error('Invalid or expired state parameter');
     }
-
-    console.log('[Google OAuth Exchange] State validated');
-
     // Exchange authorization code for tokens
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
     const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
@@ -105,9 +92,6 @@ serve(async (req) => {
       grant_type: 'authorization_code',
       code_verifier: oauthState.code_verifier,
     });
-
-    console.log('[Google OAuth Exchange] Exchanging code for tokens...');
-
     const tokenResponse = await fetch(tokenUrl, {
       method: 'POST',
       headers: {
@@ -117,15 +101,9 @@ serve(async (req) => {
     });
 
     const tokenData = await tokenResponse.json();
-    console.log('[Google OAuth Exchange] Token exchange response status:', tokenResponse.status);
-
     if (!tokenResponse.ok) {
-      console.error('[Google OAuth Exchange] Token exchange failed:', tokenData);
       throw new Error(tokenData.error_description || 'Failed to exchange authorization code');
     }
-
-    console.log('[Google OAuth Exchange] Tokens received successfully');
-
     // Get user info from Google
     const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: {
@@ -134,8 +112,6 @@ serve(async (req) => {
     });
 
     const userInfo = await userInfoResponse.json();
-    console.log('[Google OAuth Exchange] User info retrieved:', userInfo.email);
-
     // Calculate token expiration
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
@@ -183,12 +159,8 @@ serve(async (req) => {
     }
 
     if (integrationResult.error) {
-      console.error('[Google OAuth Exchange] Failed to store integration:', integrationResult.error);
       throw new Error('Failed to save Google integration');
     }
-
-    console.log('[Google OAuth Exchange] Integration stored successfully');
-
     // Clean up the OAuth state
     await supabase
       .from('google_oauth_states')
@@ -206,9 +178,6 @@ serve(async (req) => {
         request_data: { email: userInfo.email },
         response_data: { scopes: tokenData.scope },
       });
-
-    console.log('[Google OAuth Exchange] Integration complete');
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -221,7 +190,6 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('[Google OAuth Exchange] Error:', error);
     return new Response(
       JSON.stringify({
         error: error.message || 'Internal server error',

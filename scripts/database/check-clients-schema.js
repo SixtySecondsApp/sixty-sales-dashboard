@@ -6,8 +6,6 @@ const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || 'eyJhbG
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function checkClientsSchema() {
-  console.log('🔍 Checking if clients tables exist...\n');
-
   try {
     // Check if clients table exists
     const { data: clientsData, error: clientsError } = await supabase
@@ -16,10 +14,7 @@ async function checkClientsSchema() {
       .limit(1);
 
     if (clientsError) {
-      console.log('❌ Clients table does not exist:', clientsError.message);
     } else {
-      console.log('✅ Clients table exists!');
-      console.log('Sample data structure:', clientsData);
     }
 
     // Check if client_billings table exists
@@ -29,10 +24,7 @@ async function checkClientsSchema() {
       .limit(1);
 
     if (billingsError) {
-      console.log('❌ Client_billings table does not exist:', billingsError.message);
     } else {
-      console.log('✅ Client_billings table exists!');
-      console.log('Sample data structure:', billingsData);
     }
 
     // Check if client_status_history table exists
@@ -42,21 +34,15 @@ async function checkClientsSchema() {
       .limit(1);
 
     if (historyError) {
-      console.log('❌ Client_status_history table does not exist:', historyError.message);
     } else {
-      console.log('✅ Client_status_history table exists!');
-      console.log('Sample data structure:', historyData);
     }
 
   } catch (error) {
-    console.error('❌ Error checking schema:', error);
   }
 }
 
 checkClientsSchema().then(() => {
-  console.log('\n🎉 Schema check complete!');
   process.exit(0);
 }).catch(error => {
-  console.error('💥 Fatal error:', error);
   process.exit(1);
 });

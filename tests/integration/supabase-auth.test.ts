@@ -37,7 +37,6 @@ describe('Supabase Authentication Integration', () => {
     const testPassword = process.env.TEST_USER_PASSWORD;
 
     if (!testEmail || !testPassword) {
-      console.warn('Test user credentials not configured, skipping auth test');
       return;
     }
 
@@ -88,7 +87,6 @@ describe('Supabase Authentication Integration', () => {
     const testPassword = process.env.TEST_USER_PASSWORD;
 
     if (!testEmail || !testPassword) {
-      console.warn('Test user credentials not configured, skipping authenticated contact test');
       return;
     }
 
@@ -99,7 +97,6 @@ describe('Supabase Authentication Integration', () => {
     });
 
     if (signInError) {
-      console.warn('Could not sign in test user, skipping authenticated test');
       return;
     }
 
@@ -165,7 +162,6 @@ describe('Supabase Authentication Integration', () => {
     const testPassword = process.env.TEST_USER_PASSWORD;
 
     if (!testEmail || !testPassword) {
-      console.warn('Test user credentials not configured, skipping refresh test');
       return;
     }
 
@@ -176,7 +172,6 @@ describe('Supabase Authentication Integration', () => {
     });
 
     if (signInError) {
-      console.warn('Could not sign in for refresh test');
       return;
     }
 
@@ -193,7 +188,6 @@ describe('Supabase Authentication Integration', () => {
     const testPassword = process.env.TEST_USER_PASSWORD;
 
     if (!testEmail || !testPassword) {
-      console.warn('Test user credentials not configured, skipping signout test');
       return;
     }
 

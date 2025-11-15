@@ -72,7 +72,6 @@ export const LazySubscriptionStats: React.FC<LazySubscriptionStatsProps> = ({ cl
         const module = await import('@/components/SubscriptionStats');
         setSubscriptionStatsComponent(() => module.SubscriptionStats);
       } catch (error) {
-        console.error('Failed to load SubscriptionStats:', error);
       }
     };
 

@@ -26,9 +26,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    console.log(`📬 Processing Slack notification for notification_id: ${notification_id}`);
-
     // Get notification details with meeting info
     const { data: notification, error: notificationError } = await supabase
       .from('task_notifications')
@@ -45,7 +42,6 @@ serve(async (req) => {
       .single();
 
     if (notificationError || !notification) {
-      console.error('❌ Failed to fetch notification:', notificationError);
       return new Response(
         JSON.stringify({ success: false, error: 'Notification not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -61,7 +57,6 @@ serve(async (req) => {
       .single();
 
     if (slackConfigError || !slackConfig) {
-      console.log(`ℹ️ No Slack integration found for user ${user_id}`);
       return new Response(
         JSON.stringify({ success: false, reason: 'No Slack integration enabled' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -74,7 +69,6 @@ serve(async (req) => {
       notification.notification_type === 'meeting_tasks_available' &&
       !notificationTypes.meeting_tasks
     ) {
-      console.log(`ℹ️ Meeting task notifications disabled for user ${user_id}`);
       return new Response(
         JSON.stringify({ success: false, reason: 'Notification type disabled' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -184,9 +178,6 @@ serve(async (req) => {
         ],
       });
     }
-
-    console.log('📤 Sending message to Slack webhook...');
-
     // Send to Slack
     const slackResponse = await fetch(slackConfig.webhook_url, {
       method: 'POST',
@@ -198,12 +189,8 @@ serve(async (req) => {
 
     if (!slackResponse.ok) {
       const errorText = await slackResponse.text();
-      console.error('❌ Slack API error:', errorText);
       throw new Error(`Slack API error: ${slackResponse.status} - ${errorText}`);
     }
-
-    console.log('✅ Slack notification sent successfully');
-
     // Update notification to mark as sent to Slack
     await supabase
       .from('task_notifications')
@@ -227,7 +214,6 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error('❌ Error sending Slack notification:', error);
     return new Response(
       JSON.stringify({
         success: false,

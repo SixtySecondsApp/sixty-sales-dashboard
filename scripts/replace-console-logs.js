@@ -67,11 +67,7 @@ files.forEach(file => {
     // Write back if changed
     if (content !== originalContent) {
       fs.writeFileSync(file, content);
-      console.log(`✅ Updated ${path.relative(process.cwd(), file)} (${consoleCount} replacements)`);
       totalReplacements += consoleCount;
     }
   }
 });
-
-console.log(`\n🎉 Total replacements: ${totalReplacements} console statements across ${files.length} files`);
-console.log('💡 Memory usage should now be significantly reduced in production builds');

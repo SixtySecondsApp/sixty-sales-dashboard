@@ -12,19 +12,14 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const SUPABASE_SERVICE_ROLE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('❌ Missing Supabase credentials');
-  console.error('   Need: VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 async function clearAndRerunEnrichments() {
-  console.log('🔄 Clearing all enrichments and re-running...\n');
-
   try {
     // Step 1: Get all leads
-    console.log('📋 Fetching all leads...');
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
       .select('id, contact_name, contact_email, domain, prep_status, enrichment_status, company_id')
@@ -36,14 +31,11 @@ async function clearAndRerunEnrichments() {
     }
 
     if (!leads || leads.length === 0) {
-      console.log('ℹ️  No leads found');
     } else {
-      console.log(`✅ Found ${leads.length} lead(s)\n`);
     }
 
     // Step 2: Delete all auto-generated prep notes
     if (leads && leads.length > 0) {
-      console.log('🗑️  Deleting all auto-generated prep notes...');
       const leadIds = leads.map(l => l.id);
       
       const { error: deleteNotesError } = await supabase
@@ -53,16 +45,12 @@ async function clearAndRerunEnrichments() {
         .eq('is_auto_generated', true);
 
       if (deleteNotesError) {
-        console.warn('⚠️  Error deleting prep notes:', deleteNotesError.message);
       } else {
-        console.log('✅ Prep notes deleted\n');
       }
     }
 
     // Step 3: Reset all leads to pending status
     if (leads && leads.length > 0) {
-      console.log('🔄 Resetting all leads to pending status...');
-      
       for (const lead of leads) {
         // Get current metadata
         const { data: currentLead } = await supabase
@@ -92,15 +80,11 @@ async function clearAndRerunEnrichments() {
           .eq('id', lead.id);
 
         if (updateError) {
-          console.warn(`⚠️  Failed to update lead ${lead.id}:`, updateError.message);
         }
       }
-
-      console.log(`✅ Reset ${leads.length} lead(s) to pending status\n`);
     }
 
     // Step 4: Get all companies with domains
-    console.log('🏢 Fetching all companies with domains...');
     const { data: companies, error: companiesError } = await supabase
       .from('companies')
       .select('id, name, domain')
@@ -113,15 +97,11 @@ async function clearAndRerunEnrichments() {
     }
 
     if (!companies || companies.length === 0) {
-      console.log('ℹ️  No companies with domains found\n');
     } else {
-      console.log(`✅ Found ${companies.length} company/companies\n`);
     }
 
     // Step 5: Clear company enrichment data
     if (companies && companies.length > 0) {
-      console.log('🗑️  Clearing company enrichment data...');
-      
       const { error: clearCompaniesError } = await supabase
         .from('companies')
         .update({
@@ -137,19 +117,15 @@ async function clearAndRerunEnrichments() {
         .neq('domain', '');
 
       if (clearCompaniesError) {
-        console.warn('⚠️  Error clearing company enrichments:', clearCompaniesError.message);
       } else {
-        console.log(`✅ Cleared enrichment data for ${companies.length} company/companies\n`);
       }
     }
 
     // Step 6: Wait a moment before triggering re-enrichment
-    console.log('⏳ Waiting 2 seconds before triggering re-enrichment...\n');
     await new Promise(r => setTimeout(r, 2000));
 
     // Step 7: Trigger company enrichment for all companies
     if (companies && companies.length > 0) {
-      console.log('🚀 Triggering company enrichment...');
       const enrichUrl = `${SUPABASE_URL}/functions/v1/enrich-company`;
       
       let enrichedCount = 0;
@@ -174,15 +150,12 @@ async function clearAndRerunEnrichments() {
 
               if (response.ok) {
                 enrichedCount++;
-                console.log(`  ✅ Enriched: ${company.name}`);
               } else {
                 failedCount++;
                 const errorText = await response.text();
-                console.warn(`  ⚠️  Failed: ${company.name} - ${errorText}`);
               }
             } catch (error: any) {
               failedCount++;
-              console.warn(`  ⚠️  Error enriching ${company.name}:`, error.message);
             }
           })
         );
@@ -192,13 +165,10 @@ async function clearAndRerunEnrichments() {
           await new Promise(r => setTimeout(r, 2000));
         }
       }
-
-      console.log(`\n✅ Company enrichment complete: ${enrichedCount} succeeded, ${failedCount} failed\n`);
     }
 
     // Step 8: Trigger lead prep processing
     if (leads && leads.length > 0) {
-      console.log('🚀 Triggering lead prep regeneration...');
       const prepUrl = `${SUPABASE_URL}/functions/v1/process-lead-prep`;
       
       const response = await fetch(prepUrl, {
@@ -216,20 +186,11 @@ async function clearAndRerunEnrichments() {
       }
 
       const result = await response.json();
-      console.log('✅ Lead prep function triggered');
-      console.log(`   Processed: ${result.processed || 0} lead(s)\n`);
     }
-
-    console.log('✅ Complete! All enrichments have been cleared and re-run.');
-    console.log('   Check the /leads page to see the updated enrichment data.');
-
   } catch (error: any) {
-    console.error('❌ Error:', error.message);
     if (error.details) {
-      console.error('   Details:', error.details);
     }
     if (error.stack) {
-      console.error('   Stack:', error.stack);
     }
     process.exit(1);
   }

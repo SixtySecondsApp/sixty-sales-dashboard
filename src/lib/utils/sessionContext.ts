@@ -35,10 +35,8 @@ export function setSessionId(sessionId: string): void {
         is_local: true
       }).catch((error) => {
         // Silently handle RPC function not found - this is optional functionality
-        console.debug('Session context RPC not available:', error.message);
       });
     } catch (error) {
-      console.debug('Session context RPC call failed:', error);
     }
   }
 }

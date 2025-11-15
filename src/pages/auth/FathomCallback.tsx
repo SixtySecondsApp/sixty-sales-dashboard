@@ -17,10 +17,6 @@ export default function FathomCallback() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    console.log('🚀 FathomCallback component mounted!');
-    console.log('📍 Current URL:', window.location.href);
-    console.log('🔑 Search params:', Object.fromEntries(searchParams));
-
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
@@ -30,7 +26,6 @@ export default function FathomCallback() {
 
         // Check for OAuth errors from Fathom
         if (errorParam) {
-          console.error('❌ OAuth error from Fathom:', errorParam, errorDescription);
           setError(`OAuth error: ${errorParam} - ${errorDescription || 'Unknown error'}`);
           setStatus('error');
 
@@ -44,10 +39,6 @@ export default function FathomCallback() {
         if (!code || !state) {
           throw new Error('Missing authorization code or state parameter');
         }
-
-        console.log('🔐 Received OAuth callback, forwarding to Edge Function');
-        console.log('📤 Sending to Edge Function:', { code: code.substring(0, 10) + '...', state });
-
         // Call the Edge Function to handle token exchange
         const { data, error: functionError } = await supabase.functions.invoke(
           'fathom-oauth-callback',
@@ -55,29 +46,14 @@ export default function FathomCallback() {
             body: { code, state }
           }
         );
-
-        console.log('📥 Edge Function response:', { data, error: functionError });
-
         if (functionError) {
-          console.error('❌ Edge Function error:', functionError);
           throw new Error(functionError.message || 'Failed to complete OAuth flow');
         }
-
-        console.log('✅ OAuth flow completed successfully', data);
-        console.log('🔍 Checking popup status:', {
-          hasOpener: !!window.opener,
-          windowName: window.name,
-          outerWidth: window.outerWidth
-        });
         setStatus('success');
 
         // Check if we're in a popup window (multiple detection methods)
         const isPopup = !!(window.opener || window.name === 'Fathom OAuth' || window.outerWidth < 700);
-
-        console.log('📊 Is popup?', isPopup);
-
         if (isPopup && window.opener) {
-          console.log('📤 Sending success message to parent window');
           window.opener.postMessage({
             type: 'fathom-oauth-success',
             integrationId: data.integration_id,
@@ -86,18 +62,15 @@ export default function FathomCallback() {
 
           // Close popup after 1 second
           setTimeout(() => {
-            console.log('🚪 Closing popup window');
             window.close();
           }, 1000);
         } else if (isPopup && !window.opener) {
           // Popup but no opener (security restriction) - try to close anyway
-          console.log('⚠️  Popup detected but no window.opener - attempting to close');
           setTimeout(() => {
             window.close();
           }, 1000);
         } else {
           // If not in popup, check session and redirect
-          console.log('🔄 Not in popup, redirecting...');
           setTimeout(async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -109,7 +82,6 @@ export default function FathomCallback() {
         }
 
       } catch (err) {
-        console.error('❌ OAuth callback error:', err);
         setError(err instanceof Error ? err.message : 'An unexpected error occurred');
         setStatus('error');
 

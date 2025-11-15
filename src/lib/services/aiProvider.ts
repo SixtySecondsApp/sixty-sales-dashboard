@@ -85,7 +85,6 @@ export class AIProviderService {
         .single();
 
       if (error) {
-        console.warn('No AI provider keys found for user:', error);
         // Try to load from environment variables as fallback
         this.loadFromEnvironment();
         return;
@@ -101,7 +100,6 @@ export class AIProviderService {
       // Also check environment variables for any missing keys
       this.loadFromEnvironment();
     } catch (error) {
-      console.error('Error loading AI provider keys:', error);
       this.loadFromEnvironment();
     }
   }
@@ -274,7 +272,6 @@ export class AIProviderService {
         return await executeFn();
       }
     } catch (error) {
-      console.error('AI completion error:', error);
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -323,8 +320,6 @@ export class AIProviderService {
     // Check for tool calls in the response
     if (config.enableTools && config.autoExecuteTools) {
       const toolCall = parseToolCall(response.content);
-      console.log('[AIProvider] Parsed tool call:', toolCall);
-      
       if (toolCall.toolName) {
         const toolRegistry = ToolRegistry.getInstance();
         const context: ToolExecutionContext = {
@@ -332,18 +327,12 @@ export class AIProviderService {
           workflowId: undefined, // Will be set by workflow engine
           nodeId: undefined, // Will be set by workflow engine
         };
-        
-        console.log('[AIProvider] Executing tool:', toolCall.toolName, 'with params:', toolCall.parameters);
-        
         try {
           const toolResult = await toolRegistry.executeTool(
             toolCall.toolName,
             toolCall.parameters || {},
             context
           );
-          
-          console.log('[AIProvider] Tool execution result:', toolResult);
-          
           if (!response.toolCalls) {
             response.toolCalls = [];
           }
@@ -382,7 +371,6 @@ export class AIProviderService {
             response.content = 'The search completed but returned no results.';
           }
         } catch (error) {
-          console.error('[AIProvider] Tool execution error:', error);
           response.content = `Error executing tool: ${error instanceof Error ? error.message : 'Unknown error'}`;
         }
       }
@@ -405,7 +393,6 @@ export class AIProviderService {
               response.processedData = validationResult.data;
             }
           } catch (error) {
-            console.warn('Invalid JSON schema provided:', error);
           }
         }
       } else if (config.outputFormat === 'json') {
@@ -451,8 +438,6 @@ export class AIProviderService {
     let model = config.model;
     
     // Log the model being used
-    console.log(`[OpenAI] Attempting to use model: ${model}`);
-    
     // Only map models that we know don't exist or have issues
     // Let OpenAI's API handle validation for models that might exist
     const fallbackMapping: Record<string, string> = {
@@ -465,7 +450,6 @@ export class AIProviderService {
     
     // Only use fallback if the exact model is in our fallback list
     if (fallbackMapping[model]) {
-      console.warn(`Model "${model}" mapped to "${fallbackMapping[model]}"`);
       model = fallbackMapping[model];
     }
 
@@ -499,12 +483,8 @@ export class AIProviderService {
       if (!response.ok) {
         const error = await response.json();
         const errorMessage = error.error?.message || response.statusText;
-        console.error('OpenAI API error:', errorMessage);
-        
         // If the error is about max_tokens vs max_completion_tokens, retry with the correct parameter
         if (errorMessage.includes('max_tokens') && errorMessage.includes('max_completion_tokens')) {
-          console.warn(`Retrying with max_completion_tokens for model ${model}`);
-          
           const retryBody: any = {
             model: model,
             messages: [
@@ -541,8 +521,6 @@ export class AIProviderService {
         
         // If the model doesn't exist, try with a fallback
         if (errorMessage.includes('does not exist') || errorMessage.includes('invalid model')) {
-          console.warn(`Model "${model}" not found, trying fallback to gpt-4o-mini`);
-          
           // Retry with a known good model
           const fallbackResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -597,7 +575,6 @@ export class AIProviderService {
         model: model,
       };
     } catch (error) {
-      console.error('Error calling OpenAI API:', error);
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -799,7 +776,6 @@ export class AIProviderService {
 
       return !response.error && response.content.length > 0;
     } catch (error) {
-      console.error('API key test failed:', error);
       return false;
     }
   }
@@ -856,8 +832,6 @@ export class AIProviderService {
       const data = await response.json();
       
       // Log all models to see what OpenAI is actually returning
-      console.log('[AIProvider] All OpenAI models:', data.data.map((m: any) => m.id));
-      
       // Filter for chat models (including GPT-5 if it exists)
       const chatModels = data.data
         .filter((model: any) => {
@@ -911,7 +885,6 @@ export class AIProviderService {
 
       return models;
     } catch (error) {
-      console.error('Error fetching OpenAI models:', error);
       return [
         { value: 'gpt-4-turbo-preview', label: 'GPT-4 Turbo' },
         { value: 'gpt-4', label: 'GPT-4' },
@@ -984,7 +957,6 @@ export class AIProviderService {
 
       return result;
     } catch (error) {
-      console.error('Error fetching Anthropic models:', error);
       // Return fallback models
       return [
         { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
@@ -1046,7 +1018,6 @@ export class AIProviderService {
 
       return result;
     } catch (error) {
-      console.error('Error fetching OpenRouter models:', error);
       return [
         { value: 'openai/gpt-4-turbo-preview', label: 'GPT-4 Turbo (via OpenRouter)' },
         { value: 'anthropic/claude-3-opus', label: 'Claude 3 Opus (via OpenRouter)' },
@@ -1104,7 +1075,6 @@ export class AIProviderService {
 
       return result;
     } catch (error) {
-      console.error('Error fetching Gemini models:', error);
       return [
         { value: 'gemini-pro', label: 'Gemini Pro' },
         { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
@@ -1143,7 +1113,6 @@ export class AIProviderService {
       .limit(100);
 
     if (error) {
-      console.error('Error fetching usage stats:', error);
       return null;
     }
 
@@ -1174,7 +1143,6 @@ export class AIProviderService {
       });
 
     if (error) {
-      console.error('Error logging AI usage:', error);
     }
   }
 
@@ -1233,13 +1201,11 @@ export class AIProviderService {
         try {
           response.processedData = JSON.parse(result.content);
         } catch (error) {
-          console.warn('Failed to parse JSON response from assistant:', error);
         }
       }
 
       return response;
     } catch (error) {
-      console.error('Custom GPT execution error:', error);
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -1396,7 +1362,6 @@ export class AIProviderService {
         processedData: result,
       };
     } catch (error) {
-      console.error('Assistant Manager execution error:', error);
       return {
         content: '',
         error: error instanceof Error ? error.message : 'Unknown error occurred',

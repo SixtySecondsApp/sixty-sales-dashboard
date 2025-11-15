@@ -38,7 +38,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
       const items = await MeetingActionItemsSyncService.getActionItemsWithTasks(meetingId);
       setActionItems(items);
     } catch (err) {
-      console.error('Error fetching action items:', err);
       setError(err as Error);
     } finally {
       setLoading(false);
@@ -62,7 +61,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
 
       return result;
     } catch (err) {
-      console.error('Error syncing action item:', err);
       setError(err as Error);
       return {
         success: false,
@@ -99,7 +97,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
 
       return result;
     } catch (err) {
-      console.error('Error syncing meeting action items:', err);
       setError(err as Error);
       return {
         success: false,
@@ -130,7 +127,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
         )
       );
     } catch (err) {
-      console.error('Error updating action item completion:', err);
       setError(err as Error);
       // Revert local state on error
       setActionItems(prev =>
@@ -193,7 +189,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
 
       return result;
     } catch (err) {
-      console.error('Error retrying failed syncs:', err);
       setError(err as Error);
       return { retried: 0, succeeded: 0, failed: 0 };
     } finally {
@@ -210,7 +205,6 @@ export function useMeetingActionItemsSync(options?: UseMeetingActionItemsSyncOpt
     const subscription = MeetingActionItemsSyncService.subscribeToActionItems(
       meetingId,
       (payload) => {
-        console.log('Action item updated:', payload);
         // Refresh action items when changes occur
         fetchActionItems();
       }

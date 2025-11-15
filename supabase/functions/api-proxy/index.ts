@@ -79,7 +79,6 @@ async function checkRateLimit(keyData: ApiKeyData): Promise<boolean> {
     .gte('created_at', oneHourAgo)
 
   if (error) {
-    console.error('Rate limit check error:', error)
     return false
   }
 
@@ -258,7 +257,6 @@ serve(async (req) => {
       }
 
     } catch (dbError: any) {
-      console.error('Database error:', dbError)
       statusCode = 500
       responseData = { error: 'Internal server error' }
     }
@@ -277,7 +275,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error in api-proxy function:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

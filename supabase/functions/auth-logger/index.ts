@@ -53,11 +53,9 @@ serve(async (req) => {
         })
 
       if (logError) {
-        console.warn('Failed to log auth event (table may not exist):', logError)
         // Don't fail the request if logging fails
       }
     } catch (logException) {
-      console.warn('Auth logging disabled (admin_logs table not found):', logException)
       // Continue without logging
     }
 
@@ -75,7 +73,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Auth logger error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

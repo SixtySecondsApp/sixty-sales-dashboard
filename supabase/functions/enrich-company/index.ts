@@ -45,9 +45,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    console.log(`🔍 Enriching company: ${company.name} (${company.domain})`);
-
     // Try Perplexity first
     let enrichmentData: Record<string, unknown> = {};
     
@@ -81,7 +78,6 @@ serve(async (req) => {
             try {
               enrichmentData = JSON.parse(jsonMatch[0]);
             } catch (e) {
-              console.warn("Failed to parse Perplexity JSON, extracting text");
               // Fallback: extract key info from text
               if (content.includes("description")) {
                 enrichmentData.description = content.split("description")[1]?.split("\n")[0]?.trim();
@@ -90,7 +86,6 @@ serve(async (req) => {
           }
         }
       } catch (error) {
-        console.warn("Perplexity enrichment failed:", error);
       }
     }
 
@@ -126,7 +121,6 @@ serve(async (req) => {
           }
         }
       } catch (error) {
-        console.warn("Apollo enrichment failed:", error);
       }
     }
 
@@ -150,14 +144,11 @@ serve(async (req) => {
         .eq("id", company_id);
 
       if (updateError) {
-        console.error("Error updating company:", updateError);
         return new Response(
           JSON.stringify({ error: "Failed to update company", details: updateError.message }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-
-      console.log(`✅ Successfully enriched company ${company.name}`);
       return new Response(
         JSON.stringify({ success: true, company_id, enriched_fields: Object.keys(updateData) }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -169,7 +160,6 @@ serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("Error enriching company:", error);
     return new Response(
       JSON.stringify({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

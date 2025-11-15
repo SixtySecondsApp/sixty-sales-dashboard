@@ -150,7 +150,6 @@ export function NextActionSuggestions({
 
       onSuggestionUpdate();
     } catch (error: any) {
-      console.error('Error accepting suggestion:', error);
       toast.error('Failed to create task', {
         description: error.message
       });
@@ -182,7 +181,6 @@ export function NextActionSuggestions({
 
       onSuggestionUpdate();
     } catch (error: any) {
-      console.error('Error dismissing suggestion:', error);
       toast.error('Failed to dismiss suggestion', {
         description: error.message
       });
@@ -235,7 +233,6 @@ export function NextActionSuggestions({
 
       onSuggestionUpdate();
     } catch (error: any) {
-      console.error('Error extracting more tasks:', error);
       toast.error('Failed to extract additional tasks', {
         description: error.message
       });

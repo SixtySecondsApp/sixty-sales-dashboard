@@ -34,9 +34,6 @@ interface ShareFileRequest {
 }
 
 serve(async (req) => {
-  console.log('[Google Drive] Request method:', req.method);
-  console.log('[Google Drive] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -72,12 +69,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google Drive] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google Drive] User verified:', user.id);
-
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
@@ -87,7 +80,6 @@ serve(async (req) => {
       .single();
 
     if (integrationError || !integration) {
-      console.error('[Google Drive] No active Google integration found:', integrationError);
       throw new Error('Google integration not found. Please connect your Google account first.');
     }
 
@@ -166,8 +158,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[Google Drive] Error:', error);
-    
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
@@ -185,8 +175,6 @@ serve(async (req) => {
 });
 
 async function listFiles(accessToken: string, request: ListFilesRequest): Promise<any> {
-  console.log('[Google Drive] Listing files');
-
   const params = new URLSearchParams();
   
   if (request.folderId) {
@@ -211,13 +199,10 @@ async function listFiles(accessToken: string, request: ListFilesRequest): Promis
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] List files error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] Found', data.files?.length || 0, 'files');
-  
   return {
     files: data.files || [],
     nextPageToken: data.nextPageToken
@@ -225,8 +210,6 @@ async function listFiles(accessToken: string, request: ListFilesRequest): Promis
 }
 
 async function createFolder(accessToken: string, request: CreateFolderRequest): Promise<any> {
-  console.log('[Google Drive] Creating folder:', request.name);
-
   const folderData = {
     name: request.name,
     mimeType: 'application/vnd.google-apps.folder',
@@ -244,13 +227,10 @@ async function createFolder(accessToken: string, request: CreateFolderRequest): 
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Create folder error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] Folder created successfully:', data.id);
-  
   return {
     success: true,
     folderId: data.id,
@@ -260,8 +240,6 @@ async function createFolder(accessToken: string, request: CreateFolderRequest): 
 }
 
 async function uploadFile(accessToken: string, request: UploadFileRequest): Promise<any> {
-  console.log('[Google Drive] Uploading file:', request.name);
-
   // First, create the file metadata
   const metadata = {
     name: request.name,
@@ -292,13 +270,10 @@ async function uploadFile(accessToken: string, request: UploadFileRequest): Prom
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Upload file error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] File uploaded successfully:', data.id);
-  
   return {
     success: true,
     fileId: data.id,
@@ -309,8 +284,6 @@ async function uploadFile(accessToken: string, request: UploadFileRequest): Prom
 }
 
 async function shareFile(accessToken: string, request: ShareFileRequest): Promise<any> {
-  console.log('[Google Drive] Sharing file:', request.fileId);
-
   const permissionData = {
     role: request.role,
     type: request.type,
@@ -328,13 +301,10 @@ async function shareFile(accessToken: string, request: ShareFileRequest): Promis
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Share file error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] File shared successfully:', data.id);
-  
   return {
     success: true,
     permissionId: data.id,
@@ -344,8 +314,6 @@ async function shareFile(accessToken: string, request: ShareFileRequest): Promis
 }
 
 async function getFile(accessToken: string, fileId: string): Promise<any> {
-  console.log('[Google Drive] Getting file:', fileId);
-
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size,modifiedTime,webViewLink,webContentLink,iconLink,thumbnailLink,description`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -354,19 +322,14 @@ async function getFile(accessToken: string, fileId: string): Promise<any> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Get file error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] File retrieved successfully:', data.name);
-  
   return data;
 }
 
 async function deleteFile(accessToken: string, fileId: string): Promise<any> {
-  console.log('[Google Drive] Deleting file:', fileId);
-
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
     method: 'DELETE',
     headers: {
@@ -376,12 +339,8 @@ async function deleteFile(accessToken: string, fileId: string): Promise<any> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Delete file error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
-
-  console.log('[Google Drive] File deleted successfully');
-  
   return {
     success: true,
     deleted: true
@@ -389,8 +348,6 @@ async function deleteFile(accessToken: string, fileId: string): Promise<any> {
 }
 
 async function searchFiles(accessToken: string, query: string, maxResults: number = 10): Promise<any> {
-  console.log('[Google Drive] Searching files:', query);
-
   const params = new URLSearchParams();
   params.set('q', `name contains '${query}' and trashed=false`);
   params.set('pageSize', maxResults.toString());
@@ -404,13 +361,10 @@ async function searchFiles(accessToken: string, query: string, maxResults: numbe
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Drive] Search files error:', errorData);
     throw new Error(`Drive API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Drive] Found', data.files?.length || 0, 'files matching search');
-  
   return {
     files: data.files || []
   };

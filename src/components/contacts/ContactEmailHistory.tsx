@@ -79,7 +79,6 @@ const ContactEmailHistory: React.FC<ContactEmailHistoryProps> = ({
       setEmails(filteredEmails);
       setTotalEmails(fetchedEmails.length);
     } catch (error) {
-      console.error('Error loading contact emails:', error);
       toast.error('Failed to load email history');
     } finally {
       setLoading(false);
@@ -148,7 +147,6 @@ const ContactEmailHistory: React.FC<ContactEmailHistoryProps> = ({
         )
       );
     } catch (error) {
-      console.error('Error marking email as read:', error);
     }
   };
 

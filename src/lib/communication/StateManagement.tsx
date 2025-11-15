@@ -564,7 +564,6 @@ export class EventDrivenStateManager<T = any> implements IStateManager<T> {
       try {
         callback(this.state);
       } catch (error) {
-        console.error('Error in state subscriber:', error);
       }
     });
 
@@ -609,7 +608,6 @@ export class EventDrivenStateManager<T = any> implements IStateManager<T> {
         try {
           callback(this.state);
         } catch (error) {
-          console.error('Error in state subscriber:', error);
         }
       });
       

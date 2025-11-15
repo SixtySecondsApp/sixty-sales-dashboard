@@ -53,28 +53,15 @@ interface ThumbnailRequest {
 }
 
 serve(async (req) => {
-  console.log(`🚀 Function invoked: ${req.method}`)
-  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('📥 Parsing request body...')
     const { recording_id, share_url, fathom_embed_url, timestamp_seconds, meeting_id }: ThumbnailRequest = await req.json()
-
-    console.log(`   recording_id: ${recording_id}`)
-    console.log(`   share_url: ${share_url}`)
-    console.log(`   fathom_embed_url: ${fathom_embed_url}`)
-
     if (!recording_id || !fathom_embed_url) {
-      console.error('❌ Missing required fields')
       throw new Error('Missing required fields: recording_id and fathom_embed_url')
     }
-
-    console.log(`📸 Generating thumbnail for recording ${recording_id}...`)
-    console.log(`📺 Embed URL: ${fathom_embed_url}`)
-
     // Capture screenshot and upload to storage (AWS S3 or Supabase)
     // Append timestamp param if provided to jump the embed/share to a specific time
     const embedWithTs = typeof timestamp_seconds === 'number' && timestamp_seconds > 0
@@ -103,12 +90,6 @@ serve(async (req) => {
             return u.toString()
           } catch { return normalizedShareUrl } })()
       : null
-
-    console.log(`📍 URL Normalization:`)
-    console.log(`   Original share_url: ${share_url}`)
-    console.log(`   Normalized: ${normalizedShareUrl}`)
-    console.log(`   With timestamp: ${shareWithTs}`)
-
     // Always screenshot the Fathom public share URL (preferred), fallback to embed URL
     const targetUrl = shareWithTs || embedWithTs
 
@@ -129,14 +110,6 @@ serve(async (req) => {
     //
     // For MeetingThumbnail page, pass the share_url with timestamp
     const shareUrlWithTs = share_url ? `${share_url}${share_url.includes('?') ? '&' : '?'}timestamp=${timestamp_seconds || 30}` : null
-
-    console.log(`🔗 Building App URL:`)
-    console.log(`   share_url (original): ${share_url}`)
-    console.log(`   shareUrlWithTs: ${shareUrlWithTs}`)
-    console.log(`   fathom_embed_url: ${fathom_embed_url}`)
-    console.log(`   recording_id: ${recording_id}`)
-    console.log(`   timestamp_seconds: ${timestamp_seconds}`)
-
     // Option 1: Try proxy approach first (if proxy edge function is deployed)
     const proxyUrl = shareUrlWithTs && Deno.env.get('ENABLE_PROXY_MODE') === 'true'
       ? `${Deno.env.get('SUPABASE_URL')}/functions/v1/proxy-fathom-video?url=${encodeURIComponent(shareUrlWithTs)}&timestamp=${timestamp_seconds || 30}`
@@ -150,10 +123,6 @@ serve(async (req) => {
     const appUrl = meeting_id && shareUrlWithTs && !proxyUrl && Deno.env.get('ENABLE_APP_MODE') === 'true'
       ? `${Deno.env.get('APP_URL') || 'https://sales.sixtyseconds.video'}/meetings/thumbnail/${meeting_id}?shareUrl=${encodeURIComponent(shareUrlWithTs)}&t=${timestamp_seconds || 30}`
       : null
-
-    console.log(`   Generated appUrl: ${appUrl}`)
-    console.log(`   Direct Fathom URL: ${directFathomUrl}`)
-
     let thumbnailUrl: string | null = null
 
     // Check if we should skip third-party services and force app mode
@@ -164,82 +133,53 @@ serve(async (req) => {
     const disableThirdParty = disableThirdPartyValue === 'true'
     const forceAppMode = forceAppModeValue === 'true'
     const skipThirdParty = onlyBrowserless || disableThirdParty || forceAppMode
-
-    console.log(`🔧 Environment check:`)
-    console.log(`   ONLY_BROWSERLESS="${onlyBrowserlessValue}" (skip=${onlyBrowserless})`)
-    console.log(`   DISABLE_THIRD_PARTY="${disableThirdPartyValue}" (skip=${disableThirdParty})`)
-    console.log(`   FORCE_APP_MODE="${forceAppModeValue}" (force=${forceAppMode})`)
-    console.log(`   skipThirdParty=${skipThirdParty}`)
-
     // Check if we should try proxy mode first
     if (!thumbnailUrl && proxyUrl && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 Trying Browserless with PROXY MODE...')
-      console.log(`   Proxy URL: ${proxyUrl}`)
-      console.log(`   This proxies Fathom content without iframe restrictions`)
       thumbnailUrl = await captureWithBrowserlessAndUpload(proxyUrl, recording_id, 'fathom', meeting_id)
 
       if (thumbnailUrl) {
-        console.log('✅ Proxy Mode succeeded!')
       } else {
-        console.log('❌ Proxy Mode failed')
       }
     }
 
     // TRY DIRECT FATHOM SCREENSHOT FIRST (MOST RELIABLE)
     if (!thumbnailUrl && directFathomUrl && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 Trying DIRECT Fathom screenshot (most reliable method)...')
-      console.log(`   Direct Fathom URL: ${directFathomUrl}`)
       thumbnailUrl = await captureWithBrowserlessAndUpload(directFathomUrl, recording_id, 'fathom', meeting_id)
 
       if (thumbnailUrl) {
-        console.log('✅ Direct Fathom screenshot succeeded!')
       } else {
-        console.log('❌ Direct Fathom screenshot failed, will try other methods...')
       }
     }
 
     // App mode is disabled by default since cross-origin iframes don't work
     if (!thumbnailUrl && appUrl && Deno.env.get('ENABLE_APP_MODE') === 'true' && Deno.env.get('BROWSERLESS_URL')) {
-      console.log('📸 APP MODE enabled - Trying embedded approach...')
-      console.log(`   App URL: ${appUrl}`)
-      console.log(`   Note: This usually fails due to X-Frame-Options`)
       thumbnailUrl = await captureWithBrowserlessAndUpload(appUrl, recording_id, 'app', meeting_id)
 
       if (thumbnailUrl) {
-        console.log('✅ App mode screenshot succeeded!')
       } else {
-        console.log('❌ App mode failed (expected due to iframe restrictions)')
       }
     }
 
     if (!thumbnailUrl && !skipThirdParty) {
       // Try third-party services first
       // Microlink multi-strategy capture (5s -> 3s -> viewport)
-      console.log('📸 Attempting thumbnail capture with Microlink (multi-strategy)...')
-      console.log(`   URL: ${targetUrl}`)
       thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'microlink')
       
       if (thumbnailUrl) {
-        console.log('✅ Microlink succeeded!')
       } else {
-        console.log('❌ Microlink failed, trying ScreenshotOne...')
         thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'screenshotone')
         
         if (thumbnailUrl) {
-          console.log('✅ ScreenshotOne succeeded!')
         }
       }
 
       if (!thumbnailUrl) {
-        console.log('❌ ScreenshotOne failed, trying ApiFlash...')
         thumbnailUrl = await captureViaProviderAndUpload(targetUrl, recording_id, 'apiflash')
         
         if (thumbnailUrl) {
-          console.log('✅ ApiFlash succeeded!')
         }
       }
     } else {
-      console.log('📸 Skipping third-party services (ONLY_BROWSERLESS or DISABLE_THIRD_PARTY_SCREENSHOTS set)')
     }
 
     // Skip duplicate fathom mode - we already tried direct Fathom screenshot above
@@ -250,13 +190,8 @@ serve(async (req) => {
     }
 
     if (!thumbnailUrl) {
-      console.error('❌ All thumbnail capture methods failed')
-      console.error(`Config: skipThirdParty=${skipThirdParty}, browserlessConfigured=${!!Deno.env.get('BROWSERLESS_URL')}`)
       throw new Error('Failed to capture video thumbnail - all methods exhausted')
     }
-
-    console.log(`✅ Thumbnail generated: ${thumbnailUrl}`)
-
     // If meeting_id is provided, persist to DB using service role
     let dbUpdated = false
     if (meeting_id) {
@@ -270,7 +205,6 @@ serve(async (req) => {
           .eq('id', meeting_id)
         if (!updateError) dbUpdated = true
       } catch (e) {
-        console.warn('⚠️ Failed to persist thumbnail_url via service role:', e)
       }
     }
 
@@ -287,7 +221,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Thumbnail generation error:', error)
     return new Response(
       JSON.stringify({
         success: false,
@@ -309,8 +242,6 @@ async function captureVideoThumbnail(
   recordingId: string
 ): Promise<string | null> {
   try {
-    console.log('📸 Capturing screenshot...')
-
     // Try providers in code above instead
     let imageBuffer: ArrayBuffer | null = await captureWithMicrolink(url)
 
@@ -322,7 +253,6 @@ async function captureVideoThumbnail(
     return await uploadToStorage(imageBuffer, recordingId)
 
   } catch (error) {
-    console.error('Error capturing thumbnail:', error)
     return null
   }
 }
@@ -336,9 +266,6 @@ async function captureWithMicrolink(
   url: string
 ): Promise<ArrayBuffer | null> {
   try {
-    console.log('📡 Microlink: Simple viewport screenshot')
-    console.log(`   Target URL: ${url}`)
-    
     // Use the simplest, fastest approach - just screenshot the viewport
     const microlinkUrl = `https://api.microlink.io/?` + new URLSearchParams({
       url,
@@ -350,64 +277,35 @@ async function captureWithMicrolink(
       'screenshot.fullPage': 'false',
       'screenshot.overlay.browser': 'false',
     }).toString()
-
-    console.log(`   Microlink API URL: ${microlinkUrl.substring(0, 100)}...`)
-    console.log(`   Fetching screenshot...`)
-    
     const response = await fetch(microlinkUrl, {
       signal: AbortSignal.timeout(20000),
     })
-    
-    console.log(`   Response status: ${response.status}`)
-    
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unable to read error')
-      console.log(`❌ Microlink API failed: ${response.status}`)
-      console.log(`   Error: ${errorText.substring(0, 200)}`)
       return null
     }
 
     const data = await response.json()
-    console.log(`   Response status field: ${data?.status}`)
-    
     const screenshotUrl = data?.data?.screenshot?.url
     
     if (!screenshotUrl) {
-      console.log('❌ No screenshot URL in response')
-      console.log(`   Response data: ${JSON.stringify(data).substring(0, 200)}`)
       return null
     }
-
-    console.log(`   Screenshot URL: ${screenshotUrl}`)
-    console.log(`   Downloading image...`)
-    
     const imageResponse = await fetch(screenshotUrl, {
       signal: AbortSignal.timeout(10000),
     })
-    
-    console.log(`   Image download status: ${imageResponse.status}`)
-    
     if (!imageResponse.ok) {
-      console.log(`❌ Failed to download screenshot`)
       return null
     }
 
     const imageBuffer = await imageResponse.arrayBuffer()
-    console.log(`   Downloaded: ${imageBuffer.byteLength} bytes`)
-    
     if (imageBuffer.byteLength < 5000) {
-      console.log(`❌ Screenshot too small`)
       return null
     }
-    
-    console.log(`✅ Microlink screenshot captured successfully`)
     return imageBuffer
     
   } catch (error) {
-    console.error(`❌ Microlink exception:`, error)
     if (error instanceof Error) {
-      console.error(`   Error message: ${error.message}`)
-      console.error(`   Error stack: ${error.stack?.substring(0, 300)}`)
     }
     return null
   }
@@ -424,9 +322,6 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
   if (!base || !token) return null
 
   try {
-    console.log(`🎯 Using Browserless Playwright function for ${mode} mode`)
-    console.log(`📍 Target URL: ${url}`)
-
     // Escape URL for safe injection into JavaScript
     const escapedUrl = url.replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "\\r")
 
@@ -766,47 +661,25 @@ async function captureWithBrowserlessAndUpload(url: string, recordingId: string,
 
     if (resp.ok) {
       const buf = await resp.arrayBuffer()
-      console.log(`📊 Browserless response: ${buf.byteLength} bytes`)
-
-      if (buf.byteLength > 10000) { // At least 10KB for a real video frame
-        console.log(`✅ Browserless Playwright succeeded (${buf.byteLength} bytes)`)
-
+      if (buf.byteLength > 10000) { 
         // Log success for App Mode
         if (mode === 'app') {
-          console.log('🎉 App Mode SUCCESS! Screenshot captured from YOUR app')
         }
 
         return await uploadToStorage(buf, recordingId, meetingId)
       } else {
-        console.log(`⚠️  Screenshot too small (${buf.byteLength} bytes) - likely blank page or error`)
-
         if (mode === 'app') {
-          console.error('⚠️  App Mode returned small screenshot - page may not have loaded properly')
         }
       }
     } else {
       const errorText = await resp.text()
-      console.error(`❌ Browserless HTTP error: ${resp.status}`)
-      console.error(`❌ Error details: ${errorText.substring(0, 500)}`)
-
       if (mode === 'app') {
-        console.error('❌ App Mode failed with HTTP error - check Browserless logs or connectivity')
       }
     }
 
     return null
   } catch (e) {
-    console.error('❌ Browserless exception:', e.message)
-    console.error('❌ Error type:', e.name)
-
     if (mode === 'app') {
-      console.error('❌ App Mode threw exception - likely timeout or network error')
-      console.error('   This usually means Browserless cannot reach your Vercel deployment')
-      console.error('   Possible causes:')
-      console.error('   1. Vercel is blocking Browserless IP address')
-      console.error('   2. Browserless service is experiencing issues')
-      console.error('   3. Network timeout (script takes >90 seconds)')
-      console.error('   4. Your app has security middleware blocking headless browsers')
     }
 
     return null
@@ -875,7 +748,6 @@ async function captureWithScreenshotOne(embedUrl: string): Promise<ArrayBuffer |
     const buf = await resp.arrayBuffer()
     return buf.byteLength > 0 ? buf : null
   } catch (e) {
-    console.error('❌ ScreenshotOne error:', e)
     return null
   }
 }
@@ -908,7 +780,6 @@ async function captureWithApiFlash(embedUrl: string): Promise<ArrayBuffer | null
     const buf = await resp.arrayBuffer()
     return buf.byteLength > 0 ? buf : null
   } catch (e) {
-    console.error('❌ APIFLASH error:', e)
     return null
   }
 }
@@ -922,9 +793,6 @@ async function uploadToStorage(
   meetingId?: string
 ): Promise<string | null> {
   try {
-    console.log(`📤 Starting S3 upload for recording ${recordingId}...`)
-    console.log(`   Buffer size: ${imageBuffer.byteLength} bytes`)
-    
     const folder = (Deno.env.get('AWS_S3_FOLDER') || Deno.env.get('AWS_S3_THUMBNAILS_PREFIX') || 'meeting-thumbnails').replace(/\/+$/,'')
     // Include meeting_id and timestamp to make each screenshot unique and avoid caching issues
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
@@ -939,13 +807,8 @@ async function uploadToStorage(
     const awsBucket = Deno.env.get('AWS_S3_BUCKET') || 'user-upload'
 
     if (!awsAccessKeyId || !awsSecretAccessKey) {
-      console.error('❌ AWS credentials missing!')
       throw new Error('AWS credentials not configured. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY')
     }
-
-    console.log(`📤 Uploading to AWS S3: ${awsBucket}/${fileName}`)
-    console.log(`   Region: ${awsRegion}`)
-
     const s3Client = new S3Client({
       endPoint: `s3.${awsRegion}.amazonaws.com`,
       region: awsRegion,
@@ -964,11 +827,9 @@ async function uploadToStorage(
 
     // Construct public URL
     const publicUrl = `https://${awsBucket}.s3.${awsRegion}.amazonaws.com/${fileName}`
-    console.log(`✅ Uploaded to S3: ${publicUrl}`)
     return publicUrl
 
   } catch (error) {
-    console.error('Error uploading to S3:', error)
     return null
   }
 }

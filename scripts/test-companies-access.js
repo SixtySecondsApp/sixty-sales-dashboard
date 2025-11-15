@@ -12,8 +12,6 @@ async function testCompaniesAccess() {
     await client.connect();
     
     const result = await client.query('SELECT COUNT(*) as total_companies FROM companies;');
-    console.log('✅ Companies table accessible:', result.rows[0].total_companies, 'companies');
-    
     // Test a few sample companies
     const sample = await client.query(`
       SELECT name, domain, size, industry 
@@ -21,12 +19,7 @@ async function testCompaniesAccess() {
       ORDER BY updated_at DESC 
       LIMIT 3;
     `);
-    
-    console.log('📋 Sample companies:');
-    console.table(sample.rows);
-    
   } catch (error) {
-    console.error('❌ Error:', error.message);
   } finally {
     await client.end();
   }

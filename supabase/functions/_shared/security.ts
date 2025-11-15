@@ -393,7 +393,6 @@ export async function logSecurityEvent(
 
   // In production, send alerts for HIGH/CRITICAL events
   if (event.severity === 'HIGH' || event.severity === 'CRITICAL') {
-    console.error('[SECURITY ALERT]', event)
     // TODO: Send to alerting system (PagerDuty, Slack, etc.)
   }
 }
@@ -462,7 +461,6 @@ export function sanitizeErrorMessage(error: any, isDevelopment: boolean = false)
   }
 
   // In production, return generic message
-  console.error('[Internal Error]', error)
   return 'An error occurred while processing your request'
 }
 

@@ -52,7 +52,6 @@ export function useFetchSummary() {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to fetch summary'
       setError(errorMessage)
-      console.error('Error fetching summary:', err)
       return null
     } finally {
       setLoading(false)

@@ -35,8 +35,6 @@ async function generatePKCEChallenge() {
 }
 
 serve(async (req) => {
-  console.log('[Google OAuth Initiate] Request method:', req.method);
-  
   // Get CORS headers
   const corsHeaders = getCorsHeaders(req);
   
@@ -66,7 +64,6 @@ serve(async (req) => {
       requestOrigin = requestBody.origin;
     } catch (error) {
       // If JSON parsing fails, continue without origin
-      console.log('[Google OAuth Initiate] No origin in request body, using fallback');
     }
     
     // Dynamically determine redirect URI based on request origin
@@ -77,9 +74,6 @@ serve(async (req) => {
       // Fallback to environment variable or localhost
       redirectUri = Deno.env.get('GOOGLE_REDIRECT_URI') || 'http://localhost:5173/auth/google/callback';
     }
-    
-    console.log('[Google OAuth Initiate] Using redirect URI:', redirectUri);
-
     // Initialize Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -96,12 +90,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google OAuth Initiate] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google OAuth Initiate] User verified:', user.id);
-
     // Generate PKCE parameters
     const { codeVerifier, codeChallenge } = await generatePKCEChallenge();
     
@@ -120,7 +110,6 @@ serve(async (req) => {
       });
 
     if (stateError) {
-      console.error('[Google OAuth Initiate] Failed to store state:', stateError);
       throw new Error('Failed to initialize OAuth flow');
     }
 
@@ -170,9 +159,6 @@ serve(async (req) => {
     authUrl.searchParams.set('prompt', 'consent'); // Force consent to get refresh token
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
-
-    console.log('[Google OAuth Initiate] Authorization URL generated');
-
     return new Response(
       JSON.stringify({ 
         authUrl: authUrl.toString(),
@@ -186,7 +172,6 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('[Google OAuth Initiate] Error:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error' 

@@ -98,7 +98,6 @@ serve(async (req) => {
       { status: 200, headers: JSON_HEADERS }
     );
   } catch (error: any) {
-    console.error("Error fetching SavvyCal link:", error);
     return new Response(
       JSON.stringify({ 
         error: error.message || "Failed to fetch link details" 

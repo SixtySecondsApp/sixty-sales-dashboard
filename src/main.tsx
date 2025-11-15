@@ -1,3 +1,7 @@
+// Suppress Supabase logs FIRST, before any other imports
+import { suppressSupabaseLogs } from './lib/utils/suppressSupabaseLogs';
+suppressSupabaseLogs();
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -25,9 +29,6 @@ window.addEventListener('error', (event) => {
     (errorString.includes('typeerror') && errorString.includes('failed to fetch'));
   
   if (isChunkError) {
-    console.error('Global chunk loading error detected:', error);
-    console.warn('This is likely due to cached assets from a previous version. Clearing cache and reloading...');
-    
     // Clear cache and reload after a short delay to allow logging
     setTimeout(() => {
       clearCacheAndReload();
@@ -52,9 +53,6 @@ window.addEventListener('unhandledrejection', (event) => {
     (errorString.includes('typeerror') && errorString.includes('failed to fetch'));
   
   if (isChunkError) {
-    console.error('Unhandled chunk loading rejection:', error);
-    console.warn('This is likely due to cached assets from a previous version. Clearing cache and reloading...');
-    
     // Clear cache and reload after a short delay
     setTimeout(() => {
       clearCacheAndReload();

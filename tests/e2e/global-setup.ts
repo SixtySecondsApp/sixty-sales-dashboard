@@ -6,14 +6,11 @@ import { createClient } from '@supabase/supabase-js';
  * Prepares test environment and database state
  */
 async function globalSetup(config: FullConfig) {
-  console.log('🚀 Setting up E2E test environment for Foreign Key Constraint Fix tests...');
-  
   // Environment variables
   const supabaseUrl = process.env.VITE_SUPABASE_URL || 'http://localhost:54321';
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
   
   if (!supabaseKey) {
-    console.warn('⚠️  Warning: VITE_SUPABASE_ANON_KEY not set. Database operations may fail.');
   }
   
   try {
@@ -21,8 +18,6 @@ async function globalSetup(config: FullConfig) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     // Clean up any existing test data
-    console.log('🧹 Cleaning up existing test data...');
-    
     await supabase
       .from('activities')
       .delete()
@@ -42,12 +37,8 @@ async function globalSetup(config: FullConfig) {
     const { data, error } = await supabase.from('deals').select('count').limit(1);
     
     if (error) {
-      console.error('❌ Database connectivity test failed:', error);
       throw new Error(`Database setup failed: ${error.message}`);
     }
-    
-    console.log('✅ Database connectivity verified');
-    
     // Create test user session if needed
     const browser = await chromium.launch();
     const context = await browser.newContext();
@@ -82,12 +73,7 @@ async function globalSetup(config: FullConfig) {
     await context.storageState({ path: 'tests/e2e/auth-state.json' });
     
     await browser.close();
-    
-    console.log('✅ Test authentication state created');
-    
     // Create test data fixtures
-    console.log('📝 Creating test data fixtures...');
-    
     // Create a test company
     const { data: testCompany, error: companyError } = await supabase
       .from('companies')
@@ -101,9 +87,7 @@ async function globalSetup(config: FullConfig) {
       .single();
     
     if (companyError && !companyError.message.includes('duplicate')) {
-      console.warn('⚠️  Warning: Could not create test company:', companyError.message);
     } else if (testCompany) {
-      console.log('✅ Test company created:', testCompany.id);
     }
     
     // Create deal stages if they don't exist
@@ -147,14 +131,8 @@ async function globalSetup(config: FullConfig) {
             color: '#22C55E'
           }
         ]);
-      
-      console.log('✅ Deal stages created');
     }
-    
-    console.log('🎯 E2E test environment setup complete');
-    
   } catch (error) {
-    console.error('❌ Global setup failed:', error);
     throw error;
   }
 }

@@ -8,8 +8,6 @@ const corsHeaders = {
 };
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  console.log('[Google Calendar] Refreshing access token...');
-  
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
   
@@ -28,7 +26,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] Token refresh failed:', errorData);
     throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
   }
 
@@ -47,11 +44,8 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
     .eq('user_id', userId);
   
   if (updateError) {
-    console.error('[Google Calendar] Failed to update access token:', updateError);
     throw new Error('Failed to update access token in database');
   }
-  
-  console.log('[Google Calendar] Access token refreshed successfully');
   return data.access_token;
 }
 
@@ -84,9 +78,6 @@ interface UpdateEventRequest {
 }
 
 serve(async (req) => {
-  console.log('[Google Calendar] Request method:', req.method);
-  console.log('[Google Calendar] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -122,12 +113,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google Calendar] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google Calendar] User verified:', user.id);
-
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
@@ -137,7 +124,6 @@ serve(async (req) => {
       .single();
 
     if (integrationError || !integration) {
-      console.error('[Google Calendar] No active Google integration found:', integrationError);
       throw new Error('Google integration not found. Please connect your Google account first.');
     }
 
@@ -147,7 +133,6 @@ serve(async (req) => {
     let accessToken = integration.access_token;
     
     if (expiresAt <= now) {
-      console.log('[Google Calendar] Token expired, refreshing...');
       accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
@@ -218,8 +203,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[Google Calendar] Error:', error);
-    
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
@@ -237,8 +220,6 @@ serve(async (req) => {
 });
 
 async function createEvent(accessToken: string, request: CreateEventRequest): Promise<any> {
-  console.log('[Google Calendar] Creating event:', request.summary);
-
   const calendarId = request.calendarId || 'primary';
   
   const eventData = {
@@ -267,13 +248,10 @@ async function createEvent(accessToken: string, request: CreateEventRequest): Pr
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] Create event error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Calendar] Event created successfully:', data.id);
-  
   return {
     success: true,
     eventId: data.id,
@@ -285,8 +263,6 @@ async function createEvent(accessToken: string, request: CreateEventRequest): Pr
 }
 
 async function listEvents(accessToken: string, request: ListEventsRequest): Promise<any> {
-  console.log('[Google Calendar] Listing events');
-
   const calendarId = request.calendarId || 'primary';
   const params = new URLSearchParams();
   
@@ -304,13 +280,10 @@ async function listEvents(accessToken: string, request: ListEventsRequest): Prom
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] List events error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Calendar] Found', data.items?.length || 0, 'events');
-  
   return {
     events: data.items || [],
     nextSyncToken: data.nextSyncToken,
@@ -319,8 +292,6 @@ async function listEvents(accessToken: string, request: ListEventsRequest): Prom
 }
 
 async function updateEvent(accessToken: string, request: UpdateEventRequest): Promise<any> {
-  console.log('[Google Calendar] Updating event:', request.eventId);
-
   const updateData: any = {};
   if (request.summary) updateData.summary = request.summary;
   if (request.description) updateData.description = request.description;
@@ -352,13 +323,10 @@ async function updateEvent(accessToken: string, request: UpdateEventRequest): Pr
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] Update event error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Calendar] Event updated successfully:', data.id);
-  
   return {
     success: true,
     eventId: data.id,
@@ -367,8 +335,6 @@ async function updateEvent(accessToken: string, request: UpdateEventRequest): Pr
 }
 
 async function deleteEvent(accessToken: string, calendarId: string, eventId: string): Promise<any> {
-  console.log('[Google Calendar] Deleting event:', eventId);
-
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`, {
     method: 'DELETE',
     headers: {
@@ -378,12 +344,8 @@ async function deleteEvent(accessToken: string, calendarId: string, eventId: str
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] Delete event error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
-
-  console.log('[Google Calendar] Event deleted successfully');
-  
   return {
     success: true,
     deleted: true
@@ -391,8 +353,6 @@ async function deleteEvent(accessToken: string, calendarId: string, eventId: str
 }
 
 async function listCalendars(accessToken: string): Promise<any> {
-  console.log('[Google Calendar] Listing calendars');
-
   const response = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -401,21 +361,16 @@ async function listCalendars(accessToken: string): Promise<any> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] List calendars error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Calendar] Found', data.items?.length || 0, 'calendars');
-  
   return {
     calendars: data.items || []
   };
 }
 
 async function checkAvailability(accessToken: string, request: any): Promise<any> {
-  console.log('[Google Calendar] Checking availability');
-
   const response = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
     method: 'POST',
     headers: {
@@ -431,13 +386,10 @@ async function checkAvailability(accessToken: string, request: any): Promise<any
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Calendar] Check availability error:', errorData);
     throw new Error(`Calendar API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const data = await response.json();
-  console.log('[Google Calendar] Availability checked successfully');
-  
   return {
     timeMin: data.timeMin,
     timeMax: data.timeMax,

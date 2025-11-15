@@ -9,12 +9,9 @@ const client = new Client({
 
 async function checkDealRelationships() {
   try {
-    console.log('🔍 Checking deal CRM relationships...\n');
-    
     await client.connect();
 
     // Check deals with CRM relationships
-    console.log('📊 Deals with CRM relationships:');
     const dealStats = await client.query(`
       SELECT 
         COUNT(*) as total_deals,
@@ -23,11 +20,7 @@ async function checkDealRelationships() {
         COUNT(CASE WHEN company_id IS NOT NULL AND primary_contact_id IS NOT NULL THEN 1 END) as fully_normalized_deals
       FROM deals;
     `);
-    
-    console.table(dealStats.rows);
-
     // Sample of deals with and without relationships
-    console.log('\n📋 Sample deals with relationships:');
     const sampleDeals = await client.query(`
       SELECT 
         d.id,
@@ -48,26 +41,16 @@ async function checkDealRelationships() {
       ORDER BY d.updated_at DESC
       LIMIT 10;
     `);
-    
-    console.table(sampleDeals.rows);
-
     // Check if we need to run linking
     const needsLinking = dealStats.rows[0].deals_with_company_id === '0';
     
     if (needsLinking) {
-      console.log('\n❌ No deals have CRM relationships populated!');
-      console.log('💡 Solution: We need to run the linking script to connect existing deals to companies/contacts');
     } else {
-      console.log('\n✅ Some deals have CRM relationships populated');
-      console.log(`📈 ${dealStats.rows[0].deals_with_company_id} deals linked to companies`);
-      console.log(`📈 ${dealStats.rows[0].deals_with_primary_contact_id} deals linked to contacts`);
     }
 
   } catch (error) {
-    console.error('❌ Check failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

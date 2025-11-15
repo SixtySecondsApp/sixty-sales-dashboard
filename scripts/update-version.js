@@ -25,12 +25,6 @@ const versionData = {
 
 const versionPath = resolve(process.cwd(), 'public/version.json');
 writeFileSync(versionPath, JSON.stringify(versionData, null, 2));
-
-console.log('✅ Version updated:');
-console.log(`   Build ID: ${buildId}`);
-console.log(`   Built At: ${builtAt}`);
-console.log(`   File: ${versionPath}`);
-
 // Optional: Update package.json version if provided
 if (version !== 'dev' && version.startsWith('v')) {
   try {
@@ -38,8 +32,6 @@ if (version !== 'dev' && version.startsWith('v')) {
     const packageData = JSON.parse(readFileSync(packagePath, 'utf8'));
     packageData.version = version.slice(1); // Remove 'v' prefix
     writeFileSync(packagePath, JSON.stringify(packageData, null, 2) + '\n');
-    console.log(`📦 Package.json version updated to: ${packageData.version}`);
   } catch (error) {
-    console.warn('⚠️  Could not update package.json version:', error.message);
   }
 }

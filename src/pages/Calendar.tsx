@@ -82,16 +82,6 @@ const Calendar: React.FC = () => {
   const connectGoogle = useGoogleOAuthInitiate();
   
   // Debug logging for calendar enable status
-  console.log('[Calendar] Integration Debug:', {
-    integration: !!integration,
-    health: health?.isConnected,
-    services,
-    calendarService: services?.calendar,
-    isCalendarEnabled,
-    fullIntegration: integration,
-    fullHealth: health
-  });
-  
   // Calculate time range for calendar events (wider range for better UX)
   const timeRange = useMemo(() => {
     const start = new Date(selectedDate);
@@ -128,16 +118,8 @@ const Calendar: React.FC = () => {
   // Debug logging for sync status
   useEffect(() => {
     if (syncStatus) {
-      console.log('Calendar Sync Status:', {
-        isRunning: syncStatus.isRunning,
-        lastSyncedAt: syncStatus.lastSyncedAt,
-        eventsCreated: syncStatus.eventsCreated,
-        eventsUpdated: syncStatus.eventsUpdated,
-        error: syncStatus.error
-      });
     }
     if (dbError) {
-      console.error('Database error:', dbError);
     }
   }, [syncStatus, dbError]);
   
@@ -158,7 +140,6 @@ const Calendar: React.FC = () => {
       try {
         return JSON.parse(stored);
       } catch (e) {
-        console.error('Failed to parse stored events:', e);
       }
     }
     
@@ -204,41 +185,27 @@ const Calendar: React.FC = () => {
   
   // Process calendar events from database
   const events = useMemo(() => {
-    console.log('[Calendar] Processing events:', {
-      dbEventsCount: dbEvents?.length || 0,
-      isLoading: dbEventsLoading,
-      hasError: !!dbError,
-      isEnabled: isCalendarEnabled,
-      dateRange: timeRange
-    });
-    
     // If database events are available, ALWAYS use them first (instant load)
     if (dbEvents && dbEvents.length > 0) {
-      console.log('[Calendar] Using database events:', dbEvents.length);
-      console.log('[Calendar] Sample events:', dbEvents.slice(0, 3));
       return dbEvents;
     }
     
     // If Google Calendar is not enabled, show mock data
     if (!isCalendarEnabled) {
-      console.log('[Calendar] Not enabled, showing mock data');
       return mockEvents;
     }
     
     // If data is still loading from database, show empty array (no loading state needed)
     if (dbEventsLoading) {
-      console.log('[Calendar] Loading events from database...');
       return [];
     }
     
     // If there's an error, show empty array and log it
     if (dbError) {
-      console.error('[Calendar] Database error:', dbError);
       return [];
     }
     
     // Default to empty array if nothing else matches
-    console.log('[Calendar] No events available');
     return [];
   }, [dbEvents, dbEventsLoading, dbError, isCalendarEnabled, timeRange]);
 
@@ -257,7 +224,6 @@ const Calendar: React.FC = () => {
 
   const handleSync = (period: string, start: Date, end: Date) => {
     if (isSyncing) {
-      console.log('[Calendar] Sync already in progress');
       return;
     }
     
@@ -270,7 +236,6 @@ const Calendar: React.FC = () => {
       endDate: end.toISOString()
     }, {
       onSuccess: (result) => {
-        console.log(`[Calendar] ${period} sync result:`, result);
         if (result.eventsCreated && result.eventsCreated > 0) {
           setSyncFeedback(`✅ Successfully synced ${result.eventsCreated} events from ${period}!`);
           toast.success(`Great! Found and synced ${result.eventsCreated} events from ${period}.`);
@@ -284,7 +249,6 @@ const Calendar: React.FC = () => {
         }
       },
       onError: (error) => {
-        console.error('[Calendar] Sync error:', error);
         setSyncFeedback('❌ Failed to sync calendar');
         toast.error('Failed to sync calendar. Please check your Google connection.');
       }
@@ -391,19 +355,12 @@ const Calendar: React.FC = () => {
   };
 
   // Debug the filtering process
-  console.log('Events before filtering:', events.length, events);
-  console.log('Search term:', searchTerm);
-  console.log('Selected categories:', selectedCategories);
-  
   const filteredEvents = events.filter(event => {
     const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          event.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(event.category);
     return matchesSearch && matchesCategory;
   });
-  
-  console.log('Events after filtering:', filteredEvents.length, filteredEvents);
-
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       {/* Google Connection Banner */}
@@ -550,7 +507,6 @@ const Calendar: React.FC = () => {
                   {isCalendarEnabled && (
                     <Button
                       onClick={async () => {
-                        console.log('Testing Calendar API directly...');
                         try {
                           const { data, error } = await supabase.functions.invoke('google-calendar?action=list-events', {
                             body: {
@@ -559,14 +515,12 @@ const Calendar: React.FC = () => {
                               maxResults: 10
                             }
                           });
-                          console.log('Direct Calendar API response:', { data, error });
                           if (error) {
                             toast.error(`API Error: ${error.message}`);
                           } else {
                             toast.success('Check console for API response');
                           }
                         } catch (err) {
-                          console.error('Direct API error:', err);
                           toast.error('Failed to call Calendar API');
                         }
                       }}
@@ -687,7 +641,6 @@ const Calendar: React.FC = () => {
                       <Button
                         onClick={() => {
                           if (isSyncing) {
-                            console.log('[Calendar] Sync already in progress');
                             return;
                           }
 
@@ -698,7 +651,6 @@ const Calendar: React.FC = () => {
                             action: 'sync-single'
                           }, {
                             onSuccess: (result) => {
-                              console.log('[Calendar] Test sync result:', result);
                               if (result.eventsCreated && result.eventsCreated > 0) {
                                 setSyncFeedback(`✅ Success! Connection works - found ${result.eventsCreated} events from last week.`);
                                 toast.success('Great! Connection verified. Now you can sync more events.');
@@ -713,7 +665,6 @@ const Calendar: React.FC = () => {
                               }
                             },
                             onError: (error) => {
-                              console.error('[Calendar] Test sync error:', error);
                               setSyncFeedback('❌ Failed to connect to Google Calendar');
                               toast.error('Connection failed. Please check your Google integration.');
                             }

@@ -209,14 +209,7 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     setActiveDragId(null);
 
     // Enhanced debugging
-    console.log('Drag end event:', { 
-      activeId: active.id, 
-      overId: over?.id,
-      overData: over?.data
-    });
-
     if (!over || active.id === over.id) {
-      console.log('Drag cancelled - no valid drop target');
       return;
     }
 
@@ -225,7 +218,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     const task = tasks.find(t => t.id === taskId);
 
     if (!task) {
-      console.log('Task not found:', taskId);
       return;
     }
 
@@ -233,9 +225,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
     const currentStage = task.completed || task.status === 'completed' ? 'complete' 
       : task.status === 'in_progress' ? 'started' 
       : 'planned';
-
-    console.log(`Moving task "${task.title}" from ${currentStage} to ${newStage}`);
-
     // Prepare updates
     let updates: any = {};
     switch (newStage) {
@@ -249,9 +238,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         updates = { status: 'completed', completed: true, completed_at: new Date().toISOString() };
         break;
     }
-
-    console.log('Applying updates:', updates);
-
     try {
       // Optimistic update - immediately update local state
       setTasks((prevTasks: Task[]) => 
@@ -276,8 +262,6 @@ const TaskKanban: React.FC<TaskKanbanProps> = ({
         toast.success(`Task moved to ${taskStages.find(s => s.id === newStage)?.name}`);
       }
     } catch (error) {
-      console.error('Failed to update task:', error);
-      
       // Revert optimistic update on error
       const originalTask = tasks.find(t => t.id === taskId);
       if (originalTask) {
@@ -534,7 +518,6 @@ const TaskColumn: React.FC<TaskColumnProps> = ({
 
   const taskIds = useMemo(() => {
     const ids = tasks.map(t => t.id);
-    console.log('TaskColumn taskIds updated:', stage.id, ids);
     return ids;
   }, [tasks, stage.id]);
 

@@ -20,13 +20,10 @@ async function getStageIds() {
     .order('name');
   
   if (error) {
-    console.error('Error fetching stages:', error);
     return;
   }
-  
-  console.log('Deal Stages:');
   if (stages) {
-    stages.forEach(s => console.log(`  ${s.name}: '${s.id}'`));
+    stages.forEach(s => undefined);
   }
 }
 

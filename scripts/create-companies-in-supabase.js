@@ -20,8 +20,6 @@ const neonClient = new Client({
 
 async function createCompaniesInSupabase() {
   try {
-    console.log('🔧 Creating companies table in Supabase...');
-    
     // Connect to Neon to get data
     await neonClient.connect();
     
@@ -42,9 +40,6 @@ async function createCompaniesInSupabase() {
       FROM companies 
       ORDER BY created_at DESC;
     `);
-    
-    console.log(`📊 Found ${companiesResult.rows.length} companies in Neon database`);
-    
     // Get a profile ID to use as owner (required field)
     const { data: profiles, error: profileError } = await supabase
       .from('profiles')
@@ -52,13 +47,10 @@ async function createCompaniesInSupabase() {
       .limit(1);
     
     if (profileError || !profiles || profiles.length === 0) {
-      console.error('❌ No profiles found in Supabase. Need a profile to assign as owner.');
       return;
     }
     
     const ownerId = profiles[0].id;
-    console.log(`👤 Using profile ${ownerId} as owner`);
-    
     // First, check if companies table exists and create if not
     const { error: createError } = await supabase.rpc('exec_sql', {
       sql: `
@@ -85,9 +77,7 @@ async function createCompaniesInSupabase() {
     });
     
     if (createError) {
-      console.log('⚠️ Could not create table via RPC, trying manual insert...');
     } else {
-      console.log('✅ Companies table created in Supabase');
     }
     
     // Insert companies one by one
@@ -113,20 +103,13 @@ async function createCompaniesInSupabase() {
         });
       
       if (insertError) {
-        console.log(`❌ Failed to insert ${company.name}: ${insertError.message}`);
         errorCount++;
       } else {
         successCount++;
         if (successCount % 50 === 0) {
-          console.log(`📈 Inserted ${successCount} companies...`);
         }
       }
     }
-    
-    console.log(`\n🎉 Migration complete!`);
-    console.log(`✅ Successfully inserted: ${successCount} companies`);
-    console.log(`❌ Failed: ${errorCount} companies`);
-    
     // Test the final result
     const { data: testData, error: testError } = await supabase
       .from('companies')
@@ -134,14 +117,10 @@ async function createCompaniesInSupabase() {
       .limit(3);
     
     if (testError) {
-      console.error('❌ Test query failed:', testError);
     } else {
-      console.log(`\n📊 Final verification: ${testData.length} companies accessible via Supabase`);
-      console.table(testData);
     }
     
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
   }

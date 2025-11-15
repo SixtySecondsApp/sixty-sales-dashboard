@@ -190,7 +190,6 @@ serve(async (req) => {
     throw new Error(`Method ${req.method} not allowed`)
 
   } catch (error) {
-    console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

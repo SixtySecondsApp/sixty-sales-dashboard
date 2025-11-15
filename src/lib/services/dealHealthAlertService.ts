@@ -279,8 +279,6 @@ export async function generateAlertsForDeal(
   healthScore: DealHealthScore
 ): Promise<DealHealthAlert[]> {
   try {
-    console.log(`[DealHealthAlert] Generating alerts for deal ${dealId}`);
-
     // Get deal details
     const { data: deal, error: dealError } = await supabase
       .from('deals')
@@ -292,7 +290,6 @@ export async function generateAlertsForDeal(
       .single();
 
     if (dealError || !deal) {
-      console.error('[DealHealthAlert] Error fetching deal:', dealError);
       return [];
     }
 
@@ -304,7 +301,6 @@ export async function generateAlertsForDeal(
       .order('rule_type');
 
     if (rulesError || !rules) {
-      console.error('[DealHealthAlert] Error fetching rules:', rulesError);
       return [];
     }
 
@@ -335,7 +331,6 @@ export async function generateAlertsForDeal(
           .maybeSingle();
 
         if (existingAlert) {
-          console.log(`[DealHealthAlert] Alert already exists for ${alertData.alert_type}, skipping`);
           continue;
         }
 
@@ -364,7 +359,6 @@ export async function generateAlertsForDeal(
         .select();
 
       if (insertError) {
-        console.error('[DealHealthAlert] Error inserting alerts:', insertError);
         return [];
       }
 
@@ -374,13 +368,10 @@ export async function generateAlertsForDeal(
       for (const alert of insertedAlerts || []) {
         await sendAlertNotification(alert);
       }
-
-      console.log(`[DealHealthAlert] Generated ${generatedAlerts.length} alerts for deal ${dealId}`);
     }
 
     return generatedAlerts;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception generating alerts:', error);
     return [];
   }
 }
@@ -426,11 +417,8 @@ async function sendAlertNotification(alert: DealHealthAlert): Promise<void> {
           notification_sent_at: new Date().toISOString(),
         })
         .eq('id', alert.id);
-
-      console.log(`[DealHealthAlert] Notification sent for alert ${alert.id}`);
     }
   } catch (error) {
-    console.error('[DealHealthAlert] Error sending notification:', error);
   }
 }
 
@@ -439,8 +427,6 @@ async function sendAlertNotification(alert: DealHealthAlert): Promise<void> {
  */
 export async function generateAlertsForAllDeals(userId: string): Promise<number> {
   try {
-    console.log(`[DealHealthAlert] Generating alerts for all deals (user: ${userId})`);
-
     // Get all health scores for user
     const { data: healthScores, error } = await supabase
       .from('deal_health_scores')
@@ -448,7 +434,6 @@ export async function generateAlertsForAllDeals(userId: string): Promise<number>
       .eq('user_id', userId);
 
     if (error || !healthScores) {
-      console.error('[DealHealthAlert] Error fetching health scores:', error);
       return 0;
     }
 
@@ -459,11 +444,8 @@ export async function generateAlertsForAllDeals(userId: string): Promise<number>
       const alerts = await generateAlertsForDeal(healthScore.deal_id, healthScore);
       totalAlerts += alerts.length;
     }
-
-    console.log(`[DealHealthAlert] Generated ${totalAlerts} total alerts`);
     return totalAlerts;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception generating alerts:', error);
     return 0;
   }
 }
@@ -489,13 +471,11 @@ export async function getActiveAlerts(userId: string): Promise<DealHealthAlert[]
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[DealHealthAlert] Error fetching alerts:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('[DealHealthAlert] Exception fetching alerts:', error);
     return [];
   }
 }
@@ -512,13 +492,11 @@ export async function getDealAlerts(dealId: string): Promise<DealHealthAlert[]> 
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[DealHealthAlert] Error fetching deal alerts:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('[DealHealthAlert] Exception fetching deal alerts:', error);
     return [];
   }
 }
@@ -538,14 +516,10 @@ export async function acknowledgeAlert(alertId: string, userId: string): Promise
       .eq('id', alertId);
 
     if (error) {
-      console.error('[DealHealthAlert] Error acknowledging alert:', error);
       return false;
     }
-
-    console.log(`[DealHealthAlert] Alert ${alertId} acknowledged`);
     return true;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception acknowledging alert:', error);
     return false;
   }
 }
@@ -564,14 +538,10 @@ export async function resolveAlert(alertId: string): Promise<boolean> {
       .eq('id', alertId);
 
     if (error) {
-      console.error('[DealHealthAlert] Error resolving alert:', error);
       return false;
     }
-
-    console.log(`[DealHealthAlert] Alert ${alertId} resolved`);
     return true;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception resolving alert:', error);
     return false;
   }
 }
@@ -590,14 +560,10 @@ export async function dismissAlert(alertId: string): Promise<boolean> {
       .eq('id', alertId);
 
     if (error) {
-      console.error('[DealHealthAlert] Error dismissing alert:', error);
       return false;
     }
-
-    console.log(`[DealHealthAlert] Alert ${alertId} dismissed`);
     return true;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception dismissing alert:', error);
     return false;
   }
 }
@@ -638,7 +604,6 @@ export async function getAlertStats(userId: string): Promise<{
 
     return stats;
   } catch (error) {
-    console.error('[DealHealthAlert] Exception getting alert stats:', error);
     return { total: 0, critical: 0, warning: 0, info: 0, byType: {} };
   }
 }

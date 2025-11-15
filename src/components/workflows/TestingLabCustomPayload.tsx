@@ -78,7 +78,6 @@ export default function TestingLabCustomPayload({
       try {
         setPayloadHistory(JSON.parse(savedHistory));
       } catch (e) {
-        console.error('Failed to load payload history:', e);
       }
     }
   }, []);
@@ -153,7 +152,6 @@ export default function TestingLabCustomPayload({
         prev.map(h => h.id === historyEntry.id ? { ...h, success: true } : h)
       );
     } catch (error) {
-      console.error('Failed to start test:', error);
       // Update history entry with failure
       setPayloadHistory(prev => 
         prev.map((h, i) => i === 0 ? { ...h, success: false } : h)
@@ -204,7 +202,6 @@ export default function TestingLabCustomPayload({
           setPayloadText(JSON.stringify(payload, null, 2));
           setSelectedTemplate(null);
         } catch (error) {
-          console.error('Failed to import payload:', error);
         }
       };
       reader.readAsText(file);

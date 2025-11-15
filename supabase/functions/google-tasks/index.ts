@@ -8,8 +8,6 @@ const corsHeaders = {
 };
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  console.log('[Google Tasks] Refreshing access token...');
-  
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
   
@@ -28,7 +26,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Tasks] Token refresh failed:', errorData);
     throw new Error(`Failed to refresh token: ${errorData.error_description || 'Unknown error'}`);
   }
 
@@ -47,11 +44,8 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
     .eq('user_id', userId);
   
   if (updateError) {
-    console.error('[Google Tasks] Failed to update access token:', updateError);
     throw new Error('Failed to update access token in database');
   }
-  
-  console.log('[Google Tasks] Access token refreshed successfully');
   return data.access_token;
 }
 
@@ -98,9 +92,6 @@ interface SyncTasksRequest {
 }
 
 serve(async (req) => {
-  console.log('[Google Tasks] Request method:', req.method);
-  console.log('[Google Tasks] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -116,9 +107,6 @@ serve(async (req) => {
       const body = await req.clone().json();
       action = body.action;
     }
-    
-    console.log('[Google Tasks] Action:', action);
-
     // Get authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -141,12 +129,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google Tasks] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google Tasks] User verified:', user.id);
-
     // Get Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
@@ -156,7 +140,6 @@ serve(async (req) => {
       .single();
 
     if (integrationError || !integration) {
-      console.error('[Google Tasks] Integration not found:', integrationError);
       throw new Error('Google integration not found. Please connect your Google account first.');
     }
 
@@ -166,7 +149,6 @@ serve(async (req) => {
     const now = new Date();
     
     if (now >= expiresAt) {
-      console.log('[Google Tasks] Token expired, refreshing...');
       accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
@@ -190,7 +172,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to list task lists:', error);
           throw new Error(error.error?.message || 'Failed to list task lists');
         }
 
@@ -220,7 +201,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to list tasks:', error);
           throw new Error(error.error?.message || 'Failed to list tasks');
         }
 
@@ -237,15 +217,6 @@ serve(async (req) => {
         const taskListId = params.taskListId || '@default';
         
         // Log the exact parameters being used
-        console.log('[Google Tasks] Creating task with params:', {
-          taskListId,
-          title: params.title,
-          notes: params.notes?.substring(0, 100), // Log first 100 chars
-          due: params.due,
-          status: params.status,
-          position: params.position
-        });
-        
         const taskData: any = {
           title: params.title,
         };
@@ -258,9 +229,6 @@ serve(async (req) => {
         if (params.position) queryParams.set('position', params.position);
         
         const url = `https://tasks.googleapis.com/tasks/v1/lists/${taskListId}/tasks?${queryParams}`;
-        console.log('[Google Tasks] Request URL:', url);
-        console.log('[Google Tasks] Request body:', JSON.stringify(taskData));
-        
         const response = await fetch(url, {
           method: 'POST',
           headers: {
@@ -272,9 +240,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to create task:', error);
-          console.error('[Google Tasks] Task list ID was:', taskListId);
-          console.error('[Google Tasks] Task data was:', taskData);
           throw new Error(error.error?.message || 'Failed to create task');
         }
 
@@ -310,7 +275,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to update task:', error);
           throw new Error(error.error?.message || 'Failed to update task');
         }
 
@@ -338,7 +302,6 @@ serve(async (req) => {
 
         if (!response.ok && response.status !== 204) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to delete task:', error);
           throw new Error(error.error?.message || 'Failed to delete task');
         }
 
@@ -372,7 +335,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to create task list:', error);
           throw new Error(error.error?.message || 'Failed to create task list');
         }
 
@@ -408,7 +370,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.json();
-          console.error('[Google Tasks] Failed to sync tasks:', error);
           throw new Error(error.error?.message || 'Failed to sync tasks');
         }
 
@@ -426,7 +387,6 @@ serve(async (req) => {
 
         if (!listsResponse.ok) {
           const error = await listsResponse.json();
-          console.error('[Google Tasks] Failed to get task lists:', error);
           throw new Error(error.error?.message || 'Failed to get task lists');
         }
 
@@ -454,7 +414,6 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('[Google Tasks] Error:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error' 

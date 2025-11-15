@@ -170,7 +170,6 @@ export async function findCompanyByDomain(
     .single()
 
   if (error && error.code !== 'PGRST116') {
-    console.error('Error finding company by domain:', error)
     return null
   }
 
@@ -215,9 +214,6 @@ export async function findCompanyByFuzzyName(
   }
 
   if (bestMatch) {
-    console.log(
-      `Fuzzy matched "${name}" to "${bestMatch.name}" (similarity: ${highestSimilarity.toFixed(2)})`
-    )
   }
 
   return bestMatch
@@ -254,7 +250,6 @@ export async function createCompanyFromDomain(
         .single()
 
       if (updateError) {
-        console.error('Error updating company domain:', updateError)
         return existingCompany
       }
 
@@ -281,15 +276,10 @@ export async function createCompanyFromDomain(
   if (error) {
     // If duplicate domain, try to fetch it (race condition)
     if (error.code === '23505' && error.message?.includes('domain')) {
-      console.log(`Company domain ${domain} already exists (race condition), fetching...`)
       return await findCompanyByDomain(supabase, domain, userId)
     }
-
-    console.error('Error creating company from domain:', error)
     return null
   }
-
-  console.log(`Created new company: ${companyName} (${domain})`)
   return data
 }
 

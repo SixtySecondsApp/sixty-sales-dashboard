@@ -8,7 +8,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "
 const WEBHOOK_SECRET = Deno.env.get("SAVVYCAL_WEBHOOK_SECRET") ?? "";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error("Missing Supabase configuration for SavvyCal leads webhook");
 }
 
 type Nullable<T> = T | null | undefined;
@@ -118,7 +117,6 @@ serve(async (req) => {
   try {
     await verifySignature(req.headers, rawBody);
   } catch (error) {
-    console.error("SavvyCal signature verification failed:", error);
     return new Response(
       JSON.stringify({ error: "Invalid webhook signature" }),
       {
@@ -134,7 +132,6 @@ serve(async (req) => {
     const parsed = JSON.parse(rawBody);
     events = Array.isArray(parsed) ? parsed : [parsed];
   } catch (error) {
-    console.error("Failed to parse SavvyCal webhook payload:", error);
     return new Response(
       JSON.stringify({ error: "Invalid JSON payload" }),
       {
@@ -152,10 +149,6 @@ serve(async (req) => {
       const result = await processSavvyCalEvent(supabase, event);
       results.push(result);
     } catch (error) {
-      console.error("Failed to process SavvyCal event", {
-        error,
-        eventId: event?.id,
-      });
       results.push({
         success: false,
         external_event_id: event?.id ?? "unknown",
@@ -178,7 +171,6 @@ serve(async (req) => {
 
 async function verifySignature(headers: Headers, rawBody: string): Promise<void> {
   if (!WEBHOOK_SECRET) {
-    console.warn("SAVVYCAL_WEBHOOK_SECRET not configured; skipping signature validation");
     return;
   }
 
@@ -538,7 +530,6 @@ async function processSavvyCalEvent(
     });
 
   if (insertEventError) {
-    console.error("Failed to insert lead event record", insertEventError);
   }
 
   // Skip enrichment and prep for cancelled leads
@@ -556,11 +547,8 @@ async function processSavvyCalEvent(
         },
         body: JSON.stringify({ company_id: companyId }),
       }).catch((error) => {
-        console.error("Failed to trigger company enrichment:", error);
         // Non-blocking - enrichment failure shouldn't fail lead creation
       });
-      
-      console.log(`✅ Triggered enrichment for new company: ${companyId}`);
     }
 
     // Auto-enrich new lead - trigger lead prep generation
@@ -575,13 +563,9 @@ async function processSavvyCalEvent(
       },
       body: JSON.stringify({}),
     }).catch((error) => {
-      console.error("Failed to trigger lead prep generation:", error);
       // Non-blocking - prep failure shouldn't fail lead creation
     });
-    
-    console.log(`✅ Triggered auto-enrichment for new lead: ${leadData.id}`);
   } else {
-    console.log(`⏭️  Skipping enrichment for cancelled lead: ${leadData.id}`);
   }
 
   return {
@@ -636,7 +620,6 @@ async function resolveLeadOwnerId(
     .maybeSingle();
 
   if (error) {
-    console.error("Failed to fetch organizer profile", error);
     return null;
   }
 
@@ -742,7 +725,6 @@ async function ensureLeadSource(
     .single();
 
   if (error) {
-    console.error("Failed to upsert lead source", error, details);
     return null;
   }
 
@@ -769,7 +751,6 @@ async function upsertContact(
     .maybeSingle();
 
   if (fetchError) {
-    console.error("Failed to fetch existing contact", fetchError);
     return null;
   }
 
@@ -809,7 +790,6 @@ async function upsertContact(
     .single();
 
   if (error) {
-    console.error("Failed to create contact", error);
     return null;
   }
 
@@ -951,11 +931,8 @@ async function updateLeadCancellationStatus(
     .eq("id", leadId);
 
   if (error) {
-    console.error(`Failed to update lead ${leadId} to cancelled status:`, error);
     throw error;
   }
-
-  console.log(`✅ Updated lead ${leadId} to cancelled status`);
 }
 
 /**
@@ -1028,10 +1005,7 @@ async function updateLeadRescheduledStatus(
     .eq("id", leadId);
 
   if (error) {
-    console.error(`Failed to update lead ${leadId} with rescheduled meeting details:`, error);
     throw error;
   }
-
-  console.log(`✅ Updated lead ${leadId} with rescheduled meeting details`);
 }
 

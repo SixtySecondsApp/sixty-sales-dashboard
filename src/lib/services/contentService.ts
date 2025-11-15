@@ -310,8 +310,6 @@ export class ContentService {
 
       return data;
     } catch (error) {
-      console.error('Failed to extract topics:', error);
-
       if (error instanceof ContentServiceError) {
         throw error;
       }
@@ -433,8 +431,6 @@ export class ContentService {
 
       return data;
     } catch (error) {
-      console.error('Failed to generate content:', error);
-
       if (error instanceof ContentServiceError) {
         throw error;
       }
@@ -465,7 +461,6 @@ export class ContentService {
     try {
       // Validate input
       if (!meetingId || typeof meetingId !== 'string') {
-        console.warn('Invalid meeting ID for getCachedTopics');
         return [];
       }
 
@@ -480,7 +475,6 @@ export class ContentService {
       // No cached data available
       return [];
     } catch (error) {
-      console.warn('Failed to get cached topics:', error);
       // Gracefully return empty array on error
       return [];
     }
@@ -508,13 +502,11 @@ export class ContentService {
     try {
       // Validate input
       if (!meetingId || typeof meetingId !== 'string') {
-        console.warn('Invalid meeting ID for getCachedContent');
         return null;
       }
 
       const validContentTypes: ContentType[] = ['social', 'blog', 'video', 'email'];
       if (!validContentTypes.includes(contentType)) {
-        console.warn('Invalid content type for getCachedContent');
         return null;
       }
 
@@ -530,7 +522,6 @@ export class ContentService {
 
       if (error) {
         // Log error but return null gracefully (no content found)
-        console.warn('No cached content found:', error.message);
         return null;
       }
 
@@ -540,7 +531,6 @@ export class ContentService {
 
       return data;
     } catch (error) {
-      console.warn('Failed to get cached content:', error);
       // Gracefully return null on error
       return null;
     }
@@ -624,8 +614,6 @@ export class ContentService {
         breakdown,
       };
     } catch (error) {
-      console.error('Failed to calculate costs:', error);
-
       if (error instanceof ContentServiceError) {
         throw error;
       }
@@ -654,7 +642,6 @@ export class ContentService {
     try {
       // Validate input
       if (!meetingId || typeof meetingId !== 'string') {
-        console.warn('Invalid meeting ID for getAllGeneratedContent');
         return [];
       }
 
@@ -668,7 +655,6 @@ export class ContentService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Failed to fetch generated content:', error);
         return [];
       }
 
@@ -684,7 +670,6 @@ export class ContentService {
         version: item.version,
       }));
     } catch (error) {
-      console.error('Failed to get all generated content:', error);
       return [];
     }
   }
@@ -713,7 +698,6 @@ export class ContentService {
 
       return !!data.transcript && data.transcript.trim().length > 0;
     } catch (error) {
-      console.warn('Failed to check transcript availability:', error);
       return false;
     }
   }

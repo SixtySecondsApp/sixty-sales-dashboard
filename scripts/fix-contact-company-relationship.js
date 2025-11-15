@@ -19,12 +19,9 @@ const client = new Client({
 
 async function fixContactCompanyRelationship() {
   try {
-    console.log('🔧 Checking and fixing contact-company relationship...');
-    
     await client.connect();
     
     // Step 1: Check if companies table exists
-    console.log('\n📊 Checking if companies table exists...');
     const companiesExists = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -34,8 +31,6 @@ async function fixContactCompanyRelationship() {
     `);
     
     if (!companiesExists.rows[0].exists) {
-      console.log('❌ Companies table does not exist. Creating it...');
-      
       const createCompaniesTable = `
         CREATE TABLE companies (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -59,13 +54,10 @@ async function fixContactCompanyRelationship() {
       `;
       
       await client.query(createCompaniesTable);
-      console.log('✅ Companies table created');
     } else {
-      console.log('✅ Companies table exists');
     }
 
     // Step 2: Check if contacts table has company_id column
-    console.log('\n🔍 Checking contacts table structure...');
     const contactsColumns = await client.query(`
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns 
@@ -73,14 +65,9 @@ async function fixContactCompanyRelationship() {
       AND table_schema = 'public'
       AND column_name IN ('company_id', 'full_name', 'title', 'linkedin_url', 'is_primary', 'owner_id');
     `);
-    
-    console.table(contactsColumns.rows);
-    
     const hasCompanyId = contactsColumns.rows.some(col => col.column_name === 'company_id');
     
     if (!hasCompanyId) {
-      console.log('❌ Contacts table missing company_id column. Adding it...');
-      
       const addContactsColumns = `
         ALTER TABLE contacts 
         ADD COLUMN IF NOT EXISTS company_id UUID,
@@ -115,13 +102,10 @@ async function fixContactCompanyRelationship() {
       `;
       
       await client.query(addContactsColumns);
-      console.log('✅ Added missing columns to contacts table');
     } else {
-      console.log('✅ Contacts table has company_id column');
     }
 
     // Step 3: Check and add foreign key constraint
-    console.log('\n🔗 Checking foreign key relationships...');
     const foreignKeys = await client.query(`
       SELECT
         tc.constraint_name,
@@ -141,27 +125,18 @@ async function fixContactCompanyRelationship() {
     `);
     
     if (foreignKeys.rows.length === 0) {
-      console.log('❌ Foreign key constraint missing. Adding it...');
-      
       try {
         await client.query(`
           ALTER TABLE contacts 
           ADD CONSTRAINT fk_contacts_company_id 
           FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
         `);
-        console.log('✅ Foreign key constraint added');
       } catch (err) {
-        console.log('⚠️ Could not add foreign key constraint:', err.message);
-        console.log('   This might be due to existing data inconsistencies');
       }
     } else {
-      console.log('✅ Foreign key constraint exists');
-      console.table(foreignKeys.rows);
     }
 
     // Step 4: Test the relationship with Supabase
-    console.log('\n🧪 Testing Supabase relationship...');
-    
     try {
       const { data: testContact, error: testError } = await supabase
         .from('contacts')
@@ -173,28 +148,17 @@ async function fixContactCompanyRelationship() {
         .single();
       
       if (testError) {
-        console.log('❌ Supabase relationship test failed:', testError.message);
-        console.log('   Using manual joins as fallback');
       } else {
-        console.log('✅ Supabase relationship working!');
-        console.log('   Sample data:', {
-          contact: testContact?.email,
-          company: testContact?.companies?.name
-        });
       }
     } catch (err) {
-      console.log('⚠️ Relationship test error:', err.message);
     }
 
     // Step 5: Insert some sample companies if none exist
-    console.log('\n🏢 Checking if companies need sample data...');
     const { data: existingCompanies, error: companiesError } = await supabase
       .from('companies')
       .select('*', { count: 'exact' });
     
     if (!companiesError && existingCompanies && existingCompanies.length === 0) {
-      console.log('🌱 Inserting sample companies...');
-      
       const sampleCompanies = [
         {
           name: 'Tech Solutions Inc.',
@@ -221,20 +185,10 @@ async function fixContactCompanyRelationship() {
         .insert(sampleCompanies);
       
       if (insertError) {
-        console.log('❌ Failed to insert sample companies:', insertError.message);
       } else {
-        console.log('✅ Sample companies inserted');
       }
     }
-
-    console.log('\n🎉 Relationship check and fix complete!');
-    console.log('💡 If the issue persists, try:');
-    console.log('   1. Restart your development server');
-    console.log('   2. Clear browser cache');
-    console.log('   3. Check Supabase dashboard for schema refresh');
-    
   } catch (error) {
-    console.error('❌ Fix script failed:', error);
   } finally {
     await client.end();
   }

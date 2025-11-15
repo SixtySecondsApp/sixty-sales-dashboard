@@ -86,7 +86,6 @@ export class UnifiedAutomationEngine {
 
       return this.mapFromDatabase(data);
     } catch (error) {
-      console.error('Failed to create automation rule:', error);
       throw error;
     }
   }
@@ -106,7 +105,6 @@ export class UnifiedAutomationEngine {
 
       return data?.map(this.mapFromDatabase) || [];
     } catch (error) {
-      console.error('Failed to fetch automation rules:', error);
       return [];
     }
   }
@@ -138,7 +136,6 @@ export class UnifiedAutomationEngine {
 
       return this.mapFromDatabase(data);
     } catch (error) {
-      console.error('Failed to update automation rule:', error);
       throw error;
     }
   }
@@ -155,7 +152,6 @@ export class UnifiedAutomationEngine {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to delete automation rule:', error);
       throw error;
     }
   }
@@ -213,7 +209,6 @@ export class UnifiedAutomationEngine {
 
       return executions;
     } catch (error) {
-      console.error('Failed to execute automation rules:', error);
       throw error;
     }
   }
@@ -272,7 +267,6 @@ export class UnifiedAutomationEngine {
 
       return data?.map(this.mapExecutionFromDatabase) || [];
     } catch (error) {
-      console.error('Failed to fetch rule executions:', error);
       return [];
     }
   }
@@ -326,7 +320,6 @@ export class UnifiedAutomationEngine {
         topRules
       };
     } catch (error) {
-      console.error('Failed to fetch user analytics:', error);
       return {
         totalRules: 0,
         activeRules: 0,
@@ -550,8 +543,6 @@ export class UnifiedAutomationEngine {
     const message = this.substituteVariables(config.message || 'Automation triggered', triggerData);
 
     // For now, just log the notification
-    console.log(`📧 Notification: ${message} (Recipients: ${config.recipients?.join(', ')})`);
-
     return { 
       message, 
       recipients: config.recipients || ['user'],
@@ -578,7 +569,6 @@ export class UnifiedAutomationEngine {
 
       if (error) throw error;
     } catch (error) {
-      console.error('Failed to log execution:', error);
     }
   }
 
@@ -598,7 +588,6 @@ export class UnifiedAutomationEngine {
 
       return data?.map(this.mapExecutionFromDatabase) || [];
     } catch (error) {
-      console.error('Failed to fetch user executions:', error);
       return [];
     }
   }

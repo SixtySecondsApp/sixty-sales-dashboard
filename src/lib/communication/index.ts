@@ -111,23 +111,14 @@ export {
  */
 export function initializeCommunicationLayer(): Promise<void> {
   return new Promise((resolve) => {
-    console.log('🚀 Initializing Communication Layer...');
-
     // Initialize service adapters
     const registry = ServiceAdapterRegistry.getInstance();
-    console.log(`📦 Service adapters registered: ${registry.list().join(', ')}`);
-
     // Initialize mediator
     const mediator = ComponentMediator.getInstance();
-    console.log(`🤝 Component mediator initialized`);
-
     // Setup event debugging in development
     if (process.env.NODE_ENV === 'development') {
       eventDebugUtils.enableEventLogging();
-      console.log('🐛 Event logging enabled for development');
     }
-
-    console.log('✅ Communication Layer initialized successfully');
     resolve();
   });
 }
@@ -160,7 +151,6 @@ export async function checkCommunicationHealth(): Promise<{
       events: eventStats.totalEvents
     };
   } catch (error) {
-    console.error('Communication health check failed:', error);
     return {
       healthy: false,
       services: {},

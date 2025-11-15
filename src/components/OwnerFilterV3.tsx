@@ -43,7 +43,6 @@ export function OwnerFilterV3({
       
       // Only set default if parent hasn't provided a value
       if (selectedOwnerId === undefined) {
-        console.log('[OwnerFilterV3] Initializing to My Items:', userData.id);
         onOwnerChange(userData.id);
       }
     }
@@ -170,7 +169,6 @@ export function OwnerFilterV3({
   const handleOptionSelect = (ownerId: string | null | undefined) => {
     // Only trigger onChange if the value actually changes
     if (ownerId !== selectedOwnerId) {
-      console.log('[OwnerFilterV3] Owner changed from', selectedOwnerId, 'to', ownerId);
       onOwnerChange(ownerId);
     }
     setIsOpen(false);

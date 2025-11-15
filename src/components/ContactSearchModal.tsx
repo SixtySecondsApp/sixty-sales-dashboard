@@ -175,7 +175,6 @@ export function ContactSearchModal({
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
-      console.log('ContactSearchModal opened - fetching contacts...');
       fetchContacts(); // Fetch contacts when modal opens
       setSearchQuery(prefilledEmail || '');
       setShowCreateForm(false);

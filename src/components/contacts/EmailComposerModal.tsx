@@ -195,7 +195,6 @@ const EmailComposerModal: React.FC<EmailComposerModalProps> = ({
         toast.error(result.error || 'Failed to send email');
       }
     } catch (error) {
-      console.error('Error sending email:', error);
       toast.error('Failed to send email. Please try again.');
     } finally {
       setIsSending(false);

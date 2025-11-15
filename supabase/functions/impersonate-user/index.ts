@@ -85,8 +85,6 @@ serve(async (req) => {
 
     if (sessionError || !sessionData) {
       // Fallback to magic link if session creation fails
-      console.warn('Session creation failed, falling back to magic link:', sessionError)
-      
       const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'magiclink',
         email: targetUser.user.email,
@@ -129,7 +127,6 @@ serve(async (req) => {
       })
 
     if (logError) {
-      console.error('Failed to log impersonation:', logError)
     }
 
     // Return the session data for impersonation
@@ -146,7 +143,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Impersonation error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

@@ -9,8 +9,6 @@ const client = new Client({
 
 async function fixSpecificContacts() {
   try {
-    console.log('🔧 Fixing specific contacts with missing names...\n');
-    
     await client.connect();
 
     // Update specific contacts
@@ -26,25 +24,17 @@ async function fixSpecificContacts() {
         SET first_name = $1, last_name = $2, updated_at = NOW()
         WHERE email = $3;
       `, [update.firstName, update.lastName, update.email]);
-      
-      console.log(`✅ Updated: ${update.email} → ${update.firstName}`);
     }
 
     // Verify updates
-    console.log('\n📊 Verification:');
     const verification = await client.query(`
       SELECT email, first_name, last_name, full_name 
       FROM contacts 
       WHERE email IN ('tiffany@foundbenefits.com', 'hello@empauher.com', 'carolyn@marticulate.com');
     `);
-    
-    console.table(verification.rows);
-
   } catch (error) {
-    console.error('❌ Fix failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

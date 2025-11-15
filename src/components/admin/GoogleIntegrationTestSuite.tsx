@@ -512,7 +512,6 @@ export const GoogleIntegrationTestSuite: React.FC<GoogleIntegrationTestSuiteProp
       toast.success('Google Integration tests completed successfully!');
       
     } catch (error: any) {
-      console.error('Test suite error:', error);
       toast.error(`Test suite failed: ${error.message}`);
     } finally {
       setIsRunning(false);

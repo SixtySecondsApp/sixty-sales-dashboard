@@ -118,7 +118,6 @@ const VisualWorkflowBuilder: React.FC<VisualWorkflowBuilderProps> = ({
   };
 
   const handleTest = () => {
-    console.log('Testing workflow:', workflowData);
     // Implement test logic here
   };
 

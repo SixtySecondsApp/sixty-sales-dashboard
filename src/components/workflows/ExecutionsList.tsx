@@ -65,7 +65,6 @@ const ExecutionsList: React.FC<ExecutionsListProps> = ({ onExecutionSelect, sele
       
       setExecutions(sorted);
     } catch (error) {
-      console.error('Failed to load executions:', error);
     } finally {
       setLoading(false);
     }

@@ -13,7 +13,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase credentials');
   process.exit(1);
 }
 
@@ -29,18 +28,13 @@ async function checkContactsStructure() {
       .single();
     
     if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching contact:', error);
       return;
     }
     
     if (contact) {
-      console.log('Contact columns:', Object.keys(contact));
-      console.log('\nSample contact:', contact);
     } else {
-      console.log('No contacts found in the table');
     }
   } catch (error) {
-    console.error('Error:', error);
   }
 }
 

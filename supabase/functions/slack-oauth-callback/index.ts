@@ -8,10 +8,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  console.log('[Slack OAuth] Request method:', req.method);
-  console.log('[Slack OAuth] Request URL:', req.url);
-  console.log('[Slack OAuth] Headers:', Object.fromEntries(req.headers.entries()));
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -30,10 +26,6 @@ serve(async (req) => {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state'); // Contains user_id
-    
-    console.log('[Slack OAuth] Received code:', code ? 'present' : 'missing');
-    console.log('[Slack OAuth] Received state:', state ? 'present' : 'missing');
-    
     if (!code) {
       throw new Error('No authorization code provided');
     }
@@ -41,10 +33,6 @@ serve(async (req) => {
     // Exchange code for access token
     const clientId = Deno.env.get('SLACK_CLIENT_ID') || '';
     const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET') || '';
-    
-    console.log('[Slack OAuth] Client ID configured:', clientId ? 'yes' : 'no');
-    console.log('[Slack OAuth] Client Secret configured:', clientSecret ? 'yes' : 'no');
-    
     const slackResponse = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
@@ -80,15 +68,6 @@ serve(async (req) => {
     }
 
     // Log the Slack data for debugging
-    console.log('[Slack OAuth] Slack data received:', {
-      team_id: slackData.team?.id,
-      team_name: slackData.team?.name,
-      bot_user_id: slackData.bot_user_id,
-      app_id: slackData.app_id,
-      has_access_token: !!slackData.access_token,
-      scope: slackData.scope,
-    });
-
     // Store the access token in database
     const { data: integration, error: dbError } = await supabase
       .from('slack_integrations')
@@ -110,7 +89,6 @@ serve(async (req) => {
       .single();
 
     if (dbError) {
-      console.error('[Slack OAuth] Database error details:', dbError);
       const errorMessage = dbError.message || JSON.stringify(dbError);
       throw new Error(`Database error: ${errorMessage}`);
     }
@@ -156,8 +134,6 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Slack OAuth error:', error);
-    
     // Redirect with error
     const redirectUrl = `${Deno.env.get('PUBLIC_URL')}/workflows?slack_error=${encodeURIComponent(error.message)}`;
     

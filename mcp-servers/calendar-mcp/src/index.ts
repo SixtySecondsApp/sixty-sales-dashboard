@@ -58,11 +58,8 @@ function validateEnvironment(): EnvConfig {
   }
 
   if (missingVars.length > 0) {
-    console.error('Missing required environment variables:');
     missingVars.forEach(varName => {
-      console.error(`  - ${varName}`);
     });
-    console.error('\nPlease set these environment variables and restart the server.');
     process.exit(1);
   }
 
@@ -141,8 +138,6 @@ class CalendarMcpServer {
         };
 
       } catch (error) {
-        console.error(`Error in tool ${name}:`, error);
-        
         if (error instanceof McpError) {
           throw error;
         }
@@ -173,11 +168,9 @@ class CalendarMcpServer {
 
   private setupErrorHandling() {
     this.server.onerror = (error) => {
-      console.error('[MCP Error]', error);
     };
 
     process.on('SIGINT', async () => {
-      console.log('\\nShutting down Calendar MCP server...');
       await this.server.close();
       process.exit(0);
     });
@@ -202,18 +195,12 @@ class CalendarMcpServer {
       }
 
       this.toolHandler = new CalendarToolHandler(this.calendarClient);
-      
-      console.log('✅ Calendar client initialized successfully');
-      
       // Test authentication if tokens are available
       if (this.calendarClient.isAuthenticated()) {
-        console.log('✅ Calendar client is authenticated');
       } else {
-        console.log('⚠️  Calendar client requires authentication');
       }
 
     } catch (error) {
-      console.error('❌ Failed to initialize calendar client:', error);
       throw error;
     }
   }
@@ -316,23 +303,16 @@ class CalendarMcpServer {
   }
 
   async run() {
-    console.log('🚀 Starting Calendar MCP server...');
-    
     try {
       // Initialize calendar client
       await this.initializeCalendarClient();
       
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
-      
-      console.log('✅ Calendar MCP server running on stdio');
-      console.log('📅 Available tools:');
       CALENDAR_TOOLS.forEach(tool => {
-        console.log(`  - ${tool.name}: ${tool.description}`);
       });
       
     } catch (error) {
-      console.error('❌ Failed to start server:', error);
       process.exit(1);
     }
   }

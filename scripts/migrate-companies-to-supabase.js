@@ -20,14 +20,10 @@ const neonClient = new Client({
 
 async function migrateCompaniesToSupabase() {
   try {
-    console.log('🔧 Migrating companies to Supabase with service role key...');
-    
     // Connect to Neon
     await neonClient.connect();
     
     // Step 1: Create the companies table in Supabase
-    console.log('📋 Creating companies table in Supabase...');
-    
     const createTableSQL = `
       -- Create companies table
       CREATE TABLE IF NOT EXISTS companies (
@@ -67,15 +63,9 @@ async function migrateCompaniesToSupabase() {
     const { error: createError } = await supabase.rpc('exec_sql', { sql: createTableSQL });
     
     if (createError) {
-      console.error('❌ Failed to create table:', createError);
       return;
     }
-    
-    console.log('✅ Companies table created successfully');
-    
     // Step 2: Get data from Neon
-    console.log('📊 Getting companies data from Neon...');
-    
     const companiesResult = await neonClient.query(`
       SELECT 
         name, 
@@ -92,12 +82,7 @@ async function migrateCompaniesToSupabase() {
       FROM companies 
       ORDER BY created_at DESC;
     `);
-    
-    console.log(`Found ${companiesResult.rows.length} companies to migrate`);
-    
     // Step 3: Insert companies in batches
-    console.log('📥 Inserting companies...');
-    
     const batchSize = 50;
     let successCount = 0;
     let errorCount = 0;
@@ -124,38 +109,21 @@ async function migrateCompaniesToSupabase() {
         );
       
       if (batchError) {
-        console.error(`❌ Batch ${Math.floor(i/batchSize) + 1} failed:`, batchError.message);
         errorCount += batch.length;
       } else {
         successCount += batch.length;
-        console.log(`✅ Inserted batch ${Math.floor(i/batchSize) + 1}: ${batch.length} companies`);
       }
     }
-    
-    console.log(`\n🎉 Migration complete!`);
-    console.log(`✅ Successfully migrated: ${successCount} companies`);
-    console.log(`❌ Failed: ${errorCount} companies`);
-    
     // Step 4: Verify the migration
-    console.log('\n📊 Verifying migration...');
-    
     const { data: verifyData, error: verifyError, count } = await supabase
       .from('companies')
       .select('*', { count: 'exact' })
       .limit(3);
     
     if (verifyError) {
-      console.error('❌ Verification failed:', verifyError);
     } else {
-      console.log(`✅ Verification successful: ${count} companies in Supabase`);
-      console.table(verifyData);
     }
-    
-    console.log('\n🚀 Companies table is now ready for the React app!');
-    console.log('   Navigate to http://localhost:5175/companies to test');
-    
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
   }

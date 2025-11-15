@@ -78,27 +78,13 @@ class EmailService {
           Charset: 'UTF-8',
         };
       }
-
-      console.log('📧 Sending email via AWS SES:', {
-        from: sendParams.Source,
-        to: recipients,
-        subject,
-        hasPlainText: !!plainText,
-        hasHtml: !!html,
-      });
-
       const result = await this.sesClient.sendEmail(sendParams);
-      
-      console.log('✅ Email sent successfully:', result.MessageId);
-      
       return {
         success: true,
         messageId: result.MessageId,
       };
       
     } catch (error) {
-      console.error('❌ Failed to send email:', error);
-      
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error sending email',

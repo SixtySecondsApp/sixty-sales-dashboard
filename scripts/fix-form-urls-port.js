@@ -11,15 +11,12 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function fixFormUrls() {
-  console.log('🔧 Fixing form URLs to use port 5173...\n');
-
   try {
     // Get all workflows with form nodes
     const { data: workflows, error: workflowError } = await supabase
@@ -56,9 +53,6 @@ async function fixFormUrls() {
 
           if (nodeUpdated) {
             needsUpdate = true;
-            console.log(`📝 Updated form URLs in workflow ${workflow.id}:`);
-            console.log(`   Test: ${config.testUrl}`);
-            console.log(`   Prod: ${config.productionUrl}`);
             return {
               ...node,
               data: {
@@ -84,19 +78,12 @@ async function fixFormUrls() {
           .eq('id', workflow.id);
 
         if (updateError) {
-          console.error(`❌ Error updating workflow ${workflow.id}:`, updateError);
         } else {
           updatedCount++;
-          console.log(`✅ Successfully updated workflow ${workflow.id}\n`);
         }
       }
     }
-
-    console.log(`\n🎉 Complete! Updated ${updatedCount} workflows.`);
-    console.log('All form URLs now use port 5173.');
-
   } catch (error) {
-    console.error('❌ Error fixing form URLs:', error);
   }
 }
 

@@ -62,48 +62,24 @@ async function captureWithCustomAPI(
   try {
     const apiUrl = Deno.env.get('CUSTOM_THUMBNAIL_API_URL') || 
       'https://pnip1dhixe.execute-api.eu-west-2.amazonaws.com/fathom-thumbnail-generator/thumbnail'
-    
-    console.log(`📸 Calling custom thumbnail API...`)
-    console.log(`   API URL: ${apiUrl}`)
-    console.log(`   Share URL: ${shareUrl}`)
-    console.log(`   Recording ID: ${recordingId}`)
-    
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fathom_url: shareUrl }),
       signal: AbortSignal.timeout(30000) // 30 second timeout
     })
-    
-    console.log(`   Response status: ${response.status}`)
-    
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Custom API error: ${response.status}`)
-      console.error(`   Error details: ${errorText.substring(0, 500)}`)
       return null
     }
     
     const data: CustomAPIResponse = await response.json()
-    
-    console.log(`   API Response:`)
-    console.log(`     message: ${data.message}`)
-    console.log(`     thumbnail_size: ${data.thumbnail_size} bytes`)
-    console.log(`     s3_location: ${data.s3_location}`)
-    console.log(`     http_url: ${data.http_url}`)
-    
     if (data.http_url) {
-      console.log(`✅ Thumbnail generated successfully via custom API`)
-      console.log(`   Final URL: ${data.http_url}`)
       return data.http_url
     }
-    
-    console.error('❌ Custom API returned no http_url')
     return null
   } catch (error) {
-    console.error('❌ Custom API exception:', error instanceof Error ? error.message : String(error))
     if (error instanceof Error && error.stack) {
-      console.error(`   Stack trace: ${error.stack.substring(0, 300)}`)
     }
     return null
   }
@@ -114,9 +90,6 @@ async function captureWithCustomAPI(
  */
 async function fetchThumbnailFromShareUrl(shareUrl: string): Promise<string | null> {
   try {
-    console.log(`📄 Attempting og:image scraping from share page...`)
-    console.log(`   URL: ${shareUrl}`)
-    
     const res = await fetch(shareUrl, {
       headers: {
         'User-Agent': 'Sixty/1.0 (+thumbnail-fetcher)',
@@ -126,7 +99,6 @@ async function fetchThumbnailFromShareUrl(shareUrl: string): Promise<string | nu
     })
     
     if (!res.ok) {
-      console.log(`❌ Share page fetch failed: ${res.status}`)
       return null
     }
     
@@ -142,15 +114,11 @@ async function fetchThumbnailFromShareUrl(shareUrl: string): Promise<string | nu
     for (const pattern of patterns) {
       const match = html.match(pattern)
       if (match && match[1]) {
-        console.log(`✅ Found og:image: ${match[1]}`)
         return match[1]
       }
     }
-    
-    console.log(`❌ No og:image meta tag found`)
     return null
   } catch (error) {
-    console.error(`❌ og:image scraping failed:`, error instanceof Error ? error.message : String(error))
     return null
   }
 }
@@ -159,63 +127,39 @@ async function fetchThumbnailFromShareUrl(shareUrl: string): Promise<string | nu
  * Main handler
  */
 serve(async (req) => {
-  console.log(`🚀 Thumbnail Generator V2 - Function invoked: ${req.method}`)
-  
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    console.log('📥 Parsing request body...')
     const { recording_id, share_url, fathom_embed_url, timestamp_seconds, meeting_id }: ThumbnailRequest = await req.json()
-
-    console.log(`   recording_id: ${recording_id}`)
-    console.log(`   share_url: ${share_url}`)
-    console.log(`   fathom_embed_url: ${fathom_embed_url}`)
-    console.log(`   timestamp_seconds: ${timestamp_seconds}`)
-    console.log(`   meeting_id: ${meeting_id}`)
-
     if (!recording_id || !share_url) {
-      console.error('❌ Missing required fields')
       throw new Error('Missing required fields: recording_id and share_url')
     }
-
-    console.log(`📸 Generating thumbnail for recording ${recording_id}...`)
-
     // Normalize share URL
     const normalizedShareUrl = normalizeFathomShareUrl(share_url)
-    console.log(`📍 Normalized share URL: ${normalizedShareUrl}`)
-
     let thumbnailUrl: string | null = null
 
     // Try custom API first (primary method)
     if (Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
-      console.log('🎯 Trying custom thumbnail API...')
       thumbnailUrl = await captureWithCustomAPI(normalizedShareUrl, recording_id)
     } else {
-      console.log('⏭️  Thumbnail generation disabled (ENABLE_VIDEO_THUMBNAILS != true)')
     }
 
     // Fallback to og:image scraping
     if (!thumbnailUrl) {
-      console.log('🔄 Custom API failed, trying og:image scraping...')
       thumbnailUrl = await fetchThumbnailFromShareUrl(normalizedShareUrl)
     }
 
     // Final fallback: placeholder image
     if (!thumbnailUrl) {
-      console.log('⚠️  All methods failed, using placeholder')
       const firstLetter = (share_url.match(/\/([A-Za-z])/)?.[1] || 'M').toUpperCase()
       thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
     }
-
-    console.log(`✅ Final thumbnail URL: ${thumbnailUrl}`)
-
     // If meeting_id provided, persist to database using service role
     let dbUpdated = false
     if (meeting_id && thumbnailUrl) {
       try {
-        console.log(`💾 Updating database for meeting ${meeting_id}...`)
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
         const supabase = createClient(supabaseUrl, supabaseKey)
@@ -227,12 +171,9 @@ serve(async (req) => {
         
         if (!updateError) {
           dbUpdated = true
-          console.log(`✅ Database updated successfully`)
         } else {
-          console.error(`❌ Database update failed:`, updateError)
         }
       } catch (e) {
-        console.warn('⚠️  Failed to persist thumbnail_url:', e instanceof Error ? e.message : String(e))
       }
     }
 
@@ -251,7 +192,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Thumbnail generation error:', error)
     return new Response(
       JSON.stringify({
         success: false,

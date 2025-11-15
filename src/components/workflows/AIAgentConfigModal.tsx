@@ -137,7 +137,6 @@ Always provide helpful, accurate information and take appropriate actions using 
         await fetchModelsForProvider(formData.modelProvider);
       }
     } catch (error) {
-      console.error('Error loading user/models:', error);
     }
   };
 
@@ -152,7 +151,6 @@ Always provide helpful, accurate information and take appropriate actions using 
         }));
       }
     } catch (error) {
-      console.error(`Error fetching models for ${provider}:`, error);
     } finally {
       setLoadingModels(false);
     }

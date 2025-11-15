@@ -113,7 +113,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      console.error('[generate-marketing-content] Missing authorization header')
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Missing authorization header' },
         401
@@ -124,7 +123,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       body = await req.json()
     } catch (error) {
-      console.error('[generate-marketing-content] Invalid JSON body:', error)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Invalid JSON in request body' },
         400
@@ -140,7 +138,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Validate meeting_id
     if (!meeting_id || typeof meeting_id !== 'string') {
-      console.error('[generate-marketing-content] Invalid meeting_id:', meeting_id)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Invalid meeting_id: must be a valid UUID string' },
         400
@@ -149,7 +146,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Validate content_type
     if (!VALID_CONTENT_TYPES.includes(content_type)) {
-      console.error('[generate-marketing-content] Invalid content_type:', content_type)
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -165,10 +161,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       selected_topic_indices.length === 0 ||
       !selected_topic_indices.every((idx) => typeof idx === 'number' && idx >= 0)
     ) {
-      console.error(
-        '[generate-marketing-content] Invalid selected_topic_indices:',
-        selected_topic_indices
-      )
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -177,11 +169,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         400
       )
     }
-
-    console.log(
-      `[generate-marketing-content] Processing meeting ${meeting_id}, type: ${content_type}, topics: ${selected_topic_indices.join(',')} (regenerate: ${regenerate})`
-    )
-
     // ========================================================================
     // 2. Initialize Supabase Client
     // ========================================================================
@@ -203,7 +190,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      console.error('[generate-marketing-content] User authentication failed:', userError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Authentication failed', details: userError?.message },
         401
@@ -229,13 +215,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .single()
 
       if (cachedContent && !cacheError) {
-        console.log(
-          `[generate-marketing-content] Cache hit for meeting ${meeting_id}, type ${content_type}`
-        )
-
         const responseTime = Date.now() - startTime
-        console.log(`[generate-marketing-content] Returned cached content in ${responseTime}ms`)
-
         return jsonResponse<SuccessResponse>({
           success: true,
           content: {
@@ -254,10 +234,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           },
         })
       }
-
-      console.log(`[generate-marketing-content] Cache miss for meeting ${meeting_id}, type ${content_type}`)
     } else {
-      console.log(`[generate-marketing-content] Skipping cache due to regenerate=true`)
     }
 
     // ========================================================================
@@ -271,7 +248,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .single()
 
     if (meetingError || !meeting) {
-      console.error('[generate-marketing-content] Meeting not found or access denied:', meetingError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Meeting not found or access denied' },
         404
@@ -280,7 +256,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     // Validate transcript availability
     if (!meeting.transcript_text || meeting.transcript_text.trim().length < 50) {
-      console.error('[generate-marketing-content] No transcript available for meeting:', meeting_id)
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -306,7 +281,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .single()
 
     if (topicsError || !topicsData) {
-      console.error('[generate-marketing-content] Topics not found:', topicsError)
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -323,7 +297,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // Validate topic indices
     const invalidIndices = selected_topic_indices.filter((idx) => idx >= allTopics.length)
     if (invalidIndices.length > 0) {
-      console.error('[generate-marketing-content] Invalid topic indices:', invalidIndices)
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -334,8 +307,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const selectedTopics = selected_topic_indices.map((idx) => allTopics[idx])
-    console.log(`[generate-marketing-content] Selected ${selectedTopics.length} topics`)
-
     // ========================================================================
     // 6. Build Transcript Excerpt
     // ========================================================================
@@ -348,7 +319,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!anthropicApiKey) {
-      console.error('[generate-marketing-content] ANTHROPIC_API_KEY not configured')
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'AI service not configured' },
         500
@@ -402,8 +372,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('[generate-marketing-content] Claude API error:', response.status, errorText)
-
         // Retry logic for specific errors
         if (response.status === 429 || response.status === 503) {
           return jsonResponse<ErrorResponse>(
@@ -426,13 +394,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       inputTokens = data.usage?.input_tokens || 0
       outputTokens = data.usage?.output_tokens || 0
       tokensUsed = inputTokens + outputTokens
-
-      console.log(
-        `[generate-marketing-content] Claude API success (${inputTokens} input, ${outputTokens} output tokens)`
-      )
     } catch (error) {
-      console.error('[generate-marketing-content] Claude API call failed:', error)
-
       if (error instanceof Error && error.name === 'AbortError') {
         return jsonResponse<ErrorResponse>(
           { success: false, error: 'Request timeout', details: 'AI processing took too long' },
@@ -452,9 +414,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ========================================================================
 
     const { title, content } = parseGeneratedContent(generatedText, content_type)
-
-    console.log(`[generate-marketing-content] Generated content: ${content.length} chars`)
-
     // ========================================================================
     // 9. Calculate Cost
     // ========================================================================
@@ -462,11 +421,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const costCents = Math.ceil(
       inputTokens * INPUT_COST_PER_TOKEN * 100 + outputTokens * OUTPUT_COST_PER_TOKEN * 100
     )
-
-    console.log(
-      `[generate-marketing-content] Estimated cost: ${costCents} cents ($${(costCents / 100).toFixed(4)})`
-    )
-
     // ========================================================================
     // 10. Store in Database with Versioning
     // ========================================================================
@@ -520,7 +474,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .single()
 
     if (insertError || !insertedContent) {
-      console.error('[generate-marketing-content] Database insert failed:', insertError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Failed to store content', details: insertError?.message },
         500
@@ -528,9 +481,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     const contentId = insertedContent.id
-
-    console.log(`[generate-marketing-content] Stored content (version ${newVersion}) with ID: ${contentId}`)
-
     // ========================================================================
     // 11. Store Topic Links in Junction Table
     // ========================================================================
@@ -546,10 +496,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .insert(topicLinks)
 
     if (linksError) {
-      console.error('[generate-marketing-content] Failed to store topic links:', linksError)
       // Non-fatal error - content was still created
     } else {
-      console.log(`[generate-marketing-content] Stored ${topicLinks.length} topic links`)
     }
 
     // ========================================================================
@@ -557,8 +505,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ========================================================================
 
     const responseTime = Date.now() - startTime
-    console.log(`[generate-marketing-content] Completed in ${responseTime}ms`)
-
     return jsonResponse<SuccessResponse>({
       success: true,
       content: {
@@ -577,7 +523,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     })
   } catch (error) {
-    console.error('[generate-marketing-content] Unexpected error:', error)
     return jsonResponse<ErrorResponse>(
       { success: false, error: 'Internal server error', details: (error as Error).message },
       500

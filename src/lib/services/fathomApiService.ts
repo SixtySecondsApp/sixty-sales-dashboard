@@ -155,7 +155,6 @@ export class FathomAPIService {
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
     if (expiresAt < fiveMinutesFromNow) {
-      console.log('🔄 Token expired or expiring soon, refreshing...');
       await this.refreshAccessToken(userId);
 
       // Fetch updated token
@@ -222,8 +221,6 @@ export class FathomAPIService {
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId);
-
-    console.log('✅ Token refreshed successfully');
   }
 
   // ==========================================================================
@@ -252,8 +249,6 @@ export class FathomAPIService {
       // Handle rate limiting
       if (response.status === 429) {
         const retryAfter = parseInt(response.headers.get('Retry-After') || '60');
-        console.warn(`⚠️  Rate limited, retrying after ${retryAfter}s`);
-
         if (attempt < this.maxRetries) {
           await this.sleep(retryAfter * 1000);
           return this.request(userId, endpoint, options, attempt + 1);
@@ -264,7 +259,6 @@ export class FathomAPIService {
 
       // Handle token expiration
       if (response.status === 401) {
-        console.log('🔄 Token invalid, refreshing and retrying...');
         await this.refreshAccessToken(userId);
 
         if (attempt < this.maxRetries) {
@@ -282,7 +276,6 @@ export class FathomAPIService {
       return await response.json();
     } catch (error) {
       if (attempt < this.maxRetries && this.isRetryableError(error)) {
-        console.log(`⚠️  Request failed, retrying (${attempt}/${this.maxRetries})...`);
         await this.sleep(this.retryDelay * attempt);
         return this.request(userId, endpoint, options, attempt + 1);
       }

@@ -41,8 +41,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const calendarRef = useRef<FullCalendar>(null);
 
   // Debug logging
-  console.log('CalendarView received events:', events?.length || 0, events);
-
   // Convert our events to FullCalendar format
   const fullCalendarEvents = events.map(event => ({
     id: event.id,
@@ -67,9 +65,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       event.priority ? `priority-${event.priority}` : '',
     ].filter(Boolean),
   }));
-  
-  console.log('FullCalendar events formatted:', fullCalendarEvents.length, fullCalendarEvents.slice(0, 3));
-
   useEffect(() => {
     if (calendarRef.current) {
       const calendarApi = calendarRef.current.getApi();

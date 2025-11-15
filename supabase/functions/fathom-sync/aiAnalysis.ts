@@ -52,9 +52,6 @@ export async function analyzeTranscriptWithClaude(
   }
 
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
-
-  console.log(`🤖 Analyzing transcript with ${model} for meeting: ${meeting.title}`)
-
   const prompt = buildAnalysisPrompt(transcript, meeting)
 
   try {
@@ -84,15 +81,11 @@ export async function analyzeTranscriptWithClaude(
 
     const data = await response.json()
     const content = data.content[0].text
-
-    console.log(`✅ Claude analysis complete (${data.usage.input_tokens} input, ${data.usage.output_tokens} output tokens)`)
-
     // Parse JSON response
     const analysis = parseClaudeResponse(content)
 
     return analysis
   } catch (error) {
-    console.error('❌ Error calling Claude API:', error)
     throw error
   }
 }
@@ -294,8 +287,6 @@ function parseClaudeResponse(content: string): TranscriptAnalysis {
       sentiment,
     }
   } catch (error) {
-    console.error('❌ Error parsing Claude response:', error)
-    console.error('Raw response:', content)
     throw new Error(`Failed to parse Claude response: ${error.message}`)
   }
 }
@@ -350,12 +341,8 @@ export function deduplicateActionItems(
     if (!isDuplicate) {
       uniqueAIItems.push(aiItem)
     } else {
-      console.log(`🔄 Skipping duplicate AI action item: "${aiItem.title}"`)
     }
   }
-
-  console.log(`✅ Found ${uniqueAIItems.length} unique AI action items (${aiItems.length - uniqueAIItems.length} duplicates removed)`)
-
   return uniqueAIItems
 }
 

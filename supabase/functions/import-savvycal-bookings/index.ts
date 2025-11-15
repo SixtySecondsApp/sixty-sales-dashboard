@@ -167,7 +167,6 @@ async function findOrCreateContact(
     .single();
 
   if (error) {
-    console.error('Error creating contact:', error);
     return null;
   }
 
@@ -231,7 +230,6 @@ async function findOrCreateCompany(
       .single();
 
     if (error) {
-      console.error('Error creating company:', error);
       return null;
     }
 
@@ -440,7 +438,6 @@ serve(async (req) => {
             .single();
 
           if (dealError) {
-            console.error('Error creating deal:', dealError);
             result.errors.push(`Failed to create deal for ${booking.scheduler_email}: ${dealError.message}`);
           } else {
             dealId = newDeal.id;
@@ -481,7 +478,6 @@ serve(async (req) => {
             });
 
           if (activityError) {
-            console.error('Error creating activity:', activityError);
             result.errors.push(`Failed to create activity for ${booking.scheduler_email}: ${activityError.message}`);
           } else {
             if (result.report) result.report.activitiesCreated++;
@@ -490,7 +486,6 @@ serve(async (req) => {
 
         result.processed++;
       } catch (error: any) {
-        console.error('Error processing booking:', error);
         result.errors.push(`Error processing ${booking.id}: ${error.message}`);
         result.skipped++;
       }
@@ -504,7 +499,6 @@ serve(async (req) => {
 
     return new Response(JSON.stringify(result), { headers: JSON_HEADERS });
   } catch (error: any) {
-    console.error('Error in import-savvycal-bookings:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 

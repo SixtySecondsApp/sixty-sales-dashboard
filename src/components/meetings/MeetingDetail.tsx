@@ -164,12 +164,10 @@ const MeetingDetail: React.FC = () => {
         .single()
 
       if (meetingError) {
-        console.error('Meeting fetch error:', meetingError)
         throw meetingError
       }
       
       if (!meetingData) {
-        console.error('No meeting found with id:', id)
         return
       }
       
@@ -236,7 +234,6 @@ const MeetingDetail: React.FC = () => {
       if (actionItemsError) throw actionItemsError
       setActionItems(actionItemsData || [])
     } catch (error) {
-      console.error('Error fetching meeting details:', error)
     } finally {
       setLoading(false)
     }
@@ -329,7 +326,6 @@ const MeetingDetail: React.FC = () => {
         )
       )
     } catch (error) {
-      console.error('Error updating action item:', error)
     }
   }
 
@@ -366,7 +362,6 @@ const MeetingDetail: React.FC = () => {
       if (created === 0) toast.info('No Action Items From Meeting')
       else toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`)
     } catch (e) {
-      console.error('[Get Action Items] Error:', e)
       toast.error(e instanceof Error ? e.message : 'Failed to extract action items')
     } finally {
       setIsExtracting(false)

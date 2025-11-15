@@ -15,8 +15,6 @@ async function fetchTranscriptFromFathom(
   recordingId: string
 ): Promise<string | null> {
   try {
-    console.log(`📄 Fetching transcript for recording ${recordingId}...`)
-
     const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
     
     // Try X-Api-Key first (preferred for Fathom API)
@@ -26,38 +24,28 @@ async function fetchTranscriptFromFathom(
         'Content-Type': 'application/json',
       },
     })
-
-    console.log(`🔍 Transcript fetch response status (X-Api-Key): ${response.status}`)
-
     // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
     if (response.status === 401) {
-      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
       response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       })
-      console.log(`🔍 Transcript fetch response status (Bearer): ${response.status}`)
     }
 
     if (response.status === 404) {
-      console.log('ℹ️  Transcript not yet available (still processing)')
       return null
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Transcript fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
       throw new Error(`Failed to fetch transcript: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
     }
 
     const data: FathomTranscriptResponse = await response.json()
-    console.log(`✅ Transcript fetched: ${data.transcript?.length || 0} characters`)
-
     return data.transcript || null
   } catch (error) {
-    console.error(`❌ Error fetching transcript:`, error)
     throw error
   }
 }
@@ -70,8 +58,6 @@ async function createGoogleDocForTranscript(
   plaintext: string
 ): Promise<string | null> {
   try {
-    console.log(`📄 Creating Google Doc for transcript...`)
-
     // Get user's Google integration
     const { data: googleIntegration, error: googleError } = await supabase
       .from('integrations')
@@ -81,7 +67,6 @@ async function createGoogleDocForTranscript(
       .single()
 
     if (googleError || !googleIntegration) {
-      console.log('ℹ️  No Google integration found, skipping Google Doc creation')
       return null
     }
 
@@ -96,13 +81,10 @@ async function createGoogleDocForTranscript(
     })
 
     if (!docResponse.ok) {
-      console.error(`❌ Google Doc creation failed: HTTP ${docResponse.status}`)
       return null
     }
 
     const doc = await docResponse.json()
-    console.log(`✅ Google Doc created: ${doc.documentId}`)
-
     // Add transcript content to the doc
     await fetch(
       `https://docs.googleapis.com/v1/documents/${doc.documentId}:batchUpdate`,
@@ -126,10 +108,8 @@ async function createGoogleDocForTranscript(
     )
 
     const docUrl = `https://docs.google.com/document/d/${doc.documentId}/edit`
-    console.log(`✅ Transcript added to Google Doc`)
     return docUrl
   } catch (error) {
-    console.error(`❌ Error creating Google Doc:`, error)
     return null
   }
 }
@@ -195,9 +175,6 @@ serve(async (req) => {
     if (!meetingId) {
       throw new Error('Missing meetingId parameter')
     }
-
-    console.log(`📋 Fetching transcript for meeting ${meetingId}`)
-
     // Get meeting details
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
@@ -216,7 +193,6 @@ serve(async (req) => {
 
     // Check if transcript already exists
     if (meeting.transcript_text) {
-      console.log('ℹ️  Transcript already exists, returning cached version')
       return new Response(
         JSON.stringify({
           success: true,
@@ -286,12 +262,8 @@ serve(async (req) => {
       .eq('id', meetingId)
 
     if (updateError) {
-      console.error('❌ Error updating meeting with transcript:', updateError)
       throw updateError
     }
-
-    console.log(`✅ Transcript saved to meeting ${meetingId}`)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -305,7 +277,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Error in fetch-transcript function:', error)
     return new Response(
       JSON.stringify({
         success: false,

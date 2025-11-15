@@ -49,13 +49,9 @@ class GmailMCPServer {
         await this.authManager.setTokens(storedTokens);
         this.gmailClient = new GmailClient(this.authManager);
         this.tools = createGmailTools(this.gmailClient);
-        console.error('Gmail MCP Server: Authenticated successfully');
       } else {
-        console.error('Gmail MCP Server: No stored tokens found. Authentication required.');
-        console.error('Gmail MCP Server: Use the "gmail_authenticate" resource to get auth URL');
       }
     } catch (error) {
-      console.error('Gmail MCP Server: Failed to initialize authentication:', error);
       // Continue without authentication - tools will show authentication requirements
     }
   }
@@ -71,7 +67,6 @@ class GmailMCPServer {
       try {
         return JSON.parse(tokenEnv);
       } catch (error) {
-        console.error('Failed to parse stored tokens:', error);
       }
     }
     return null;
@@ -82,8 +77,6 @@ class GmailMCPServer {
    */
   private saveTokens(_tokens: any): void {
     // In a real implementation, save tokens to secure storage
-    console.error('Gmail MCP Server: Tokens received. In production, these would be securely stored.');
-    console.error('Gmail MCP Server: Set GMAIL_STORED_TOKENS environment variable for persistence.');
   }
 
   /**
@@ -364,7 +357,6 @@ class GmailMCPServer {
   public async run(): Promise<void> {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('Gmail MCP Server running on stdio');
   }
 }
 
@@ -378,11 +370,8 @@ async function main(): Promise<void> {
     const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
     
     if (missingVars.length > 0) {
-      console.error('Gmail MCP Server: Missing required environment variables:');
       missingVars.forEach(varName => {
-        console.error(`  - ${varName}`);
       });
-      console.error('\nPlease set these environment variables and restart the server.');
       process.exit(1);
     }
 
@@ -390,30 +379,25 @@ async function main(): Promise<void> {
     const server = new GmailMCPServer();
     await server.run();
   } catch (error) {
-    console.error('Gmail MCP Server: Fatal error:', error);
     process.exit(1);
   }
 }
 
 // Handle uncaught errors
 process.on('uncaughtException', (error) => {
-  console.error('Gmail MCP Server: Uncaught exception:', error);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Gmail MCP Server: Unhandled rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-  console.error('Gmail MCP Server: Received SIGINT, shutting down gracefully...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.error('Gmail MCP Server: Received SIGTERM, shutting down gracefully...');
   process.exit(0);
 });
 

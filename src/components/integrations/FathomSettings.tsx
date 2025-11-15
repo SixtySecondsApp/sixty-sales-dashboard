@@ -41,7 +41,6 @@ export function FathomSettings() {
       setShowSyncModal(false);
       // Show success message
     } catch (err) {
-      console.error('Sync error:', err);
     } finally {
       setSyncing(false);
     }
@@ -52,7 +51,6 @@ export function FathomSettings() {
     try {
       await triggerSync({ sync_type: 'manual' });
     } catch (err) {
-      console.error('Quick sync error:', err);
     } finally {
       setSyncing(false);
     }
@@ -66,9 +64,7 @@ export function FathomSettings() {
         sync_type: 'manual',
         limit: 10
       });
-      console.log('Test sync result:', result);
     } catch (err) {
-      console.error('Test sync error:', err);
     } finally {
       setSyncing(false);
     }

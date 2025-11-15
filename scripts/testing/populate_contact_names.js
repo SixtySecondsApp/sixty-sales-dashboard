@@ -13,7 +13,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase credentials');
   process.exit(1);
 }
 
@@ -21,8 +20,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function populateContactNames() {
   try {
-    console.log('Fetching contacts with missing first_name/last_name...');
-    
     // Get all contacts where first_name or last_name is null but full_name exists
     const { data: contacts, error: fetchError } = await supabase
       .from('contacts')
@@ -32,14 +29,9 @@ async function populateContactNames() {
       .not('full_name', 'eq', '');
     
     if (fetchError) {
-      console.error('Error fetching contacts:', fetchError);
       return;
     }
-    
-    console.log(`Found ${contacts?.length || 0} contacts to update`);
-    
     if (!contacts || contacts.length === 0) {
-      console.log('No contacts need updating');
       return;
     }
     
@@ -69,16 +61,12 @@ async function populateContactNames() {
           .eq('id', contact.id);
         
         if (updateError) {
-          console.error(`Error updating contact ${contact.id}:`, updateError);
         } else {
-          console.log(`Updated contact ${contact.id}: ${firstName} ${lastName}`);
         }
       }
     }
     
     // Also update contacts that have first_name/last_name but no full_name
-    console.log('\nUpdating full_name for contacts with first_name/last_name...');
-    
     const { data: contactsWithNames, error: fetchError2 } = await supabase
       .from('contacts')
       .select('id, full_name, first_name, last_name')
@@ -86,12 +74,8 @@ async function populateContactNames() {
       .or('first_name.neq.,last_name.neq.');
     
     if (fetchError2) {
-      console.error('Error fetching contacts:', fetchError2);
       return;
     }
-    
-    console.log(`Found ${contactsWithNames?.length || 0} contacts to update full_name`);
-    
     for (const contact of contactsWithNames || []) {
       if (contact.full_name) continue;
       
@@ -107,16 +91,11 @@ async function populateContactNames() {
           .eq('id', contact.id);
         
         if (updateError) {
-          console.error(`Error updating contact ${contact.id}:`, updateError);
         } else {
-          console.log(`Updated contact ${contact.id} full_name: ${fullName}`);
         }
       }
     }
-    
-    console.log('\nMigration completed!');
   } catch (error) {
-    console.error('Migration failed:', error);
   }
 }
 

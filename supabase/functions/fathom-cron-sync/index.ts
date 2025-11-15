@@ -19,9 +19,6 @@ serve(async (req) => {
         { status: 401 }
       )
     }
-
-    console.log('🕐 Starting Fathom cron sync...')
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -44,7 +41,6 @@ serve(async (req) => {
     }
 
     if (!integrations || integrations.length === 0) {
-      console.log('ℹ️  No active integrations to sync')
       return new Response(
         JSON.stringify({
           success: true,
@@ -54,9 +50,6 @@ serve(async (req) => {
         { status: 200 }
       )
     }
-
-    console.log(`📊 Found ${integrations.length} active integration(s)`)
-
     const results = {
       total_users: integrations.length,
       successful: 0,
@@ -72,7 +65,6 @@ serve(async (req) => {
         const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000)
 
         if (tokenExpiresAt < oneHourFromNow) {
-          console.warn(`⚠️  Skipping ${integration.user_id}: Token expires soon`)
           results.errors.push({
             user_id: integration.user_id,
             error: 'Token expires within 1 hour',
@@ -80,9 +72,6 @@ serve(async (req) => {
           results.failed++
           continue
         }
-
-        console.log(`🔄 Syncing user: ${integration.fathom_user_email || integration.user_id}`)
-
         // Call fathom-sync Edge Function for this user
         const syncUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/fathom-sync`
 
@@ -104,9 +93,6 @@ serve(async (req) => {
         }
 
         const syncResult = await syncResponse.json()
-
-        console.log(`✅ Successfully synced ${syncResult.meetings_synced || 0} meetings for ${integration.fathom_user_email}`)
-
         // Log success
         await supabase
           .from('cron_job_logs')
@@ -120,8 +106,6 @@ serve(async (req) => {
         results.successful++
 
       } catch (error) {
-        console.error(`❌ Error syncing user ${integration.user_id}:`, error)
-
         results.errors.push({
           user_id: integration.user_id,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -141,9 +125,6 @@ serve(async (req) => {
         results.failed++
       }
     }
-
-    console.log(`🎉 Cron sync complete: ${results.successful}/${results.total_users} successful`)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -156,8 +137,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Cron sync error:', error)
-
     return new Response(
       JSON.stringify({
         success: false,

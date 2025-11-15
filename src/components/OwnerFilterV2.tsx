@@ -40,17 +40,9 @@ export function OwnerFilterV2({
   
   // Set default to current user only on initial mount if enabled
   useEffect(() => {
-    console.log('[OwnerFilterV2] useEffect triggered', {
-      defaultToCurrentUser,
-      userData: userData?.id,
-      hasInitialized: hasInitialized.current,
-      selectedOwnerId
-    });
-    
     if (defaultToCurrentUser && userData?.id && !hasInitialized.current) {
       hasInitialized.current = true;
       if (selectedOwnerId === undefined) {
-        console.log('[OwnerFilterV2] Setting default owner to:', userData.id);
         onOwnerChange(userData.id);
       }
     }
@@ -166,16 +158,7 @@ export function OwnerFilterV2({
   const currentSelection = getCurrentSelection();
   
   // Debug logging
-  console.log('[OwnerFilterV2] Render:', {
-    selectedOwnerId,
-    currentSelection: currentSelection.label,
-    isOpen,
-    hasInitialized: hasInitialized.current
-  });
-
   const handleOptionSelect = (ownerId: string | undefined) => {
-    console.log('[OwnerFilterV2] handleOptionSelect called with:', ownerId);
-    console.log('[OwnerFilterV2] Calling onOwnerChange with:', ownerId);
     onOwnerChange(ownerId);
     setIsOpen(false);
     setSearchTerm('');
@@ -336,12 +319,10 @@ export function OwnerFilterV2({
               {userData && (
                 <button
                   onClick={(e) => {
-                    console.log('[OwnerFilterV2] My Items button clicked!');
                     e.stopPropagation();
                     handleOptionSelect(userData.id);
                   }}
                   onMouseDown={(e) => {
-                    console.log('[OwnerFilterV2] My Items button mousedown!');
                   }}
                   className={cn(
                     "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md",
@@ -362,12 +343,10 @@ export function OwnerFilterV2({
               {/* All Items */}
               <button
                 onClick={(e) => {
-                  console.log('[OwnerFilterV2] All Items button clicked!');
                   e.stopPropagation();
                   handleOptionSelect(undefined);
                 }}
                 onMouseDown={(e) => {
-                  console.log('[OwnerFilterV2] All Items button mousedown!');
                 }}
                 className={cn(
                   "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md",

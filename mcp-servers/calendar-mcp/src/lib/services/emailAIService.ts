@@ -710,7 +710,6 @@ class EmailAIService {
       if (result.status === 'fulfilled') {
         analysisMap[result.value.id] = result.value.analysis;
       } else {
-        console.warn(`Failed to analyze email ${emails[index].id}:`, result.reason);
       }
     });
 

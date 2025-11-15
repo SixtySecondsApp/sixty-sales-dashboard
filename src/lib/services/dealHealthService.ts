@@ -368,7 +368,6 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       .single();
 
     if (dealError || !deal) {
-      console.error('[DealHealth] Error fetching deal:', dealError);
       return null;
     }
 
@@ -389,7 +388,6 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       .limit(10);
 
     if (meetingsError) {
-      console.error('[DealHealth] Error fetching meetings:', meetingsError);
     }
 
     const meetingsLast30Days = meetings?.filter(m =>
@@ -435,7 +433,6 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       .order('created_at', { ascending: false });
 
     if (activitiesError) {
-      console.error('[DealHealth] Error fetching activities:', activitiesError);
     }
 
     const activityCount30Days = activities?.length || 0;
@@ -470,7 +467,6 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       },
     };
   } catch (error) {
-    console.error('[DealHealth] Exception fetching metrics:', error);
     return null;
   }
 }
@@ -497,12 +493,9 @@ async function getStageName(stageId: string): Promise<string> {
  */
 export async function calculateDealHealth(dealId: string): Promise<DealHealthScore | null> {
   try {
-    console.log(`[DealHealth] Calculating health for deal ${dealId}`);
-
     // Fetch all metrics
     const metrics = await fetchDealMetrics(dealId);
     if (!metrics) {
-      console.error('[DealHealth] Failed to fetch metrics');
       return null;
     }
 
@@ -578,7 +571,6 @@ export async function calculateDealHealth(dealId: string): Promise<DealHealthSco
       .single();
 
     if (upsertError) {
-      console.error('[DealHealth] Error saving health score:', upsertError);
       return null;
     }
 
@@ -592,18 +584,8 @@ export async function calculateDealHealth(dealId: string): Promise<DealHealthSco
       activity_score: scores.activity,
       snapshot_at: new Date().toISOString(),
     });
-
-    console.log(`[DealHealth] Health calculated successfully:`, {
-      dealId,
-      overallScore,
-      healthStatus,
-      riskLevel,
-      riskFactors,
-    });
-
     return savedScore;
   } catch (error) {
-    console.error('[DealHealth] Exception calculating health:', error);
     return null;
   }
 }
@@ -626,7 +608,6 @@ export async function calculateAllDealsHealth(userId: string): Promise<DealHealt
       .not('deal_stages.name', 'in', '("Signed","Lost")');
 
     if (error || !deals) {
-      console.error('[DealHealth] Error fetching deals:', error);
       return [];
     }
 
@@ -641,7 +622,6 @@ export async function calculateAllDealsHealth(userId: string): Promise<DealHealt
 
     return healthScores;
   } catch (error) {
-    console.error('[DealHealth] Exception calculating all deals health:', error);
     return [];
   }
 }
@@ -670,7 +650,6 @@ export async function refreshStaleHealthScores(
       .not('deal_stages.name', 'in', '("Signed","Lost")');
 
     if (dealsError || !deals) {
-      console.error('[DealHealth] Error fetching deals for refresh:', dealsError);
       return { updated: [], skipped: 0 };
     }
 
@@ -698,9 +677,6 @@ export async function refreshStaleHealthScores(
         }
       }
     }
-
-    console.log(`[DealHealth] Refreshing ${dealsToUpdate.length} stale scores, skipping ${skippedCount} fresh scores`);
-
     // Calculate health for stale deals only
     const healthScores: DealHealthScore[] = [];
     for (const dealId of dealsToUpdate) {
@@ -712,7 +688,6 @@ export async function refreshStaleHealthScores(
 
     return { updated: healthScores, skipped: skippedCount };
   } catch (error) {
-    console.error('[DealHealth] Exception refreshing stale health scores:', error);
     return { updated: [], skipped: 0 };
   }
 }
@@ -729,13 +704,11 @@ export async function getDealHealthScore(dealId: string): Promise<DealHealthScor
       .single();
 
     if (error) {
-      console.error('[DealHealth] Error fetching health score:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('[DealHealth] Exception fetching health score:', error);
     return null;
   }
 }
@@ -752,13 +725,11 @@ export async function getUserDealsHealthScores(userId: string): Promise<DealHeal
       .order('overall_health_score', { ascending: true }); // Worst first
 
     if (error) {
-      console.error('[DealHealth] Error fetching health scores:', error);
       return [];
     }
 
     return data || [];
   } catch (error) {
-    console.error('[DealHealth] Exception fetching health scores:', error);
     return [];
   }
 }

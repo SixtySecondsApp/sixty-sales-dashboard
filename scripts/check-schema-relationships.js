@@ -9,12 +9,9 @@ const client = new Client({
 
 async function checkSchemaRelationships() {
   try {
-    console.log('🔍 Checking database schema relationships...\n');
-    
     await client.connect();
 
     // Check if deals table has company_id column
-    console.log('📊 Checking deals table columns:');
     const dealsColumns = await client.query(`
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns 
@@ -22,11 +19,7 @@ async function checkSchemaRelationships() {
       AND table_schema = 'public'
       ORDER BY ordinal_position;
     `);
-    
-    console.table(dealsColumns.rows);
-    
     // Check foreign key constraints on deals table
-    console.log('\n🔗 Checking foreign key constraints on deals table:');
     const dealsForeignKeys = await client.query(`
       SELECT 
         tc.constraint_name,
@@ -45,11 +38,7 @@ async function checkSchemaRelationships() {
         AND tc.table_name = 'deals'
         AND tc.table_schema = 'public';
     `);
-    
-    console.table(dealsForeignKeys.rows);
-    
     // Check if companies table exists
-    console.log('\n🏢 Checking if companies table exists:');
     const companiesExists = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -57,11 +46,7 @@ async function checkSchemaRelationships() {
         AND table_name = 'companies'
       );
     `);
-    
-    console.log('Companies table exists:', companiesExists.rows[0].exists);
-    
     if (companiesExists.rows[0].exists) {
-      console.log('\n📊 Companies table columns:');
       const companiesColumns = await client.query(`
         SELECT column_name, data_type, is_nullable
         FROM information_schema.columns 
@@ -69,11 +54,9 @@ async function checkSchemaRelationships() {
         AND table_schema = 'public'
         ORDER BY ordinal_position;
       `);
-      console.table(companiesColumns.rows);
     }
 
     // Check if contacts table exists  
-    console.log('\n👥 Checking if contacts table exists:');
     const contactsExists = await client.query(`
       SELECT EXISTS (
         SELECT FROM information_schema.tables 
@@ -81,14 +64,9 @@ async function checkSchemaRelationships() {
         AND table_name = 'contacts'
       );
     `);
-    
-    console.log('Contacts table exists:', contactsExists.rows[0].exists);
-
   } catch (error) {
-    console.error('❌ Schema check failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

@@ -64,7 +64,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in contacts function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -152,7 +151,6 @@ async function handleContactsList(supabaseClient: any, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching contacts:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message,
@@ -208,7 +206,6 @@ async function handleSingleContact(supabaseClient: any, contactId: string, url?:
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching contact:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -240,7 +237,6 @@ async function handleCreateContact(supabaseClient: any, body: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error creating contact:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -272,7 +268,6 @@ async function handleUpdateContact(supabaseClient: any, contactId: string, body:
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error updating contact:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -302,7 +297,6 @@ async function handleDeleteContact(supabaseClient: any, contactId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error deleting contact:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message

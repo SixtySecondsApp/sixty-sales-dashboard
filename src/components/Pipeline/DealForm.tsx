@@ -52,7 +52,6 @@ export function DealForm({
         }
       }
     } catch (error) {
-      console.warn('Could not restore selected contact:', error);
     }
     return null;
   });
@@ -77,7 +76,6 @@ export function DealForm({
         };
       }
     } catch (error) {
-      console.warn('Could not restore form data:', error);
     }
     
     return {
@@ -172,7 +170,6 @@ export function DealForm({
       try {
         localStorage.setItem('dealForm_draft', JSON.stringify(newFormData));
       } catch (error) {
-        console.warn('Could not save form data to localStorage:', error);
       }
     }
   };
@@ -209,7 +206,6 @@ export function DealForm({
         localStorage.setItem('dealForm_draft', JSON.stringify(newFormData));
         localStorage.setItem('dealForm_selectedContact', JSON.stringify(contact));
       } catch (error) {
-        console.warn('Could not save form data to localStorage:', error);
       }
     }
   };
@@ -220,7 +216,6 @@ export function DealForm({
       localStorage.removeItem('dealForm_draft');
       localStorage.removeItem('dealForm_selectedContact');
     } catch (error) {
-      console.warn('Could not clear form draft from localStorage:', error);
     }
   };
   
@@ -291,7 +286,6 @@ export function DealForm({
         toast.success('Deal deleted successfully');
         onCancel(); // Close the form
       } catch (error) {
-        console.error('Error deleting deal:', error);
         toast.error('Failed to delete deal');
       } finally {
         setIsDeleting(false);

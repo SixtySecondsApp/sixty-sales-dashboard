@@ -163,7 +163,6 @@ export default function ElegantCRM() {
   // Set default owner when userData loads
   useEffect(() => {
     if (userData?.id && selectedOwnerId === undefined) {
-      console.log('[ElegantCRM] Setting initial owner to:', userData.id);
       setSelectedOwnerId(userData.id);
     }
   }, [userData?.id]);
@@ -264,7 +263,6 @@ export default function ElegantCRM() {
       
       toast.success(`Successfully deleted ${authorizedCompanies.length} companies`);
     } catch (error) {
-      console.error('Error deleting companies:', error);
       toast.error('Failed to delete selected companies');
     }
   };
@@ -420,7 +418,6 @@ export default function ElegantCRM() {
       setAddDealModalOpen(false);
       toast.success('Deal created successfully!');
     } catch (error) {
-      console.error('Error creating deal:', error);
       toast.error('Failed to create deal');
     }
   };

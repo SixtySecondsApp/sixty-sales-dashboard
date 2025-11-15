@@ -249,7 +249,6 @@ export const AutomationBuilder: React.FC<AutomationBuilderProps> = ({ isOpen, on
       resetBuilder();
     } catch (error) {
       toast.error('Failed to create automation');
-      console.error('Save error:', error);
     }
   };
 

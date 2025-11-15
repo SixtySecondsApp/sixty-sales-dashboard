@@ -8,7 +8,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_ANON_KEY; // Using anon key for now
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase environment variables');
   process.exit(1);
 }
 
@@ -286,8 +285,6 @@ const templates = [
 ];
 
 async function populateTemplates() {
-  console.log('Starting to populate workflow templates...');
-  
   try {
     // First, check if templates already exist
     const { data: existingTemplates, error: checkError } = await supabase
@@ -296,12 +293,10 @@ async function populateTemplates() {
       .limit(1);
     
     if (checkError) {
-      console.error('Error checking existing templates:', checkError);
       return;
     }
     
     if (existingTemplates && existingTemplates.length > 0) {
-      console.log('Templates already exist in database. Skipping population.');
       return;
     }
     
@@ -312,14 +307,9 @@ async function populateTemplates() {
       .select();
     
     if (error) {
-      console.error('Error inserting templates:', error);
       return;
     }
-    
-    console.log(`Successfully inserted ${data.length} templates`);
-    
   } catch (error) {
-    console.error('Unexpected error:', error);
   }
 }
 

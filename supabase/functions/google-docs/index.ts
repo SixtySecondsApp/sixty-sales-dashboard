@@ -36,9 +36,6 @@ interface ShareDocumentRequest {
 }
 
 serve(async (req) => {
-  console.log('[Google Docs] Request method:', req.method);
-  console.log('[Google Docs] Request URL:', req.url);
-  
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -74,12 +71,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('[Google Docs] User verification failed:', userError);
       throw new Error('Invalid authentication token');
     }
-
-    console.log('[Google Docs] User verified:', user.id);
-
     // Get user's Google integration
     const { data: integration, error: integrationError } = await supabase
       .from('google_integrations')
@@ -89,7 +82,6 @@ serve(async (req) => {
       .single();
 
     if (integrationError || !integration) {
-      console.error('[Google Docs] No active Google integration found:', integrationError);
       throw new Error('Google integration not found. Please connect your Google account first.');
     }
 
@@ -99,7 +91,6 @@ serve(async (req) => {
     let accessToken = integration.access_token;
     
     if (expiresAt <= now) {
-      console.log('[Google Docs] Token expired, refreshing...');
       accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
@@ -162,8 +153,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[Google Docs] Error:', error);
-    
     return new Response(
       JSON.stringify({ 
         error: error.message || 'Internal server error',
@@ -181,8 +170,6 @@ serve(async (req) => {
 });
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  console.log('[Google Docs] Refreshing access token...');
-  
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
   
@@ -201,7 +188,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Docs] Token refresh error:', errorData);
     throw new Error('Failed to refresh access token');
   }
 
@@ -219,8 +205,6 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
       updated_at: new Date().toISOString(),
     })
     .eq('user_id', userId);
-  
-  console.log('[Google Docs] Access token refreshed successfully');
   return newAccessToken;
 }
 
@@ -231,8 +215,6 @@ async function createDocument(
   integrationId: string,
   userId: string
 ): Promise<any> {
-  console.log('[Google Docs] Creating document:', request.name);
-
   let createUrl: string;
   let body: any = {};
   
@@ -277,15 +259,11 @@ async function createDocument(
 
   if (!createResponse.ok) {
     const errorData = await createResponse.json();
-    console.error('[Google Docs] Create document error:', errorData);
     throw new Error(`Google API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
   const document = await createResponse.json();
   const documentId = document.documentId || document.spreadsheetId || document.presentationId || document.formId;
-  
-  console.log('[Google Docs] Document created:', documentId);
-
   // Build the document URL
   let documentUrl: string;
   switch (request.type) {
@@ -343,7 +321,6 @@ async function createDocument(
     });
 
   if (dbError) {
-    console.error('[Google Docs] Database insert error:', dbError);
     // Don't throw - document was created successfully
   }
 
@@ -357,8 +334,6 @@ async function createDocument(
 }
 
 async function updateDocumentContent(accessToken: string, documentId: string, content: string): Promise<void> {
-  console.log('[Google Docs] Updating document content:', documentId);
-
   const requests = [
     {
       insertText: {
@@ -379,14 +354,11 @@ async function updateDocumentContent(accessToken: string, documentId: string, co
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Docs] Update content error:', errorData);
     throw new Error(`Failed to update document content: ${errorData.error?.message || 'Unknown error'}`);
   }
 }
 
 async function moveToFolder(accessToken: string, fileId: string, folderId: string): Promise<void> {
-  console.log('[Google Docs] Moving file to folder:', fileId, folderId);
-
   // First, get the current parent folders
   const getParentsResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents`, {
     headers: {
@@ -395,7 +367,6 @@ async function moveToFolder(accessToken: string, fileId: string, folderId: strin
   });
 
   if (!getParentsResponse.ok) {
-    console.error('[Google Docs] Failed to get current parents');
     return;
   }
 
@@ -415,13 +386,10 @@ async function moveToFolder(accessToken: string, fileId: string, folderId: strin
   );
 
   if (!moveResponse.ok) {
-    console.error('[Google Docs] Failed to move file to folder');
   }
 }
 
 async function getDocument(accessToken: string, request: GetDocumentRequest): Promise<any> {
-  console.log('[Google Docs] Getting document:', request.documentId);
-
   const response = await fetch(`https://docs.googleapis.com/v1/documents/${request.documentId}`, {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -430,7 +398,6 @@ async function getDocument(accessToken: string, request: GetDocumentRequest): Pr
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Docs] Get document error:', errorData);
     throw new Error(`Google API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
@@ -443,8 +410,6 @@ async function getDocument(accessToken: string, request: GetDocumentRequest): Pr
 }
 
 async function updateDocument(accessToken: string, request: UpdateDocumentRequest): Promise<any> {
-  console.log('[Google Docs] Updating document:', request.documentId);
-
   const requests: any[] = [];
 
   if (request.content) {
@@ -482,7 +447,6 @@ async function updateDocument(accessToken: string, request: UpdateDocumentReques
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Docs] Update document error:', errorData);
     throw new Error(`Google API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 
@@ -493,8 +457,6 @@ async function updateDocument(accessToken: string, request: UpdateDocumentReques
 }
 
 async function shareDocument(accessToken: string, request: ShareDocumentRequest): Promise<any> {
-  console.log('[Google Docs] Sharing document:', request.documentId, 'with:', request.emails);
-
   const results = [];
 
   for (const email of request.emails) {
@@ -518,7 +480,6 @@ async function shareDocument(accessToken: string, request: ShareDocumentRequest)
       results.push({ email, success: true });
     } else {
       const errorData = await response.json();
-      console.error(`[Google Docs] Failed to share with ${email}:`, errorData);
       results.push({ email, success: false, error: errorData.error?.message });
     }
   }
@@ -530,8 +491,6 @@ async function shareDocument(accessToken: string, request: ShareDocumentRequest)
 }
 
 async function listDocuments(accessToken: string): Promise<any> {
-  console.log('[Google Docs] Listing documents');
-
   const mimeTypes = [
     'application/vnd.google-apps.document',
     'application/vnd.google-apps.spreadsheet',
@@ -552,7 +511,6 @@ async function listDocuments(accessToken: string): Promise<any> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('[Google Docs] List documents error:', errorData);
     throw new Error(`Google API error: ${errorData.error?.message || 'Unknown error'}`);
   }
 

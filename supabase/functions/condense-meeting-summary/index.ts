@@ -40,9 +40,6 @@ async function condenseSummaryWithClaude(
   }
 
   const model = 'claude-haiku-4-5-20251001' // Claude Haiku 4.5 - fastest, most cost-effective
-
-  console.log(`🤖 Condensing summary with ${model}`)
-
   const prompt = buildCondensePrompt(summary, meetingTitle)
 
   try {
@@ -73,15 +70,11 @@ async function condenseSummaryWithClaude(
 
     const data = await response.json()
     const content = data.content[0].text
-
-    console.log(`✅ Claude condensing complete (${data.usage.input_tokens} input, ${data.usage.output_tokens} output tokens)`)
-
     // Parse JSON response
     const result = parseClaudeResponse(content)
 
     return result
   } catch (error) {
-    console.error('❌ Error calling Claude API:', error)
     throw error
   }
 }
@@ -158,8 +151,6 @@ function parseClaudeResponse(content: string): { meeting_about: string; next_ste
       next_steps: truncate(parsed.next_steps, 15),
     }
   } catch (error) {
-    console.error('❌ Error parsing Claude response:', error)
-    console.error('Raw response:', content)
     throw new Error(`Failed to parse Claude response: ${error.message}`)
   }
 }
@@ -201,17 +192,9 @@ serve(async (req) => {
         }
       )
     }
-
-    console.log(`📝 Condensing summary (${body.summary.length} characters)${body.meetingTitle ? ` for: ${body.meetingTitle}` : ''}`)
-
     // Try AI condensing first
     try {
       const result = await condenseSummaryWithClaude(body.summary, body.meetingTitle)
-
-      console.log(`✅ Successfully condensed summary`)
-      console.log(`   Meeting about: ${result.meeting_about}`)
-      console.log(`   Next steps: ${result.next_steps}`)
-
       return new Response(
         JSON.stringify({
           success: true,
@@ -224,8 +207,6 @@ serve(async (req) => {
         }
       )
     } catch (aiError) {
-      console.error('⚠️  AI condensing failed, using fallback truncation:', aiError)
-
       // Fallback to simple truncation
       const fallback = fallbackTruncate(body.summary)
 
@@ -242,8 +223,6 @@ serve(async (req) => {
       )
     }
   } catch (error) {
-    console.error('❌ Error in condense-meeting-summary function:', error)
-
     return new Response(
       JSON.stringify({
         success: false,

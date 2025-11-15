@@ -162,7 +162,6 @@ export function DealsView({
       
       toast.success(`Successfully deleted ${authorizedDeals.length} deals`);
     } catch (error) {
-      console.error('Error deleting deals:', error);
       toast.error('Failed to delete selected deals');
     }
   };
@@ -256,7 +255,6 @@ export function DealsView({
   // Navigation and action handlers
   const handleDealNavigate = (deal: DealWithRelationships) => {
     // Navigate to deal details page when available
-    console.log('Navigate to deal:', deal.id);
   };
 
   const handleEditDeal = (deal: DealWithRelationships) => {
@@ -273,7 +271,6 @@ export function DealsView({
       setEditingDeal(null);
       toast.success('Deal updated successfully!');
     } catch (error) {
-      console.error('Error updating deal:', error);
       toast.error('Failed to update deal');
     }
   };
@@ -285,7 +282,6 @@ export function DealsView({
       setEditingDeal(null);
       toast.success('Deal deleted successfully!');
     } catch (error) {
-      console.error('Error deleting deal:', error);
       toast.error('Failed to delete deal');
     }
   };
@@ -322,7 +318,6 @@ export function DealsView({
 
   const handleAddDeal = () => {
     // Navigate to add deal page when available
-    console.log('Add new deal');
   };
 
   const formatCurrency = (value: number) => {

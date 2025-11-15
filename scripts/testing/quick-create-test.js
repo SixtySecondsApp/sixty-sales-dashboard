@@ -6,8 +6,6 @@ const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 
 async function testCreate(endpoint, data, name) {
   try {
-    console.log(`Testing ${name} CREATE...`)
-    
     const response = await fetch(`${SUPABASE_URL}/functions/v1/${endpoint}`, {
       method: 'POST',
       headers: {
@@ -21,21 +19,16 @@ async function testCreate(endpoint, data, name) {
     const result = await response.json()
     
     if (response.ok && result.data?.id) {
-      console.log(`✅ ${name} CREATE: Success (ID: ${result.data.id})`)
       return true
     } else {
-      console.log(`❌ ${name} CREATE: ${result.error || 'Unknown error'}`)
       return false
     }
   } catch (error) {
-    console.log(`❌ ${name} CREATE: ${error.message}`)
     return false
   }
 }
 
 async function runCreateTests() {
-  console.log('🧪 Testing CREATE Operations\n')
-  
   const tests = [
     {
       endpoint: 'api-v1-tasks',
@@ -61,14 +54,8 @@ async function runCreateTests() {
     if (success) passed++
     await new Promise(resolve => setTimeout(resolve, 500))
   }
-
-  console.log(`\n📊 CREATE Tests: ${passed}/${tests.length} passed`)
-  
   if (passed === tests.length) {
-    console.log('🎉 All CREATE operations working!')
-    console.log('🏆 This means we should have 30/30 tests passing!')
   } else {
-    console.log(`⚠️ ${tests.length - passed} CREATE operations still failing`)
   }
   
   return passed

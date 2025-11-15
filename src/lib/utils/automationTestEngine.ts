@@ -81,8 +81,6 @@ export class AutomationTestEngine {
    */
   async runTestSuite(suiteId: string): Promise<TestResult[]> {
     const startTime = Date.now();
-    console.log(`🧪 Starting test suite: ${suiteId}`);
-
     try {
       const suite = await this.loadTestSuite(suiteId);
       if (!suite) {
@@ -104,15 +102,12 @@ export class AutomationTestEngine {
       this.testResults.set(suiteId, results);
       
       const executionTime = Date.now() - startTime;
-      console.log(`✅ Test suite completed in ${executionTime}ms`);
-      
       // Generate test report
       this.generateTestReport(suite, results);
       
       return results;
       
     } catch (error) {
-      console.error('❌ Test suite failed:', error);
       throw error;
     }
   }
@@ -142,8 +137,6 @@ export class AutomationTestEngine {
     };
 
     try {
-      console.log(`🔬 Testing scenario: ${scenario.name}`);
-      
       // Simulate deal stage transition
       const ruleEvalStart = Date.now();
       
@@ -326,7 +319,6 @@ export class AutomationTestEngine {
       })) || [];
       
     } catch (error) {
-      console.error('Failed to load automation rules:', error);
       throw error;
     }
   }
@@ -352,26 +344,12 @@ export class AutomationTestEngine {
     const avgExecutionTime = results.reduce((sum, r) => sum + r.executionTime, 0) / totalTests;
     const totalRulesTriggered = results.reduce((sum, r) => sum + r.triggeredRules.length, 0);
     const totalActionsExecuted = results.reduce((sum, r) => sum + r.executedActions.length, 0);
-    
-    console.log(`
-📊 Test Suite Report: ${suite.name}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Passed: ${passedTests}/${totalTests} (${Math.round(passedTests/totalTests*100)}%)
-❌ Failed: ${failedTests}/${totalTests}
-⚡ Avg Execution Time: ${Math.round(avgExecutionTime)}ms
-🎯 Rules Triggered: ${totalRulesTriggered}
-🚀 Actions Executed: ${totalActionsExecuted}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    `);
-    
     // Show detailed results for failed tests
     const failedResults = results.filter(r => !r.success);
     if (failedResults.length > 0) {
-      console.log('❌ Failed Test Details:');
       failedResults.forEach(result => {
-        console.log(`  • ${result.scenarioName}:`);
-        result.errors.forEach(error => console.log(`    - ${error}`));
-        result.warnings.forEach(warning => console.log(`    ⚠ ${warning}`));
+        result.errors.forEach(error => undefined);
+        result.warnings.forEach(warning => undefined);
       });
     }
   }

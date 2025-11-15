@@ -34,8 +34,6 @@ serve(async (req) => {
     }
 
     // Get the workflow configuration - explicitly select columns we need
-    console.log('Fetching workflow with ID:', workflowId)
-    
     let { data: workflow, error: workflowError } = await supabase
       .from('user_automation_rules')
       .select('id, user_id, rule_name, is_active')
@@ -44,8 +42,6 @@ serve(async (req) => {
 
     // If workflow doesn't exist and it's our test workflow ID, create it
     if ((workflowError || !workflow) && workflowId === 'b224bdca-7bfa-4bc3-b30e-68e0045a64f8') {
-      console.log('Workflow not found, creating default test workflow...')
-      
       // Create a default workflow for testing
       const defaultWorkflow = {
         id: workflowId,
@@ -67,14 +63,11 @@ serve(async (req) => {
         .single()
       
       if (createError) {
-        console.error('Failed to create default workflow:', createError)
         throw new Error(`Workflow not found and could not create: ${createError.message}`)
       }
       
       workflow = newWorkflow
-      console.log('Default workflow created successfully')
     } else if (workflowError) {
-      console.error('Workflow fetch error:', workflowError)
       throw new Error(`Failed to fetch workflow: ${workflowError.message}`)
     }
     
@@ -83,7 +76,6 @@ serve(async (req) => {
     }
 
     if (!workflow.is_active) {
-      console.log('Workflow is not active, activating it...')
       // Try to activate the workflow
       const { error: updateError } = await supabase
         .from('user_automation_rules')
@@ -99,14 +91,6 @@ serve(async (req) => {
 
     // Parse the incoming payload
     const payload = await req.json()
-    console.log('Webhook received for workflow:', workflowId)
-    console.log('Payload type detection:', {
-      hasTopic: !!payload.topic,
-      hasTranscript: !!payload.transcript,
-      hasActionItem: !!payload.action_item,
-      hasSummary: !!payload.ai_summary || !!payload.summary
-    })
-
     // Detect payload type
     let payloadType = 'unknown'
 
@@ -215,7 +199,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Workflow webhook error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
@@ -700,8 +683,6 @@ function parseTimestamp(timestamp: string): number {
  * Triggers API sync to pull full meeting data
  */
 async function processCallReadyWebhook(supabase: any, payload: any, callId: string, userId: string) {
-  console.log(`🔔 Webhook: call.ready for ${callId}`)
-
   // Create a temporary auth token for the user to call sync function
   // Using service role to create a token that can authenticate as the user
   const { data: tokenData, error: tokenError } = await supabase.auth.admin.generateLink({
@@ -710,7 +691,6 @@ async function processCallReadyWebhook(supabase: any, payload: any, callId: stri
   })
 
   if (tokenError || !tokenData) {
-    console.warn('⚠️  Could not generate auth token, using service role')
   }
 
   // Call the fathom-sync Edge Function to pull this specific call
@@ -752,21 +732,16 @@ async function processCallReadyWebhook(supabase: any, payload: any, callId: stri
 
     if (!syncResponse.ok) {
       const errorText = await syncResponse.text()
-      console.error('❌ Sync function failed:', errorText)
       throw new Error(`Sync failed: ${syncResponse.status} - ${errorText}`)
     }
 
     const syncResult = await syncResponse.json()
-    console.log('✅ Sync result:', syncResult)
-
     return {
       action: 'webhook_sync_triggered',
       call_id: callId,
       sync_result: syncResult,
     }
   } catch (error) {
-    console.error('❌ Error calling sync function:', error)
-
     // Fallback: Just update sync state to indicate webhook was received
     await supabase
       .from('fathom_sync_state')
@@ -793,9 +768,5 @@ async function createGoogleDoc(transcript: string, fathomId: string, title?: str
   // 2. Format the transcript with timestamps and speakers
   // 3. Set sharing permissions for AI system access
   // 4. Return the actual document URL
-
-  console.log('Would create Google Doc:', docTitle)
-  console.log('Transcript length:', transcript?.length || 0)
-
   return mockDocUrl
 }

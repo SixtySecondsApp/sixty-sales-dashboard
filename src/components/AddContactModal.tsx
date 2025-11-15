@@ -129,7 +129,6 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
       }
     } catch (error) {
       toast.error('Failed to add contact');
-      console.error('Error adding contact:', error);
     } finally {
       setIsLoading(false);
     }

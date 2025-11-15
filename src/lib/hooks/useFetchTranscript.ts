@@ -48,7 +48,6 @@ export function useFetchTranscript() {
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to fetch transcript'
       setError(errorMessage)
-      console.error('Error fetching transcript:', err)
       return null
     } finally {
       setLoading(false)

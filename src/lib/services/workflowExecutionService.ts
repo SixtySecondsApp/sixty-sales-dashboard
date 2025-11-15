@@ -65,14 +65,6 @@ class WorkflowExecutionService {
     isTestMode?: boolean,
     workflowName?: string
   ): Promise<string> {
-    console.log('[WorkflowExecutionService] Starting execution:', {
-      workflowId,
-      triggeredBy,
-      nodesCount: nodes.length,
-      edgesCount: edges.length,
-      triggerData
-    });
-    
     const executionId = crypto.randomUUID();
     
     const execution: WorkflowExecution = {
@@ -91,12 +83,8 @@ class WorkflowExecutionService {
     this.addToHistory(workflowId, execution);
     this.notifyListeners(executionId, execution);
     this.notifyWorkflowListeners(workflowId, execution);
-
-    console.log('[WorkflowExecutionService] Execution created and listeners notified:', executionId);
-
     // Start execution in background
     this.executeWorkflow(executionId, nodes, edges, triggerData).catch(error => {
-      console.error('[WorkflowExecutionService] Workflow execution failed:', error);
       execution.status = 'failed';
       execution.completedAt = new Date().toISOString();
       this.notifyListeners(executionId, execution);
@@ -117,11 +105,8 @@ class WorkflowExecutionService {
     edges: Edge[],
     triggerData?: any
   ) {
-    console.log('Starting workflow execution:', executionId, { nodes: nodes.length, edges: edges.length });
-    
     const execution = this.executions.get(executionId);
     if (!execution) {
-      console.error('Execution not found:', executionId);
       return;
     }
 
@@ -137,7 +122,6 @@ class WorkflowExecutionService {
 
     // Initialize context with trigger data
     if (triggerData) {
-      console.log('[WorkflowExecution] Processing trigger data:', triggerData);
       if (execution.triggeredBy === 'form' && triggerData.fields) {
         context.variables.formData = {
           submittedAt: new Date().toISOString(),
@@ -145,7 +129,6 @@ class WorkflowExecutionService {
           formId: triggerData.formId,
           submissionId: triggerData.submissionId
         };
-        console.log('[WorkflowExecution] Form data initialized in context:', context.variables.formData);
       }
     }
 
@@ -154,9 +137,6 @@ class WorkflowExecutionService {
       const triggerNode = nodes.find(node => 
         !edges.some(edge => edge.target === node.id)
       );
-
-      console.log('Trigger node:', triggerNode);
-
       if (!triggerNode) {
         throw new Error('No trigger node found in workflow');
       }
@@ -193,8 +173,6 @@ class WorkflowExecutionService {
     context: ExecutionContext,
     execution: WorkflowExecution
   ): Promise<any> {
-    console.log(`[WorkflowExecution] Executing node: ${node.id} (${node.type})`);
-    
     const nodeExecution: NodeExecution = {
       nodeId: node.id,
       nodeType: node.type || 'unknown',
@@ -245,7 +223,6 @@ class WorkflowExecutionService {
           break;
         
         default:
-          console.warn(`[WorkflowExecution] Node type ${node.type} not fully implemented, passing through`);
           output = { message: `Node type ${node.type} executed`, nodeData: node.data, input: nodeExecution.input };
       }
 
@@ -341,7 +318,6 @@ class WorkflowExecutionService {
     // Enhanced configuration with auto-enabled tools for CRM queries
     let enhancedConfig = { ...config };
     if (isCRMQuery && !config.enableTools) {
-      console.log('[WorkflowExecution] Auto-enabling CRM tools for CRM query');
       enhancedConfig = {
         ...config,
         enableTools: true,
@@ -351,14 +327,6 @@ class WorkflowExecutionService {
     }
 
     try {
-      console.log('[WorkflowExecution] Executing AI node with config:', {
-        model: config.model,
-        provider: config.modelProvider,
-        enableTools: enhancedConfig.enableTools,
-        selectedTools: enhancedConfig.selectedTools,
-        userPrompt: userPrompt.substring(0, 100) + '...'
-      });
-
       // Get user ID from context or use default
       const userId = context.variables.userId as string || undefined;
       
@@ -371,17 +339,8 @@ class WorkflowExecutionService {
 
       // Check for errors in the response
       if (response.error) {
-        console.error('[WorkflowExecution] AI node error:', response.error);
         throw new Error(response.error);
       }
-
-      console.log('[WorkflowExecution] AI node response received:', {
-        contentLength: response.content?.length || 0,
-        model: response.model,
-        provider: response.provider,
-        hasToolCalls: response.toolCalls ? response.toolCalls.length : 0
-      });
-
       return {
         prompt: userPrompt,
         response: response.content || '',
@@ -391,7 +350,6 @@ class WorkflowExecutionService {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      console.error('[WorkflowExecution] AI generation failed:', error);
       throw new Error(`AI generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -491,7 +449,6 @@ class WorkflowExecutionService {
         .single();
 
       if (error) {
-        console.error('Failed to create task:', error);
         throw new Error(`Task creation failed: ${error.message}`);
       }
 
@@ -509,7 +466,6 @@ class WorkflowExecutionService {
       };
 
     } catch (error) {
-      console.error('Task creation error:', error);
       return {
         action: 'task_creation_failed',
         title: title, // Still show interpolated title for debugging
@@ -601,7 +557,6 @@ class WorkflowExecutionService {
       }
       
     } catch (error) {
-      console.error('Email sending error:', error);
       return {
         action: 'email_failed',
         success: false,
@@ -645,7 +600,6 @@ class WorkflowExecutionService {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      console.error('Assistant Manager node execution error:', error);
       throw error;
     }
   }
@@ -670,7 +624,6 @@ class WorkflowExecutionService {
       });
       
       if (recipients.length === 0) {
-        console.warn('[WorkflowExecution] No recipients found for notification');
         return {
           action: 'notification_skipped',
           success: false,
@@ -679,9 +632,6 @@ class WorkflowExecutionService {
           timestamp: new Date().toISOString()
         };
       }
-      
-      console.log(`📢 Sending notification to ${recipients.length} recipients: ${title}`);
-      
       // Create notifications for all recipients
       const notifications = await notificationService.createBulk(recipients, {
         title,
@@ -720,7 +670,6 @@ class WorkflowExecutionService {
       };
       
     } catch (error) {
-      console.error('Notification sending error:', error);
       return {
         action: 'notification_failed',
         success: false,
@@ -746,9 +695,6 @@ class WorkflowExecutionService {
           timestamp: new Date().toISOString()
         };
       }
-
-      console.log(`🔄 Edit Fields processing ${fieldMappings.length} field mappings`);
-      
       const transformedFields: { [key: string]: any } = {};
       const processedMappings: any[] = [];
       
@@ -756,7 +702,6 @@ class WorkflowExecutionService {
         const { sourceField, targetField, transformation } = mapping;
         
         if (!sourceField || !targetField) {
-          console.warn('⚠️ Skipping incomplete mapping:', mapping);
           continue;
         }
         
@@ -781,11 +726,7 @@ class WorkflowExecutionService {
           
           // Update context variables so subsequent nodes can use the new variable
           context.variables[targetField] = transformedValue;
-          
-          console.log(`✓ Mapped: ${sourceField} → ${targetField} (${sourceValue} → ${transformedValue})`);
-          
         } catch (error) {
-          console.error(`❌ Error processing mapping ${sourceField} → ${targetField}:`, error);
           processedMappings.push({
             sourceField,
             targetField,
@@ -812,7 +753,6 @@ class WorkflowExecutionService {
       };
       
     } catch (error) {
-      console.error('Edit fields execution error:', error);
       return {
         action: 'edit_fields_failed',
         success: false,
@@ -851,7 +791,6 @@ class WorkflowExecutionService {
         return emailMatch ? emailMatch[1] : stringValue;
         
       default:
-        console.warn(`⚠️ Unknown transformation: ${transformation}`);
         return value;
     }
   }
@@ -877,9 +816,6 @@ class WorkflowExecutionService {
           timestamp: new Date().toISOString()
         };
       }
-
-      console.log(`🔀 Multi-action splitter executing ${connectedNodes.length} connected nodes in ${executionMode} mode`);
-      
       let results: any[] = [];
       
       if (executionMode === 'parallel') {
@@ -889,7 +825,6 @@ class WorkflowExecutionService {
             const result = await this.executeActionNode(connectedNode, context);
             return { nodeId: connectedNode.id, success: true, result };
           } catch (error) {
-            console.error(`❌ Error executing connected node ${connectedNode.id}:`, error);
             return { 
               nodeId: connectedNode.id, 
               success: false, 
@@ -907,7 +842,6 @@ class WorkflowExecutionService {
             const result = await this.executeActionNode(connectedNode, context);
             results.push({ nodeId: connectedNode.id, success: true, result });
           } catch (error) {
-            console.error(`❌ Error executing connected node ${connectedNode.id}:`, error);
             results.push({ 
               nodeId: connectedNode.id, 
               success: false, 
@@ -936,7 +870,6 @@ class WorkflowExecutionService {
       };
       
     } catch (error) {
-      console.error('Multi-action execution error:', error);
       return {
         action: 'multi_action_failed',
         success: false,
@@ -1012,7 +945,6 @@ class WorkflowExecutionService {
       const interpolated = interpolateVariables(condition, context.variables);
       result = interpolated.includes('true') || interpolated.includes('TRUE');
     } catch (error) {
-      console.error('Condition evaluation error:', error);
     }
 
     return {
@@ -1028,9 +960,6 @@ class WorkflowExecutionService {
   private executeRouterNode(node: Node, context: ExecutionContext): any {
     const routerType = node.data?.routerType || 'stage';
     let selectedRoute = 'default';
-    
-    console.log('[WorkflowExecution] Executing router node:', { routerType, nodeData: node.data });
-    
     switch (routerType) {
       case 'stage':
         // Route based on deal stage
@@ -1061,9 +990,6 @@ class WorkflowExecutionService {
       default:
         selectedRoute = 'default';
     }
-    
-    console.log('[WorkflowExecution] Router selected route:', selectedRoute);
-    
     return {
       routerType,
       selectedRoute,
@@ -1102,7 +1028,6 @@ class WorkflowExecutionService {
    * Save execution to database and cleanup old executions
    */
   private async saveExecution(execution: WorkflowExecution) {
-    console.log('[WorkflowExecution] Saving execution to database:', execution.id);
     try {
       const { data, error } = await supabase
         .from('workflow_executions')
@@ -1123,14 +1048,11 @@ class WorkflowExecutionService {
         .single();
 
       if (error) {
-        console.error('[WorkflowExecution] Error saving execution to database:', error);
       } else {
-        console.log('[WorkflowExecution] Successfully saved execution to database:', data);
         // Clean up old executions for this workflow and mode
         await this.cleanupOldExecutions(execution.workflowId, execution.isTestMode || false);
       }
     } catch (error) {
-      console.error('[WorkflowExecution] Exception saving execution:', error);
     }
   }
 
@@ -1148,7 +1070,6 @@ class WorkflowExecutionService {
         .order('started_at', { ascending: false });
 
       if (error) {
-        console.error('[WorkflowExecution] Error fetching executions for cleanup:', error);
         return;
       }
 
@@ -1162,13 +1083,10 @@ class WorkflowExecutionService {
           .in('id', executionsToDelete);
 
         if (deleteError) {
-          console.error('[WorkflowExecution] Error deleting old executions:', deleteError);
         } else {
-          console.log(`[WorkflowExecution] Cleaned up ${executionsToDelete.length} old executions for workflow ${workflowId} (test: ${isTestMode})`);
         }
       }
     } catch (error) {
-      console.error('[WorkflowExecution] Exception during cleanup:', error);
     }
   }
 
@@ -1183,7 +1101,6 @@ class WorkflowExecutionService {
    * Load executions from database
    */
   async loadExecutionsFromDatabase(workflowId: string): Promise<WorkflowExecution[]> {
-    console.log('[WorkflowExecution] Loading executions from database for workflow:', workflowId);
     try {
       const { data, error } = await supabase
         .from('workflow_executions')
@@ -1193,7 +1110,6 @@ class WorkflowExecutionService {
         .limit(50); // 25 test + 25 production
 
       if (error) {
-        console.error('[WorkflowExecution] Error loading executions from database:', error);
         return [];
       }
 
@@ -1216,11 +1132,8 @@ class WorkflowExecutionService {
         this.executions.set(execution.id, execution);
         this.addToHistory(workflowId, execution);
       });
-
-      console.log('[WorkflowExecution] Loaded', executions.length, 'executions from database');
       return executions;
     } catch (error) {
-      console.error('[WorkflowExecution] Exception loading executions:', error);
       return [];
     }
   }
@@ -1248,7 +1161,6 @@ class WorkflowExecutionService {
    * Load all executions from database across all workflows
    */
   async loadAllExecutionsFromDatabase(): Promise<WorkflowExecution[]> {
-    console.log('[WorkflowExecution] Loading all executions from database');
     try {
       const { data, error } = await supabase
         .from('workflow_executions')
@@ -1257,7 +1169,6 @@ class WorkflowExecutionService {
         .limit(100); // Increased limit to show more history
 
       if (error) {
-        console.error('[WorkflowExecution] Error loading all executions from database:', error);
         return [];
       }
 
@@ -1280,11 +1191,8 @@ class WorkflowExecutionService {
         this.executions.set(execution.id, execution);
         this.addToHistory(execution.workflowId, execution);
       });
-
-      console.log('[WorkflowExecution] Loaded', executions.length, 'executions from database');
       return executions;
     } catch (error) {
-      console.error('[WorkflowExecution] Exception loading all executions:', error);
       return [];
     }
   }
@@ -1411,15 +1319,11 @@ class WorkflowExecutionService {
       const timeout = (node.data.timeout || 300) * 1000; // Convert to milliseconds
       const errorHandling = node.data.errorHandling || 'fail';
       const resultAggregation = node.data.resultAggregation || 'merge';
-      
-      console.log(`🔀 Join Actions executing with waitMode: ${waitMode}, errorHandling: ${errorHandling}, aggregation: ${resultAggregation}`);
-      
       // Get all incoming edges to determine which branches to wait for
       const incomingEdges = context.edges?.filter(e => e.target === node.id) || [];
       const branchNodeIds = incomingEdges.map(e => e.source);
       
       if (branchNodeIds.length === 0) {
-        console.log('⚠️ No incoming branches to join');
         return {
           success: true,
           result: { 
@@ -1429,9 +1333,6 @@ class WorkflowExecutionService {
           }
         };
       }
-      
-      console.log(`🔍 Waiting for ${branchNodeIds.length} branches: ${branchNodeIds.join(', ')}`);
-      
       // Initialize tracking for branch completion
       const branchResults: Map<string, any> = new Map();
       const branchErrors: Map<string, any> = new Map();
@@ -1466,23 +1367,18 @@ class WorkflowExecutionService {
         
         if (branchResult) {
           if (branchResult.error) {
-            console.log(`❌ Branch ${branchId} failed:`, branchResult.error);
             branchErrors.set(branchId, branchResult.error);
             
             if (errorHandling === 'fail') {
               throw new Error(`Branch ${branchId} failed: ${branchResult.error}`);
             }
           } else {
-            console.log(`✅ Branch ${branchId} completed successfully`);
             branchResults.set(branchId, branchResult);
           }
         } else {
           // Branch hasn't completed yet
-          console.log(`⏳ Branch ${branchId} still executing...`);
-          
           // In wait mode 'any', we can continue if we have at least one success
           if (waitMode === 'any' && branchResults.size > 0) {
-            console.log('✅ Wait mode is "any" and we have at least one success, continuing...');
             break;
           }
         }
@@ -1491,8 +1387,6 @@ class WorkflowExecutionService {
       // Check timeout
       if (Date.now() - startTime > timeout) {
         const message = `Join timeout after ${timeout/1000} seconds. Completed: ${branchResults.size}/${branchNodeIds.length}`;
-        console.warn(`⏱️ ${message}`);
-        
         if (errorHandling === 'fail') {
           throw new Error(message);
         }
@@ -1518,25 +1412,21 @@ class WorkflowExecutionService {
             }
             return acc;
           }, {});
-          console.log('📦 Merged results into single object');
           break;
           
         case 'array':
           // Keep results as array
           finalResult = resultsArray;
-          console.log('📦 Keeping results as array');
           break;
           
         case 'first':
           // Use first result
           finalResult = resultsArray[0] || {};
-          console.log('📦 Using first result');
           break;
           
         case 'last':
           // Use last result
           finalResult = resultsArray[resultsArray.length - 1] || {};
-          console.log('📦 Using last result');
           break;
           
         default:
@@ -1558,15 +1448,11 @@ class WorkflowExecutionService {
         errors: errorsArray.length > 0 ? errorsArray : undefined,
         timestamp: new Date().toISOString()
       };
-      
-      console.log('✅ Join Actions completed:', summary);
-      
       return {
         success: true,
         result: summary
       };
     } catch (error) {
-      console.error('❌ Error executing join actions:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to join branches'
@@ -1604,7 +1490,6 @@ class WorkflowExecutionService {
           throw new Error(`Unknown meeting action: ${action}`);
       }
     } catch (error) {
-      console.error('Error executing meeting action:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to execute meeting action'
@@ -1647,7 +1532,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error creating meeting:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to create meeting'
@@ -1697,7 +1581,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error updating meeting:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update meeting'
@@ -1738,7 +1621,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting transcript:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting transcript'
@@ -1779,7 +1661,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting summary:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting summary'
@@ -1846,7 +1727,6 @@ class WorkflowExecutionService {
         result: { meeting: meetingData, tasks: taskResults }
       };
     } catch (error) {
-      console.error('Error adding meeting tasks:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting tasks'
@@ -1887,7 +1767,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting next steps:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting next steps'
@@ -1928,7 +1807,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting coaching:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting coaching'
@@ -1974,7 +1852,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting rating:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting rating'
@@ -2024,7 +1901,6 @@ class WorkflowExecutionService {
         result: data
       };
     } catch (error) {
-      console.error('Error adding meeting talk time:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to add meeting talk time'

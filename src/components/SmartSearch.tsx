@@ -1,5 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+/**
+ * Smart Search Component (⌘K)
+ * Command palette for quick navigation and AI queries
+ */
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Fuse from 'fuse.js';
 import {
   Search,
   Mail,
@@ -7,9 +13,12 @@ import {
   PlusCircle,
   Calendar,
   ArrowRight,
-  X
+  X,
+  User,
+  Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useContacts } from '@/lib/hooks/useContacts';
 
 interface SmartSearchProps {
   isOpen: boolean;
@@ -49,24 +58,84 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
   onAskCopilot
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Fetch contacts for search
+  const { contacts, isLoading: contactsLoading } = useContacts();
 
-  const recentContacts: RecentContact[] = [
-    {
-      id: '1',
-      name: 'Alexander Wolf',
-      company: 'Alexander Wolf Agency',
-      initials: 'AW',
-      color: 'from-blue-500 to-blue-600'
-    },
-    {
-      id: '2',
-      name: 'Russell Gentry',
-      company: 'M1 Data',
-      initials: 'RG',
-      color: 'from-emerald-500 to-emerald-600'
-    }
-  ];
+  // Configure Fuse.js for fuzzy search
+  const fuseOptions = {
+    keys: [
+      { name: 'first_name', weight: 0.4 },
+      { name: 'last_name', weight: 0.4 },
+      { name: 'email', weight: 0.2 },
+      { name: 'company', weight: 0.2 }
+    ],
+    threshold: 0.3,
+    includeScore: true,
+    minMatchCharLength: 2
+  };
+
+  const fuse = useMemo(() => {
+    if (!contacts || contacts.length === 0) return null;
+    return new Fuse(contacts, fuseOptions);
+  }, [contacts]);
+
+  // Search results
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || !fuse) return [];
+
+    const results = fuse.search(searchQuery);
+    return results.slice(0, 5).map(result => {
+      const contact = result.item;
+      const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase();
+      const companyName = typeof contact.company === 'string' 
+        ? contact.company 
+        : (contact.company as any)?.name || contact.email || '';
+      
+      return {
+        id: contact.id,
+        type: 'contact' as const,
+        title: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+        subtitle: companyName,
+        icon: 'User',
+        action: () => {
+          onSelectContact?.(contact.id);
+          onClose();
+        }
+      };
+    });
+  }, [searchQuery, fuse, onSelectContact, onClose]);
+
+  // Recent contacts (from actual data)
+  const recentContacts = useMemo<RecentContact[]>(() => {
+    if (!contacts || contacts.length === 0) return [];
+    
+    return contacts.slice(0, 5).map(contact => {
+      const initials = `${contact.first_name?.[0] || ''}${contact.last_name?.[0] || ''}`.toUpperCase();
+      const colors = [
+        'from-blue-500 to-blue-600',
+        'from-emerald-500 to-emerald-600',
+        'from-purple-500 to-purple-600',
+        'from-amber-500 to-amber-600',
+        'from-pink-500 to-pink-600'
+      ];
+      
+      // Handle company as string or Company object
+      const companyName = typeof contact.company === 'string' 
+        ? contact.company 
+        : (contact.company as any)?.name || contact.email || '';
+      
+      return {
+        id: contact.id,
+        name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
+        company: companyName,
+        initials,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      };
+    });
+  }, [contacts]);
 
   const quickActions: QuickAction[] = [
     {
@@ -146,20 +215,55 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
     }
   }, [isOpen]);
 
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Open command palette
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         // This will be handled by parent component
       }
+      
+      // Close on Escape
       if (e.key === 'Escape' && isOpen) {
         onClose();
+      }
+
+      // Quick actions when palette is open
+      if (isOpen && !isTyping) {
+        switch (e.key.toLowerCase()) {
+          case 'e':
+            e.preventDefault();
+            onDraftEmail?.();
+            onClose();
+            break;
+          case 'c':
+            e.preventDefault();
+            onOpenCopilot?.();
+            onClose();
+            break;
+          case 'n':
+            e.preventDefault();
+            onAddContact?.();
+            onClose();
+            break;
+          case 'm':
+            e.preventDefault();
+            onScheduleMeeting?.();
+            onClose();
+            break;
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isTyping, onDraftEmail, onOpenCopilot, onAddContact, onScheduleMeeting]);
+
+  // Track typing state
+  useEffect(() => {
+    setIsTyping(searchQuery.length > 0);
+  }, [searchQuery]);
 
   return (
     <AnimatePresence>
@@ -201,58 +305,92 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
 
         {/* Results */}
         <div className="max-h-[60vh] overflow-y-auto p-2">
-          {/* Quick Actions */}
-          <div className="px-3 py-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Actions</p>
-            <div className="space-y-1">
-              {quickActions.map(action => {
-                const Icon = action.icon;
-                return (
+          {/* Search Results */}
+          {searchQuery.trim() && searchResults.length > 0 && (
+            <div className="px-3 py-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Search Results</p>
+              <div className="space-y-1">
+                {searchResults.map(result => (
                   <button
-                    key={action.id}
-                    onClick={action.action}
+                    key={result.id}
+                    onClick={result.action}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 rounded-lg transition-colors text-left"
                   >
-                    <Icon className="w-4 h-4 text-gray-400" />
-                    <span className="text-sm text-gray-300 flex-1">{action.label}</span>
-                    <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700/50 rounded text-xs text-gray-500">
-                      {action.shortcut}
-                    </kbd>
+                    <User className="w-4 h-4 text-gray-400" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-300">{result.title}</p>
+                      {result.subtitle && (
+                        <p className="text-xs text-gray-500">{result.subtitle}</p>
+                      )}
+                    </div>
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Quick Actions */}
+          {!searchQuery.trim() && (
+            <div className="px-3 py-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Actions</p>
+              <div className="space-y-1">
+                {quickActions.map(action => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      key={action.id}
+                      onClick={action.action}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 rounded-lg transition-colors text-left"
+                    >
+                      <Icon className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm text-gray-300 flex-1">{action.label}</span>
+                      <kbd className="px-1.5 py-0.5 bg-gray-800 border border-gray-700/50 rounded text-xs text-gray-500">
+                        {action.shortcut}
+                      </kbd>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Recent Contacts */}
-          <div className="px-3 py-2 mt-2 border-t border-gray-800/50">
-            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Contacts</p>
-            <div className="space-y-1">
-              {recentContacts.map(contact => (
-                <button
-                  key={contact.id}
-                  onClick={() => {
-                    onSelectContact?.(contact.id);
-                    onClose();
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 rounded-lg transition-colors text-left"
-                >
-                  <div
-                    className={cn(
-                      'w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0',
-                      contact.color
-                    )}
-                  >
-                    {contact.initials}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-300">{contact.name}</p>
-                    <p className="text-xs text-gray-500">{contact.company}</p>
-                  </div>
-                </button>
-              ))}
+          {!searchQuery.trim() && (
+            <div className="px-3 py-2 mt-2 border-t border-gray-800/50">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Recent Contacts</p>
+              <div className="space-y-1">
+                {contactsLoading ? (
+                  <p className="text-xs text-gray-500 px-3 py-2">Loading contacts...</p>
+                ) : recentContacts.length > 0 ? (
+                  recentContacts.map(contact => (
+                    <button
+                      key={contact.id}
+                      onClick={() => {
+                        onSelectContact?.(contact.id);
+                        onClose();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-800/50 rounded-lg transition-colors text-left"
+                    >
+                      <div
+                        className={cn(
+                          'w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0',
+                          contact.color
+                        )}
+                      >
+                        {contact.initials}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-300">{contact.name}</p>
+                        <p className="text-xs text-gray-500">{contact.company}</p>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs text-gray-500 px-3 py-2">No recent contacts</p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* AI Suggestions */}
           <div className="px-3 py-2 mt-2 border-t border-gray-800/50">
@@ -273,6 +411,7 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
               ))}
             </div>
           </div>
+        </div>
           </motion.div>
         </motion.div>
       )}

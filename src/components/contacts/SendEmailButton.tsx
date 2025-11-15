@@ -121,7 +121,6 @@ const SendEmailButton: React.FC<SendEmailButtonProps> = ({
       });
 
     } catch (error) {
-      console.error('Error checking Google integration:', error);
       setGoogleStatus({
         isConnected: false,
         loading: false,

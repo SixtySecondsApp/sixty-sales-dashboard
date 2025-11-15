@@ -84,9 +84,6 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
     // Token is still valid
     return integration.access_token
   }
-
-  console.log('🔄 Access token expired or expiring soon, refreshing...')
-
   // Get OAuth configuration
   const clientId = Deno.env.get('VITE_FATHOM_CLIENT_ID')
   const clientSecret = Deno.env.get('VITE_FATHOM_CLIENT_SECRET')
@@ -113,13 +110,10 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
 
   if (!tokenResponse.ok) {
     const errorText = await tokenResponse.text()
-    console.error('❌ Token refresh failed:', errorText)
     throw new Error(`Token refresh failed: ${errorText}. Please reconnect your Fathom integration.`)
   }
 
   const tokenData = await tokenResponse.json()
-  console.log('✅ Access token refreshed successfully')
-
   // Calculate new token expiry
   const expiresIn = tokenData.expires_in || 3600 // Default 1 hour
   const newTokenExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
@@ -136,12 +130,8 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
     .eq('id', integration.id)
 
   if (updateError) {
-    console.error('❌ Failed to update refreshed tokens:', updateError)
     throw new Error(`Failed to update refreshed tokens: ${updateError.message}`)
   }
-
-  console.log('✅ Refreshed tokens stored successfully')
-
   return tokenData.access_token
 }
 
@@ -175,9 +165,6 @@ async function generateVideoThumbnail(
 ): Promise<string | null> {
   try {
     const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail-v2`
-
-    console.log(`📸 Calling thumbnail generation service for recording ${recordingId}...`)
-
     const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
@@ -193,21 +180,16 @@ async function generateVideoThumbnail(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`Thumbnail generation service error: ${response.status} - ${errorText}`)
       return null
     }
 
     const data = await response.json()
 
     if (data.success && data.thumbnail_url) {
-      console.log(`✅ Video thumbnail generated: ${data.thumbnail_url}`)
       return data.thumbnail_url
     }
-
-    console.error('Thumbnail generation service returned no URL')
     return null
   } catch (error) {
-    console.error('Error calling thumbnail generation service:', error)
     return null
   }
 }
@@ -255,9 +237,6 @@ async function fetchRecordingTranscriptPlaintext(apiKey: string, recordingId: st
 async function fetchRecordingActionItems(apiKey: string, recordingId: string | number): Promise<any[] | null> {
   // Use the full recording details endpoint, not the separate action_items endpoint
   const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}`
-
-  console.log(`📋 Fetching full recording details for ${recordingId} to get action items...`)
-
   const resp = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -266,7 +245,6 @@ async function fetchRecordingActionItems(apiKey: string, recordingId: string | n
   })
 
   if (!resp.ok) {
-    console.log(`⚠️  Recording details fetch failed: HTTP ${resp.status}`)
     // Try with X-Api-Key header instead
     const resp2 = await fetch(url, {
       headers: {
@@ -276,49 +254,32 @@ async function fetchRecordingActionItems(apiKey: string, recordingId: string | n
     })
 
     if (!resp2.ok) {
-      console.log(`⚠️  Recording details fetch failed with X-Api-Key too: HTTP ${resp2.status}`)
       return null
     }
-
-    console.log(`🔍 Response status (X-Api-Key): ${resp2.status}, Content-Type: ${resp2.headers.get('content-type')}`)
-
     const data = await resp2.json().catch((err) => {
-      console.error(`❌ Failed to parse JSON response (X-Api-Key): ${err.message}`)
       return null
     })
 
     // Log the actual response for debugging
-    console.log(`📦 API Response keys (X-Api-Key): ${data ? Object.keys(data).join(', ') : 'null'}`)
     if (data?.action_items !== undefined) {
-      console.log(`📋 action_items field type: ${typeof data.action_items}, value: ${JSON.stringify(data.action_items)}`)
     }
 
     if (data?.action_items && Array.isArray(data.action_items)) {
-      console.log(`✅ Found ${data.action_items.length} action items in recording details (X-Api-Key)`)
       return data.action_items
     }
-    console.log(`ℹ️  No action items in recording details (X-Api-Key)`)
     return null
   }
-
-  console.log(`🔍 Response status: ${resp.status}, Content-Type: ${resp.headers.get('content-type')}`)
-
   const data = await resp.json().catch((err) => {
-    console.error(`❌ Failed to parse JSON response: ${err.message}`)
     return null
   })
 
   // Log the actual response for debugging
-  console.log(`📦 API Response keys: ${data ? Object.keys(data).join(', ') : 'null'}`)
   if (data?.action_items !== undefined) {
-    console.log(`📋 action_items field type: ${typeof data.action_items}, value: ${JSON.stringify(data.action_items)}`)
   }
 
   if (data?.action_items && Array.isArray(data.action_items)) {
-    console.log(`✅ Found ${data.action_items.length} action items in recording details (Bearer)`)
     return data.action_items
   }
-  console.log(`ℹ️  No action items in recording details (Bearer)`)
   return null
 }
 
@@ -348,14 +309,12 @@ async function createGoogleDocForTranscript(supabase: any, userId: string, meeti
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.warn('google-docs-create failed:', errorText)
       return null
     }
 
     const data = await response.json()
     return data?.url || null
   } catch (e) {
-    console.warn('Failed to create Google Doc:', e)
     return null
   }
 }
@@ -388,7 +347,6 @@ serve(async (req) => {
     if (body.user_id) {
       // Webhook call with explicit user_id
       userId = body.user_id
-      console.log('🔄 Starting Fathom sync for user (from webhook):', userId)
     } else {
       // Regular authenticated call
       const authHeader = req.headers.get('Authorization')
@@ -405,7 +363,6 @@ serve(async (req) => {
       }
 
       userId = user.id
-      console.log('🔄 Starting Fathom sync for user (authenticated):', userId)
     }
     const { sync_type, start_date, end_date, call_id, limit, webhook_payload } = body
 
@@ -418,21 +375,11 @@ serve(async (req) => {
       .single()
 
     if (integrationError || !integration) {
-      console.error('❌ Integration error:', integrationError)
       const errorMessage = integration === null
         ? 'No active Fathom integration found. Please go to Settings → Integrations and connect your Fathom account.'
         : `Fathom integration error: ${integrationError?.message || 'Unknown error'}`
       throw new Error(errorMessage)
     }
-
-    console.log('✅ Found integration:', {
-      id: integration.id,
-      fathom_user_email: integration.fathom_user_email,
-      token_expires_at: integration.token_expires_at,
-      is_active: integration.is_active,
-      scopes: integration.scopes,
-    })
-
     // Update sync state to 'syncing'
     await supabase
       .from('fathom_sync_state')
@@ -453,8 +400,6 @@ serve(async (req) => {
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
-        console.log(`📞 Syncing webhook payload: ${webhook_payload.title}`)
-
         const result = await syncSingleCall(supabase, userId, integration, webhook_payload)
 
         if (result.success) {
@@ -466,8 +411,6 @@ serve(async (req) => {
         }
       } else if (call_id) {
         // Legacy: fetch single call by ID
-        console.log(`📞 Syncing single call: ${call_id}`)
-
         const result = await syncSingleCall(supabase, userId, integration, call_id)
 
         if (result.success) {
@@ -506,9 +449,6 @@ serve(async (req) => {
             break
         }
       }
-
-      console.log(`📅 Sync range: ${apiStartDate} to ${apiEndDate}`)
-
       // Fetch calls from Fathom API with pagination
       let offset = 0
       const apiLimit = limit || 100 // Use provided limit or default to 100
@@ -526,8 +466,6 @@ serve(async (req) => {
         }, supabase)
 
         totalMeetingsFound += calls.length
-        console.log(`📦 Fetched ${calls.length} calls (offset: ${offset})`)
-
         // Process each call
         for (const call of calls) {
           try {
@@ -539,7 +477,6 @@ serve(async (req) => {
               errors.push({ call_id: call.recording_id || call.id, error: result.error || 'Unknown error' })
             }
           } catch (error) {
-            console.error(`❌ Error syncing call ${call.recording_id || call.id}:`, error)
             errors.push({
               call_id: call.recording_id || call.id,
               error: error instanceof Error ? error.message : 'Unknown error',
@@ -551,40 +488,28 @@ serve(async (req) => {
         // If this is a limited sync (test mode), stop after first batch
         if (isLimitedSync) {
           hasMore = false
-          console.log(`✅ Test sync complete: Limited to ${apiLimit} calls`)
         } else {
           hasMore = calls.length === apiLimit
           offset += apiLimit
 
           // Safety limit to prevent infinite loops
           if (offset > 10000) {
-            console.warn('⚠️  Reached safety limit of 10,000 calls')
             break
           }
         }
       }
       // Fallback: if nothing found in the selected window, retry once without date filters
       if (totalMeetingsFound === 0 && (apiStartDate || apiEndDate)) {
-        console.log('⚠️  No meetings found in date range.')
-        console.log(`   Date range: ${apiStartDate} to ${apiEndDate}`)
-        console.log('ℹ️  Retrying without date filters to check if any meetings exist...')
         const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 }, supabase)
         totalMeetingsFound += retryCalls.length
 
         if (retryCalls.length === 0) {
-          console.log('❌ No meetings found at all in your Fathom account.')
-          console.log('   Possible reasons:')
-          console.log('   1. No recordings have been created yet')
-          console.log('   2. All recordings are still processing')
-          console.log('   3. OAuth token may have expired or been revoked')
         } else {
-          console.log(`✅ Found ${retryCalls.length} meetings outside the date range`)
           for (const call of retryCalls) {
             try {
               const result = await syncSingleCall(supabase, userId, integration, call)
               if (result.success) meetingsSynced++
             } catch (error) {
-              console.error('❌ Error during fallback sync:', error)
             }
           }
         }
@@ -602,9 +527,6 @@ serve(async (req) => {
         last_sync_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
       })
       .eq('user_id', userId)
-
-    console.log(`✅ Sync complete: ${meetingsSynced}/${totalMeetingsFound} meetings synced`)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -619,8 +541,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ Sync error:', error)
-
     // Try to update sync state to error
     try {
       const supabase = createClient(
@@ -644,7 +564,6 @@ serve(async (req) => {
         }
       }
     } catch (updateError) {
-      console.error('Failed to update sync state:', updateError)
     }
 
     return new Response(
@@ -688,7 +607,6 @@ async function retryWithBackoff<T>(
 
       // Calculate backoff delay with jitter
       const delay = initialDelayMs * Math.pow(2, attempt) + Math.random() * 1000
-      console.log(`⚠️  Attempt ${attempt + 1} failed, retrying in ${Math.round(delay)}ms...`)
       await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
@@ -736,14 +654,9 @@ async function fetchFathomCalls(
         // Update the integration object with the new token
         integration.access_token = accessToken
       } catch (error) {
-        console.error('⚠️ Token refresh failed, attempting with existing token:', error)
         // Continue with existing token - it might still work
       }
     }
-
-    console.log(`📡 Fetching from: ${url}`)
-    console.log(`🔑 Using token: ${accessToken?.substring(0, 10)}...`)
-
     // OAuth tokens typically use Authorization: Bearer, not X-Api-Key
     // Try Bearer first (standard for OAuth), then fallback to X-Api-Key
     let response = await fetch(url, {
@@ -752,31 +665,22 @@ async function fetchFathomCalls(
         'Content-Type': 'application/json',
       },
     })
-
-    console.log(`📊 Response status (Bearer): ${response.status}`)
-
     // If Bearer fails with 401, try X-Api-Key (for API keys)
     if (response.status === 401) {
-      console.log(`⚠️  Bearer auth failed, trying X-Api-Key...`)
       response = await fetch(url, {
         headers: {
           'X-Api-Key': accessToken,
           'Content-Type': 'application/json',
         },
       })
-      console.log(`📊 Response status (X-Api-Key): ${response.status}`)
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ API Error Response: ${errorText}`)
       throw new Error(`Fathom API error: ${response.status} - ${errorText}`)
     }
 
     const data = await response.json()
-    console.log(`📦 Response data structure:`, Object.keys(data))
-    console.log(`📦 Full response data:`, JSON.stringify(data, null, 2))
-
     // Fathom API returns meetings array directly or in a data wrapper
     // Handle different possible response structures
     let meetings = []
@@ -798,11 +702,8 @@ async function fetchFathomCalls(
       meetings = data.calls
     } else {
       // Unknown structure, log it and return empty array
-      console.warn(`⚠️  Unknown API response structure:`, data)
       meetings = []
     }
-
-    console.log(`📊 Parsed ${meetings.length} meetings from response`)
     return meetings
   })
 }
@@ -817,8 +718,6 @@ async function condenseMeetingSummary(
   title: string
 ): Promise<void> {
   try {
-    console.log(`📝 Condensing summary for meeting: ${title}`)
-
     const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/condense-meeting-summary`
 
     const response = await fetch(functionUrl, {
@@ -835,17 +734,12 @@ async function condenseMeetingSummary(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Condense summary service error: ${response.status} - ${errorText}`)
       return // Non-fatal error - continue without condensed summaries
     }
 
     const data = await response.json()
 
     if (data.success && data.meeting_about && data.next_steps) {
-      console.log(`✅ Summary condensed successfully`)
-      console.log(`   About: ${data.meeting_about}`)
-      console.log(`   Next: ${data.next_steps}`)
-
       // Update meeting with condensed summaries
       await supabase
         .from('meetings')
@@ -854,13 +748,9 @@ async function condenseMeetingSummary(
           next_steps_oneliner: data.next_steps,
         })
         .eq('id', meetingId)
-
-      console.log(`✅ Condensed summaries saved to database`)
     } else {
-      console.error(`⚠️  Condense summary service returned no data`)
     }
   } catch (error) {
-    console.error(`❌ Error condensing summary: ${error.message}`)
     // Non-fatal - don't throw, allow meeting sync to continue
   }
 }
@@ -909,14 +799,11 @@ async function autoFetchTranscriptAndAnalyze(
         .limit(1)
 
       if (aiCheckError) {
-        console.error(`⚠️  Error checking action items: ${aiCheckError.message}`)
       }
 
       if (existingActionItems && existingActionItems.length > 0) {
-        console.log(`⏭️  Transcript and action items already exist for ${recordingId}`)
         return
       } else {
-        console.log(`📝 Transcript exists but no action items - will retry AI analysis for ${recordingId}`)
         // Continue to AI analysis using existing transcript
         // NOTE: Cooldown does NOT apply here - we're just running AI on existing transcript
       }
@@ -930,14 +817,8 @@ async function autoFetchTranscriptAndAnalyze(
       const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
 
       if (!isFinite(minutesSinceLastAttempt) || minutesSinceLastAttempt < 0) {
-        console.log(`⚠️  Invalid last_transcript_fetch_at timestamp for meeting ${meeting.id}, proceeding with fetch`)
       } else if (minutesSinceLastAttempt < cooldownMinutes) {
         const waitMinutes = Math.ceil(cooldownMinutes - minutesSinceLastAttempt)
-        console.log(
-          `⏭️  Skipping transcript fetch for ${recordingId} - attempt ${fetchAttempts} cooling down (` +
-          `${Math.round(minutesSinceLastAttempt)} min ago, need ${cooldownMinutes} min). ` +
-          `Retry in ~${waitMinutes} min.`
-        )
         return
       }
     }
@@ -946,8 +827,6 @@ async function autoFetchTranscriptAndAnalyze(
     let transcript: string | null = meeting.transcript_text
 
     if (!transcript) {
-      console.log(`📄 Auto-fetching transcript for ${recordingId} (attempt ${fetchAttempts + 1}/3)...`)
-
       // Update fetch tracking
       await supabase
         .from('meetings')
@@ -961,21 +840,15 @@ async function autoFetchTranscriptAndAnalyze(
       transcript = await fetchTranscriptFromFathom(integration.access_token, recordingId)
 
       if (!transcript) {
-        console.log(`ℹ️  Transcript not yet available for ${recordingId} - will retry next sync`)
         return
       }
-
-      console.log(`✅ Transcript fetched: ${transcript.length} characters`)
-
       // Fetch enhanced summary
       let summaryData: any = null
       try {
         summaryData = await fetchSummaryFromFathom(integration.access_token, recordingId)
         if (summaryData) {
-          console.log(`✅ Enhanced summary fetched`)
         }
       } catch (error) {
-        console.log(`⚠️  Summary fetch failed (non-fatal): ${error.message}`)
       }
 
       // Store transcript immediately
@@ -992,22 +865,18 @@ async function autoFetchTranscriptAndAnalyze(
       if (finalSummary && finalSummary.length > 0) {
         // Fire-and-forget - don't block sync on AI summarization
         condenseMeetingSummary(supabase, meeting.id, finalSummary, meeting.title || 'Meeting')
-          .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
+          .catch(err => undefined)
       }
     } else {
-      console.log(`✅ Using existing transcript: ${transcript.length} characters`)
-
       // Condense existing summary if not already done (non-blocking)
       if (meeting.summary && !meeting.summary_oneliner) {
         // Fire-and-forget - don't block sync on AI summarization
         condenseMeetingSummary(supabase, meeting.id, meeting.summary, meeting.title || 'Meeting')
-          .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
+          .catch(err => undefined)
       }
     }
 
     // Run AI analysis on transcript
-    console.log(`🤖 Running Claude AI analysis on transcript...`)
-
     const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(transcript, {
       id: meeting.id,
       title: meeting.title,
@@ -1016,14 +885,6 @@ async function autoFetchTranscriptAndAnalyze(
     })
 
     // Update meeting with AI metrics
-    console.log(`📊 Attempting to store AI metrics for meeting ${meeting.id}:`, {
-      talk_time_rep_pct: analysis.talkTime.repPct,
-      talk_time_customer_pct: analysis.talkTime.customerPct,
-      talk_time_judgement: analysis.talkTime.assessment,
-      sentiment_score: analysis.sentiment.score,
-      sentiment_reasoning: analysis.sentiment.reasoning?.substring(0, 50) + '...',
-    })
-
     const { data: updateResult, error: updateError } = await supabase
       .from('meetings')
       .update({
@@ -1037,24 +898,12 @@ async function autoFetchTranscriptAndAnalyze(
       .select() // CRITICAL: Add .select() to get confirmation of what was updated
 
     if (updateError) {
-      console.error(`❌ Error updating AI metrics:`, updateError)
       throw new Error(`Failed to store AI metrics: ${updateError.message}`)
     }
 
     if (!updateResult || updateResult.length === 0) {
-      console.error(`❌ No rows updated for meeting ${meeting.id} - meeting may not exist or RLS blocked update`)
       throw new Error(`Failed to update meeting ${meeting.id} - no rows affected`)
     }
-
-    console.log(`✅ AI metrics stored successfully:`, {
-      meeting_id: meeting.id,
-      fathom_recording_id: meeting.fathom_recording_id,
-      sentiment: analysis.sentiment.score,
-      rep_pct: analysis.talkTime.repPct,
-      customer_pct: analysis.talkTime.customerPct,
-      rows_updated: updateResult.length
-    })
-
     // Get existing Fathom action items
     const existingActionItems = call.action_items || []
 
@@ -1063,8 +912,6 @@ async function autoFetchTranscriptAndAnalyze(
 
     // Store AI-generated action items
     if (uniqueAIActionItems.length > 0) {
-      console.log(`💾 Storing ${uniqueAIActionItems.length} AI-generated action items...`)
-
       for (const item of uniqueAIActionItems) {
         // Align column names with UI and triggers (auto task creation expects assignee_email, deadline_at)
         // CRITICAL: Explicitly set synced_to_task=false to prevent automatic task creation
@@ -1089,15 +936,10 @@ async function autoFetchTranscriptAndAnalyze(
             playback_url: null,
           })
       }
-
-      console.log(`✅ Stored ${uniqueAIActionItems.length} AI action items`)
     } else {
-      console.log(`ℹ️  No unique AI action items to store (${analysis.actionItems.length} total, all duplicates)`)
     }
 
   } catch (error) {
-    console.error(`❌ Error in auto-fetch and analyze: ${error.message}`)
-    console.error(error.stack)
     // Don't throw - allow meeting sync to continue even if AI analysis fails
   }
 }
@@ -1120,30 +962,23 @@ async function fetchTranscriptFromFathom(
         'Content-Type': 'application/json',
       },
     })
-
-    console.log(`🔍 Transcript fetch response status (X-Api-Key): ${response.status}`)
-
     // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
     if (response.status === 401) {
-      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
       response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       })
-      console.log(`🔍 Transcript fetch response status (Bearer): ${response.status}`)
     }
 
     if (response.status === 404) {
       // Transcript not yet available - Fathom still processing
-      console.log(`ℹ️  Transcript not yet available for recording ${recordingId} (404)`)
       return null
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Transcript fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
       throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
     }
 
@@ -1152,39 +987,31 @@ async function fetchTranscriptFromFathom(
     // CRITICAL FIX: Fathom returns an array of transcript objects, not a string
     // Format: { transcript: [{ speaker: { display_name: "..." }, text: "..." }] }
     if (!data) {
-      console.log(`⚠️  Empty response from Fathom transcript API`)
       return null
     }
 
     // Handle array format (most common)
     if (Array.isArray(data.transcript)) {
-      console.log(`📝 Parsing ${data.transcript.length} transcript segments...`)
       const lines = data.transcript.map((segment: any) => {
         const speaker = segment?.speaker?.display_name ? `${segment.speaker.display_name}: ` : ''
         const text = segment?.text || ''
         return `${speaker}${text}`.trim()
       })
       const plaintext = lines.join('\n')
-      console.log(`✅ Formatted transcript: ${plaintext.length} characters`)
       return plaintext
     }
 
     // Handle string format (fallback)
     if (typeof data.transcript === 'string') {
-      console.log(`✅ Transcript already in string format: ${data.transcript.length} characters`)
       return data.transcript
     }
 
     // If data itself is a string
     if (typeof data === 'string') {
-      console.log(`✅ Response is direct string: ${data.length} characters`)
       return data
     }
-
-    console.error(`❌ Unexpected transcript format:`, typeof data.transcript, data.transcript)
     return null
   } catch (error) {
-    console.error(`❌ Error fetching transcript: ${error.message}`)
     return null
   }
 }
@@ -1207,36 +1034,28 @@ async function fetchSummaryFromFathom(
         'Content-Type': 'application/json',
       },
     })
-
-    console.log(`🔍 Summary fetch response status (X-Api-Key): ${response.status}`)
-
     // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
     if (response.status === 401) {
-      console.log(`⚠️  X-Api-Key auth failed, trying Bearer...`)
       response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       })
-      console.log(`🔍 Summary fetch response status (Bearer): ${response.status}`)
     }
 
     if (response.status === 404) {
       // Summary not yet available
-      console.log(`ℹ️  Summary not yet available for recording ${recordingId} (404)`)
       return null
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error(`❌ Summary fetch failed: HTTP ${response.status} - ${errorText.substring(0, 200)}`)
       throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
     }
 
     return await response.json()
   } catch (error) {
-    console.error(`❌ Error fetching summary: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return null
   }
 }
@@ -1252,14 +1071,9 @@ async function syncSingleCall(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
-    console.log(`🔄 Syncing call: ${call.title} (${call.recording_id})`)
-
     // Helper: resolve the meeting owner user by email (robust across payload variants)
     async function resolveOwnerUserIdFromEmail(email: string | null | undefined): Promise<string | null> {
       if (!email) return null
-
-      console.log(`🔍 Resolving user ID for email: ${email}`)
-
       try {
         // Query profiles table (auth.users is not directly accessible in edge functions)
         const { data: prof, error: profError } = await supabase
@@ -1270,18 +1084,13 @@ async function syncSingleCall(
 
         if (prof?.id) {
           const fullName = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.email
-          console.log(`✅ Found user: ${fullName} (${prof.id})`)
           return prof.id
         }
 
         if (profError) {
-          console.log(`⚠️  Profile lookup error: ${profError.message}`)
         }
       } catch (e) {
-        console.error(`❌ Error resolving user: ${e instanceof Error ? e.message : 'unknown'}`)
       }
-
-      console.log(`❌ No user found for email: ${email}`)
       return null
     }
 
@@ -1296,9 +1105,6 @@ async function syncSingleCall(
       (Array.isArray(call?.participants) ? (call.participants.find((p: any) => p?.is_host)?.email) : undefined),
       (Array.isArray(call?.calendar_invitees) ? (call.calendar_invitees.find((p: any) => p?.is_host)?.email) : undefined),
     ]
-
-    console.log(`📧 Candidate owner emails from Fathom:`, possibleOwnerEmails.filter(e => e))
-
     let ownerEmailCandidate: string | null = null
     for (const em of possibleOwnerEmails) {
       const uid = await resolveOwnerUserIdFromEmail(em)
@@ -1306,14 +1112,12 @@ async function syncSingleCall(
         ownerUserId = uid
         ownerResolved = true
         ownerEmailCandidate = em || null
-        console.log(`✅ Owner resolved: ${em} → ${uid}`)
         break
       }
       if (!ownerEmailCandidate && em) ownerEmailCandidate = em
     }
 
     if (!ownerResolved) {
-      console.log(`⚠️  Could not resolve owner from any email. Using integration owner: ${userId}`)
     }
 
     // Calculate duration in minutes from recording start/end times
@@ -1325,32 +1129,21 @@ async function syncSingleCall(
     const embedUrl = buildEmbedUrl(call.share_url, call.recording_id)
 
     // Generate thumbnail using thumbnail service only
-    console.log(`🖼️  Generating thumbnail for recording ${call.recording_id}...`)
-
     let thumbnailUrl: string | null = null
 
     // Generate video screenshot (if enabled and embed URL available)
     if (embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
-      console.log('📸 Calling thumbnail generation service...')
       thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
     }
 
     // Fallback to placeholder if thumbnail service failed or disabled
     if (!thumbnailUrl) {
-      console.log('ℹ️  Using placeholder thumbnail')
       const firstLetter = (call.title || 'M')[0].toUpperCase()
       thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
     }
-
-    console.log(`✅ Final thumbnail URL: ${thumbnailUrl}`)
-
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
     let summaryText: string | null = call.default_summary || call.summary || null
-
-    console.log(`📝 Summary from bulk API: ${summaryText ? `available (${summaryText.length} chars)` : 'not available'}`)
-    console.log(`📄 Transcript: Not fetched during sync (use separate endpoint for on-demand fetching)`)
-
     // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
       owner_user_id: ownerUserId,
@@ -1396,15 +1189,12 @@ async function syncSingleCall(
     if (meetingError) {
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)
     }
-
-    console.log(`✅ Synced meeting: ${call.title} (${call.recording_id})`)
-
     // CONDENSE SUMMARY IF AVAILABLE (non-blocking)
     // If we already have a summary from the bulk API, condense it in background
     if (summaryText && summaryText.length > 0) {
       // Fire-and-forget - don't block sync on AI summarization
       condenseMeetingSummary(supabase, meeting.id, summaryText, call.title || 'Meeting')
-        .catch(err => console.error(`⚠️  Background condense failed: ${err.message}`))
+        .catch(err => undefined)
     }
 
     // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
@@ -1413,9 +1203,7 @@ async function syncSingleCall(
       const refreshedToken = await refreshAccessToken(supabase, integration)
       // Update integration object with refreshed token for subsequent API calls
       integration.access_token = refreshedToken
-      console.log(`✅ Token refreshed for transcript/summary fetch`)
     } catch (error) {
-      console.error(`⚠️  Token refresh failed (will attempt with existing token): ${error instanceof Error ? error.message : 'Unknown error'}`)
       // Continue with existing token - it might still work
     }
 
@@ -1430,13 +1218,9 @@ async function syncSingleCall(
     const externalContactIds: string[] = []
 
     if (call.calendar_invitees && call.calendar_invitees.length > 0) {
-      console.log(`👥 Processing ${call.calendar_invitees.length} participants for meeting ${meeting.id}`)
-
       for (const invitee of call.calendar_invitees) {
         // Handle internal participants (team members) - store in meeting_attendees only
         if (!invitee.is_external) {
-          console.log(`👤 Internal participant: ${invitee.name} (${invitee.email || 'no email'})`)
-
           // Check if already exists to avoid duplicates
           const { data: existingAttendee } = await supabase
             .from('meeting_attendees')
@@ -1455,9 +1239,7 @@ async function syncSingleCall(
                 is_external: false,
                 role: 'host',
               })
-            console.log(`✅ Created meeting_attendees entry for internal user: ${invitee.name}`)
           } else {
-            console.log(`⏭️  Internal attendee already exists: ${invitee.name}`)
           }
 
           continue // Skip to next participant
@@ -1465,12 +1247,9 @@ async function syncSingleCall(
 
         // Handle external participants (customers/prospects) - create contacts + meeting_contacts
         if (invitee.email && invitee.is_external) {
-          console.log(`👤 Processing external contact: ${invitee.name} (${invitee.email})`)
-
           // 1. Match or create company from email domain
           const { company } = await matchOrCreateCompany(supabase, invitee.email, userId, invitee.name)
           if (company) {
-            console.log(`🏢 Matched/created company: ${company.name} (${company.domain})`)
           }
 
           // 2. Check for existing contact (email is unique globally, not per owner)
@@ -1481,8 +1260,6 @@ async function syncSingleCall(
             .single()
 
           if (existingContact) {
-            console.log(`✅ Found existing contact: ${invitee.name}`)
-
             // Update existing contact with company if not set
             if (!existingContact.company_id && company) {
               await supabase
@@ -1492,8 +1269,6 @@ async function syncSingleCall(
                   updated_at: new Date().toISOString()
                 })
                 .eq('id', existingContact.id)
-
-              console.log(`🔗 Linked contact to company: ${company.name}`)
             }
 
             externalContactIds.push(existingContact.id)
@@ -1519,11 +1294,8 @@ async function syncSingleCall(
               .single()
 
             if (contactError) {
-              console.error(`❌ Error creating contact: ${contactError.message}`)
             } else if (newContact) {
-              console.log(`✅ Created new contact: ${invitee.name}`)
               if (company) {
-                console.log(`🔗 Linked to company: ${company.name}`)
               }
               externalContactIds.push(newContact.id)
             }
@@ -1534,14 +1306,10 @@ async function syncSingleCall(
 
     // After processing all contacts, determine primary contact and company
     if (externalContactIds.length > 0) {
-      console.log(`🎯 Determining primary contact from ${externalContactIds.length} external contacts...`)
-
       // Select primary contact using smart logic
       const primaryContactId = await selectPrimaryContact(supabase, externalContactIds, ownerUserId)
 
       if (primaryContactId) {
-        console.log(`✅ Selected primary contact: ${primaryContactId}`)
-
         // Determine meeting company (use primary contact's company)
         const meetingCompanyId = await determineMeetingCompany(supabase, externalContactIds, primaryContactId, ownerUserId)
 
@@ -1554,12 +1322,9 @@ async function syncSingleCall(
             .single()
 
           if (companyDetails) {
-            console.log(`🏢 Meeting linked to company: ${companyDetails.name} (${companyDetails.domain}) [ID: ${meetingCompanyId}]`)
           } else {
-            console.log(`🏢 Meeting linked to company ID: ${meetingCompanyId}`)
           }
         } else {
-          console.log(`⚠️  No company could be determined for this meeting (may be personal email domains)`)
         }
 
         // Update meeting with primary contact and company
@@ -1585,9 +1350,7 @@ async function syncSingleCall(
           .upsert(meetingContactRecords, { onConflict: 'meeting_id,contact_id' })
 
         if (junctionError) {
-          console.error(`❌ Error creating meeting_contacts records: ${junctionError.message}`)
         } else {
-          console.log(`✅ Created ${meetingContactRecords.length} meeting_contacts records`)
         }
 
     // Conditional activity creation based on per-user preference and meeting date
@@ -1606,17 +1369,13 @@ async function syncSingleCall(
 
       // Only auto-log if: owner was resolved to an internal user AND preferences allow AND from_date provided
       if (!ownerResolved || !enabled || !fromDateStr) {
-            console.log(`📝 Skipping activity creation (preference disabled or no from_date)`)
           } else {
             // Only log if meeting_start is on/after from_date (user-locality not known; use ISO date)
             const meetingDateOnly = new Date(meetingData.meeting_start)
             const fromDateOnly = new Date(`${fromDateStr}T00:00:00.000Z`)
 
             if (isNaN(meetingDateOnly.getTime()) || isNaN(fromDateOnly.getTime())) {
-              console.log('⚠️  Invalid dates - skipping auto activity creation')
             } else if (meetingDateOnly >= fromDateOnly) {
-              console.log('📝 Auto-logging meeting activity per user preference (new meetings only)')
-
               // Check if activity already exists for this meeting
               const { data: existingActivity } = await supabase
                 .from('activities')
@@ -1627,7 +1386,6 @@ async function syncSingleCall(
                 .single()
 
               if (existingActivity) {
-                console.log('⏭️  Activity already exists for this meeting - skipping duplicate creation')
               } else {
                 // Get sales rep email - use ownerEmailCandidate or lookup from profile
                 let salesRepEmail = ownerEmailCandidate
@@ -1652,12 +1410,9 @@ async function syncSingleCall(
 
                   if (!companyError && companyData?.name) {
                     companyName = companyData.name
-                    console.log(`🏢 Using company name for activity: ${companyName}`)
                   } else if (companyError) {
-                    console.log(`⚠️  Could not fetch company name: ${companyError.message}, using fallback: ${companyName}`)
                   }
                 } else {
-                  console.log(`ℹ️  No company linked to meeting, using meeting title: ${companyName}`)
                 }
 
                 // Extract and truncate summary for activity details to prevent UI overflow
@@ -1675,7 +1430,6 @@ async function syncSingleCall(
                       textContent = parsed.markdown_formatted || parsed.text || summary
                     } catch (e) {
                       // If parsing fails, use the raw summary
-                      console.log('⚠️ Could not parse summary JSON, using raw text')
                     }
                   }
 
@@ -1708,20 +1462,15 @@ async function syncSingleCall(
                 })
 
                 if (activityError) {
-                  console.error(`❌ Error creating activity: ${activityError.message}`)
                 } else {
-                  console.log(`✅ Created activity record for meeting with client: ${companyName}`)
                 }
               }
             } else {
-              console.log('📝 Meeting before preference start date - skipping auto activity creation')
             }
           }
         } catch (e) {
-          console.log('⚠️  Preference check failed, skipping auto activity creation')
         }
       } else {
-        console.log(`ℹ️  No external contacts found for meeting ${meeting.id} - skipping company linkage and activity creation`)
       }
     }
 
@@ -1730,18 +1479,12 @@ async function syncSingleCall(
     let actionItems = call.action_items
 
     if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
-      console.log(`✅ Found ${actionItems.length} action items in bulk response for recording ${call.recording_id}`)
     } else if (actionItems === null) {
-      console.log(`ℹ️  Action items not yet processed by Fathom for recording ${call.recording_id} (action_items: null)`)
     } else if (Array.isArray(actionItems) && actionItems.length === 0) {
-      console.log(`ℹ️  No action items detected in this meeting (action_items: [])`)
     } else {
-      console.log(`⚠️  Unexpected action_items format: ${typeof actionItems}`)
     }
 
     if (actionItems && Array.isArray(actionItems) && actionItems.length > 0) {
-      console.log(`📋 Processing ${actionItems.length} action items for meeting ${meeting.id}`)
-
       for (const actionItem of actionItems) {
         // Parse the new Fathom API format
         // recording_timestamp is in format "HH:MM:SS", we need to convert to seconds
@@ -1768,7 +1511,6 @@ async function syncSingleCall(
           .single()
 
         if (existingItem) {
-          console.log(`⏭️  Action item already exists: "${title}"`)
           continue
         }
 
@@ -1790,18 +1532,14 @@ async function syncSingleCall(
           })
 
         if (actionItemError) {
-          console.error(`❌ Error inserting action item: ${actionItemError.message}`)
         } else {
-          console.log(`✅ Inserted action item: "${title}"`)
         }
       }
     } else {
-      console.log(`ℹ️  No action items available for meeting ${meeting.id} (recording_id: ${call.recording_id})`)
     }
 
     return { success: true }
   } catch (error) {
-    console.error(`❌ Error syncing call ${call?.recording_id || 'unknown'}:`, error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

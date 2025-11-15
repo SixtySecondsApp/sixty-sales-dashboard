@@ -125,7 +125,6 @@ function parseArgs(): CliOptions {
         options.help = true;
         break;
       default:
-        console.warn(`Ignoring unknown option "${arg}"`);
         break;
     }
   }
@@ -270,24 +269,6 @@ function summarizeEvent(event: SavvyCalWebhookEvent) {
 }
 
 function printHelp() {
-  console.log(`Fetch the last N days of SavvyCal bookings via the REST API.
-
-Usage:
-  npx tsx scripts/fetchRecentSavvyCalBookings.ts [options]
-
-Options:
-  -d, --days <number>     How many days back to look (default: 3)
-      --since <iso>       Override start timestamp (ISO 8601)
-      --until <iso>       Override end timestamp (ISO 8601, defaults to now)
-      --scope <slug>      Optional SavvyCal scope slug filter
-  -l, --limit <number>    Maximum number of events to return
-  -o, --output <file>     Write full JSON payload to file
-      --json              Print full JSON payload to stdout
-  -h, --help              Show this help message
-
-Environment variables:
-  SAVVYCAL_API_TOKEN (preferred) or SAVVYCAL_SECRET_KEY must be present in .env.
-  SAVVYCAL_PUBLIC_KEY can also be provided; when both public & secret are set the script falls back to HTTP Basic auth.`);
 }
 
 async function main() {
@@ -316,19 +297,9 @@ async function main() {
 
   if (debugMode) {
     const [scheme] = authHeader.split(' ', 1);
-    console.log(
-      `[fetchRecentSavvyCalBookings] Using ${scheme} auth (length=${authHeader.length}). Set DEBUG_SAVVYCAL_FETCH=0 to disable.`,
-    );
   }
   const sinceIso = sinceDate.toISOString();
   const untilIso = untilDate.toISOString();
-
-  console.log(
-    `Fetching SavvyCal bookings between ${sinceIso} and ${untilIso}${
-      options.scope ? ` (scope: ${options.scope})` : ''
-    }…`,
-  );
-
   const events = await fetchBookings(authHeader, {
     scope: options.scope,
     limit: options.limit,
@@ -341,28 +312,20 @@ async function main() {
   const filteredEvents = filterEventsByDateAndScope(events, sinceDate, untilDate, options.scope);
 
   if (!filteredEvents.length) {
-    console.log('No bookings found for the requested window.');
     return;
   }
-
-  console.log(`Found ${filteredEvents.length} booking(s).`);
   const summary = filteredEvents.map(summarizeEvent);
   const rowsToShow = Math.min(summary.length, 10);
-
-  console.table(summary.slice(0, rowsToShow));
   if (summary.length > rowsToShow) {
-    console.log(`Showing the first ${rowsToShow} rows. Use --json or --output to inspect everything.`);
   }
 
   if (options.json && !options.output) {
-    console.log(JSON.stringify(filteredEvents, null, 2));
   }
 
   if (options.output) {
     const filePath = path.resolve(process.cwd(), options.output);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, JSON.stringify(filteredEvents, null, 2));
-    console.log(`Saved ${filteredEvents.length} booking(s) to ${filePath}`);
   }
 }
 
@@ -400,7 +363,6 @@ function filterEventsByDateAndScope(
 }
 
 main().catch((error) => {
-  console.error(`[fetchRecentSavvyCalBookings] ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 });
 

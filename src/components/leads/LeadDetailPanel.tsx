@@ -45,7 +45,6 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching activities:', error);
         return [];
       }
 

@@ -33,9 +33,6 @@ class SlackOAuthService {
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-oauth-callback`;
     
     // Debug log to check if env var is loaded
-    console.log('[SlackOAuth] Client ID:', clientId);
-    console.log('[SlackOAuth] All env vars:', import.meta.env);
-    
     // Encode state with user information
     const state = btoa(JSON.stringify({ user_id: userId, timestamp: Date.now() }));
     
@@ -73,13 +70,11 @@ class SlackOAuthService {
       
       // If table doesn't exist (404) or no rows found, return false
       if (error?.code === 'PGRST116' || error?.code === '42P01') {
-        console.warn('[SlackOAuth] Table not found or no integrations:', error.message);
         return false;
       }
       
       return !error && !!data;
     } catch (err) {
-      console.error('[SlackOAuth] Error checking integration:', err);
       return false;
     }
   }
@@ -97,7 +92,6 @@ class SlackOAuthService {
       
       // If table doesn't exist, return empty array
       if (error?.code === 'PGRST116' || error?.code === '42P01') {
-        console.warn('[SlackOAuth] Table not found, returning empty integrations');
         return [];
       }
       
@@ -108,7 +102,6 @@ class SlackOAuthService {
       
       return data || [];
     } catch (err) {
-      console.error('[SlackOAuth] Error getting integrations:', err);
       return [];
     }
   }

@@ -20,28 +20,18 @@ const neonClient = new Client({
 
 async function importDealsAndActivities() {
   try {
-    console.log('🚀 IMPORTING DEALS AND ACTIVITIES TO SUPABASE');
-    console.log('=' + '='.repeat(45));
-    
     // Connect to Neon
     await neonClient.connect();
     
     // Step 1: Import deal stages first
-    console.log('\n🎯 Step 1: Importing deal stages...');
     await importDealStages();
     
     // Step 2: Import deals
-    console.log('\n💼 Step 2: Importing deals...');
     await importDeals();
     
     // Step 3: Import activities
-    console.log('\n📊 Step 3: Importing activities...');
     await importActivities();
-    
-    console.log('\n✅ DEALS AND ACTIVITIES IMPORT COMPLETE!');
-    
   } catch (error) {
-    console.error('❌ Import failed:', error);
   } finally {
     await neonClient.end();
   }
@@ -79,9 +69,6 @@ async function importDealStages() {
         ORDER BY position
       `);
     }
-    
-    console.log(`Found ${stagesResult.rows.length} stages in Neon`);
-    
     // Import to Supabase
     let importedCount = 0;
     let errors = 0;
@@ -95,18 +82,12 @@ async function importDealStages() {
         });
       
       if (error) {
-        console.error(`❌ Failed to import stage ${stage.name}:`, error.message);
         errors++;
       } else {
         importedCount++;
-        console.log(`✅ Imported stage: ${stage.name}`);
       }
     }
-    
-    console.log(`📊 Stages: ${importedCount} imported, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Stage import failed:', error.message);
   }
 }
 
@@ -140,9 +121,6 @@ async function importDeals() {
       FROM deals
       ORDER BY created_at
     `);
-    
-    console.log(`Found ${dealsResult.rows.length} deals in Neon`);
-    
     // Import deals to Supabase in batches
     const batchSize = 50;
     let importedCount = 0;
@@ -159,18 +137,12 @@ async function importDeals() {
         });
       
       if (error) {
-        console.error(`❌ Deals batch ${Math.floor(i/batchSize) + 1} failed:`, error.message);
         errors++;
       } else {
         importedCount += batch.length;
-        console.log(`✅ Imported deals batch ${Math.floor(i/batchSize) + 1}`);
       }
     }
-    
-    console.log(`📊 Deals: ${importedCount} imported, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Deal import failed:', error.message);
   }
 }
 
@@ -201,9 +173,6 @@ async function importActivities() {
       FROM activities
       ORDER BY created_at
     `);
-    
-    console.log(`Found ${activitiesResult.rows.length} activities in Neon`);
-    
     // Import activities to Supabase in batches
     const batchSize = 100;
     let importedCount = 0;
@@ -220,18 +189,12 @@ async function importActivities() {
         });
       
       if (error) {
-        console.error(`❌ Activities batch ${Math.floor(i/batchSize) + 1} failed:`, error.message);
         errors++;
       } else {
         importedCount += batch.length;
-        console.log(`✅ Imported activities batch ${Math.floor(i/batchSize) + 1}`);
       }
     }
-    
-    console.log(`📊 Activities: ${importedCount} imported, ${errors} errors`);
-    
   } catch (error) {
-    console.error('❌ Activity import failed:', error.message);
   }
 }
 

@@ -53,7 +53,6 @@ export function useNextActionSuggestions(activityId: string, activityType: strin
 
       setSuggestions(suggestionsWithTaskStatus);
     } catch (err) {
-      console.error('Error fetching suggestions:', err);
       setError(err as Error);
     } finally {
       setLoading(false);

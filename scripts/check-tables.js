@@ -17,22 +17,16 @@ async function checkTables() {
       WHERE table_schema = 'public' 
       ORDER BY table_name;
     `);
-    
-    console.log('📋 Tables in database:');
-    result.rows.forEach(row => console.log('  -', row.table_name));
+    result.rows.forEach(row => undefined);
     
     // Check specifically for CRM tables
     const crmTables = ['companies', 'contacts', 'deal_contacts', 'contact_preferences', 'activity_sync_rules'];
-    console.log('\n🔍 CRM Tables Status:');
-    
     const existingTables = result.rows.map(r => r.table_name);
     crmTables.forEach(table => {
       const exists = existingTables.includes(table);
-      console.log(`  ${exists ? '✅' : '❌'} ${table}`);
     });
     
   } catch (error) {
-    console.error('❌ Error:', error.message);
   } finally {
     await client.end();
   }

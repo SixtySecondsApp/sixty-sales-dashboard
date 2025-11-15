@@ -49,9 +49,6 @@ serve(async (req) => {
     if (!action_item_id) {
       throw new Error('action_item_id is required')
     }
-
-    console.log(`📋 Creating task for action item: ${action_item_id}`)
-
     // Get the action item
     const { data: actionItem, error: fetchError } = await supabase
       .from('meeting_action_items')
@@ -154,12 +151,8 @@ serve(async (req) => {
       .single()
 
     if (taskError) {
-      console.error('❌ Task creation error:', taskError)
       throw new Error(`Failed to create task: ${taskError.message}`)
     }
-
-    console.log(`✅ Task created: ${newTask.id}`)
-
     // Update action item with task_id and sync status
     const { error: updateError } = await supabase
       .from('meeting_action_items')
@@ -172,7 +165,6 @@ serve(async (req) => {
       .eq('id', action_item_id)
 
     if (updateError) {
-      console.warn('⚠️ Failed to update action item:', updateError)
       // Don't fail the request - task was created successfully
     }
 
@@ -189,8 +181,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('❌ Error:', error)
-
     return new Response(
       JSON.stringify({
         success: false,

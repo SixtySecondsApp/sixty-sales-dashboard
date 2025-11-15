@@ -117,7 +117,6 @@ export async function selectPrimaryContact(
     .eq('user_id', userId);
 
   if (error || !contacts || contacts.length === 0) {
-    console.error('Error fetching contacts for primary selection:', error);
     return contactIds[0]; // Fallback to first contact
   }
 
@@ -200,21 +199,6 @@ export async function selectPrimaryContact(
   scores.sort((a, b) => b.score - a.score);
 
   const winner = scores[0];
-
-  console.log('Primary contact selection:', {
-    winner: {
-      name: winner.contact.name,
-      email: winner.contact.email,
-      score: winner.score.toFixed(2),
-      reasons: winner.reasons,
-    },
-    allScores: scores.map(s => ({
-      name: s.contact.name,
-      score: s.score.toFixed(2),
-      reasons: s.reasons,
-    })),
-  });
-
   return winner.contact.id;
 }
 

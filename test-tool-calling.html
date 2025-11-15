@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Calling Visualization Test</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+        }
+        
+        .animate-spin {
+            animation: spin 2s linear infinite;
+        }
+        
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .animate-shimmer {
+            animation: shimmer 2s linear infinite;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-white mb-2">Tool Calling Visualization</h1>
+            <p class="text-gray-400">Testing the enhanced tool call indicators</p>
+        </div>
+
+        <!-- Pipeline Analysis Example -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-300 mb-4">Pipeline Analysis - Active</h2>
+            <div class="bg-gray-900/70 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-5 shadow-xl shadow-black/20 relative overflow-hidden">
+                <!-- Animated background -->
+                <div class="absolute inset-0 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 opacity-5 animate-shimmer"></div>
+                
+                <!-- Header -->
+                <div class="flex items-center gap-4 mb-5 relative z-10">
+                    <div class="w-12 h-12 bg-gradient-to-br from-blue-500 via-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 relative overflow-hidden">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
+                        <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <div class="text-base font-semibold text-gray-100">Pipeline Analysis</div>
+                        <div class="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-blue-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Analyzing...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Steps -->
+                <div class="space-y-1 mb-4 relative z-10">
+                    <!-- Step 1: Complete -->
+                    <div class="flex items-start gap-3 relative">
+                        <div class="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-700/50 to-transparent"></div>
+                        <div class="relative z-10">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500 shadow-lg shadow-emerald-500/30">
+                                <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 pt-0.5 pb-2">
+                            <div class="text-sm text-gray-300">Fetching deals from database</div>
+                            <div class="text-xs text-emerald-400/80 mt-1 flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span>count: 47</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Active -->
+                    <div class="flex items-start gap-3 relative">
+                        <div class="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-700/50 to-transparent"></div>
+                        <div class="relative z-10">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center bg-blue-500 shadow-lg shadow-blue-500/30 animate-pulse">
+                                <svg class="w-3.5 h-3.5 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 pt-0.5 pb-2">
+                            <div class="text-sm text-gray-100 font-medium">Calculating health scores</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Pending -->
+                    <div class="flex items-start gap-3 relative">
+                        <div class="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-700/50 to-transparent"></div>
+                        <div class="relative z-10">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center bg-gray-700/50 border border-gray-600/50">
+                                <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 pt-0.5 pb-2">
+                            <div class="text-sm text-gray-500">Analyzing priorities</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Pending -->
+                    <div class="flex items-start gap-3 relative">
+                        <div class="relative z-10">
+                            <div class="w-6 h-6 rounded-full flex items-center justify-center bg-gray-700/50 border border-gray-600/50">
+                                <svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 pt-0.5 pb-2">
+                            <div class="text-sm text-gray-500">Generating recommendations</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-gray-500 font-medium">Progress</span>
+                        <span class="text-xs text-gray-400 font-semibold">50%</span>
+                    </div>
+                    <div class="h-1.5 bg-gray-800/80 rounded-full overflow-hidden backdrop-blur-sm">
+                        <div class="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 shadow-lg shadow-blue-500/20 relative" style="width: 50%">
+                            <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Email Draft Example - Complete -->
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-gray-300 mb-4">Email Generation - Complete</h2>
+            <div class="bg-gray-900/70 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-5 shadow-xl shadow-black/20 relative overflow-hidden">
+                <!-- Header -->
+                <div class="flex items-center gap-4 mb-5 relative z-10">
+                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 via-purple-600 to-purple-700 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    
+                    <div class="flex-1">
+                        <div class="text-base font-semibold text-gray-100">Email Generation</div>
+                        <div class="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <span class="text-emerald-400">Complete</span>
+                        </div>
+                    </div>
+
+                    <div class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Completed Steps -->
+                <div class="space-y-1 relative z-10">
+                    <div class="flex items-start gap-3">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500 shadow-lg shadow-emerald-500/30">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 pt-0.5">
+                            <div class="text-sm text-gray-300">Loading contact history</div>
+                            <div class="text-xs text-gray-600 mt-0.5">156ms</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500 shadow-lg shadow-emerald-500/30">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 pt-0.5">
+                            <div class="text-sm text-gray-300">Retrieving last meeting notes</div>
+                            <div class="text-xs text-gray-600 mt-0.5">89ms</div>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3">
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center bg-emerald-500 shadow-lg shadow-emerald-500/30">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div class="flex-1 pt-0.5">
+                            <div class="text-sm text-gray-300">Generating personalized email</div>
+                            <div class="text-xs text-gray-600 mt-0.5">1243ms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compact Mode Examples -->
+        <div>
+            <h2 class="text-xl font-semibold text-gray-300 mb-4">Compact Mode</h2>
+            <div class="flex flex-wrap gap-3">
+                <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-gray-900/70 backdrop-blur-sm border border-gray-800/50 rounded-xl">
+                    <svg class="w-4 h-4 text-emerald-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="text-sm text-gray-300 font-medium">Calendar Search</span>
+                    <svg class="w-3.5 h-3.5 text-gray-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </div>
+                
+                <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-gray-900/70 backdrop-blur-sm border border-gray-800/50 rounded-xl">
+                    <svg class="w-4 h-4 text-amber-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span class="text-sm text-gray-300 font-medium">Contact Lookup</span>
+                    <svg class="w-3.5 h-3.5 text-gray-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+

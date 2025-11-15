@@ -13,8 +13,6 @@ const supabase = createClient(
 
 async function checkMissingNames() {
   try {
-    console.log('📊 Checking contacts without names in Supabase...\n');
-
     // Get contacts without names
     const { data: contactsWithoutNames, error } = await supabase
       .from('contacts')
@@ -24,13 +22,7 @@ async function checkMissingNames() {
       .limit(50);
 
     if (error) throw error;
-
-    console.log(`Found ${contactsWithoutNames.length} contacts without proper names:\n`);
-    
     contactsWithoutNames.forEach(contact => {
-      console.log(`Email: ${contact.email}`);
-      console.log(`  First: ${contact.first_name || 'NULL'}, Last: ${contact.last_name || 'NULL'}`);
-      console.log(`  Created: ${contact.created_at}\n`);
     });
 
     // Check total stats
@@ -43,14 +35,7 @@ async function checkMissingNames() {
       .select('id', { count: 'exact', head: true })
       .not('first_name', 'is', null)
       .not('last_name', 'is', null);
-    
-
-    console.log('\n📊 Summary:');
-    console.log(`   Total contacts: ${allContacts?.length || 0}`);
-    console.log(`   Contacts with names: ${namedContacts?.length || 0}`);
-
   } catch (error) {
-    console.error('❌ Check failed:', error);
   }
 }
 

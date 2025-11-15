@@ -354,7 +354,6 @@ export function GoogleIntegrationTests() {
       setResults([...testResults]);
 
     } catch (error: any) {
-      console.error('Test suite error:', error);
       toast.error('Test suite failed: ' + error.message);
     } finally {
       setIsRunning(false);

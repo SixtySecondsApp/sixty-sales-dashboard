@@ -90,7 +90,6 @@ export const nextActionsService = {
       })
 
       if (error) {
-        console.error('[nextActionsService] generateSuggestions error:', error)
         throw error
       }
 
@@ -99,7 +98,6 @@ export const nextActionsService = {
         count: data?.count || 0,
       }
     } catch (error) {
-      console.error('[nextActionsService] Failed to generate suggestions:', error)
       throw error
     }
   },
@@ -162,13 +160,11 @@ export const nextActionsService = {
       const { data, error } = await query
 
       if (error) {
-        console.error('[nextActionsService] getSuggestions error:', error)
         throw error
       }
 
       return (data || []) as NextActionSuggestion[]
     } catch (error) {
-      console.error('[nextActionsService] Failed to fetch suggestions:', error)
       throw error
     }
   },
@@ -197,13 +193,11 @@ export const nextActionsService = {
       })
 
       if (error) {
-        console.error('[nextActionsService] getPendingSuggestionsCount error:', error)
         return 0
       }
 
       return data || 0
     } catch (error) {
-      console.error('[nextActionsService] Failed to get pending count:', error)
       return 0
     }
   },
@@ -222,13 +216,11 @@ export const nextActionsService = {
       })
 
       if (error) {
-        console.error('[nextActionsService] acceptSuggestion error:', error)
         throw error
       }
 
       return data // Returns task_id
     } catch (error) {
-      console.error('[nextActionsService] Failed to accept suggestion:', error)
       throw error
     }
   },
@@ -244,13 +236,11 @@ export const nextActionsService = {
       })
 
       if (error) {
-        console.error('[nextActionsService] dismissSuggestion error:', error)
         throw error
       }
 
       return data === true
     } catch (error) {
-      console.error('[nextActionsService] Failed to dismiss suggestion:', error)
       throw error
     }
   },
@@ -282,13 +272,11 @@ export const nextActionsService = {
           const taskId = await this.acceptSuggestion(suggestion.id)
           taskIds.push(taskId)
         } catch (error) {
-          console.error(`Failed to accept suggestion ${suggestion.id}:`, error)
         }
       }
 
       return taskIds
     } catch (error) {
-      console.error('[nextActionsService] Failed to accept all suggestions:', error)
       throw error
     }
   },
@@ -311,13 +299,11 @@ export const nextActionsService = {
           const success = await this.dismissSuggestion(suggestion.id, feedback)
           if (success) dismissedCount++
         } catch (error) {
-          console.error(`Failed to dismiss suggestion ${suggestion.id}:`, error)
         }
       }
 
       return dismissedCount
     } catch (error) {
-      console.error('[nextActionsService] Failed to dismiss all suggestions:', error)
       throw error
     }
   },
@@ -336,13 +322,11 @@ export const nextActionsService = {
         .eq('id', suggestionId)
 
       if (error) {
-        console.error('[nextActionsService] markSuggestionCompleted error:', error)
         throw error
       }
 
       return true
     } catch (error) {
-      console.error('[nextActionsService] Failed to mark suggestion completed:', error)
       throw error
     }
   },
@@ -371,7 +355,6 @@ export const nextActionsService = {
 
       return grouped
     } catch (error) {
-      console.error('[nextActionsService] Failed to group suggestions:', error)
       throw error
     }
   },
@@ -397,7 +380,6 @@ export const nextActionsService = {
 
       return sorted.slice(0, limit)
     } catch (error) {
-      console.error('[nextActionsService] Failed to get top priority suggestions:', error)
       throw error
     }
   },

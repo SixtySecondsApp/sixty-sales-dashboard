@@ -48,8 +48,6 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
       // Cleanup any remaining test data when component unmounts
       const remainingData = cleanupDataRef.current;
       if (Object.keys(remainingData).length > 0) {
-        console.log('🧹 Component unmounting - cleaning up remaining test data...', remainingData);
-        
         // Perform cleanup without waiting (fire and forget)
         Object.entries(remainingData).forEach(async ([entity, id]) => {
           if (id && apiKey) {
@@ -61,9 +59,7 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
                   'X-API-Key': apiKey,
                 },
               });
-              console.log(`🧹 Cleaned up ${entity}: ${id.substring(0, 8)}... on unmount`);
             } catch (error) {
-              console.warn(`⚠️ Failed to cleanup ${entity} on unmount:`, error);
             }
           }
         });
@@ -312,8 +308,6 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
     // Final cleanup: Delete any remaining test data
     const remainingCleanup = Object.keys(testDataToCleanup);
     if (remainingCleanup.length > 0) {
-      console.log('🧹 Performing final cleanup for remaining test data...', testDataToCleanup);
-      
       // Add cleanup status to results
       allResults.push({
         entity: 'cleanup',
@@ -401,11 +395,8 @@ export const ApiTestSuite: React.FC<ApiTestSuiteProps> = ({ apiKey, onClose }) =
       } else {
         toast.warning('⚠️ Some cleanup operations may have failed');
       }
-      
-      console.log('Manual cleanup results:', cleanupResults);
     } catch (error) {
       toast.error('Failed to perform manual cleanup');
-      console.error('Manual cleanup error:', error);
     }
   };
 

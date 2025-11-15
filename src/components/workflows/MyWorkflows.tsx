@@ -80,7 +80,6 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
       // Data now includes real statistics from database
       setWorkflows(data || []);
     } catch (error) {
-      console.error('Error loading workflows:', error);
     } finally {
       setLoading(false);
     }
@@ -104,7 +103,6 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
       if (error) throw error;
       await loadWorkflows();
     } catch (error) {
-      console.error('Error duplicating workflow:', error);
     }
   };
 
@@ -118,7 +116,6 @@ const MyWorkflows: React.FC<MyWorkflowsProps> = ({ onSelectWorkflow, onDeleteWor
       if (error) throw error;
       await loadWorkflows();
     } catch (error) {
-      console.error('Error toggling workflow:', error);
     }
   };
 

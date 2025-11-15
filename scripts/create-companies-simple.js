@@ -21,8 +21,6 @@ const neonClient = new Client({
 
 async function createCompaniesSimple() {
   try {
-    console.log('🔧 Creating companies table in Supabase (simplified)...');
-    
     // First, try to insert companies directly (the table might already exist)
     await neonClient.connect();
     
@@ -41,9 +39,6 @@ async function createCompaniesSimple() {
       ORDER BY created_at DESC
       LIMIT 5;
     `);
-    
-    console.log(`📊 Sample companies from Neon:`, companiesResult.rows.length);
-    
     // Try inserting companies without owner_id requirement
     let successCount = 0;
     let errorCount = 0;
@@ -61,23 +56,18 @@ async function createCompaniesSimple() {
         });
       
       if (insertError) {
-        console.log(`❌ Failed to insert ${company.name}: ${insertError.message}`);
         errorCount++;
         
         // If the error is that the table doesn't exist, we need to create it
         if (insertError.message.includes('does not exist')) {
-          console.log('🔧 Companies table does not exist. Need to create it manually.');
           break;
         }
       } else {
-        console.log(`✅ Successfully inserted: ${company.name}`);
         successCount++;
       }
     }
     
     if (successCount > 0) {
-      console.log(`\n🎉 Success! Companies table is working.`);
-      
       // Test the companies page functionality
       const { data: testData, error: testError } = await supabase
         .from('companies')
@@ -85,17 +75,12 @@ async function createCompaniesSimple() {
         .limit(3);
       
       if (testError) {
-        console.error('❌ Test query failed:', testError);
       } else {
-        console.log(`📊 Companies accessible via Supabase:`, testData.length);
-        console.table(testData);
       }
     } else {
-      console.log('❌ No companies were inserted. Need to debug further.');
     }
     
   } catch (error) {
-    console.error('❌ Script failed:', error);
   } finally {
     await neonClient.end();
   }

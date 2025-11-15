@@ -62,20 +62,10 @@ class APIPerformanceMonitor {
   private checkPerformanceAlerts(metric: Omit<PerformanceMetric, 'timestamp'>): void {
     // Alert on slow responses (> 1 second)
     if (metric.duration > 1000 && metric.status === 200) {
-      console.warn('Slow API response detected:', {
-        endpoint: metric.endpoint,
-        duration: metric.duration,
-        method: metric.method
-      });
     }
 
     // Alert on high error rates
     if (metric.status >= 400) {
-      console.warn('API error detected:', {
-        endpoint: metric.endpoint,
-        status: metric.status,
-        method: metric.method
-      });
     }
   }
 

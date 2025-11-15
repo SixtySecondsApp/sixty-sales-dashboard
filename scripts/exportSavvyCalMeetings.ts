@@ -84,7 +84,6 @@ function parseArgs(): CliOptions {
         options.verbose = true;
         break;
       default:
-        console.warn(`Ignoring unknown option "${arg}"`);
         break;
     }
   }
@@ -165,7 +164,6 @@ async function fetchChunk(
     const url = `${API_URL}?${searchParams.toString()}`;
 
     if (params.verbose) {
-      console.log(`[savvycal] GET ${url}`);
     }
 
     const response = await fetch(url, {
@@ -231,7 +229,6 @@ async function main() {
     const startIso = chunk.start.toISOString();
     const endIso = chunk.end.toISOString();
     if (options.verbose) {
-      console.log(`Fetching ${startIso} → ${endIso}`);
     }
     const events = await fetchChunk(authHeader, {
       startIso,
@@ -257,30 +254,22 @@ async function main() {
   });
 
   if (!sorted.length) {
-    console.log('No bookings found for the requested window.');
     return;
   }
-
-  console.log(`Collected ${sorted.length} unique booking(s).`);
-  console.table(sorted.slice(0, 10).map(summarize));
   if (sorted.length > 10) {
-    console.log(`Showing first 10 rows. Total rows: ${sorted.length}`);
   }
 
   if (options.json && !options.output) {
-    console.log(JSON.stringify(sorted, null, 2));
   }
 
   if (options.output) {
     const destination = path.resolve(process.cwd(), options.output);
     fs.mkdirSync(path.dirname(destination), { recursive: true });
     fs.writeFileSync(destination, JSON.stringify(sorted, null, 2));
-    console.log(`Saved ${sorted.length} booking(s) to ${destination}`);
   }
 }
 
 main().catch((error) => {
-  console.error('[exportSavvyCalMeetings] Failed:', error instanceof Error ? error.message : error);
   process.exit(1);
 });
 

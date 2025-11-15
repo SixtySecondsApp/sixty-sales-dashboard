@@ -4,7 +4,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://ewtuefzeogytgmsnkp
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseServiceKey) {
-  console.error('VITE_SUPABASE_SERVICE_ROLE_KEY is required');
   process.exit(1);
 }
 
@@ -70,21 +69,15 @@ GRANT EXECUTE ON FUNCTION public.get_users_with_targets() TO authenticated;
 `;
 
 async function fixRpcFunction() {
-  console.log('Applying RPC function to Supabase...');
-  
   try {
     const { error } = await supabase.rpc('exec', {
       sql: rpcFunction
     });
     
     if (error) {
-      console.error('Error creating RPC function:', error);
       process.exit(1);
     }
-    
-    console.log('✅ RPC function get_users_with_targets created successfully');
   } catch (error) {
-    console.error('Failed to create RPC function:', error);
     process.exit(1);
   }
 }

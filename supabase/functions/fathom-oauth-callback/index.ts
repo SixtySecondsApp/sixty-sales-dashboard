@@ -39,7 +39,6 @@ serve(async (req) => {
 
     // Check for OAuth errors from Fathom
     if (error) {
-      console.error('❌ OAuth error from Fathom:', error, errorDescription)
       return new Response(
         `<!DOCTYPE html>
         <html>
@@ -71,9 +70,6 @@ serve(async (req) => {
     if (!code || !state) {
       throw new Error('Missing code or state parameter')
     }
-
-    console.log('🔐 Processing OAuth callback')
-
     // Use service role to bypass RLS for token storage
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -118,9 +114,6 @@ serve(async (req) => {
     if (!clientId || !clientSecret || !redirectUri) {
       throw new Error('Missing Fathom OAuth configuration')
     }
-
-    console.log('🔄 Exchanging authorization code for tokens')
-
     // Exchange authorization code for access token
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
@@ -140,14 +133,10 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('❌ Token exchange failed:', errorText)
       throw new Error(`Token exchange failed: ${errorText}`)
     }
 
     const tokenData = await tokenResponse.json()
-
-    console.log('✅ Tokens received from Fathom')
-
     // Get Fathom user info
     let fathomUserId: string | null = null
     let fathomUserEmail: string | null = null
@@ -162,7 +151,6 @@ serve(async (req) => {
       })
 
       if (!userInfoResponse.ok) {
-        console.warn('⚠️  Bearer auth failed, trying X-Api-Key...', userInfoResponse.status)
         // Try with X-Api-Key instead
         userInfoResponse = await fetch('https://api.fathom.ai/external/v1/me', {
           headers: {
@@ -175,13 +163,10 @@ serve(async (req) => {
         const userInfo = await userInfoResponse.json()
         fathomUserId = userInfo.id
         fathomUserEmail = userInfo.email
-        console.log('✅ Fathom user info retrieved:', fathomUserEmail)
       } else {
         const errorText = await userInfoResponse.text()
-        console.warn('⚠️  User info request failed:', userInfoResponse.status, errorText)
       }
     } catch (error) {
-      console.warn('⚠️  Could not fetch Fathom user info:', error)
       // Continue anyway - this is not critical
     }
 
@@ -209,12 +194,8 @@ serve(async (req) => {
       .single()
 
     if (insertError) {
-      console.error('❌ Failed to store integration:', insertError)
       throw new Error(`Failed to store integration: ${insertError.message}`)
     }
-
-    console.log('✅ Integration stored successfully:', integration.id)
-
     // Create initial sync state
     const { error: syncStateError } = await supabase
       .from('fathom_sync_state')
@@ -229,12 +210,8 @@ serve(async (req) => {
       })
 
     if (syncStateError) {
-      console.warn('⚠️  Failed to create sync state:', syncStateError)
       // Continue anyway - sync state can be created later
     }
-
-    console.log('🎉 OAuth flow completed successfully')
-
     // Return JSON response for POST requests, HTML for GET redirects
     if (req.method === 'POST') {
       return new Response(
@@ -313,8 +290,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('❌ OAuth callback error:', error)
-
     return new Response(
       `<!DOCTYPE html>
       <html>

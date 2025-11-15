@@ -5,12 +5,10 @@ export default function TestingLabDebug() {
   const [testMode, setTestMode] = useState<'simulated' | 'real'>('simulated');
 
   const handleClick = () => {
-    console.log('Button clicked! Current count:', count);
     setCount(count + 1);
   };
 
   const handleModeChange = (mode: 'simulated' | 'real') => {
-    console.log('Mode changing to:', mode);
     setTestMode(mode);
   };
 
@@ -60,9 +58,6 @@ export default function TestingLabDebug() {
           <p className="text-gray-400 mb-2">Console Test:</p>
           <button
             onClick={() => {
-              console.log('Testing console log');
-              console.warn('Testing console warning');
-              console.error('Testing console error');
               alert('Check the console for logs!');
             }}
             className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg"

@@ -35,8 +35,6 @@ interface SignalScores {
   responseTime: number;
 }
 
-console.log('Deal Health Calculator Edge Function loaded');
-
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -54,9 +52,6 @@ Deno.serve(async (req) => {
         persistSession: false,
       },
     });
-
-    console.log('[DealHealthCron] Starting daily health calculation');
-
     // Get all active deals with their existing health scores
     const { data: deals, error: dealsError } = await supabase
       .from('deals')
@@ -74,15 +69,11 @@ Deno.serve(async (req) => {
       .not('deal_stages.name', 'in', '("Signed","Lost")');
 
     if (dealsError) {
-      console.error('[DealHealthCron] Error fetching deals:', dealsError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch deals', details: dealsError }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
-
-    console.log(`[DealHealthCron] Found ${deals?.length || 0} active deals`);
-
     // Filter for stale scores (older than 24 hours)
     const staleThreshold = new Date();
     staleThreshold.setHours(staleThreshold.getHours() - 24);
@@ -107,9 +98,6 @@ Deno.serve(async (req) => {
         }
       }
     }
-
-    console.log(`[DealHealthCron] Updating ${dealsToUpdate.length} stale scores, skipping ${skippedCount} fresh scores`);
-
     const results = {
       total_deals: deals?.length || 0,
       updated: 0,
@@ -129,14 +117,10 @@ Deno.serve(async (req) => {
           results.errors.push(`Failed to calculate health for deal ${deal.id}`);
         }
       } catch (error) {
-        console.error(`[DealHealthCron] Error calculating health for deal ${deal.id}:`, error);
         results.failed++;
         results.errors.push(`Error for deal ${deal.id}: ${error.message}`);
       }
     }
-
-    console.log('[DealHealthCron] Calculation complete:', results);
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -146,7 +130,6 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[DealHealthCron] Unexpected error:', error);
     return new Response(
       JSON.stringify({ error: 'Unexpected error', details: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
@@ -159,12 +142,9 @@ Deno.serve(async (req) => {
  */
 async function calculateDealHealth(supabase: any, dealId: string): Promise<any | null> {
   try {
-    console.log(`[DealHealthCron] Calculating health for deal ${dealId}`);
-
     // Fetch deal metrics
     const metrics = await fetchDealMetrics(supabase, dealId);
     if (!metrics) {
-      console.error('[DealHealthCron] Failed to fetch metrics');
       return null;
     }
 
@@ -232,7 +212,6 @@ async function calculateDealHealth(supabase: any, dealId: string): Promise<any |
       .single();
 
     if (upsertError) {
-      console.error('[DealHealthCron] Error saving health score:', upsertError);
       return null;
     }
 
@@ -250,16 +229,8 @@ async function calculateDealHealth(supabase: any, dealId: string): Promise<any |
       risk_factors: riskFactors,
       snapshot_at: new Date().toISOString(),
     });
-
-    console.log(`[DealHealthCron] Health calculated successfully for deal ${dealId}:`, {
-      overallScore,
-      healthStatus,
-      riskLevel,
-    });
-
     return savedScore;
   } catch (error) {
-    console.error('[DealHealthCron] Error in calculateDealHealth:', error);
     return null;
   }
 }
@@ -286,7 +257,6 @@ async function fetchDealMetrics(supabase: any, dealId: string): Promise<(DealHea
       .single();
 
     if (dealError || !deal) {
-      console.error('[DealHealthCron] Error fetching deal:', dealError);
       return null;
     }
 
@@ -306,7 +276,6 @@ async function fetchDealMetrics(supabase: any, dealId: string): Promise<(DealHea
       .limit(10);
 
     if (meetingsError) {
-      console.error('[DealHealthCron] Error fetching meetings:', meetingsError);
     }
 
     const meetingsLast30Days = meetings?.filter((m: any) =>
@@ -352,7 +321,6 @@ async function fetchDealMetrics(supabase: any, dealId: string): Promise<(DealHea
       .order('created_at', { ascending: false });
 
     if (activitiesError) {
-      console.error('[DealHealthCron] Error fetching activities:', activitiesError);
     }
 
     const activityCount30Days = activities?.length || 0;
@@ -385,7 +353,6 @@ async function fetchDealMetrics(supabase: any, dealId: string): Promise<(DealHea
       },
     };
   } catch (error) {
-    console.error('[DealHealthCron] Exception fetching metrics:', error);
     return null;
   }
 }

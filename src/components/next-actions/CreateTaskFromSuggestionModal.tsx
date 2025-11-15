@@ -60,7 +60,6 @@ export const CreateTaskFromSuggestionModal: React.FC<CreateTaskFromSuggestionMod
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Failed to create task:', error)
     } finally {
       setIsCreating(false)
     }

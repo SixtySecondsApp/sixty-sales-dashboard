@@ -14,7 +14,6 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing Supabase credentials');
   process.exit(1);
 }
 
@@ -22,8 +21,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function runMigration() {
   try {
-    console.log('Running migration to populate contact names...');
-    
     // Read the migration file
     const migrationSQL = fs.readFileSync(
       join(__dirname, 'supabase/migrations/20250820_populate_contact_names.sql'),
@@ -38,16 +35,11 @@ async function runMigration() {
     
     // Execute each statement
     for (const statement of statements) {
-      console.log('Executing:', statement.substring(0, 50) + '...');
       const { error } = await supabase.rpc('exec_sql', { sql: statement });
       if (error) {
-        console.error('Error executing statement:', error);
       }
     }
-    
-    console.log('Migration completed successfully!');
   } catch (error) {
-    console.error('Migration failed:', error);
   }
 }
 

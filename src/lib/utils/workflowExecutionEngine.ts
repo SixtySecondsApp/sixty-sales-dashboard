@@ -44,8 +44,6 @@ export class WorkflowExecutionEngine {
   // Initialize the engine and set up listeners
   async initialize() {
     try {
-      console.log('[WorkflowEngine] Initializing for user:', this.userId);
-      
       // Load active workflows
       await this.loadActiveWorkflows();
       
@@ -54,10 +52,7 @@ export class WorkflowExecutionEngine {
       
       // Start processing queue
       this.startQueueProcessor();
-      
-      console.log('[WorkflowEngine] Initialization complete');
     } catch (error) {
-      console.error('[WorkflowEngine] Initialization error:', error);
       throw error;
     }
   }
@@ -71,7 +66,6 @@ export class WorkflowExecutionEngine {
       .eq('is_active', true);
 
     if (error) {
-      console.error('[WorkflowEngine] Error loading workflows:', error);
       return;
     }
 
@@ -80,8 +74,6 @@ export class WorkflowExecutionEngine {
     data?.forEach(workflow => {
       this.activeWorkflows.set(workflow.id, workflow);
     });
-
-    console.log(`[WorkflowEngine] Loaded ${this.activeWorkflows.size} active workflows`);
   }
 
   // Set up real-time listeners for various triggers
@@ -132,7 +124,6 @@ export class WorkflowExecutionEngine {
       .subscribe();
 
     this.realtimeChannels = [dealsChannel, activitiesChannel, tasksChannel];
-    console.log('[WorkflowEngine] Real-time listeners set up');
   }
 
   // Handle deal changes (creation, stage changes)
@@ -196,9 +187,6 @@ export class WorkflowExecutionEngine {
     const matchingWorkflows = Array.from(this.activeWorkflows.values()).filter(
       workflow => workflow.trigger_type === triggerType && this.evaluateConditions(workflow.trigger_conditions, triggerData)
     );
-
-    console.log(`[WorkflowEngine] Found ${matchingWorkflows.length} workflows for trigger: ${triggerType}`);
-
     // Queue executions
     for (const workflow of matchingWorkflows) {
       await this.queueExecution(workflow, triggerType, triggerData);
@@ -262,13 +250,11 @@ export class WorkflowExecutionEngine {
       .single();
 
     if (error) {
-      console.error('[WorkflowEngine] Error queueing execution:', error);
       return;
     }
 
     // Add to local queue
     this.executionQueue.push(data);
-    console.log(`[WorkflowEngine] Queued execution for workflow: ${workflow.rule_name}`);
   }
 
   // Process queued executions
@@ -284,7 +270,6 @@ export class WorkflowExecutionEngine {
           await this.processExecution(execution);
         }
       } catch (error) {
-        console.error('[WorkflowEngine] Queue processing error:', error);
       } finally {
         this.isProcessing = false;
       }
@@ -297,12 +282,8 @@ export class WorkflowExecutionEngine {
     const workflow = this.activeWorkflows.get(execution.workflow_id);
 
     if (!workflow) {
-      console.error('[WorkflowEngine] Workflow not found:', execution.workflow_id);
       return;
     }
-
-    console.log(`[WorkflowEngine] Processing workflow: ${workflow.rule_name}`);
-
     try {
       // Update status to running
       await this.updateExecutionStatus(execution.workflow_id, 'running');
@@ -323,8 +304,6 @@ export class WorkflowExecutionEngine {
         undefined,
         executionTime
       );
-
-      console.log(`[WorkflowEngine] Workflow executed successfully in ${executionTime}ms`);
     } catch (error: any) {
       // Update execution as failed
       const executionTime = Math.round(performance.now() - startTime);
@@ -335,8 +314,6 @@ export class WorkflowExecutionEngine {
         error.message,
         executionTime
       );
-
-      console.error('[WorkflowEngine] Workflow execution failed:', error);
     }
   }
 
@@ -395,8 +372,6 @@ export class WorkflowExecutionEngine {
     const message = this.interpolateString(config.message || 'Workflow notification', triggerData);
     
     // In a real implementation, this would send actual notifications
-    console.log(`[WorkflowEngine] Notification: ${message}`);
-    
     // Store notification in database
     const { data, error } = await supabase
       .from('notifications')
@@ -462,8 +437,6 @@ export class WorkflowExecutionEngine {
     const body = this.interpolateString(config.body || '', triggerData);
 
     // In production, integrate with email service
-    console.log(`[WorkflowEngine] Email would be sent to: ${to}, Subject: ${subject}`);
-    
     return { 
       email_queued: {
         to,
@@ -521,9 +494,6 @@ export class WorkflowExecutionEngine {
         if (!success) {
           throw new Error('Failed to send Slack message via OAuth');
         }
-        
-        console.log('[WorkflowEngine] Slack message sent via OAuth');
-        
         return {
           slack_sent: {
             channel,
@@ -613,9 +583,6 @@ export class WorkflowExecutionEngine {
       if (!success) {
         throw new Error('Failed to send Slack message');
       }
-      
-      console.log('[WorkflowEngine] Slack message sent successfully');
-      
       return {
         slack_sent: {
           webhook_url: webhookUrl.substring(0, 30) + '...', // Don't log full webhook URL
@@ -626,7 +593,6 @@ export class WorkflowExecutionEngine {
       };
       
     } catch (error) {
-      console.error('[WorkflowEngine] Error sending Slack message:', error);
       throw error;
     }
   }
@@ -714,7 +680,6 @@ export class WorkflowExecutionEngine {
   // Reload workflows (for when they're updated)
   async reloadWorkflows() {
     await this.loadActiveWorkflows();
-    console.log('[WorkflowEngine] Workflows reloaded');
   }
 
   // Manually trigger a workflow (for testing)
@@ -730,8 +695,6 @@ export class WorkflowExecutionEngine {
       'manual_trigger',
       { ...triggerData, manual: true, timestamp: new Date() }
     );
-    
-    console.log(`[WorkflowEngine] Manually triggered workflow: ${workflow.rule_name}`);
   }
 
   // Clean up resources
@@ -744,8 +707,6 @@ export class WorkflowExecutionEngine {
     this.activeWorkflows.clear();
     this.executionQueue = [];
     this.performanceMetrics.clear();
-    
-    console.log('[WorkflowEngine] Cleaned up');
   }
 
   // Get execution history for a workflow

@@ -83,7 +83,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in deal-activities function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -126,7 +125,6 @@ async function handleActivitiesList(supabaseClient: any, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching activities:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message
@@ -172,7 +170,6 @@ async function handleActivitiesListFromBody(supabaseClient: any, body: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching activities from body:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message
@@ -210,7 +207,6 @@ async function handleSingleActivity(supabaseClient: any, activityId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching activity:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -267,7 +263,6 @@ async function handleCreateActivity(supabaseClient: any, body: any, userId: stri
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error creating activity:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -324,7 +319,6 @@ async function handleUpdateActivity(supabaseClient: any, activityId: string, bod
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error updating activity:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -355,7 +349,6 @@ async function handleDeleteActivity(supabaseClient: any, activityId: string, use
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error deleting activity:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message

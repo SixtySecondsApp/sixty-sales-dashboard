@@ -70,11 +70,6 @@ export async function retryableImport<T>(
       
       // If it's a chunk error or missing file, handle it
       if ((isChunkError || isMissingFile) && attempt < maxRetries) {
-        console.warn(
-          `Chunk loading failed (attempt ${attempt}/${maxRetries}). ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}. Retrying...`
-        );
-        
         // Exponential backoff: 1s, 2s, 4s
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000);
         await new Promise(resolve => setTimeout(resolve, delay));
@@ -89,7 +84,6 @@ export async function retryableImport<T>(
             });
             if (!response.ok) {
               // If we can't even fetch the HTML, likely a deployment issue
-              console.warn('Unable to fetch current page, may need full reload');
             }
           } catch (fetchError) {
             // Ignore fetch errors during check
@@ -101,13 +95,6 @@ export async function retryableImport<T>(
 
       // If it's the last attempt and a chunk/missing file error, clear cache and reload
       if ((isChunkError || isMissingFile) && clearCacheOnFailure) {
-        console.error(
-          'Chunk loading failed after all retries. ' +
-          'This is likely due to cached assets from a previous version. ' +
-          'Clearing cache and reloading...',
-          error
-        );
-        
         // For production, auto-reload without prompt for better UX
         // In development, we might want to see the error
         if (showUserPrompt && process.env.NODE_ENV === 'development') {

@@ -10,12 +10,8 @@ const TEST_USER_PASSWORD = process.env.PLAYWRIGHT_TEST_USER_PASSWORD || 'passwor
 
 // Helper function for logging in
 async function login(page: Page) {
-  console.log(`Attempting to navigate to login page: ${BASE_URL}/auth/login`);
   await page.goto(`${BASE_URL}/auth/login`);
-  console.log('Navigation to login page initiated.');
-
   // Add a short explicit wait after navigation before interacting
-  console.log('Waiting briefly after navigation...');
   await page.waitForTimeout(1000); // Wait 1 second
 
   // --- Selectors based on screenshots --- 
@@ -24,58 +20,43 @@ async function login(page: Page) {
   const submitButtonSelector = 'button:has-text("Sign in"), button[type="submit"]'; // Multiple selectors
 
   const emailInput = page.locator(emailInputSelector).first();
-  console.log(`Waiting for email input using selector: ${emailInputSelector}`);
   try {
      await expect(emailInput).toBeVisible({ timeout: 15000 });
-     console.log('Email input is visible. Filling email...');
      await emailInput.fill(TEST_USER_EMAIL);
   } catch (e) {
-     console.error('Failed to find or fill email input:', e);
      await page.screenshot({ path: 'logs/login-email-error.png' });
      throw e;
   }
 
   const passwordInput = page.locator(passwordInputSelector);
-  console.log(`Waiting for password input using selector: ${passwordInputSelector}`);
    try {
       await expect(passwordInput).toBeVisible({ timeout: 5000 });
-      console.log('Password input is visible. Filling password...');
       await passwordInput.fill(TEST_USER_PASSWORD);
    } catch (e) {
-      console.error('Failed to find or fill password input:', e);
       await page.screenshot({ path: 'logs/login-password-error.png' });
       throw e;
    }
 
   const submitButton = page.locator(submitButtonSelector);
-  console.log(`Waiting for submit button using selector: ${submitButtonSelector}`);
    try {
       await expect(submitButton).toBeEnabled({ timeout: 5000 });
-      console.log('Submit button is enabled. Clicking...');
       await submitButton.click();
    } catch (e) {
-      console.error('Failed to find or click submit button:', e);
       await page.screenshot({ path: 'logs/login-submit-error.png' });
       throw e;
    }
 
   // Wait for navigation to a post-login page (e.g., dashboard or pipeline)
-  console.log('Waiting for navigation after login...');
   try {
       // Wait for either navigation away from login or for authenticated UI elements
       await Promise.race([
         page.waitForURL(url => !url.pathname.includes('/login') && !url.pathname.includes('/auth'), { timeout: 10000 }),
         page.waitForSelector('body:has([data-testid^="pipeline-column-"]), body:has(text("Dashboard")), body:has(text("CRM"))', { timeout: 10000 })
       ]);
-      console.log(`Navigation successful. Current URL: ${page.url()}`);
   } catch(e) {
-       console.error('Navigation after login failed or timed out.');
        await page.screenshot({ path: 'logs/login-navigation-error.png' });
        // Don't throw error, continue to pipeline
-       console.log('Continuing to pipeline despite login navigation timeout...');
   }
-
-  console.log('Login function completed successfully.');
 }
 
 // --- Test Suite ---
@@ -85,13 +66,10 @@ test.describe('Pipeline and Deal Management', () => {
   // Increase timeout for beforeAll hook  
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
-    console.log('Created new page, attempting login...');
     await login(page);
     
     // Give some extra time after login for the app to settle
     await page.waitForTimeout(3000);
-    console.log(`Post-login URL: ${page.url()}`);
-    
     // Save authentication state for potential future use
     // await page.context().storageState({ path: 'storageState.json' });
   });
@@ -103,25 +81,20 @@ test.describe('Pipeline and Deal Management', () => {
 
   test.beforeEach(async () => {
     // Navigate to pipeline page before each test
-    console.log(`Navigating to pipeline URL: ${PIPELINE_URL}`);
     await page.goto(PIPELINE_URL);
     
     // Wait a moment for page to load
     await page.waitForTimeout(2000);
     
     // Check if we're still on the correct URL (might have been redirected)
-    console.log(`Current URL after navigation: ${page.url()}`);
-    
     // Wait for any loading indicators to disappear
     try {
       await page.waitForSelector('[data-testid="loading"], .loading, [class*="loading"]', { state: 'hidden', timeout: 10000 });
     } catch (e) {
-      console.log('No loading indicators found or they disappeared quickly');
     }
     
     // More flexible approach - just ensure we're on a page with some content
     await page.waitForLoadState('networkidle');
-    console.log('Page network idle achieved');
   });
 
   // --- Test Cases ---
@@ -130,21 +103,12 @@ test.describe('Pipeline and Deal Management', () => {
     // Debug: Take a screenshot and log page content
     await page.screenshot({ path: 'debug-pipeline-page.png' });
     const content = await page.content();
-    console.log('Page URL:', page.url());
-    console.log('Page title:', await page.title());
-    
     // Check if we can find any pipeline-related elements
     const pipelineElements = await page.locator('[data-testid*="pipeline"], [class*="pipeline"], h1, h2, h3, main').all();
-    console.log('Found elements:', pipelineElements.length);
-    
     // Log text content of headers
     const headers = await page.locator('h1, h2, h3, h4').allTextContents();
-    console.log('Headers found:', headers);
-    
     // Try to find pipeline columns with a more flexible approach
     const columns = await page.locator('[data-testid^="pipeline-column-"]').all();
-    console.log('Pipeline columns found:', columns.length);
-    
     if (columns.length > 0) {
       // Verify specific known stage names exist (4-stage pipeline: SQL, Opportunity, Verbal, Signed)
       const stageNames = ['SQL', 'Opportunity', 'Verbal', 'Signed'];
@@ -152,7 +116,6 @@ test.describe('Pipeline and Deal Management', () => {
         await expect(page.locator(`[data-testid^="pipeline-column-"] h3:has-text("${stageName}")`)).toBeVisible();
       }
     } else {
-      console.error('No pipeline columns found. Page might not have loaded correctly.');
       // Fail the test with a clear message
       throw new Error('Pipeline columns not found - check if the page loaded correctly after authentication');
     }

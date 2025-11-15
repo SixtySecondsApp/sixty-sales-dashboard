@@ -85,13 +85,9 @@ export default function Workflows() {
   const loadWorkflowStats = async () => {
     try {
       // Don't set loading to true here since we want fast page load
-      console.log('🔍 Loading workflow stats, user:', user);
       const { data: rules, error } = await supabase
         .from('user_automation_rules')
         .select('*');
-      
-      console.log('📊 Workflow stats query result:', { data: rules, error, count: rules?.length });
-      
       const activeWorkflows = rules?.filter(r => r.is_active).length || 0;
       const totalWorkflows = rules?.length || 0;
 
@@ -102,7 +98,6 @@ export default function Workflows() {
         testsRun: 128
       });
     } catch (error) {
-      console.error('Error loading workflow stats:', error);
       // Continue anyway - stats are not critical for functionality
     }
   };
@@ -120,8 +115,6 @@ export default function Workflows() {
     // Load the workflow associated with this execution from the database
     if (execution.workflowId) {
       try {
-        console.log(`🔍 Loading workflow ${execution.workflowId} for execution ${execution.id}`);
-        
         const { data: workflow, error } = await supabase
           .from('user_automation_rules')
           .select('*')
@@ -129,7 +122,6 @@ export default function Workflows() {
           .single();
           
         if (error) {
-          console.error('Error loading workflow for execution:', error);
           // Create a minimal workflow object with execution info
           const fallbackWorkflow = {
             id: execution.workflowId,
@@ -145,23 +137,18 @@ export default function Workflows() {
           };
           setSelectedWorkflow(fallbackWorkflow);
         } else {
-          console.log('✅ Successfully loaded workflow:', workflow);
           setSelectedWorkflow(workflow);
         }
       } catch (error) {
-        console.error('Failed to load workflow for execution:', error);
       }
     }
   };
 
   const handleWorkflowSave = async (workflow: any) => {
-    console.log('🎯 handleWorkflowSave called with:', workflow);
-    
     // Validate and fix trigger_type before any processing
     // IMPORTANT: 'manual' is NOT valid - database only accepts these:
     const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
     if (!workflow.trigger_type || !validTriggerTypes.includes(workflow.trigger_type)) {
-      console.warn(`⚠️ Invalid trigger_type "${workflow.trigger_type}" detected, forcing to "activity_created"`);
       workflow.trigger_type = 'activity_created';
     }
     
@@ -169,7 +156,6 @@ export default function Workflows() {
     // Based on database testing, only these are currently valid:
     const validActionTypes = ['create_task', 'update_deal_stage'];
     if (!workflow.action_type || !validActionTypes.includes(workflow.action_type)) {
-      console.warn(`⚠️ Invalid action_type "${workflow.action_type}" detected, forcing to "create_task"`);
       workflow.action_type = 'create_task';
     }
     
@@ -179,18 +165,14 @@ export default function Workflows() {
       
       // Check if user is available
       if (!user?.id) {
-        console.warn('No user found, using development fallback');
         // For development, use a fallback user ID
         const fallbackUserId = 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459';
-        console.log('Using fallback user ID for development:', fallbackUserId);
       }
 
       const userId = user?.id || 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Fallback for development
 
       // Generate test scenarios for the workflow
       const testScenarios = WorkflowTestGenerator.generateTestScenarios(workflow);
-      console.log('Generated test scenarios:', testScenarios);
-
       const workflowData: any = {
         user_id: userId,
         rule_name: workflow.name || 'Untitled Workflow',
@@ -208,26 +190,16 @@ export default function Workflows() {
       
       // Don't add test scenarios - column doesn't exist yet
       // workflowData.test_scenarios = testScenarios;
-
-      console.log('🚨 Workflow received from canvas:', workflow);
-      console.log('🚨 trigger_type from canvas:', workflow.trigger_type);
-      console.log('🚨 action_type from canvas:', workflow.action_type);
-      console.log('Saving workflow with data:', workflowData);
-      console.log('🚨 Final trigger_type being saved:', workflowData.trigger_type);
-      console.log('🚨 Final action_type being saved:', workflowData.action_type);
-
       // FINAL SAFETY CHECK - Ensure trigger_type and action_type are valid
       // Using actual valid values from database testing
       const finalValidTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
       const finalValidActionTypes = ['create_task', 'update_deal_stage'];
       
       if (!finalValidTriggerTypes.includes(workflowData.trigger_type)) {
-        console.error(`❌ CRITICAL: Invalid trigger_type "${workflowData.trigger_type}" about to be saved! Forcing to "activity_created"`);
         workflowData.trigger_type = 'activity_created';
       }
       
       if (!finalValidActionTypes.includes(workflowData.action_type)) {
-        console.error(`❌ CRITICAL: Invalid action_type "${workflowData.action_type}" about to be saved! Forcing to "create_task"`);
         workflowData.action_type = 'create_task';
       }
 
@@ -249,7 +221,6 @@ export default function Workflows() {
       }
 
       if (result.error) {
-        console.error('Supabase error:', result.error);
         throw result.error;
       }
       
@@ -257,9 +228,6 @@ export default function Workflows() {
       if (result.data && result.data[0]) {
         await WorkflowTestGenerator.saveTestScenarios(result.data[0].id, testScenarios);
       }
-      
-      console.log(`✅ Workflow ${workflow.id ? 'updated' : 'created'} successfully with ${testScenarios.length} test scenarios`, result.data);
-      
       // Update the selectedWorkflow with the saved data for autosave
       if (result.data && result.data[0]) {
         setSelectedWorkflow(result.data[0]);
@@ -270,7 +238,6 @@ export default function Workflows() {
       // Return the saved workflow data
       return result.data?.[0];
     } catch (error: any) {
-      console.error('Failed to save workflow:', error);
       const errorMessage = error.message || 'Unknown error occurred';
       alert(`Failed to save workflow: ${errorMessage}\n\nPlease check the console for details.`);
     }
@@ -286,7 +253,6 @@ export default function Workflows() {
       if (error) throw error;
       await loadWorkflowStats();
     } catch (error) {
-      console.error('Failed to delete workflow:', error);
     }
   };
 
@@ -458,7 +424,6 @@ export default function Workflows() {
                             if (missingNodes.length > 0) {
                               hasExecutionIssues = true;
                               issueDescription = `Missing execution data for ${missingNodes.length} node(s): ${missingNodes.join(', ')}`;
-                              console.warn(`🚨 Execution ${selectedExecution.id} marked as completed but missing node execution data:`, missingNodes);
                             }
                             
                             // Check for nodes with incomplete status
@@ -470,7 +435,6 @@ export default function Workflows() {
                               hasExecutionIssues = true;
                               issueDescription += (issueDescription ? '; ' : '') + 
                                 `${incompleteNodes.length} node(s) with incomplete status`;
-                              console.warn(`🚨 Execution ${selectedExecution.id} has nodes with incomplete status:`, incompleteNodes);
                             }
                           }
                           

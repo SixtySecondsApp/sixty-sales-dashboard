@@ -4,6 +4,10 @@
  * IMPORTANT: This preserves 100% design integrity - no visual or functional changes
  */
 
+// Suppress Supabase logs FIRST, before any other imports
+import { suppressSupabaseLogs } from './lib/utils/suppressSupabaseLogs';
+suppressSupabaseLogs();
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -27,16 +31,10 @@ async function initializeApp() {
     // Verify service health
     const health = await getServiceLayerHealth();
     if (!health.healthy) {
-      console.warn('Service layer health check failed:', health.errors);
       // Continue with degraded functionality rather than blocking
     }
-
-    console.log('🚀 Application initialized with SOLID architecture');
-    
   } catch (error) {
-    console.error('❌ Service layer initialization failed:', error);
     // Application can still run without service layer (fallback to existing hooks)
-    console.log('⚠️ Falling back to legacy hook architecture');
   }
 }
 
@@ -77,7 +75,6 @@ if (import.meta.env.DEV) {
   setInterval(async () => {
     const health = await getServiceLayerHealth();
     if (!health.healthy) {
-      console.warn('Service health degraded:', health.errors);
     }
   }, 30000);
 }
@@ -97,6 +94,4 @@ if (import.meta.env.DEV) {
       return await devUtils.testServices();
     }
   };
-  
-  console.log('🛠️ Service layer debug tools available at window.__SERVICE_LAYER_DEBUG');
 }

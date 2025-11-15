@@ -429,40 +429,25 @@ export async function directUsageExample(meetingId: string) {
     // Check if transcript exists first
     const hasTranscript = await contentService.hasTranscript(meetingId);
     if (!hasTranscript) {
-      console.log('No transcript available');
       return;
     }
 
     // Extract topics
-    console.log('Extracting topics...');
     const topicsResult = await contentService.extractTopics(meetingId);
-    console.log('Topics extracted:', topicsResult.topics.length);
-    console.log('Cached:', topicsResult.metadata.cached);
-    console.log('Cost:', contentService.formatCost(topicsResult.metadata.cost_cents));
-
     // Check for cached content
     const cachedSocial = await contentService.getCachedContent(meetingId, 'social');
     if (cachedSocial) {
-      console.log('Found cached social content:', cachedSocial.title);
     }
 
     // Generate new content
-    console.log('Generating blog content...');
     const contentResult = await contentService.generateContent({
       meeting_id: meetingId,
       content_type: 'blog',
       selected_topic_indices: [0, 1, 2],
       regenerate: false,
     });
-    console.log('Content generated:', contentResult.content.title);
-    console.log('Cost:', contentService.formatCost(contentResult.metadata.cost_cents));
-
     // Calculate total costs
     const costs = await contentService.calculateCosts(meetingId);
-    console.log('Total costs:', contentService.formatCost(costs.total_cost_cents));
-    console.log('Total operations:', costs.operations_count);
-    console.log('Breakdown:', costs.breakdown);
-
     return {
       topics: topicsResult.topics,
       content: contentResult.content,
@@ -470,13 +455,7 @@ export async function directUsageExample(meetingId: string) {
     };
   } catch (error) {
     if (error instanceof ContentServiceError) {
-      console.error('Content service error:', {
-        message: error.message,
-        status: error.status,
-        details: error.details,
-      });
     } else {
-      console.error('Unexpected error:', error);
     }
     throw error;
   }

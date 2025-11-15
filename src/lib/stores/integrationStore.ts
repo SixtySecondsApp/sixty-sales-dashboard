@@ -85,8 +85,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
         }
       }));
     } catch (error: any) {
-      console.error('Failed to check Google connection:', error);
-      
       set(state => ({
         google: {
           ...state.google,
@@ -116,8 +114,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
       
       return authUrl;
     } catch (error: any) {
-      console.error('Failed to initiate Google connection:', error);
-      
       set(state => ({
         google: {
           ...state.google,
@@ -153,8 +149,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
         }
       }));
     } catch (error: any) {
-      console.error('Failed to disconnect Google:', error);
-      
       set(state => ({
         google: {
           ...state.google,
@@ -190,8 +184,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
       // The optimistic update should already be in place
       // If needed, we could re-fetch the service status here
     } catch (error: any) {
-      console.error(`Failed to toggle ${service}:`, error);
-      
       // Revert the optimistic update
       set(state => ({
         google: {
@@ -231,8 +223,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
         }
       }));
     } catch (error: any) {
-      console.error('Failed to sync Google data:', error);
-      
       set(state => ({
         google: {
           ...state.google,
@@ -264,8 +254,6 @@ export const useIntegrationStore = create<IntegrationState>((set, get) => ({
         throw new Error('Token refresh failed');
       }
     } catch (error: any) {
-      console.error('Failed to refresh Google tokens:', error);
-      
       set(state => ({
         google: {
           ...state.google,

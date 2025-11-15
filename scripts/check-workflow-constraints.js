@@ -8,15 +8,12 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL;
 const supabaseServiceKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing required environment variables');
   process.exit(1);
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function checkConstraints() {
-  console.log('🔍 Checking actual database constraints for user_automation_rules table...\n');
-
   try {
     // Query the information schema to get constraint definitions
     const { data: constraints, error: constraintError } = await supabase
@@ -27,8 +24,6 @@ async function checkConstraints() {
 
     if (constraintError) {
       // If the function doesn't exist, try a direct query
-      console.log('Trying alternative method to get constraints...\n');
-      
       // Try to query pg_constraint directly
       const { data: pgConstraints, error: pgError } = await supabase
         .from('pg_constraint')
@@ -36,29 +31,19 @@ async function checkConstraints() {
         .like('conname', '%user_automation_rules%');
       
       if (pgError) {
-        console.log('Could not query pg_constraint directly. Let\'s test what values are actually accepted...\n');
-        
         // Test what values are actually accepted
         await testTriggerTypes();
         return;
       }
-      
-      console.log('Found constraints:', pgConstraints);
       return;
     }
-
-    console.log('Constraints found:', constraints);
   } catch (error) {
-    console.error('Error checking constraints:', error);
-    
     // Fall back to testing what values work
     await testTriggerTypes();
   }
 }
 
 async function testTriggerTypes() {
-  console.log('📋 Testing which trigger_type values are actually accepted by the database...\n');
-  
   // Values we expect to work based on migrations
   const expectedValidTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed', 'manual'];
   
@@ -111,24 +96,16 @@ async function testTriggerTypes() {
       results.push({ type: triggerType, status: '⚠️ ERROR', error: error.message });
     }
   }
-  
-  console.log('\n📊 Test Results:\n');
-  console.log('Expected to work (from migrations):');
   expectedValidTypes.forEach(type => {
     const result = results.find(r => r.type === type);
-    console.log(`  ${type}: ${result?.status || 'Not tested'}`);
-    if (result?.error) console.log(`    Error: ${result.error.substring(0, 100)}...`);
+    if (result?.error) {}
   });
-  
-  console.log('\nAdditional types tested:');
   additionalTypes.forEach(type => {
     const result = results.find(r => r.type === type);
-    console.log(`  ${type}: ${result?.status || 'Not tested'}`);
-    if (result?.error) console.log(`    Error: ${result.error.substring(0, 100)}...`);
+    if (result?.error) {}
   });
   
   // Now test action_type values
-  console.log('\n\n📋 Testing which action_type values are actually accepted...\n');
   await testActionTypes();
 }
 
@@ -183,26 +160,14 @@ async function testActionTypes() {
       results.push({ type: actionType, status: '⚠️ ERROR', error: error.message });
     }
   }
-  
-  console.log('📊 Action Type Test Results:\n');
-  console.log('Expected to work (from migrations):');
   expectedValidTypes.forEach(type => {
     const result = results.find(r => r.type === type);
-    console.log(`  ${type}: ${result?.status || 'Not tested'}`);
-    if (result?.error) console.log(`    Error: ${result.error.substring(0, 100)}...`);
+    if (result?.error) {}
   });
-  
-  console.log('\nAdditional types tested:');
   additionalTypes.forEach(type => {
     const result = results.find(r => r.type === type);
-    console.log(`  ${type}: ${result?.status || 'Not tested'}`);
-    if (result?.error) console.log(`    Error: ${result.error.substring(0, 100)}...`);
+    if (result?.error) {}
   });
-  
-  console.log('\n\n✅ Testing complete!');
-  console.log('\n💡 Summary:');
-  console.log('- If "manual" or "create_task" are being rejected, the constraint has been modified from the original migration.');
-  console.log('- Check which values are actually accepted and update the code accordingly.');
 }
 
 // Run the check

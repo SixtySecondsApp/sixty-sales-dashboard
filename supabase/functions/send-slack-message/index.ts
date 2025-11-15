@@ -152,7 +152,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error sending Slack message:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }

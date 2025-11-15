@@ -7,17 +7,11 @@ import { supabase } from './lib/supabase/clientV2';
  */
 export async function createTestNotifications() {
   try {
-    console.log('🔔 Creating test notifications...');
-    
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user found');
       return;
     }
-
-    console.log(`Creating notifications for user: ${user.email}`);
-
     // Create various types of notifications
     const testNotifications = [
       {
@@ -116,20 +110,15 @@ export async function createTestNotifications() {
         const result = await notificationService.create(notification);
         if (result) {
           createdCount++;
-          console.log(`✅ Created notification ${index + 1}/${testNotifications.length}: "${notification.title}"`);
         } else {
-          console.error(`❌ Failed to create notification: "${notification.title}"`);
         }
         
         if (index === testNotifications.length - 1) {
-          console.log(`\n🎉 Successfully created ${createdCount} test notifications!`);
-          console.log('Check the notification bell in the header to see them.');
         }
       }, index * 500); // 500ms delay between each notification
     }
 
   } catch (error) {
-    console.error('Error creating test notifications:', error);
   }
 }
 
@@ -140,7 +129,6 @@ export async function clearAllNotifications() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user found');
       return;
     }
 
@@ -150,12 +138,9 @@ export async function clearAllNotifications() {
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('Error clearing notifications:', error);
     } else {
-      console.log('✅ All notifications cleared successfully');
     }
   } catch (error) {
-    console.error('Error clearing notifications:', error);
   }
 }
 
@@ -166,7 +151,6 @@ export async function markRandomNotificationsAsRead() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      console.error('No authenticated user found');
       return;
     }
 
@@ -178,12 +162,10 @@ export async function markRandomNotificationsAsRead() {
       .eq('read', false);
 
     if (error) {
-      console.error('Error fetching notifications:', error);
       return;
     }
 
     if (!notifications || notifications.length === 0) {
-      console.log('No unread notifications found');
       return;
     }
 
@@ -195,10 +177,7 @@ export async function markRandomNotificationsAsRead() {
     for (const notification of toMarkAsRead) {
       await notificationService.markAsRead(notification.id);
     }
-
-    console.log(`✅ Marked ${toMarkAsRead.length} notifications as read`);
   } catch (error) {
-    console.error('Error marking notifications as read:', error);
   }
 }
 

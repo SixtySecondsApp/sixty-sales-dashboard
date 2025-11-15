@@ -42,7 +42,6 @@ const GoogleTasksSync: React.FC = () => {
         setShowSetup(true);
       }
     } catch (error) {
-      console.error('Failed to check Google Tasks connection:', error);
     }
   };
 
@@ -62,7 +61,6 @@ const GoogleTasksSync: React.FC = () => {
       // Redirect to Google OAuth
       window.location.href = authUrl;
     } catch (error) {
-      console.error('Failed to initiate Google OAuth:', error);
       toast.error('Failed to connect to Google Tasks');
       setIsConnecting(false);
     }
@@ -108,7 +106,6 @@ const GoogleTasksSync: React.FC = () => {
       
       setSetupStep('select-list');
     } catch (error) {
-      console.error('Failed to get task lists:', error);
       toast.error('Failed to load Google Task lists');
     } finally {
       setIsLoading(false);
@@ -152,7 +149,6 @@ const GoogleTasksSync: React.FC = () => {
       toast.success('Google Tasks sync initialized successfully');
       setSetupStep('complete');
     } catch (error) {
-      console.error('Failed to initialize sync:', error);
       toast.error('Failed to initialize Google Tasks sync');
     } finally {
       setIsLoading(false);

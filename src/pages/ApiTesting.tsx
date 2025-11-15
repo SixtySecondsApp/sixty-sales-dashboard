@@ -212,7 +212,6 @@ const ApiTesting: React.FC = () => {
     } catch (error: any) {
       // Silently handle missing table error - it's not critical for functionality
       if (!error?.message?.includes('api_requests')) {
-        console.error('Error fetching request history:', error);
       }
     }
   };

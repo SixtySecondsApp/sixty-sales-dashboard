@@ -38,7 +38,6 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       setNotifications(notificationsList);
       setUnreadCount(count);
     } catch (err) {
-      console.error('[useNotifications] Error fetching notifications:', err);
       setError('Failed to load notifications');
     } finally {
       setIsLoading(false);
@@ -104,7 +103,6 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       setUnreadCount(0);
       return true;
     } catch (err) {
-      console.error('[useNotifications] Error clearing notifications:', err);
       return false;
     }
   }, [user]);
@@ -122,7 +120,6 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
       setNotifications(prev => [...prev, ...moreNotifications]);
     } catch (err) {
-      console.error('[useNotifications] Error loading more notifications:', err);
     }
   }, [user, notifications.length, limit, category]);
 

@@ -376,7 +376,6 @@ export default function CompaniesTable() {
       
       toast.success(`Successfully deleted ${selectedIds.length} companies`);
     } catch (error) {
-      console.error('Error deleting companies:', error);
       toast.error('Failed to delete selected companies');
     }
   };

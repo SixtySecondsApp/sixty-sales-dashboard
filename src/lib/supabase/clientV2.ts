@@ -44,8 +44,8 @@ function getSupabaseClient(): TypedSupabaseClient {
         autoRefreshToken: true,
         detectSessionInUrl: true,
         flowType: 'pkce', // PKCE for better security
-        // Enhanced debug mode for better error tracking
-        debug: import.meta.env.MODE === 'development',
+        // Disable debug logging to prevent memory and performance issues
+        debug: false,
         storage: {
           getItem: (key: string) => {
             try {
@@ -110,7 +110,8 @@ function getSupabaseAdminClient(): TypedSupabaseClient {
       auth: {
         persistSession: false, // Don't persist admin sessions
         autoRefreshToken: false, // Disable auto refresh for admin
-        storageKey: 'sb.auth.admin.v2' // Separate storage key
+        storageKey: 'sb.auth.admin.v2', // Separate storage key
+        debug: false // Disable debug logging
       },
       global: {
         headers: {

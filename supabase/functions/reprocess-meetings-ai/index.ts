@@ -31,14 +31,6 @@ serve(async (req) => {
   }
 
   const requestId = crypto.randomUUID().substring(0, 8)
-  console.log(`
-╔════════════════════════════════════════════════════════════════
-║ 🤖 BATCH REPROCESS MEETINGS WITH CLAUDE AI
-║ Request ID: ${requestId}
-║ Timestamp: ${new Date().toISOString()}
-╚════════════════════════════════════════════════════════════════
-  `)
-
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -54,14 +46,6 @@ serve(async (req) => {
     // Parse request body
     const body: ReprocessRequest = await req.json()
     const { user_id, meeting_ids, limit, force = false } = body
-
-    console.log(`📋 Reprocess parameters:`, {
-      user_id,
-      meeting_count: meeting_ids?.length || 'all',
-      limit,
-      force,
-    })
-
     // Build query for meetings with transcripts
     let query = supabase
       .from('meetings')
@@ -89,7 +73,6 @@ serve(async (req) => {
     }
 
     if (!meetings || meetings.length === 0) {
-      console.log(`⚠️  No meetings found with transcripts`)
       return new Response(
         JSON.stringify({
           success: true,
@@ -104,9 +87,6 @@ serve(async (req) => {
         }
       )
     }
-
-    console.log(`✅ Found ${meetings.length} meetings with transcripts`)
-
     let processedCount = 0
     let skippedCount = 0
     let totalActionItems = 0
@@ -115,16 +95,6 @@ serve(async (req) => {
     // Process each meeting
     for (const meeting of meetings) {
       try {
-        console.log(`
-┌─────────────────────────────────────────────────────────────────
-│ 🔄 Processing Meeting
-│ ID: ${meeting.id}
-│ Title: ${meeting.title}
-│ Start: ${meeting.meeting_start}
-│ Transcript Length: ${meeting.transcript_text?.length || 0} chars
-└─────────────────────────────────────────────────────────────────
-        `)
-
         // Check if action items already exist (unless force=true)
         if (!force) {
           const { data: existingActionItems, error: checkError } = await supabase
@@ -134,30 +104,24 @@ serve(async (req) => {
             .limit(1)
 
           if (checkError) {
-            console.error(`⚠️  Error checking action items: ${checkError.message}`)
           }
 
           if (existingActionItems && existingActionItems.length > 0) {
-            console.log(`⏭️  Skipping - action items already exist (use force=true to reprocess)`)
             skippedCount++
             continue
           }
         } else {
           // Force mode: delete existing action items first
-          console.log(`🗑️  Force mode: deleting existing action items...`)
           const { error: deleteError } = await supabase
             .from('meeting_action_items')
             .delete()
             .eq('meeting_id', meeting.id)
 
           if (deleteError) {
-            console.error(`⚠️  Error deleting existing action items: ${deleteError.message}`)
           }
         }
 
         // Analyze transcript with Claude
-        console.log(`🤖 Analyzing transcript with Claude Haiku 4.5...`)
-
         const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
           meeting.transcript_text,
           {
@@ -167,13 +131,6 @@ serve(async (req) => {
             owner_email: null, // Not needed for analysis
           }
         )
-
-        console.log(`✅ Analysis complete:`, {
-          action_items: analysis.actionItems.length,
-          sentiment: analysis.sentiment.score,
-          rep_talk_pct: analysis.talkTime.repPct,
-        })
-
         // Update meeting with AI metrics
         const { error: updateError } = await supabase
           .from('meetings')
@@ -187,14 +144,11 @@ serve(async (req) => {
           .eq('id', meeting.id)
 
         if (updateError) {
-          console.error(`⚠️  Error updating AI metrics: ${updateError.message}`)
         }
 
         // Store action items WITHOUT automatic task creation
         // IMPORTANT: synced_to_task = false, task_id = null by default
         if (analysis.actionItems.length > 0) {
-          console.log(`💾 Storing ${analysis.actionItems.length} action items...`)
-
           for (const item of analysis.actionItems) {
             const { error: insertError } = await supabase
               .from('meeting_action_items')
@@ -220,22 +174,17 @@ serve(async (req) => {
               })
 
             if (insertError) {
-              console.error(`⚠️  Error inserting action item: ${insertError.message}`)
             } else {
               totalActionItems++
             }
           }
-
-          console.log(`✅ Stored ${analysis.actionItems.length} action items`)
         } else {
-          console.log(`ℹ️  No action items extracted from transcript`)
         }
 
         processedCount++
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`❌ Error processing meeting ${meeting.id}:`, errorMessage)
         errors.push({
           meeting_id: meeting.id,
           title: meeting.title,
@@ -245,18 +194,6 @@ serve(async (req) => {
     }
 
     // Summary
-    console.log(`
-╔════════════════════════════════════════════════════════════════
-║ ✅ BATCH REPROCESSING COMPLETE
-║ Request ID: ${requestId}
-╠════════════════════════════════════════════════════════════════
-║ Meetings Processed: ${processedCount}
-║ Meetings Skipped: ${skippedCount}
-║ Action Items Created: ${totalActionItems}
-║ Errors: ${errors.length}
-╚════════════════════════════════════════════════════════════════
-    `)
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -275,20 +212,6 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     const errorStack = error instanceof Error ? error.stack : undefined
-
-    console.error(`
-╔════════════════════════════════════════════════════════════════
-║ ❌ REPROCESSING ERROR
-║ Request ID: ${requestId}
-║ Timestamp: ${new Date().toISOString()}
-╠════════════════════════════════════════════════════════════════
-║ Error: ${errorMessage}
-║
-║ Stack Trace:
-║ ${errorStack || 'No stack trace available'}
-╚════════════════════════════════════════════════════════════════
-    `)
-
     return new Response(
       JSON.stringify({
         success: false,

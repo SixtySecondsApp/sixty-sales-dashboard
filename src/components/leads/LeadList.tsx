@@ -26,15 +26,7 @@ export function LeadList({
   reprocessingLeadId,
   isReprocessing,
 }: LeadListProps) {
-  console.warn('🔵 [LeadList] Component rendering with', leads.length, 'leads');
   if (leads.length > 0) {
-    console.warn('🔵 [LeadList] First lead sample:', {
-      id: leads[0].id,
-      email: leads[0].contact_email,
-      domain: leads[0].domain,
-      hasOwner: !!leads[0].owner,
-      hasSource: !!leads[0].source,
-    });
   }
   
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -232,7 +224,6 @@ export function LeadList({
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
             {sortedLeads.map((lead) => {
-              console.log('[LeadList] Mapping lead:', lead.id, lead.contact_email, lead.domain);
               return (
                 <LeadListItem
                   key={lead.id}
@@ -271,17 +262,9 @@ function LeadListItem({
   isReprocessingLead,
   disableReprocess,
 }: LeadListItemProps) {
-  console.warn('🟢 [LeadListItem] Rendering for lead:', lead.id, {
-    email: lead.contact_email,
-    domain: lead.domain,
-    hasOwner: !!lead.owner,
-    hasSource: !!lead.source,
-  });
-  
   // Extract domain from email if domain field is not available
   const domainForLogo = useMemo(() => {
     if (lead.domain) {
-      console.log('[LeadListItem] Using lead.domain:', lead.domain);
       return lead.domain;
     }
     
@@ -297,15 +280,11 @@ function LeadListItem({
         
         const normalizedDomain = emailDomain.toLowerCase();
         if (!freeEmailProviders.includes(normalizedDomain)) {
-          console.log('[LeadListItem] Extracted domain from email:', normalizedDomain);
           return normalizedDomain;
         } else {
-          console.log('[LeadListItem] Email domain is free provider, skipping:', normalizedDomain);
         }
       }
     }
-    
-    console.log('[LeadListItem] No valid domain found');
     return null;
   }, [lead.domain, lead.contact_email]);
 
@@ -314,10 +293,6 @@ function LeadListItem({
   
   // Debug logging
   useEffect(() => {
-    console.log('[LeadListItem] Effect - Domain for logo:', domainForLogo);
-    console.log('[LeadListItem] Effect - Logo URL:', logoUrl);
-    console.log('[LeadListItem] Effect - Is loading:', isLoading);
-    console.log('[LeadListItem] Effect - Logo error:', logoError);
   }, [domainForLogo, logoUrl, isLoading, logoError]);
   
   // Reset error state when domain or logoUrl changes
@@ -332,12 +307,6 @@ function LeadListItem({
   // Debug: Log contact data to verify it's being fetched
   useEffect(() => {
     if (lead.id) {
-      console.log('[LeadListItem] Contact data for lead', lead.id, ':', {
-        contact_id: lead.contact_id,
-        contact: contact,
-        hasTitle: !!contact?.title,
-        title: contact?.title,
-      });
     }
   }, [lead.id, lead.contact_id, contact]);
 
@@ -558,7 +527,6 @@ function LeadListItem({
               alt={domainForLogo || 'Company logo'}
               className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-0.5"
               onError={() => {
-                console.error('[LeadListItem] Image load error for:', logoUrl);
                 // Show placeholder on error
                 setLogoError(true);
               }}

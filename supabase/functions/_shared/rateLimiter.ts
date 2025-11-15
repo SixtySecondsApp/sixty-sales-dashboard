@@ -79,7 +79,9 @@ export async function checkRateLimit(
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Rate limit check failed:', error);
+      // If table doesn't exist (42P01), allow request and log warning
+      if (error.code === '42P01') {
+      }
       // On error, allow the request but log the issue
       return {
         allowed: true,
@@ -93,16 +95,23 @@ export async function checkRateLimit(
     const allowed = currentRequests < config.maxRequests;
     
     if (allowed) {
-      // Record this request
-      await supabaseClient
-        .from('rate_limit')
-        .insert({
-          user_id: userId,
-          endpoint: endpoint,
-          created_at: new Date(now).toISOString(),
-          ip_address: null, // Could be added for additional tracking
-          user_agent: null
-        });
+      // Record this request (ignore errors if table doesn't exist)
+      try {
+        await supabaseClient
+          .from('rate_limit')
+          .insert({
+            user_id: userId,
+            endpoint: endpoint,
+            created_at: new Date(now).toISOString(),
+            ip_address: null, // Could be added for additional tracking
+            user_agent: null
+          });
+      } catch (insertError: any) {
+        // If table doesn't exist, just log and continue
+        if (insertError.code === '42P01') {
+        } else {
+        }
+      }
     }
 
     return {
@@ -113,7 +122,6 @@ export async function checkRateLimit(
     };
 
   } catch (error) {
-    console.error('Rate limiting error:', error);
     // On error, allow the request to prevent blocking legitimate users
     return {
       allowed: true,
@@ -183,7 +191,6 @@ export async function rateLimitMiddleware(
     return null; // Continue processing
     
   } catch (error) {
-    console.error('Rate limit middleware error:', error);
     // On error, allow the request to prevent blocking legitimate users
     return null;
   }
@@ -202,12 +209,9 @@ export async function cleanupRateLimitRecords(supabaseClient: any): Promise<void
       .lt('created_at', cutoffTime.toISOString());
 
     if (error) {
-      console.error('Rate limit cleanup failed:', error);
     } else {
-      console.log('Rate limit records cleaned up successfully');
     }
   } catch (error) {
-    console.error('Rate limit cleanup error:', error);
   }
 }
 

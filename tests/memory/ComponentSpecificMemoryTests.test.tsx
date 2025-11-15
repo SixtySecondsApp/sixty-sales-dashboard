@@ -141,8 +141,6 @@ describe('Component-Specific Memory Tests', () => {
 
       unmount();
       memoryUtils.takeSnapshot('after-unmount');
-
-      console.log(`MemoryMonitor component memory usage: ${memoryUsage.toFixed(1)}%`);
     });
 
     test('should handle memory monitor updates efficiently', async () => {
@@ -178,8 +176,6 @@ describe('Component-Specific Memory Tests', () => {
 
       const finalUsage = memoryUtils.getMemoryUsagePercent();
       expect(finalUsage).toBeLessThan(50);
-
-      console.log(`Memory monitor updates: ${updateCount}`);
     });
   });
 
@@ -232,9 +228,6 @@ describe('Component-Specific Memory Tests', () => {
       // Check for memory cleanup
       const memoryDiff = memoryUtils.getMemoryDiff();
       const memoryDiffMB = memoryDiff / (1024 * 1024);
-      
-      console.log(`OptimizedDashboard memory usage: ${memoryUsage.toFixed(1)}%`);
-      console.log(`Memory difference: ${memoryDiffMB.toFixed(2)}MB`);
     });
   });
 
@@ -307,8 +300,6 @@ describe('Component-Specific Memory Tests', () => {
 
       unmount();
       memoryUtils.takeSnapshot('after-table-unmount');
-
-      console.log(`PaymentsTableOptimized memory usage: ${memoryUsage.toFixed(1)}%`);
     });
 
     test('should properly cleanup virtualized table resources', async () => {
@@ -400,8 +391,6 @@ describe('Component-Specific Memory Tests', () => {
       });
 
       memoryUtils.takeSnapshot('after-performance-cleanup');
-
-      console.log(`Performance hooks memory usage: ${memoryUsage.toFixed(1)}%`);
     });
   });
 

@@ -38,7 +38,6 @@ export function FathomComparison() {
     const loadTime = Date.now() - startTime
     setV1LoadTime(loadTime)
     setV1Loaded(true)
-    console.log('[V1] Loaded in', loadTime, 'ms')
   }
 
   const handleV2Load = () => {
@@ -46,12 +45,10 @@ export function FathomComparison() {
     setV2LoadTime(loadTime)
     setV2Loaded(true)
     setV2Failed(false)
-    console.log('[V2] Loaded in', loadTime, 'ms')
   }
 
   const handleV2Error = () => {
     setV2Failed(true)
-    console.log('[V2] Failed to load')
   }
 
   const resetTest = () => {

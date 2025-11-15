@@ -46,8 +46,6 @@ interface DealActivity {
   // Add other fields
 }
 
-console.log(`Function "process-single-activity" up and running!`) // Reverted log message
-
 serve(async (req) => {
   // This is needed if you're planning to invoke your function from a browser.
   if (req.method === 'OPTIONS') {
@@ -75,8 +73,6 @@ serve(async (req) => {
     if (!activityId) {
         throw new Error('Missing activityId in request body.')
     }
-    console.log(`Received request to process activity ID: ${activityId}`);
-
     // --- Core Processing Logic --- // Reverted
 
     // 1. Fetch the activity
@@ -90,7 +86,6 @@ serve(async (req) => {
     if (!activity) throw new Error(`Activity with ID ${activityId} not found.`)
     if (!activity.contact_identifier) throw new Error(`Activity ${activityId} is missing contact_identifier (email).`)
     if (activity.is_processed) {
-        console.log(`Activity ${activityId} is already processed.`);
         // Return success even if already processed to avoid repeated errors from UI
         return new Response(JSON.stringify({ message: `Activity ${activityId} already processed.` }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -102,9 +97,6 @@ serve(async (req) => {
     const owner_id = activity.user_id;
     const email = activity.contact_identifier;
     const client_name = activity.client_name || `Deal for ${email}`; 
-
-    console.log(`Processing activity for email: ${email}, client: ${client_name}, user: ${owner_id}`);
-
     // 2. Find or Create Contact
     let contact: Contact | null = null;
     const { data: existingContact, error: contactFindError } = await supabaseAdmin
@@ -117,7 +109,6 @@ serve(async (req) => {
 
     if (existingContact) {
         contact = existingContact;
-        console.log(`Found existing contact: ${contact.id}`);
     } else {
         const { data: newContact, error: contactCreateError } = await supabaseAdmin
             .from('contacts')
@@ -128,7 +119,6 @@ serve(async (req) => {
         if (contactCreateError) throw new Error(`Error creating contact: ${contactCreateError.message}`);
         if (!newContact) throw new Error('Failed to create contact, received null.');
         contact = newContact;
-        console.log(`Created new contact: ${contact.id}`);
     }
 
     // Explicit null check for contact
@@ -136,8 +126,6 @@ serve(async (req) => {
 
     // Check contact before proceeding
     if (contact) {
-        console.log(`Using contact: ${contact.id} (${contact.email})`);
-
         // 3. Find or Create Deal (Now nested inside the contact check)
         let deal: Deal | null = null;
         let updatedDeal = false; // Flag to check if we updated the deal
@@ -154,8 +142,6 @@ serve(async (req) => {
 
          if (existingDeal) {
             deal = existingDeal;
-            console.log(`Found existing deal: ${deal.id} (Stage ID: ${deal.stage_id}, Value: ${deal.value})`);
-
             // --- Logic to potentially update stage and value --- 
             const dealUpdates: Partial<Deal> = {};
             let targetStageName: string | null = null;
@@ -172,20 +158,16 @@ serve(async (req) => {
 
             // 1. Check if stage needs update
             if (targetStageName) {
-                console.log(`Activity type '${activity.type}' maps to stage '${targetStageName}'`);
                 const { data: stageData, error: stageError } = await supabaseAdmin
                     .from('deal_stages').select('id').eq('name', targetStageName).single();
 
                 if (stageError || !stageData) {
-                     console.warn(`Target stage '${targetStageName}' not found. Cannot update deal stage. Error: ${stageError?.message}`);
                 } else {
                      const targetStageId = stageData.id;
                      if (deal.stage_id !== targetStageId) {
-                         console.log(`Deal ${deal.id} needs stage update to ${targetStageName} (ID: ${targetStageId})`);
                          dealUpdates.stage_id = targetStageId;
                          dealUpdates.stage_changed_at = new Date().toISOString(); // Also update stage change time
                      } else {
-                         console.log(`Deal ${deal.id} already in target stage '${targetStageName}'.`);
                      }
                 }
             }
@@ -193,55 +175,44 @@ serve(async (req) => {
             // 2. Check if value needs update (only for 'sale' activities with an amount)
             if (activity.type === 'sale' && activity.amount != null) {
                 if (deal.value !== activity.amount) {
-                     console.log(`Deal ${deal.id} needs value update from ${deal.value} to ${activity.amount}`);
                      dealUpdates.value = activity.amount;
                 } else {
-                     console.log(`Deal ${deal.id} value already matches activity amount ${activity.amount}.`);
                 }
             }
 
             // 3. Apply updates if any changes are needed
             if (Object.keys(dealUpdates).length > 0) {
-                console.log(`Applying updates to deal ${deal.id}:`, dealUpdates);
                 const { error: updateDealError } = await supabaseAdmin
                     .from('deals')
                     .update(dealUpdates)
                     .eq('id', deal.id);
 
                 if (updateDealError) {
-                    console.error(`Error updating deal ${deal.id}: ${updateDealError.message}`);
                     // Decide whether to throw or continue
                 } else {
                     updatedDeal = true;
-                    console.log(`Successfully applied updates to deal ${deal.id}.`);
                     // Optionally update local deal object: deal = { ...deal, ...dealUpdates };
                 }
             } else {
-                console.log(`No updates required for existing deal ${deal.id}.`);
             }
             // --- End update logic --- 
 
          } else {
              // --- Create NEW Deal --- 
-             console.log("No existing deal found. Creating new deal.");
              let targetStageName: string;
              switch (activity.type) {
                  case 'outbound': targetStageName = 'SQL'; break;
                  case 'meeting': targetStageName = 'SQL'; break;
                  case 'proposal': targetStageName = 'Opportunity'; break;
                  case 'sale': targetStageName = 'Signed'; break;
-                 default: targetStageName = 'SQL'; console.warn(`Unmapped activity type '${activity.type}'. Defaulting stage to SQL.`); 
+                 default: targetStageName = 'SQL'; 
              }
-             console.log(`Activity type '${activity.type}' mapped to stage '${targetStageName}' for new deal`);
-
              const { data: stageData, error: stageError } = await supabaseAdmin
                  .from('deal_stages').select('id').eq('name', targetStageName).single();
              if (stageError || !stageData) {
                  throw new Error(`Target stage '${targetStageName}' not found in deal_stages table. Error: ${stageError?.message}`);
              }
              const targetStageId = stageData.id;
-             console.log(`Found stage ID ${targetStageId} for stage '${targetStageName}'`);
-
              const { data: newDeal, error: dealCreateError } = await supabaseAdmin
                 .from('deals')
                 .insert({
@@ -259,7 +230,6 @@ serve(async (req) => {
             // Explicit null check for the newly created deal
             if (!newDeal) throw new Error('Failed to create deal, insert returned null.'); 
             deal = newDeal;
-            console.log(`Created new deal: ${deal.id} in stage ${targetStageName} (ID: ${targetStageId})`);
          }
 
         // Explicit null check for deal before creating the link
@@ -268,7 +238,6 @@ serve(async (req) => {
         // 4. Create Deal Activity link (Now nested inside contact check, needs deal check)
         // Check deal specifically before creating the link
         if (deal) {
-            console.log(`Attempting to link activity ${activity.id} to deal ${deal!.id}`); // Safe
             const { error: dealActivityError } = await supabaseAdmin
                 .from('deal_activities')
                 .insert({
@@ -280,41 +249,34 @@ serve(async (req) => {
 
             if (dealActivityError) {
                 // Check for unique constraint violation (maybe it was created concurrently?)
-                if (dealActivityError.code === '23505') { // Postgres unique violation code
-                     console.warn(`Deal activity link already exists for activity ${activity.id} and deal ${deal!.id}. Ignoring.`);
+                if (dealActivityError.code === '23505') { 
                 } else {
                     throw new Error(`Error creating deal activity link: ${dealActivityError.message}`);
                 }
             } else {
-                 console.log(`Created deal activity link for activity ${activity.id} and deal ${deal!.id}`);
             }
         } else {
             // This case should theoretically not happen if create/find logic is correct, but handles null case
-            console.error(`Deal object is null after find/create logic for contact ${contact.email}. Cannot create link.`);
             throw new Error('Deal is null, cannot create activity link.'); 
         }
 
         // 5. Mark Activity as Processed (Still inside contact check)
-        console.log(`Marking activity ${activity.id} as processed.`);
         const { error: updateActivityError } = await supabaseAdmin
             .from('activities')
             .update({ is_processed: true })
             .eq('id', activity.id);
 
         if (updateActivityError) throw new Error(`Error updating activity status: ${updateActivityError.message}`);
-        console.log(`Successfully processed activity ${activity.id}.`);
         return new Response(JSON.stringify({ message: "Activity processed successfully", dealId: deal?.id ?? null }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
         })
 
-    } else { // Handle case where contact is null
-        console.error('Contact could not be found or created. Aborting processing.');
+    } else { 
         throw new Error('Contact is null, cannot proceed.');
     }
 
   } catch (error) {
-    console.error("Error processing activity:", error.message);
     return new Response(JSON.stringify({ error: error.message }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500, // Use 500 for server errors

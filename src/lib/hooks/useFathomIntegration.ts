@@ -48,9 +48,6 @@ export function useFathomIntegration() {
       try {
         setLoading(true);
         setError(null);
-
-        console.log('🔍 Fetching Fathom integration for user:', user.id);
-
         // Get active integration - use maybeSingle() instead of single() to handle no results
         const { data: integrationData, error: integrationError } = await supabase
           .from('fathom_integrations')
@@ -58,14 +55,7 @@ export function useFathomIntegration() {
           .eq('user_id', user.id)
           .eq('is_active', true)
           .maybeSingle();
-
-        console.log('📊 Integration query result:', {
-          data: integrationData,
-          error: integrationError
-        });
-
         if (integrationError) {
-          console.error('❌ Error fetching integration:', integrationError);
           throw integrationError;
         }
 
@@ -80,7 +70,6 @@ export function useFathomIntegration() {
             .maybeSingle();
 
           if (syncError) {
-            console.error('❌ Error fetching sync state:', syncError);
             throw syncError;
           }
 
@@ -97,7 +86,6 @@ export function useFathomIntegration() {
           }
         }
       } catch (err) {
-        console.error('Error fetching Fathom integration:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
@@ -118,7 +106,6 @@ export function useFathomIntegration() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Integration changed:', payload);
           if (payload.eventType === 'DELETE') {
             setIntegration(null);
           } else {
@@ -139,7 +126,6 @@ export function useFathomIntegration() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('Sync state changed:', payload);
           if (payload.eventType === 'DELETE') {
             setSyncState(null);
           } else {
@@ -215,7 +201,6 @@ export function useFathomIntegration() {
       // Listen for OAuth completion
       const handleMessage = async (event: MessageEvent) => {
         if (event.data.type === 'fathom-oauth-success') {
-          console.log('✅ Fathom OAuth success:', event.data);
           popup?.close();
           window.removeEventListener('message', handleMessage);
 
@@ -244,14 +229,12 @@ export function useFathomIntegration() {
 
             setSyncState(syncData);
           } catch (err) {
-            console.error('Error refreshing integration:', err);
           }
         }
       };
 
       window.addEventListener('message', handleMessage);
     } catch (err) {
-      console.error('Error connecting Fathom:', err);
       setError(err instanceof Error ? err.message : 'Failed to connect');
     }
   };
@@ -277,7 +260,6 @@ export function useFathomIntegration() {
       setIntegration(null);
       setSyncState(null);
     } catch (err) {
-      console.error('Error disconnecting Fathom:', err);
       setError(err instanceof Error ? err.message : 'Failed to disconnect');
     }
   };
@@ -327,7 +309,6 @@ export function useFathomIntegration() {
 
       return response.data;
     } catch (err) {
-      console.error('Error triggering sync:', err);
       setError(err instanceof Error ? err.message : 'Sync failed');
       throw err;
     }

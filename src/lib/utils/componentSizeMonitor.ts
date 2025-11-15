@@ -196,12 +196,6 @@ class ComponentSizeMonitor {
     }
 
     if (warnings.length > 0) {
-      console.warn(
-        `⚠️  Component Size Alert: ${metrics.name}\n` +
-        `   Path: ${metrics.path}\n` +
-        `   Issues: ${warnings.join(', ')}\n` +
-        `   Consider refactoring into smaller components`
-      );
     }
   }
 }
@@ -228,7 +222,6 @@ export const logComponentSizeReport = (): void => {
   if (process.env.NODE_ENV === 'development') {
     const monitor = ComponentSizeMonitor.getInstance();
     const report = monitor.generateReport();
-    console.log(report);
   }
 };
 

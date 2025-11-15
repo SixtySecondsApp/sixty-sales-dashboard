@@ -25,5 +25,4 @@ export const DEV_USER_PROFILES = {
 export const createDevSession = async (userId: string) => {
   // This would need to be implemented with proper Supabase auth
   // For now, recommend using actual authentication instead of mock users
-  console.warn('Mock users should be replaced with proper authentication for RLS compatibility');
 };

@@ -61,7 +61,7 @@ export default function WorkflowTestMode({
     if (fixedFormUrls.test) {
       QRCode.toDataURL(fixedFormUrls.test, { width: 200, margin: 2 })
         .then(setQrCode)
-        .catch(console.error);
+        .catch(() => {});
     }
   }, [fixedFormUrls]);
 

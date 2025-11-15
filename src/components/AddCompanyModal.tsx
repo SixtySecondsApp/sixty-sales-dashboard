@@ -80,7 +80,6 @@ export function AddCompanyModal({ isOpen, onClose, onSuccess }: AddCompanyModalP
       handleClose();
     } catch (error) {
       toast.error('Failed to add and enrich company');
-      console.error('Error adding company:', error);
     } finally {
       setIsLoading(false);
     }

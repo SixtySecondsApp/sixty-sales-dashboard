@@ -51,7 +51,6 @@ export function ViewModeProvider({ children }: { children: ReactNode }) {
         const user = JSON.parse(stored);
         setViewedUser(user);
       } catch (error) {
-        console.error('Failed to restore view mode:', error);
         sessionStorage.removeItem('viewMode');
       }
     }

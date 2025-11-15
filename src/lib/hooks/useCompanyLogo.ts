@@ -17,9 +17,7 @@ export function useCompanyLogo(domain: string | null | undefined) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    console.warn('🟡 [useCompanyLogo] Hook called with domain:', domain);
     if (!domain) {
-      console.warn('🟡 [useCompanyLogo] No domain provided, returning null');
       setLogoUrl(null);
       return;
     }
@@ -40,7 +38,6 @@ export function useCompanyLogo(domain: string | null | undefined) {
     setLogoUrl(null); // Reset logo URL when domain changes
 
     // Fetch logo via edge function
-    console.log(`[useCompanyLogo] Fetching logo for domain: ${normalizedDomain}`);
     supabase.functions
       .invoke<LogoResponse>('fetch-company-logo', {
         method: 'POST',
@@ -48,18 +45,14 @@ export function useCompanyLogo(domain: string | null | undefined) {
       })
       .then(({ data, error }) => {
         if (error) {
-          console.error('[useCompanyLogo] Error fetching logo:', error);
           setLogoUrl(null);
         } else if (data?.logo_url) {
-          console.log(`[useCompanyLogo] Logo fetched successfully: ${data.logo_url}`);
           setLogoUrl(data.logo_url);
         } else {
-          console.warn('[useCompanyLogo] No logo URL in response:', data);
           setLogoUrl(null);
         }
       })
       .catch((error) => {
-        console.error('[useCompanyLogo] Exception fetching logo:', error);
         setLogoUrl(null);
       })
       .finally(() => {

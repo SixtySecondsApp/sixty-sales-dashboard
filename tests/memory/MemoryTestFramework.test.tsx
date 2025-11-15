@@ -57,18 +57,14 @@ class MemoryTestUtils {
   }
 
   logMemoryReport() {
-    console.log('Memory Test Report:');
-    console.log('==================');
     this.memorySnapshots.forEach((snapshot, index) => {
       const memoryMB = (snapshot.memory / (1024 * 1024)).toFixed(2);
       const diff = index > 0 
         ? ((snapshot.memory - this.memorySnapshots[index - 1].memory) / (1024 * 1024)).toFixed(2)
         : '0.00';
-      console.log(`${snapshot.label}: ${memoryMB}MB (${diff > '0' ? '+' : ''}${diff}MB)`);
     });
     
     const finalUsage = this.getMemoryUsagePercent();
-    console.log(`Final Memory Usage: ${finalUsage.toFixed(1)}%`);
   }
 
   clear() {
@@ -153,8 +149,6 @@ describe('Memory Testing Framework', () => {
       
       // Memory usage should be reasonable at baseline
       expect(initialUsage).toBeLessThan(30); // Less than 30% at baseline
-      
-      console.log(`Baseline memory usage: ${initialUsage.toFixed(1)}%`);
     });
 
     test('should track memory manager component registration', () => {
@@ -223,9 +217,6 @@ describe('Memory Testing Framework', () => {
       
       // Critical test: Memory usage should stay below 70%
       expect(finalUsage).toBeLessThan(70);
-      
-      console.log(`Heavy load memory usage: ${finalUsage.toFixed(1)}%`);
-      console.log(`Components rendered: ${renderCounts.length} times`);
     });
 
     test('should handle rapid component mounting/unmounting', async () => {
@@ -257,8 +248,6 @@ describe('Memory Testing Framework', () => {
       
       // Memory growth should be minimal after cleanup
       expect(memoryDiffMB).toBeLessThan(10); // Less than 10MB growth
-      
-      console.log(`Memory diff after mount/unmount cycles: ${memoryDiffMB.toFixed(2)}MB`);
     });
   });
 
@@ -300,9 +289,6 @@ describe('Memory Testing Framework', () => {
       // Memory growth should be minimal
       expect(memoryGrowthMB).toBeLessThan(5);
       expect(renderCount).toBe(51); // Initial + 50 re-renders
-
-      console.log(`Extended lifecycle memory growth: ${memoryGrowthMB.toFixed(2)}MB`);
-      console.log(`Total renders: ${renderCount}`);
     });
 
     test('should cleanup event listeners and timers properly', async () => {
@@ -399,8 +385,6 @@ describe('Memory Testing Framework', () => {
       expect(results).toHaveLength(1000);
       expect(results[0]).toHaveProperty('compound');
       expect(results[0]).toHaveProperty('monthly');
-
-      console.log(`Financial calculation time: ${calculationTime.toFixed(2)}ms`);
     });
 
     test('should not degrade performance with memory optimizations', async () => {
@@ -444,9 +428,6 @@ describe('Memory Testing Framework', () => {
       // Performance should be acceptable
       expect(averageTime).toBeLessThan(50); // Average under 50ms
       expect(maxTime).toBeLessThan(200); // Max under 200ms
-      
-      console.log(`Average render time: ${averageTime.toFixed(2)}ms`);
-      console.log(`Max render time: ${maxTime.toFixed(2)}ms`);
     });
   });
 
@@ -535,8 +516,6 @@ describe('Memory Testing Framework', () => {
       
       // Data processing should not cause excessive memory usage
       expect(finalUsage).toBeLessThan(75);
-      
-      console.log(`Data integrity test memory usage: ${finalUsage.toFixed(1)}%`);
     });
   });
 });

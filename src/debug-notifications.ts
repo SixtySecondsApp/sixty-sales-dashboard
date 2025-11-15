@@ -3,15 +3,10 @@ import { notificationService } from './lib/services/notificationService';
 
 // Debug functions for testing notifications
 export async function debugNotifications() {
-  console.log('🔍 Debugging Notification System...');
-  
   try {
     // 1. Check current user
     const { data: { user } } = await supabase.auth.getUser();
-    console.log('Current User:', user?.email, user?.id);
-    
     if (!user) {
-      console.error('❌ No authenticated user found');
       return;
     }
     
@@ -24,17 +19,12 @@ export async function debugNotifications() {
       .limit(10);
     
     if (fetchError) {
-      console.error('❌ Error fetching notifications:', fetchError);
     } else {
-      console.log(`✅ Found ${notifications?.length || 0} notifications:`, notifications);
     }
     
     // 3. Check unread count
     const unreadCount = await notificationService.getUnreadCount();
-    console.log(`📊 Unread count: ${unreadCount}`);
-    
     // 4. Test creating a notification
-    console.log('🔄 Creating test notification...');
     const testNotification = await notificationService.create({
       user_id: user.id,
       title: '🧪 Debug Test Notification',
@@ -44,13 +34,10 @@ export async function debugNotifications() {
     });
     
     if (testNotification) {
-      console.log('✅ Test notification created:', testNotification);
     } else {
-      console.error('❌ Failed to create test notification');
     }
     
     // 5. Check real-time subscription
-    console.log('🔄 Checking real-time subscription...');
     const subscription = supabase
       .channel(`notifications:${user.id}`)
       .on('postgres_changes', 
@@ -61,31 +48,24 @@ export async function debugNotifications() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          console.log('📨 Real-time notification received:', payload);
         }
       )
       .subscribe((status) => {
-        console.log('📡 Subscription status:', status);
       });
     
     // Clean up subscription after 5 seconds
     setTimeout(() => {
       subscription.unsubscribe();
-      console.log('📡 Unsubscribed from real-time notifications');
     }, 5000);
     
   } catch (error) {
-    console.error('❌ Debug error:', error);
   }
 }
 
 // Function to manually create notifications for the current user
 export async function createNotificationsForCurrentUser() {
-  console.log('📝 Creating notifications for current user...');
-  
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    console.error('❌ No authenticated user found');
     return;
   }
   
@@ -167,24 +147,15 @@ export async function createNotificationsForCurrentUser() {
     const result = await notificationService.create(notification);
     if (result) {
       created++;
-      console.log(`✅ Created: "${notification.title}"`);
     } else {
-      console.error(`❌ Failed to create: "${notification.title}"`);
     }
   }
-  
-  console.log(`✅ Created ${created} out of ${notifications.length} notifications`);
-  console.log('🔄 Refresh the page or check the notification bell to see them!');
 }
 
 // Make functions available in browser console
 if (typeof window !== 'undefined') {
   (window as any).debugNotifications = debugNotifications;
   (window as any).createNotificationsForCurrentUser = createNotificationsForCurrentUser;
-  
-  console.log('🔧 Debug functions loaded! Available commands:');
-  console.log('  - debugNotifications() - Check notification system status');
-  console.log('  - createNotificationsForCurrentUser() - Create test notifications for logged-in user');
 }
 
 // Auto-export for use in other modules

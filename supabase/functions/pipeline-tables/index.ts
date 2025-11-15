@@ -42,7 +42,6 @@ serve(async (req) => {
     }, { count: 'exact' });
     
     if (stagesError) {
-      console.log('Function already exists or error creating it:', stagesError);
     }
     
     // Create the tables
@@ -176,7 +175,6 @@ serve(async (req) => {
       },
     )
   } catch (error) {
-    console.error('Error:', error);
     return new Response(
       JSON.stringify({ 
         error: error.message,

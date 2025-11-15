@@ -51,7 +51,6 @@ async function fetchBatchedNextActions(
       .in('deal_id', dealIds);
 
     if (error) {
-      console.error('[useBatchedDealMetadata] Error fetching next actions:', error);
       return {};
     }
 
@@ -69,7 +68,6 @@ async function fetchBatchedNextActions(
 
     return indexed;
   } catch (error) {
-    console.error('[useBatchedDealMetadata] Exception fetching next actions:', error);
     return {};
   }
 }
@@ -93,7 +91,6 @@ async function fetchBatchedHealthScores(
 
     // If table doesn't exist or RLS blocks access, return empty
     if (tableError) {
-      console.warn('[useBatchedDealMetadata] deal_health_scores table not accessible:', tableError.message);
       return {};
     }
 
@@ -104,7 +101,6 @@ async function fetchBatchedHealthScores(
       .in('deal_id', dealIds);
 
     if (error) {
-      console.error('[useBatchedDealMetadata] Error fetching health scores:', error);
       return {};
     }
 
@@ -120,7 +116,6 @@ async function fetchBatchedHealthScores(
 
     return indexed;
   } catch (error) {
-    console.error('[useBatchedDealMetadata] Exception fetching health scores:', error);
     return {};
   }
 }

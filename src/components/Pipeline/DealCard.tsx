@@ -117,17 +117,9 @@ export function DealCard({
   // Get primary contact information (normalized vs legacy)
   const contactInfo = useMemo(() => {
     // Debug logging
-    console.log('DealCard contact info for deal:', deal.id, {
-      hasContacts: !!deal.contacts,
-      contacts: deal.contacts,
-      contact_name: deal.contact_name,
-      contact_email: deal.contact_email
-    });
-    
     // Primary: Use normalized contact relationship
     if (deal.contacts) {
       const name = deal.contacts.full_name || `${deal.contacts.first_name || ''} ${deal.contacts.last_name || ''}`.trim();
-      console.log('Using normalized contact name:', name);
       return {
         name: name || 'Unnamed Contact',
         email: deal.contacts.email,
@@ -139,7 +131,6 @@ export function DealCard({
     
     // Fallback: Use legacy contact fields
     const legacyName = deal.contact_name || 'No contact';
-    console.log('Using legacy contact name:', legacyName);
     return {
       name: legacyName,
       email: deal.contact_email,

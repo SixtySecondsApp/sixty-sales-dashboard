@@ -111,7 +111,6 @@ export default function Automations() {
         updatedAt: rule.updated_at
       })) || []);
     } catch (error) {
-      console.error('Failed to load automation rules:', error);
     }
   };
 
@@ -138,7 +137,6 @@ export default function Automations() {
         errorMessage: log.error_message
       })) || []);
     } catch (error) {
-      console.error('Failed to load execution logs:', error);
     }
   };
 
@@ -177,7 +175,6 @@ export default function Automations() {
         topRules
       });
     } catch (error) {
-      console.error('Failed to calculate stats:', error);
     }
   };
 
@@ -194,7 +191,6 @@ export default function Automations() {
         rule.id === ruleId ? { ...rule, isEnabled } : rule
       ));
     } catch (error) {
-      console.error('Failed to toggle rule status:', error);
     }
   };
 
@@ -213,7 +209,6 @@ export default function Automations() {
 
       setRules(prev => prev.filter(rule => rule.id !== ruleId));
     } catch (error) {
-      console.error('Failed to delete rule:', error);
     }
   };
 

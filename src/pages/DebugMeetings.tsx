@@ -24,21 +24,11 @@ export default function DebugMeetings() {
       const { data: allMeetings, error: allError } = await supabase
         .from('meetings')
         .select('*')
-      
-      console.log('Current user ID:', user.id)
-      console.log('Current user email:', user.email)
-      console.log('All meetings in database:', allMeetings)
-      console.log('All meetings error:', allError)
-
       // Now try the filtered query
       const { data: userMeetings, error: userError } = await supabase
         .from('meetings')
         .select('*')
         .eq('owner_user_id', user.id)
-
-      console.log('User meetings:', userMeetings)
-      console.log('User meetings error:', userError)
-
       setMeetings(allMeetings || [])
       if (allError) setError(allError.message)
       else if (userError) setError(userError.message)
@@ -72,15 +62,10 @@ export default function DebugMeetings() {
           updated_at: new Date().toISOString()
         })
         .select()
-
-      console.log('Created meeting:', data)
-      console.log('Create error:', error)
-      
       if (!error) {
         await debugMeetings() // Refresh the list
       }
     } catch (err: any) {
-      console.error('Error creating meeting:', err)
     }
   }
 

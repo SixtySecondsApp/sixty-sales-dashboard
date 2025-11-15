@@ -69,7 +69,6 @@ export const EmailAIPanel: React.FC<EmailAIPanelProps> = ({
       setAnalysis(result);
       generateInsights(result);
     } catch (error) {
-      console.error('Failed to analyze email:', error);
     } finally {
       setLoading(false);
     }

@@ -42,7 +42,6 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token)
 
     if (userError || !user) {
-      console.error('Auth error:', userError)
       return new Response(
         JSON.stringify({ error: 'Invalid or expired token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,8 +85,6 @@ serve(async (req) => {
       .single()
 
     if (insertError) {
-      console.error('Database error:', insertError)
-      
       // Check if it's a missing column error
       if (insertError.message?.includes('column') && insertError.message?.includes('does not exist')) {
         return new Response(
@@ -129,7 +126,6 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',

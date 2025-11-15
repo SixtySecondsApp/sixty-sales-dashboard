@@ -64,7 +64,6 @@ class CalendarService {
         timeMin = oneWeekAgo.toISOString(); // 7 days ago
         timeMax = now.toISOString(); // until now
         maxResults = 50; // Get up to 50 events from last week
-        console.log('[Calendar Sync] Last week activity test - searching from', timeMin, 'to', timeMax);
       } else {
         timeMin = startDate || new Date(now.getFullYear(), now.getMonth() - 3, 1).toISOString();
         timeMax = endDate || new Date(now.getFullYear(), now.getMonth() + 3, 0).toISOString();
@@ -81,17 +80,6 @@ class CalendarService {
           singleEvents: true
         },
       });
-
-      console.log('[Calendar Sync] Edge Function Response:', {
-        hasError: !!response.error,
-        hasData: !!response.data,
-        eventCount: response.data?.events?.length || 0,
-        timeRange: { timeMin, timeMax },
-        maxResults,
-        action,
-        fullResponse: JSON.stringify(response.data, null, 2)
-      });
-
       if (response.error) {
         throw response.error;
       }
@@ -100,7 +88,6 @@ class CalendarService {
       const events = response.data?.events || [];
       
       if (events.length === 0) {
-        console.log('[Calendar Sync] No events found in date range');
         return {
           isRunning: false,
           lastSyncedAt: new Date(),
@@ -109,9 +96,6 @@ class CalendarService {
           eventsDeleted: 0,
         };
       }
-
-      console.log(`[Calendar Sync] Found ${events.length} events to sync`);
-
       // Process and store events in the database
       let created = 0;
       let updated = 0;
@@ -146,19 +130,8 @@ class CalendarService {
       }
 
       // Store events
-      console.log(`[Calendar Sync] Starting to store ${events.length} events...`);
-      
       for (const event of events) {
-        console.log('[Calendar Sync] Processing event:', {
-          id: event.id,
-          summary: event.summary,
-          start: event.start,
-          hasDateTime: !!event.start?.dateTime,
-          hasDate: !!event.start?.date
-        });
-
         if (!event.start?.dateTime && !event.start?.date) {
-          console.log('[Calendar Sync] Skipping event - no start time');
           continue;
         }
 
@@ -172,7 +145,6 @@ class CalendarService {
           .maybeSingle();
         
         if (selectError && selectError.code !== 'PGRST116') {
-          console.error('[Calendar Sync] Error checking existing event:', selectError);
         }
 
         // Clean up HTML link - sometimes it gets truncated with "..."
@@ -210,12 +182,6 @@ class CalendarService {
         
         if (existingEvent) {
           // Update existing event
-          console.log('[Calendar Sync] Updating existing event:', {
-            id: existingEvent.id,
-            external_id: eventData.external_id,
-            title: eventData.title
-          });
-          
           const { data, error: updateError } = await supabase
             .from('calendar_events')
             .update(eventData)
@@ -225,16 +191,7 @@ class CalendarService {
           error = updateError;
         } else {
           // Insert new event
-          console.log('[Calendar Sync] Inserting new event:', {
-            external_id: eventData.external_id,
-            title: eventData.title,
-            user_id: eventData.user_id,
-            calendar_id: eventData.calendar_id
-          });
-          
           // Log the exact data being sent
-          console.log('[Calendar Sync] Full insert data:', JSON.stringify(eventData, null, 2));
-          
           // Try without the select() to avoid RLS issues on return
           const { data, error: insertError } = await supabase
             .from('calendar_events')
@@ -245,14 +202,7 @@ class CalendarService {
         }
 
         if (error) {
-          console.error('[Calendar Sync] Database error:', error);
-          console.error('[Calendar Sync] Failed event data:', {
-            external_id: eventData.external_id,
-            title: eventData.title,
-            user_id: eventData.user_id
-          });
         } else {
-          console.log('[Calendar Sync] Event saved successfully:', result?.[0]?.id);
           created++;
         }
       }
@@ -273,7 +223,6 @@ class CalendarService {
         eventsDeleted: 0,
       };
     } catch (error) {
-      console.error('Calendar sync failed:', error);
       return {
         isRunning: false,
         error: error instanceof Error ? error.message : 'Sync failed',
@@ -308,8 +257,6 @@ class CalendarService {
 
       if (rpcResult.error && rpcResult.error.message?.includes('function') && rpcResult.error.message?.includes('does not exist')) {
         // Function doesn't exist, fall back to direct query
-        console.log('RPC function not found, using direct query');
-        
         let query = supabase
           .from('calendar_events')
           .select(`
@@ -378,7 +325,6 @@ class CalendarService {
         htmlLink: event.html_link || undefined,
       }));
     } catch (error) {
-      console.error('Failed to get events from database:', error);
       return [];
     }
   }
@@ -399,7 +345,6 @@ class CalendarService {
 
       return true;
     } catch (error) {
-      console.error('Failed to link event to contact:', error);
       return false;
     }
   }
@@ -420,7 +365,6 @@ class CalendarService {
 
       return true;
     } catch (error) {
-      console.error('Failed to link event to deal:', error);
       return false;
     }
   }
@@ -449,12 +393,9 @@ class CalendarService {
         .lt('started_at', fiveMinutesAgo.toISOString());
 
       if (error) {
-        console.error('Failed to clear stuck sync status:', error);
       } else {
-        console.log('Cleared stuck sync statuses');
       }
     } catch (error) {
-      console.error('Error clearing stuck sync status:', error);
     }
   }
 
@@ -503,7 +444,6 @@ class CalendarService {
         error: data.error_message || undefined,
       };
     } catch (error) {
-      console.error('Failed to get sync status:', error);
       return {
         isRunning: false,
         error: error instanceof Error ? error.message : 'Failed to get sync status',
@@ -529,13 +469,11 @@ class CalendarService {
         .maybeSingle();
 
       if (error) {
-        console.error('Failed to check historical sync status:', error);
         return false;
       }
 
       return !!data?.historical_sync_completed;
     } catch (error) {
-      console.error('Failed to check historical sync status:', error);
       return false;
     }
   }
@@ -608,7 +546,6 @@ class CalendarService {
 
       return linkedCount;
     } catch (error) {
-      console.error('Failed to auto-link events to contacts:', error);
       return 0;
     }
   }

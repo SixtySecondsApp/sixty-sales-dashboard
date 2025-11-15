@@ -181,16 +181,12 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
           key.full_key // Only select if full key is available
         );
         if (firstActiveKey && firstActiveKey.full_key) {
-          console.log('🔄 Auto-selecting first available API key with full key:', firstActiveKey.name);
           onKeySelected(firstActiveKey.full_key);
         }
       }
     } catch (error: any) {
-      console.error('Error fetching API keys:', error);
-      
       // Fall back to mock mode
       if (error?.message?.includes('api_keys') || error?.code === '42P01') {
-        console.log('Falling back to mock API keys mode');
         setUseMockMode(true);
         
         // Load mock keys
@@ -215,7 +211,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
         if (onKeySelected && formattedMockKeys.length > 0) {
           const firstMockKey = formattedMockKeys.find(key => key.is_active && key.full_key);
           if (firstMockKey) {
-            console.log('🔄 Auto-selecting first mock API key:', firstMockKey.name);
             onKeySelected(firstMockKey.full_key!);
           }
         }
@@ -254,7 +249,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
       });
 
       if (error) {
-        console.error('Function invocation error:', error);
         throw error;
       }
 
@@ -277,11 +271,8 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
 
       toast.success('API key created successfully');
     } catch (error: any) {
-      console.error('Error creating API key:', error);
-      
       // Fall back to mock mode if database isn't set up
       if (error.message?.includes('500') || error.message?.includes('502') || error.message?.includes('api_keys')) {
-        console.log('Using mock API key creation');
         setUseMockMode(true);
         
         try {
@@ -323,14 +314,11 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
           toast.success('Mock API key created for testing');
           return;
         } catch (mockError) {
-          console.error('Mock creation failed:', mockError);
           toast.error('Failed to create mock API key');
         }
       }
       
       // Original error handling
-      console.error('Error creating API key:', error);
-      
       // Specific error handling
       if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
         toast.error('Authentication error. Please log in again.');
@@ -357,7 +345,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
       await fetchApiKeys();
       toast.success('API key revoked');
     } catch (error) {
-      console.error('Error revoking API key:', error);
       toast.error('Failed to revoke API key');
     }
   };

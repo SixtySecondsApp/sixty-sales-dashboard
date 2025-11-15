@@ -96,8 +96,6 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
-    console.error('Error in meetings API:', error)
-    
     return createErrorResponse(error.message || 'Internal server error', statusCode)
   }
 })
@@ -228,7 +226,6 @@ async function handleMeetingsList(client: any, url: URL, userId: string, permiss
     return createSuccessResponse(processedMeetings, 200, count, pagination)
 
   } catch (error) {
-    console.error('Error fetching meetings:', error)
     throw new Error(error.message || 'Failed to fetch meetings')
   }
 }
@@ -275,7 +272,6 @@ async function handleSingleMeeting(client: any, meetingId: string, userId: strin
     return createSuccessResponse(processedMeeting)
 
   } catch (error) {
-    console.error('Error fetching meeting:', error)
     throw new Error(error.message || 'Failed to fetch meeting')
   }
 }
@@ -358,7 +354,6 @@ async function handleCreateMeeting(client: any, body: any, userId: string) {
       .single()
 
     if (error) {
-      console.error('Database error creating meeting:', error)
       throw error
     }
 
@@ -370,7 +365,6 @@ async function handleCreateMeeting(client: any, body: any, userId: string) {
     return createSuccessResponse(processedMeeting, 201)
 
   } catch (error) {
-    console.error('Error creating meeting:', error)
     throw new Error(error.message || 'Failed to create meeting')
   }
 }
@@ -466,7 +460,6 @@ async function handleUpdateMeeting(client: any, meetingId: string, body: any, us
     return createSuccessResponse(processedMeeting)
 
   } catch (error) {
-    console.error('Error updating meeting:', error)
     throw new Error(error.message || 'Failed to update meeting')
   }
 }
@@ -506,7 +499,6 @@ async function handleDeleteMeeting(client: any, meetingId: string, userId: strin
     return createSuccessResponse({ id: meetingId, deleted: true })
 
   } catch (error) {
-    console.error('Error deleting meeting:', error)
     throw new Error(error.message || 'Failed to delete meeting')
   }
 }

@@ -25,7 +25,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in owners function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -69,7 +68,6 @@ async function handleOwnersList(supabaseClient: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching owners:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message,

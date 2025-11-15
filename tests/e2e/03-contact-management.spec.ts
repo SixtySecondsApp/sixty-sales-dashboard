@@ -83,7 +83,6 @@ test.describe('Contact Management', () => {
 
     // Check that no 403 errors occurred
     if (forbiddenRequests.length > 0) {
-      console.log('403 Forbidden errors detected:', forbiddenRequests);
     }
     expect(forbiddenRequests).toHaveLength(0);
   });

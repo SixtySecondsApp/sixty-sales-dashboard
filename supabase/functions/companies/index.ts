@@ -57,7 +57,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in companies function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -153,7 +152,6 @@ async function handleCompaniesList(supabaseClient: any, url: URL) {
               dealsValue: deals?.reduce((sum: number, deal: any) => sum + (Number(deal.value) || 0), 0) || 0
             }
           } catch (statError) {
-            console.warn(`Error getting stats for company ${company.id}:`, statError)
             // Return company without stats if there's an error
             return {
               ...company,
@@ -175,7 +173,6 @@ async function handleCompaniesList(supabaseClient: any, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching companies:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message,
@@ -230,7 +227,6 @@ async function handleSingleCompany(supabaseClient: any, companyId: string) {
         dealsValue: deals?.reduce((sum: number, deal: any) => sum + (Number(deal.value) || 0), 0) || 0
       }
     } catch (statError) {
-      console.warn(`Error getting stats for company ${companyId}:`, statError)
       // Return company without stats if there's an error
       processedCompany = {
         ...company,
@@ -247,7 +243,6 @@ async function handleSingleCompany(supabaseClient: any, companyId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching company:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -279,7 +274,6 @@ async function handleCreateCompany(supabaseClient: any, body: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error creating company:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -311,7 +305,6 @@ async function handleUpdateCompany(supabaseClient: any, companyId: string, body:
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error updating company:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -341,7 +334,6 @@ async function handleDeleteCompany(supabaseClient: any, companyId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error deleting company:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message

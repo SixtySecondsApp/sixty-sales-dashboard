@@ -290,7 +290,6 @@ export function MeetingDetail() {
         if (actionItemsError) throw actionItemsError;
         setActionItems(actionItemsData || []);
       } catch (err) {
-        console.error('Error fetching meeting details:', err);
         setError(err instanceof Error ? err.message : 'Failed to load meeting');
       } finally {
         setLoading(false);
@@ -392,7 +391,6 @@ export function MeetingDetail() {
         throw error;
       }
     } catch (e) {
-      console.error('[MeetingDetail] Toggle action item failed:', e);
     }
   }, []);
 
@@ -466,7 +464,6 @@ export function MeetingDetail() {
         toast.success(`Added ${created} action item${created === 1 ? '' : 's'}`);
       }
     } catch (e) {
-      console.error('[Get Action Items] Error:', e);
       toast.error(e instanceof Error ? e.message : 'Failed to extract action items');
     } finally {
       setIsExtracting(false);
@@ -497,7 +494,6 @@ export function MeetingDetail() {
 
       toast.success('Task created successfully');
     } catch (e) {
-      console.error('[Create Task] Error:', e);
       toast.error(e instanceof Error ? e.message : 'Failed to create task');
     } finally {
       setCreatingTaskId(null);
@@ -521,7 +517,6 @@ export function MeetingDetail() {
 
       toast.success('Action item deleted');
     } catch (e) {
-      console.error('[Delete Action Item] Error:', e);
       toast.error(e instanceof Error ? e.message : 'Failed to delete action item');
     } finally {
       setDeletingItemId(null);
@@ -624,7 +619,6 @@ export function MeetingDetail() {
         .single();
 
       if (taskError) {
-        console.error('[Add to Tasks] Task creation error:', taskError);
         throw taskError;
       }
 
@@ -654,8 +648,6 @@ export function MeetingDetail() {
 
       toast.success('Action item added to tasks');
     } catch (e) {
-      console.error('[Add to Tasks] Full error:', e);
-      console.error('[Add to Tasks] Error details:', JSON.stringify(e, null, 2));
       const errorMessage = e instanceof Error
         ? e.message
         : (typeof e === 'object' && e !== null && 'message' in e)
@@ -709,7 +701,6 @@ export function MeetingDetail() {
 
       toast.success('Task removed');
     } catch (e) {
-      console.error('[Remove from Tasks] Error:', e);
       toast.error(e instanceof Error ? e.message : 'Failed to remove task');
     } finally {
       setRemovingFromTasksId(null);
@@ -830,8 +821,8 @@ export function MeetingDetail() {
                 startSeconds={currentTimestamp}
                 timeoutMs={10000}
                 className="aspect-video"
-                onLoad={() => console.log('[MeetingDetail] Video loaded successfully')}
-                onError={() => console.error('[MeetingDetail] Video failed to load')}
+                onLoad={() => undefined}
+                onError={() => undefined}
               />
             </div>
           )}
@@ -1084,8 +1075,6 @@ export function MeetingDetail() {
                               }
                               await refetchTasks();
                             } catch (error) {
-                              console.error('[Task Toggle] Full error:', error);
-                              console.error('[Task Toggle] Error details:', JSON.stringify(error, null, 2));
                               const errorMessage = error instanceof Error
                                 ? error.message
                                 : (typeof error === 'object' && error !== null && 'message' in error)

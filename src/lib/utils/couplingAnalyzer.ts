@@ -370,17 +370,10 @@ export function useCouplingMetrics() {
  */
 export const couplingDevUtils = {
   async runCouplingTest(): Promise<void> {
-    console.log('🔍 Running coupling analysis...');
-    
     const metrics = await analyzeCoupling();
     const validation = await validateCouplingTarget();
-    
-    console.log('📊 Coupling Metrics:', metrics);
-    console.log(`🎯 Target Achieved: ${validation ? '✅' : '❌'}`);
-    
     if (!validation) {
       const report = await getCouplingReport();
-      console.log('📋 Coupling Report:', report);
     }
   },
 

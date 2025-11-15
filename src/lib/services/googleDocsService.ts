@@ -39,9 +39,6 @@ export class GoogleDocsService {
         content: docContent.content,
         metadata: docContent.metadata
       };
-
-      console.log('GoogleDocsService: Making direct fetch to Edge Function');
-      
       const response = await fetch(functionUrl, {
         method: 'POST',
         headers: {
@@ -54,7 +51,6 @@ export class GoogleDocsService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('GoogleDocsService: Edge Function error:', errorText);
         throw new Error(`Edge Function failed: ${response.status} - ${errorText}`);
       }
 
@@ -62,7 +58,6 @@ export class GoogleDocsService {
 
       // The error variable is no longer used since we're using direct fetch
       if (!data || !data.documentId) {
-        console.error('Invalid response from Google Docs API:', data);
         throw new Error('No document ID received from Google Docs API');
       }
 
@@ -78,7 +73,6 @@ export class GoogleDocsService {
         createdAt: new Date().toISOString()
       };
     } catch (error) {
-      console.error('GoogleDocsService.createDocument error:', error);
       throw error;
     }
   }

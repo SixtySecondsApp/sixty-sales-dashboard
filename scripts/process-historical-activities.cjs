@@ -10,7 +10,6 @@ const SUPABASE_SERVICE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   // Update error message to reflect the correct service key variable name
-  console.error('Error: VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE_ROLE_KEY must be set in your .env file.'); 
   process.exit(1);
 }
 
@@ -37,7 +36,6 @@ const extractDomain = (email) => {
 
 // --- Main Processing Function ---
 async function processActivities() {
-  console.log('Starting historical activity processing from `activities` table...');
   let processedCount = 0;
   let createdDealActivitiesCount = 0;
   let updatedDealsCount = 0;
@@ -48,24 +46,19 @@ async function processActivities() {
   let hasMore = true;
 
   // 1. Fetch Stage IDs
-  console.log('Fetching Deal Stage IDs...');
   const { data: stagesData, error: stagesError } = await supabase
     .from('deal_stages')
     .select('id, name, default_probability'); // Fetch probability too
 
   if (stagesError) {
-    console.error('Fatal: Could not fetch deal stages.', stagesError);
     return;
   }
   const stageInfo = stagesData.reduce((acc, stage) => {
     acc[stage.name] = { id: stage.id, probability: stage.default_probability };
     return acc;
   }, {});
-  console.log('Stage Info fetched:', stageInfo);
-
   // --- Process in Batches ---
   while (hasMore) {
-    console.log(`\nFetching batch of unprocessed activities (offset: ${offset})...`);
     // 2. Fetch Unprocessed Activities with contact_identifier in batches
     const { data: activities, error: fetchError } = await supabase
       .from('activities') // Read from activities table
@@ -76,35 +69,26 @@ async function processActivities() {
       .range(offset, offset + BATCH_SIZE - 1);
 
     if (fetchError) {
-      console.error(`Error fetching activities batch (offset ${offset}):`, fetchError);
       errorCount++; 
       hasMore = false; // Stop processing if a batch fails
       break;
     }
 
     if (!activities || activities.length === 0) {
-      console.log('No more unprocessed activities found.');
       hasMore = false;
       break;
     }
-
-    console.log(`Processing ${activities.length} activities in this batch...`);
-
     // 3. Iterate through the batch
     for (const activity of activities) {
       processedCount++;
       const activityLogPrefix = `Activity ID: ${activity.id} (Type: ${activity.type}, Email: ${activity.contact_identifier}) -`;
-      console.log(`${activityLogPrefix} Processing...`);
-      
       if (!matchingActivityTypes.includes(activity.type) || !activity.contact_identifier) {
-          console.log(`${activityLogPrefix} Skipping: Activity type not matchable or email missing.`);
           // Mark non-matchable types as processed to avoid reprocessing
           const { error: markSkippedError } = await supabase
               .from('activities')
               .update({ is_processed: true })
               .eq('id', activity.id);
           if (markSkippedError) {
-              console.error(`${activityLogPrefix} Error marking skipped activity as processed:`, markSkippedError);
               errorCount++;
           } else {
               markedProcessedCount++;
@@ -132,7 +116,6 @@ async function processActivities() {
         const activityTimestamp = new Date(activityDate).toISOString();
 
         if (!targetStageDetails) {
-            console.error(`${activityLogPrefix} Error: Stage Info for '${targetStageName}' not found. Skipping.`);
             errorCount++;
             continue; // Skip this activity
         }
@@ -141,7 +124,6 @@ async function processActivities() {
 
         if (existingDeal) {
           // 5a. Deal Found: Update it
-          console.log(`${activityLogPrefix} Found existing Deal ID: ${existingDeal.id}`);
           dealToLink = existingDeal;
           let dealUpdateData = {};
 
@@ -163,7 +145,6 @@ async function processActivities() {
           
           // Only update if there are changes
           if (Object.keys(dealUpdateData).length > 0) {
-              console.log(`${activityLogPrefix} Updating Deal ${existingDeal.id}...`);
           const { error: updateDealError } = await supabase
             .from('deals')
             .update(dealUpdateData)
@@ -171,21 +152,17 @@ async function processActivities() {
 
           if (updateDealError) throw updateDealError; 
               updatedDealsCount++;
-              console.log(`${activityLogPrefix} Deal ${existingDeal.id} updated.`);
           } else {
-              console.log(`${activityLogPrefix} No updates required for existing Deal ${existingDeal.id}.`);
           }
 
         } else {
           // 5b. Deal Not Found: Create it
-          console.log(`${activityLogPrefix} No existing deal found. Creating new deal...`);
           const companyName = activity.client_name || extractDomain(activity.contact_identifier);
           const dealName = activity.client_name || `Deal for ${activity.contact_identifier}`;
           const ownerId = activity.user_id; 
           const dealValue = activity.amount !== null ? Number(activity.amount) : 0;
 
           if (!ownerId) {
-            console.error(`${activityLogPrefix} Error: Cannot create deal, user_id missing on activity. Skipping.`);
             errorCount++;
             continue;
           }
@@ -223,12 +200,10 @@ async function processActivities() {
           if (createDealError) throw createDealError;
           dealToLink = createdDealData;
           createdDealsCount++;
-          console.log(`${activityLogPrefix} New Deal created ID: ${dealToLink.id}`);
         }
 
         // 6. Create corresponding deal_activity record
         if (dealToLink) {
-            console.log(`${activityLogPrefix} Creating record in deal_activities...`);
             const dealActivityPayload = {
                 deal_id: dealToLink.id,
                 user_id: activity.user_id,
@@ -249,14 +224,11 @@ async function processActivities() {
             if (createDealActivityError) throw createDealActivityError;
             createdDealActivitiesCount++;
             success = true; // Mark as successful for this activity
-            console.log(`${activityLogPrefix} Record created in deal_activities.`);
         } else {
-            console.error(`${activityLogPrefix} Error: dealToLink was null after processing. Skipping creation.`);
             errorCount++;
         }
 
       } catch (err) {
-        console.error(`${activityLogPrefix} Error processing:`, err.message || err);
         errorCount++;
         success = false; // Mark as failed
       }
@@ -269,11 +241,9 @@ async function processActivities() {
               .eq('id', activity.id);
           
            if (markProcessedError) {
-              console.error(`${activityLogPrefix} Error marking activity as processed:`, markProcessedError);
               errorCount++; // Log error but continue
            } else {
                markedProcessedCount++;
-               console.log(`${activityLogPrefix} Marked original activity as processed.`);
            }
       }
 
@@ -290,18 +260,8 @@ async function processActivities() {
     }
 
   } // End of while loop
-
-  console.log('\n--- Processing Complete ---');
-  console.log(`Total Original Activities Processed/Attempted: ${processedCount}`);
-  console.log(`New Records Created in deal_activities: ${createdDealActivitiesCount}`);
-  console.log(`Existing Deals Updated: ${updatedDealsCount}`);
-  console.log(`New Deals Created: ${createdDealsCount}`);
-  console.log(`Original Activities Marked as Processed: ${markedProcessedCount}`);
-  console.log(`Errors Encountered: ${errorCount}`);
-  console.log('-------------------------');
 }
 
 // --- Run the script ---
 processActivities().catch(err => {
-  console.error("Unhandled error during script execution:", err);
 }); 

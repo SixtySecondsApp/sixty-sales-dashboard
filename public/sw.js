@@ -19,10 +19,7 @@ const isDevelopment = self.location.hostname === 'localhost' &&
 
 // Install event - cache essential files
 self.addEventListener('install', event => {
-  console.log('Service Worker installing...');
-  
   if (isDevelopment) {
-    console.log('Skipping install in development mode');
     self.skipWaiting();
     return;
   }
@@ -30,7 +27,6 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
       .then(() => self.skipWaiting())
@@ -39,10 +35,7 @@ self.addEventListener('install', event => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', event => {
-  console.log('Service Worker activating...');
-  
   if (isDevelopment) {
-    console.log('Skipping activation in development mode');
     return self.clients.claim();
   }
   
@@ -51,7 +44,6 @@ self.addEventListener('activate', event => {
       return Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
@@ -172,5 +164,3 @@ self.addEventListener('message', event => {
     event.ports[0].postMessage({ type: 'API_CACHE_CLEARED' });
   }
 });
-
-console.log('Service Worker loaded successfully');

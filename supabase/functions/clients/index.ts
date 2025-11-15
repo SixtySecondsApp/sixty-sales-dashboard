@@ -31,7 +31,6 @@ serve(async (req) => {
       const { data, error } = await query.order('company_name', { ascending: true })
 
       if (error) {
-        console.error('Database error:', error)
         return new Response(JSON.stringify({ 
           error: error.message,
           details: 'Failed to fetch clients from database'
@@ -61,7 +60,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Clients function error:', error)
     return new Response(JSON.stringify({ 
       error: error.message,
       details: 'Internal server error'

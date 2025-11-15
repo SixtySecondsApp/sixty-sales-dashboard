@@ -28,8 +28,6 @@ serve(async (req) => {
     const results = []
 
     for (const url of testUrls) {
-      console.log(`\n🧪 Testing access to: ${url}`)
-
       const playwrightScript = `
         export default async function({ page }) {
           console.log('🎬 Testing Browserless access...');
@@ -120,7 +118,6 @@ serve(async (req) => {
 
         if (!response.ok) {
           const error = await response.text();
-          console.error(`❌ Browserless error for ${url}:`, error);
           results.push({
             url,
             success: false,
@@ -128,11 +125,9 @@ serve(async (req) => {
           });
         } else {
           const result = await response.json();
-          console.log(`Result for ${url}:`, result);
           results.push(result);
         }
       } catch (error) {
-        console.error(`❌ Exception testing ${url}:`, error);
         results.push({
           url,
           success: false,
@@ -169,7 +164,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in test-browserless-access:', error);
     return new Response(
       JSON.stringify({
         error: error.message,

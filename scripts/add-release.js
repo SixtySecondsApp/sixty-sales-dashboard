@@ -14,8 +14,6 @@ const notes = args[0];
 const customBuildId = args[1];
 
 if (!notes) {
-  console.error('❌ Error: Release notes are required');
-  console.log('Usage: node scripts/add-release.js "Release notes here" [buildId]');
   process.exit(1);
 }
 
@@ -32,7 +30,6 @@ try {
   const releasesContent = readFileSync(releasesPath, 'utf8');
   releases = JSON.parse(releasesContent);
 } catch (error) {
-  console.log('📝 Creating new releases.json file...');
 }
 
 // Add new release to the beginning of the array
@@ -47,15 +44,7 @@ releases.unshift(newRelease);
 // Keep only the last 10 releases
 if (releases.length > 10) {
   releases = releases.slice(0, 10);
-  console.log('🗑️  Trimmed to 10 most recent releases');
 }
 
 // Write updated releases
 writeFileSync(releasesPath, JSON.stringify(releases, null, 2));
-
-console.log('✅ New release added:');
-console.log(`   Build ID: ${buildId}`);
-console.log(`   Date: ${date}`);
-console.log(`   Notes: ${notes}`);
-console.log(`   File: ${releasesPath}`);
-console.log(`   Total releases: ${releases.length}`);

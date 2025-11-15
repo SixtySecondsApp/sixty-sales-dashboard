@@ -67,7 +67,6 @@ const EmailSyncStatus: React.FC<EmailSyncStatusProps> = ({
       const status = await googleEmailService.getSyncStatus();
       setSyncStatus(status);
     } catch (error) {
-      console.error('Error loading sync status:', error);
       setError('Failed to load sync status');
     } finally {
       setLoading(false);
@@ -120,7 +119,6 @@ const EmailSyncStatus: React.FC<EmailSyncStatusProps> = ({
         toast.error(result.error || 'Failed to sync emails');
       }
     } catch (error) {
-      console.error('Error during manual sync:', error);
       setError('Sync failed unexpectedly');
       toast.error('Failed to sync emails');
     } finally {
@@ -148,7 +146,6 @@ const EmailSyncStatus: React.FC<EmailSyncStatusProps> = ({
         toast.error(result.error || 'Failed to toggle sync');
       }
     } catch (error) {
-      console.error('Error toggling sync:', error);
       setError('Failed to toggle sync');
       toast.error('Failed to toggle sync');
     } finally {

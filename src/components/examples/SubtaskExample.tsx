@@ -36,7 +36,6 @@ export const SubtaskExample: React.FC<SubtaskExampleProps> = ({ parentTaskId }) 
       });
       setNewSubtaskTitle('');
     } catch (error) {
-      console.error('Failed to create subtask:', error);
     }
   };
 
@@ -48,7 +47,6 @@ export const SubtaskExample: React.FC<SubtaskExampleProps> = ({ parentTaskId }) 
         await completeSubtask(subtask.id);
       }
     } catch (error) {
-      console.error('Failed to toggle subtask completion:', error);
     }
   };
 
@@ -58,7 +56,6 @@ export const SubtaskExample: React.FC<SubtaskExampleProps> = ({ parentTaskId }) 
     try {
       await deleteSubtask(subtaskId);
     } catch (error) {
-      console.error('Failed to delete subtask:', error);
     }
   };
 
@@ -73,7 +70,6 @@ export const SubtaskExample: React.FC<SubtaskExampleProps> = ({ parentTaskId }) 
       });
       setSelectedSubtasks([]);
     } catch (error) {
-      console.error('Failed to bulk complete subtasks:', error);
     }
   };
 

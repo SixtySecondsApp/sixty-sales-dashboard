@@ -58,8 +58,6 @@ export class MemoryTestRunner {
   }
 
   async runAllTests(): Promise<TestSummary> {
-    console.log('🚀 Starting Comprehensive Memory Test Suite...\n');
-    
     const testSuites = [
       {
         name: 'Memory Baseline Tests',
@@ -89,14 +87,9 @@ export class MemoryTestRunner {
     ];
 
     for (const suite of testSuites) {
-      console.log(`\n📋 Running: ${suite.name}`);
-      console.log('=' .repeat(50));
-      
       try {
         await this.runTestSuite(suite);
       } catch (error) {
-        console.error(`❌ Test suite failed: ${suite.name}`, error);
-        
         this.results.push({
           testSuite: suite.name,
           testName: 'Suite Execution',
@@ -132,7 +125,6 @@ export class MemoryTestRunner {
         this.parseVitestResults(suite.name, testData, duration);
       } catch (parseError) {
         // Fallback if JSON parsing fails
-        console.warn('⚠️ Could not parse test output as JSON, treating as success');
         this.results.push({
           testSuite: suite.name,
           testName: 'Suite Execution',
@@ -140,13 +132,8 @@ export class MemoryTestRunner {
           duration,
         });
       }
-      
-      console.log(`✅ ${suite.name} completed in ${duration}ms`);
-      
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`❌ ${suite.name} failed:`, error);
-      
       this.results.push({
         testSuite: suite.name,
         testName: 'Suite Execution',
@@ -265,53 +252,18 @@ export class MemoryTestRunner {
 
     // Generate markdown report
     await this.generateMarkdownReport(summary, jsonReport);
-
-    console.log(`\n📄 Reports generated:`);
-    console.log(`   - JSON: ${jsonPath}`);
-    console.log(`   - Markdown: ${path.join(this.outputPath, 'memory-test-report.md')}`);
   }
 
   private generateConsoleReport(summary: TestSummary) {
-    console.log('\n' + '='.repeat(80));
-    console.log('🧪 MEMORY TEST RESULTS SUMMARY');
-    console.log('='.repeat(80));
-
-    console.log(`\n📊 Test Statistics:`);
-    console.log(`   Total Tests: ${summary.totalTests}`);
-    console.log(`   ✅ Passed: ${summary.passed}`);
-    console.log(`   ❌ Failed: ${summary.failed}`);
-    console.log(`   ⏭️  Skipped: ${summary.skipped}`);
-    console.log(`   🎯 Overall Status: ${summary.overallStatus}`);
-
-    console.log(`\n🧠 Memory Performance:`);
-    console.log(`   Average Memory Usage: ${summary.performanceMetrics.averageMemoryUsage.toFixed(1)}%`);
-    console.log(`   Peak Memory Usage: ${summary.performanceMetrics.maxMemoryUsage.toFixed(1)}%`);
-    console.log(`   Memory Leak Failures: ${summary.performanceMetrics.memoryLeakCount}`);
-    console.log(`   Performance Regressions: ${summary.performanceMetrics.performanceRegressions}`);
-
     if (summary.criticalFailures.length > 0) {
-      console.log(`\n🚨 Critical Failures:`);
       summary.criticalFailures.forEach(failure => {
-        console.log(`   • ${failure}`);
       });
     }
 
     // Pass/Fail Criteria Results
-    console.log(`\n✅ Pass/Fail Criteria Results:`);
-    console.log(`   Memory Usage < 70%: ${summary.performanceMetrics.maxMemoryUsage < 70 ? '✅ PASS' : '❌ FAIL'}`);
-    console.log(`   No Memory Leaks: ${summary.performanceMetrics.memoryLeakCount === 0 ? '✅ PASS' : '❌ FAIL'}`);
-    console.log(`   Performance Maintained: ${summary.performanceMetrics.performanceRegressions === 0 ? '✅ PASS' : '❌ FAIL'}`);
-    console.log(`   No Critical Failures: ${summary.criticalFailures.length === 0 ? '✅ PASS' : '❌ FAIL'}`);
-
     if (summary.overallStatus === 'PASS') {
-      console.log(`\n🎉 ALL MEMORY TESTS PASSED! 🎉`);
-      console.log(`Memory optimizations are working correctly.`);
     } else {
-      console.log(`\n⚠️ MEMORY TESTS FAILED`);
-      console.log(`Review the failures above and address before deployment.`);
     }
-
-    console.log('\n' + '='.repeat(80));
   }
 
   private async generateMarkdownReport(summary: TestSummary, jsonReport: any) {
@@ -442,7 +394,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.exit(summary.overallStatus === 'PASS' ? 0 : 1);
     })
     .catch(error => {
-      console.error('❌ Test runner failed:', error);
       process.exit(1);
     });
 }

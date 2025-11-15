@@ -118,9 +118,6 @@ export class GoogleTasksDuplicateCleanup {
     const duplicates = await this.findDuplicateTasks(userId);
     let tasksDeleted = 0;
     let mappingsDeleted = 0;
-
-    console.log(`Found ${duplicates.length} sets of duplicate tasks`);
-
     for (const duplicate of duplicates) {
       // Get all tasks for this duplicate set
       const { data: tasks, error } = await supabase
@@ -130,7 +127,6 @@ export class GoogleTasksDuplicateCleanup {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching duplicate tasks:', error);
         continue;
       }
 
@@ -138,9 +134,6 @@ export class GoogleTasksDuplicateCleanup {
 
       // Keep the most recent, delete the rest
       const taskIdsToDelete = tasks.slice(1).map(t => t.id);
-      
-      console.log(`Deleting ${taskIdsToDelete.length} duplicate tasks for Google task ${duplicate.google_task_id}`);
-
       // Delete related mappings first
       const { error: mappingError } = await supabase
         .from('google_task_mappings')
@@ -148,7 +141,6 @@ export class GoogleTasksDuplicateCleanup {
         .in('task_id', taskIdsToDelete);
 
       if (mappingError) {
-        console.error('Error deleting task mappings:', mappingError);
       } else {
         mappingsDeleted += taskIdsToDelete.length;
       }
@@ -160,7 +152,6 @@ export class GoogleTasksDuplicateCleanup {
         .in('id', taskIdsToDelete);
 
       if (taskError) {
-        console.error('Error deleting duplicate tasks:', taskError);
       } else {
         tasksDeleted += taskIdsToDelete.length;
       }
@@ -182,9 +173,6 @@ export class GoogleTasksDuplicateCleanup {
   }> {
     const duplicates = await this.findDuplicateMappings(userId);
     let mappingsDeleted = 0;
-
-    console.log(`Found ${duplicates.length} sets of duplicate mappings`);
-
     for (const duplicate of duplicates) {
       // Get all mappings for this duplicate set
       const { data: mappings, error } = await supabase
@@ -194,7 +182,6 @@ export class GoogleTasksDuplicateCleanup {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching duplicate mappings:', error);
         continue;
       }
 
@@ -202,9 +189,6 @@ export class GoogleTasksDuplicateCleanup {
 
       // Keep the most recent, delete the rest
       const mappingIdsToDelete = mappings.slice(1).map(m => m.id);
-      
-      console.log(`Deleting ${mappingIdsToDelete.length} duplicate mappings for Google task ${duplicate.google_task_id}`);
-
       // Delete duplicate mappings
       const { error: mappingError } = await supabase
         .from('google_task_mappings')
@@ -212,7 +196,6 @@ export class GoogleTasksDuplicateCleanup {
         .in('id', mappingIdsToDelete);
 
       if (mappingError) {
-        console.error('Error deleting duplicate mappings:', mappingError);
       } else {
         mappingsDeleted += mappingIdsToDelete.length;
       }
@@ -233,8 +216,6 @@ export class GoogleTasksDuplicateCleanup {
     tasksDeleted: number;
     mappingsDeleted: number;
   }> {
-    console.log('Starting comprehensive duplicate cleanup...');
-
     const taskCleanup = await this.cleanupDuplicateTasks(userId);
     const mappingCleanup = await this.cleanupDuplicateMappings(userId);
 
@@ -244,8 +225,6 @@ export class GoogleTasksDuplicateCleanup {
       tasksDeleted: taskCleanup.tasksDeleted,
       mappingsDeleted: taskCleanup.mappingsDeleted + mappingCleanup.mappingsDeleted
     };
-
-    console.log('Cleanup complete:', result);
     return result;
   }
 
@@ -278,19 +257,14 @@ export class GoogleTasksDuplicateCleanup {
     const orphanedIds = await this.findOrphanedMappings(userId);
     
     if (orphanedIds.length === 0) {
-      console.log('No orphaned mappings found');
       return 0;
     }
-
-    console.log(`Cleaning up ${orphanedIds.length} orphaned mappings`);
-
     const { error } = await supabase
       .from('google_task_mappings')
       .delete()
       .in('id', orphanedIds);
 
     if (error) {
-      console.error('Error cleaning up orphaned mappings:', error);
       return 0;
     }
 

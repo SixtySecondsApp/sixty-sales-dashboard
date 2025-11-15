@@ -33,14 +33,6 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     location.pathname.startsWith('/roadmap');
 
   useEffect(() => {
-    console.log('ProtectedRoute:', {
-      pathname: location.pathname,
-      isAuthenticated,
-      loading,
-      isPublicRoute,
-      isOAuthCallback
-    });
-
     // Don't redirect while loading
     if (loading) return;
 

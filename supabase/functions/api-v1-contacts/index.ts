@@ -96,8 +96,6 @@ serve(async (req) => {
 
   } catch (error) {
     statusCode = 500
-    console.error('Error in contacts API:', error)
-    
     // Log failed request
     const apiKey = req.headers.get('X-API-Key')
     if (apiKey) {
@@ -187,7 +185,6 @@ async function handleContactsList(client: any, url: URL, userId: string, permiss
     return createSuccessResponse(processedContacts, 200, count, pagination)
 
   } catch (error) {
-    console.error('Error fetching contacts:', error)
     throw new Error(error.message || 'Failed to fetch contacts')
   }
 }
@@ -237,7 +234,6 @@ async function handleSingleContact(client: any, contactId: string, userId: strin
     return createSuccessResponse(processedContact)
 
   } catch (error) {
-    console.error('Error fetching contact:', error)
     throw new Error(error.message || 'Failed to fetch contact')
   }
 }
@@ -294,7 +290,6 @@ async function handleCreateContact(client: any, body: any, userId: string) {
       .single()
 
     if (error) {
-      console.error('Database error creating contact:', error)
       throw error
     }
 
@@ -308,7 +303,6 @@ async function handleCreateContact(client: any, body: any, userId: string) {
     return createSuccessResponse(processedContact, 201)
 
   } catch (error) {
-    console.error('Error creating contact:', error)
     throw new Error(error.message || 'Failed to create contact')
   }
 }
@@ -384,7 +378,6 @@ async function handleUpdateContact(client: any, contactId: string, body: any, us
     return createSuccessResponse(processedContact)
 
   } catch (error) {
-    console.error('Error updating contact:', error)
     throw new Error(error.message || 'Failed to update contact')
   }
 }
@@ -409,7 +402,6 @@ async function handleDeleteContact(client: any, contactId: string, userId: strin
     return createSuccessResponse({ id: contactId, deleted: true })
 
   } catch (error) {
-    console.error('Error deleting contact:', error)
     throw new Error(error.message || 'Failed to delete contact')
   }
 }

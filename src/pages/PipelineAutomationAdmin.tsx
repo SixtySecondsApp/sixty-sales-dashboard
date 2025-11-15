@@ -158,7 +158,6 @@ export default function PipelineAutomationAdmin() {
       if (error) throw error;
       setStages(data || []);
     } catch (error) {
-      console.error('Error fetching stages:', error);
       toast.error('Failed to load pipeline stages');
     }
   };
@@ -173,7 +172,6 @@ export default function PipelineAutomationAdmin() {
       if (error) throw error;
       setRules(data || []);
     } catch (error) {
-      console.error('Error fetching rules:', error);
       toast.error('Failed to load automation rules');
     } finally {
       setLoading(false);
@@ -228,7 +226,6 @@ export default function PipelineAutomationAdmin() {
       resetForm();
       fetchRules();
     } catch (error: any) {
-      console.error('Error saving rule:', error);
       if (error.message?.includes('unique_rule_name_per_transition')) {
         toast.error('A rule with this name already exists for this stage transition');
       } else {
@@ -250,7 +247,6 @@ export default function PipelineAutomationAdmin() {
       toast.success('Automation rule deleted successfully');
       fetchRules();
     } catch (error) {
-      console.error('Error deleting rule:', error);
       toast.error('Failed to delete automation rule');
     }
   };
@@ -266,7 +262,6 @@ export default function PipelineAutomationAdmin() {
       toast.success(`Automation rule ${!currentStatus ? 'activated' : 'deactivated'}`);
       fetchRules();
     } catch (error) {
-      console.error('Error toggling rule:', error);
       toast.error('Failed to update rule status');
     }
   };

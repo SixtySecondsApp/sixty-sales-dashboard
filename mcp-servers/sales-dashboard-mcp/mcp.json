@@ -1,0 +1,36 @@
+{
+  "name": "@sixty-sales/sales-dashboard-mcp",
+  "version": "1.0.0",
+  "description": "Sales Dashboard MCP server for CRM operations, task management, and sales analytics",
+  "author": "Sixty Sales Dashboard",
+  "license": "MIT",
+  "runtime": {
+    "type": "node",
+    "version": ">=18.0.0"
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "create_roadmap_item",
+        "description": "Create a new roadmap item (feature, bug, improvement, or other)"
+      },
+      {
+        "name": "summarize_meetings",
+        "description": "Summarize meetings for a specific time period (week, month, etc.)"
+      },
+      {
+        "name": "find_coldest_deals",
+        "description": "Find deals that are the coldest (lowest engagement, oldest updates, etc.)"
+      },
+      {
+        "name": "create_task",
+        "description": "Create a new task in the CRM system"
+      },
+      {
+        "name": "write_impactful_emails",
+        "description": "Generate 5 high-impact emails for the week based on deal priorities and engagement"
+      }
+    ]
+  }
+}
+

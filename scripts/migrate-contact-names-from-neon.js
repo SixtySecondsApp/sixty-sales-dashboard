@@ -20,12 +20,9 @@ const supabase = createClient(
 
 async function migrateContactNames() {
   try {
-    console.log('🔄 Starting contact names migration from Neon to Supabase...\n');
-    
     await neonClient.connect();
 
     // Step 1: Get all contacts with names from Neon
-    console.log('📊 Step 1: Fetching contacts with names from Neon database');
     const neonContacts = await neonClient.query(`
       SELECT 
         id,
@@ -40,11 +37,7 @@ async function migrateContactNames() {
         OR (full_name IS NOT NULL AND full_name != '')
       ORDER BY email;
     `);
-    
-    console.log(`Found ${neonContacts.rows.length} contacts with names in Neon database\n`);
-
     // Step 2: Get all contacts from Supabase to match by email
-    console.log('📊 Step 2: Fetching contacts from Supabase');
     const { data: supabaseContacts, error: fetchError } = await supabase
       .from('contacts')
       .select('id, email, first_name, last_name')
@@ -53,9 +46,6 @@ async function migrateContactNames() {
     if (fetchError) {
       throw fetchError;
     }
-
-    console.log(`Found ${supabaseContacts.length} contacts in Supabase\n`);
-
     // Create email to Supabase contact mapping
     const supabaseContactMap = new Map();
     supabaseContacts.forEach(contact => {
@@ -65,8 +55,6 @@ async function migrateContactNames() {
     });
 
     // Step 3: Update Supabase contacts with Neon names
-    console.log('🔄 Step 3: Updating Supabase contacts with names from Neon\n');
-    
     let updatedCount = 0;
     let skippedCount = 0;
     const updatePromises = [];
@@ -89,11 +77,9 @@ async function migrateContactNames() {
               .update(updateData)
               .eq('id', supabaseContact.id)
               .then(() => {
-                console.log(`✅ Updated: ${neonContact.email} - ${neonContact.first_name} ${neonContact.last_name || ''}`);
                 updatedCount++;
               })
               .catch(error => {
-                console.log(`❌ Failed to update ${neonContact.email}: ${error.message}`);
               })
           );
         } else {
@@ -104,15 +90,7 @@ async function migrateContactNames() {
 
     // Execute all updates
     await Promise.all(updatePromises);
-
-    console.log(`\n📊 Migration Summary:`);
-    console.log(`   Total Neon contacts with names: ${neonContacts.rows.length}`);
-    console.log(`   Successfully updated: ${updatedCount}`);
-    console.log(`   Skipped (already have names): ${skippedCount}`);
-
     // Step 4: Handle contacts from deals table (like the original script)
-    console.log('\n📋 Step 4: Extract names from deals table for remaining contacts');
-    
     const neonDeals = await neonClient.query(`
       SELECT DISTINCT
         contact_email,
@@ -123,9 +101,6 @@ async function migrateContactNames() {
         AND contact_email IS NOT NULL
         AND contact_email != '';
     `);
-
-    console.log(`Found ${neonDeals.rows.length} unique contact names in deals table`);
-
     let dealUpdatedCount = 0;
     for (const deal of neonDeals.rows) {
       const supabaseContact = supabaseContactMap.get(deal.contact_email.toLowerCase());
@@ -145,16 +120,11 @@ async function migrateContactNames() {
           .eq('id', supabaseContact.id);
 
         if (!error) {
-          console.log(`✅ Updated from deals: ${deal.contact_email} → ${deal.contact_name}`);
           dealUpdatedCount++;
         }
       }
     }
-
-    console.log(`\n🎉 Updated ${dealUpdatedCount} additional contacts from deals data!`);
-
     // Final verification
-    console.log('\n📊 Final verification - Supabase contact names:');
     const { data: finalStats, error: statsError } = await supabase
       .from('contacts')
       .select('id, first_name, last_name')
@@ -162,14 +132,11 @@ async function migrateContactNames() {
       .not('last_name', 'is', null);
 
     if (!statsError) {
-      console.log(`   Total contacts with names: ${finalStats.length}`);
     }
 
   } catch (error) {
-    console.error('❌ Migration failed:', error);
   } finally {
     await neonClient.end();
-    console.log('\n🔌 Database connections closed');
   }
 }
 

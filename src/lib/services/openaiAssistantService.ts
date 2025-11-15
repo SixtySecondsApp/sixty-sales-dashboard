@@ -136,7 +136,6 @@ class OpenAIAssistantService {
           return;
         }
       } catch (error) {
-        console.warn('Could not load OpenAI API key from user settings:', error);
       }
     }
 
@@ -144,7 +143,6 @@ class OpenAIAssistantService {
     this.apiKey = import.meta.env.VITE_OPENAI_API_KEY || null;
     
     if (!this.apiKey) {
-      console.warn('OpenAI API key not found. Assistant features will be limited.');
     }
   }
 
@@ -208,7 +206,6 @@ class OpenAIAssistantService {
       );
       return response.data || [];
     } catch (error) {
-      console.error('Error listing assistants:', error);
       throw error;
     }
   }
@@ -220,7 +217,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest<Assistant>(`/assistants/${assistantId}`, 'GET');
     } catch (error) {
-      console.error('Error getting assistant:', error);
       throw error;
     }
   }
@@ -232,7 +228,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest<Thread>('/threads', 'POST', { metadata });
     } catch (error) {
-      console.error('Error creating thread:', error);
       throw error;
     }
   }
@@ -244,7 +239,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest<Thread>(`/threads/${threadId}`, 'GET');
     } catch (error) {
-      console.error('Error getting thread:', error);
       throw error;
     }
   }
@@ -294,7 +288,6 @@ class OpenAIAssistantService {
         }
       );
     } catch (error) {
-      console.error('Error adding message:', error);
       throw error;
     }
   }
@@ -310,7 +303,6 @@ class OpenAIAssistantService {
       );
       return response.data || [];
     } catch (error) {
-      console.error('Error listing messages:', error);
       throw error;
     }
   }
@@ -343,7 +335,6 @@ class OpenAIAssistantService {
         body
       );
     } catch (error) {
-      console.error('Error creating run:', error);
       throw error;
     }
   }
@@ -358,7 +349,6 @@ class OpenAIAssistantService {
         'GET'
       );
     } catch (error) {
-      console.error('Error getting run:', error);
       throw error;
     }
   }
@@ -373,7 +363,6 @@ class OpenAIAssistantService {
         'POST'
       );
     } catch (error) {
-      console.error('Error cancelling run:', error);
       throw error;
     }
   }
@@ -393,7 +382,6 @@ class OpenAIAssistantService {
         { tool_outputs: toolOutputs }
       );
     } catch (error) {
-      console.error('Error submitting tool outputs:', error);
       throw error;
     }
   }
@@ -514,7 +502,6 @@ class OpenAIAssistantService {
         metadata: assistantMessage.metadata,
       };
     } catch (error) {
-      console.error('Error executing assistant:', error);
       return {
         threadId: '',
         messageId: '',
@@ -558,7 +545,6 @@ class OpenAIAssistantService {
 
       return await this.makeRequest<Assistant>('/assistants', 'POST', body);
     } catch (error) {
-      console.error('Error creating assistant:', error);
       throw error;
     }
   }
@@ -597,7 +583,6 @@ class OpenAIAssistantService {
 
       return await this.makeRequest<Assistant>(`/assistants/${assistantId}`, 'POST', body);
     } catch (error) {
-      console.error('Error updating assistant:', error);
       throw error;
     }
   }
@@ -612,7 +597,6 @@ class OpenAIAssistantService {
         'DELETE'
       );
     } catch (error) {
-      console.error('Error deleting assistant:', error);
       throw error;
     }
   }
@@ -643,7 +627,6 @@ class OpenAIAssistantService {
 
       return response.json();
     } catch (error) {
-      console.error('Error uploading file:', error);
       throw error;
     }
   }
@@ -657,7 +640,6 @@ class OpenAIAssistantService {
       const response = await this.makeRequest<{ data: Array<any> }>(`/files${query}`, 'GET');
       return response.data || [];
     } catch (error) {
-      console.error('Error listing files:', error);
       throw error;
     }
   }
@@ -669,7 +651,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest<{ id: string; deleted: boolean }>(`/files/${fileId}`, 'DELETE');
     } catch (error) {
-      console.error('Error deleting file:', error);
       throw error;
     }
   }
@@ -689,7 +670,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest('/vector_stores', 'POST', config);
     } catch (error) {
-      console.error('Error creating vector store:', error);
       throw error;
     }
   }
@@ -702,7 +682,6 @@ class OpenAIAssistantService {
       const response = await this.makeRequest<{ data: Array<any> }>(`/vector_stores?limit=${limit}`, 'GET');
       return response.data || [];
     } catch (error) {
-      console.error('Error listing vector stores:', error);
       throw error;
     }
   }
@@ -714,7 +693,6 @@ class OpenAIAssistantService {
     try {
       return await this.makeRequest<{ id: string; deleted: boolean }>(`/vector_stores/${vectorStoreId}`, 'DELETE');
     } catch (error) {
-      console.error('Error deleting vector store:', error);
       throw error;
     }
   }
@@ -728,7 +706,6 @@ class OpenAIAssistantService {
         await this.makeRequest(`/vector_stores/${vectorStoreId}/files`, 'POST', { file_id: fileId });
       }
     } catch (error) {
-      console.error('Error attaching files to vector store:', error);
       throw error;
     }
   }
@@ -748,7 +725,6 @@ class OpenAIAssistantService {
         }
       } as any);
     } catch (error) {
-      console.error('Error attaching vector store to assistant:', error);
       throw error;
     }
   }

@@ -652,7 +652,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         loadSlackChannels();
       }
     } catch (error) {
-      console.error('Failed to check Slack connection:', error);
     }
   };
 
@@ -664,7 +663,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       const channels = await slackOAuthService.getChannels(userId);
       setSlackChannels(channels);
     } catch (error) {
-      console.error('Failed to load Slack channels:', error);
     } finally {
       setLoadingChannels(false);
     }
@@ -687,7 +685,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     if (currentData !== lastSavedData) {
       // Set new timer for autosave (3 seconds after last change)
       autoSaveTimerRef.current = setTimeout(() => {
-        console.log('🔄 Autosaving workflow...');
         performAutoSave();
       }, 3000);
     }
@@ -715,10 +712,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       const currentData = JSON.stringify({ nodes, edges, workflowName, workflowDescription });
       setLastSavedData(currentData);
       setLastSaveTime(new Date());
-      
-      console.log('✅ Workflow autosaved');
     } catch (error) {
-      console.error('Failed to autosave workflow:', error);
     } finally {
       setIsAutoSaving(false);
     }
@@ -1009,10 +1003,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
   // Run workflow execution
   const runWorkflow = async (triggerData?: any) => {
-    console.log('🚀 Run button clicked! Starting workflow execution...');
-    
     if (isRunning) {
-      console.log('⚠️ Workflow is already running, ignoring click');
       return;
     }
     
@@ -1021,18 +1012,13 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     try {
       // Check if there are nodes to execute
       if (nodes.length === 0) {
-        console.warn('⚠️ No nodes in workflow to execute');
         alert('Please add nodes to the workflow before running');
         return;
       }
-      
-      console.log(`📊 Found ${nodes.length} nodes and ${edges.length} edges to execute`);
-      
       let currentWorkflowId = workflowId;
       
       // If workflow hasn't been saved yet, save it first
       if (!currentWorkflowId) {
-        console.log('💾 Workflow not saved yet, saving before execution...');
         const workflow = buildWorkflowData();
         
         // Ensure we have at least a basic name for the workflow
@@ -1045,24 +1031,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           currentWorkflowId = savedWorkflow?.id;
           if (currentWorkflowId) {
             setWorkflowId(currentWorkflowId);
-            console.log('✅ Workflow saved with ID:', currentWorkflowId);
           } else {
             throw new Error('No ID returned from save operation');
           }
         } catch (error) {
-          console.error('❌ Failed to save workflow before execution:', error);
           alert('Failed to save the workflow. Please try saving manually first.');
           return;
         }
       }
-      
-      console.log('🎯 Starting workflow execution:', { 
-        workflowId: currentWorkflowId, 
-        nodes: nodes.length, 
-        edges: edges.length,
-        triggerData 
-      });
-      
       // Start execution
       const isTestMode = triggerData?.testMode || false;
       const executionId = await workflowExecutionService.startExecution(
@@ -1074,17 +1050,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         isTestMode,
         workflowName || 'Untitled Workflow'
       );
-      
-      console.log('✅ Execution started successfully!', { executionId, isTestMode });
-      
       setCurrentExecutionId(executionId);
       
       // Show success message (removed popup)
-      console.log(`✅ Workflow execution started! Execution ID: ${executionId.slice(0, 8)}... Check the Jobs tab to see the results.`);
-      
       // Execution logged - will appear in Jobs tab
     } catch (error: any) {
-      console.error('❌ Error running workflow:', error);
       const errorMessage = error?.message || 'Unknown error occurred';
       alert(`Failed to run workflow: ${errorMessage}\n\nCheck console for details.`);
     } finally {
@@ -1096,14 +1066,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
 
   // Live monitor for production jobs
   const runLiveMonitor = () => {
-    console.log('📺 Starting live monitor mode...');
     setShowLiveMonitor(true);
     setShowRunDropdown(false);
   };
 
   // Quick run without UI
   const runQuickExecution = async () => {
-    console.log('⚡ Quick execution...');
     setShowRunDropdown(false);
     await runWorkflow();
   };
@@ -1128,25 +1096,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     const channel = new BroadcastChannel('workflow-form-submissions');
     
     const handleBroadcastMessage = (event: MessageEvent) => {
-      console.log('[WorkflowCanvas] BroadcastChannel message received:', event.data);
       const { type, data } = event.data;
       
       if (type === 'formSubmitted' || type === 'formTestSubmission') {
         const { workflowId: eventWorkflowId, formData, formId } = data;
-        
-        console.log('[WorkflowCanvas] Processing form submission from broadcast:', {
-          type,
-          formId,
-          eventWorkflowId,
-          currentWorkflowId: workflowId,
-          nodes: nodes.map(n => ({
-            id: n.id,
-            type: n.type,
-            testUrl: n.data?.config?.testUrl,
-            productionUrl: n.data?.config?.productionUrl
-          }))
-        });
-        
         // Check if this workflow contains a form node with matching formId
         const matchingFormNode = nodes.find(node => {
           if (node.type !== 'form') return false;
@@ -1158,20 +1111,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
                          (type === 'formSubmitted' && prodUrl && prodUrl.includes(formId));
           
           if (matches) {
-            console.log('[WorkflowCanvas] Found matching form node:', {
-              nodeId: node.id,
-              testUrl,
-              prodUrl,
-              formId
-            });
           }
           
           return matches;
         });
         
         if (matchingFormNode) {
-          console.log('[WorkflowCanvas] Triggering workflow execution from broadcast');
-          
           // Show test mode UI if it's a test submission
           if (type === 'formTestSubmission' && !showWorkflowTestMode) {
             setShowWorkflowTestMode(true);
@@ -1180,11 +1125,9 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           const isTestSubmission = type === 'formTestSubmission';
           runWorkflow({ ...formData, testMode: isTestSubmission });
         } else if (eventWorkflowId === workflowId) {
-          console.log('[WorkflowCanvas] Workflow ID matches, triggering execution');
           const isTestSubmission = type === 'formTestSubmission';
           runWorkflow({ ...formData, testMode: isTestSubmission });
         } else {
-          console.log('[WorkflowCanvas] No matching form node or workflow ID found');
         }
       }
     };
@@ -1193,12 +1136,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     
     // Also keep CustomEvent listeners for backward compatibility (same-tab submissions)
     const handleFormSubmission = (event: CustomEvent) => {
-      console.log('[WorkflowCanvas] CustomEvent received (same tab):', event.detail);
       handleBroadcastMessage({ data: { type: 'formSubmitted', data: event.detail } } as MessageEvent);
     };
     
     const handleTestFormSubmission = (event: CustomEvent) => {
-      console.log('[WorkflowCanvas] CustomEvent test received (same tab):', event.detail);
       handleBroadcastMessage({ data: { type: 'formTestSubmission', data: event.detail } } as MessageEvent);
     };
 
@@ -1440,14 +1381,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             formStorageService.storeFormConfig(prodFormId, defaultFormConfig, currentWorkflowId, false);
             
             // Log for debugging
-            console.log('[WorkflowCanvas] Form node created with URLs:', {
-              testUrl,
-              productionUrl,
-              testFormId,
-              prodFormId,
-              workflowId: currentWorkflowId
-            });
-            
             // Add URLs to node data
             enhancedData = {
               ...enhancedData,
@@ -1469,7 +1402,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           
           // Show helpful message for form nodes
           if (type === 'form') {
-            console.log('✅ Form node created with test and production URLs ready to use!');
           }
         }
       }
@@ -1524,8 +1456,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   };
 
   const startTest = () => {
-    console.log('🚀 Starting test with nodes:', nodes.length, 'edges:', edges.length);
-    
     // Check if there are nodes to test
     if (nodes.length === 0) {
       alert('Please add some nodes to the workflow before testing.');
@@ -1554,8 +1484,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     
     // Find selected scenario
     const scenario = TEST_SCENARIOS.find(s => s.id === selectedScenario);
-    console.log('📊 Selected scenario:', scenario);
-    
     // Start test execution
     testEngineRef.current.startTest(scenario);
     
@@ -1800,11 +1728,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     let mappedTriggerType = triggerNode?.data?.type || 'activity_created';
     
     // Debug logging
-    console.log('🔍 Trigger node:', triggerNode);
-    console.log('🔍 Trigger node type:', triggerNode?.type);
-    console.log('🔍 Trigger node data type:', triggerNode?.data?.type);
-    console.log('🔍 Original trigger type:', mappedTriggerType);
-    
     // Map various trigger types to valid database values
     // NOTE: 'manual' is NOT valid despite what old migrations suggest
     const validTriggerTypes = ['activity_created', 'stage_changed', 'deal_created', 'task_completed'];
@@ -1812,18 +1735,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     if (mappedTriggerType === 'form_submission' || triggerNode?.type === 'form') {
       // Form submissions trigger an activity creation event
       mappedTriggerType = 'activity_created';
-      console.log('📝 Mapping form trigger to activity_created');
     } else if (mappedTriggerType === 'manual') {
       // Manual triggers also map to activity_created
       mappedTriggerType = 'activity_created';
-      console.log('📝 Mapping manual trigger to activity_created');
     } else if (!validTriggerTypes.includes(mappedTriggerType)) {
-      console.warn(`⚠️ Invalid trigger type "${mappedTriggerType}", defaulting to "activity_created"`);
       mappedTriggerType = 'activity_created';
     }
-    
-    console.log('🔍 Mapped trigger type:', mappedTriggerType);
-    
     // Map action types to valid database values
     // Based on testing, only 'create_task' and 'update_deal_stage' are currently valid
     const validActionTypes = ['create_task', 'update_deal_stage', 'create_contact', 'create_deal', 'create_or_update_deal', 'create_company'];
@@ -1832,14 +1749,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     if (actionNode?.type === 'aiAgent' || mappedActionType === 'ai_agent') {
       // AI agents map to create_task (most compatible)
       mappedActionType = 'create_task';
-      console.log('🤖 Mapping AI agent to create_task');
     } else if (mappedActionType === 'send_slack') {
       // Slack actions map to create_task for now
       mappedActionType = 'create_task';
-      console.log('💬 Mapping Slack action to create_task');
     } else if (!validActionTypes.includes(mappedActionType)) {
       // Default to create_task if action type is not valid
-      console.warn(`⚠️ Invalid action type "${mappedActionType}", defaulting to "create_task"`);
       mappedActionType = 'create_task';
     }
     
@@ -1855,11 +1769,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       is_active: false, // Start inactive by default
       template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
     };
-    
-    console.log('📦 Final workflow object being returned:', workflow);
-    console.log('📦 Final trigger_type:', workflow.trigger_type);
-    console.log('📦 Final action_type:', workflow.action_type);
-    
     return workflow;
   };
   
@@ -1874,7 +1783,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     } else {
       // Direct save for existing workflows with name/description
       const workflow = buildWorkflowData();
-      console.log('💾 Saving workflow:', workflow);
       onSave(workflow);
     }
   };
@@ -1886,9 +1794,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     const workflow = buildWorkflowData();
     workflow.name = name;
     workflow.description = description;
-    
-    console.log('💾 Saving workflow from modal:', workflow);
-    
     // Save the workflow and get the returned data
     const savedWorkflow = await onSave(workflow);
     
@@ -1937,7 +1842,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   };
 
   const handleTest = () => {
-    console.log('Testing workflow with nodes:', nodes, 'edges:', edges);
   };
 
   

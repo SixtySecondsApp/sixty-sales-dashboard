@@ -100,7 +100,6 @@ export class GoogleTasksSyncService {
           .eq('id', task.id);
       }
     } catch (error) {
-      console.error('Error syncing task immediately:', error);
       // Don't throw - we don't want to break task creation if sync fails
     }
   }
@@ -149,7 +148,6 @@ export class GoogleTasksSyncService {
         })
         .eq('id', taskId);
     } catch (error) {
-      console.error('Error syncing task update immediately:', error);
     }
   }
 
@@ -214,7 +212,6 @@ export class GoogleTasksSyncService {
 
       return response.data;
     } catch (error) {
-      console.error('Error creating Google task:', error);
       return null;
     }
   }
@@ -238,7 +235,6 @@ export class GoogleTasksSyncService {
         }
       });
     } catch (error) {
-      console.error('Error updating Google task:', error);
       throw error;
     }
   }
@@ -281,7 +277,6 @@ export class GoogleTasksSyncService {
         .neq('google_list_id', listId);
         
     } catch (error) {
-      console.error('Failed to store task list preference:', error);
       throw error;
     }
   }
@@ -328,7 +323,6 @@ export class GoogleTasksSyncService {
       
       return null;
     } catch (error) {
-      console.error('Failed to get selected task list:', error);
       return null;
     }
   }
@@ -375,7 +369,6 @@ export class GoogleTasksSyncService {
       await supabase.rpc('get_or_create_sync_status', { p_user_id: userId });
       
     } catch (error) {
-      console.error('Failed to initialize Google Tasks sync:', error);
       throw error;
     }
   }
@@ -396,7 +389,6 @@ export class GoogleTasksSyncService {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Failed to get list configs:', error);
       return [];
     }
   }
@@ -516,7 +508,6 @@ export class GoogleTasksSyncService {
       result.success = true;
 
     } catch (error) {
-      console.error('Sync failed:', error);
       result.error = error instanceof Error ? error.message : 'Unknown error';
       
       // Update sync status with error
@@ -591,13 +582,11 @@ export class GoogleTasksSyncService {
             }
           }
         } catch (error) {
-          console.error(`Failed to sync task ${googleTask.id}:`, error);
         }
       }
 
       result.success = true;
     } catch (error) {
-      console.error('Failed to sync from Google:', error);
       throw error;
     }
 
@@ -669,17 +658,14 @@ export class GoogleTasksSyncService {
             result.tasksCreated++;
           }
         } catch (error) {
-          console.error(`Failed to sync task ${task.id} to Google list ${config.google_list_id} (${config.list_title}):`, error);
           // Log the actual list ID being used for debugging
           if (config.google_list_id === 'Business' || (config.google_list_id !== '@default' && config.google_list_id.length < 20)) {
-            console.error(`Invalid list ID detected: "${config.google_list_id}" - should be "@default" or a valid Google list ID`);
           }
         }
       }
 
       result.success = true;
     } catch (error) {
-      console.error('Failed to sync to Google:', error);
       throw error;
     }
 
@@ -725,13 +711,11 @@ export class GoogleTasksSyncService {
             result.tasksCreated++;
           }
         } catch (error) {
-          console.error(`Failed to sync task ${task.id} to Google:`, error);
         }
       }
 
       result.success = true;
     } catch (error) {
-      console.error('Failed to sync to Google:', error);
       throw error;
     }
 
@@ -745,7 +729,6 @@ export class GoogleTasksSyncService {
     // Double-check that task doesn't already exist (prevent race conditions)
     const existingTask = await this.findExistingTaskForGoogleTask(googleTask.id, userId);
     if (existingTask) {
-      console.log(`Task ${googleTask.id} already exists locally, skipping creation`);
       return;
     }
 
@@ -776,7 +759,6 @@ export class GoogleTasksSyncService {
     if (error) {
       // Check if error is due to duplicate google_task_id
       if (error.code === '23505' && error.message.includes('google_task_id')) {
-        console.log(`Task ${googleTask.id} was created by another process, skipping`);
         return;
       }
       throw error;
@@ -796,7 +778,6 @@ export class GoogleTasksSyncService {
         });
     } catch (mappingError) {
       // If mapping creation fails but task was created, log and continue
-      console.error(`Failed to create mapping for task ${newTask.id}:`, mappingError);
     }
   }
 
@@ -1216,7 +1197,6 @@ export class GoogleTasksSyncService {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.log('[GoogleTasksSync] No user found');
         return false;
       }
 
@@ -1228,26 +1208,18 @@ export class GoogleTasksSyncService {
         .single();
 
       if (error) {
-        console.log('[GoogleTasksSync] Error fetching integration:', error);
         return false;
       }
 
       if (!integration) {
-        console.log('[GoogleTasksSync] No active integration found');
         return false;
       }
-
-      console.log('[GoogleTasksSync] Integration scopes:', integration.scopes);
-      
       // Check if the scopes include Google Tasks scope
       const hasTasksScope = integration.scopes && 
         (integration.scopes.includes('https://www.googleapis.com/auth/tasks') || 
          integration.scopes.includes('tasks'));
-      
-      console.log('[GoogleTasksSync] Has Tasks scope:', hasTasksScope);
       return hasTasksScope;
     } catch (error) {
-      console.error('[GoogleTasksSync] Connection check error:', error);
       return false;
     }
   }

@@ -20,8 +20,6 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL |
 const SUPABASE_SERVICE_ROLE_KEY = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  console.error('❌ Missing Supabase credentials');
-  console.error('   Required: VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
 }
 
@@ -68,19 +66,9 @@ function parseArgs(): CliOptions {
         break;
       case '--help':
       case '-h':
-        console.log(`
-Usage: tsx scripts/backfill-fathom-transcripts.ts [options]
-
-Options:
-  --limit, -l N      Process only N meetings (default: all)
-  --days, -d N       Only process meetings from last N days (default: all)
-  --dry-run          Show what would be processed without making changes
-  --help, -h         Show this help message
-        `);
         process.exit(0);
         break;
       default:
-        console.warn(`⚠️  Ignoring unknown option: "${arg}"`);
         break;
     }
   }
@@ -147,11 +135,8 @@ async function fetchTranscriptFromFathom(
     if (typeof data === 'string') {
       return data;
     }
-
-    console.error(`❌ Unexpected transcript format for recording ${recordingId}`);
     return null;
   } catch (error) {
-    console.error(`❌ Error fetching transcript for ${recordingId}:`, error instanceof Error ? error.message : 'Unknown error');
     return null;
   }
 }
@@ -169,9 +154,6 @@ async function refreshAccessToken(integration: any): Promise<string> {
     // Token is still valid
     return integration.access_token;
   }
-
-  console.log(`🔄 Access token expired or expiring soon, refreshing...`);
-
   const clientId = process.env.VITE_FATHOM_CLIENT_ID;
   const clientSecret = process.env.VITE_FATHOM_CLIENT_SECRET;
 
@@ -226,15 +208,7 @@ async function refreshAccessToken(integration: any): Promise<string> {
 
 async function main() {
   const options = parseArgs();
-
-  console.log(`
-╔════════════════════════════════════════════════════════════════
-║ 📄 Fathom Transcript Backfill Script
-╚════════════════════════════════════════════════════════════════
-  `);
-
   if (options.dryRun) {
-    console.log('🔍 DRY RUN MODE - No changes will be made\n');
   }
 
   // Build query for meetings without transcripts
@@ -250,29 +224,22 @@ async function main() {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - options.days);
     query = query.gte('meeting_start', cutoffDate.toISOString());
-    console.log(`📅 Filtering meetings from last ${options.days} days`);
   }
 
   // Add limit if specified
   if (options.limit) {
     query = query.limit(options.limit);
-    console.log(`🔢 Limiting to ${options.limit} meetings\n`);
   }
 
   const { data: meetings, error: meetingsError } = await query;
 
   if (meetingsError) {
-    console.error('❌ Error fetching meetings:', meetingsError.message);
     process.exit(1);
   }
 
   if (!meetings || meetings.length === 0) {
-    console.log('✅ No meetings found without transcripts');
     process.exit(0);
   }
-
-  console.log(`📋 Found ${meetings.length} meeting(s) without transcripts\n`);
-
   // Group meetings by owner to batch integration lookups
   const meetingsByOwner = new Map<string, typeof meetings>();
   for (const meeting of meetings) {
@@ -283,17 +250,12 @@ async function main() {
     }
     meetingsByOwner.get(ownerId)!.push(meeting);
   }
-
-  console.log(`👥 Processing meetings for ${meetingsByOwner.size} user(s)\n`);
-
   let successCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
 
   // Process each owner's meetings
   for (const [ownerId, ownerMeetings] of meetingsByOwner) {
-    console.log(`\n👤 Processing ${ownerMeetings.length} meeting(s) for user ${ownerId}...`);
-
     // Get Fathom integration for this owner
     const { data: integration, error: integrationError } = await supabase
       .from('fathom_integrations')
@@ -303,7 +265,6 @@ async function main() {
       .single();
 
     if (integrationError || !integration) {
-      console.error(`   ❌ No active Fathom integration found for user ${ownerId}`);
       skippedCount += ownerMeetings.length;
       continue;
     }
@@ -313,22 +274,15 @@ async function main() {
     try {
       accessToken = await refreshAccessToken(integration);
     } catch (error) {
-      console.error(`   ⚠️  Token refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      console.error(`   ⚠️  Continuing with existing token...`);
     }
 
     // Process each meeting
     for (const meeting of ownerMeetings) {
       if (!meeting.fathom_recording_id) {
-        console.log(`   ⏭️  Skipping ${meeting.title || meeting.id} - no recording ID`);
         skippedCount++;
         continue;
       }
-
-      console.log(`   📄 Fetching transcript for: ${meeting.title || meeting.id} (${meeting.fathom_recording_id})`);
-
       if (options.dryRun) {
-        console.log(`      [DRY RUN] Would fetch and update transcript`);
         continue;
       }
 
@@ -336,7 +290,6 @@ async function main() {
       const transcript = await fetchTranscriptFromFathom(accessToken, meeting.fathom_recording_id);
 
       if (!transcript) {
-        console.log(`      ⏭️  Transcript not yet available (404 or still processing)`);
         skippedCount++;
         continue;
       }
@@ -351,10 +304,8 @@ async function main() {
         .eq('id', meeting.id);
 
       if (updateError) {
-        console.error(`      ❌ Failed to update meeting: ${updateError.message}`);
         errorCount++;
       } else {
-        console.log(`      ✅ Transcript saved (${transcript.length} characters)`);
         successCount++;
       }
 
@@ -362,21 +313,9 @@ async function main() {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
-
-  console.log(`
-╔════════════════════════════════════════════════════════════════
-║ 📊 Backfill Summary
-╚════════════════════════════════════════════════════════════════
-║ ✅ Successfully processed: ${successCount}
-║ ⏭️  Skipped (not available): ${skippedCount}
-║ ❌ Errors: ${errorCount}
-║ 📋 Total meetings checked: ${meetings.length}
-╚════════════════════════════════════════════════════════════════
-  `);
 }
 
 main().catch((error) => {
-  console.error('❌ Fatal error:', error);
   process.exit(1);
 });
 

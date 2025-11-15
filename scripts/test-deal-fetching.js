@@ -9,12 +9,9 @@ const client = new Client({
 
 async function testDealFetching() {
   try {
-    console.log('🧪 Testing enhanced deal fetching logic...\n');
-    
     await client.connect();
 
     // Get a few deals with relationships like the frontend does
-    console.log('📊 Step 1: Fetch basic deals (like useDeals does)');
     const basicDeals = await client.query(`
       SELECT d.*, ds.id as stage_id, ds.name as stage_name, ds.color as stage_color, ds.default_probability
       FROM deals d
@@ -23,13 +20,8 @@ async function testDealFetching() {
       ORDER BY d.updated_at DESC
       LIMIT 3;
     `);
-    
-    console.log(`Found ${basicDeals.rows.length} deals with CRM relationships\n`);
-
     // Test the manual relationship fetching for each deal
     for (const deal of basicDeals.rows) {
-      console.log(`🔍 Testing deal: ${deal.name}`);
-      
       // Fetch company
       let company = null;
       if (deal.company_id) {
@@ -39,7 +31,6 @@ async function testDealFetching() {
           WHERE id = $1;
         `, [deal.company_id]);
         company = companyResult.rows[0] || null;
-        console.log(`  ✅ Company: ${company?.name || 'NOT FOUND'} (Domain: ${company?.domain || 'N/A'})`);
       }
       
       // Fetch primary contact
@@ -51,7 +42,6 @@ async function testDealFetching() {
           WHERE id = $1;
         `, [deal.primary_contact_id]);
         contact = contactResult.rows[0] || null;
-        console.log(`  ✅ Contact: ${contact?.full_name || 'NOT FOUND'} (${contact?.email || 'N/A'})`);
       }
       
       // Fetch deal contacts
@@ -61,9 +51,6 @@ async function testDealFetching() {
         JOIN contacts c ON dc.contact_id = c.id
         WHERE dc.deal_id = $1;
       `, [deal.id]);
-      
-      console.log(`  ✅ Deal Contacts: ${dealContactsResult.rows.length} relationships`);
-      
       // Simulate the enhanced deal object
       const enhancedDeal = {
         ...deal,
@@ -89,23 +76,10 @@ async function testDealFetching() {
       };
       
       const shouldShowCRMBadge = companyInfo.isNormalized && contactInfo.isNormalized;
-      
-      console.log(`  📊 Enhanced Deal Data:`);
-      console.log(`     - Company: ${companyInfo.name} (Normalized: ${companyInfo.isNormalized})`);
-      console.log(`     - Contact: ${contactInfo.name} (Normalized: ${contactInfo.isNormalized})`);
-      console.log(`     - Should show CRM badge: ${shouldShowCRMBadge}`);
-      console.log(`     - Domain badge: ${companyInfo.domain || 'None'}`);
-      console.log(`     - Contact title: ${contactInfo.title || 'None'}\n`);
     }
-
-    console.log('🎯 Summary: Enhanced deal fetching logic is working correctly!');
-    console.log('   If badges are not showing, the issue is likely in the React components.');
-
   } catch (error) {
-    console.error('❌ Test failed:', error);
   } finally {
     await client.end();
-    console.log('\n🔌 Database connection closed');
   }
 }
 

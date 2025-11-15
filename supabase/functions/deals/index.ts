@@ -70,7 +70,6 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error in deals function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -166,7 +165,6 @@ async function handleDealsList(supabaseClient: any, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching deals:', error)
     return new Response(JSON.stringify({
       data: [],
       error: error.message,
@@ -229,7 +227,6 @@ async function handleSingleDeal(supabaseClient: any, dealId: string, url: URL) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error fetching deal:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -264,7 +261,6 @@ async function handleCreateDeal(supabaseClient: any, body: any) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error creating deal:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -311,7 +307,6 @@ async function handleUpdateDeal(supabaseClient: any, dealId: string, body: any) 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error updating deal:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message
@@ -341,7 +336,6 @@ async function handleDeleteDeal(supabaseClient: any, dealId: string) {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (error) {
-    console.error('Error deleting deal:', error)
     return new Response(JSON.stringify({
       data: null,
       error: error.message

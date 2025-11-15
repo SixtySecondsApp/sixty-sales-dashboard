@@ -116,7 +116,6 @@ serve(async (req) => {
     })
 
   } catch (error) {
-    console.error('Error in API auth function:', error)
     return new Response(JSON.stringify({
       error: 'Internal server error',
       code: 'INTERNAL_ERROR'
@@ -134,7 +133,6 @@ async function validateApiKey(supabaseClient: any, apiKey: string): Promise<ApiK
       .rpc('validate_api_key', { key_text: apiKey })
 
     if (error) {
-      console.error('Error validating API key:', error)
       return { isValid: false, error: 'Database validation error' }
     }
 
@@ -152,7 +150,6 @@ async function validateApiKey(supabaseClient: any, apiKey: string): Promise<ApiK
       error: result.is_expired ? 'API key has expired' : undefined
     }
   } catch (error) {
-    console.error('Exception validating API key:', error)
     return { isValid: false, error: 'Validation exception' }
   }
 }
@@ -165,7 +162,6 @@ async function checkRateLimit(supabaseClient: any, apiKey: string): Promise<Rate
       .rpc('hash_api_key', { key_text: apiKey })
 
     if (hashError || !hashData) {
-      console.error('Error hashing API key:', hashError)
       return { allowed: false, current_usage: 0, limit_value: 0 }
     }
 
@@ -173,7 +169,6 @@ async function checkRateLimit(supabaseClient: any, apiKey: string): Promise<Rate
       .rpc('check_rate_limit', { key_hash_val: hashData })
 
     if (error) {
-      console.error('Error checking rate limit:', error)
       return { allowed: false, current_usage: 0, limit_value: 0 }
     }
 
@@ -188,7 +183,6 @@ async function checkRateLimit(supabaseClient: any, apiKey: string): Promise<Rate
       limit_value: result.limit_value
     }
   } catch (error) {
-    console.error('Exception checking rate limit:', error)
     return { allowed: false, current_usage: 0, limit_value: 0 }
   }
 }
@@ -238,7 +232,6 @@ async function logApiUsage(supabaseClient: any, apiKey: string, req: Request): P
 
   } catch (error) {
     // Don't fail the request if logging fails
-    console.error('Error logging API usage:', error)
   }
 }
 

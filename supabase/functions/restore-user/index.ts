@@ -77,7 +77,6 @@ serve(async (req) => {
 
     if (sessionError || !sessionData) {
       // Fallback to magic link if session creation fails
-      console.warn('Session creation failed, falling back to magic link:', sessionError)
       const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
         type: 'magiclink',
         email: email,
@@ -119,7 +118,6 @@ serve(async (req) => {
       })
 
     if (logError) {
-      console.error('Failed to log restoration:', logError)
     }
 
     // Return the session data to restore the admin session
@@ -134,7 +132,6 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Restoration error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {

@@ -291,7 +291,6 @@ export const mockDataHelpers = {
   logMockDataStatus: (): void => {
     if (mockDataHelpers.isDevModeWithMockData()) {
       const status = MockDataGenerator.getMockDataStatus();
-      console.table(status);
       logger.log('Mock data status:', status);
     }
   }

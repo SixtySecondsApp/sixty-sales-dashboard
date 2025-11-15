@@ -83,7 +83,6 @@ export class MeetingActionItemsSyncService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching action items:', error);
       throw error;
     }
 
@@ -114,7 +113,6 @@ export class MeetingActionItemsSyncService {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('Error fetching action items with tasks:', error);
       throw error;
     }
 
@@ -131,7 +129,6 @@ export class MeetingActionItemsSyncService {
     });
 
     if (error) {
-      console.error('Error syncing action item:', error);
       return {
         success: false,
         error: error.message
@@ -151,7 +148,6 @@ export class MeetingActionItemsSyncService {
     });
 
     if (error) {
-      console.error('Error syncing meeting action items:', error);
       return {
         success: false,
         error: error.message,
@@ -175,7 +171,6 @@ export class MeetingActionItemsSyncService {
       .eq('meeting_id', meetingId);
 
     if (error) {
-      console.error('Error fetching sync stats:', error);
       throw error;
     }
 
@@ -223,7 +218,6 @@ export class MeetingActionItemsSyncService {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching tasks from meetings:', error);
       throw error;
     }
 
@@ -244,7 +238,6 @@ export class MeetingActionItemsSyncService {
       .eq('id', actionItemId);
 
     if (error) {
-      console.error('Error updating action item completion:', error);
       throw error;
     }
   }
@@ -265,7 +258,6 @@ export class MeetingActionItemsSyncService {
     const { data: failedItems, error: fetchError } = await query;
 
     if (fetchError) {
-      console.error('Error fetching failed syncs:', fetchError);
       throw fetchError;
     }
 
@@ -300,7 +292,6 @@ export class MeetingActionItemsSyncService {
     const { data, error } = await supabase.rpc('trigger_all_task_notifications');
 
     if (error) {
-      console.error('Error triggering task notifications:', error);
       return {
         success: false
       };
@@ -316,7 +307,6 @@ export class MeetingActionItemsSyncService {
     const { data, error } = await supabase.rpc('notify_upcoming_task_deadlines');
 
     if (error) {
-      console.error('Error triggering upcoming deadline notifications:', error);
       throw error;
     }
 
@@ -330,7 +320,6 @@ export class MeetingActionItemsSyncService {
     const { data, error } = await supabase.rpc('notify_overdue_tasks');
 
     if (error) {
-      console.error('Error triggering overdue task notifications:', error);
       throw error;
     }
 
@@ -348,8 +337,7 @@ export class MeetingActionItemsSyncService {
       .eq('email', email)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // Ignore "not found" errors
-      console.error('Error checking if assignee is internal:', error);
+    if (error && error.code !== 'PGRST116') { 
       return false;
     }
 
@@ -365,7 +353,6 @@ export class MeetingActionItemsSyncService {
       .select('sync_status, synced_to_task, task_id');
 
     if (error) {
-      console.error('Error fetching global sync stats:', error);
       throw error;
     }
 

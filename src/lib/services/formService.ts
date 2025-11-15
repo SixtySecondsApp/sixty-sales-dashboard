@@ -68,7 +68,6 @@ class FormService {
       
       return urlObj.toString();
     } catch (error) {
-      console.warn('Failed to fix form URL:', url, error);
       return url;
     }
   }

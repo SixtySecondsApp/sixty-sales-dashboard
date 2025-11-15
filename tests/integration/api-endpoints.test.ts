@@ -36,14 +36,12 @@ describe('API Endpoints Integration', () => {
   beforeEach(async () => {
     // Ensure we're authenticated for each test
     if (!authToken) {
-      console.warn('No auth token available, some tests may be skipped');
     }
   });
 
   describe('Contacts API', () => {
     it('should fetch contacts without 403 errors', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -58,7 +56,6 @@ describe('API Endpoints Integration', () => {
 
     it('should create contact successfully', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -89,7 +86,6 @@ describe('API Endpoints Integration', () => {
 
     it('should enforce unique email constraint', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -131,7 +127,6 @@ describe('API Endpoints Integration', () => {
 
     it('should validate required fields', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -152,7 +147,6 @@ describe('API Endpoints Integration', () => {
   describe('Activities API', () => {
     it('should create outbound activity successfully', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -183,7 +177,6 @@ describe('API Endpoints Integration', () => {
 
     it('should create meeting activity with contact link', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -240,7 +233,6 @@ describe('API Endpoints Integration', () => {
   describe('Deals API', () => {
     it('should create deal with proper stage assignment', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -252,7 +244,6 @@ describe('API Endpoints Integration', () => {
         .single();
 
       if (!stages) {
-        console.warn('No deal stages found, skipping deal creation test');
         return;
       }
 
@@ -284,7 +275,6 @@ describe('API Endpoints Integration', () => {
 
     it('should enforce foreign key constraints for deals', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -307,7 +297,6 @@ describe('API Endpoints Integration', () => {
   describe('Tasks API', () => {
     it('should create task successfully', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -339,7 +328,6 @@ describe('API Endpoints Integration', () => {
 
     it('should validate task priority enum', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -360,7 +348,6 @@ describe('API Endpoints Integration', () => {
   describe('Sales API', () => {
     it('should create sale with proper validation', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -393,7 +380,6 @@ describe('API Endpoints Integration', () => {
   describe('Database Performance', () => {
     it('should complete queries within reasonable time', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 
@@ -414,7 +400,6 @@ describe('API Endpoints Integration', () => {
 
     it('should handle concurrent requests', async () => {
       if (!authToken) {
-        console.warn('Skipping authenticated test - no auth token');
         return;
       }
 

@@ -37,7 +37,6 @@ export function useActivitiesActions() {
         .single();
 
       if (!profile) {
-        console.warn('User profile not found, using fallback');
       }
 
       // Create the insert data with only database-compatible fields
@@ -65,7 +64,6 @@ export function useActivitiesActions() {
       // Only add deal_id if it's a valid UUID and exists in deals table
       if (activity.deal_id !== undefined && activity.deal_id !== null && activity.deal_id !== '' && activity.deal_id !== 'null') {
         try {
-          console.log(`Validating deal_id: ${activity.deal_id}`);
           // Validate that the deal exists before trying to link it
           const { data: dealExists, error: dealCheckError } = await supabase
             .from('deals')
@@ -74,18 +72,13 @@ export function useActivitiesActions() {
             .single();
           
           if (dealCheckError) {
-            console.warn(`Error checking deal existence for ID ${activity.deal_id}:`, dealCheckError);
           } else if (dealExists) {
-            console.log(`Deal ${activity.deal_id} exists, linking to activity`);
             insertData.deal_id = activity.deal_id;
           } else {
-            console.warn(`Deal ID ${activity.deal_id} does not exist, creating activity without deal link`);
           }
         } catch (error) {
-          console.warn(`Error validating deal_id ${activity.deal_id}:`, error);
         }
       } else {
-        console.log(`Skipping deal_id (invalid or null): ${activity.deal_id}`);
       }
 
       // Link meeting/company/contact if provided (best-effort, no extra validation to avoid latency)
@@ -106,8 +99,6 @@ export function useActivitiesActions() {
       }
       
       // Debug: log what we're about to insert
-      console.log('About to insert activity with data:', JSON.stringify(insertData, null, 2));
-      
       const { data, error } = await supabase
         .from('activities')
         .insert(insertData)
@@ -115,7 +106,6 @@ export function useActivitiesActions() {
         .single();
 
       if (error) {
-        console.error('Error creating activity:', error);
         throw new Error(`Failed to create activity: ${error.message}`);
       }
 
@@ -133,7 +123,6 @@ export function useActivitiesActions() {
 
       return data;
     } catch (error) {
-      console.error('Error in addActivity:', error);
       throw error;
     }
   };

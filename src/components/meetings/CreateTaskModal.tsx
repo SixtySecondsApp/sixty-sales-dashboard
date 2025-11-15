@@ -99,7 +99,6 @@ export function CreateTaskModal({
       onOpenChange(false);
       onTaskCreated();
     } catch (error: any) {
-      console.error('Error creating task:', error);
       toast.error('Failed to create task', {
         description: error.message
       });

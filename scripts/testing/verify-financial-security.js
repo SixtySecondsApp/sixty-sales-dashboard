@@ -1,14 +1,3 @@
-#!/usr/bin/env node
-
-/**
- * FINANCIAL SECURITY VERIFICATION SCRIPT
- * 
- * Quick verification that financial validation is working correctly.
- * Run with: node verify-financial-security.js
- */
-
-console.log('🔒 Financial Security Verification\n');
-
 // Test cases to verify the validation logic
 const testCases = [
   // Valid cases
@@ -80,43 +69,21 @@ function simpleValidateFinancial(value) {
 // Run tests
 let passed = 0;
 let failed = 0;
-
-console.log('Running validation tests...\n');
-
 testCases.forEach((testCase, index) => {
   const result = simpleValidateFinancial(testCase.input);
   const actualValid = result.isValid;
   const expectedValid = testCase.expected;
   
   if (actualValid === expectedValid) {
-    console.log(`✅ Test ${index + 1}: ${testCase.description}`);
     passed++;
   } else {
-    console.log(`❌ Test ${index + 1}: ${testCase.description}`);
-    console.log(`   Expected: ${expectedValid}, Got: ${actualValid}`);
-    if (result.error) console.log(`   Error: ${result.error}`);
+    if (result.error) {}
     failed++;
   }
 });
-
-console.log(`\n📊 Test Results:`);
-console.log(`✅ Passed: ${passed}`);
-console.log(`❌ Failed: ${failed}`);
-console.log(`📈 Success Rate: ${Math.round((passed / testCases.length) * 100)}%`);
-
 if (failed === 0) {
-  console.log('\n🎉 All financial security validations are working correctly!');
-  console.log('✅ The application is protected against financial data corruption.');
 } else {
-  console.log('\n⚠️  Some validation tests failed. Please review the implementation.');
 }
-
-console.log('\n🔍 To run comprehensive tests:');
-console.log('npm test src/lib/utils/__tests__/financialValidation.test.ts');
-
-console.log('\n📊 To monitor security in production:');
-console.log('Import and use FinancialSecurityMonitor component');
-
 // Check if the actual validation file exists
 const fs = require('fs');
 const path = require('path');
@@ -124,10 +91,3 @@ const path = require('path');
 const validationPath = path.join(__dirname, 'src/lib/utils/financialValidation.ts');
 const monitorPath = path.join(__dirname, 'src/components/FinancialSecurityMonitor.tsx');
 const testPath = path.join(__dirname, 'src/lib/utils/__tests__/financialValidation.test.ts');
-
-console.log('\n📁 Implementation Files:');
-console.log(`✅ Validation Utils: ${fs.existsSync(validationPath) ? 'EXISTS' : 'MISSING'}`);
-console.log(`✅ Security Monitor: ${fs.existsSync(monitorPath) ? 'EXISTS' : 'MISSING'}`);
-console.log(`✅ Test Suite: ${fs.existsSync(testPath) ? 'EXISTS' : 'MISSING'}`);
-
-console.log('\n🛡️  Financial security implementation complete!\n');

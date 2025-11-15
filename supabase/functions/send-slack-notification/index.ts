@@ -163,7 +163,6 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Slack webhook error:', errorText);
       throw new Error(`Slack webhook failed: ${response.status}`);
     }
 
@@ -176,7 +175,6 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error sending Slack notification:', error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { 

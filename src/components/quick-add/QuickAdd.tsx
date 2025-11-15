@@ -90,7 +90,6 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
       notificationServiceRef.current = getServiceAdapter<NotificationServiceAdapter>('notification');
     } catch (error) {
       // Service adapters not available - fall back to original implementation
-      console.warn('Service adapters not available, using original implementation');
     }
   }, []);
 

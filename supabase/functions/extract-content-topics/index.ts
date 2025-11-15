@@ -98,7 +98,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
-      console.error('[extract-content-topics] Missing authorization header')
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Missing authorization header' },
         401
@@ -109,7 +108,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     try {
       body = await req.json()
     } catch (error) {
-      console.error('[extract-content-topics] Invalid JSON body:', error)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Invalid JSON in request body' },
         400
@@ -119,15 +117,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const { meeting_id, force_refresh = false } = body
 
     if (!meeting_id || typeof meeting_id !== 'string') {
-      console.error('[extract-content-topics] Invalid meeting_id:', meeting_id)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Invalid meeting_id: must be a valid UUID string' },
         400
       )
     }
-
-    console.log(`[extract-content-topics] Processing meeting ${meeting_id} (force_refresh: ${force_refresh})`)
-
     // ========================================================================
     // 2. Initialize Supabase Client (with RLS using user's token)
     // ========================================================================
@@ -149,7 +143,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     } = await supabaseClient.auth.getUser()
 
     if (userError || !user) {
-      console.error('[extract-content-topics] User authentication failed:', userError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Authentication failed', details: userError?.message },
         401
@@ -174,8 +167,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         .single()
 
       if (cachedTopics && !cacheError) {
-        console.log(`[extract-content-topics] Cache hit for meeting ${meeting_id}`)
-
         // Parse and validate cached topics
         const topics = await parseAndEnrichTopics(
           cachedTopics.topics as any,
@@ -184,8 +175,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
         )
 
         const responseTime = Date.now() - startTime
-        console.log(`[extract-content-topics] Returned ${topics.length} cached topics in ${responseTime}ms`)
-
         return jsonResponse<SuccessResponse>({
           success: true,
           topics,
@@ -197,10 +186,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           },
         })
       }
-
-      console.log(`[extract-content-topics] Cache miss for meeting ${meeting_id}`)
     } else {
-      console.log(`[extract-content-topics] Skipping cache due to force_refresh`)
     }
 
     // ========================================================================
@@ -214,7 +200,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       .single()
 
     if (meetingError || !meeting) {
-      console.error('[extract-content-topics] Meeting not found or access denied:', meetingError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Meeting not found or access denied' },
         404
@@ -226,7 +211,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // ========================================================================
 
     if (!meeting.transcript_text || meeting.transcript_text.trim().length < 50) {
-      console.error('[extract-content-topics] No transcript available for meeting:', meeting_id)
       return jsonResponse<ErrorResponse>(
         {
           success: false,
@@ -236,18 +220,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
         422
       )
     }
-
-    console.log(
-      `[extract-content-topics] Processing transcript (${meeting.transcript_text.length} chars) for "${meeting.title}"`
-    )
-
     // ========================================================================
     // 6. Call Claude API for Topic Extraction
     // ========================================================================
 
     const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
     if (!anthropicApiKey) {
-      console.error('[extract-content-topics] ANTHROPIC_API_KEY not configured')
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'AI service not configured' },
         500
@@ -290,8 +268,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error('[extract-content-topics] Claude API error:', response.status, errorText)
-
         // Retry logic for specific errors
         if (response.status === 429 || response.status === 503) {
           return jsonResponse<ErrorResponse>(
@@ -314,16 +290,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       inputTokens = data.usage?.input_tokens || 0
       outputTokens = data.usage?.output_tokens || 0
       tokensUsed = inputTokens + outputTokens
-
-      console.log(
-        `[extract-content-topics] Claude API success (${inputTokens} input, ${outputTokens} output tokens)`
-      )
-
       // Parse Claude's JSON response
       claudeResponse = parseClaudeResponse(content)
     } catch (error) {
-      console.error('[extract-content-topics] Claude API call failed:', error)
-
       if (error instanceof Error && error.name === 'AbortError') {
         return jsonResponse<ErrorResponse>(
           { success: false, error: 'Request timeout', details: 'AI processing took too long' },
@@ -345,9 +314,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const costCents = Math.ceil(
       inputTokens * INPUT_COST_PER_TOKEN * 100 + outputTokens * OUTPUT_COST_PER_TOKEN * 100
     )
-
-    console.log(`[extract-content-topics] Estimated cost: ${costCents} cents ($${(costCents / 100).toFixed(4)})`)
-
     // ========================================================================
     // 8. Enrich Topics with Fathom URLs
     // ========================================================================
@@ -359,9 +325,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       timestamp_seconds: topic.timestamp_seconds,
       fathom_url: `${shareUrl}?timestamp=${topic.timestamp_seconds}`,
     }))
-
-    console.log(`[extract-content-topics] Extracted ${enrichedTopics.length} topics`)
-
     // ========================================================================
     // 9. Store in Database
     // ========================================================================
@@ -398,22 +361,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
       })
 
     if (insertError) {
-      console.error('[extract-content-topics] Database insert failed:', insertError)
       return jsonResponse<ErrorResponse>(
         { success: false, error: 'Failed to store topics', details: insertError.message },
         500
       )
     }
-
-    console.log(`[extract-content-topics] Stored topics (version ${extractionVersion}) in database`)
-
     // ========================================================================
     // 10. Return Success Response
     // ========================================================================
 
     const responseTime = Date.now() - startTime
-    console.log(`[extract-content-topics] Completed in ${responseTime}ms`)
-
     return jsonResponse<SuccessResponse>({
       success: true,
       topics: enrichedTopics,
@@ -425,7 +382,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       },
     })
   } catch (error) {
-    console.error('[extract-content-topics] Unexpected error:', error)
     return jsonResponse<ErrorResponse>(
       { success: false, error: 'Internal server error', details: (error as Error).message },
       500
@@ -539,7 +495,6 @@ function parseClaudeResponse(content: string): ClaudeAPIResponse {
     }
 
     if (parsed.topics.length > 15) {
-      console.warn('[extract-content-topics] Claude returned too many topics, truncating to 10')
       parsed.topics = parsed.topics.slice(0, 10)
     }
 
@@ -570,8 +525,6 @@ function parseClaudeResponse(content: string): ClaudeAPIResponse {
 
     return { topics: validatedTopics }
   } catch (error) {
-    console.error('[extract-content-topics] Failed to parse Claude response:', error)
-    console.error('Raw response:', content)
     throw new Error(`Failed to parse AI response: ${(error as Error).message}`)
   }
 }

@@ -22,7 +22,6 @@ const supabaseUrl = envVars.VITE_SUPABASE_URL;
 const serviceKey = envVars.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !serviceKey) {
-  console.error('❌ Missing Supabase credentials in environment variables');
   process.exit(1);
 }
 
@@ -30,11 +29,7 @@ const supabase = createClient(supabaseUrl, serviceKey);
 
 async function testCompleteFlow() {
   try {
-    console.log('🧪 Testing Complete Quick Add Flow\n');
-    console.log('=' .repeat(50));
-    
     // 1. Get test data
-    console.log('\n1️⃣ Getting test data...');
     const { data: users } = await supabase
       .from('profiles')
       .select('id, first_name, last_name')
@@ -46,19 +41,12 @@ async function testCompleteFlow() {
       .order('order_position');
     
     if (!users?.[0] || !stages?.length) {
-      console.error('❌ Missing test data');
       return;
     }
     
     const testUser = users[0];
     const opportunityStage = stages.find(s => s.name?.toLowerCase().includes('opportunity')) || stages[0];
-    
-    console.log(`✅ Using user: ${testUser.first_name} ${testUser.last_name}`);
-    console.log(`✅ Using stage: ${opportunityStage.name}`);
-    
     // 2. Create a deal (simulating Quick Add -> Create Deal)
-    console.log('\n2️⃣ Creating deal (simulating Quick Add)...');
-    
     const dealData = {
       name: 'Quick Add Test Deal',
       company: 'Quick Add Test Company',
@@ -81,23 +69,12 @@ async function testCompleteFlow() {
       .single();
     
     if (dealError) {
-      console.error('❌ Deal creation failed:', dealError);
       return;
     }
-    
-    console.log('✅ Deal created:', {
-      id: newDeal.id,
-      name: newDeal.name,
-      value: newDeal.value
-    });
-    
     // 3. Wait a bit to ensure deal is committed
-    console.log('\n⏳ Waiting for transaction to commit...');
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     // 4. Create activities linked to the deal
-    console.log('\n3️⃣ Creating activities linked to deal...');
-    
     // Create outbound activity
     const outboundActivity = {
       user_id: testUser.id,
@@ -119,9 +96,7 @@ async function testCompleteFlow() {
       .single();
     
     if (outboundError) {
-      console.error('❌ Outbound activity failed:', outboundError);
     } else {
-      console.log('✅ Outbound activity created:', outbound.id);
     }
     
     // Create meeting activity
@@ -144,9 +119,7 @@ async function testCompleteFlow() {
       .single();
     
     if (meetingError) {
-      console.error('❌ Meeting activity failed:', meetingError);
     } else {
-      console.log('✅ Meeting activity created:', meeting.id);
     }
     
     // Create proposal activity
@@ -170,9 +143,7 @@ async function testCompleteFlow() {
       .single();
     
     if (proposalError) {
-      console.error('❌ Proposal activity failed:', proposalError);
     } else {
-      console.log('✅ Proposal activity created:', proposal.id, '($' + proposal.amount + ')');
     }
     
     // Create sale activity
@@ -196,31 +167,22 @@ async function testCompleteFlow() {
       .single();
     
     if (saleError) {
-      console.error('❌ Sale activity failed:', saleError);
     } else {
-      console.log('✅ Sale activity created:', sale.id, '($' + sale.amount + ')');
     }
     
     // 5. Verify all activities are linked to the deal
-    console.log('\n4️⃣ Verifying activities are linked to deal...');
-    
     const { data: linkedActivities, error: verifyError } = await supabase
       .from('activities')
       .select('id, type, deal_id')
       .eq('deal_id', newDeal.id);
     
     if (verifyError) {
-      console.error('❌ Verification failed:', verifyError);
     } else {
-      console.log(`✅ Found ${linkedActivities.length} activities linked to deal:`);
       linkedActivities.forEach(activity => {
-        console.log(`   - ${activity.type} (${activity.id})`);
       });
     }
     
     // 6. Clean up test data
-    console.log('\n5️⃣ Cleaning up test data...');
-    
     // Delete activities first (foreign key constraint)
     const { error: deleteActivitiesError } = await supabase
       .from('activities')
@@ -228,9 +190,7 @@ async function testCompleteFlow() {
       .eq('deal_id', newDeal.id);
     
     if (deleteActivitiesError) {
-      console.error('⚠️ Failed to delete test activities:', deleteActivitiesError);
     } else {
-      console.log('✅ Test activities deleted');
     }
     
     // Delete deal
@@ -240,30 +200,15 @@ async function testCompleteFlow() {
       .eq('id', newDeal.id);
     
     if (deleteDealError) {
-      console.error('⚠️ Failed to delete test deal:', deleteDealError);
     } else {
-      console.log('✅ Test deal deleted');
     }
     
     // Summary
-    console.log('\n' + '=' .repeat(50));
-    console.log('✨ Complete Quick Add Flow Test Results:\n');
-    console.log('✅ Deal Creation: Working');
-    console.log('✅ Outbound Activity: Working');
-    console.log('✅ Meeting Activity: Working');
-    console.log('✅ Proposal Activity: Working');
-    console.log('✅ Sale Activity: Working');
-    console.log('✅ Deal-Activity Linking: Working');
-    console.log('✅ Foreign Key Constraints: Working');
-    console.log('\n🎉 All Quick Add functionality is working correctly!');
-    
   } catch (error) {
-    console.error('❌ Unexpected error:', error);
   }
 }
 
 // Run the test
 testCompleteFlow().then(() => {
-  console.log('\n🏁 Test completed');
   process.exit(0);
 });

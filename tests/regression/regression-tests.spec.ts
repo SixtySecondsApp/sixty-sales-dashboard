@@ -10,7 +10,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
     // Monitor console errors
     page.on('console', msg => {
       if (msg.type() === 'error') {
-        console.log(`Console error: ${msg.text()}`);
       }
     });
 
@@ -41,12 +40,10 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
           await page.goto(pageUrl);
           await page.waitForLoadState('networkidle', { timeout: 10000 });
         } catch (error) {
-          console.log(`Could not navigate to ${pageUrl}: ${error}`);
         }
       }
 
       if (failedResources.length > 0) {
-        console.error('Failed resources:', failedResources);
       }
 
       expect(failedResources, 'Static resources should load without 404 errors').toHaveLength(0);
@@ -88,7 +85,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
       await page.waitForTimeout(3000);
 
       if (criticalErrors.length > 0) {
-        console.error('Critical console errors:', criticalErrors);
       }
 
       expect(criticalErrors, 'Should not have critical console errors').toHaveLength(0);
@@ -165,7 +161,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
       await page.waitForTimeout(3000);
 
       if (forbiddenErrors.length > 0) {
-        console.error('403 Forbidden errors detected:', forbiddenErrors);
       }
 
       expect(forbiddenErrors, 'Should not have 403 Forbidden errors for contact operations').toHaveLength(0);
@@ -226,7 +221,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
         await closeBtn.click();
         await expect(modal).toBeHidden();
       } else {
-        console.log('QuickAdd button not found - skipping test');
       }
     });
 
@@ -334,11 +328,8 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
           
           expect(pageLoadTimes[name], `${name} page should load within ${maxLoadTime}ms`).toBeLessThan(maxLoadTime);
         } catch (error) {
-          console.log(`Could not test ${name} page: ${error}`);
         }
       }
-
-      console.log('Page load times:', pageLoadTimes);
     });
 
     test('No memory leaks in modal operations', async ({ page }) => {
@@ -399,7 +390,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
             const isDisabled = await submitBtn.isDisabled();
             if (!isDisabled) {
               // If button is still enabled, clicking again should not create duplicate
-              console.log('Testing double-click prevention');
               await submitBtn.click();
             }
             
@@ -412,8 +402,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
 
   test.describe('Cross-Browser Compatibility - Regression', () => {
     test('Core functionality works across different browsers', async ({ page, browserName }) => {
-      console.log(`Testing on ${browserName}`);
-      
       await page.goto('/');
       await page.waitForLoadState('networkidle');
 
@@ -442,8 +430,6 @@ test.describe('Regression Tests - Fixed Issues Prevention', () => {
           expect(modalBounds.height, 'Modal should have reasonable height').toBeGreaterThan(100);
         }
       }
-
-      console.log(`${browserName} compatibility test passed`);
     });
   });
 });

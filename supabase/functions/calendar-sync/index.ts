@@ -111,12 +111,8 @@ serve(async (req) => {
     const calendarRecordId = calRecord?.id || null;
     
     if (!calendarRecordId) {
-      console.error('Failed to get/create calendar record');
       throw new Error('Calendar record not found');
     }
-    
-    console.log('Using calendar record:', { calendarId, calendarRecordId });
-
     // Create sync log (started)
     const { data: logRow } = await sb
       .from('calendar_sync_logs')
@@ -223,12 +219,6 @@ serve(async (req) => {
 
           if (upsertError) {
             // Log detailed error for debugging
-            console.error('Failed to upsert event:', {
-              eventId: ev.id,
-              title: ev.summary,
-              error: upsertError.message,
-              details: upsertError
-            });
             continue;
           }
 
@@ -236,7 +226,6 @@ serve(async (req) => {
           stats.created += 1;
         } catch (err) {
           // Log individual item errors for debugging
-          console.error('Error processing event:', err);
         }
       }
 
