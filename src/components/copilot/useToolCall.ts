@@ -48,6 +48,32 @@ function getStepsForTool(toolType: ToolType): Omit<ToolStep, 'id'>[] {
       { label: 'Loading meeting data', icon: 'calendar', state: 'pending' },
       { label: 'Analyzing discussion points', icon: 'activity', state: 'pending' },
       { label: 'Generating insights', icon: 'activity', state: 'pending' }
+    ],
+    contact_search: [
+      { label: 'Finding contact by email', icon: 'users', state: 'pending' },
+      { label: 'Fetching emails and communications', icon: 'mail', state: 'pending' },
+      { label: 'Loading deals and activities', icon: 'activity', state: 'pending' },
+      { label: 'Gathering meetings and tasks', icon: 'calendar', state: 'pending' },
+      { label: 'Compiling smart summary', icon: 'activity', state: 'pending' }
+    ],
+    task_search: [
+      { label: 'Searching tasks database', icon: 'database', state: 'pending' },
+      { label: 'Filtering by priority and status', icon: 'activity', state: 'pending' },
+      { label: 'Calculating due dates', icon: 'calendar', state: 'pending' },
+      { label: 'Organizing results', icon: 'activity', state: 'pending' }
+    ],
+    roadmap_create: [
+      { label: 'Preparing roadmap item', icon: 'file-text', state: 'pending' },
+      { label: 'Validating details', icon: 'activity', state: 'pending' },
+      { label: 'Creating roadmap item', icon: 'database', state: 'pending' },
+      { label: 'Confirming creation', icon: 'check-circle', state: 'pending' }
+    ],
+    sales_coach: [
+      { label: 'Gathering sales data', icon: 'database', state: 'pending' },
+      { label: 'Analyzing performance metrics', icon: 'activity', state: 'pending' },
+      { label: 'Comparing periods', icon: 'bar-chart', state: 'pending' },
+      { label: 'Generating insights', icon: 'lightbulb', state: 'pending' },
+      { label: 'Creating recommendations', icon: 'target', state: 'pending' }
     ]
   };
 

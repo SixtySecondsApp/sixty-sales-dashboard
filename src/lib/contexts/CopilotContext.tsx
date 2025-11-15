@@ -9,6 +9,7 @@ import type {
   CopilotMessage,
   CopilotState,
   CopilotContext as CopilotContextType,
+  CopilotContextPayload,
   Recommendation,
   ToolCall,
   ToolType
@@ -18,13 +19,14 @@ import logger from '@/lib/utils/logger';
 
 interface CopilotContextValue {
   isOpen: boolean;
-  openCopilot: (initialQuery?: string) => void;
+  openCopilot: (initialQuery?: string, startNewChat?: boolean) => void;
   closeCopilot: () => void;
   sendMessage: (message: string) => Promise<void>;
   messages: CopilotMessage[];
   isLoading: boolean;
   context: CopilotContextType;
   setContext: (context: Partial<CopilotContextType>) => void;
+  startNewChat: () => void;
 }
 
 const CopilotContext = createContext<CopilotContextValue | undefined>(undefined);
@@ -52,8 +54,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   });
   const [context, setContextState] = useState<CopilotContextType>({
     userId: '',
+    currentView: 'dashboard',
+    context: {
+    userId: '',
     currentView: 'dashboard'
+    }
   });
+  const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
 
   // Initialize user context
   React.useEffect(() => {
@@ -64,25 +71,54 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       if (session?.user) {
         setContextState(prev => ({
           ...prev,
+          userId: session.user.id,
+          context: {
+            ...prev.context,
           userId: session.user.id
+          }
         }));
       }
     };
     initContext();
   }, []);
 
-  const openCopilot = useCallback((initialQuery?: string) => {
+  const startNewChat = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      messages: [],
+      conversationId: undefined,
+      currentInput: '',
+      mode: 'empty',
+      isLoading: false
+    }));
+  }, []);
+
+  const openCopilot = useCallback((initialQuery?: string, startNewChatFlag?: boolean) => {
     setIsOpen(true);
+    
+    // If starting a new chat, reset the conversation state
+    if (startNewChatFlag) {
+      // Reset state first - this will clear messages and conversationId
+      setState({
+        messages: [],
+        conversationId: undefined,
+        currentInput: initialQuery || '',
+        mode: initialQuery ? 'active' : 'empty',
+        isLoading: false
+      });
+      
+      // Set pending query to trigger auto-send after state reset
     if (initialQuery) {
+        setPendingQuery({ query: initialQuery, startNewChat: true });
+      }
+    } else if (initialQuery) {
       setState(prev => ({
         ...prev,
         currentInput: initialQuery,
         mode: 'active'
       }));
-      // Auto-send if query provided
-      setTimeout(() => {
-        sendMessage(initialQuery);
-      }, 100);
+      // Set pending query to trigger auto-send
+      setPendingQuery({ query: initialQuery, startNewChat: false });
     } else {
       setState(prev => ({
         ...prev,
@@ -96,14 +132,61 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   }, []);
 
   const setContext = useCallback((newContext: Partial<CopilotContextType>) => {
-    setContextState(prev => ({ ...prev, ...newContext }));
+    setContextState(prev => {
+      // If newContext has a context property, merge it with the existing context
+      if (newContext.context) {
+        return {
+          ...prev,
+          ...newContext,
+          context: {
+            ...prev.context,
+            ...newContext.context
+          }
+        };
+      }
+      return { ...prev, ...newContext };
+    });
   }, []);
 
   // Helper function to detect intent and determine tool type
   const detectToolType = useCallback((message: string): ToolType | null => {
     const lowerMessage = message.toLowerCase();
     
-    if (lowerMessage.includes('pipeline') || lowerMessage.includes('deal') || lowerMessage.includes('priority') || lowerMessage.includes('prioritize') || lowerMessage.includes('attention')) {
+    // Contact/email queries - check for email addresses or contact names
+    const emailPattern = /[\w\.-]+@[\w\.-]+\.\w+/;
+    const hasEmail = emailPattern.test(message);
+    const contactKeywords = ['contact', 'person', 'about', 'info on', 'tell me about', 'show me', 'lookup', 'find'];
+    const hasContactKeyword = contactKeywords.some(keyword => lowerMessage.includes(keyword));
+    
+    if (hasEmail || (hasContactKeyword && (lowerMessage.includes('@') || lowerMessage.includes('email')))) {
+      return 'contact_search';
+    }
+    
+    // Task queries - check before pipeline to avoid conflicts
+    if (
+      lowerMessage.includes('task') || 
+      lowerMessage.includes('tasks') || 
+      lowerMessage.includes('todo') ||
+      lowerMessage.includes('to-do') ||
+      (lowerMessage.includes('list') && (lowerMessage.includes('task') || lowerMessage.includes('priority'))) ||
+      (lowerMessage.includes('show') && lowerMessage.includes('task')) ||
+      lowerMessage.includes('high priority task') ||
+      lowerMessage.includes('overdue')
+    ) {
+      return 'task_search';
+    }
+    
+    // General "prioritize" questions default to tasks (more actionable day-to-day)
+    // But if pipeline/deal is mentioned, use pipeline
+    if (lowerMessage.includes('prioritize') || lowerMessage.includes('what should i prioritize')) {
+      if (lowerMessage.includes('pipeline') || lowerMessage.includes('deal') || lowerMessage.includes('deals')) {
+        return 'pipeline_data';
+      }
+      // Default to tasks for general prioritize questions
+      return 'task_search';
+    }
+    
+    if (lowerMessage.includes('pipeline') || lowerMessage.includes('deal') || lowerMessage.includes('priority') || lowerMessage.includes('attention')) {
       return 'pipeline_data';
     }
     if (lowerMessage.includes('email') || lowerMessage.includes('draft')) {
@@ -118,14 +201,38 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     if (lowerMessage.includes('health') || lowerMessage.includes('score')) {
       return 'deal_health';
     }
+    if (
+      lowerMessage.includes('roadmap') || 
+      lowerMessage.includes('add a roadmap') ||
+      lowerMessage.includes('create roadmap') ||
+      lowerMessage.includes('roadmap item')
+    ) {
+      return 'roadmap_create';
+    }
+    if (
+      lowerMessage.includes('performance') ||
+      lowerMessage.includes('how am i doing') ||
+      lowerMessage.includes('how is my performance') ||
+      lowerMessage.includes('sales coach') ||
+      lowerMessage.includes('compare') && (lowerMessage.includes('month') || lowerMessage.includes('period')) ||
+      (lowerMessage.includes('this month') && lowerMessage.includes('last month'))
+    ) {
+      return 'sales_coach';
+    }
     
     return null;
   }, []);
 
   // Helper function to create initial tool call
   const createToolCall = useCallback((toolType: ToolType): ToolCall => {
-    const getStepsForTool = (tool: ToolType) => {
+      const getStepsForTool = (tool: ToolType) => {
       const stepConfigs: Record<ToolType, Array<{ label: string; icon: string }>> = {
+        task_search: [
+          { label: 'Searching tasks database', icon: 'database' },
+          { label: 'Filtering by priority and status', icon: 'activity' },
+          { label: 'Calculating due dates', icon: 'calendar' },
+          { label: 'Organizing results', icon: 'activity' }
+        ],
         pipeline_data: [
           { label: 'Fetching deals from database', icon: 'database' },
           { label: 'Calculating health scores', icon: 'activity' },
@@ -146,6 +253,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Searching contacts', icon: 'users' },
           { label: 'Loading recent activity', icon: 'activity' }
         ],
+        contact_search: [
+          { label: 'Finding contact by email', icon: 'users' },
+          { label: 'Fetching emails and communications', icon: 'mail' },
+          { label: 'Loading deals and activities', icon: 'activity' },
+          { label: 'Gathering meetings and tasks', icon: 'calendar' },
+          { label: 'Compiling smart summary', icon: 'activity' }
+        ],
         deal_health: [
           { label: 'Analyzing engagement metrics', icon: 'activity' },
           { label: 'Calculating risk factors', icon: 'activity' },
@@ -155,6 +269,19 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Loading meeting data', icon: 'calendar' },
           { label: 'Analyzing discussion points', icon: 'activity' },
           { label: 'Generating insights', icon: 'activity' }
+        ],
+        roadmap_create: [
+          { label: 'Preparing roadmap item', icon: 'file-text' },
+          { label: 'Validating details', icon: 'activity' },
+          { label: 'Creating roadmap item', icon: 'database' },
+          { label: 'Confirming creation', icon: 'check-circle' }
+        ],
+        sales_coach: [
+          { label: 'Gathering sales data', icon: 'database' },
+          { label: 'Analyzing performance metrics', icon: 'activity' },
+          { label: 'Comparing periods', icon: 'bar-chart' },
+          { label: 'Generating insights', icon: 'lightbulb' },
+          { label: 'Creating recommendations', icon: 'target' }
         ]
       };
 
@@ -275,8 +402,17 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
             setTimeout(() => reject(new Error('Request timeout')), 30000)
           );
           
+          // Format context for API
+          const apiContext: CopilotContextPayload['context'] = {
+            userId: context.userId || context.context?.userId || '',
+            currentView: context.currentView || context.context?.currentView || 'dashboard',
+            contactId: context.context?.contactId,
+            dealIds: context.context?.dealIds,
+            taskId: context.context?.taskId
+          };
+          
           response = await Promise.race([
-            CopilotService.sendMessage(message, context, state.conversationId),
+            CopilotService.sendMessage(message, apiContext, state.conversationId),
             timeoutPromise
           ]) as Awaited<ReturnType<typeof CopilotService.sendMessage>>;
         } catch (timeoutError) {
@@ -291,7 +427,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                 id: msg.id,
                 role: msg.role,
                 content: response.response.content || 'I processed your request, but received an empty response.',
-                timestamp: new Date(response.timestamp),
+          timestamp: new Date(response.timestamp),
                 recommendations: response.response.recommendations || undefined,
                 structuredResponse: response.response.structuredResponse || undefined,
                 // Remove toolCall when response is ready to trigger fade out
@@ -304,10 +440,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           });
           
           return {
-            ...prev,
+          ...prev,
             messages: updatedMessages,
-            isLoading: false,
-            conversationId: response.conversationId
+          isLoading: false,
+          conversationId: response.conversationId
           };
         });
       } catch (error) {
@@ -327,9 +463,9 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           });
 
           return {
-            ...prev,
+          ...prev,
             messages: updatedMessages,
-            isLoading: false
+          isLoading: false
           };
         });
       }
@@ -337,6 +473,19 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     [context, state.conversationId, state.isLoading, detectToolType, createToolCall]
   );
 
+  // Handle pending queries from openCopilot
+  React.useEffect(() => {
+    if (pendingQuery) {
+      const { query, startNewChat } = pendingQuery;
+      setPendingQuery(null); // Clear pending query
+      
+      // For new chats, add a small delay to ensure state is reset
+      const delay = startNewChat ? 200 : 100;
+      setTimeout(() => {
+        sendMessage(query);
+      }, delay);
+    }
+  }, [pendingQuery, sendMessage]);
 
   const value: CopilotContextValue = {
     isOpen,
@@ -346,7 +495,8 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     messages: state.messages,
     isLoading: state.isLoading,
     context,
-    setContext
+    setContext,
+    startNewChat
   };
 
   return <CopilotContext.Provider value={value}>{children}</CopilotContext.Provider>;

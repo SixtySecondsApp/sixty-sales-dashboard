@@ -11,6 +11,7 @@ export const GOOGLE_QUERY_KEYS = {
   gmail: {
     emails: (query?: string) => ['google', 'gmail', 'emails', query] as const,
     labels: ['google', 'gmail', 'labels'] as const,
+    message: (messageId: string | null) => ['google', 'gmail', 'message', messageId] as const,
   },
   calendar: {
     events: (timeMin?: string, timeMax?: string) => ['google', 'calendar', 'events', timeMin, timeMax] as const,
@@ -115,68 +116,51 @@ export function useGmailEmails(query?: string, enabled = true) {
   return useQuery({
     queryKey: GOOGLE_QUERY_KEYS.gmail.emails(query),
     queryFn: async () => {
-      // First try the standard invoke path
-      try {
-        const response = await supabase.functions.invoke('google-gmail?action=list', {
-          body: { 
-            query,
-            maxResults: 50
-          }
-        });
-        if (response.error) throw response.error;
-        return response.data;
-      } catch (err: any) {
-        const isTransportErr =
-          err?.name === 'FunctionsFetchError' ||
-          (typeof err?.message === 'string' && err.message.includes('Failed to send a request'));
-        if (!isTransportErr) throw err; // non-transport errors should bubble
-
-        // Resilient fallback: call the Edge Function directly via fetch
-        const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-        const anonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
-        const functionsUrlEnv = (import.meta as any).env?.VITE_SUPABASE_FUNCTIONS_URL as string | undefined;
-        const projectRef = supabaseUrl?.split('//')[1]?.split('.')[0];
-        const subdomainBase = projectRef ? `https://${projectRef}.functions.supabase.co` : undefined;
-        const defaultBase = supabaseUrl ? `${supabaseUrl}/functions/v1` : undefined;
-
-        const candidates = [
-          functionsUrlEnv,
-          subdomainBase,
-          defaultBase,
-        ].filter(Boolean) as string[];
-
-        // Get session token for Authorization header
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) throw err;
-
-        let lastError: any = err;
-        for (const base of candidates) {
-          try {
-            const res = await fetch(`${base}/google-gmail?action=list`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${session.access_token}`,
-                ...(anonKey ? { 'apikey': anonKey } : {}),
-                'Content-Type': 'application/json',
-                'X-Client-Info': 'sales-dashboard-v2',
-              },
-              body: JSON.stringify({ query, maxResults: 50 }),
-            });
-            if (!res.ok) {
-              lastError = new Error(`HTTP ${res.status}`);
-              continue;
-            }
-            return await res.json();
-          } catch (e) {
-            lastError = e;
-            continue;
-          }
+      // Use supabase.functions.invoke which handles CORS automatically
+      const response = await supabase.functions.invoke('google-gmail', {
+        body: { 
+          action: 'list',
+          query,
+          maxResults: 50
         }
-        throw lastError;
+      });
+      
+      if (response.error) {
+        // Provide more detailed error information
+        const errorMessage = response.error.message || 'Unknown error';
+        throw new Error(`Gmail API error: ${errorMessage}`);
       }
+      
+      return response.data;
     },
     enabled,
     staleTime: 60 * 1000, // 1 minute
+    retry: 1,
+  });
+}
+
+export function useGmailGetMessage(messageId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: GOOGLE_QUERY_KEYS.gmail.message(messageId),
+    queryFn: async () => {
+      if (!messageId) throw new Error('Message ID is required');
+      
+      const response = await supabase.functions.invoke('google-gmail', {
+        body: { 
+          action: 'get',
+          messageId
+        }
+      });
+      
+      if (response.error) {
+        const errorMessage = response.error.message || 'Unknown error';
+        throw new Error(`Gmail API error: ${errorMessage}`);
+      }
+      
+      return response.data;
+    },
+    enabled: enabled && !!messageId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
   });
 }

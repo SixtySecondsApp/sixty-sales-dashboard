@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Building2, User, Calendar, DollarSign, Target, TrendingUp, Edit, Phone, Mail, MessageCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,9 @@ import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
 import EditDealModal from '@/components/EditDealModal/EditDealModal';
 import { NotesSection } from '@/components/NotesSection';
 import { PipelineProvider } from '@/lib/contexts/PipelineContext';
+import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
+import { getMeetingSummaryPlainText } from '@/lib/utils/meetingSummaryParser';
 
 interface Deal {
   id: string;
@@ -48,6 +51,24 @@ const DealRecord: React.FC = () => {
 
   const [deal, setDeal] = useState<Deal | null>(null);
   const [loading, setLoading] = useState(true);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    if (!deal) return null;
+    return extractDomainFromDeal({
+      company: deal.company,
+      contact_email: deal.contact_email,
+      company_website: deal.company_website,
+    });
+  }, [deal?.company, deal?.contact_email, deal?.company_website]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
@@ -159,7 +180,7 @@ const DealRecord: React.FC = () => {
               id: `meeting-${meeting.id}`,
               type: 'meeting',
               title: meeting.title || 'Meeting',
-              description: meeting.summary || 'No summary available',
+              description: meeting.summary ? getMeetingSummaryPlainText(meeting.summary) : 'No summary available',
               date: meeting.meeting_start,
               icon: 'meeting',
               color: 'blue'
@@ -425,8 +446,17 @@ const DealRecord: React.FC = () => {
           <div className="mb-8">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="flex items-center gap-6">
-                <div className="w-20 h-20 rounded-full border-3 border-purple-400 bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-                  <Target className="w-10 h-10" />
+                <div className="w-20 h-20 rounded-full border-3 border-purple-400 bg-gradient-to-r from-purple-500 to-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg overflow-hidden">
+                  {logoUrl && !logoError && !isLoading ? (
+                    <img
+                      src={logoUrl}
+                      alt={`${deal.company_name || 'Company'} logo`}
+                      className="w-full h-full object-cover"
+                      onError={() => setLogoError(true)}
+                    />
+                  ) : (
+                    <Target className="w-10 h-10" />
+                  )}
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold theme-text-primary mb-2">

@@ -558,9 +558,10 @@ const MeetingDetail: React.FC = () => {
                 </div>
 
                 <div className="prose prose-sm max-w-none">
-                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line text-sm">
-                    {meeting.summary || 'No summary available'}
-                  </p>
+                  <MeetingSummaryDisplay 
+                    summary={meeting.summary} 
+                    className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm"
+                  />
                 </div>
 
                 <div className="mt-4 flex gap-2">

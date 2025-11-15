@@ -27,6 +27,7 @@ const ANTHROPIC_VERSION = '2023-06-01' // API version for tool calling
 interface ChatRequest {
   message: string
   conversationId?: string
+  targetUserId?: string // Optional: for admins to query other users' performance
   context?: {
     userId: string
     currentView?: 'dashboard' | 'contact' | 'pipeline'
@@ -91,10 +92,23 @@ serve(async (req) => {
     const user_id = user.id
     
     const url = new URL(req.url)
-    const pathParts = url.pathname.split('/').filter(Boolean)
-    const functionName = pathParts[0] // 'api-copilot'
-    const endpoint = pathParts[1] // 'chat', 'actions', 'conversations'
-    const resourceId = pathParts[2] // conversation ID, etc.
+    // Filter out 'functions', 'v1', and function name from pathname (Supabase includes these)
+    // The pathname will be like: /functions/v1/api-copilot/actions/generate-deal-email
+    const pathParts = url.pathname
+      .split('/')
+      .filter(segment => segment && segment !== 'functions' && segment !== 'v1' && segment !== 'api-copilot')
+    const endpoint = pathParts[0] || '' // 'chat', 'actions', 'conversations'
+    const resourceId = pathParts[1] || '' // conversation ID, 'generate-deal-email', etc.
+    
+    // Debug logging for path parsing
+    console.log('[API-COPILOT] Path parsing:', {
+      fullPath: url.pathname,
+      pathParts,
+      endpoint,
+      resourceId,
+      method: req.method,
+      allPathParts: url.pathname.split('/')
+    })
 
     // Apply rate limiting (100 requests/hour for Copilot)
     // Create a client with anon key for rate limiting (it needs to check user auth)
@@ -122,14 +136,38 @@ serve(async (req) => {
     }
 
     // Route to appropriate handler
+    console.log('[API-COPILOT] Attempting to route:', { 
+      endpoint, 
+      resourceId, 
+      method: req.method,
+      matchesChat: req.method === 'POST' && endpoint === 'chat',
+      matchesDraftEmail: req.method === 'POST' && endpoint === 'actions' && resourceId === 'draft-email',
+      matchesGenerateEmail: req.method === 'POST' && endpoint === 'actions' && resourceId === 'generate-deal-email',
+      matchesConversations: req.method === 'GET' && endpoint === 'conversations' && resourceId
+    })
+    
     if (req.method === 'POST' && endpoint === 'chat') {
       return await handleChat(client, req, user_id)
     } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'draft-email') {
       return await handleDraftEmail(client, req, user_id)
+    } else if (req.method === 'POST' && endpoint === 'actions' && resourceId === 'generate-deal-email') {
+      console.log('[API-COPILOT] ✅ Routing to handleGenerateDealEmail')
+      return await handleGenerateDealEmail(client, req, user_id)
     } else if (req.method === 'GET' && endpoint === 'conversations' && resourceId) {
       return await handleGetConversation(client, resourceId, user_id)
     } else {
-      return createErrorResponse('Endpoint not found', 404, 'NOT_FOUND')
+      console.log('[API-COPILOT] ❌ No route matched:', { 
+        endpoint, 
+        resourceId, 
+        method: req.method,
+        fullPath: url.pathname,
+        pathParts
+      })
+      return createErrorResponse(
+        `Endpoint not found. Received: ${req.method} ${endpoint || '(empty)'}/${resourceId || '(empty)'}. Full path: ${url.pathname}`,
+        404,
+        'NOT_FOUND'
+      )
     }
 
   } catch (error) {
@@ -182,6 +220,50 @@ async function handleChat(
     if (body.context?.contactId) analyticsData.context_type = 'contact'
     else if (body.context?.dealIds?.length) analyticsData.context_type = 'deal'
     else if (body.context?.currentView) analyticsData.context_type = body.context.currentView
+    
+    // Ensure context exists with userId
+    if (!body.context) {
+      body.context = { userId }
+    } else if (!body.context.userId) {
+      body.context.userId = userId
+    }
+    
+    // Check if user is admin and validate targetUserId if provided
+    const { data: currentUser } = await client
+      .from('profiles')
+      .select('is_admin')
+      .eq('id', userId)
+      .single()
+    
+    const isAdmin = currentUser?.is_admin === true
+    let targetUserId = userId // Default to current user
+    
+    // Try to extract user name from message for admin queries
+    if (isAdmin) {
+      console.log('[USER-EXTRACT] Admin detected, attempting to extract user from message...', {
+        message: body.message.substring(0, 100),
+        currentUserId: userId
+      })
+      const extractedUserId = await extractUserIdFromMessage(body.message, client, userId)
+      if (extractedUserId && extractedUserId !== userId) {
+        targetUserId = extractedUserId
+        console.log('[USER-EXTRACT] ✅ Extracted target user ID:', extractedUserId)
+      } else {
+        console.log('[USER-EXTRACT] ⚠️ No user extracted or same as requesting user:', extractedUserId)
+      }
+    } else {
+      console.log('[USER-EXTRACT] Not an admin, using own user ID:', userId)
+    }
+    
+    console.log('[USER-EXTRACT] Final targetUserId:', targetUserId)
+    
+    // If targetUserId is explicitly provided, validate admin access
+    if (body.targetUserId && body.targetUserId !== userId) {
+      if (!isAdmin) {
+        return createErrorResponse('Only admins can query other users\' performance', 403, 'PERMISSION_DENIED')
+      }
+      targetUserId = body.targetUserId
+    }
 
     // Get or create conversation
     let conversationId = body.conversationId
@@ -247,6 +329,50 @@ async function handleChat(
       recommendations: msg.metadata?.recommendations || []
     }))
 
+    // Check if this is a performance query BEFORE calling Claude
+    // This allows us to skip AI and go straight to structured response
+    const messageLower = body.message.toLowerCase()
+    const originalMessage = body.message
+    
+    // ULTRA SIMPLE detection: If message contains "performance" anywhere, it's a performance query
+    // This catches ALL variations: "Phil's performance", "show performance", "performance this week", etc.
+    const hasPerformance = messageLower.includes('performance')
+    const hasSalesCoach = messageLower.includes('sales coach')
+    const hasHowAmIDoing = messageLower.includes('how am i doing')
+    const hasHowIsMyPerformance = messageLower.includes('how is my performance')
+    
+    const isPerformanceQuery = hasPerformance || hasSalesCoach || hasHowAmIDoing || hasHowIsMyPerformance
+    
+    console.log('[PERF-DETECT] Performance query detection:', {
+      message: body.message.substring(0, 100),
+      messageLower: messageLower.substring(0, 100),
+      hasPerformance,
+      hasSalesCoach,
+      hasHowAmIDoing,
+      hasHowIsMyPerformance,
+      isPerformanceQuery,
+      userId,
+      isAdmin: currentUser?.is_admin
+    })
+    
+    // If it's a performance query, skip Claude and go straight to structured response
+    let aiResponse: any = null
+    let shouldSkipClaude = false
+    
+    if (isPerformanceQuery) {
+      shouldSkipClaude = true
+      console.log('[PERF-DETECT] ✅ Performance query detected - skipping Claude API call')
+      // Create a mock AI response for structured response processing
+      aiResponse = {
+        content: '', // Empty content since we'll use structured response
+        recommendations: [],
+        tools_used: [],
+        usage: { input_tokens: 0, output_tokens: 0 }
+      }
+    } else {
+      console.log('[PERF-DETECT] ❌ Not a performance query - will call Claude')
+    }
+
     // Build context from user's CRM data
     let context = ''
     try {
@@ -255,19 +381,25 @@ async function handleChat(
       // Continue with empty context if buildContext fails
     }
 
-    // Call Claude API with tool support
+    // Call Claude API with tool support (skip if performance query)
     const claudeStartTime = Date.now()
-    let aiResponse
-    try {
-      aiResponse = await callClaudeAPI(
-        body.message,
-        formattedMessages,
-        context,
-        client,
-        userId,
-        analyticsData // Pass analytics data to track tool usage
-      )
-      analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
+    if (!shouldSkipClaude) {
+      console.log('[CLAUDE] Calling Claude API (not a performance query)')
+      try {
+        aiResponse = await callClaudeAPI(
+          body.message,
+          formattedMessages,
+          context,
+          client,
+          userId,
+          analyticsData // Pass analytics data to track tool usage
+        )
+        analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
+        console.log('[CLAUDE] Claude API response received:', {
+          contentLength: aiResponse.content?.length || 0,
+          hasRecommendations: !!aiResponse.recommendations?.length,
+          toolsUsed: aiResponse.tools_used || []
+        })
       
       // Extract token counts and tool usage from response if available
       if (aiResponse.usage) {
@@ -293,20 +425,27 @@ async function handleChat(
       analyticsData.claude_api_time_ms = Date.now() - claudeStartTime
       throw new Error(`Claude API call failed: ${claudeError.message || String(claudeError)}`)
     }
+    } else {
+      // Skip Claude for performance queries - structured response will handle it
+      analyticsData.claude_api_time_ms = 0
+      console.log('[CLAUDE] ⏭️ Skipped Claude API call (performance query detected)')
+    }
 
-    // Save assistant message
-    const { error: assistantMsgError } = await client
-      .from('copilot_messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: aiResponse.content,
-        metadata: {
-          recommendations: aiResponse.recommendations || []
-        }
-      })
+    // Save assistant message (skip if we're using structured response)
+    if (!shouldSkipClaude) {
+      const { error: assistantMsgError } = await client
+        .from('copilot_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: aiResponse.content,
+          metadata: {
+            recommendations: aiResponse.recommendations || []
+          }
+        })
 
-    if (assistantMsgError) {
+      if (assistantMsgError) {
+      }
     }
 
     // Update conversation updated_at
@@ -326,29 +465,103 @@ async function handleChat(
     })
 
     // Detect intent and structure response if appropriate
-    const structuredResponse = await detectAndStructureResponse(
-      body.message,
-      aiResponse.content,
-      client,
-      userId
-    )
-
-    // Log structured response for debugging
-    if (structuredResponse) {
+    // If we skipped Claude for performance query, we MUST generate structured response
+    let structuredResponse = null
+    if (shouldSkipClaude) {
+      console.log('[STRUCTURED] Generating structured response for performance query...', {
+        targetUserId,
+        requestingUserId: userId,
+        message: body.message.substring(0, 50)
+      })
+      // For performance queries, directly call structureSalesCoachResponse
+      try {
+        structuredResponse = await structureSalesCoachResponse(
+          client,
+          targetUserId,
+          '', // No AI content since we skipped Claude
+          body.message,
+          userId // Pass requesting user ID for permission checks
+        )
+        console.log('[STRUCTURED] ✅ Structured response generated:', {
+          type: structuredResponse?.type,
+          hasData: !!structuredResponse?.data,
+          summary: structuredResponse?.summary?.substring(0, 100)
+        })
+      } catch (error) {
+        console.error('[STRUCTURED] ❌ Error generating structured response:', error)
+        structuredResponse = null
+      }
     } else {
+      console.log('[STRUCTURED] Using normal detection (not a performance query)')
+      // For other queries, use normal detection
+      structuredResponse = await detectAndStructureResponse(
+        body.message, // Pass original message for limit extraction
+        aiResponse.content,
+        client,
+        targetUserId, // Use targetUserId (may be different user if admin querying)
+        aiResponse.tools_used || [],
+        userId // Pass requesting user ID for permission checks
+      )
+      if (structuredResponse) {
+        console.log('[STRUCTURED] ✅ Structured response generated via detection:', structuredResponse.type)
+      } else {
+        console.log('[STRUCTURED] ⚠️ No structured response generated via detection')
+      }
     }
 
     // Return response in the format expected by the frontend
+    // If we have a structured response, prioritize it over text content
+    // IMPORTANT: If we skipped Claude and have no structured response, something went wrong
+    if (shouldSkipClaude && !structuredResponse) {
+      console.error('[RESPONSE] ❌ ERROR: Skipped Claude for performance query but no structured response generated!', {
+        targetUserId,
+        userId,
+        message: body.message
+      })
+      // Fallback: return error message
+      return new Response(JSON.stringify({
+        response: {
+          type: 'text',
+          content: 'I encountered an error generating the performance report. Please try again.',
+          recommendations: [],
+          structuredResponse: undefined
+        },
+        conversationId,
+        timestamp: new Date().toISOString()
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500
+      })
+    }
+    
+    const responseType = structuredResponse 
+      ? structuredResponse.type 
+      : (aiResponse?.recommendations?.length > 0 ? 'recommendations' : 'text')
+    
+    const responseContent = structuredResponse 
+      ? (structuredResponse.summary || `I've analyzed ${targetUserId !== userId ? 'their' : 'your'} performance data.`)
+      : (aiResponse?.content || '')
+    
     const responsePayload = {
       response: {
-        type: structuredResponse ? structuredResponse.type : (aiResponse.recommendations?.length > 0 ? 'recommendations' : 'text'),
-        content: aiResponse.content,
-        recommendations: aiResponse.recommendations || [],
+        type: responseType,
+        content: responseContent,
+        recommendations: aiResponse?.recommendations || [],
         structuredResponse: structuredResponse || undefined
       },
       conversationId,
       timestamp: new Date().toISOString()
     }
+    
+    // Debug logging
+    console.log('[RESPONSE] 📤 Returning response payload:', {
+      type: responseType,
+      hasStructuredResponse: !!structuredResponse,
+      structuredResponseType: structuredResponse?.type,
+      contentLength: responseContent.length,
+      hasData: !!structuredResponse?.data,
+      summary: structuredResponse?.summary?.substring(0, 100)
+    })
 
     // Log final response payload
     return new Response(JSON.stringify(responsePayload), {
@@ -482,6 +695,397 @@ async function handleDraftEmail(
 }
 
 /**
+ * Handle generate deal email from meeting context
+ */
+async function handleGenerateDealEmail(
+  client: any,
+  req: Request,
+  userId: string
+): Promise<Response> {
+  console.log('[GENERATE-DEAL-EMAIL] Starting email generation', { userId })
+  try {
+    const body = await req.json()
+    console.log('[GENERATE-DEAL-EMAIL] Request body received', { dealId: body.dealId, hasContactId: !!body.contactId, hasCompanyId: !!body.companyId })
+    
+    if (!body.dealId || !isValidUUID(body.dealId)) {
+      console.log('[GENERATE-DEAL-EMAIL] ❌ Invalid dealId', { dealId: body.dealId })
+      return createErrorResponse('Valid dealId is required', 400, 'INVALID_DEAL_ID')
+    }
+
+    // Verify deal belongs to user
+    console.log('[GENERATE-DEAL-EMAIL] Fetching deal', { dealId: body.dealId, userId })
+    const { data: deal, error: dealError } = await client
+      .from('deals')
+      .select(`
+        id,
+        name,
+        value,
+        stage_id,
+        company_id,
+        primary_contact_id,
+        companies:company_id(id, name),
+        contacts:primary_contact_id(id, first_name, last_name, email)
+      `)
+      .eq('id', body.dealId)
+      .eq('owner_id', userId)
+      .single()
+
+    if (dealError || !deal) {
+      console.log('[GENERATE-DEAL-EMAIL] ❌ Deal not found', { dealError, hasDeal: !!deal })
+      return createErrorResponse('Deal not found', 404, 'DEAL_NOT_FOUND')
+    }
+
+    console.log('[GENERATE-DEAL-EMAIL] Deal found', { dealName: deal.name, hasContact: !!deal.contacts, hasCompany: !!deal.companies })
+
+    if (!deal.contacts) {
+      console.log('[GENERATE-DEAL-EMAIL] ❌ No contact associated with deal')
+      return createErrorResponse('No contact associated with this deal', 400, 'NO_CONTACT')
+    }
+
+    const contactEmail = deal.contacts.email
+    console.log('[GENERATE-DEAL-EMAIL] Contact email', { contactEmail, companyId: deal.company_id, contactId: deal.primary_contact_id })
+
+    // First, try to find meeting directly linked to company or contact
+    // Check for meetings with either transcript_text OR summary
+    console.log('[GENERATE-DEAL-EMAIL] Searching for meetings...', { 
+      companyId: deal.company_id, 
+      contactId: deal.primary_contact_id,
+      userId 
+    })
+    let { data: meetings, error: meetingsError } = await client
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        summary,
+        transcript_text,
+        meeting_start,
+        meeting_action_items(id, title, completed)
+      `)
+      .or(`company_id.eq.${deal.company_id},primary_contact_id.eq.${deal.primary_contact_id}`)
+      .or('transcript_text.not.is.null,summary.not.is.null')
+      .eq('owner_user_id', userId) // Add RLS filter
+      .order('meeting_start', { ascending: false })
+      .limit(10)
+    
+    if (meetingsError) {
+      console.log('[GENERATE-DEAL-EMAIL] ❌ Error fetching meetings', { error: meetingsError })
+    } else {
+      console.log('[GENERATE-DEAL-EMAIL] Meetings found', { count: meetings?.length || 0 })
+    }
+    
+    // Filter to find first meeting with transcript_text or summary
+    let lastMeeting = meetings?.find(m => m.transcript_text || m.summary) || null
+    console.log('[GENERATE-DEAL-EMAIL] Last meeting', { hasMeeting: !!lastMeeting, hasTranscript: !!lastMeeting?.transcript_text, hasSummary: !!lastMeeting?.summary })
+
+    // If no meeting found, search by contact email via meeting_attendees
+    if (!lastMeeting && contactEmail) {
+      console.log('[GENERATE-DEAL-EMAIL] Searching via meeting_attendees...', { contactEmail })
+      const { data: attendeesData, error: attendeesError } = await client
+        .from('meeting_attendees')
+        .select(`
+          meeting_id,
+          meetings!inner(
+            id,
+            title,
+            summary,
+            transcript_text,
+            meeting_start,
+            owner_user_id,
+            meeting_action_items(id, title, completed)
+          )
+        `)
+        .eq('email', contactEmail)
+        .eq('meetings.owner_user_id', userId) // Add RLS filter
+        .or('meetings.transcript_text.not.is.null,meetings.summary.not.is.null')
+        .order('meetings.meeting_start', { ascending: false })
+        .limit(10)
+      
+      if (attendeesError) {
+        console.log('[GENERATE-DEAL-EMAIL] ❌ Error fetching attendees', { error: attendeesError })
+      } else {
+        console.log('[GENERATE-DEAL-EMAIL] Attendees found', { count: attendeesData?.length || 0 })
+      }
+      
+      // Filter to find first meeting with transcript_text or summary
+      if (attendeesData && attendeesData.length > 0) {
+        const meetingWithContent = attendeesData.find(a => 
+          a.meetings && (a.meetings.transcript_text || a.meetings.summary)
+        )
+        if (meetingWithContent?.meetings) {
+          lastMeeting = meetingWithContent.meetings
+        }
+      }
+    }
+
+    // If still no meeting, try via meeting_contacts junction table
+    if (!lastMeeting && deal.primary_contact_id) {
+      console.log('[GENERATE-DEAL-EMAIL] Searching via meeting_contacts...', { contactId: deal.primary_contact_id })
+      const { data: meetingContactsData, error: meetingContactsError } = await client
+        .from('meeting_contacts')
+        .select(`
+          meeting_id,
+          meetings!inner(
+            id,
+            title,
+            summary,
+            transcript_text,
+            meeting_start,
+            owner_user_id,
+            meeting_action_items(id, title, completed)
+          )
+        `)
+        .eq('contact_id', deal.primary_contact_id)
+        .eq('meetings.owner_user_id', userId) // Add RLS filter
+        .or('meetings.transcript_text.not.is.null,meetings.summary.not.is.null')
+        .order('meetings.meeting_start', { ascending: false })
+        .limit(10)
+      
+      if (meetingContactsError) {
+        console.log('[GENERATE-DEAL-EMAIL] ❌ Error fetching meeting_contacts', { error: meetingContactsError })
+      } else {
+        console.log('[GENERATE-DEAL-EMAIL] Meeting contacts found', { count: meetingContactsData?.length || 0 })
+      }
+      
+      // Filter to find first meeting with transcript_text or summary
+      if (meetingContactsData && meetingContactsData.length > 0) {
+        const meetingWithContent = meetingContactsData.find(mc =>
+          mc.meetings && (mc.meetings.transcript_text || mc.meetings.summary)
+        )
+        if (meetingWithContent?.meetings) {
+          lastMeeting = meetingWithContent.meetings
+        }
+      }
+    }
+
+    // If still no meeting found, try a broader search - all user meetings with transcript/summary
+    // This is a fallback in case the meeting isn't properly linked to company/contact
+    if (!lastMeeting || (!lastMeeting.transcript_text && !lastMeeting.summary)) {
+      console.log('[GENERATE-DEAL-EMAIL] Trying broader search - all user meetings...')
+      const { data: allMeetings, error: allMeetingsError } = await client
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          summary,
+          transcript_text,
+          meeting_start,
+          meeting_action_items(id, title, completed)
+        `)
+        .eq('owner_user_id', userId)
+        .or('transcript_text.not.is.null,summary.not.is.null')
+        .order('meeting_start', { ascending: false })
+        .limit(20)
+      
+      if (allMeetingsError) {
+        console.log('[GENERATE-DEAL-EMAIL] ❌ Error in broader search', { error: allMeetingsError })
+      } else {
+        console.log('[GENERATE-DEAL-EMAIL] Broader search found', { count: allMeetings?.length || 0 })
+        // Try to find a meeting that might be related (by checking if any attendees match)
+        if (allMeetings && contactEmail) {
+          // Check if any of these meetings have the contact as an attendee
+          for (const meeting of allMeetings) {
+            const { data: attendees } = await client
+              .from('meeting_attendees')
+              .select('email')
+              .eq('meeting_id', meeting.id)
+              .eq('email', contactEmail)
+              .limit(1)
+            
+            if (attendees && attendees.length > 0) {
+              console.log('[GENERATE-DEAL-EMAIL] ✅ Found meeting via attendee match', { meetingId: meeting.id })
+              lastMeeting = meeting
+              break
+            }
+          }
+        }
+        // If still no match, just use the most recent meeting with content
+        if (!lastMeeting && allMeetings && allMeetings.length > 0) {
+          lastMeeting = allMeetings[0]
+          console.log('[GENERATE-DEAL-EMAIL] Using most recent meeting as fallback', { meetingId: lastMeeting.id })
+        }
+      }
+    }
+
+    // If no meeting with transcript or summary found, return error
+    if (!lastMeeting || (!lastMeeting.transcript_text && !lastMeeting.summary)) {
+      console.log('[GENERATE-DEAL-EMAIL] ❌ No meeting with transcript or summary found after all searches')
+      return createErrorResponse(
+        'No meeting with transcript or summary found for this deal. Please ensure a meeting with transcript or summary is linked to the contact or company.',
+        404,
+        'NO_MEETING_TRANSCRIPT'
+      )
+    }
+
+    console.log('[GENERATE-DEAL-EMAIL] ✅ Meeting found, fetching activities...')
+    // Fetch recent activities for the deal
+    const { data: activities, error: activitiesError } = await client
+      .from('activities')
+      .select('id, type, details, date')
+      .eq('deal_id', body.dealId)
+      .eq('user_id', userId) // Add user_id filter for RLS
+      .order('date', { ascending: false })
+      .limit(5)
+    
+    if (activitiesError) {
+      console.log('[GENERATE-DEAL-EMAIL] ⚠️ Error fetching activities', { error: activitiesError })
+    } else {
+      console.log('[GENERATE-DEAL-EMAIL] Activities found', { count: activities?.length || 0 })
+    }
+
+    // Build context for email generation
+    const emailContext = {
+      deal: {
+        name: deal.name,
+        value: deal.value,
+        stage: deal.stage_id
+      },
+      contact: {
+        name: `${deal.contacts.first_name || ''} ${deal.contacts.last_name || ''}`.trim(),
+        email: deal.contacts.email,
+        company: deal.companies?.name || 'their company'
+      },
+      lastMeeting: lastMeeting ? {
+        title: lastMeeting.title,
+        date: lastMeeting.meeting_start,
+        summary: lastMeeting.summary,
+        transcript: lastMeeting.transcript_text || lastMeeting.summary, // Use summary as fallback
+        actionItems: lastMeeting.meeting_action_items?.filter((ai: any) => !ai.completed) || []
+      } : null,
+      recentActivities: activities || []
+    }
+
+    // Generate email using Claude with meeting context
+    console.log('[GENERATE-DEAL-EMAIL] Generating email with Claude...')
+    const emailDraft = await generateDealEmailFromContext(emailContext)
+    console.log('[GENERATE-DEAL-EMAIL] ✅ Email generated successfully', { 
+      hasSubject: !!emailDraft.subject, 
+      hasBody: !!emailDraft.body,
+      bodyLength: emailDraft.body?.length || 0
+    })
+
+    return new Response(JSON.stringify({
+      subject: emailDraft.subject,
+      body: emailDraft.body,
+      suggestedSendTime: emailDraft.suggestedSendTime
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    console.log('[GENERATE-DEAL-EMAIL] ❌ Error in handleGenerateDealEmail', { 
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    })
+    return createErrorResponse('Failed to generate deal email', 500, 'DEAL_EMAIL_ERROR')
+  }
+}
+
+/**
+ * Generate email from deal context including meeting transcripts
+ */
+async function generateDealEmailFromContext(
+  context: any
+): Promise<{ subject: string; body: string; suggestedSendTime: string }> {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY not configured')
+  }
+
+  // Build comprehensive prompt with meeting transcript
+  let meetingContext = ''
+  if (context.lastMeeting) {
+    meetingContext = `Last Meeting Context:
+- Title: ${context.lastMeeting.title}
+- Date: ${new Date(context.lastMeeting.date).toLocaleDateString()}
+${context.lastMeeting.summary ? `- Summary: ${context.lastMeeting.summary}` : ''}
+${context.lastMeeting.transcript ? `- Full Transcript:\n${context.lastMeeting.transcript}` : ''}
+${context.lastMeeting.actionItems?.length > 0 ? `- Pending Action Items:\n${context.lastMeeting.actionItems.map((ai: any) => `  • ${ai.title}`).join('\n')}` : ''}
+`
+  }
+
+  const recentActivityContext = context.recentActivities.length > 0
+    ? `Recent Activity:\n${context.recentActivities.map((a: any) => `- ${a.type}: ${a.notes || 'N/A'} on ${new Date(a.date).toLocaleDateString()}`).join('\n')}\n`
+    : ''
+
+  const prompt = `You are drafting a professional follow-up email to progress a sales deal.
+
+Deal: ${context.deal.name} (${context.deal.value ? `$${context.deal.value}` : 'Value TBD'})
+Contact: ${context.contact.name} at ${context.contact.company}
+Email: ${context.contact.email}
+
+${meetingContext}
+
+${recentActivityContext}
+
+IMPORTANT INSTRUCTIONS:
+1. Use the meeting transcript and action items to understand what was discussed
+2. Reference specific points from the conversation to show you were listening
+3. Address any pending action items from the meeting
+4. Propose next steps to move the deal forward
+5. Be professional but warm and personable
+6. Keep it concise (2-3 paragraphs max)
+7. Focus on value and next steps, not just checking in
+
+Generate a professional email with:
+1. A clear, compelling subject line that references the meeting or next steps
+2. A well-structured email body that references the conversation and proposes concrete next steps
+3. A suggested send time
+
+Return your response as JSON in this exact format:
+{
+  "subject": "Email subject here",
+  "body": "Email body here with proper formatting",
+  "suggestedSendTime": "Suggested send time"
+}`
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': ANTHROPIC_VERSION
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500, // More tokens for transcript analysis
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Claude API error: ${response.status}`)
+  }
+
+  const data = await response.json()
+  const content = data.content[0]?.text || ''
+
+  // Parse JSON from response
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const emailData = JSON.parse(jsonMatch[0])
+      return {
+        subject: emailData.subject || 'Follow-up on our conversation',
+        body: emailData.body || content,
+        suggestedSendTime: emailData.suggestedSendTime || 'Tomorrow 9 AM EST'
+      }
+    }
+  } catch (e) {
+  }
+
+  // Fallback if JSON parsing fails
+  return {
+    subject: 'Follow-up on our conversation',
+    body: content,
+    suggestedSendTime: 'Tomorrow 9 AM EST'
+  }
+}
+
+/**
  * Handle get conversation requests
  */
 async function handleGetConversation(
@@ -556,6 +1160,61 @@ async function buildContext(client: any, userId: string, context?: ChatRequest['
 
     if (deals && deals.length > 0) {
       contextParts.push(`Related deals: ${deals.map(d => `${d.name} (${d.deal_stages?.name || 'Unknown Stage'}, $${d.value})`).join(', ')}`)
+    }
+  }
+
+  // Add task context - this is critical for task-related email generation
+  if (context?.taskId) {
+    const { data: task } = await client
+      .from('tasks')
+      .select(`
+        id,
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        task_type,
+        contact_id,
+        deal_id,
+        company_id,
+        contacts:contact_id(id, first_name, last_name, email),
+        deals:deal_id(id, name),
+        companies:company_id(id, name)
+      `)
+      .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+      .eq('id', context.taskId)
+      .single()
+
+    if (task) {
+      const contactName = task.contacts ? `${task.contacts.first_name || ''} ${task.contacts.last_name || ''}`.trim() : null
+      const contactEmail = task.contacts?.email || null
+      const companyName = task.companies?.name || null
+      const dealName = task.deals?.name || null
+      
+      contextParts.push(`Current task: "${task.title}"`)
+      if (task.description) {
+        contextParts.push(`Task description: ${task.description}`)
+      }
+      if (task.priority) {
+        contextParts.push(`Priority: ${task.priority}`)
+      }
+      if (task.due_date) {
+        const dueDate = new Date(task.due_date)
+        contextParts.push(`Due date: ${dueDate.toLocaleDateString()}`)
+      }
+      if (contactName) {
+        contextParts.push(`Related contact: ${contactName}${contactEmail ? ` (${contactEmail})` : ''}`)
+      }
+      if (companyName) {
+        contextParts.push(`Related company: ${companyName}`)
+      }
+      if (dealName) {
+        contextParts.push(`Related deal: ${dealName}`)
+      }
+      if (task.task_type) {
+        contextParts.push(`Task type: ${task.task_type}`)
+      }
     }
   }
 
@@ -955,16 +1614,16 @@ const AVAILABLE_TOOLS = [
   },
   {
     name: 'tasks_read',
-    description: 'Read tasks with filtering options.',
+    description: 'Read tasks assigned to or created by the user. Use this to view tasks, check task status, find tasks by contact or deal, or list tasks with specific filters like status or priority.',
     input_schema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Task ID (for single task)' },
         status: { type: 'string', enum: ['todo', 'in_progress', 'completed', 'cancelled'], description: 'Filter by status' },
         priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Filter by priority' },
-        contact_id: { type: 'string', description: 'Filter by contact' },
-        deal_id: { type: 'string', description: 'Filter by deal' },
-        limit: { type: 'number', default: 50 }
+        contact_id: { type: 'string', description: 'Filter by contact ID' },
+        deal_id: { type: 'string', description: 'Filter by deal ID' },
+        limit: { type: 'number', default: 50, description: 'Maximum number of tasks to return' }
       }
     }
   },
@@ -1027,6 +1686,13 @@ async function callClaudeAPI(
       content: `You are an AI sales assistant helping a sales professional manage their pipeline, contacts, and deals.
 
 ${context ? `Context:\n${context}\n` : ''}
+
+IMPORTANT: If the context includes a "Current task", use ALL the task information (title, description, related contact, company, deal, due date, priority) when helping the user. For example:
+- If the user asks to "write an email" and there's a task context, use the task's contact information, description, and details to craft a relevant email
+- If the task mentions a specific person (like "Jean Marc" or "Jean-Marc"), use the contact information from the task
+- Use the task description and context to understand what the email should be about
+- Reference the task's due date and priority when relevant
+- If the task has a description that mentions scheduling a meeting or review, use that information to draft the email
 
 You have access to CRUD (Create, Read, Update, Delete) operations for all major entities in the sales dashboard:
 
@@ -1987,7 +2653,8 @@ async function handleTasksCRUD(operation: string, args: any, client: any, userId
       let query = client
         .from('tasks')
         .select('*')
-        .eq('assigned_to', userId)
+        // Include tasks assigned to user OR created by user
+        .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
 
       if (id) {
         query = query.eq('id', id).single()
@@ -2009,11 +2676,25 @@ async function handleTasksCRUD(operation: string, args: any, client: any, userId
     case 'update': {
       const { id, ...updates } = args
       
+      // First check if task exists and user has permission (assigned to or created by)
+      const { data: existingTask, error: checkError } = await client
+        .from('tasks')
+        .select('id, assigned_to, created_by')
+        .eq('id', id)
+        .single()
+
+      if (checkError || !existingTask) {
+        throw new Error(`Task not found: ${id}`)
+      }
+
+      if (existingTask.assigned_to !== userId && existingTask.created_by !== userId) {
+        throw new Error('You do not have permission to update this task')
+      }
+      
       const { data, error } = await client
         .from('tasks')
         .update(updates)
         .eq('id', id)
-        .eq('assigned_to', userId)
         .select()
         .single()
 
@@ -2025,11 +2706,25 @@ async function handleTasksCRUD(operation: string, args: any, client: any, userId
     case 'delete': {
       const { id } = args
       
+      // First check if task exists and user has permission (assigned to or created by)
+      const { data: existingTask, error: checkError } = await client
+        .from('tasks')
+        .select('id, assigned_to, created_by')
+        .eq('id', id)
+        .single()
+
+      if (checkError || !existingTask) {
+        throw new Error(`Task not found: ${id}`)
+      }
+
+      if (existingTask.assigned_to !== userId && existingTask.created_by !== userId) {
+        throw new Error('You do not have permission to delete this task')
+      }
+      
       const { error } = await client
         .from('tasks')
         .delete()
         .eq('id', id)
-        .eq('assigned_to', userId)
 
       if (error) throw new Error(`Failed to delete task: ${error.message}`)
 
@@ -2189,29 +2884,130 @@ Return your response as JSON in this exact format:
 }
 
 /**
+ * Extract user ID from message by matching names
+ * Looks for patterns like "Phil's performance", "show me John's", etc.
+ */
+async function extractUserIdFromMessage(
+  message: string,
+  client: any,
+  requestingUserId: string
+): Promise<string | null> {
+  try {
+    console.log('[EXTRACT-USER] Starting user extraction from message:', message.substring(0, 100))
+    
+    // Patterns to match: "Phil's performance", "show me John's", "how is Mike doing", etc.
+    // More flexible patterns to catch various phrasings
+    const namePatterns = [
+      /(?:can you show|show me|how is|what is|tell me about|view|see|i'd like to see)\s+([A-Z][a-z]+)(?:'s|'|s)?\s+(?:performance|doing|performing|stats|data|results|sales|this week|this month)/i,
+      /([A-Z][a-z]+)(?:'s|'|s)?\s+(?:performance|doing|performing|stats|data|results|sales|this week|this month)/i,
+      /(?:for|about)\s+([A-Z][a-z]+)(?:\s|$)/i,
+      /([A-Z][a-z]+)(?:'s|'|s)?\s+(?:performance|doing|performing|sales)/i,
+      // Match "Phil's sales performance" or "Phil's performance this week"
+      /([A-Z][a-z]+)(?:'s|'|s)?\s+(?:sales\s+)?performance/i
+    ]
+    
+    let extractedName: string | null = null
+    
+    for (let i = 0; i < namePatterns.length; i++) {
+      const pattern = namePatterns[i]
+      const match = message.match(pattern)
+      if (match && match[1]) {
+        extractedName = match[1].trim()
+        console.log('[EXTRACT-USER] ✅ Name extracted via pattern', i + 1, ':', extractedName)
+        break
+      }
+    }
+    
+    if (!extractedName) {
+      console.log('[EXTRACT-USER] ❌ No name extracted from message')
+      return null
+    }
+    
+    // Search for user by first name or last name
+    console.log('[EXTRACT-USER] Searching for user with name:', extractedName)
+    const { data: users, error } = await client
+      .from('profiles')
+      .select('id, first_name, last_name, email')
+      .or(`first_name.ilike.%${extractedName}%,last_name.ilike.%${extractedName}%`)
+      .limit(10)
+    
+    if (error) {
+      console.error('[EXTRACT-USER] ❌ Database error:', error)
+      return null
+    }
+    
+    if (!users || users.length === 0) {
+      console.log('[EXTRACT-USER] ❌ No users found matching name:', extractedName)
+      return null
+    }
+    
+    console.log('[EXTRACT-USER] Found', users.length, 'potential matches:', users.map(u => ({
+      id: u.id,
+      name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+    })))
+    
+    // Exact match preferred, then partial match
+    const exactMatch = users.find(u => 
+      u.first_name?.toLowerCase() === extractedName.toLowerCase() ||
+      u.last_name?.toLowerCase() === extractedName.toLowerCase()
+    )
+    
+    if (exactMatch) {
+      console.log('[EXTRACT-USER] ✅ Exact match found:', exactMatch.id, `${exactMatch.first_name} ${exactMatch.last_name}`)
+      return exactMatch.id
+    }
+    
+    // Return first match if only one
+    if (users.length === 1) {
+      console.log('[EXTRACT-USER] ✅ Single match found:', users[0].id)
+      return users[0].id
+    }
+    
+    // If multiple matches, try to find best match by checking full name
+    const bestMatch = users.find(u => {
+      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim().toLowerCase()
+      return fullName.includes(extractedName.toLowerCase())
+    })
+    
+    const selectedId = bestMatch?.id || users[0].id
+    console.log('[EXTRACT-USER] ✅ Selected user ID:', selectedId, 'from', users.length, 'matches')
+    return selectedId
+  } catch (error) {
+    console.error('[EXTRACT-USER] ❌ Exception during user extraction:', error)
+    return null
+  }
+}
+
+/**
  * Detect intent from user message and structure response accordingly
  */
 async function detectAndStructureResponse(
   userMessage: string,
   aiContent: string,
   client: any,
-  userId: string
+  userId: string,
+  toolsUsed: string[] = [],
+  requestingUserId?: string // Admin user making the request
 ): Promise<any | null> {
   const messageLower = userMessage.toLowerCase()
   
+  // Store original message for limit extraction
+  const originalMessage = userMessage
+  
   // Detect pipeline-related queries
+  // Note: General "prioritize" questions are handled by task detection first
   const isPipelineQuery = 
     messageLower.includes('pipeline') ||
     messageLower.includes('deal') ||
     messageLower.includes('deals') ||
-    messageLower.includes('what should i prioritize') ||
+    (messageLower.includes('what should i prioritize') && (messageLower.includes('pipeline') || messageLower.includes('deal'))) ||
     messageLower.includes('needs attention') ||
     messageLower.includes('at risk') ||
     messageLower.includes('pipeline health') ||
     (messageLower.includes('show me my') && (messageLower.includes('deal') || messageLower.includes('pipeline')))
   
   if (isPipelineQuery) {
-    const structured = await structurePipelineResponse(client, userId, aiContent)
+    const structured = await structurePipelineResponse(client, userId, aiContent, userMessage)
     return structured
   }
   
@@ -2238,12 +3034,47 @@ async function detectAndStructureResponse(
     return null
   }
   
-  // Detect activity queries
+  // Detect task queries - more comprehensive detection
+  const taskKeywords = [
+    'task', 'tasks', 'todo', 'to-do', 'to do',
+    'high priority task', 'priority task', 'urgent task',
+    'my task', 'my tasks', 'list task', 'list tasks',
+    'show task', 'show tasks', 'what task', 'what tasks',
+    'due today', 'overdue', 'pending task', 'completed task',
+    'task list', 'task summary', 'task overview'
+  ]
+  
+  const hasTaskKeyword = taskKeywords.some(keyword => messageLower.includes(keyword))
+  
+  // Also check for task-related phrases
+  // General "prioritize" questions default to tasks (more actionable day-to-day)
+  const taskPhrases = [
+    (messageLower.includes('list') && (messageLower.includes('task') || messageLower.includes('priority') || messageLower.includes('todo'))),
+    (messageLower.includes('show') && (messageLower.includes('task') || messageLower.includes('my task') || messageLower.includes('priority'))),
+    (messageLower.includes('what') && (messageLower.includes('task') || messageLower.includes('todo'))),
+    (messageLower.includes('high priority') && (messageLower.includes('task') || messageLower.includes('show') || messageLower.includes('list'))),
+    (messageLower.includes('urgent') && (messageLower.includes('task') || messageLower.includes('todo'))),
+    messageLower.includes('due today'),
+    messageLower.includes('overdue task'),
+    messageLower.includes('task backlog'),
+    // General prioritize questions default to tasks
+    messageLower.includes('what should i prioritize'),
+    messageLower.includes('prioritize today'),
+    messageLower.includes('what to prioritize')
+  ]
+  
+  const hasTaskPhrase = taskPhrases.some(phrase => phrase === true)
+  
+  if (hasTaskKeyword || hasTaskPhrase) {
+    const structured = await structureTaskResponse(client, userId, aiContent, userMessage)
+    return structured
+  }
+  
+  // Detect activity queries (non-task activities)
   if (
-    messageLower.includes('task') ||
     messageLower.includes('activity') ||
-    messageLower.includes('follow-up') ||
-    messageLower.includes('due')
+    messageLower.includes('activities') ||
+    (messageLower.includes('follow-up') && !messageLower.includes('task'))
   ) {
     // Activity responses would be structured here
     return null
@@ -2259,7 +3090,408 @@ async function detectAndStructureResponse(
     return null
   }
   
+  // Detect contact/email queries - check for email addresses or contact lookups
+  const emailPattern = /[\w\.-]+@[\w\.-]+\.\w+/
+  const hasEmail = emailPattern.test(userMessage)
+  const contactKeywords = ['contact', 'person', 'about', 'info on', 'tell me about', 'show me', 'lookup', 'find']
+  const hasContactKeyword = contactKeywords.some(keyword => messageLower.includes(keyword))
+  
+  if (hasEmail || (hasContactKeyword && (messageLower.includes('@') || messageLower.includes('email')))) {
+    // Extract email from message if present
+    const emailMatch = userMessage.match(emailPattern)
+    const contactEmail = emailMatch ? emailMatch[0] : null
+    
+    const structured = await structureContactResponse(client, userId, aiContent, contactEmail, userMessage)
+    return structured
+  }
+  
+  // Detect roadmap creation queries
+  if (
+    messageLower.includes('roadmap') ||
+    messageLower.includes('add a roadmap') ||
+    messageLower.includes('create roadmap') ||
+    messageLower.includes('roadmap item') ||
+    toolsUsed.includes('roadmap_create')
+  ) {
+    const structured = await structureRoadmapResponse(client, userId, aiContent, userMessage)
+    return structured
+  }
+  
+  // Detect sales coach/performance queries
+  // Check for performance-related keywords OR user name patterns with performance context
+  const hasPerformanceKeyword = 
+    messageLower.includes('performance') ||
+    messageLower.includes('how am i doing') ||
+    messageLower.includes('how is my performance') ||
+    messageLower.includes('sales coach') ||
+    (messageLower.includes('compare') && (messageLower.includes('month') || messageLower.includes('period'))) ||
+    (messageLower.includes('this month') && messageLower.includes('last month')) ||
+    (messageLower.includes('this week') && (messageLower.includes('performance') || messageLower.includes('doing') || messageLower.includes('stats') || messageLower.includes('sales')))
+  
+  // Check for user name + performance pattern (e.g., "Phil's performance", "show me John's stats")
+  // More flexible patterns to catch "Can you show me Phil's performance this week"
+  const userNamePerformancePatterns = [
+    /([A-Z][a-z]+)(?:'s|'|s)?\s+(?:performance|doing|performing|stats|data|results|sales)(?:\s+this\s+(?:week|month))?/i,
+    /(?:can you show|show me|how is|what is|tell me about|view|see|i'd like to see)\s+([A-Z][a-z]+)(?:'s|'|s)?\s+(?:performance|doing|performing|stats|data|results|sales)(?:\s+this\s+(?:week|month))?/i,
+    /([A-Z][a-z]+)(?:'s|'|s)?\s+(?:sales\s+)?performance(?:\s+this\s+(?:week|month))?/i
+  ]
+  
+  const hasUserNamePerformancePattern = userNamePerformancePatterns.some(pattern => pattern.test(userMessage))
+  
+  if (hasPerformanceKeyword || hasUserNamePerformancePattern) {
+    const structured = await structureSalesCoachResponse(client, userId, aiContent, userMessage, requestingUserId)
+    return structured
+  }
+  
   return null
+}
+
+/**
+ * Structure contact response with all connections
+ */
+async function structureContactResponse(
+  client: any,
+  userId: string,
+  aiContent: string,
+  contactEmail: string | null,
+  userMessage: string
+): Promise<any> {
+  try {
+    // Find contact by email or name
+    let contact = null
+    
+    if (contactEmail) {
+      const { data: contactByEmail } = await client
+        .from('contacts')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          full_name,
+          email,
+          phone,
+          title,
+          company_id,
+          companies:company_id(id, name)
+        `)
+        .eq('email', contactEmail)
+        .eq('user_id', userId)
+        .maybeSingle()
+      
+      contact = contactByEmail
+    }
+    
+    // If no contact found by email, try searching by name
+    if (!contact) {
+      const nameMatch = userMessage.match(/(?:about|info on|tell me about|show me|find|lookup)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i)
+      if (nameMatch) {
+        const nameParts = nameMatch[1].split(' ')
+        const firstName = nameParts[0]
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null
+        
+        let query = client
+          .from('contacts')
+          .select(`
+            id,
+            first_name,
+            last_name,
+            full_name,
+            email,
+            phone,
+            title,
+            company_id,
+            companies:company_id(id, name)
+          `)
+          .eq('first_name', firstName)
+          .eq('user_id', userId)
+        
+        if (lastName) {
+          query = query.eq('last_name', lastName)
+        }
+        
+        const { data: contactByName } = await query.maybeSingle()
+        contact = contactByName
+      }
+    }
+    
+    if (!contact) {
+      return null // Let AI handle it as text response
+    }
+    
+    const contactId = contact.id
+    
+    // Fetch all related data in parallel
+    const [
+      emailsResult,
+      dealsResult,
+      activitiesResult,
+      meetingsResult,
+      tasksResult
+    ] = await Promise.allSettled([
+      // Fetch recent emails - try Gmail integration first, fallback to activities
+      (async () => {
+        // Check if Gmail integration exists
+        const { data: gmailIntegration } = await client
+          .from('user_integrations')
+          .select('id, access_token')
+          .eq('user_id', userId)
+          .eq('service', 'gmail')
+          .eq('status', 'active')
+          .maybeSingle()
+        
+        if (gmailIntegration && contact.email) {
+          try {
+            // Fetch emails from Gmail API
+            const gmailResponse = await fetch(
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:${contact.email} OR to:${contact.email}&maxResults=10`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${gmailIntegration.access_token}`
+                }
+              }
+            )
+            
+            if (gmailResponse.ok) {
+              const gmailData = await gmailResponse.json()
+              const messages = gmailData.messages || []
+              
+              // Fetch full message details for each
+              const emailDetails = await Promise.all(
+                messages.slice(0, 5).map(async (msg: any) => {
+                  try {
+                    const msgRes = await fetch(
+                      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+                      {
+                        headers: {
+                          'Authorization': `Bearer ${gmailIntegration.access_token}`
+                        }
+                      }
+                    )
+                    if (!msgRes.ok) return null
+                    const msgData = await msgRes.json()
+                    
+                    const headers = msgData.payload?.headers || []
+                    const fromHeader = headers.find((h: any) => h.name === 'From')
+                    const subjectHeader = headers.find((h: any) => h.name === 'Subject')
+                    const dateHeader = headers.find((h: any) => h.name === 'Date')
+                    
+                    const snippet = msgData.snippet || ''
+                    const direction = fromHeader?.value?.toLowerCase().includes(contact.email.toLowerCase()) ? 'sent' : 'received'
+                    
+                    return {
+                      id: msg.id,
+                      type: 'email',
+                      notes: subjectHeader?.value || 'No subject',
+                      date: dateHeader?.value ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
+                      created_at: dateHeader?.value ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
+                      snippet: snippet.substring(0, 200),
+                      subject: subjectHeader?.value || 'No subject',
+                      direction
+                    }
+                  } catch {
+                    return null
+                  }
+                })
+              )
+              
+              return { data: emailDetails.filter(Boolean), error: null }
+            }
+          } catch (error) {
+            // Fallback to activities
+          }
+        }
+        
+        // Fallback: use activities that are emails
+        return await client
+          .from('activities')
+          .select('id, type, notes, date, created_at')
+          .eq('contact_id', contactId)
+          .eq('type', 'email')
+          .order('date', { ascending: false })
+          .limit(10)
+      })(),
+      
+      // Fetch deals
+      client
+        .from('deals')
+        .select(`
+          id,
+          name,
+          value,
+          stage_id,
+          probability,
+          expected_close_date,
+          deal_stages:stage_id(name)
+        `)
+        .or(`primary_contact_id.eq.${contactId},contact_email.eq.${contact.email}`)
+        .eq('owner_id', userId)
+        .order('created_at', { ascending: false }),
+      
+      // Fetch activities
+      client
+        .from('activities')
+        .select('id, type, notes, date')
+        .eq('contact_id', contactId)
+        .order('date', { ascending: false })
+        .limit(10),
+      
+      // Fetch meetings
+      client
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          summary,
+          meeting_start,
+          transcript_text
+        `)
+        .or(`primary_contact_id.eq.${contactId},company_id.eq.${contact.company_id}`)
+        .eq('owner_user_id', userId)
+        .order('meeting_start', { ascending: false })
+        .limit(10),
+      
+      // Fetch tasks
+      client
+        .from('tasks')
+        .select('id, title, status, priority, due_date')
+        .eq('contact_id', contactId)
+        .in('status', ['todo', 'in_progress'])
+        .order('due_date', { ascending: true })
+        .limit(10)
+    ])
+    
+    const emails = emailsResult.status === 'fulfilled' ? emailsResult.value.data || [] : []
+    const deals = dealsResult.status === 'fulfilled' ? dealsResult.value.data || [] : []
+    const activities = activitiesResult.status === 'fulfilled' ? activitiesResult.value.data || [] : []
+    const meetings = meetingsResult.status === 'fulfilled' ? meetingsResult.value.data || [] : []
+    const tasks = tasksResult.status === 'fulfilled' ? tasksResult.value.data || [] : []
+    
+    // Format emails
+    const emailSummaries = emails.slice(0, 5).map((email: any) => ({
+      id: email.id,
+      subject: email.subject || email.notes?.substring(0, 50) || 'Email',
+      summary: email.snippet || email.notes?.substring(0, 200) || '',
+      date: email.date || email.created_at,
+      direction: email.direction || 'sent',
+      snippet: email.snippet || email.notes?.substring(0, 100)
+    }))
+    
+    // Format deals
+    const formattedDeals = deals.map((deal: any) => {
+      // Calculate health score (simplified)
+      const daysSinceUpdate = deal.updated_at 
+        ? Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / (1000 * 60 * 60 * 24))
+        : 30
+      const healthScore = Math.max(0, 100 - (daysSinceUpdate * 2) - (100 - deal.probability))
+      
+      return {
+        id: deal.id,
+        name: deal.name,
+        value: deal.value || 0,
+        stage: deal.deal_stages?.name || 'Unknown',
+        probability: deal.probability || 0,
+        closeDate: deal.expected_close_date,
+        healthScore: Math.round(healthScore)
+      }
+    })
+    
+    // Format activities
+    const formattedActivities = activities.slice(0, 10).map((activity: any) => ({
+      id: activity.id,
+      type: activity.type,
+      notes: activity.notes,
+      date: activity.date
+    }))
+    
+    // Format meetings
+    const formattedMeetings = meetings.map((meeting: any) => ({
+      id: meeting.id,
+      title: meeting.title || 'Meeting',
+      date: meeting.meeting_start,
+      summary: meeting.summary,
+      hasTranscript: !!meeting.transcript_text
+    }))
+    
+    // Format tasks
+    const formattedTasks = tasks.map((task: any) => ({
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.due_date
+    }))
+    
+    // Calculate metrics
+    const activeDeals = formattedDeals.filter((d: any) => d.probability > 0 && d.probability < 100)
+    const totalDealValue = formattedDeals.reduce((sum: number, d: any) => sum + (d.value || 0), 0)
+    const upcomingMeetings = formattedMeetings.filter((m: any) => {
+      const meetingDate = new Date(m.date)
+      return meetingDate >= new Date()
+    })
+    
+    const metrics = {
+      totalDeals: formattedDeals.length,
+      totalDealValue,
+      activeDeals: activeDeals.length,
+      recentEmails: emailSummaries.length,
+      upcomingMeetings: upcomingMeetings.length,
+      pendingTasks: formattedTasks.length
+    }
+    
+    // Generate summary
+    const summary = `Here's everything I found about ${contact.full_name || contact.first_name || contact.email}:`
+    
+    // Generate actions
+    const actions = []
+    if (formattedDeals.length > 0) {
+      actions.push({
+        id: 'view-deals',
+        label: `View ${formattedDeals.length} Deal${formattedDeals.length > 1 ? 's' : ''}`,
+        type: 'primary' as const,
+        icon: 'briefcase',
+        callback: `/crm/contacts/${contactId}`
+      })
+    }
+    if (formattedTasks.length > 0) {
+      actions.push({
+        id: 'view-tasks',
+        label: `View ${formattedTasks.length} Task${formattedTasks.length > 1 ? 's' : ''}`,
+        type: 'secondary' as const,
+        icon: 'check-circle',
+        callback: `/crm/tasks?contact=${contactId}`
+      })
+    }
+    
+    return {
+      type: 'contact',
+      summary,
+      data: {
+        contact: {
+          id: contact.id,
+          name: contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.email,
+          email: contact.email,
+          phone: contact.phone,
+          title: contact.title,
+          company: contact.companies?.name,
+          companyId: contact.company_id
+        },
+        emails: emailSummaries,
+        deals: formattedDeals,
+        activities: formattedActivities,
+        meetings: formattedMeetings,
+        tasks: formattedTasks,
+        metrics
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['contacts', 'deals', 'activities', 'meetings', 'tasks'],
+        confidence: 90
+      }
+    }
+  } catch (error) {
+    return null
+  }
 }
 
 /**
@@ -2268,7 +3500,8 @@ async function detectAndStructureResponse(
 async function structurePipelineResponse(
   client: any,
   userId: string,
-  aiContent: string
+  aiContent: string,
+  userMessage?: string
 ): Promise<any> {
   try {
     // Fetch all active deals
@@ -2455,6 +3688,31 @@ async function structurePipelineResponse(
       })
     }
 
+    // Check if user asked for a specific number - if not, show stats first
+    // Extract number from user message (e.g., "show me 5 deals" -> 5)
+    let requestedNumber: number | null = null;
+    if (userMessage) {
+      const numberPatterns = [
+        /(?:show|list|get|find|display)\s+(?:me\s+)?(\d+)\s+(?:deal|deals)/i,
+        /(\d+)\s+(?:deal|deals|high\s+priority)/i,
+        /(?:first|top)\s+(\d+)/i
+      ];
+      
+      for (const pattern of numberPatterns) {
+        const match = userMessage.match(pattern);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (num > 0 && num <= 100) {
+            requestedNumber = num;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Show stats first if no specific number requested and there are many deals
+    const showStatsFirst = !requestedNumber && (criticalDeals.length + highPriorityDeals.length) > 10;
+
     return {
       type: 'pipeline',
       summary,
@@ -2469,7 +3727,8 @@ async function structurePipelineResponse(
           avgHealthScore,
           dealsAtRisk,
           closingThisWeek
-        }
+        },
+        showStatsFirst
       },
       actions,
       metadata: {
@@ -2481,6 +3740,797 @@ async function structurePipelineResponse(
   } catch (error) {
     return null
   }
+}
+
+/**
+ * Extract number from user message (e.g., "show me 3 tasks" -> 3)
+ */
+function extractTaskLimit(message: string): number | null {
+  const numberPatterns = [
+    /(?:show|list|get|find|display)\s+(?:me\s+)?(\d+)\s+(?:task|todo)/i,
+    /(\d+)\s+(?:task|todo|high\s+priority\s+task)/i,
+    /(?:first|top)\s+(\d+)/i
+  ];
+  
+  for (const pattern of numberPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      const num = parseInt(match[1], 10);
+      if (num > 0 && num <= 100) { // Reasonable limit
+        return num;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Structure task response from tasks data
+ */
+async function structureTaskResponse(
+  client: any,
+  userId: string,
+  aiContent: string,
+  userMessage?: string
+): Promise<any> {
+  // Store original message for summary enhancement
+  const originalMessage = userMessage
+  try {
+    // Extract requested limit from user message
+    const requestedLimit = userMessage ? extractTaskLimit(userMessage) : null;
+    const limitPerCategory = requestedLimit || 5; // Default to 5 if no specific number requested
+    // Fetch tasks assigned to or created by user
+    const { data: tasks, error } = await client
+      .from('tasks')
+      .select(`
+        id,
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        task_type,
+        created_at,
+        updated_at,
+        contact_id,
+        deal_id,
+        company_id,
+        contacts:contact_id(id, first_name, last_name),
+        deals:deal_id(id, name),
+        companies:company_id(id, name)
+      `)
+      .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
+      .order('priority', { ascending: false })
+      .order('due_date', { ascending: true })
+
+    if (error) {
+      return null
+    }
+    
+    if (!tasks || tasks.length === 0) {
+      return null
+    }
+
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    
+    const urgentTasks: any[] = []
+    const highPriorityTasks: any[] = []
+    const dueToday: any[] = []
+    const overdue: any[] = []
+    const upcoming: any[] = []
+    const completed: any[] = []
+
+    let totalTasks = tasks.length
+    let urgentCount = 0
+    let highPriorityCount = 0
+    let dueTodayCount = 0
+    let overdueCount = 0
+    let completedToday = 0
+
+    for (const task of tasks) {
+      // Skip completed tasks unless specifically requested
+      if (task.status === 'completed') {
+        const completedDate = new Date(task.updated_at)
+        if (completedDate >= today) {
+          completedToday++
+          completed.push({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            dueDate: task.due_date,
+            isOverdue: false,
+            taskType: task.task_type || 'general',
+            contactId: task.contact_id,
+            contactName: task.contacts ? `${task.contacts.first_name || ''} ${task.contacts.last_name || ''}`.trim() : undefined,
+            dealId: task.deal_id,
+            dealName: task.deals?.name,
+            companyId: task.company_id,
+            companyName: task.companies?.name,
+            createdAt: task.created_at,
+            updatedAt: task.updated_at
+          })
+        }
+        continue
+      }
+
+      // Calculate days until due
+      let daysUntilDue: number | undefined
+      let isOverdue = false
+      if (task.due_date) {
+        const dueDate = new Date(task.due_date)
+        const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+        daysUntilDue = Math.floor((dueDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        isOverdue = daysUntilDue < 0
+      }
+
+      const taskItem = {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.due_date,
+        daysUntilDue,
+        isOverdue,
+        taskType: task.task_type || 'general',
+        contactId: task.contact_id,
+        contactName: task.contacts ? `${task.contacts.first_name || ''} ${task.contacts.last_name || ''}`.trim() : undefined,
+        dealId: task.deal_id,
+        dealName: task.deals?.name,
+        companyId: task.company_id,
+        companyName: task.companies?.name,
+        createdAt: task.created_at,
+        updatedAt: task.updated_at
+      }
+
+      // Count metrics first
+      if (task.priority === 'urgent') urgentCount++
+      if (task.priority === 'high') highPriorityCount++
+
+      // Categorize tasks (overdue takes precedence)
+      if (isOverdue) {
+        overdue.push(taskItem)
+        overdueCount++
+      } else if (daysUntilDue === 0) {
+        dueToday.push(taskItem)
+        dueTodayCount++
+      } else if (task.priority === 'urgent') {
+        urgentTasks.push(taskItem)
+      } else if (task.priority === 'high') {
+        highPriorityTasks.push(taskItem)
+      } else if (daysUntilDue !== undefined && daysUntilDue > 0 && daysUntilDue <= 7) {
+        upcoming.push(taskItem)
+      }
+    }
+
+    // Calculate completion rate
+    const activeTasks = tasks.filter(t => t.status !== 'completed').length
+    const completionRate = totalTasks > 0 ? Math.round((completedToday / totalTasks) * 100) : 0
+
+    // Generate summary - for general prioritize questions, mention both tasks and pipeline
+    let summary = `I've analyzed your tasks. Here's what needs your attention:`
+    
+    // If this is a general "prioritize" question, enhance the summary
+    if (originalMessage && (
+      originalMessage.toLowerCase().includes('what should i prioritize') ||
+      originalMessage.toLowerCase().includes('prioritize today')
+    )) {
+      summary = `I've analyzed your tasks for today. Here's what needs your immediate attention. You may also want to check your pipeline for deals that need follow-up.`
+    }
+
+    // Generate actions
+    const actions = []
+    if (overdue.length > 0) {
+      actions.push({
+        id: 'focus-overdue',
+        label: `Focus on ${overdue.length} Overdue Task${overdue.length > 1 ? 's' : ''}`,
+        type: 'primary',
+        icon: 'alert-circle',
+        callback: '/crm/tasks?filter=overdue'
+      })
+    }
+    
+    if (dueToday.length > 0) {
+      actions.push({
+        id: 'view-due-today',
+        label: `View ${dueToday.length} Due Today`,
+        type: 'secondary',
+        icon: 'calendar',
+        callback: '/crm/tasks?filter=due_today'
+      })
+    }
+
+    if (urgentTasks.length > 0) {
+      actions.push({
+        id: 'view-urgent',
+        label: `View ${urgentTasks.length} Urgent Task${urgentTasks.length > 1 ? 's' : ''}`,
+        type: 'secondary',
+        icon: 'flag',
+        callback: '/crm/tasks?filter=urgent'
+      })
+    }
+
+    // Use the limit extracted from user message or default
+    // If user asked for a specific number, prioritize showing that many total across all categories
+    // Otherwise, show up to limitPerCategory per category
+    
+    let urgentLimit = limitPerCategory;
+    let highPriorityLimit = limitPerCategory;
+    let dueTodayLimit = limitPerCategory;
+    let overdueLimit = limitPerCategory;
+    let upcomingLimit = limitPerCategory;
+    
+    // If user specified a number, distribute it intelligently
+    if (requestedLimit) {
+      // Prioritize: overdue > due today > urgent > high priority > upcoming
+      const totalRequested = requestedLimit;
+      overdueLimit = Math.min(overdue.length, Math.max(1, Math.ceil(totalRequested * 0.3)));
+      dueTodayLimit = Math.min(dueToday.length, Math.max(1, Math.ceil(totalRequested * 0.25)));
+      urgentLimit = Math.min(urgentTasks.length, Math.max(1, Math.ceil(totalRequested * 0.2)));
+      highPriorityLimit = Math.min(highPriorityTasks.length, Math.max(1, Math.ceil(totalRequested * 0.15)));
+      const remaining = totalRequested - overdueLimit - dueTodayLimit - urgentLimit - highPriorityLimit;
+      upcomingLimit = Math.max(0, Math.min(upcoming.length, remaining));
+      
+      // Ensure we don't exceed the requested total
+      const currentTotal = overdueLimit + dueTodayLimit + urgentLimit + highPriorityLimit + upcomingLimit;
+      if (currentTotal > totalRequested) {
+        // Reduce from least priority category
+        const excess = currentTotal - totalRequested;
+        upcomingLimit = Math.max(0, upcomingLimit - excess);
+      }
+    }
+    
+    // Show stats first if no specific number requested and there are many tasks
+    const showStatsFirst = !requestedLimit && (urgentTasks.length + highPriorityTasks.length + overdue.length + dueToday.length) > 10;
+
+    return {
+      type: 'task',
+      summary,
+      data: {
+        urgentTasks: urgentTasks.slice(0, urgentLimit),
+        highPriorityTasks: highPriorityTasks.slice(0, highPriorityLimit),
+        dueToday: dueToday.slice(0, dueTodayLimit),
+        overdue: overdue.slice(0, overdueLimit),
+        upcoming: upcoming.slice(0, upcomingLimit),
+        completed: completed.slice(0, 3), // Show fewer completed
+        showStatsFirst,
+        metrics: {
+          totalTasks,
+          urgentCount,
+          highPriorityCount,
+          dueTodayCount,
+          overdueCount,
+          completedToday,
+          completionRate
+        }
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['tasks', 'contacts', 'deals', 'companies'],
+        confidence: 90
+      }
+    }
+  } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Structure roadmap response from roadmap creation
+ */
+async function structureRoadmapResponse(
+  client: any,
+  userId: string,
+  aiContent: string,
+  userMessage: string
+): Promise<any | null> {
+  try {
+    // Try to extract roadmap item from AI content (tool result may be in the content)
+    // Look for JSON in the content that matches roadmap item structure
+    let roadmapItem = null
+    
+    // Try to parse roadmap item from AI content
+    try {
+      // Look for JSON objects in the content
+      const jsonMatch = aiContent.match(/\{[\s\S]*"roadmapItem"[\s\S]*\}/)
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0])
+        if (parsed.roadmapItem) {
+          roadmapItem = parsed.roadmapItem
+        } else if (parsed.success && parsed.roadmapItem) {
+          roadmapItem = parsed.roadmapItem
+        }
+      }
+    } catch (e) {
+      // JSON parsing failed, continue to fetch from DB
+    }
+    
+    // If not found in content, fetch the most recent roadmap item created by user
+    if (!roadmapItem) {
+      const { data: recentItems, error } = await client
+        .from('roadmap_suggestions')
+        .select('*')
+        .eq('submitted_by', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      
+      if (error || !recentItems || recentItems.length === 0) {
+        return null
+      }
+      
+      roadmapItem = recentItems[0]
+    }
+    
+    if (!roadmapItem) {
+      return null
+    }
+    
+    // Extract title from user message if available
+    const titleMatch = userMessage.match(/roadmap item for:\s*(.+)/i) || 
+                      userMessage.match(/add.*roadmap.*for:\s*(.+)/i) ||
+                      userMessage.match(/create.*roadmap.*for:\s*(.+)/i)
+    
+    const summary = titleMatch 
+      ? `I'll create a roadmap item for: ${titleMatch[1].trim()}`
+      : `I've successfully created a roadmap item.`
+    
+    return {
+      type: 'roadmap',
+      summary: summary || 'Roadmap item created successfully',
+      data: {
+        roadmapItem: {
+          id: roadmapItem.id,
+          ticket_id: roadmapItem.ticket_id || null,
+          title: roadmapItem.title,
+          description: roadmapItem.description || null,
+          type: roadmapItem.type || 'feature',
+          priority: roadmapItem.priority || 'medium',
+          status: roadmapItem.status || 'submitted',
+          submitted_by: roadmapItem.submitted_by,
+          created_at: roadmapItem.created_at,
+          updated_at: roadmapItem.updated_at
+        },
+        success: true,
+        message: `Roadmap item "${roadmapItem.title}" created successfully`
+      },
+      actions: [
+        {
+          id: 'view-roadmap',
+          label: 'View Roadmap',
+          type: 'secondary' as const,
+          icon: 'file-text',
+          callback: '/admin/roadmap',
+          params: {}
+        }
+      ],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['roadmap_suggestions'],
+        confidence: 95
+      }
+    }
+  } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Structure sales coach response with performance analysis
+ */
+async function structureSalesCoachResponse(
+  client: any,
+  userId: string,
+  aiContent: string,
+  userMessage: string,
+  requestingUserId?: string
+): Promise<any | null> {
+  try {
+    console.log('[SALES-COACH] Starting structureSalesCoachResponse:', {
+      userId,
+      requestingUserId,
+      userMessage: userMessage.substring(0, 100),
+      isAdminQuery: requestingUserId && requestingUserId !== userId
+    })
+    
+    // Check if requesting user is admin (if different from target user)
+    const isAdminQuery = requestingUserId && requestingUserId !== userId
+    let targetUserName = 'You'
+    
+    if (isAdminQuery) {
+      console.log('[SALES-COACH] Admin query detected, verifying permissions...')
+      // Verify requesting user is admin
+      const { data: requestingUser } = await client
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', requestingUserId)
+        .single()
+      
+      if (!requestingUser?.is_admin) {
+        console.log('[SALES-COACH] ❌ Permission denied - requesting user is not admin')
+        return null // Permission denied
+      }
+      
+      console.log('[SALES-COACH] ✅ Admin permission verified')
+      
+      // Get target user's name for display
+      const { data: targetUser } = await client
+        .from('profiles')
+        .select('first_name, last_name, email')
+        .eq('id', userId)
+        .single()
+      
+      if (targetUser) {
+        targetUserName = targetUser.first_name && targetUser.last_name
+          ? `${targetUser.first_name} ${targetUser.last_name}`
+          : targetUser.email || 'User'
+        console.log('[SALES-COACH] Target user name:', targetUserName)
+      } else {
+        console.log('[SALES-COACH] ⚠️ Target user not found:', userId)
+      }
+    }
+    
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+    const currentDay = now.getDate()
+    
+    // Previous month (same day)
+    const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1
+    const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear
+    
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December']
+    
+    // Calculate date ranges
+    const currentStart = new Date(currentYear, currentMonth, 1)
+    const currentEnd = new Date(currentYear, currentMonth, currentDay, 23, 59, 59)
+    const previousStart = new Date(previousYear, previousMonth, 1)
+    const previousEnd = new Date(previousYear, previousMonth, currentDay, 23, 59, 59)
+    
+    console.log('[SALES-COACH] Date ranges calculated:', {
+      current: { start: currentStart.toISOString(), end: currentEnd.toISOString() },
+      previous: { start: previousStart.toISOString(), end: previousEnd.toISOString() },
+      targetUserId: userId
+    })
+    
+    // Fetch deals for current month
+    console.log('[SALES-COACH] Fetching current month deals for user:', userId)
+    const { data: currentDeals, error: currentDealsError } = await client
+      .from('deals')
+      .select('id, name, value, stage, close_date, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', currentStart.toISOString())
+      .lte('created_at', currentEnd.toISOString())
+      .order('close_date', { ascending: false })
+    
+    if (currentDealsError) {
+      console.error('[SALES-COACH] ❌ Error fetching current deals:', currentDealsError)
+    } else {
+      console.log('[SALES-COACH] ✅ Current month deals fetched:', currentDeals?.length || 0)
+    }
+    
+    // Fetch deals for previous month
+    console.log('[SALES-COACH] Fetching previous month deals for user:', userId)
+    const { data: previousDeals, error: previousDealsError } = await client
+      .from('deals')
+      .select('id, name, value, stage, close_date, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', previousStart.toISOString())
+      .lte('created_at', previousEnd.toISOString())
+      .order('close_date', { ascending: false })
+    
+    if (previousDealsError) {
+      console.error('[SALES-COACH] ❌ Error fetching previous deals:', previousDealsError)
+    } else {
+      console.log('[SALES-COACH] ✅ Previous month deals fetched:', previousDeals?.length || 0)
+    }
+    
+    // Fetch activities for current month
+    console.log('[SALES-COACH] Fetching current month activities for user:', userId)
+    const { data: currentActivities, error: currentActivitiesError } = await client
+      .from('activities')
+      .select('id, type, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', currentStart.toISOString())
+      .lte('created_at', currentEnd.toISOString())
+    
+    if (currentActivitiesError) {
+      console.error('[SALES-COACH] ❌ Error fetching current activities:', currentActivitiesError)
+    } else {
+      console.log('[SALES-COACH] ✅ Current month activities fetched:', currentActivities?.length || 0)
+    }
+    
+    // Fetch activities for previous month
+    console.log('[SALES-COACH] Fetching previous month activities for user:', userId)
+    const { data: previousActivities, error: previousActivitiesError } = await client
+      .from('activities')
+      .select('id, type, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', previousStart.toISOString())
+      .lte('created_at', previousEnd.toISOString())
+    
+    if (previousActivitiesError) {
+      console.error('[SALES-COACH] ❌ Error fetching previous activities:', previousActivitiesError)
+    } else {
+      console.log('[SALES-COACH] ✅ Previous month activities fetched:', previousActivities?.length || 0)
+    }
+    
+    // Fetch meetings for current month
+    console.log('[SALES-COACH] Fetching current month meetings for user:', userId)
+    const { data: currentMeetings, error: currentMeetingsError } = await client
+      .from('meetings')
+      .select('id, created_at')
+      .eq('owner_user_id', userId)
+      .gte('created_at', currentStart.toISOString())
+      .lte('created_at', currentEnd.toISOString())
+    
+    if (currentMeetingsError) {
+      console.error('[SALES-COACH] ❌ Error fetching current meetings:', currentMeetingsError)
+    } else {
+      console.log('[SALES-COACH] ✅ Current month meetings fetched:', currentMeetings?.length || 0)
+    }
+    
+    // Fetch meetings for previous month
+    console.log('[SALES-COACH] Fetching previous month meetings for user:', userId)
+    const { data: previousMeetings, error: previousMeetingsError } = await client
+      .from('meetings')
+      .select('id, created_at')
+      .eq('owner_user_id', userId)
+      .gte('created_at', previousStart.toISOString())
+      .lte('created_at', previousEnd.toISOString())
+    
+    if (previousMeetingsError) {
+      console.error('[SALES-COACH] ❌ Error fetching previous meetings:', previousMeetingsError)
+    } else {
+      console.log('[SALES-COACH] ✅ Previous month meetings fetched:', previousMeetings?.length || 0)
+    }
+    
+    // Calculate metrics
+    const currentClosed = (currentDeals || []).filter(d => d.stage === 'Signed' && d.close_date)
+    const previousClosed = (previousDeals || []).filter(d => d.stage === 'Signed' && d.close_date)
+    
+    const currentRevenue = currentClosed.reduce((sum, d) => sum + (d.value || 0), 0)
+    const previousRevenue = previousClosed.reduce((sum, d) => sum + (d.value || 0), 0)
+    
+    const currentMeetingsCount = (currentMeetings || []).length
+    const previousMeetingsCount = (previousMeetings || []).length
+    
+    const currentOutbound = (currentActivities || []).filter(a => a.type === 'outbound').length
+    const previousOutbound = (previousActivities || []).filter(a => a.type === 'outbound').length
+    
+    const currentTotalActivities = (currentActivities || []).length
+    const previousTotalActivities = (previousActivities || []).length
+    
+    const currentAvgDealValue = currentClosed.length > 0 ? currentRevenue / currentClosed.length : 0
+    const previousAvgDealValue = previousClosed.length > 0 ? previousRevenue / previousClosed.length : 0
+    
+    // Get active pipeline value
+    const { data: activeDeals } = await client
+      .from('deals')
+      .select('id, name, value, stage')
+      .eq('user_id', userId)
+      .in('stage', ['SQL', 'Opportunity', 'Verbal'])
+    
+    const pipelineValue = (activeDeals || []).reduce((sum, d) => sum + (d.value || 0), 0)
+    
+    // Calculate comparisons
+    const calculateChange = (current: number, previous: number) => {
+      if (previous === 0) return current > 0 ? 100 : 0
+      return ((current - previous) / previous) * 100
+    }
+    
+    const salesChange = calculateChange(currentRevenue, previousRevenue)
+    const activitiesChange = calculateChange(currentTotalActivities, previousTotalActivities)
+    const pipelineChange = 0 // Would need previous pipeline value
+    
+    const salesComparison = {
+      current: currentRevenue,
+      previous: previousRevenue,
+      change: salesChange,
+      changeType: salesChange > 0 ? 'increase' : salesChange < 0 ? 'decrease' : 'neutral',
+      verdict: salesChange > 0 
+        ? `Significantly Better - You've closed ${formatCurrency(currentRevenue)} in ${monthNames[currentMonth]} vs ${formatCurrency(previousRevenue)} in ${monthNames[previousMonth]} at the same point.`
+        : salesChange < 0
+        ? `Below Pace - You closed ${formatCurrency(currentRevenue)} vs ${formatCurrency(previousRevenue)} in ${monthNames[previousMonth]}.`
+        : 'Similar performance to previous month.'
+    }
+    
+    const activitiesComparison = {
+      current: currentTotalActivities,
+      previous: previousTotalActivities,
+      change: activitiesChange,
+      changeType: activitiesChange > 0 ? 'increase' : activitiesChange < 0 ? 'decrease' : 'neutral',
+      verdict: activitiesChange > 0
+        ? `Higher Activity - ${currentTotalActivities} activities vs ${previousTotalActivities} in ${monthNames[previousMonth]}.`
+        : activitiesChange < 0
+        ? `Slightly Below Pace - ${currentTotalActivities} activities vs ${previousTotalActivities} in ${monthNames[previousMonth]}.`
+        : 'Similar activity level to previous month.'
+    }
+    
+    const pipelineComparison = {
+      current: pipelineValue,
+      previous: pipelineValue, // Would need to fetch previous
+      change: 0,
+      changeType: 'neutral' as const,
+      verdict: `Strong pipeline with ${formatCurrency(pipelineValue)} in active opportunities.`
+    }
+    
+    // Determine overall performance
+    let overall: 'significantly_better' | 'better' | 'similar' | 'worse' | 'significantly_worse' = 'similar'
+    if (salesChange > 50) overall = 'significantly_better'
+    else if (salesChange > 0) overall = 'better'
+    else if (salesChange < -50) overall = 'significantly_worse'
+    else if (salesChange < 0) overall = 'worse'
+    
+    // Generate insights
+    const insights = []
+    
+    if (currentRevenue > previousRevenue) {
+      insights.push({
+        id: 'revenue-growth',
+        type: 'positive' as const,
+        title: 'Revenue Generation',
+        description: `You're ahead on closed sales in ${monthNames[currentMonth]} (+${formatCurrency(currentRevenue - previousRevenue)} vs ${monthNames[previousMonth]}).`,
+        impact: 'high' as const
+      })
+    }
+    
+    if (currentTotalActivities < previousTotalActivities) {
+      insights.push({
+        id: 'activity-pace',
+        type: 'warning' as const,
+        title: 'Activity Level',
+        description: `${monthNames[previousMonth]} had higher activity volume - you may want to maintain that pace.`,
+        impact: 'medium' as const
+      })
+    }
+    
+    if (activeDeals && activeDeals.length > 0) {
+      const highValueDeals = activeDeals.filter(d => (d.value || 0) >= 8000)
+      if (highValueDeals.length > 0) {
+        insights.push({
+          id: 'opportunity-quality',
+          type: 'opportunity' as const,
+          title: 'Opportunity Quality',
+          description: `Strong pipeline with ${highValueDeals.length} $8K+ deals in Opportunity stage.`,
+          impact: 'high' as const
+        })
+      }
+    }
+    
+    // Generate recommendations
+    const recommendations = []
+    
+    if (activeDeals && activeDeals.length > 0) {
+      recommendations.push({
+        id: 'focus-opportunities',
+        priority: 'high' as const,
+        title: 'Focus on High-Value Opportunities',
+        description: 'Keep the momentum on the $8K+ opportunities in your pipeline.',
+        actionItems: [
+          'Review and prioritize high-value deals',
+          'Schedule follow-ups for Opportunity stage deals',
+          'Move deals from Opportunity to closure'
+        ]
+      })
+    }
+    
+    if (currentTotalActivities < previousTotalActivities) {
+      recommendations.push({
+        id: 'increase-activity',
+        priority: 'medium' as const,
+        title: 'Maintain Activity Pace',
+        description: 'Maintain or increase outbound activity to match previous month\'s pace.',
+        actionItems: [
+          'Schedule more outbound calls',
+          'Increase email outreach',
+          'Set daily activity goals'
+        ]
+      })
+    }
+    
+    console.log('[SALES-COACH] Calculating metrics...', {
+      currentClosed: currentClosed.length,
+      previousClosed: previousClosed.length,
+      currentRevenue,
+      previousRevenue,
+      currentMeetingsCount,
+      previousMeetingsCount,
+      currentTotalActivities,
+      previousTotalActivities,
+      pipelineValue
+    })
+    
+    const response = {
+      type: 'sales_coach',
+      summary: isAdminQuery 
+        ? `${targetUserName}'s performance comparison: ${monthNames[currentMonth]} ${currentYear} (through day ${currentDay}) vs ${monthNames[previousMonth]} ${previousYear} (through day ${currentDay})`
+        : `Performance comparison: ${monthNames[currentMonth]} ${currentYear} (through day ${currentDay}) vs ${monthNames[previousMonth]} ${previousYear} (through day ${currentDay})`,
+      data: {
+        comparison: {
+          sales: salesComparison,
+          activities: activitiesComparison,
+          pipeline: pipelineComparison,
+          overall
+        },
+        metrics: {
+          currentMonth: {
+            closedDeals: currentClosed.length,
+            totalRevenue: currentRevenue,
+            averageDealValue: currentAvgDealValue,
+            meetings: currentMeetingsCount,
+            outboundActivities: currentOutbound,
+            totalActivities: currentTotalActivities,
+            pipelineValue,
+            deals: (currentDeals || []).map(d => ({
+              id: d.id,
+              name: d.name,
+              value: d.value || 0,
+              stage: d.stage,
+              closedDate: d.close_date
+            }))
+          },
+          previousMonth: {
+            closedDeals: previousClosed.length,
+            totalRevenue: previousRevenue,
+            averageDealValue: previousAvgDealValue,
+            meetings: previousMeetingsCount,
+            outboundActivities: previousOutbound,
+            totalActivities: previousTotalActivities,
+            pipelineValue: 0, // Would need to fetch
+            deals: (previousDeals || []).map(d => ({
+              id: d.id,
+              name: d.name,
+              value: d.value || 0,
+              stage: d.stage,
+              closedDate: d.close_date
+            }))
+          }
+        },
+        insights,
+        recommendations,
+        period: {
+          current: { month: monthNames[currentMonth], year: currentYear, day: currentDay },
+          previous: { month: monthNames[previousMonth], year: previousYear, day: currentDay }
+        }
+      },
+      actions: [],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['deals', 'activities', 'meetings'],
+        confidence: 90
+      }
+    }
+    
+    console.log('[SALES-COACH] ✅ Response generated successfully:', {
+      type: response.type,
+      hasData: !!response.data,
+      hasComparison: !!response.data?.comparison,
+      hasMetrics: !!response.data?.metrics,
+      hasInsights: !!response.data?.insights?.length,
+      hasRecommendations: !!response.data?.recommendations?.length,
+      summary: response.summary?.substring(0, 100)
+    })
+    
+    return response
+  } catch (error) {
+    console.error('[SALES-COACH] ❌ Exception in structureSalesCoachResponse:', error)
+    return null
+  }
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(value)
 }
 
 /**

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Bell, CheckCircle, XCircle, TrendingUp, AlertCircle } from 'lucide-react';
+import { MeetingSummaryDisplay } from '@/components/shared/MeetingSummaryDisplay';
 
 interface PipelineRecommendation {
   id: string;
@@ -246,7 +247,9 @@ export const PipelineRecommendationNotification: React.FC = () => {
               {rec.meeting_summary && (
                 <div className="mb-3">
                   <h5 className="text-sm font-semibold text-gray-700 mb-1">Meeting Summary</h5>
-                  <p className="text-sm text-gray-600">{rec.meeting_summary}</p>
+                  <div className="text-sm text-gray-600">
+                    <MeetingSummaryDisplay summary={rec.meeting_summary} />
+                  </div>
                 </div>
               )}
 

@@ -4,8 +4,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { CopilotEmpty } from './copilot/CopilotEmpty';
 import { ChatMessage } from './copilot/ChatMessage';
@@ -39,6 +37,7 @@ export const Copilot: React.FC<CopilotProps> = ({
       sendMessage(initialQuery);
       setInputValue('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
   // Auto-scroll to latest message
@@ -133,7 +132,7 @@ export const Copilot: React.FC<CopilotProps> = ({
   const isEmpty = messages.length === 0 && !isLoading;
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8 min-h-screen flex flex-col">
+    <div className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Empty State or Active Conversation */}
       {isEmpty ? (
         <CopilotEmpty onPromptClick={handlePromptClick} />

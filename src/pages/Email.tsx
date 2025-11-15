@@ -32,6 +32,7 @@ import {
   useGoogleIntegration,
   useGoogleOAuthInitiate,
   useGmailEmails,
+  useGmailGetMessage,
   useGmailLabels,
   useGmailSend,
   useGmailMarkAsRead,
@@ -39,12 +40,13 @@ import {
   useGmailArchive,
   useGoogleServiceEnabled
 } from '@/lib/hooks/useGoogleIntegration';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
 // import { emailAIService } from '@/lib/services/emailAIService'; // TODO: Add AI categorization
 
 export default function Email() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -56,6 +58,19 @@ export default function Email() {
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [showFilters, setShowFilters] = useState(false);
   const navigate = useNavigate();
+
+  // Check for query parameters to pre-fill composer (e.g., from deal email generation)
+  useEffect(() => {
+    const to = searchParams.get('to');
+    const subject = searchParams.get('subject');
+    const body = searchParams.get('body');
+    
+    if (to || subject || body) {
+      setIsComposerOpen(true);
+      // Clear query params after reading them
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
 
   // Auto-open sidebar on desktop
   useEffect(() => {
@@ -331,7 +346,10 @@ export default function Email() {
       case 's':
         // Star email
         if (selectedEmail) {
-          handleStarEmail(selectedEmail);
+          const email = emails.find(e => e.id === selectedEmail);
+          if (email) {
+            handleStarEmail(selectedEmail, !email.starred);
+          }
         }
         break;
       case 'r':
@@ -416,7 +434,61 @@ export default function Email() {
     return matchesSearch && matchesReadFilter;
   });
 
-  const selectedEmailData = selectedEmail ? emails.find(email => email.id === selectedEmail) : null;
+  // Fetch full email details when selected
+  const { data: fullEmailData, isLoading: isLoadingFullEmail, error: fullEmailError } = useGmailGetMessage(
+    selectedEmail,
+    isGmailEnabled && !!selectedEmail
+  );
+  
+  // Log errors for debugging
+  useEffect(() => {
+    if (fullEmailError) {
+      console.error('[Email] Error fetching full email:', fullEmailError);
+    }
+  }, [fullEmailError]);
+  
+  // Auto-mark as read when viewing email
+  useEffect(() => {
+    if (selectedEmail && fullEmailData && !fullEmailData.read && isGmailEnabled) {
+      handleMarkRead(selectedEmail, true);
+    }
+  }, [selectedEmail, fullEmailData?.read, isGmailEnabled, handleMarkRead]);
+  
+  // Merge full email data with list data
+  const selectedEmailData = useMemo(() => {
+    if (!selectedEmail) return null;
+    
+    const listEmail = emails.find(email => email.id === selectedEmail);
+    if (!listEmail) return null;
+    
+    // If we have full email data, merge it
+    if (fullEmailData) {
+      return {
+        ...listEmail,
+        body: fullEmailData.body,
+        bodyHtml: fullEmailData.bodyHtml,
+        to: fullEmailData.to,
+        cc: fullEmailData.cc,
+        replyTo: fullEmailData.replyTo,
+        attachments: fullEmailData.attachments || [],
+        read: fullEmailData.read,
+        starred: fullEmailData.starred,
+        labels: fullEmailData.labels || listEmail.labels,
+        thread: [{
+          id: fullEmailData.id,
+          from: fullEmailData.from,
+          fromName: fullEmailData.fromName,
+          content: fullEmailData.body,
+          bodyHtml: fullEmailData.bodyHtml,
+          timestamp: new Date(fullEmailData.timestamp),
+          attachments: fullEmailData.attachments?.map((a: any) => a.filename) || []
+        }]
+      };
+    }
+    
+    return listEmail;
+  }, [selectedEmail, emails, fullEmailData]);
+  
   const unreadCount = emails.filter(email => !email.read).length;
 
   return (
@@ -809,7 +881,7 @@ export default function Email() {
 
         {/* Email Thread */}
         <AnimatePresence>
-          {selectedEmail && selectedEmailData && (
+          {selectedEmail && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'auto', opacity: 1 }}
@@ -817,14 +889,50 @@ export default function Email() {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               className="flex-1 bg-white dark:bg-gray-950 overflow-hidden"
             >
-              <EmailThread
-                email={selectedEmailData}
-                onClose={() => setSelectedEmail(null)}
-                onMarkRead={handleMarkRead}
-                onStarEmail={handleStarEmail}
-                onArchiveEmail={handleArchiveEmail}
-                onReply={() => setIsComposerOpen(true)}
-              />
+              {isLoadingFullEmail ? (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#37bd7e] mx-auto mb-3"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading email...</p>
+                  </div>
+                </div>
+              ) : fullEmailError ? (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <div className="text-center p-6 max-w-md">
+                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Error loading email</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                      {fullEmailError instanceof Error ? fullEmailError.message : 'Failed to load email details'}
+                    </p>
+                    <button
+                      onClick={() => {
+                        // Retry by clearing selection and reselecting
+                        const emailId = selectedEmail;
+                        setSelectedEmail(null);
+                        setTimeout(() => setSelectedEmail(emailId), 100);
+                      }}
+                      className="px-4 py-2 bg-[#37bd7e] text-white rounded-lg hover:bg-[#2da76c] transition-colors text-sm"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              ) : selectedEmailData ? (
+                <EmailThread
+                  email={selectedEmailData}
+                  onClose={() => setSelectedEmail(null)}
+                  onMarkRead={handleMarkRead}
+                  onStarEmail={handleStarEmail}
+                  onArchiveEmail={handleArchiveEmail}
+                  onReply={() => setIsComposerOpen(true)}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Email not found</p>
+                  </div>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -833,8 +941,15 @@ export default function Email() {
       {/* Email Composer */}
       <EmailComposerEnhanced
         isOpen={isComposerOpen}
-        onClose={() => setIsComposerOpen(false)}
+        onClose={() => {
+          setIsComposerOpen(false);
+          // Clear query params when closing
+          setSearchParams({});
+        }}
         replyTo={selectedEmailData}
+        initialTo={searchParams.get('to') || undefined}
+        initialSubject={searchParams.get('subject') || undefined}
+        initialBody={searchParams.get('body') || undefined}
       />
 
       {/* Email Filters */}

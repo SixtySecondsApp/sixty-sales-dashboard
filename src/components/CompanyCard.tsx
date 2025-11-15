@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Star, 
@@ -14,6 +14,8 @@ import {
   Building
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { extractDomainFromCompany } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface Company {
   id: string;
@@ -51,6 +53,22 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
   onNavigate,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromCompany({
+      domain: company.domain,
+      website: company.website,
+    });
+  }, [company.domain, company.website]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
 
   // Generate logo from company name
   const generateLogo = (name: string) => {
@@ -138,8 +156,17 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
             )}
             
             {/* Company Logo */}
-            <div className={`w-10 h-10 rounded-lg ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold`}>
-              {generateLogo(company.name)}
+            <div className={`w-10 h-10 rounded-lg ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold overflow-hidden`}>
+              {logoUrl && !logoError && !isLoading ? (
+                <img
+                  src={logoUrl}
+                  alt={`${company.name} logo`}
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                generateLogo(company.name)
+              )}
             </div>
             
             <div>
@@ -262,10 +289,19 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
         {/* Company header */}
         <div className="flex items-start gap-4 mb-4">
           <motion.div
-            className={`w-14 h-14 rounded-xl ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold text-xl shadow-lg`}
+            className={`w-14 h-14 rounded-xl ${getLogoColor(company.name)} flex items-center justify-center text-white font-bold text-xl shadow-lg overflow-hidden`}
             whileHover={{ scale: 1.05, rotate: 5 }}
           >
-            {generateLogo(company.name)}
+            {logoUrl && !logoError && !isLoading ? (
+              <img
+                src={logoUrl}
+                alt={`${company.name} logo`}
+                className="w-full h-full object-cover"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              generateLogo(company.name)
+            )}
           </motion.div>
           <div className="flex-1">
             <h3 className="font-semibold text-lg text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">

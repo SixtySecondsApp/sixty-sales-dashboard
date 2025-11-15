@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Edit, MessageCircle, Phone, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import ContactEditModal from '@/components/ContactEditModal';
 import type { Contact } from '@/lib/database/models';
+import { extractDomainFromContact } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface ContactHeaderProps {
   contact: Contact;
@@ -12,6 +14,19 @@ interface ContactHeaderProps {
 export function ContactHeader({ contact }: ContactHeaderProps) {
   const navigate = useNavigate();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromContact(contact);
+  }, [contact]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
 
   const getInitials = (contact: Contact) => {
     const firstName = contact.first_name || '';
@@ -46,8 +61,17 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="flex items-center gap-6">
-          <div className="w-20 h-20 rounded-full border-3 border-blue-400 dark:border-blue-500/30 bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
-            {getInitials(contact)}
+          <div className="w-20 h-20 rounded-full border-3 border-blue-400 dark:border-blue-500/30 bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg overflow-hidden">
+            {logoUrl && !logoError && !isLoading ? (
+              <img
+                src={logoUrl}
+                alt={`${getFullName(contact)} logo`}
+                className="w-full h-full object-cover"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              getInitials(contact)
+            )}
           </div>
           <div>
             <h1 className="text-3xl font-bold theme-text-primary mb-2">{getFullName(contact)}</h1>

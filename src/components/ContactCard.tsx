@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Star, 
@@ -14,6 +14,8 @@ import {
   Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { extractDomainFromContact } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface Contact {
   id: string;
@@ -57,6 +59,22 @@ const ContactCard: React.FC<ContactCardProps> = ({
   onNavigate,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromContact({
+      email: contact.email,
+      company: contact.company,
+    });
+  }, [contact.email, contact.company]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
 
   // Generate initials from contact name
   const generateInitials = () => {
@@ -136,8 +154,17 @@ const ContactCard: React.FC<ContactCardProps> = ({
           <div className="flex items-center gap-4">
             {/* Contact Avatar */}
             <div className="relative">
-              <div className={`w-10 h-10 rounded-full ${getAvatarColor()} flex items-center justify-center text-white font-bold`}>
-                {generateInitials()}
+              <div className={`w-10 h-10 rounded-full ${getAvatarColor()} flex items-center justify-center text-white font-bold overflow-hidden`}>
+                {logoUrl && !logoError && !isLoading ? (
+                  <img
+                    src={logoUrl}
+                    alt={`${getFullName()} logo`}
+                    className="w-full h-full object-cover"
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  generateInitials()
+                )}
               </div>
               {/* Select Checkbox - positioned as overlay on avatar corner */}
               {isSelectMode && (
@@ -288,8 +315,17 @@ const ContactCard: React.FC<ContactCardProps> = ({
 
       {/* Avatar */}
       <div className="relative mb-4">
-        <div className={`w-16 h-16 rounded-2xl ${getAvatarColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
-          {generateInitials()}
+        <div className={`w-16 h-16 rounded-2xl ${getAvatarColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg overflow-hidden`}>
+          {logoUrl && !logoError && !isLoading ? (
+            <img
+              src={logoUrl}
+              alt={`${getFullName()} logo`}
+              className="w-full h-full object-cover"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            generateInitials()
+          )}
         </div>
         <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
           <User className="w-3 h-3 text-white" />

@@ -196,7 +196,12 @@ export type ToolType =
   | 'calendar_search'
   | 'contact_lookup'
   | 'meeting_analysis'
-  | 'deal_health';
+  | 'contact_search'
+  | 'deal_health'
+  | 'contact_search'
+  | 'task_search'
+  | 'roadmap_create'
+  | 'sales_coach';
 
 export interface ToolCall {
   id: string;
@@ -214,4 +219,191 @@ export interface ToolStep {
   icon: string;
   duration?: number;
   metadata?: Record<string, any>;
+}
+
+// ============================================================================
+// Structured Response Types
+// ============================================================================
+
+export type CopilotResponseType = 'activity' | 'pipeline' | 'meeting' | 'email' | 'calendar' | 'lead' | 'task' | 'contact' | 'roadmap' | 'sales_coach';
+
+export interface CopilotResponse {
+  type: CopilotResponseType;
+  summary: string; // Brief intro text
+  data: ResponseData;
+  actions: QuickActionResponse[];
+  metadata?: ResponseMetadata;
+}
+
+export interface QuickActionResponse {
+  id: string;
+  label: string;
+  type: 'primary' | 'secondary' | 'tertiary';
+  icon?: string;
+  callback: string; // API endpoint or action name
+  params?: Record<string, any>;
+}
+
+export interface ResponseMetadata {
+  totalCount?: number;
+  timeGenerated: string;
+  dataSource: string[];
+  confidence?: number; // 0-100
+}
+
+export type ResponseData = 
+  | PipelineResponseData
+  | EmailResponseData
+  | CalendarResponseData
+  | ActivityResponseData
+  | LeadResponseData
+  | TaskResponseData
+  | ContactResponseData
+  | RoadmapResponseData
+  | SalesCoachResponseData;
+
+// Roadmap Response
+export interface RoadmapResponse extends CopilotResponse {
+  type: 'roadmap' | 'sales_coach';
+  data: RoadmapResponseData;
+}
+
+export interface RoadmapResponseData {
+  roadmapItem: RoadmapItem;
+  success: boolean;
+  message: string;
+}
+
+export interface RoadmapItem {
+  id: string;
+  ticket_id?: string;
+  title: string;
+  description?: string;
+  type: 'feature' | 'bug' | 'improvement' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'submitted' | 'under_review' | 'planned' | 'in_progress' | 'completed' | 'rejected';
+  submitted_by?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Placeholder types for other response types (to satisfy TypeScript)
+export interface PipelineResponseData {
+  criticalDeals: any[];
+  highPriorityDeals: any[];
+  metrics: any;
+}
+
+export interface EmailResponseData {
+  email: any;
+  context: any;
+  suggestions: any[];
+}
+
+export interface CalendarResponseData {
+  meetings: any[];
+}
+
+export interface ActivityResponseData {
+  created?: any[];
+  upcoming?: any[];
+  overdue?: any[];
+}
+
+export interface LeadResponseData {
+  newLeads: any[];
+  hotLeads: any[];
+  needsQualification: any[];
+  metrics: any;
+}
+
+export interface TaskResponseData {
+  urgentTasks: any[];
+  highPriorityTasks: any[];
+  dueToday: any[];
+  overdue: any[];
+  upcoming: any[];
+  metrics: any;
+}
+
+export interface ContactResponseData {
+  contact: any;
+  emails: any[];
+  deals: any[];
+  activities: any[];
+  meetings: any[];
+  tasks: any[];
+  metrics: any;
+}
+
+// Sales Coach Response
+export interface SalesCoachResponse extends CopilotResponse {
+  type: 'sales_coach';
+  data: SalesCoachResponseData;
+}
+
+export interface SalesCoachResponseData {
+  comparison: PerformanceComparison;
+  metrics: SalesMetrics;
+  insights: Insight[];
+  recommendations: Recommendation[];
+  period: {
+    current: { month: string; year: number; day: number };
+    previous: { month: string; year: number; day: number };
+  };
+}
+
+export interface PerformanceComparison {
+  sales: MetricComparison;
+  activities: MetricComparison;
+  pipeline: MetricComparison;
+  overall: 'significantly_better' | 'better' | 'similar' | 'worse' | 'significantly_worse';
+}
+
+export interface MetricComparison {
+  current: number;
+  previous: number;
+  change: number; // percentage change
+  changeType: 'increase' | 'decrease' | 'neutral';
+  verdict: string;
+}
+
+export interface SalesMetrics {
+  currentMonth: MonthMetrics;
+  previousMonth: MonthMetrics;
+}
+
+export interface MonthMetrics {
+  closedDeals: number;
+  totalRevenue: number;
+  averageDealValue: number;
+  meetings: number;
+  outboundActivities: number;
+  totalActivities: number;
+  pipelineValue: number;
+  deals: DealSummary[];
+}
+
+export interface DealSummary {
+  id: string;
+  name: string;
+  value: number;
+  stage: string;
+  closedDate?: string;
+}
+
+export interface Insight {
+  id: string;
+  type: 'positive' | 'warning' | 'opportunity' | 'neutral';
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
+}
+
+export interface Recommendation {
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  actionItems?: string[];
 }

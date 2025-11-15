@@ -51,10 +51,12 @@ async function refreshAccessToken(refreshToken: string, supabase: any, userId: s
   return data.access_token;
 }
 
+// Import shared CORS headers for consistency
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Expose-Headers': 'x-ratelimit-limit, x-ratelimit-remaining, x-ratelimit-reset'
 };
 
 interface SendEmailRequest {
@@ -70,16 +72,23 @@ interface ListEmailsRequest {
   pageToken?: string;
 }
 
+interface GetMessageRequest {
+  messageId: string;
+}
+
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   if (req.method !== 'POST' && req.method !== 'GET') {
-    return new Response('Method not allowed', { 
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { 
       status: 405,
-      headers: corsHeaders 
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json'
+      }
     });
   }
 
@@ -131,11 +140,16 @@ serve(async (req) => {
 
     // Parse request based on method and URL
     const url = new URL(req.url);
-    const action = url.searchParams.get('action');
+    // Support action from both URL params and request body
+    let action = url.searchParams.get('action');
 
     let requestBody: any = {};
     if (req.method === 'POST') {
       requestBody = await req.json();
+      // If action not in URL, get it from body
+      if (!action && requestBody.action) {
+        action = requestBody.action;
+      }
     }
 
     let response;
@@ -147,6 +161,14 @@ serve(async (req) => {
       
       case 'list':
         response = await listEmails(accessToken, requestBody as ListEmailsRequest);
+        break;
+      
+      case 'get':
+      case 'get-message':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for get action');
+        }
+        response = await getMessage(accessToken, requestBody as GetMessageRequest);
         break;
       
       case 'list-labels':
@@ -192,7 +214,12 @@ serve(async (req) => {
         break;
       
       default:
-        throw new Error(`Unknown action: ${action}`);
+        // If no action specified, default to list for backward compatibility
+        if (!action) {
+          response = await listEmails(accessToken, requestBody as ListEmailsRequest);
+        } else {
+          throw new Error(`Unknown action: ${action}`);
+        }
     }
 
     // Log the successful operation
@@ -363,45 +390,6 @@ async function getLabels(accessToken: string): Promise<any> {
   return {
     labels: fullLabels
   };
-}
-
-async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
-  const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
-  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
-  
-  const response = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error('Failed to refresh access token');
-  }
-
-  const data = await response.json();
-  const newAccessToken = data.access_token;
-  const expiresIn = data.expires_in || 3600;
-  
-  // Update the integration with new token
-  const expiresAt = new Date(Date.now() + (expiresIn * 1000));
-  await supabase
-    .from('google_integrations')
-    .update({
-      access_token: newAccessToken,
-      expires_at: expiresAt.toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('user_id', userId);
-  return newAccessToken;
 }
 
 async function syncEmailsToContacts(
@@ -612,22 +600,155 @@ function extractName(emailString: string): string {
   return match ? match[1].trim() : '';
 }
 
-function extractBody(payload: any): string {
-  if (!payload) return '';
+function extractBody(payload: any): { text: string; html?: string } {
+  if (!payload) return { text: '' };
   
-  // Try to find plain text part
-  if (payload.parts) {
-    for (const part of payload.parts) {
+  let textBody = '';
+  let htmlBody = '';
+  
+  // Helper to decode base64
+  const decodeBase64 = (data: string) => {
+    try {
+      return atob(data.replace(/-/g, '+').replace(/_/g, '/'));
+    } catch {
+      return '';
+    }
+  };
+  
+  // Helper to recursively extract from parts
+  const extractFromParts = (parts: any[]) => {
+    for (const part of parts) {
       if (part.mimeType === 'text/plain' && part.body?.data) {
-        return atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+        textBody = decodeBase64(part.body.data);
+      } else if (part.mimeType === 'text/html' && part.body?.data) {
+        htmlBody = decodeBase64(part.body.data);
+      } else if (part.parts) {
+        extractFromParts(part.parts);
       }
     }
+  };
+  
+  // Check if payload has parts
+  if (payload.parts) {
+    extractFromParts(payload.parts);
+  } else if (payload.mimeType === 'text/plain' && payload.body?.data) {
+    textBody = decodeBase64(payload.body.data);
+  } else if (payload.mimeType === 'text/html' && payload.body?.data) {
+    htmlBody = decodeBase64(payload.body.data);
   }
   
-  // Fallback to body data if no parts
-  if (payload.body?.data) {
-    return atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+  return {
+    text: textBody || (htmlBody ? stripHtml(htmlBody) : ''),
+    html: htmlBody || undefined
+  };
+}
+
+function stripHtml(html: string): string {
+  // Simple HTML stripping - remove tags and decode entities
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+async function getMessage(accessToken: string, request: GetMessageRequest): Promise<any> {
+  if (!request.messageId) {
+    throw new Error('messageId is required');
   }
   
-  return '';
+  try {
+    const response = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${request.messageId}?format=full`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(`Gmail API error: ${errorMessage}`);
+    }
+
+    const message = await response.json();
+  
+  // Extract headers
+  const headers = message.payload?.headers || [];
+  const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === 'from')?.value || '';
+  const subject = headers.find((h: any) => h.name?.toLowerCase() === 'subject')?.value || '(No Subject)';
+  const dateHeader = headers.find((h: any) => h.name?.toLowerCase() === 'date')?.value || '';
+  const toHeader = headers.find((h: any) => h.name?.toLowerCase() === 'to')?.value || '';
+  const ccHeader = headers.find((h: any) => h.name?.toLowerCase() === 'cc')?.value || '';
+  const replyToHeader = headers.find((h: any) => h.name?.toLowerCase() === 'reply-to')?.value || '';
+  
+  // Parse sender
+  const fromMatch = fromHeader.match(/^(.+?)\s*<(.+)>$/);
+  const fromName = fromMatch ? fromMatch[1].replace(/"/g, '') : fromHeader.split('@')[0];
+  const fromEmail = fromMatch ? fromMatch[2] : fromHeader;
+  
+  // Extract body
+  const bodyData = extractBody(message.payload);
+  
+  // Parse date
+  let timestamp = new Date();
+  if (dateHeader) {
+    const parsedDate = new Date(dateHeader);
+    if (!isNaN(parsedDate.getTime())) {
+      timestamp = parsedDate;
+    }
+  } else if (message.internalDate) {
+    timestamp = new Date(parseInt(message.internalDate));
+  }
+  
+  // Extract attachments
+  const attachments: any[] = [];
+  const extractAttachments = (parts: any[]) => {
+    for (const part of parts) {
+      if (part.filename && part.body?.attachmentId) {
+        attachments.push({
+          id: part.body.attachmentId,
+          filename: part.filename,
+          mimeType: part.mimeType,
+          size: part.body.size || 0
+        });
+      }
+      if (part.parts) {
+        extractAttachments(part.parts);
+      }
+    }
+  };
+  
+  if (message.payload?.parts) {
+    extractAttachments(message.payload.parts);
+  }
+  
+  return {
+    id: message.id,
+    threadId: message.threadId,
+    from: fromEmail,
+    fromName,
+    subject,
+    body: bodyData.text,
+    bodyHtml: bodyData.html,
+    timestamp: timestamp.toISOString(),
+    read: !message.labelIds?.includes('UNREAD'),
+    starred: message.labelIds?.includes('STARRED'),
+    labels: message.labelIds || [],
+    to: toHeader,
+    cc: ccHeader,
+    replyTo: replyToHeader || fromEmail,
+    attachments,
+    snippet: message.snippet || ''
+  };
+  } catch (error: any) {
+    console.error('[getMessage] Error:', error);
+    throw error instanceof Error ? error : new Error(`Failed to get message: ${error?.message || 'Unknown error'}`);
+  }
 }

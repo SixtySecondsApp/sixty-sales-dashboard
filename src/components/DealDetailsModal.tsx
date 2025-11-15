@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   X, 
@@ -27,6 +27,8 @@ import { supabase } from '@/lib/supabase/clientV2';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
+import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface DealDetailsModalProps {
   isOpen: boolean;
@@ -69,6 +71,23 @@ interface DealDetails {
 export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalProps) {
   const [deal, setDeal] = useState<DealDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    if (!deal) return null;
+    return extractDomainFromDeal({
+      company: deal.company,
+      contact_email: deal.contact_email,
+    });
+  }, [deal?.company, deal?.contact_email]);
+
+  const { logoUrl, isLoading: logoLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
 
   useEffect(() => {
     if (isOpen && dealId) {
@@ -259,7 +278,16 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
                   </DialogDescription>
                   <div className="flex items-center gap-4 text-sm text-gray-400">
                     <div className="flex items-center gap-1">
-                      <Building2 className="w-4 h-4" />
+                      {logoUrl && !logoError && !logoLoading ? (
+                        <img
+                          src={logoUrl}
+                          alt={`${deal.company} logo`}
+                          className="w-4 h-4 rounded flex-shrink-0 object-cover"
+                          onError={() => setLogoError(true)}
+                        />
+                      ) : (
+                        <Building2 className="w-4 h-4" />
+                      )}
                       <span>{deal.company}</span>
                     </div>
                     <div className="flex items-center gap-1">

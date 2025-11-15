@@ -38,6 +38,9 @@ interface EmailComposerEnhancedProps {
   onClose: () => void;
   replyTo?: any;
   template?: EmailTemplate;
+  initialTo?: string;
+  initialSubject?: string;
+  initialBody?: string;
 }
 
 interface EmailTemplate {
@@ -140,13 +143,16 @@ export function EmailComposerEnhanced({
   isOpen,
   onClose,
   replyTo,
-  template
+  template,
+  initialTo,
+  initialSubject,
+  initialBody
 }: EmailComposerEnhancedProps) {
-  const [to, setTo] = useState('');
+  const [to, setTo] = useState(initialTo || '');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [subject, setSubject] = useState(initialSubject || '');
+  const [body, setBody] = useState(initialBody || '');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
@@ -165,15 +171,23 @@ export function EmailComposerEnhanced({
 
   useEffect(() => {
     if (replyTo) {
-      setTo(replyTo.from);
-      setSubject(`Re: ${replyTo.subject}`);
+      // Use replyTo field if available, otherwise use from
+      setTo(replyTo.replyTo || replyTo.from);
+      // Remove existing "Re:" prefix if present
+      const subject = replyTo.subject || '';
+      setSubject(subject.startsWith('Re:') ? subject : `Re: ${subject}`);
+    } else if (initialTo || initialSubject || initialBody) {
+      // Use initial values if provided (e.g., from query params)
+      if (initialTo) setTo(initialTo);
+      if (initialSubject) setSubject(initialSubject);
+      if (initialBody) setBody(initialBody);
     }
     if (template) {
       setSelectedTemplate(template);
       setSubject(template.subject);
       setBody(template.body);
     }
-  }, [replyTo, template]);
+  }, [replyTo, template, initialTo, initialSubject, initialBody]);
 
   const handleSend = async () => {
     if (!to || !subject) {

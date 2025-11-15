@@ -5,6 +5,8 @@ import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { NotificationBell } from '@/components/NotificationBell';
+import { EmailIcon } from '@/components/EmailIcon';
+import { CalendarIcon } from '@/components/CalendarIcon';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -35,10 +37,10 @@ import {
   History,
   Workflow,
   ExternalLink as LinkIcon,
-  Mail,
-  Calendar,
   Sparkles,
-  UserPlus
+  UserPlus,
+  Search,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -48,6 +50,12 @@ import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
 import { SmartSearch } from '@/components/SmartSearch';
 import { useCopilot } from '@/lib/contexts/CopilotContext';
 import { useNavigate } from 'react-router-dom';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from '@/components/ui/dropdown-menu';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -99,6 +107,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setHasMounted(true);
   }, []);
 
+  // Auto-collapse sidebar on email and calendar pages for more space
+  useEffect(() => {
+    const shouldCollapse = location.pathname === '/email' || location.pathname === '/calendar';
+    if (shouldCollapse) {
+      setIsCollapsed(true);
+    }
+  }, [location.pathname]);
+
   // Keyboard shortcut for SmartSearch (⌘K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -121,8 +137,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: Video, label: 'Meetings', href: '/meetings' },
     { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
     { icon: Building2, label: 'CRM', href: '/crm' },
-    { icon: Calendar, label: 'Calendar', href: '/calendar' },
-    { icon: Mail, label: 'Email', href: '/email' },
     { icon: UsersIcon, label: 'Clients', href: '/clients' },
     { icon: FileText, label: 'Activity', href: '/activity' },
     { icon: LineChart, label: 'Insights', href: '/insights' },
@@ -174,6 +188,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <EmailIcon />
+          <CalendarIcon />
           <NotificationBell />
           <motion.button
             animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
@@ -337,32 +353,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       </AnimatePresence>
 
-      {/* Desktop Sidebar */}
-      <motion.div
-        initial={!hasMounted ? { opacity: 0, x: -20 } : false}
-        animate={!hasMounted ? { opacity: 1, x: 0 } : false}
-        className={cn(
-          'fixed left-0 h-screen bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 p-6',
-          'transition-all duration-300 ease-in-out flex-shrink-0',
-          isCollapsed ? 'w-[80px]' : 'w-[256px]',
-          'hidden lg:block z-[100]',
-          isImpersonating ? 'top-6' : 'top-0'
-        )}
-      >
-        <div className="flex h-full flex-col">
-          <div className={cn(
-            'flex items-center gap-3 mb-8',
-            isCollapsed && 'justify-center'
-          )}>
-            {isCollapsed ? (
-              <button
-                onClick={() => setIsCollapsed(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-              >
-                <MenuIcon className="w-5 h-5 text-gray-400" />
-              </button>
-            ) : (
-              <>
+      {/* Desktop Top Bar */}
+      <div className={cn(
+        'fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800/50 z-[90]',
+        'hidden lg:flex items-center justify-between px-6',
+        isCollapsed ? 'lg:left-[80px]' : 'lg:left-[256px]',
+        'transition-all duration-300 ease-in-out',
+        isImpersonating ? 'top-6' : 'top-0'
+      )}>
+        {/* Search Button (cmdK) */}
+        <button
+          onClick={() => setIsSmartSearchOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800/70 transition-colors text-sm text-gray-600 dark:text-gray-400"
+        >
+          <Search className="w-4 h-4" />
+          <span className="hidden xl:inline">Search...</span>
+          <kbd className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded">
+            <span className="text-[10px]">⌘</span>K
+          </kbd>
+        </button>
+
+        {/* User Profile with Dropdown */}
+        <div className="flex items-center gap-3">
+          <EmailIcon />
+          <CalendarIcon />
+          <NotificationBell />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
                 <div className="w-8 h-8 rounded-lg overflow-hidden">
                   {userData?.avatar_url ? (
                     <img
@@ -373,37 +391,89 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   ) : (
                     <div className="w-full h-full bg-[#37bd7e]/20 flex items-center justify-center">
                       <span className="text-sm font-medium text-[#37bd7e]">
-                        {userData?.first_name?.[0]}{userData?.last_name?.[0]}
+                        {userData?.first_name?.[0] || ''}{userData?.last_name?.[0] || ''}
                       </span>
                     </div>
                   )}
                 </div>
-                <AnimatePresence>
-                  <motion.div
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: "auto" }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="overflow-hidden flex-1"
-                  >
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {userData?.first_name} {userData?.last_name}
-                      </span>
-                      <span className="text-xs text-gray-700 dark:text-gray-300">{userData?.stage}</span>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-                <div className="flex items-center gap-2">
-                  <NotificationBell />
-                  <button
-                    onClick={() => setIsCollapsed(true)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5 text-gray-400" />
-                  </button>
+                <div className="hidden xl:flex flex-col items-start">
+                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                    {userData?.first_name} {userData?.last_name}
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{userData?.stage}</span>
                 </div>
-              </>
-            )}
+                <ChevronDown className="w-4 h-4 text-gray-400 hidden xl:block" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => navigate('/profile')}>
+                <UserCog className="w-4 h-4 mr-2" />
+                Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+              <DropdownMenuItem onClick={handleLogout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
+                {isImpersonating ? (
+                  <>
+                    <UserX className="w-4 h-4 mr-2" />
+                    Stop Impersonation
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </>
+                )}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
+      <motion.div
+        initial={!hasMounted ? { opacity: 0, x: -20 } : false}
+        animate={!hasMounted ? { opacity: 1, x: 0 } : false}
+        className={cn(
+          'fixed left-0 bottom-0 h-screen bg-white dark:bg-gray-900/50 backdrop-blur-xl p-6',
+          'transition-all duration-300 ease-in-out flex-shrink-0',
+          isCollapsed ? 'w-[80px]' : 'w-[256px]',
+          'hidden lg:block z-[100]',
+          isImpersonating ? 'top-6' : 'top-0'
+        )}
+      >
+        {/* Clickable border to minimize sidebar - only height of top bar, slightly thicker */}
+        <div
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className={cn(
+            'absolute right-0 top-0 w-[2px] h-16 bg-gray-300 dark:bg-gray-700 cursor-pointer hover:bg-gray-400 dark:hover:bg-gray-600 transition-all z-[101]',
+            'hover:w-[3px]'
+          )}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        />
+        
+        <div className="flex h-full flex-col">
+          {/* Logo space at top */}
+          <div className={cn(
+            'mb-8',
+            isCollapsed ? 'flex justify-center' : 'flex items-center justify-center'
+          )}>
+            <Link to="/" className={cn(
+              'transition-opacity hover:opacity-80',
+              isCollapsed ? 'w-10 h-10' : 'w-full h-12'
+            )}>
+              <img
+                src="https://www.sixtyseconds.ai/images/logo.png"
+                alt="Sixty Seconds Logo"
+                className={cn(
+                  'object-contain',
+                  isCollapsed ? 'w-10 h-10' : 'w-full h-12'
+                )}
+              />
+            </Link>
           </div>
           
           <div className="flex-1 overflow-y-auto pr-2 -mr-2">
@@ -470,71 +540,75 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </nav>
           </div>
           
-          <div className="mt-auto pt-4 border-t border-gray-200 dark:border-gray-800">
-            <div className="flex flex-col gap-2">
-              <Link
-                to="/settings"
-                className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-                <AnimatePresence>
-                  {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="overflow-hidden whitespace-nowrap"
-                    >
-                      Settings
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Link>
-
-              <button
-                onClick={handleLogout}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                  isImpersonating
-                    ? "text-amber-400 hover:bg-amber-500/10"
-                    : "text-red-400 hover:bg-red-500/10"
+          {/* Settings and Logout at bottom */}
+          <div className="mt-auto pt-6 border-t border-gray-200 dark:border-gray-800/50">
+            <Link
+              to="/settings"
+              className={cn(
+                'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
+                location.pathname === '/settings'
+                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+              )}
+            >
+              <Settings className="w-4 h-4 flex-shrink-0" />
+              <AnimatePresence>
+                {!isCollapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    className="overflow-hidden whitespace-nowrap"
+                  >
+                    Settings
+                  </motion.span>
                 )}
-              >
-                {isImpersonating ? (
-                  <>
-                    <UserX className="w-4 h-4" />
-                    <AnimatePresence>
-                      {!isCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: 'auto' }}
-                          exit={{ opacity: 0, width: 0 }}
-                          className="overflow-hidden whitespace-nowrap"
-                        >
-                          Stop Impersonation
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </>
-                ) : (
-                  <>
-                    <LogOut className="w-4 h-4" />
-                    <AnimatePresence>
-                      {!isCollapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: 'auto' }}
-                          exit={{ opacity: 0, width: 0 }}
-                          className="overflow-hidden whitespace-nowrap"
-                        >
-                          Logout
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </>
-                )}
-              </button>
-            </div>
+              </AnimatePresence>
+            </Link>
+            
+            <button
+              onClick={handleLogout}
+              className={cn(
+                'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                isImpersonating
+                  ? 'text-amber-400 hover:bg-amber-500/10'
+                  : 'text-red-400 hover:bg-red-500/10'
+              )}
+            >
+              {isImpersonating ? (
+                <>
+                  <UserX className="w-4 h-4 flex-shrink-0" />
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="overflow-hidden whitespace-nowrap"
+                      >
+                        Stop Impersonation
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                <>
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="overflow-hidden whitespace-nowrap"
+                      >
+                        Logout
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </>
+              )}
+            </button>
           </div>
         </div>
       </motion.div>
@@ -542,7 +616,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         'flex-1 transition-[margin] duration-300 ease-in-out',
         isCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[256px]',
         'ml-0',
-        isImpersonating ? 'pt-22 lg:pt-6' : 'pt-16 lg:pt-0'
+        isImpersonating ? 'pt-22 lg:pt-22' : 'pt-16 lg:pt-16'
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
@@ -569,8 +643,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             navigate(`/crm/contacts/${contactId}`);
             setIsSmartSearchOpen(false);
           }}
+          onSelectMeeting={(meetingId) => {
+            navigate(`/meetings/${meetingId}`);
+            setIsSmartSearchOpen(false);
+          }}
+          onSelectCompany={(companyId) => {
+            navigate(`/crm/companies/${companyId}`);
+            setIsSmartSearchOpen(false);
+          }}
+          onSelectDeal={(dealId) => {
+            navigate(`/crm/deals/${dealId}`);
+            setIsSmartSearchOpen(false);
+          }}
           onAskCopilot={(query) => {
-            openCopilot(query);
+            openCopilot(query, true); // Start a new chat for each search query
             navigate('/copilot');
             setIsSmartSearchOpen(false);
           }}

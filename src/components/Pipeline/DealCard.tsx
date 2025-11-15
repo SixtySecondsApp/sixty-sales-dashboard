@@ -18,6 +18,8 @@ import { Badge } from './Badge';
 import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
+import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface DealCardProps {
   deal: any;
@@ -44,6 +46,24 @@ export function DealCard({
   highUrgencyCount = 0,
   healthScore = null
 }: DealCardProps) {
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromDeal({
+      companies: deal.companies,
+      company: deal.company,
+      contact_email: deal.contact_email,
+      company_website: deal.company_website,
+    });
+  }, [deal.companies, deal.company, deal.contact_email, deal.company_website]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
   // Assurer que l'ID est une chaîne de caractères
   const dealId = String(deal.id);
 
@@ -279,7 +299,16 @@ export function DealCard({
 
             {/* Company info */}
             <div className="flex items-center gap-2 mb-1">
-              <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              {logoUrl && !logoError && !isLoading ? (
+                <img
+                  src={logoUrl}
+                  alt={`${companyInfo.name} logo`}
+                  className="w-3.5 h-3.5 rounded flex-shrink-0 object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <Building2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              )}
               <span className="text-sm text-gray-900 dark:text-gray-100 truncate"
                     title={companyInfo.name}
               >

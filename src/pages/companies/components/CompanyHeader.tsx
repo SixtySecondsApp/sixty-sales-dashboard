@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Building2, 
@@ -22,6 +22,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import type { Company, Deal } from '@/lib/database/models';
+import { extractDomainFromCompany } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface CompanyHeaderProps {
   company: Company;
@@ -32,6 +34,20 @@ interface CompanyHeaderProps {
 }
 
 export function CompanyHeader({ company, deals, activities, clients }: CompanyHeaderProps) {
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromCompany(company);
+  }, [company]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
+
   // Calculate metrics
   const totalValue = deals.reduce((sum, deal) => sum + (deal.value || 0), 0);
   const wonDeals = deals.filter(d => d.status === 'won');
@@ -93,8 +109,17 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
         {/* Left: Company Details */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-              <Building2 className="w-8 h-8 text-blue-400" />
+            <div className="w-16 h-16 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center overflow-hidden">
+              {logoUrl && !logoError && !isLoading ? (
+                <img
+                  src={logoUrl}
+                  alt={`${company.name} logo`}
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                <Building2 className="w-8 h-8 text-blue-400" />
+              )}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">

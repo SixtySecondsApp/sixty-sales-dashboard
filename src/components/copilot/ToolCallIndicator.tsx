@@ -13,6 +13,10 @@ import {
   Users,
   Activity,
   CheckCircle2,
+  FileText,
+  BarChart3,
+  Lightbulb,
+  Target,
   LucideIcon
 } from 'lucide-react';
 import type { ToolCall, ToolStep, ToolState, ToolType } from './types';
@@ -33,6 +37,13 @@ interface ToolConfig {
 }
 
 const toolConfig: Record<ToolType, ToolConfig> = {
+  task_search: {
+    icon: Activity,
+    label: 'Task Search',
+    gradient: 'from-violet-500 via-violet-600 to-violet-700',
+    iconColor: 'text-violet-400',
+    glowColor: 'shadow-violet-500/20'
+  },
   pipeline_data: {
     icon: Activity,
     label: 'Pipeline Analysis',
@@ -61,6 +72,13 @@ const toolConfig: Record<ToolType, ToolConfig> = {
     iconColor: 'text-amber-400',
     glowColor: 'shadow-amber-500/20'
   },
+  contact_search: {
+    icon: Users,
+    label: 'Contact Search',
+    gradient: 'from-cyan-500 via-cyan-600 to-cyan-700',
+    iconColor: 'text-cyan-400',
+    glowColor: 'shadow-cyan-500/20'
+  },
   deal_health: {
     icon: Activity,
     label: 'Health Analysis',
@@ -74,6 +92,20 @@ const toolConfig: Record<ToolType, ToolConfig> = {
     gradient: 'from-indigo-500 via-indigo-600 to-indigo-700',
     iconColor: 'text-indigo-400',
     glowColor: 'shadow-indigo-500/20'
+  },
+  roadmap_create: {
+    icon: FileText,
+    label: 'Roadmap Creation',
+    gradient: 'from-teal-500 via-teal-600 to-teal-700',
+    iconColor: 'text-teal-400',
+    glowColor: 'shadow-teal-500/20'
+  },
+  sales_coach: {
+    icon: BarChart3,
+    label: 'Sales Coach',
+    gradient: 'from-orange-500 via-orange-600 to-orange-700',
+    iconColor: 'text-orange-400',
+    glowColor: 'shadow-orange-500/20'
   }
 };
 
@@ -114,7 +146,12 @@ function getStepIcon(iconName: string): LucideIcon {
     mail: Mail,
     calendar: Calendar,
     users: Users,
-    activity: Activity
+    activity: Activity,
+    'file-text': FileText,
+    'check-circle': CheckCircle2,
+    'bar-chart': BarChart3,
+    lightbulb: Lightbulb,
+    target: Target
   };
   return icons[iconName] || Activity;
 }

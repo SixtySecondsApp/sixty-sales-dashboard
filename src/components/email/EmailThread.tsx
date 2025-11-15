@@ -28,6 +28,7 @@ interface EmailThread {
   from: string;
   fromName: string;
   content: string;
+  bodyHtml?: string;
   timestamp: Date;
   attachments?: string[];
 }
@@ -93,7 +94,32 @@ export function EmailThread({
     return colors[label] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
   };
 
-  const formatContent = (content: string) => {
+  const formatContent = (content: string, html?: string) => {
+    // If HTML is available, render it safely
+    if (html) {
+      // Sanitize HTML - remove potentially dangerous elements
+      const sanitizedHtml = html
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+        .replace(/on\w+="[^"]*"/gi, '') // Remove event handlers
+        .replace(/javascript:/gi, ''); // Remove javascript: URLs
+      
+      return (
+        <div 
+          className="email-html-content prose prose-invert max-w-none"
+          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+          style={{
+            // Sanitize and style HTML emails
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
+            // Ensure images don't overflow
+            maxWidth: '100%'
+          }}
+        />
+      );
+    }
+    
+    // Otherwise, format as plain text
     return content.split('\n').map((line, index) => (
       <p key={index} className={line.trim() === '' ? 'mb-2' : 'mb-1'}>
         {line || '\u00A0'}
@@ -280,7 +306,7 @@ export function EmailThread({
                         <div className="p-4">
                           <div className="prose prose-invert max-w-none">
                             <div className="text-gray-200 whitespace-pre-wrap leading-relaxed">
-                              {formatContent(message.content)}
+                              {formatContent(message.content, message.bodyHtml)}
                             </div>
                           </div>
 

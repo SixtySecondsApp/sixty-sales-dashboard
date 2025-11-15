@@ -1,8 +1,55 @@
+import { useMemo } from 'react';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { useLeadAnalytics } from '@/lib/hooks/useLeadAnalytics';
 
 export function LeadAnalyticsCard() {
   const { data = [], isLoading, isFetching } = useLeadAnalytics();
+
+  // Group and aggregate data by source name to consolidate duplicates
+  const aggregatedData = useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        source_name: string;
+        source_key: string | null;
+        channel: string | null;
+        total_leads: number;
+        converted_leads: number;
+        ready_leads: number;
+      }
+    >();
+
+    for (const row of data) {
+      // Normalize source name for grouping (case-insensitive, trim whitespace)
+      const normalizedName = (row.source_name ?? row.source_key ?? 'Unknown')
+        .trim()
+        .toLowerCase();
+
+      const existing = grouped.get(normalizedName);
+
+      if (existing) {
+        // Aggregate metrics
+        existing.total_leads += row.total_leads ?? 0;
+        existing.converted_leads += row.converted_leads ?? 0;
+        existing.ready_leads += row.ready_leads ?? 0;
+      } else {
+        // Create new entry with original source name (preserve casing)
+        grouped.set(normalizedName, {
+          source_name: row.source_name ?? row.source_key ?? 'Unknown',
+          source_key: row.source_key ?? null,
+          channel: row.channel ?? null,
+          total_leads: row.total_leads ?? 0,
+          converted_leads: row.converted_leads ?? 0,
+          ready_leads: row.ready_leads ?? 0,
+        });
+      }
+    }
+
+    // Convert map to array and sort by total_leads descending
+    return Array.from(grouped.values()).sort(
+      (a, b) => b.total_leads - a.total_leads
+    );
+  }, [data]);
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-3 sm:p-6 shadow-sm dark:border-gray-800/60 dark:bg-gray-950/40">
@@ -46,35 +93,35 @@ export function LeadAnalyticsCard() {
                   Loading lead analytics…
                 </td>
               </tr>
-            ) : data.length === 0 ? (
+            ) : aggregatedData.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
                   No lead data yet. Ingest SavvyCal events to populate analytics.
                 </td>
               </tr>
             ) : (
-              data.map((row) => {
+              aggregatedData.map((row) => {
                 const conversionRate =
                   row.total_leads && row.total_leads > 0
-                    ? ((row.converted_leads ?? 0) / row.total_leads) * 100
+                    ? (row.converted_leads / row.total_leads) * 100
                     : 0;
 
                 return (
-                  <tr key={`${row.source_id ?? 'null'}-${row.owner_id ?? 'all'}`}>
+                  <tr key={row.source_key ?? row.source_name}>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
-                      {row.source_name ?? row.source_key ?? 'Unknown'}
+                      {row.source_name}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {row.channel ?? '—'}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-semibold text-gray-900 dark:text-gray-100">
-                      {row.total_leads ?? 0}
+                      {row.total_leads}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-right text-gray-600 dark:text-gray-300">
-                      {row.ready_leads ?? 0}
+                      {row.ready_leads}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-right text-gray-600 dark:text-gray-300">
-                      {row.converted_leads ?? 0}
+                      {row.converted_leads}
                     </td>
                     <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-semibold text-emerald-600 dark:text-emerald-300">
                       {conversionRate.toFixed(1)}%

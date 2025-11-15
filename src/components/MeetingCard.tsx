@@ -24,6 +24,7 @@ import { format } from 'date-fns';
 import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { useNextActions } from '@/lib/hooks/useNextActions';
 import { supabase } from '@/lib/supabase/clientV2';
+import { getMeetingSummaryPlainText } from '@/lib/utils/meetingSummaryParser';
 
 interface Meeting {
   id: string;
@@ -517,7 +518,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Summary</div>
               <div className="text-xs text-gray-700 dark:text-gray-300 line-clamp-2">
-                {meeting.summary}
+                {getMeetingSummaryPlainText(meeting.summary)}
               </div>
             </div>
           )}

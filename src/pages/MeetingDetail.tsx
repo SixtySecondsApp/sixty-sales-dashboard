@@ -17,6 +17,7 @@ import { useNextActionSuggestions } from '@/lib/hooks/useNextActionSuggestions';
 import { useTasks } from '@/lib/hooks/useTasks';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { toast } from 'sonner';
+import { MeetingSummaryDisplay } from '@/components/shared/MeetingSummaryDisplay';
 
 interface Meeting {
   id: string;
@@ -91,34 +92,9 @@ function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Enhanced markdown parser for Fathom summaries with beautiful styling
-function parseMarkdownSummary(markdown: string): string {
-  return markdown
-    // Main headers (# Header) - Large, prominent
-    .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mt-8 mb-4 pb-2 border-b border-gray-200 dark:border-white/10">$1</h1>')
-    // Section headers (## Header) - Medium, spaced
-    .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mt-6 mb-3">$1</h2>')
-    // Sub-headers (### Header) - Smaller, colored accent
-    .replace(/^### (.*?)$/gm, '<h3 class="text-base font-semibold text-blue-600 dark:text-blue-400 mt-4 mb-2">$1</h3>')
-    // Bold text - White and prominent
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>')
-    // Timestamp links - Styled as clickable badges with play icon and consistent spacing
-    .replace(/\[(.*?)\]\((https:\/\/fathom\.video\/share\/[^)]+timestamp=([0-9.]+)[^)]*)\)/g,
-      '<span class="timestamp-link inline-block align-top px-2 py-1 mb-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 hover:text-blue-700 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 dark:text-blue-400 dark:hover:text-blue-300 cursor-pointer transition-all text-xs font-medium max-w-[90%]" data-timestamp="$3" data-href="$2">' +
-      '<svg class="w-3 h-3 inline-block mr-1.5 -mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>' +
-      '$1' +
-      '</span>')
-    // Regular links - Subtle blue
-    .replace(/\[(.*?)\]\((https:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">$1</a>')
-    // Bullet points - Hidden bullet, consistent spacing with line-height fix
-    .replace(/^ - (.*?)$/gm, '<div class="mb-1 text-gray-700 dark:text-gray-300 leading-relaxed min-h-[28px] flex items-start">$1</div>')
-    // Numbered lists - Hidden numbers, consistent spacing with line-height fix
-    .replace(/^ (\d+)\. (.*?)$/gm, '<div class="mb-1 text-gray-700 dark:text-gray-300 leading-relaxed min-h-[28px] flex items-start">$2</div>')
-    // Paragraph breaks - Better spacing
-    .replace(/\n\n/g, '<div class="mb-4"></div>')
-    // Single line breaks - Smaller spacing
-    .replace(/\n/g, '<br/>');
-}
+// Note: parseMarkdownSummary has been moved to @/lib/utils/meetingSummaryParser
+// This function is kept for backward compatibility with timestamp click handlers
+// but the actual parsing is now done by MeetingSummaryDisplay component
 
 export function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -916,22 +892,8 @@ export function MeetingDetail() {
                   </div>
 
                   {meeting.summary ? (
-                    <div className="text-sm text-muted-foreground leading-relaxed">
-                      {(() => {
-                        try {
-                          // Try to parse as JSON first (Fathom format)
-                          const parsed = JSON.parse(meeting.summary);
-                          if (parsed.markdown_formatted) {
-                            // Parse and render markdown content
-                            const html = parseMarkdownSummary(parsed.markdown_formatted);
-                            return <div ref={summaryRef} dangerouslySetInnerHTML={{ __html: html }} />;
-                          }
-                          return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
-                        } catch {
-                          // If not JSON, just display as plain text
-                          return <div ref={summaryRef} className="whitespace-pre-line">{meeting.summary}</div>;
-                        }
-                      })()}
+                    <div className="text-sm text-muted-foreground leading-relaxed" ref={summaryRef}>
+                      <MeetingSummaryDisplay summary={meeting.summary} />
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">

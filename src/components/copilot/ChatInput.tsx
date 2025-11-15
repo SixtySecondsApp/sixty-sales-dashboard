@@ -46,8 +46,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   };
 
   return (
-    <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4 sticky bottom-6">
-      <div className="flex items-end gap-3">
+    <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-2xl p-5 sticky bottom-6 shadow-2xl max-w-3xl mx-auto w-full">
+      <div className="flex items-end gap-4">
         <div className="flex-1">
           <textarea
             ref={textareaRef}
@@ -58,32 +58,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onKeyDown={handleKeyPress}
             disabled={disabled}
             className={cn(
-              'w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-lg',
-              'text-sm text-gray-100 placeholder-gray-500',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500/50',
+              'w-full px-5 py-4 bg-gray-800/50 border border-gray-700/50 rounded-xl',
+              'text-base text-gray-100 placeholder-gray-500',
+              'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50',
               'resize-none overflow-hidden',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              'transition-all duration-200'
             )}
           />
         </div>
         <Button
           onClick={onSend}
           disabled={!value.trim() || disabled}
-          className="px-6 py-3 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 flex-shrink-0 disabled:opacity-50"
+          className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-blue-500/20"
         >
-          <Send className="w-4 h-4 mr-2" />
-          <span className="text-sm font-semibold">Send</span>
+          <Send className="w-5 h-5" />
         </Button>
       </div>
 
       {/* Suggested Prompts */}
       {suggestedPrompts.length > 0 && onPromptClick && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {suggestedPrompts.map((prompt, index) => (
             <button
               key={index}
               onClick={() => onPromptClick(prompt)}
-              className="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 rounded-lg text-xs text-gray-300 transition-all"
+              className="px-4 py-2 bg-gray-800/50 hover:bg-gray-800 border border-gray-700/50 rounded-lg text-sm text-gray-300 transition-all hover:scale-105"
             >
               {prompt}
             </button>

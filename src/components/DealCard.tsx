@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Heart, 
@@ -17,6 +17,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { DealWithRelationships } from '@/lib/hooks/deals/types/dealTypes';
+import { extractDomainFromDeal } from '@/lib/utils/domainUtils';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface DealCardProps {
   deal: DealWithRelationships;
@@ -40,6 +42,24 @@ const DealCard: React.FC<DealCardProps> = ({
   onNavigate,
 }) => {
   const [hovered, setHovered] = useState(false);
+  const [logoError, setLogoError] = useState(false);
+
+  // Extract domain for logo
+  const domainForLogo = useMemo(() => {
+    return extractDomainFromDeal({
+      companies: deal.companies,
+      company: deal.company,
+      contact_email: deal.contact_email,
+      company_website: deal.company_website,
+    });
+  }, [deal.companies, deal.company, deal.contact_email, deal.company_website]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+
+  // Reset error state when domain or logoUrl changes
+  React.useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
 
   // Generate deal icon color based on stage
   const getStageColor = () => {
@@ -171,8 +191,17 @@ const DealCard: React.FC<DealCardProps> = ({
             )}
             
             {/* Deal Icon */}
-            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getStageColor()} flex items-center justify-center text-white font-bold`}>
-              {generateInitials()}
+            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${getStageColor()} flex items-center justify-center text-white font-bold overflow-hidden`}>
+              {logoUrl && !logoError && !isLoading ? (
+                <img
+                  src={logoUrl}
+                  alt={`${typeof deal.company === 'string' ? deal.company : deal.company?.name || 'Company'} logo`}
+                  className="w-full h-full object-cover"
+                  onError={() => setLogoError(true)}
+                />
+              ) : (
+                generateInitials()
+              )}
             </div>
             
             <div>
@@ -302,8 +331,17 @@ const DealCard: React.FC<DealCardProps> = ({
 
       {/* Deal Icon */}
       <div className="relative mb-4">
-        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getStageColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg`}>
-          {generateInitials()}
+        <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${getStageColor()} flex items-center justify-center text-white font-bold text-xl shadow-lg overflow-hidden`}>
+          {logoUrl && !logoError && !isLoading ? (
+            <img
+              src={logoUrl}
+              alt={`${typeof deal.company === 'string' ? deal.company : deal.company?.name || 'Company'} logo`}
+              className="w-full h-full object-cover"
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            generateInitials()
+          )}
         </div>
         <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center">
           <Heart className="w-3 h-3 text-white fill-white" />

@@ -49,6 +49,7 @@
     "test:memory:components": "vitest run tests/memory/ComponentSpecificMemoryTests.test.tsx",
     "test:memory:watch": "vitest tests/memory --watch",
     "setup:playwright-user": "tsx scripts/setup-playwright-user.ts",
+    "create-test-user": "node scripts/create-test-user.js",
     "test:memory:coverage": "vitest run tests/memory --coverage",
     "playwright": "playwright test",
     "playwright:ui": "playwright test --ui",
