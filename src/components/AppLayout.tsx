@@ -627,16 +627,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             navigate('/copilot');
             setIsSmartSearchOpen(false);
           }}
-          onDraftEmail={() => {
-            // Could navigate to email page or open email modal
+          onDraftEmail={(contactId, contactEmail) => {
+            // Navigate to email page with contact information
+            if (contactEmail) {
+              navigate(`/email?to=${encodeURIComponent(contactEmail)}`);
+            } else {
+              navigate('/email');
+            }
             setIsSmartSearchOpen(false);
           }}
           onAddContact={() => {
             navigate('/crm?tab=contacts');
             setIsSmartSearchOpen(false);
           }}
-          onScheduleMeeting={() => {
-            navigate('/meetings');
+          onScheduleMeeting={(contactId) => {
+            // Navigate to meetings page, optionally with contact pre-selected
+            if (contactId) {
+              navigate(`/meetings?contact=${contactId}`);
+            } else {
+              navigate('/meetings');
+            }
             setIsSmartSearchOpen(false);
           }}
           onSelectContact={(contactId) => {

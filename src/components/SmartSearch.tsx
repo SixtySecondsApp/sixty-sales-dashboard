@@ -48,9 +48,9 @@ interface SmartSearchProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenCopilot?: () => void;
-  onDraftEmail?: () => void;
+  onDraftEmail?: (contactId?: string, contactEmail?: string) => void;
   onAddContact?: () => void;
-  onScheduleMeeting?: () => void;
+  onScheduleMeeting?: (contactId?: string) => void;
   onSelectContact?: (contactId: string) => void;
   onSelectMeeting?: (meetingId: string) => void;
   onSelectCompany?: (companyId: string) => void;
@@ -741,8 +741,11 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                 // If there are results, select the first one
                 if (searchResults.length > 0) {
                   searchResults[0].action();
+                } else if (querySuggestions.length > 0) {
+                  // If there are suggestions, use the first one
+                  setSearchQuery(querySuggestions[0]);
                 } else {
-                // Otherwise, send to Copilot
+                  // Otherwise, send to Copilot
                   onAskCopilot?.(searchQuery.trim());
                 }
               } else if (e.key === 'Escape') {
@@ -753,6 +756,9 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                   // Clear search instead
                   setSearchQuery('');
                 }
+              } else if (e.key === 'ArrowDown' && querySuggestions.length > 0 && !isInputFocused) {
+                e.preventDefault();
+                // Navigate suggestions (could be enhanced)
               }
             }}
             className="flex-1 bg-transparent text-gray-100 placeholder-gray-500 text-base focus:outline-none"
@@ -785,22 +791,22 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
             </div>
           )}
 
-          {/* Query Suggestions - Show when typing */}
-          {querySuggestions.length > 0 && searchQuery.trim().length > 2 && searchResults.length === 0 && (
+          {/* Query Suggestions - Show when typing or when results are limited */}
+          {querySuggestions.length > 0 && searchQuery.trim().length > 2 && (
             <div className="px-3 py-2">
               <p className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-2">
                 <Sparkles className="w-3 h-3" />
-                Try These Searches
+                {searchResults.length === 0 ? 'Try These Searches' : 'Related Searches'}
               </p>
               <div className="space-y-1">
-                {querySuggestions.map((suggestion, idx) => (
+                {querySuggestions.slice(0, searchResults.length > 0 ? 3 : 6).map((suggestion, idx) => (
                   <button
                     key={idx}
                     onClick={() => setSearchQuery(suggestion)}
-                    className="w-full flex items-start gap-3 px-3 py-2 hover:bg-blue-500/10 hover:border-blue-500/20 border border-transparent rounded-lg transition-all text-left"
+                    className="w-full flex items-start gap-3 px-3 py-2 hover:bg-blue-500/10 hover:border-blue-500/20 border border-transparent rounded-lg transition-all text-left group"
                   >
-                    <ArrowRight className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                    <span className="text-sm text-gray-300">{suggestion}</span>
+                    <ArrowRight className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-sm text-gray-300 group-hover:text-blue-400 transition-colors">{suggestion}</span>
                   </button>
                 ))}
               </div>
@@ -810,14 +816,29 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
           {/* Search Results */}
           {searchQuery.trim() && searchResults.length > 0 && (
             <div className="px-3 py-2 border-t border-gray-800/50">
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
-                {isMeetingQuery(parsedQuery) ? 'Meeting Matches' : 'Search Results'}
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase">
+                  {isMeetingQuery(parsedQuery) ? 'Meeting Matches' : 'Search Results'}
+                </p>
                 {parsedQuery && (
-                  <span className="ml-2 text-gray-600">
-                    ({parsedQuery.intent} • {parsedQuery.entities.join(', ')})
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {parsedQuery.filters.valueRange && (
+                      <span className="text-xs text-gray-600">
+                        {parsedQuery.filters.valueRange.min && `>$${parsedQuery.filters.valueRange.min.toLocaleString()}`}
+                        {parsedQuery.filters.valueRange.max && ` <$${parsedQuery.filters.valueRange.max.toLocaleString()}`}
+                      </span>
+                    )}
+                    {parsedQuery.filters.dateRange && (
+                      <span className="text-xs text-gray-600">
+                        {parsedQuery.filters.dateRange.from && '📅'}
+                      </span>
+                    )}
+                    <span className="text-xs text-gray-600">
+                      {parsedQuery.entities.length > 0 ? parsedQuery.entities.join(', ') : 'all'}
+                    </span>
+                  </div>
                 )}
-              </p>
+              </div>
               <div className="space-y-1">
                 {searchResults.map(result => {
                   let Icon = User;
@@ -862,12 +883,29 @@ export const SmartSearch: React.FC<SmartSearchProps> = ({
                                 key={idx}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Handle action based on type
-                                  if (action.action === 'send-email' && result.type === 'contact') {
-                                    onDraftEmail?.();
+                                  // Handle action based on type with context
+                                  if (action.action === 'send-email') {
+                                    if (result.type === 'contact' && result.metadata) {
+                                      const email = result.metadata.email || '';
+                                      onDraftEmail?.(result.id, email);
+                                    } else {
+                                      onDraftEmail?.();
+                                    }
                                     onClose();
                                   } else if (action.action === 'schedule-meeting') {
-                                    onScheduleMeeting?.();
+                                    if (result.type === 'contact') {
+                                      onScheduleMeeting?.(result.id);
+                                    } else {
+                                      onScheduleMeeting?.();
+                                    }
+                                    onClose();
+                                  } else if (action.action === 'view-contacts' && result.type === 'company') {
+                                    // Navigate to company contacts
+                                    onSelectCompany?.(result.id);
+                                    onClose();
+                                  } else if (action.action === 'create-task' && result.type === 'meeting') {
+                                    // Navigate to meeting to create task
+                                    onSelectMeeting?.(result.id);
                                     onClose();
                                   } else {
                                     result.action();

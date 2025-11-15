@@ -114,23 +114,65 @@ export function parseQuery(query: string): ParsedQuery {
     result.filters.status = statusMatch[3];
   }
 
-  // Date range
+  // Date range - enhanced parsing
   const datePatterns = [
-    /\b(today|yesterday|this week|this month|this quarter|this year)\b/i,
-    /\b(last week|last month|last quarter|last year)\b/i,
-    /\b(in|from|after)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i,
-    /\b(before|after|since|until)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i
+    { pattern: /\b(today)\b/i, range: () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return { from: today.toISOString(), to: new Date().toISOString() };
+    }},
+    { pattern: /\b(yesterday)\b/i, range: () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+      const end = new Date(yesterday);
+      end.setHours(23, 59, 59, 999);
+      return { from: yesterday.toISOString(), to: end.toISOString() };
+    }},
+    { pattern: /\b(this week)\b/i, range: () => {
+      const today = new Date();
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - today.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      return { from: startOfWeek.toISOString() };
+    }},
+    { pattern: /\b(this month)\b/i, range: () => {
+      const today = new Date();
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { from: startOfMonth.toISOString() };
+    }},
+    { pattern: /\b(last week)\b/i, range: () => {
+      const today = new Date();
+      const lastWeekStart = new Date(today);
+      lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
+      lastWeekStart.setHours(0, 0, 0, 0);
+      const lastWeekEnd = new Date(lastWeekStart);
+      lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+      lastWeekEnd.setHours(23, 59, 59, 999);
+      return { from: lastWeekStart.toISOString(), to: lastWeekEnd.toISOString() };
+    }},
+    { pattern: /\b(last month)\b/i, range: () => {
+      const today = new Date();
+      const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+      return { from: lastMonthStart.toISOString(), to: lastMonthEnd.toISOString() };
+    }},
+    { pattern: /\b(in|from|after)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i, range: (match: RegExpMatchArray) => {
+      // Parse date from match
+      return { from: match[2] };
+    }},
+    { pattern: /\b(before|until)\s+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i, range: (match: RegExpMatchArray) => {
+      return { to: match[2] };
+    }}
   ];
   
-  for (const pattern of datePatterns) {
-    const match = lowerQuery.match(pattern);
+  for (const datePattern of datePatterns) {
+    const match = lowerQuery.match(datePattern.pattern);
     if (match) {
-      // Parse date range (simplified)
-      if (match[0].includes('this week')) {
-        result.filters.dateRange = { from: 'this-week' };
-      } else if (match[0].includes('this month')) {
-        result.filters.dateRange = { from: 'this-month' };
-      }
+      const range = typeof datePattern.range === 'function' 
+        ? datePattern.range(match)
+        : datePattern.range(match);
+      result.filters.dateRange = { ...result.filters.dateRange, ...range };
       break;
     }
   }
@@ -167,15 +209,24 @@ export function parseQuery(query: string): ParsedQuery {
     }
   }
 
-  // Extract actions
-  const actionKeywords = [
-    'send email', 'email', 'call', 'schedule', 'book', 'set reminder',
-    'follow up', 'update', 'mark', 'complete', 'close', 'create task'
+  // Extract actions - more comprehensive
+  const actionPatterns = [
+    { pattern: /\b(send|write|draft|compose)\s+(an\s+)?email\b/i, action: 'send email' },
+    { pattern: /\bemail\s+(to|for)\b/i, action: 'send email' },
+    { pattern: /\b(call|phone|ring)\b/i, action: 'call' },
+    { pattern: /\b(schedule|book|set up)\s+(a\s+)?meeting\b/i, action: 'schedule meeting' },
+    { pattern: /\b(create|add|new)\s+(a\s+)?task\b/i, action: 'create task' },
+    { pattern: /\b(follow up|follow-up)\b/i, action: 'follow up' },
+    { pattern: /\b(update|modify|change)\b/i, action: 'update' },
+    { pattern: /\b(mark|set)\s+(as\s+)?(complete|done|finished)\b/i, action: 'complete' },
+    { pattern: /\b(close|finish)\s+(deal|deal)\b/i, action: 'close deal' }
   ];
   
-  for (const action of actionKeywords) {
-    if (lowerQuery.includes(action)) {
-      result.actions.push(action);
+  for (const { pattern, action } of actionPatterns) {
+    if (pattern.test(lowerQuery)) {
+      if (!result.actions.includes(action)) {
+        result.actions.push(action);
+      }
     }
   }
 
@@ -205,6 +256,7 @@ function parseValue(valueStr: string): number {
 export function generateQuerySuggestions(query: string, entities: EntityType[]): string[] {
   const suggestions: string[] = [];
   const lowerQuery = query.toLowerCase();
+  const queryWords = query.trim().split(/\s+/);
 
   // If query is very short, suggest common searches
   if (query.length < 3) {
@@ -213,38 +265,65 @@ export function generateQuerySuggestions(query: string, entities: EntityType[]):
       'Show at-risk deals',
       'Contacts from this week',
       'Deals over $50k',
-      'My top priorities'
+      'My top priorities',
+      'Recent activity',
+      'High-value opportunities'
     ];
   }
 
-  // Suggest entity-specific queries
-  if (entities.includes('deal')) {
-    suggestions.push(`Deals with ${query}`);
-    suggestions.push(`At-risk deals with ${query}`);
-    suggestions.push(`Deals over $50k with ${query}`);
+  // Extract potential name/entity from query
+  const potentialName = queryWords.length > 1 ? queryWords.slice(-2).join(' ') : query;
+
+  // Suggest entity-specific queries with context
+  if (entities.includes('deal') || entities.length === 0) {
+    suggestions.push(`Deals with ${potentialName}`);
+    suggestions.push(`At-risk deals with ${potentialName}`);
+    suggestions.push(`Deals over $50k`);
+    if (!lowerQuery.includes('this week') && !lowerQuery.includes('this month')) {
+      suggestions.push(`Deals from this week`);
+    }
   }
 
-  if (entities.includes('contact')) {
-    suggestions.push(`Contact ${query}`);
-    suggestions.push(`Meetings with ${query}`);
-    suggestions.push(`Deals with ${query}`);
+  if (entities.includes('contact') || entities.length === 0) {
+    suggestions.push(`Contact ${potentialName}`);
+    suggestions.push(`Meetings with ${potentialName}`);
+    suggestions.push(`Deals with ${potentialName}`);
+    if (!lowerQuery.includes('this week')) {
+      suggestions.push(`Contacts from this week`);
+    }
   }
 
-  if (entities.includes('meeting')) {
-    suggestions.push(`Meetings with ${query}`);
-    suggestions.push(`Recent meetings with ${query}`);
+  if (entities.includes('meeting') || entities.length === 0) {
+    suggestions.push(`Meetings with ${potentialName}`);
+    suggestions.push(`Recent meetings with ${potentialName}`);
+    if (!lowerQuery.includes('this week')) {
+      suggestions.push(`Meetings from this week`);
+    }
   }
 
-  // Suggest actions
-  if (!lowerQuery.includes('send') && !lowerQuery.includes('email')) {
-    suggestions.push(`Send email to ${query}`);
+  if (entities.includes('company') || entities.length === 0) {
+    suggestions.push(`Company ${potentialName}`);
+    suggestions.push(`Contacts at ${potentialName}`);
   }
 
-  if (!lowerQuery.includes('schedule') && !lowerQuery.includes('meeting')) {
-    suggestions.push(`Schedule meeting with ${query}`);
+  // Suggest actions if not already present
+  if (!lowerQuery.includes('send') && !lowerQuery.includes('email') && !lowerQuery.includes('draft')) {
+    suggestions.push(`Send email to ${potentialName}`);
   }
 
-  return suggestions.slice(0, 5);
+  if (!lowerQuery.includes('schedule') && !lowerQuery.includes('meeting') && !lowerQuery.includes('book')) {
+    suggestions.push(`Schedule meeting with ${potentialName}`);
+  }
+
+  // Suggest analytical queries
+  if (!lowerQuery.includes('show') && !lowerQuery.includes('find') && !lowerQuery.includes('list')) {
+    suggestions.push(`Show at-risk deals`);
+    suggestions.push(`My top priorities`);
+  }
+
+  // Remove duplicates and limit
+  const uniqueSuggestions = Array.from(new Set(suggestions));
+  return uniqueSuggestions.slice(0, 6);
 }
 
 /**
@@ -257,17 +336,33 @@ export function calculateRelevanceScore(
 ): number {
   let score = 1 - matchScore; // Fuse.js returns 0-1, lower is better
 
-  // Boost recent items
+  // Boost recent items (stronger for very recent)
   if (item.created_at || item.meeting_start) {
     const date = new Date(item.created_at || item.meeting_start);
     const daysAgo = (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24);
-    score += Math.max(0, (30 - daysAgo) / 30) * 0.2; // Boost items from last 30 days
+    if (daysAgo < 7) {
+      score += 0.3; // Strong boost for items from last week
+    } else if (daysAgo < 30) {
+      score += 0.2; // Moderate boost for items from last month
+    } else {
+      score += Math.max(0, (90 - daysAgo) / 90) * 0.1; // Gradual decay
+    }
   }
 
   // Boost high-value deals
   if (item.value && query.entities.includes('deal')) {
     const valueBoost = Math.min(item.value / 100000, 0.3); // Cap at 30% boost
     score += valueBoost;
+    
+    // Extra boost for deals matching value filters
+    if (query.filters.valueRange) {
+      if (query.filters.valueRange.min && item.value >= query.filters.valueRange.min) {
+        score += 0.2;
+      }
+      if (query.filters.valueRange.max && item.value <= query.filters.valueRange.max) {
+        score += 0.2;
+      }
+    }
   }
 
   // Boost items matching filters
@@ -275,13 +370,39 @@ export function calculateRelevanceScore(
     score += 0.3;
   }
 
-  if (query.filters.stage && item.stage === query.filters.stage) {
+  if (query.filters.stage && (item.stage === query.filters.stage || item.deal_stages?.name === query.filters.stage)) {
     score += 0.3;
   }
 
   // Boost primary contacts
   if (item.is_primary || item.primary_contact_id) {
-    score += 0.1;
+    score += 0.15;
+  }
+
+  // Boost items matching contact/company name filters
+  if (query.filters.contactName) {
+    const contactName = query.filters.contactName.toLowerCase();
+    const itemName = `${item.first_name || ''} ${item.last_name || ''}`.trim().toLowerCase();
+    const itemEmail = item.email?.toLowerCase() || '';
+    if (itemName.includes(contactName) || itemEmail.includes(contactName)) {
+      score += 0.25;
+    }
+  }
+
+  if (query.filters.companyName) {
+    const companyName = query.filters.companyName.toLowerCase();
+    const itemName = item.name?.toLowerCase() || item.company?.toLowerCase() || '';
+    if (itemName.includes(companyName)) {
+      score += 0.25;
+    }
+  }
+
+  // Boost exact matches in title/name
+  const queryLower = query.originalQuery.toLowerCase();
+  if (item.name?.toLowerCase().includes(queryLower) || 
+      item.title?.toLowerCase().includes(queryLower) ||
+      `${item.first_name || ''} ${item.last_name || ''}`.toLowerCase().includes(queryLower)) {
+    score += 0.15;
   }
 
   return Math.min(score, 1.0);
