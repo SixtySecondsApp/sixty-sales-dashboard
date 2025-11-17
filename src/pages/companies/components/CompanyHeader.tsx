@@ -61,7 +61,7 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
     return activityDate >= thirtyDaysAgo;
   }).length;
 
-  const getStatusColor = (status: Company['status']) => {
+  const getStatusColor = (status: Company['status'] | undefined) => {
     switch (status) {
       case 'client':
         return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
@@ -76,7 +76,7 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
     }
   };
 
-  const getStatusIcon = (status: Company['status']) => {
+  const getStatusIcon = (status: Company['status'] | undefined) => {
     switch (status) {
       case 'client':
         return CheckCircle;
@@ -129,7 +129,7 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
                   getStatusColor(company.status)
                 )}>
                   <StatusIcon className="w-4 h-4" />
-                  {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
+                  {company.status ? company.status.charAt(0).toUpperCase() + company.status.slice(1) : 'Unknown'}
                 </div>
               </div>
 

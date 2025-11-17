@@ -97,7 +97,7 @@ export function CompanySidebar({ company, collapsed, onToggle }: CompanySidebarP
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm theme-text-tertiary">Type</span>
-                  <span className="text-sm theme-text-primary capitalize">{company.status}</span>
+                  <span className="text-sm theme-text-primary capitalize">{company.status || 'Unknown'}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm theme-text-tertiary">Created</span>

@@ -22,6 +22,7 @@ export interface Company {
   owner_id: string;
   created_at: string;
   updated_at: string;
+  status?: 'active' | 'prospect' | 'client' | 'churned';
   
   // Computed/joined fields
   contacts?: Contact[];
