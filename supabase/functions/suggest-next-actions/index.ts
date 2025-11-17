@@ -260,7 +260,7 @@ async function fetchActivityContext(
 
       const { data: activities } = await supabase
         .from('activities')
-        .select('type, created_at, notes')
+        .select('type, created_at, details')
         .eq('company_id', meeting.company_id)
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false })
@@ -289,7 +289,7 @@ async function fetchActivityContext(
       .select(`
         id,
         type,
-        notes,
+        details,
         created_at,
         company_id,
         deal_id,
@@ -306,7 +306,7 @@ async function fetchActivityContext(
     context = {
       id: activity.id,
       type: activity.type,
-      notes: activity.notes,
+      notes: activity.details, // Use 'details' field from activities table
       created_at: activity.created_at,
       deal: activity.deals,
       company: activity.companies,
@@ -510,7 +510,7 @@ function buildContextSummary(context: ActivityContext): string {
   if (context.recent_activities && context.recent_activities.length > 0) {
     summary += `\nRecent Activity History (last 30 days):\n`
     context.recent_activities.forEach((activity, index) => {
-      summary += `${index + 1}. [${activity.type}] ${new Date(activity.created_at).toLocaleDateString()}: ${activity.notes || 'No notes'}\n`
+      summary += `${index + 1}. [${activity.type}] ${new Date(activity.created_at).toLocaleDateString()}: ${activity.details || 'No details'}\n`
     })
   }
 

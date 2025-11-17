@@ -3304,7 +3304,7 @@ async function structureContactResponse(
         // Fallback: use activities that are emails
         return await client
           .from('activities')
-          .select('id, type, notes, date, created_at')
+          .select('id, type, details, date, created_at')
           .eq('contact_id', contactId)
           .eq('type', 'email')
           .order('date', { ascending: false })
@@ -3330,7 +3330,7 @@ async function structureContactResponse(
       // Fetch activities
       client
         .from('activities')
-        .select('id, type, notes, date')
+        .select('id, type, details, date')
         .eq('contact_id', contactId)
         .order('date', { ascending: false })
         .limit(10),
@@ -3399,7 +3399,7 @@ async function structureContactResponse(
     const formattedActivities = activities.slice(0, 10).map((activity: any) => ({
       id: activity.id,
       type: activity.type,
-      notes: activity.notes,
+      notes: activity.details, // Use 'details' field from activities table
       date: activity.date
     }))
     
