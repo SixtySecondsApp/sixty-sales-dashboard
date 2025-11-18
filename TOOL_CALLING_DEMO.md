@@ -97,3 +97,7 @@ http://localhost:8765/demo-tool-calling-live.html
 
 The tool calling visualization is **production-ready** and makes the Copilot experience significantly more professional and transparent! ✨
 
+
+
+
+

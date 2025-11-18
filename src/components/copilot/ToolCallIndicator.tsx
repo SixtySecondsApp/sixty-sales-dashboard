@@ -174,7 +174,7 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
     >
       {/* Connecting Line */}
       {!isLast && (
-        <div className="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-700/50 to-transparent" />
+        <div className="absolute left-[11px] top-6 w-0.5 h-full bg-gradient-to-b from-gray-300 dark:from-gray-700/50 to-transparent" />
       )}
 
       {/* Icon */}
@@ -185,7 +185,7 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
               ? 'bg-emerald-500 shadow-lg shadow-emerald-500/30'
               : step.state === 'active'
               ? 'bg-blue-500 shadow-lg shadow-blue-500/30'
-              : 'bg-gray-700/50 border border-gray-600/50'
+              : 'bg-gray-200 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600/50'
           }`}
           animate={
             step.state === 'active'
@@ -210,7 +210,7 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
           ) : step.state === 'active' ? (
             <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
           ) : (
-            <StepIcon className="w-3 h-3 text-gray-500" />
+            <StepIcon className="w-3 h-3 text-gray-500 dark:text-gray-400" />
           )}
         </motion.div>
       </div>
@@ -220,10 +220,10 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
         <div
           className={`text-sm transition-colors duration-200 ${
             step.state === 'complete'
-              ? 'text-gray-300'
+              ? 'text-gray-700 dark:text-gray-300'
               : step.state === 'active'
-              ? 'text-gray-100 font-medium'
-              : 'text-gray-500'
+              ? 'text-gray-900 dark:text-gray-100 font-medium'
+              : 'text-gray-500 dark:text-gray-400'
           }`}
         >
           {step.label}
@@ -234,7 +234,7 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="text-xs text-emerald-400/80 mt-1 flex items-center gap-1"
+            className="text-xs text-emerald-600 dark:text-emerald-400/80 mt-1 flex items-center gap-1"
           >
             <CheckCircle2 className="w-3 h-3" />
             <span>{formatMetadata(step.metadata)}</span>
@@ -243,7 +243,7 @@ function ToolStepComponent({ step, isLast }: { step: ToolStep; isLast: boolean }
 
         {/* Duration */}
         {step.duration && step.state === 'complete' && (
-          <div className="text-xs text-gray-600 mt-0.5">{Math.round(step.duration)}ms</div>
+          <div className="text-xs text-gray-500 dark:text-gray-600 mt-0.5">{Math.round(step.duration)}ms</div>
         )}
       </div>
     </motion.div>
@@ -267,7 +267,7 @@ export function ToolCallIndicator({
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="inline-flex items-center gap-3 px-4 py-2.5 bg-gray-900/70 backdrop-blur-sm border border-gray-800/50 rounded-xl"
+        className="inline-flex items-center gap-3 px-4 py-2.5 bg-white dark:bg-gray-900/70 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none"
       >
         <motion.div
           animate={isComplete ? {} : { rotate: 360 }}
@@ -276,8 +276,8 @@ export function ToolCallIndicator({
         >
           <Icon className="w-4 h-4" />
         </motion.div>
-        <span className="text-sm text-gray-300 font-medium">{config.label}</span>
-        {!isComplete && <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />}
+        <span className="text-sm text-gray-900 dark:text-gray-300 font-medium">{config.label}</span>
+        {!isComplete && <Loader2 className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 animate-spin" />}
       </motion.div>
     );
   }
@@ -290,7 +290,7 @@ export function ToolCallIndicator({
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="my-2"
     >
-      <div className="bg-gray-900/70 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-5 shadow-xl shadow-black/20 overflow-hidden relative">
+      <div className="bg-white dark:bg-gray-900/70 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50 rounded-2xl p-5 shadow-lg dark:shadow-xl dark:shadow-black/20 overflow-hidden relative">
         {/* Animated background gradient */}
         {!isComplete && (
           <motion.div
@@ -334,12 +334,12 @@ export function ToolCallIndicator({
           </motion.div>
 
           <div className="flex-1">
-            <div className="text-base font-semibold text-gray-100">{config.label}</div>
-            <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+            <div className="text-base font-semibold text-gray-900 dark:text-gray-100">{config.label}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-500 mt-0.5 flex items-center gap-2">
               {isComplete ? (
                 <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">Complete</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="text-emerald-600 dark:text-emerald-400">Complete</span>
                 </>
               ) : (
                 <>
@@ -347,7 +347,7 @@ export function ToolCallIndicator({
                     animate={{ rotate: 360 }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                   >
-                    <Loader2 className="w-3.5 h-3.5 text-blue-400" />
+                    <Loader2 className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   </motion.div>
                   <span>{getStateLabel(toolCall.state)}</span>
                 </>
@@ -385,10 +385,10 @@ export function ToolCallIndicator({
         {!isComplete && (
           <div className="relative z-10">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-500 font-medium">Progress</span>
-              <span className="text-xs text-gray-400 font-semibold">{Math.round(getProgress(toolCall))}%</span>
+              <span className="text-xs text-gray-600 dark:text-gray-500 font-medium">Progress</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold">{Math.round(getProgress(toolCall))}%</span>
             </div>
-            <div className="h-1.5 bg-gray-800/80 rounded-full overflow-hidden backdrop-blur-sm">
+            <div className="h-1.5 bg-gray-200 dark:bg-gray-800/80 rounded-full overflow-hidden backdrop-blur-sm">
               <motion.div
                 className={`h-full bg-gradient-to-r ${config.gradient} shadow-lg ${config.glowColor} relative`}
                 initial={{ width: '0%' }}
@@ -417,9 +417,9 @@ export function ToolCallIndicator({
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="mt-5 pt-5 border-t border-gray-800/50 relative z-10"
+            className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-800/50 relative z-10"
           >
-            <div className="text-xs text-gray-500 mb-3 font-medium flex items-center gap-2">
+            <div className="text-xs text-gray-600 dark:text-gray-500 mb-3 font-medium flex items-center gap-2">
               <Activity className="w-3.5 h-3.5" />
               <span>Live Preview</span>
             </div>
@@ -430,7 +430,7 @@ export function ToolCallIndicator({
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.1 }}
-                  className="text-sm text-gray-400 pl-4 py-2 border-l-2 border-blue-500/30 bg-blue-500/5 rounded-r-lg backdrop-blur-sm"
+                  className="text-sm text-gray-700 dark:text-gray-400 pl-4 py-2 border-l-2 border-blue-500/30 bg-blue-50 dark:bg-blue-500/5 rounded-r-lg backdrop-blur-sm"
                 >
                   {item}
                 </motion.div>
@@ -439,7 +439,7 @@ export function ToolCallIndicator({
                 <motion.div
                   animate={{ opacity: [0.4, 1, 0.4] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  className="text-xs text-gray-600 pl-4 flex items-center gap-2"
+                  className="text-xs text-gray-500 dark:text-gray-600 pl-4 flex items-center gap-2"
                 >
                   <Loader2 className="w-3 h-3 animate-spin" />
                   <span>Loading more...</span>

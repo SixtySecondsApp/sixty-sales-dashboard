@@ -3,8 +3,9 @@
  * Displays when no conversation has started
  */
 
-import React from 'react';
-import { Sparkles } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Send } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface CopilotEmptyProps {
@@ -18,49 +19,99 @@ const suggestedPrompts = [
 ];
 
 export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => {
+  const [inputValue, setInputValue] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [inputValue]);
+
+  const handleSend = () => {
+    if (inputValue.trim()) {
+      onPromptClick(inputValue);
+      setInputValue('');
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (inputValue.trim()) {
+        handleSend();
+      }
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-2xl mx-auto px-6">
-      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20">
-        <Sparkles className="w-8 h-8 text-white" />
-      </div>
-      <h2 className="text-2xl font-semibold text-gray-100 mb-2">AI Copilot</h2>
-      <p className="text-sm text-gray-400 mb-8">Your intelligent sales assistant</p>
-      <div className="w-full mb-6">
-        <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-xl p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Ask Copilot anything about your pipeline, contacts, or next actions..."
-                className="w-full px-4 py-3 bg-gray-800/50 border border-gray-700/50 rounded-lg text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                    onPromptClick(e.currentTarget.value);
-                  }
-                }}
-              />
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] w-full px-4">
+      <div className="w-full max-w-3xl mx-auto flex flex-col items-center">
+        {/* Welcome Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3">
+            AI Copilot
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
+            Ask me anything about your pipeline, contacts, or next actions
+          </p>
+        </div>
+
+        {/* Large Centered Input Box */}
+        <div className="w-full max-w-2xl mb-8">
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <textarea
+                  ref={textareaRef}
+                  rows={3}
+                  placeholder="Ask Copilot anything about your pipeline, contacts, or next actions..."
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className={cn(
+                    'w-full px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl',
+                    'text-base text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50',
+                    'resize-none overflow-hidden',
+                    'transition-all duration-200'
+                  )}
+                />
+              </div>
+              <Button
+                onClick={handleSend}
+                disabled={!inputValue.trim()}
+                className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-blue-500/20"
+              >
+                <Send className="w-5 h-5" />
+              </Button>
             </div>
           </div>
         </div>
-      </div>
-      <div className="w-full">
-        <p className="text-xs font-semibold text-gray-500 uppercase mb-3 text-center">Try asking:</p>
-        <div className="flex flex-col gap-2">
-          {suggestedPrompts.map((prompt, index) => (
-            <button
-              key={index}
-              onClick={() => onPromptClick(prompt)}
-              className={cn(
-                'px-4 py-3 bg-gray-900/60 backdrop-blur-sm border border-gray-800/50 rounded-lg',
-                'text-sm text-gray-300 text-left',
-                'hover:bg-gray-800/60 hover:border-gray-700/50',
-                'transition-all duration-200',
-                'focus:outline-none focus:ring-2 focus:ring-blue-500/50'
-              )}
-            >
-              {prompt}
-            </button>
-          ))}
+
+        {/* Suggested Prompts */}
+        <div className="w-full max-w-2xl">
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-500 uppercase mb-4 text-center tracking-wider">
+            Try asking:
+          </p>
+          <div className="flex flex-col gap-3">
+            {suggestedPrompts.map((prompt, index) => (
+              <button
+                key={index}
+                onClick={() => onPromptClick(prompt)}
+                className={cn(
+                  'px-6 py-4 bg-gray-100 dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl',
+                  'text-base text-gray-700 dark:text-gray-300 text-left',
+                  'hover:bg-gray-200 dark:hover:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700/50 hover:scale-[1.02]',
+                  'transition-all duration-200',
+                  'focus:outline-none focus:ring-2 focus:ring-blue-500/50'
+                )}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>

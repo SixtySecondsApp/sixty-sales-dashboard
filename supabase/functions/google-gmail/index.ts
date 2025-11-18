@@ -92,6 +92,11 @@ serve(async (req) => {
     });
   }
 
+  // Parse request based on method and URL (outside try block for error handling)
+  const url = new URL(req.url);
+  let action = url.searchParams.get('action');
+  let requestBody: any = {};
+
   try {
     // Get the authorization header
     const authHeader = req.headers.get('Authorization');
@@ -138,17 +143,16 @@ serve(async (req) => {
       accessToken = await refreshAccessToken(integration.refresh_token, supabase, user.id);
     }
 
-    // Parse request based on method and URL
-    const url = new URL(req.url);
     // Support action from both URL params and request body
-    let action = url.searchParams.get('action');
-
-    let requestBody: any = {};
     if (req.method === 'POST') {
-      requestBody = await req.json();
-      // If action not in URL, get it from body
-      if (!action && requestBody.action) {
-        action = requestBody.action;
+      try {
+        requestBody = await req.json();
+        // If action not in URL, get it from body
+        if (!action && requestBody.action) {
+          action = requestBody.action;
+        }
+      } catch (parseError) {
+        throw new Error('Invalid JSON in request body');
       }
     }
 
@@ -184,29 +188,56 @@ serve(async (req) => {
         break;
       
       case 'archive':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for archive action');
+        }
         response = await archiveEmail(accessToken, requestBody.messageId);
         break;
       
       case 'delete':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for delete action');
+        }
         response = await trashEmail(accessToken, requestBody.messageId);
         break;
       
       case 'trash':
         // Keep for backward compatibility
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for trash action');
+        }
         response = await trashEmail(accessToken, requestBody.messageId);
         break;
       
       case 'star':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for star action');
+        }
+        if (typeof requestBody.starred !== 'boolean') {
+          throw new Error('starred must be a boolean for star action');
+        }
         response = await starEmail(accessToken, requestBody.messageId, requestBody.starred);
         break;
       
       case 'mark-as-read':
-        response = await markAsRead(accessToken, requestBody.messageId, requestBody.read);
+        if (!requestBody.messageId || typeof requestBody.messageId !== 'string' || requestBody.messageId.trim() === '') {
+          throw new Error('messageId is required and must be a non-empty string for mark-as-read action');
+        }
+        if (typeof requestBody.read !== 'boolean') {
+          throw new Error('read must be a boolean for mark-as-read action');
+        }
+        response = await markAsRead(accessToken, requestBody.messageId.trim(), requestBody.read);
         break;
       
       case 'markAsRead':
         // Keep for backward compatibility
-        response = await markAsRead(accessToken, requestBody.messageId, requestBody.read);
+        if (!requestBody.messageId || typeof requestBody.messageId !== 'string' || requestBody.messageId.trim() === '') {
+          throw new Error('messageId is required and must be a non-empty string for markAsRead action');
+        }
+        if (typeof requestBody.read !== 'boolean') {
+          throw new Error('read must be a boolean for markAsRead action');
+        }
+        response = await markAsRead(accessToken, requestBody.messageId.trim(), requestBody.read);
         break;
       
       case 'sync':
@@ -245,10 +276,20 @@ serve(async (req) => {
     );
 
   } catch (error) {
+    // Log error details for debugging
+    console.error('[google-gmail] Error:', {
+      message: error?.message || 'Unknown error',
+      stack: error?.stack,
+      action: action || url.searchParams.get('action') || 'unknown',
+      requestBody: req.method === 'POST' ? requestBody : null,
+      url: req.url
+    });
+    
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'Internal server error',
-        details: 'Gmail service error'
+        error: error?.message || 'Internal server error',
+        details: 'Gmail service error',
+        action: action || url.searchParams.get('action') || 'unknown'
       }),
       {
         status: 400,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Mail, 
@@ -398,18 +398,37 @@ export default function Email() {
     }
   };
 
-  const handleMarkRead = async (emailId: string, read: boolean) => {
+  // Track emails being marked as read to prevent duplicate calls
+  const markingAsReadRef = useRef<Set<string>>(new Set());
+
+  const handleMarkRead = useCallback(async (emailId: string | null, read: boolean) => {
+    // Validate emailId before proceeding
+    if (!emailId || typeof emailId !== 'string') {
+      console.warn('[Email] Cannot mark as read: invalid emailId', emailId);
+      return;
+    }
+
     if (isGmailEnabled) {
+      // Prevent duplicate calls for the same email
+      const key = `${emailId}-${read}`;
+      if (markingAsReadRef.current.has(key)) {
+        return; // Already processing this request
+      }
+
+      markingAsReadRef.current.add(key);
       try {
         await markAsRead.mutateAsync({ messageId: emailId, read });
         toast.success(read ? 'Marked as read' : 'Marked as unread');
       } catch (error) {
+        console.error('[Email] Error marking as read:', error);
         toast.error('Failed to update read status');
+      } finally {
+        markingAsReadRef.current.delete(key);
       }
     } else {
       toast.info('Connect Gmail to update read status');
     }
-  };
+  }, [isGmailEnabled, markAsRead]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -447,10 +466,22 @@ export default function Email() {
     }
   }, [fullEmailError]);
   
-  // Auto-mark as read when viewing email
+  // Auto-mark as read when viewing email (only once per email selection)
+  const lastMarkedEmailRef = useRef<string | null>(null);
   useEffect(() => {
-    if (selectedEmail && fullEmailData && !fullEmailData.read && isGmailEnabled) {
+    if (
+      selectedEmail && 
+      fullEmailData && 
+      !fullEmailData.read && 
+      isGmailEnabled &&
+      lastMarkedEmailRef.current !== selectedEmail // Only mark once per selection
+    ) {
+      lastMarkedEmailRef.current = selectedEmail;
       handleMarkRead(selectedEmail, true);
+    }
+    // Reset when email changes
+    if (selectedEmail !== lastMarkedEmailRef.current) {
+      lastMarkedEmailRef.current = null;
     }
   }, [selectedEmail, fullEmailData?.read, isGmailEnabled, handleMarkRead]);
   
@@ -535,7 +566,7 @@ export default function Email() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="lg:hidden p-2 min-h-[40px] min-w-[40px] rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors flex items-center justify-center"
+            className="lg:hidden p-2 min-h-[40px] min-w-[40px] rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors flex items-center justify-center"
           >
             <PanelLeft className="w-5 h-5" />
           </motion.button>
@@ -545,7 +576,7 @@ export default function Email() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="hidden lg:flex p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 transition-colors"
+            className="hidden lg:flex p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors"
           >
             {isSidebarCollapsed ? <PanelLeft className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </motion.button>
@@ -568,14 +599,14 @@ export default function Email() {
         <div className="flex items-center gap-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-400" />
             <input
               id="email-search"
               type="text"
               placeholder="Search emails..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-80 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-10 pr-4 py-2 w-80 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
 
@@ -585,7 +616,7 @@ export default function Email() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowFilters(true)}
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors"
               title="Email filters"
             >
               <Filter className="w-5 h-5" />
@@ -594,7 +625,7 @@ export default function Email() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setIsComposerOpen(true)}
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors"
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors"
               title="Compose email"
             >
               <Edit className="w-5 h-5" />
@@ -604,7 +635,7 @@ export default function Email() {
               whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
               disabled={isRefreshing || emailsLoading}
-              className="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-100 transition-colors disabled:opacity-50"
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors disabled:opacity-50"
               title="Refresh emails"
             >
               <RefreshCw className={cn("w-5 h-5", (isRefreshing || emailsLoading) && "animate-spin")} />
@@ -619,14 +650,14 @@ export default function Email() {
                   try {
                     // Test with the exact format expected by the Edge Function
                     const response = await supabase.functions.invoke('google-gmail?action=list', {
-                      body: { 
+                      body: {
                         query: 'in:inbox',
                         maxResults: 10
                       }
                     });
                     if (response.error) {
                       toast.error(`API Error: ${response.error.message || response.error}`);
-                      
+
                       // Check if it's an authentication issue
                       if (response.error.message?.includes('token') || response.error.message?.includes('auth')) {
                         toast.info('Try reconnecting your Google account in Settings');
@@ -638,7 +669,7 @@ export default function Email() {
                     toast.error('Failed to call Gmail API');
                   }
                 }}
-                className="p-2 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors"
+                className="p-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
                 title="Test Gmail API"
               >
                 <Zap className="w-5 h-5" />
@@ -701,8 +732,8 @@ export default function Email() {
                       className={cn(
                         'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                         selectedFolder === folder.id
-                          ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                          : 'text-gray-400 hover:bg-gray-700'
+                          ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                       )}
                     >
                       <div className="flex items-center gap-3">
@@ -710,7 +741,7 @@ export default function Email() {
                         {folder.label}
                       </div>
                       {folder.count > 0 && (
-                        <span className="px-2 py-0.5 text-xs bg-gray-700 rounded-full">
+                        <span className="px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
                           {folder.count}
                         </span>
                       )}
@@ -719,8 +750,8 @@ export default function Email() {
                 </div>
 
                 {/* Filters */}
-                <div className="border-t border-gray-800/50 pt-4">
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Filters</h3>
+                <div className="border-t border-gray-200 dark:border-gray-800/50 pt-4">
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Filters</h3>
                   <div className="space-y-1">
                     {[
                       { id: 'all', label: 'All', icon: Mail },
@@ -737,8 +768,8 @@ export default function Email() {
                         className={cn(
                           'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                           readFilter === filter.id
-                            ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                            : 'text-gray-400 hover:bg-gray-700'
+                            ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         )}
                       >
                         <filter.icon className="w-4 h-4" />
@@ -750,8 +781,8 @@ export default function Email() {
 
                 {/* Gmail Categories */}
                 {isGmailEnabled && (
-                  <div className="border-t border-gray-800/50 pt-4">
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Categories</h3>
+                  <div className="border-t border-gray-200 dark:border-gray-800/50 pt-4">
+                    <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Categories</h3>
                     <div className="space-y-1">
                       {[
                         { id: 'primary', label: 'Primary', color: 'blue' },
@@ -771,8 +802,8 @@ export default function Email() {
                           className={cn(
                             'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                             selectedCategory === category.id
-                              ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                              : 'text-gray-400 hover:bg-gray-700'
+                              ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                           )}
                         >
                           <div className="flex items-center gap-3">
@@ -794,8 +825,8 @@ export default function Email() {
 
                 {/* Gmail Labels */}
                 {isGmailEnabled && labelsData?.labels && (
-                  <div className="border-t border-gray-800/50 pt-4">
-                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Labels</h3>
+                  <div className="border-t border-gray-200 dark:border-gray-800/50 pt-4">
+                    <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Labels</h3>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {labelsData.labels
                         .filter((label: any) => 
@@ -814,8 +845,8 @@ export default function Email() {
                             className={cn(
                               'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                               selectedLabel === label.id
-                                ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20'
-                                : 'text-gray-400 hover:bg-gray-700'
+                                ? 'bg-blue-600/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                             )}
                           >
                             <div className="flex items-center gap-3">
@@ -828,7 +859,7 @@ export default function Email() {
                               <span className="truncate">{label.name}</span>
                             </div>
                             {label.messagesUnread > 0 && (
-                              <span className="px-2 py-0.5 text-xs bg-gray-700 rounded-full">
+                              <span className="px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
                                 {label.messagesUnread}
                               </span>
                             )}
@@ -839,19 +870,19 @@ export default function Email() {
                 )}
 
                 {/* AI Features */}
-                <div className="border-t border-gray-800/50 pt-4">
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">AI Features</h3>
+                <div className="border-t border-gray-200 dark:border-gray-800/50 pt-4">
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">AI Features</h3>
                   <div className="space-y-1">
                     <motion.button
                       whileHover={{ x: 4 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-700 transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <Zap className="w-4 h-4" />
                       Smart Replies
                     </motion.button>
                     <motion.button
                       whileHover={{ x: 4 }}
-                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-700 transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                     >
                       <Clock className="w-4 h-4" />
                       Send Later
@@ -963,17 +994,17 @@ export default function Email() {
 
       {/* Connection Status - Moved to bottom */}
       {integration && isGmailEnabled && (
-        <div className="bg-blue-600/10 border-t border-blue-500/20 px-6 py-3 mt-4">
+        <div className="bg-blue-50 dark:bg-blue-600/10 border-t border-blue-200 dark:border-blue-500/20 px-6 py-3 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#37bd7e]" />
-              <p className="text-sm text-[#37bd7e]">Connected to {integration.email}</p>
+              <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-[#37bd7e]" />
+              <p className="text-sm text-green-700 dark:text-[#37bd7e]">Connected to {integration.email}</p>
             </div>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate('/integrations')}
-              className="text-sm text-gray-400 hover:text-white transition-colors flex items-center gap-2"
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
             >
               <Settings className="w-4 h-4" />
               Manage

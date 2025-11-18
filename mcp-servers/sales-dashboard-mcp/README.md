@@ -62,3 +62,7 @@ Claude will automatically use the appropriate tools to complete these actions.
 
 The tools are implemented directly in the Edge Function for performance and simplicity. The MCP server can be used as a standalone service if needed for external integrations.
 
+
+
+
+

@@ -67,7 +67,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ actions, onActionC
   };
 
   return (
-    <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-800/50">
+    <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200 dark:border-gray-800/50">
       {actions.map(action => {
         const Icon = action.icon ? getIcon(action.icon) : null;
         
@@ -78,8 +78,8 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ actions, onActionC
             className={cn(
               'px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2',
               action.type === 'primary' && 'bg-blue-600 hover:bg-blue-700 text-white',
-              action.type === 'secondary' && 'bg-gray-900/60 backdrop-blur-sm border border-gray-800/40 hover:bg-gray-900/50 text-gray-300',
-              action.type === 'tertiary' && 'text-gray-400 hover:text-gray-300'
+              action.type === 'secondary' && 'bg-white dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/40 hover:bg-gray-50 dark:hover:bg-gray-900/50 text-gray-900 dark:text-gray-300',
+              action.type === 'tertiary' && 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300'
             )}
           >
             {Icon && <Icon className="w-4 h-4" />}

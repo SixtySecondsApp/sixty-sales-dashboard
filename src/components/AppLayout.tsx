@@ -7,6 +7,7 @@ import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { NotificationBell } from '@/components/NotificationBell';
 import { EmailIcon } from '@/components/EmailIcon';
 import { CalendarIcon } from '@/components/CalendarIcon';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { toast } from 'sonner';
 import {
   LayoutDashboard,
@@ -56,6 +57,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem
 } from '@/components/ui/dropdown-menu';
+import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
+import { useTheme } from '@/hooks/useTheme';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -68,6 +71,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSmartSearchOpen, setIsSmartSearchOpen] = useState(false);
   const navigate = useNavigate();
   const { openCopilot } = useCopilot();
+  const { settings: brandingSettings } = useBrandingSettings();
+  const { resolvedTheme } = useTheme();
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
@@ -188,6 +193,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <EmailIcon />
           <CalendarIcon />
           <NotificationBell />
@@ -375,6 +381,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* User Profile with Dropdown */}
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <EmailIcon />
           <CalendarIcon />
           <NotificationBell />
@@ -465,14 +472,32 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               'transition-opacity hover:opacity-80',
               isCollapsed ? 'w-10 h-10' : 'w-full h-12'
             )}>
-              <img
-                src="https://www.sixtyseconds.ai/images/logo.png"
-                alt="Sixty Seconds Logo"
-                className={cn(
-                  'object-contain',
-                  isCollapsed ? 'w-10 h-10' : 'w-full h-12'
-                )}
-              />
+              {(() => {
+                // When collapsed, show icon if available, otherwise show logo
+                if (isCollapsed) {
+                  const iconUrl = brandingSettings?.icon_url || 'https://www.sixtyseconds.ai/images/logo.png';
+                  return (
+                    <img
+                      src={iconUrl}
+                      alt="Logo"
+                      className="w-10 h-10 object-contain"
+                    />
+                  );
+                }
+                
+                // When expanded, show theme-appropriate logo
+                const logoUrl = resolvedTheme === 'dark' 
+                  ? (brandingSettings?.logo_dark_url || brandingSettings?.logo_light_url || 'https://www.sixtyseconds.ai/images/logo.png')
+                  : (brandingSettings?.logo_light_url || brandingSettings?.logo_dark_url || 'https://www.sixtyseconds.ai/images/logo.png');
+                
+                return (
+                  <img
+                    src={logoUrl}
+                    alt="Logo"
+                    className="w-full h-12 object-contain"
+                  />
+                );
+              })()}
             </Link>
           </div>
           

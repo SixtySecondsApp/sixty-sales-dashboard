@@ -31,6 +31,10 @@ import { ActivityPlanningResponse } from './responses/ActivityPlanningResponse';
 import { CompanyIntelligenceResponse } from './responses/CompanyIntelligenceResponse';
 import { WorkflowProcessResponse } from './responses/WorkflowProcessResponse';
 import { SearchDiscoveryResponse } from './responses/SearchDiscoveryResponse';
+import { ContactSelectionResponse } from './responses/ContactSelectionResponse';
+import { ActivityCreationResponse } from './responses/ActivityCreationResponse';
+import { TaskCreationResponse } from './responses/TaskCreationResponse';
+import { ProposalSelectionResponse } from './responses/ProposalSelectionResponse';
 import type { CopilotResponse as CopilotResponseType } from './types';
 
 interface CopilotResponseProps {
@@ -126,11 +130,23 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
     case 'search_discovery':
       return <SearchDiscoveryResponse data={response} onActionClick={onActionClick} />;
     
+    case 'contact_selection':
+      return <ContactSelectionResponse data={response} onActionClick={onActionClick} />;
+    
+    case 'activity_creation':
+      return <ActivityCreationResponse data={response} onActionClick={onActionClick} />;
+    
+    case 'task_creation':
+      return <TaskCreationResponse data={response} onActionClick={onActionClick} />;
+    
+    case 'proposal_selection':
+      return <ProposalSelectionResponse data={response} onActionClick={onActionClick} />;
+    
     default:
       // Fallback to text response if type is unknown
       return (
         <div className="space-y-4">
-          <p className="text-sm text-gray-300">{response.summary}</p>
+          <p className="text-sm text-gray-900 dark:text-gray-300">{response.summary}</p>
         </div>
       );
   }

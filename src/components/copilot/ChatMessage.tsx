@@ -11,6 +11,7 @@ import { PriorityCard } from './PriorityCard';
 import { ToolCallIndicator } from './ToolCallIndicator';
 import { CopilotResponse } from './CopilotResponse';
 import type { CopilotMessage } from './types';
+import { useUser } from '@/lib/hooks/useUser';
 
 interface ChatMessageProps {
   message: CopilotMessage;
@@ -19,6 +20,7 @@ interface ChatMessageProps {
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick }) => {
   const isUser = message.role === 'user';
+  const { userData } = useUser();
 
   return (
     <div className={cn('flex gap-3', isUser ? 'justify-end' : 'justify-start')}>
@@ -30,7 +32,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
       <div className={cn('max-w-3xl', isUser ? '' : 'w-full')}>
         {isUser ? (
           <div className="bg-blue-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl px-4 py-3 inline-block">
-            <p className="text-sm text-gray-100">{message.content}</p>
+            <p className="text-sm text-gray-900 dark:text-gray-100">{message.content}</p>
           </div>
         ) : (
           <div className="w-full relative">
@@ -59,10 +61,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="bg-gray-900/60 backdrop-blur-xl border border-gray-800/40 rounded-xl px-5 py-4 shadow-lg w-full"
+                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg w-full"
                 >
-                  <CopilotResponse 
-                    response={message.structuredResponse} 
+                  <CopilotResponse
+                    response={message.structuredResponse}
                     onActionClick={onActionClick}
                   />
                 </motion.div>
@@ -78,9 +80,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="bg-gray-900/60 backdrop-blur-xl border border-gray-800/40 rounded-xl px-5 py-4 shadow-lg"
+                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg"
                 >
-                  <p className="text-sm text-gray-100 leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -102,8 +104,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
         )}
       </div>
       {isUser && (
-        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-          U
+        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+          {userData?.avatar_url ? (
+            <img
+              src={userData.avatar_url}
+              alt={userData.first_name || 'User'}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <span className="text-xs font-bold text-white">
+                {userData?.first_name?.[0]?.toUpperCase() || 'U'}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

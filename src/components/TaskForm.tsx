@@ -514,495 +514,377 @@ const TaskForm: React.FC<TaskFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl glassmorphism border-gray-700/50">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="text-2xl font-bold text-white flex items-center gap-3">
-            <Plus className="w-6 h-6 text-blue-400" />
-            {task ? 'Edit Task' : 'Create New Task'}
-          </DialogTitle>
-          <DialogDescription className="text-gray-400 text-base">
+      <DialogContent className="
+        fixed inset-0 w-screen h-screen max-w-none max-h-none rounded-none p-0 m-0
+        sm:fixed sm:left-[50%] sm:top-[50%] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:right-auto sm:bottom-auto sm:w-full sm:h-auto sm:max-w-xl sm:max-h-[90vh] sm:rounded-xl sm:p-0 sm:m-0
+        bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 shadow-2xl overflow-hidden flex flex-col
+      ">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{task ? 'Edit Task' : 'Create New Task'}</DialogTitle>
+          <DialogDescription>
             {task ? 'Update your task details' : 'Set up a new task quickly and efficiently'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Task Title */}
-          <div className="space-y-3">
-            <Label htmlFor="title" className="text-lg font-semibold text-white flex items-center gap-2">
-              <Target className="w-5 h-5 text-blue-400" />
-              What needs to be done? *
-            </Label>
-                           <Input
-                 id="title"
-                 value={formData.title}
-                 onChange={(e) => handleInputChange('title', e.target.value)}
-                 placeholder="e.g., Call John about the proposal"
-                 className="bg-gray-800/70 border-gray-600/50 text-white text-lg p-4 rounded-xl focus:border-blue-500/50 focus:ring-blue-500/20 placeholder:text-gray-400"
-                 required
-               />
-          </div>
-
-          {/* Task Type & Priority Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-white flex items-center gap-2">
-                ⚡ Task Type
-              </Label>
-              <Select value={formData.task_type} onValueChange={(value) => handleInputChange('task_type', value)}>
-                <SelectTrigger className="bg-gray-800/70 border-gray-600/50 h-12 text-base rounded-xl text-white">
-                  <SelectValue>
-                    <div className="flex items-center gap-3 text-white">
-                      <span className="text-lg">{selectedTaskType?.icon}</span>
-                      <span className="text-white">{selectedTaskType?.label}</span>
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                  {taskTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value} className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">{type.icon}</span>
-                        <span className="text-white">{type.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* Clean Header */}
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-br from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+              <Plus className="w-5 h-5 text-white" />
             </div>
-
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-white flex items-center gap-2">
-                <Star className="w-4 h-4 text-yellow-400" />
-                Priority
-              </Label>
-              <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
-                <SelectTrigger className="bg-gray-800/70 border-gray-600/50 h-12 text-base rounded-xl text-white">
-                  <SelectValue>
-                    <div className="flex items-center gap-3 text-white">
-                      <span className="text-lg">{selectedPriority?.icon}</span>
-                      <span className="text-white">{selectedPriority?.label}</span>
-                    </div>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                  {priorities.map((priority) => (
-                    <SelectItem key={priority.value} value={priority.value} className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">{priority.icon}</span>
-                        <span className="text-white">{priority.label}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {task ? 'Edit Task' : 'Create Task'}
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {task ? 'Update task details' : 'Add a new task'}
+              </p>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg p-2"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
 
-          {/* Enhanced Due Date Picker */}
-          <div className="space-y-4">
-            <Label className="text-base font-medium text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-green-400" />
-              When is this due?
-            </Label>
-            
-            {/* Smart Quick Date Buttons */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {getSmartQuickDates().map((quick) => (
-                <Button
-                  key={quick.label}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleQuickDate(quick.value)}
-                  className="bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/70 hover:text-white flex items-center gap-2 h-12"
-                >
-                  <span className="text-base">{quick.icon}</span>
-                  <span className="text-xs font-medium">{quick.label}</span>
-                </Button>
-              ))}
+        {/* Scrollable Form Content */}
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-gray-950">
+          <form id="task-form" onSubmit={handleSubmit} className="p-5 space-y-5">
+            {/* Task Title */}
+            <div className="space-y-2">
+              <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Task Title *
+              </Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => handleInputChange('title', e.target.value)}
+                placeholder="e.g., Call John about the proposal"
+                className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white h-11 rounded-lg focus:border-blue-500 focus:ring-blue-500/20 placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                required
+              />
             </div>
-            
-            {/* Date and Time Picker Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Calendar Date Picker */}
+
+            {/* Task Type & Priority Row */}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label className="text-sm text-gray-300">Pick Date</Label>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Type</Label>
+                <Select value={formData.task_type} onValueChange={(value) => handleInputChange('task_type', value)}>
+                  <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg text-gray-900 dark:text-white">
+                    <SelectValue>
+                      <div className="flex items-center gap-2">
+                        <span>{selectedTaskType?.icon}</span>
+                        <span className="text-sm">{selectedTaskType?.label}</span>
+                      </div>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                    {taskTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value} className="text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <span>{type.icon}</span>
+                          <span>{type.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Priority</Label>
+                <Select value={formData.priority} onValueChange={(value) => handleInputChange('priority', value)}>
+                  <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg text-gray-900 dark:text-white">
+                    <SelectValue>
+                      <div className="flex items-center gap-2">
+                        <span>{selectedPriority?.icon}</span>
+                        <span className="text-sm">{selectedPriority?.label}</span>
+                      </div>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                    {priorities.map((priority) => (
+                      <SelectItem key={priority.value} value={priority.value} className="text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <span>{priority.icon}</span>
+                          <span>{priority.label}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Due Date */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Due Date</Label>
+              
+              {/* Quick Date Buttons */}
+              <div className="grid grid-cols-4 gap-2 mb-3">
+                {getSmartQuickDates().map((quick) => (
+                  <Button
+                    key={quick.label}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleQuickDate(quick.value)}
+                    className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 h-9 text-xs"
+                  >
+                    <span className="mr-1">{quick.icon}</span>
+                    <span>{quick.label}</span>
+                  </Button>
+                ))}
+              </div>
+              
+              {/* Date and Time Picker */}
+              <div className="grid grid-cols-2 gap-3">
                 <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                   <PopoverTrigger asChild>
                     <Button
+                      type="button"
                       variant="outline"
-                      className="w-full bg-gray-800/70 border-gray-600/50 text-white h-12 rounded-xl hover:bg-gray-700/70 justify-start"
+                      className="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg justify-start text-gray-900 dark:text-white"
                     >
-                      <Calendar className="mr-3 h-5 w-5 text-gray-400" />
+                      <Calendar className="mr-2 h-4 w-4 text-gray-400" />
                       {selectedDate ? (
-                        <span className="text-white">
-                          {format(selectedDate, 'MMM dd, yyyy')}
-                          {isToday(selectedDate) && ' (Today)'}
-                          {isTomorrow(selectedDate) && ' (Tomorrow)'}
+                        <span className="text-sm">
+                          {format(selectedDate, 'MMM dd')}
                         </span>
                       ) : (
-                        <span className="text-gray-400">Select date...</span>
+                        <span className="text-sm text-gray-400">Date</span>
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-gray-800 border-gray-600" align="start">
+                  <PopoverContent className="w-auto p-0 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700" align="start">
                     <CalendarComponent
                       mode="single"
                       selected={selectedDate}
                       onSelect={handleDateSelect}
                       disabled={(date) => date < startOfDay(new Date())}
                       className="rounded-md"
-                      classNames={{
-                        months: "text-white",
-                        month: "space-y-4",
-                        caption: "flex justify-center pt-1 relative items-center text-white",
-                        caption_label: "text-sm font-medium text-white",
-                        nav: "space-x-1 flex items-center",
-                        nav_button: "h-7 w-7 bg-transparent p-0 text-gray-400 hover:text-white",
-                        nav_button_previous: "absolute left-1",
-                        nav_button_next: "absolute right-1",
-                        table: "w-full border-collapse space-y-1",
-                        head_row: "flex",
-                        head_cell: "text-gray-400 rounded-md w-9 font-normal text-[0.8rem]",
-                        row: "flex w-full mt-2",
-                        cell: "text-center text-sm p-0 relative [&:has([aria-selected])]:bg-gray-700 first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
-                        day: "h-9 w-9 p-0 font-normal text-white hover:bg-gray-700 rounded-md",
-                        day_selected: "bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-500 focus:text-white",
-                        day_today: "bg-gray-700 text-white",
-                        day_outside: "text-gray-500 opacity-50",
-                        day_disabled: "text-gray-500 opacity-50",
-                        day_hidden: "invisible",
-                      }}
                     />
                   </PopoverContent>
                 </Popover>
-              </div>
 
-              {/* Time Picker */}
-              <div className="space-y-2">
-                <Label className="text-sm text-gray-300">Pick Time</Label>
                 <Select value={selectedTime} onValueChange={handleTimeChange}>
-                  <SelectTrigger className="bg-gray-800/70 border-gray-600/50 h-12 text-white rounded-xl">
+                  <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg text-gray-900 dark:text-white">
                     <SelectValue>
-                      <div className="flex items-center gap-3 text-white">
+                      <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-gray-400" />
-                        <span className="text-white">{selectedTime}</span>
+                        <span className="text-sm">{selectedTime}</span>
                       </div>
                     </SelectValue>
                   </SelectTrigger>
-                                     <SelectContent className="bg-gray-800 border-gray-600 text-white max-h-64 overflow-y-auto">
-                     {Array.from({ length: 24 }, (_, hour) => 
-                       Array.from({ length: 4 }, (_, quarter) => {
-                         const minutes = quarter * 15;
-                         const time = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                         const displayTime = format(setMinutes(setHours(new Date(), hour), minutes), 'h:mm a');
-                         
-                         // Safety check to ensure time is not empty
-                         if (!time || time.trim() === '') {
-                           return null;
-                         }
-                         
-                         return (
-                           <SelectItem key={time} value={time} className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                             <div className="flex items-center gap-3">
-                               <span className="text-white">{displayTime}</span>
-                             </div>
-                           </SelectItem>
-                         );
-                       })
-                     ).flat().filter(Boolean)}
-                   </SelectContent>
+                  <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
+                    {Array.from({ length: 24 }, (_, hour) => 
+                      Array.from({ length: 4 }, (_, quarter) => {
+                        const minutes = quarter * 15;
+                        const time = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                        const displayTime = format(setMinutes(setHours(new Date(), hour), minutes), 'h:mm a');
+                        if (!time || time.trim() === '') return null;
+                        return (
+                          <SelectItem key={time} value={time} className="text-gray-900 dark:text-white">
+                            {displayTime}
+                          </SelectItem>
+                        );
+                      })
+                    ).flat().filter(Boolean)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
 
-            {/* Selected Date/Time Display */}
-            {selectedDate && (
-              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center">
-                    <Clock className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="text-green-400 font-medium">
-                      Due: {format(selectedDate, 'EEEE, MMMM do, yyyy')} at {selectedTime}
+            {/* Assignee */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Assign To *</Label>
+              <Select value={formData.assigned_to} onValueChange={handleAssignmentChange}>
+                <SelectTrigger className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg text-gray-900 dark:text-white">
+                  <SelectValue placeholder="Choose someone..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700">
+                  {/* Me Option */}
+                  <SelectItem value={userData?.id || 'current-user'} className="text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gradient-to-br from-emerald-500 to-green-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        ME
+                      </div>
+                      <span>Me</span>
                     </div>
-                    <div className="text-gray-400 text-sm">
-                      {isToday(selectedDate) && 'Today'}
-                      {isTomorrow(selectedDate) && 'Tomorrow'}
-                      {!isToday(selectedDate) && !isTomorrow(selectedDate) && `In ${Math.ceil((selectedDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days`}
+                  </SelectItem>
+
+                  {/* Client Option */}
+                  <SelectItem value="client" className="text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        CL
+                      </div>
+                      <span>Client</span>
+                    </div>
+                  </SelectItem>
+
+                  {/* Sales Team */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                    Team
+                  </div>
+                  {users.filter(user => user.id !== userData?.id).map((user) => (
+                    <SelectItem key={`user-${user.id}`} value={user.id} className="text-gray-900 dark:text-white">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                          {user.first_name?.[0]}{user.last_name?.[0]}
+                        </div>
+                        <span>{user.first_name} {user.last_name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="steve" className="text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        ST
+                      </div>
+                      <span>Steve</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="phil" className="text-gray-900 dark:text-white">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        PH
+                      </div>
+                      <span>Phil</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Contact Search - Only shown when Client is selected */}
+            {isClientSelected && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Client Contact</Label>
+                
+                {selectedContact && contactId ? (
+                  <div className="p-3 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        {selectedContact.full_name?.[0] || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {selectedContact.full_name}
+                        </div>
+                        {selectedContact.email && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{selectedContact.email}</div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
-                    Set
-                  </Badge>
-                </div>
+                ) : (
+                  <div className="relative">
+                    <Input
+                      value={contactSearchQuery}
+                      onChange={(e) => handleContactSearch(e.target.value)}
+                      placeholder="Search contacts..."
+                      className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 h-10 rounded-lg text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    />
+                    
+                    {searchedContacts.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+                        {searchedContacts.map((contact) => (
+                          <div
+                            key={contact.id}
+                            onClick={() => handleContactSelect(contact)}
+                            className="flex items-center gap-2 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                          >
+                            <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                              {contact.first_name?.[0] || contact.full_name?.[0] || '?'}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
+                              </div>
+                              {contact.email && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{contact.email}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {selectedContact && !contactId && (
+                      <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/30 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                            {selectedContact.full_name?.[0] || '?'}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {selectedContact.full_name}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
-          </div>
 
-                               {/* Assignee */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium text-white flex items-center gap-2">
-              <User className="w-4 h-4 text-purple-400" />
-              Who's responsible? *
-            </Label>
-                                     <Select value={formData.assigned_to} onValueChange={handleAssignmentChange}>
-              <SelectTrigger className="bg-gray-800/70 border-gray-600/50 h-12 text-base rounded-xl text-white">
-                <SelectValue placeholder="Choose someone..." className="text-gray-400 placeholder:text-gray-400" />
-              </SelectTrigger>
-               <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                 {/* Me Option */}
-                 <SelectItem value={userData?.id || 'current-user'} className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                   <div className="flex items-center gap-3">
-                     <div className="w-6 h-6 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                       ME
-                     </div>
-                     <span className="text-white">Me</span>
-                     <Badge variant="outline" className="ml-2 text-xs bg-green-500/20 text-green-400 border-green-500/30">
-                       You
-                     </Badge>
-                   </div>
-                 </SelectItem>
-
-                 {/* Client Option */}
-                 <SelectItem value="client" className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                   <div className="flex items-center gap-3">
-                     <div className="w-6 h-6 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                       CL
-                     </div>
-                     <span className="text-white">Client</span>
-                     <Badge variant="outline" className="ml-2 text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">
-                       {contactId ? 'Auto-map' : 'Search'}
-                     </Badge>
-                   </div>
-                 </SelectItem>
-
-                                 {/* Sales Team Section */}
-                 <div className="px-2 py-1 text-xs font-semibold text-blue-400 uppercase tracking-wide mt-2">
-                   Sales Team
-                 </div>
-                 {users.filter(user => user.id !== userData?.id).map((user) => (
-                   <SelectItem key={`user-${user.id}`} value={user.id} className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                     <div className="flex items-center gap-3">
-                       <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                         {user.first_name?.[0]}{user.last_name?.[0]}
-                       </div>
-                       <span className="text-white">{user.first_name} {user.last_name}</span>
-                       <Badge variant="outline" className="ml-2 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                         Team
-                       </Badge>
-                     </div>
-                   </SelectItem>
-                 ))}
-                 <SelectItem value="steve" className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                   <div className="flex items-center gap-3">
-                     <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                       ST
-                     </div>
-                     <span className="text-white">Steve</span>
-                     <Badge variant="outline" className="ml-2 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                       Team
-                     </Badge>
-                   </div>
-                 </SelectItem>
-                 <SelectItem value="phil" className="text-white hover:bg-gray-700 focus:bg-gray-700">
-                   <div className="flex items-center gap-3">
-                     <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                       PH
-                     </div>
-                     <span className="text-white">Phil</span>
-                     <Badge variant="outline" className="ml-2 text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
-                       Team
-                     </Badge>
-                   </div>
-                 </SelectItem>
-              </SelectContent>
-            </Select>
-                     </div>
-
-          {/* Contact Search Field - Only shown when Client is selected */}
-          {isClientSelected && (
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-orange-400 flex items-center gap-2">
-                👥 Client Contact
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Description (Optional)
               </Label>
-              
-              {/* Auto-populated contact from contact page */}
-              {selectedContact && contactId ? (
-                <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                      {selectedContact.full_name?.[0] || '?'}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-orange-400 font-medium">
-                        {selectedContact.full_name}
-                      </div>
-                      {selectedContact.email && (
-                        <div className="text-gray-400 text-sm">{selectedContact.email}</div>
-                      )}
-                      {selectedContact.company && (
-                        <div className="text-gray-500 text-xs">
-                          {typeof selectedContact.company === 'string' 
-                            ? selectedContact.company 
-                            : selectedContact.company.name || 'Unknown Company'}
-                        </div>
-                      )}
-                    </div>
-                    <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
-                      Current Contact
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-gray-400 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    <span>Automatically mapped from contact page</span>
-                  </div>
-                </div>
-              ) : (
-                /* Contact search interface when no auto-populated contact */
-                <div className="relative">
-                  <Input
-                    value={contactSearchQuery}
-                    onChange={(e) => handleContactSearch(e.target.value)}
-                    placeholder="Type to search contacts by name, email, or company..."
-                    className="bg-gray-800/70 border-gray-600/50 text-white h-12 rounded-xl placeholder:text-gray-400"
-                  />
-                  
-                  {/* Search Results Dropdown */}
-                  {searchedContacts.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800/95 border border-gray-600/50 rounded-xl shadow-lg z-50 max-h-64 overflow-y-auto">
-                      {searchedContacts.map((contact) => (
-                        <div
-                          key={contact.id}
-                          onClick={() => handleContactSelect(contact)}
-                          className="flex items-center gap-3 p-3 hover:bg-gray-700/50 cursor-pointer border-b border-gray-700/30 last:border-b-0"
-                        >
-                          <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                            {contact.first_name?.[0] || contact.full_name?.[0] || '?'}
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-white font-medium">
-                              {contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
-                            </div>
-                            {contact.email && (
-                              <div className="text-gray-400 text-sm">{contact.email}</div>
-                            )}
-                            {contact.company && (
-                              <div className="text-gray-500 text-xs">
-                                {typeof contact.company === 'string' 
-                                  ? contact.company 
-                                  : contact.company.name || 'Unknown Company'}
-                              </div>
-                            )}
-                          </div>
-                          <Badge variant="outline" className="text-xs bg-orange-500/20 text-orange-400 border-orange-500/30">
-                            Select
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* Selected Contact Display for manual selection */}
-                  {selectedContact && !contactId && (
-                    <div className="mt-2 p-3 bg-orange-500/10 border border-orange-500/30 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                          {selectedContact.full_name?.[0] || '?'}
-                        </div>
-                        <div className="flex-1">
-                          <div className="text-orange-400 font-medium">
-                            {selectedContact.full_name}
-                          </div>
-                          {selectedContact.email && (
-                            <div className="text-gray-400 text-sm">{selectedContact.email}</div>
-                          )}
-                        </div>
-                        <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
-                          Selected
-                        </Badge>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Add any additional context..."
+                rows={3}
+                className="bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white resize-none rounded-lg placeholder:text-gray-400 dark:placeholder:text-gray-500"
+              />
             </div>
-          )}
+          </form>
+        </div>
 
-          {/* Optional Description */}
-          <div className="space-y-3">
-            <Label htmlFor="description" className="text-base font-medium text-gray-300">
-              Additional Details (Optional)
-            </Label>
-                         <Textarea
-               id="description"
-               value={formData.description}
-               onChange={(e) => handleInputChange('description', e.target.value)}
-               placeholder="Any extra context or notes..."
-               rows={3}
-               className="bg-gray-800/70 border-gray-600/50 text-white resize-none rounded-xl placeholder:text-gray-400"
-             />
-          </div>
-
-          {/* Context Info (Auto-filled) */}
-          {(formData.contact_name || formData.company) && (
-            <div className="glassmorphism-light p-4 rounded-xl border border-blue-500/20">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-medium text-blue-400">Task Context</span>
-              </div>
-              <div className="space-y-2 text-sm">
-                {formData.contact_name && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <User className="w-3 h-3" />
-                    <span>Contact: {formData.contact_name}</span>
-                  </div>
-                )}
-                {formData.company && (
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <span className="w-3 h-3 text-center">🏢</span>
-                    <span>Company: {formData.company}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="flex gap-3 pt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="bg-gray-800/50 border-gray-600/50 text-gray-300 hover:bg-gray-700/70 hover:text-white h-12 px-6"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || isUserLoading}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white h-12 px-8 rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
-                  {task ? 'Updating...' : 'Creating...'}
-                </>
-              ) : isUserLoading ? (
-                <>
-                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
-                  Loading user...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  {task ? 'Update Task' : 'Create Task'}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+        {/* Clean Footer */}
+        <div className="flex items-center gap-2 p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            className="flex-1 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 h-9 rounded-lg text-sm font-medium"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="task-form"
+            disabled={isSubmitting || isUserLoading}
+            className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white h-9 rounded-lg text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                {task ? 'Updating...' : 'Creating...'}
+              </>
+            ) : isUserLoading ? (
+              <>
+                <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2" />
+                Loading...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                {task ? 'Update' : 'Create'}
+              </>
+            )}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

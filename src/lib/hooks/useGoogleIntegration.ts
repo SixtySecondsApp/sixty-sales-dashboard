@@ -427,11 +427,29 @@ export function useGmailMarkAsRead() {
   
   return useMutation({
     mutationFn: async ({ messageId, read }: { messageId: string; read: boolean }) => {
+      // Validate inputs before making the request
+      if (!messageId || typeof messageId !== 'string' || messageId.trim() === '') {
+        throw new Error('messageId is required and must be a non-empty string');
+      }
+      if (typeof read !== 'boolean') {
+        throw new Error('read must be a boolean');
+      }
+
       const response = await supabase.functions.invoke('google-gmail?action=mark-as-read', {
-        body: { messageId, read }
+        body: { messageId: messageId.trim(), read }
       });
       
-      if (response.error) throw response.error;
+      if (response.error) {
+        // Check if response.data contains error details
+        const errorMessage = response.data?.error || response.error.message || 'Failed to mark email as read';
+        throw new Error(errorMessage);
+      }
+      
+      // Check if response.data indicates an error (Edge Function might return error in data)
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+      
       return response.data;
     },
     onSuccess: () => {

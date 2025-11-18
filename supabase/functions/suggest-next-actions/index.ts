@@ -1,3 +1,5 @@
+/// <reference path="../deno.d.ts" />
+
 /**
  * Suggest Next Actions Edge Function
  *
@@ -52,14 +54,17 @@ interface ActivityContext {
   }
   contact?: {
     id: string
-    name: string
-    email: string
-    role: string
+    first_name?: string
+    last_name?: string
+    full_name?: string
+    email?: string
+    title?: string
   }
   recent_activities?: Array<{
     type: string
     created_at: string
     notes: string
+    details?: string
   }>
 }
 
@@ -239,7 +244,7 @@ async function fetchActivityContext(
     }
 
     // Fetch related deal if exists
-    let deal = null
+    let deal: { id: string; title: string | null; stage: string | null; value: number | null } | null = null
     if (meeting.company_id) {
       const { data: dealData } = await supabase
         .from('deals')
@@ -249,11 +254,16 @@ async function fetchActivityContext(
         .limit(1)
         .single()
 
-      deal = dealData
+      deal = dealData as { id: string; title: string | null; stage: string | null; value: number | null } | null
     }
 
     // Fetch recent activities for context (last 30 days)
-    let recentActivities = []
+    let recentActivities: Array<{
+      type: string
+      created_at: string
+      notes: string
+      details?: string
+    }> = []
     if (meeting.company_id) {
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -266,7 +276,12 @@ async function fetchActivityContext(
         .order('created_at', { ascending: false })
         .limit(10)
 
-      recentActivities = activities || []
+      recentActivities = (activities || []).map((a: any) => ({
+        type: a.type,
+        created_at: a.created_at,
+        notes: a.details || '',
+        details: a.details
+      }))
     }
 
     context = {
@@ -276,9 +291,21 @@ async function fetchActivityContext(
       transcript: meeting.transcript_text,
       summary: meeting.summary,
       created_at: meeting.meeting_start,
-      deal: deal,
+      deal: deal ? {
+        id: deal.id,
+        title: deal.title || '',
+        stage: deal.stage || '',
+        value: deal.value || 0
+      } : undefined,
       company: meeting.companies,
-      contact: meeting.contacts,
+      contact: meeting.contacts ? {
+        id: meeting.contacts.id,
+        first_name: meeting.contacts.first_name,
+        last_name: meeting.contacts.last_name,
+        full_name: meeting.contacts.full_name,
+        email: meeting.contacts.email,
+        title: meeting.contacts.title
+      } : undefined,
       recent_activities: recentActivities
     }
 
@@ -308,9 +335,14 @@ async function fetchActivityContext(
       type: activity.type,
       notes: activity.details, // Use 'details' field from activities table
       created_at: activity.created_at,
-      deal: activity.deals,
+      deal: activity.deals ? {
+        id: activity.deals.id,
+        title: activity.deals.title || '',
+        stage: activity.deals.stage || '',
+        value: activity.deals.value || 0
+      } : undefined,
       company: activity.companies,
-      contact: null,
+      contact: undefined,
       recent_activities: []
     }
   }
@@ -510,7 +542,7 @@ function buildContextSummary(context: ActivityContext): string {
   if (context.recent_activities && context.recent_activities.length > 0) {
     summary += `\nRecent Activity History (last 30 days):\n`
     context.recent_activities.forEach((activity, index) => {
-      summary += `${index + 1}. [${activity.type}] ${new Date(activity.created_at).toLocaleDateString()}: ${activity.details || 'No details'}\n`
+      summary += `${index + 1}. [${activity.type}] ${new Date(activity.created_at).toLocaleDateString()}: ${activity.notes || activity.details || 'No details'}\n`
     })
   }
 
@@ -536,7 +568,7 @@ async function storeSuggestions(
   context: ActivityContext,
   suggestions: NextActionSuggestion[]
 ): Promise<any[]> {
-  const storedSuggestions = []
+  const storedSuggestions: any[] = []
 
   for (const suggestion of suggestions) {
     // Map task_category to action_type (handle both field names for compatibility)
@@ -577,8 +609,8 @@ async function storeSuggestions(
       .single()
 
     if (error) {
-    } else {
-      storedSuggestions.push(data)
+    } else if (data) {
+      storedSuggestions.push(data as any)
     }
   }
 
@@ -594,7 +626,7 @@ async function autoCreateTasksFromSuggestions(
   suggestions: any[],
   context: ActivityContext
 ): Promise<any[]> {
-  const createdTasks = []
+  const createdTasks: any[] = []
 
   // Get meeting owner or default user for task assignment
   let ownerId = null
@@ -663,7 +695,9 @@ async function autoCreateTasksFromSuggestions(
         .update({ status: 'accepted' })
         .eq('id', suggestion.id)
 
-      createdTasks.push(task)
+      if (task) {
+        createdTasks.push(task as any)
+      }
     } catch (error) {
     }
   }

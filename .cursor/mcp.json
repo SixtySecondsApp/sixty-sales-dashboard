@@ -3,6 +3,10 @@
     "Neon": {
       "command": "npx",
       "args": ["-y", "mcp-remote@latest", "https://mcp.neon.tech/mcp"]
+    },
+    "SalesDashboard": {
+      "command": "node",
+      "args": ["mcp-servers/sales-dashboard-mcp/dist/index.js"]
     }
   }
 }

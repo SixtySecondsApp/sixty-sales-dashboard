@@ -1,3 +1,5 @@
+/// <reference path="../deno.d.ts" />
+
 /**
  * Copilot API Edge Function
  * 
@@ -33,6 +35,7 @@ interface ChatRequest {
     currentView?: 'dashboard' | 'contact' | 'pipeline'
     contactId?: string
     dealIds?: string[]
+    taskId?: string
   }
 }
 
@@ -46,6 +49,60 @@ interface CopilotMessage {
   role: 'user' | 'assistant'
   content: string
   recommendations?: any[]
+}
+
+interface ToolResult {
+  type: 'tool_result'
+  tool_use_id: string
+  content: string
+  is_error?: boolean
+}
+
+interface StructuredResponse {
+  type: string
+  summary?: string
+  data?: any
+  actions?: Array<{
+    id: string
+    label: string
+    type: string
+    icon: string
+    callback: string
+    params?: any
+  }>
+  metadata?: any
+}
+
+interface ContactData {
+  id: string
+  full_name?: string
+  first_name?: string
+  last_name?: string
+  email?: string
+  phone?: string
+  title?: string
+  company_id?: string
+  companies?: {
+    name?: string
+  }
+}
+
+interface TaskData {
+  id: string
+  ticket_id?: string
+  title: string
+  description?: string
+  type?: string
+  priority?: string
+  status?: string
+  submitted_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+interface UserData {
+  id: string
+  email?: string
 }
 
 serve(async (req) => {
@@ -466,7 +523,7 @@ async function handleChat(
 
     // Detect intent and structure response if appropriate
     // If we skipped Claude for performance query, we MUST generate structured response
-    let structuredResponse = null
+    let structuredResponse: StructuredResponse | null = null
     if (shouldSkipClaude) {
       console.log('[STRUCTURED] Generating structured response for performance query...', {
         targetUserId,
@@ -1821,7 +1878,7 @@ Be helpful, proactive, and action-oriented.`
       })
 
       // Execute tools and collect results with timeout protection
-      const toolResults = []
+      const toolResults: ToolResult[] = []
       for (const toolCall of toolCalls) {
         const toolStartTime = Date.now()
         try {
@@ -1844,7 +1901,7 @@ Be helpful, proactive, and action-oriented.`
             tool_use_id: toolCall.id,
             content: JSON.stringify(toolResult)
           })
-        } catch (error) {
+        } catch (error: any) {
           toolsErrorCount++
           toolResults.push({
             type: 'tool_result',
@@ -1943,7 +2000,7 @@ async function executeToolCall(
     throw new Error(`Invalid tool name format: ${toolName}`)
   }
 
-  const operation = parts.pop() // Last part is the operation (create, read, update, delete)
+  const operation = parts.pop()! // Last part is the operation (create, read, update, delete)
   const entity = parts.join('_') // Everything else is the entity name
 
   // Route to appropriate handler
@@ -2988,11 +3045,53 @@ async function detectAndStructureResponse(
   userId: string,
   toolsUsed: string[] = [],
   requestingUserId?: string // Admin user making the request
-): Promise<any | null> {
+): Promise<StructuredResponse | null> {
   const messageLower = userMessage.toLowerCase()
   
   // Store original message for limit extraction
   const originalMessage = userMessage
+  
+  // Detect task creation requests (check before activity creation)
+  const taskCreationKeywords = [
+    'create a task', 'add a task', 'new task', 'create task', 'add task',
+    'remind me to', 'remind me', 'remind to', 'remind',
+    'schedule a task', 'set a task', 'task to',
+    'todo to', 'to-do to', 'follow up with', 'follow-up with',
+    'follow up', 'follow-up', 'followup'
+  ]
+  
+  const isTaskCreationRequest = 
+    taskCreationKeywords.some(keyword => messageLower.includes(keyword)) ||
+    (messageLower.includes('task') && (messageLower.includes('create') || messageLower.includes('add') || messageLower.includes('for') || messageLower.includes('to'))) ||
+    (messageLower.includes('remind') && (messageLower.includes('to') || messageLower.includes('me') || messageLower.includes('about'))) ||
+    (messageLower.includes('follow') && (messageLower.includes('up') || messageLower.includes('with'))) ||
+    (messageLower.includes('reminder') && (messageLower.includes('for') || messageLower.includes('about')))
+  
+  if (isTaskCreationRequest) {
+    const structured = await structureTaskCreationResponse(client, userId, userMessage)
+    return structured
+  }
+  
+  // Detect proposal/activity creation requests (check before other detections)
+  const proposalKeywords = ['add a proposal', 'create proposal', 'add proposal', 'proposal for', 'new proposal']
+  const meetingKeywords = ['add a meeting', 'create meeting', 'add meeting', 'meeting with', 'new meeting']
+  const saleKeywords = ['add a sale', 'create sale', 'add sale', 'sale for', 'new sale']
+  const outboundKeywords = ['add outbound', 'create outbound', 'outbound for', 'new outbound']
+  
+  const isProposalRequest = proposalKeywords.some(keyword => messageLower.includes(keyword)) || 
+    (messageLower.includes('proposal') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
+  const isMeetingRequest = meetingKeywords.some(keyword => messageLower.includes(keyword)) || 
+    (messageLower.includes('meeting') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('with')))
+  const isSaleRequest = saleKeywords.some(keyword => messageLower.includes(keyword)) || 
+    (messageLower.includes('sale') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
+  const isOutboundRequest = outboundKeywords.some(keyword => messageLower.includes(keyword)) || 
+    (messageLower.includes('outbound') && (messageLower.includes('add') || messageLower.includes('create') || messageLower.includes('for')))
+  
+  if (isProposalRequest || isMeetingRequest || isSaleRequest || isOutboundRequest) {
+    const activityType = isProposalRequest ? 'proposal' : isMeetingRequest ? 'meeting' : isSaleRequest ? 'sale' : 'outbound'
+    const structured = await structureActivityCreationResponse(client, userId, userMessage, activityType)
+    return structured
+  }
   
   // Detect pipeline-related queries
   // Note: General "prioritize" questions are handled by task detection first
@@ -3147,6 +3246,611 @@ async function detectAndStructureResponse(
 }
 
 /**
+ * Structure activity creation response with contact search
+ */
+async function structureActivityCreationResponse(
+  client: any,
+  userId: string,
+  userMessage: string,
+  activityType: 'proposal' | 'meeting' | 'sale' | 'outbound'
+): Promise<any> {
+  try {
+    // Extract contact name from message
+    // Patterns: "add proposal for Paul Lima", "create meeting with John Smith", etc.
+    const namePatterns = [
+      /(?:for|with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)/, // Full name pattern
+      /(?:proposal|meeting|sale|outbound)\s+(?:for|with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i
+    ]
+    
+    let contactName: string | null = null
+    for (const pattern of namePatterns) {
+      const match = userMessage.match(pattern)
+      if (match && match[1]) {
+        contactName = match[1].trim()
+        break
+      }
+    }
+    
+    // Extract date information
+    const todayPattern = /(?:for|on)\s+(?:today|now)/i
+    const tomorrowPattern = /(?:for|on)\s+tomorrow/i
+    const datePattern = /(?:for|on)\s+(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?)/i
+    
+    let activityDate: string | null = null
+    if (todayPattern.test(userMessage)) {
+      activityDate = new Date().toISOString()
+    } else if (tomorrowPattern.test(userMessage)) {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      activityDate = tomorrow.toISOString()
+    } else if (datePattern.test(userMessage)) {
+      const dateMatch = userMessage.match(datePattern)
+      if (dateMatch && dateMatch[1]) {
+        // Try to parse the date
+        const parsedDate = new Date(dateMatch[1])
+        if (!isNaN(parsedDate.getTime())) {
+          activityDate = parsedDate.toISOString()
+        }
+      }
+    }
+    
+    // If no date specified, default to today
+    if (!activityDate) {
+      activityDate = new Date().toISOString()
+    }
+    
+    // If no contact name found, return contact selection response
+    if (!contactName) {
+      return {
+        type: 'contact_selection',
+        summary: `I'd like to help you create a ${activityType}. Please select the contact:`,
+        data: {
+          activityType,
+          activityDate,
+          requiresContactSelection: true,
+          prefilledName: '',
+          prefilledEmail: ''
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['user_message']
+        }
+      }
+    }
+    
+    // Search for contacts matching the name
+    const nameParts = contactName.split(/\s+/)
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+    
+    // Build search query
+    let contactsQuery = client
+      .from('contacts')
+      .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+      .eq('user_id', userId)
+    
+    // Search by first and last name
+    if (firstName && lastName) {
+      contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,last_name.ilike.%${lastName}%,full_name.ilike.%${contactName}%`)
+    } else if (firstName) {
+      contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,full_name.ilike.%${firstName}%`)
+    } else {
+      // If no name parts, search by full name
+      contactsQuery = contactsQuery.ilike('full_name', `%${contactName}%`)
+    }
+    
+    const { data: contacts, error: contactsError } = await contactsQuery.limit(10)
+    
+    if (contactsError) {
+      console.error('Error searching contacts:', contactsError)
+      // Return contact selection response on error
+      return {
+        type: 'contact_selection',
+        summary: `I'd like to help you create a ${activityType} for ${contactName}. Please select the contact:`,
+        data: {
+          activityType,
+          activityDate,
+          requiresContactSelection: true,
+          prefilledName: contactName,
+          prefilledEmail: ''
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['user_message']
+        }
+      }
+    }
+    
+    // If no contacts found or multiple contacts found, return contact selection response
+    if (!contacts || contacts.length === 0 || contacts.length > 1) {
+      return {
+        type: 'contact_selection',
+        summary: contacts && contacts.length > 1
+          ? `I found ${contacts.length} contacts matching "${contactName}". Please select the correct one:`
+          : `I couldn't find a contact matching "${contactName}". Please select or create a contact:`,
+        data: {
+          activityType,
+          activityDate,
+          requiresContactSelection: true,
+          prefilledName: contactName,
+          prefilledEmail: '',
+          suggestedContacts: contacts || []
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['contacts_search'],
+          matchCount: contacts?.length || 0
+        }
+      }
+    }
+    
+    // Single contact found - return success response with contact info
+    const contact = contacts[0]
+    return {
+      type: 'activity_creation',
+      summary: `I found ${contact.full_name || `${contact.first_name} ${contact.last_name}`.trim()}. Ready to create the ${activityType}.`,
+      data: {
+        activityType,
+        activityDate,
+        contact: {
+          id: contact.id,
+          name: contact.full_name || `${contact.first_name} ${contact.last_name}`.trim(),
+          email: contact.email,
+          company: contact.companies?.name || null,
+          companyId: contact.company_id || null
+        },
+        requiresContactSelection: false
+      },
+      actions: [
+        {
+          id: 'create-activity',
+          label: `Create ${activityType.charAt(0).toUpperCase() + activityType.slice(1)}`,
+          type: 'primary',
+          callback: 'create_activity',
+          params: {
+            type: activityType,
+            date: activityDate,
+            contactId: contact.id
+          }
+        }
+      ],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['contacts_search'],
+        matchCount: 1
+      }
+    }
+  } catch (error) {
+    console.error('Error in structureActivityCreationResponse:', error)
+    // Return contact selection response on error
+    return {
+      type: 'contact_selection',
+      summary: `I'd like to help you create a ${activityType}. Please select the contact:`,
+      data: {
+        activityType,
+        activityDate: new Date().toISOString(),
+        requiresContactSelection: true,
+        prefilledName: '',
+        prefilledEmail: ''
+      },
+      actions: [],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['error_fallback']
+      }
+    }
+  }
+}
+
+/**
+ * Structure task creation response with contact search
+ */
+async function structureTaskCreationResponse(
+  client: any,
+  userId: string,
+  userMessage: string
+): Promise<any> {
+  try {
+    // Extract task title/description from message
+    // Patterns: "create a task to follow up with Paul", "remind me to call John", etc.
+    const taskTitlePatterns = [
+      /(?:create|add|new|set).*task.*(?:to|for|about)\s+(.+)/i,
+      /remind\s+me\s+(?:to\s+)?(?:follow\s+up\s+)?(?:with\s+)?(.+)/i,
+      /remind\s+(?:me\s+)?(?:to\s+)?(?:follow\s+up\s+)?(?:with\s+)?(.+)/i,
+      /task\s+to\s+(.+)/i,
+      /follow\s+up\s+(?:with\s+)?(.+)/i,
+      /follow-up\s+(?:with\s+)?(.+)/i,
+      /(?:call|email|meet|contact|reach out to)\s+(.+)/i
+    ]
+    
+    let taskTitle: string | null = null
+    for (const pattern of taskTitlePatterns) {
+      const match = userMessage.match(pattern)
+      if (match && match[1]) {
+        taskTitle = match[1].trim()
+        // Remove date/time references and common phrases from title
+        taskTitle = taskTitle
+          .replace(/\s+(?:tomorrow|today|next week|in \d+ days?|on \w+day).*$/i, '')
+          .replace(/\s+about\s+the\s+proposal.*$/i, '')
+          .replace(/\s+regarding.*$/i, '')
+          .trim()
+        break
+      }
+    }
+    
+    // If no title found, try to extract from "remind me to [action]"
+    if (!taskTitle) {
+      const remindMatch = userMessage.match(/remind\s+me\s+(?:to\s+)?(.+?)(?:\s+tomorrow|\s+today|\s+about|$)/i)
+      if (remindMatch && remindMatch[1]) {
+        taskTitle = remindMatch[1].trim()
+      } else {
+        taskTitle = 'Follow-up task'
+      }
+    }
+    
+    // Extract contact name from message
+    // Improved patterns to catch "remind me to follow up with Paul"
+    const namePatterns = [
+      /follow\s+up\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /follow-up\s+with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /remind\s+me\s+(?:to\s+)?(?:follow\s+up\s+)?with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /(?:with|to|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i,
+      /([A-Z][a-z]+\s+[A-Z][a-z]+)/, // Full name pattern
+      /([A-Z][a-z]+)(?:\s+tomorrow|\s+today|\s+next|\s+about|\s+regarding)/i // Single name before date/context
+    ]
+    
+    let contactName: string | null = null
+    for (const pattern of namePatterns) {
+      const match = userMessage.match(pattern)
+      if (match && match[1]) {
+        contactName = match[1].trim()
+        // Clean up the name - remove common words that might have been captured
+        contactName = contactName
+          .replace(/^(?:to|for|with|about|regarding)\s+/i, '')
+          .replace(/\s+(?:tomorrow|today|next|about|the|proposal|regarding).*$/i, '')
+          .trim()
+        if (contactName && contactName.length > 1) {
+          break
+        }
+      }
+    }
+    
+    // Fallback: try to extract a capitalized name (likely a person's name)
+    if (!contactName) {
+      const capitalizedNameMatch = userMessage.match(/\b([A-Z][a-z]+)(?:\s+(?:tomorrow|today|about|the|proposal))?/i)
+      if (capitalizedNameMatch && capitalizedNameMatch[1]) {
+        const potentialName = capitalizedNameMatch[1]
+        // Only use if it's not a common word
+        const commonWords = ['remind', 'follow', 'create', 'add', 'task', 'tomorrow', 'today', 'about', 'the']
+        if (!commonWords.includes(potentialName.toLowerCase())) {
+          contactName = potentialName
+        }
+      }
+    }
+    
+    // Extract date information
+    const todayPattern = /(?:for|on|by)\s+(?:today|now)/i
+    const tomorrowPattern = /(?:for|on|by)\s+tomorrow/i
+    const nextWeekPattern = /(?:for|on|by)\s+next\s+week/i
+    const daysPattern = /(?:in|for)\s+(\d+)\s+days?/i
+    const datePattern = /(?:for|on|by)\s+(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?)/i
+    
+    let dueDate: string | null = null
+    if (todayPattern.test(userMessage)) {
+      dueDate = new Date().toISOString()
+    } else if (tomorrowPattern.test(userMessage)) {
+      const tomorrow = new Date()
+      tomorrow.setDate(tomorrow.getDate() + 1)
+      dueDate = tomorrow.toISOString()
+    } else if (nextWeekPattern.test(userMessage)) {
+      const nextWeek = new Date()
+      nextWeek.setDate(nextWeek.getDate() + 7)
+      dueDate = nextWeek.toISOString()
+    } else if (daysPattern.test(userMessage)) {
+      const daysMatch = userMessage.match(daysPattern)
+      if (daysMatch && daysMatch[1]) {
+        const days = parseInt(daysMatch[1], 10)
+        const futureDate = new Date()
+        futureDate.setDate(futureDate.getDate() + days)
+        dueDate = futureDate.toISOString()
+      }
+    } else if (datePattern.test(userMessage)) {
+      const dateMatch = userMessage.match(datePattern)
+      if (dateMatch && dateMatch[1]) {
+        const parsedDate = new Date(dateMatch[1])
+        if (!isNaN(parsedDate.getTime())) {
+          dueDate = parsedDate.toISOString()
+        }
+      }
+    }
+    
+    // Extract priority
+    let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium'
+    if (/\burgent\b/i.test(userMessage) || /\bhigh priority\b/i.test(userMessage)) {
+      priority = 'urgent'
+    } else if (/\bhigh\b/i.test(userMessage) && !/\bhigh priority\b/i.test(userMessage)) {
+      priority = 'high'
+    } else if (/\blow\b/i.test(userMessage)) {
+      priority = 'low'
+    }
+    
+    // Extract task type
+    let taskType: 'call' | 'email' | 'meeting' | 'follow_up' | 'demo' | 'proposal' | 'general' = 'follow_up'
+    if (/\bcall\b/i.test(userMessage)) {
+      taskType = 'call'
+    } else if (/\bemail\b/i.test(userMessage)) {
+      taskType = 'email'
+    } else if (/\bmeeting\b/i.test(userMessage)) {
+      taskType = 'meeting'
+    } else if (/\bdemo\b/i.test(userMessage)) {
+      taskType = 'demo'
+    } else if (/\bproposal\b/i.test(userMessage)) {
+      taskType = 'proposal'
+    }
+    
+    // If no contact name found, return contact selection response
+    if (!contactName) {
+      return {
+        type: 'contact_selection',
+        summary: `I'd like to help you create a task. Please select the contact:`,
+        data: {
+          activityType: 'task',
+          activityDate: dueDate || new Date().toISOString(),
+          requiresContactSelection: true,
+          prefilledName: '',
+          prefilledEmail: '',
+          taskTitle,
+          taskType,
+          priority
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['user_message']
+        }
+      }
+    }
+    
+    // Search for contacts matching the name
+    const nameParts = contactName.split(/\s+/)
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+    
+    // Build search query
+    let contactsQuery = client
+      .from('contacts')
+      .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+      .eq('user_id', userId)
+    
+    // Search by first and last name
+    if (firstName && lastName) {
+      contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,last_name.ilike.%${lastName}%,full_name.ilike.%${contactName}%`)
+    } else if (firstName) {
+      contactsQuery = contactsQuery.or(`first_name.ilike.%${firstName}%,full_name.ilike.%${firstName}%`)
+    } else {
+      // If no name parts, search by full name
+      contactsQuery = contactsQuery.ilike('full_name', `%${contactName}%`)
+    }
+    
+    const { data: contacts, error: contactsError } = await contactsQuery.limit(10)
+    
+    if (contactsError) {
+      console.error('Error searching contacts:', contactsError)
+      // Return contact selection response on error
+      return {
+        type: 'contact_selection',
+        summary: `I'd like to help you create a task for ${contactName}. Please select the contact:`,
+        data: {
+          activityType: 'task',
+          activityDate: dueDate || new Date().toISOString(),
+          requiresContactSelection: true,
+          prefilledName: contactName,
+          prefilledEmail: '',
+          taskTitle,
+          taskType,
+          priority
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['user_message']
+        }
+      }
+    }
+    
+    // Format contacts for frontend
+    const formattedContacts = (contacts || []).map((contact: any) => ({
+      id: contact.id,
+      name: contact.full_name || `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || contact.email || 'Unknown',
+      email: contact.email,
+      company: contact.companies?.name || null
+    }))
+    
+    // If no contacts found or multiple contacts found, return contact selection response
+    if (!contacts || contacts.length === 0 || contacts.length > 1) {
+      return {
+        type: 'contact_selection',
+        summary: contacts && contacts.length > 1
+          ? `I found ${contacts.length} contacts matching "${contactName}". Please select the correct one:`
+          : `I couldn't find a contact matching "${contactName}". Please select or create a contact:`,
+        data: {
+          activityType: 'task',
+          activityDate: dueDate || new Date().toISOString(),
+          requiresContactSelection: true,
+          prefilledName: contactName,
+          prefilledEmail: '',
+          suggestedContacts: formattedContacts,
+          taskTitle,
+          taskType,
+          priority
+        },
+        actions: [],
+        metadata: {
+          timeGenerated: new Date().toISOString(),
+          dataSource: ['contacts_search'],
+          matchCount: contacts?.length || 0
+        }
+      }
+    }
+    
+    // Single contact found - check if proposal is mentioned and search for proposals
+    const contact = contacts[0]
+    const mentionsProposal = /\bproposal\b/i.test(userMessage)
+    
+    // If proposal is mentioned, search for related proposals
+    if (mentionsProposal) {
+      // Search for proposals related to this contact
+      // Try multiple search strategies: contact_id, client_name, contact_identifier
+      let proposalsQuery = client
+        .from('activities')
+        .select(`
+          id,
+          type,
+          client_name,
+          details,
+          amount,
+          date,
+          deal_id,
+          company_id,
+          contact_id,
+          deals:deal_id(id, name, value, stage_id)
+        `)
+        .eq('user_id', userId)
+        .eq('type', 'proposal')
+      
+      // Build OR query for multiple search criteria
+      const searchConditions: string[] = []
+      
+      // Search by contact_id if available
+      if (contact.id) {
+        searchConditions.push(`contact_id.eq.${contact.id}`)
+      }
+      
+      // Search by client_name matching contact name
+      searchConditions.push(`client_name.ilike.%${contactName}%`)
+      
+      // Search by contact_identifier (email) if available
+      if (contact.email) {
+        searchConditions.push(`contact_identifier.ilike.%${contact.email}%`)
+      }
+      
+      // Apply OR conditions
+      if (searchConditions.length > 0) {
+        proposalsQuery = proposalsQuery.or(searchConditions.join(','))
+      }
+      
+      const { data: proposals, error: proposalsError } = await proposalsQuery
+        .order('date', { ascending: false })
+        .limit(10)
+      
+      if (!proposalsError && proposals && proposals.length > 0) {
+        // Found proposals - return proposal selection response
+        return {
+          type: 'proposal_selection',
+          summary: `I found ${proposals.length} proposal${proposals.length > 1 ? 's' : ''} for ${contact.full_name || `${contact.first_name} ${contact.last_name}`.trim()}. Please select the one to follow up on:`,
+          data: {
+            contact: {
+              id: contact.id,
+              name: contact.full_name || `${contact.first_name} ${contact.last_name}`.trim(),
+              email: contact.email,
+              company: contact.companies?.name || null,
+              companyId: contact.company_id || null
+            },
+            proposals: proposals.map((proposal: any) => ({
+              id: proposal.id,
+              clientName: proposal.client_name,
+              details: proposal.details,
+              amount: proposal.amount,
+              date: proposal.date,
+              dealId: proposal.deal_id,
+              dealName: proposal.deals?.name || null,
+              dealValue: proposal.deals?.value || null
+            })),
+            taskTitle,
+            taskType,
+            priority,
+            dueDate: dueDate || null
+          },
+          actions: [],
+          metadata: {
+            timeGenerated: new Date().toISOString(),
+            dataSource: ['proposals_search'],
+            proposalCount: proposals.length
+          }
+        }
+      }
+    }
+    
+    // No proposals found or proposal not mentioned - return task creation response
+    return {
+      type: 'task_creation',
+      summary: `I found ${contact.full_name || `${contact.first_name} ${contact.last_name}`.trim()}. Ready to create the task.`,
+      data: {
+        title: taskTitle,
+        description: `Task: ${taskTitle}`,
+        dueDate: dueDate || null,
+        priority,
+        taskType,
+        contact: {
+          id: contact.id,
+          name: contact.full_name || `${contact.first_name} ${contact.last_name}`.trim(),
+          email: contact.email,
+          company: contact.companies?.name || null,
+          companyId: contact.company_id || null
+        },
+        requiresContactSelection: false
+      },
+      actions: [
+        {
+          id: 'create-task',
+          label: 'Create Task',
+          type: 'primary',
+          callback: 'create_task',
+          params: {
+            title: taskTitle,
+            dueDate: dueDate || null,
+            contactId: contact.id,
+            priority,
+            taskType
+          }
+        }
+      ],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['contacts_search'],
+        matchCount: 1
+      }
+    }
+  } catch (error) {
+    console.error('Error in structureTaskCreationResponse:', error)
+    // Return contact selection response on error
+    return {
+      type: 'contact_selection',
+      summary: `I'd like to help you create a task. Please select the contact:`,
+      data: {
+        activityType: 'task',
+        activityDate: new Date().toISOString(),
+        requiresContactSelection: true,
+        prefilledName: '',
+        prefilledEmail: '',
+        taskTitle: 'Follow-up task',
+        taskType: 'follow_up',
+        priority: 'medium'
+      },
+      actions: [],
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['error_fallback']
+      }
+    }
+  }
+}
+
+/**
  * Structure contact response with all connections
  */
 async function structureContactResponse(
@@ -3155,10 +3859,10 @@ async function structureContactResponse(
   aiContent: string,
   contactEmail: string | null,
   userMessage: string
-): Promise<any> {
+): Promise<StructuredResponse | null> {
   try {
     // Find contact by email or name
-    let contact = null
+    let contact: ContactData | null = null
     
     if (contactEmail) {
       const { data: contactByEmail } = await client
@@ -3178,7 +3882,7 @@ async function structureContactResponse(
         .eq('user_id', userId)
         .maybeSingle()
       
-      contact = contactByEmail
+      contact = contactByEmail as ContactData | null
     }
     
     // If no contact found by email, try searching by name
@@ -3210,7 +3914,7 @@ async function structureContactResponse(
         }
         
         const { data: contactByName } = await query.maybeSingle()
-        contact = contactByName
+        contact = contactByName as ContactData | null
       }
     }
     
@@ -3239,11 +3943,11 @@ async function structureContactResponse(
           .eq('status', 'active')
           .maybeSingle()
         
-        if (gmailIntegration && contact.email) {
+        if (gmailIntegration && contact?.email) {
           try {
             // Fetch emails from Gmail API
             const gmailResponse = await fetch(
-              `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:${contact.email} OR to:${contact.email}&maxResults=10`,
+              `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=from:${contact?.email || ''} OR to:${contact?.email || ''}&maxResults=10`,
               {
                 headers: {
                   'Authorization': `Bearer ${gmailIntegration.access_token}`
@@ -3276,7 +3980,7 @@ async function structureContactResponse(
                     const dateHeader = headers.find((h: any) => h.name === 'Date')
                     
                     const snippet = msgData.snippet || ''
-                    const direction = fromHeader?.value?.toLowerCase().includes(contact.email.toLowerCase()) ? 'sent' : 'received'
+                    const direction = fromHeader?.value?.toLowerCase().includes(contact?.email?.toLowerCase() || '') ? 'sent' : 'received'
                     
                     return {
                       id: msg.id,
@@ -3442,7 +4146,14 @@ async function structureContactResponse(
     const summary = `Here's everything I found about ${contact.full_name || contact.first_name || contact.email}:`
     
     // Generate actions
-    const actions = []
+    const actions: Array<{
+      id: string
+      label: string
+      type: string
+      icon: string
+      callback: string
+      params?: any
+    }> = []
     if (formattedDeals.length > 0) {
       actions.push({
         id: 'view-deals',
@@ -3665,7 +4376,14 @@ async function structurePipelineResponse(
     const summary = `I've analyzed your pipeline. Here's what needs attention:`
 
     // Generate actions
-    const actions = []
+    const actions: Array<{
+      id: string
+      label: string
+      type: string
+      icon: string
+      callback: string
+      params?: any
+    }> = []
     if (criticalDeals.length > 0) {
       actions.push({
         id: 'focus-critical',
@@ -3773,7 +4491,7 @@ async function structureTaskResponse(
   userId: string,
   aiContent: string,
   userMessage?: string
-): Promise<any> {
+): Promise<StructuredResponse | null> {
   // Store original message for summary enhancement
   const originalMessage = userMessage
   try {
@@ -3923,7 +4641,14 @@ async function structureTaskResponse(
     }
 
     // Generate actions
-    const actions = []
+    const actions: Array<{
+      id: string
+      label: string
+      type: string
+      icon: string
+      callback: string
+      params?: any
+    }> = []
     if (overdue.length > 0) {
       actions.push({
         id: 'focus-overdue',
@@ -4032,7 +4757,7 @@ async function structureRoadmapResponse(
   try {
     // Try to extract roadmap item from AI content (tool result may be in the content)
     // Look for JSON in the content that matches roadmap item structure
-    let roadmapItem = null
+    let roadmapItem: TaskData | null = null
     
     // Try to parse roadmap item from AI content
     try {
@@ -4063,7 +4788,7 @@ async function structureRoadmapResponse(
         return null
       }
       
-      roadmapItem = recentItems[0]
+      roadmapItem = recentItems[0] as TaskData
     }
     
     if (!roadmapItem) {
@@ -4128,7 +4853,7 @@ async function structureSalesCoachResponse(
   aiContent: string,
   userMessage: string,
   requestingUserId?: string
-): Promise<any | null> {
+): Promise<StructuredResponse | null> {
   try {
     console.log('[SALES-COACH] Starting structureSalesCoachResponse:', {
       userId,
@@ -4368,7 +5093,13 @@ async function structureSalesCoachResponse(
     else if (salesChange < 0) overall = 'worse'
     
     // Generate insights
-    const insights = []
+    const insights: Array<{
+      id: string
+      type: 'positive' | 'warning' | 'opportunity'
+      title: string
+      description: string
+      impact: 'high' | 'medium' | 'low'
+    }> = []
     
     if (currentRevenue > previousRevenue) {
       insights.push({
@@ -4404,7 +5135,13 @@ async function structureSalesCoachResponse(
     }
     
     // Generate recommendations
-    const recommendations = []
+    const recommendations: Array<{
+      id: string
+      priority: 'high' | 'medium' | 'low'
+      title: string
+      description: string
+      actionItems: string[]
+    }> = []
     
     if (activeDeals && activeDeals.length > 0) {
       recommendations.push({

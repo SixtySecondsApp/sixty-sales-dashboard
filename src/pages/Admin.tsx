@@ -13,6 +13,7 @@ import { GoogleIntegrationTests } from '@/components/admin/GoogleIntegrationTest
 import AIProviderSettings from '@/components/settings/AIProviderSettings';
 import SettingsSavvyCal from '@/pages/admin/SettingsSavvyCal';
 import SettingsBookingSources from '@/pages/admin/SettingsBookingSources';
+import BrandingSettings from '@/pages/admin/BrandingSettings';
 import { 
   UsersIcon, 
   PanelLeft, 
@@ -26,7 +27,8 @@ import {
   Sparkles,
   Settings,
   Calendar,
-  Tag
+  Tag,
+  Palette
 } from 'lucide-react';
 
 export default function Admin() {
@@ -138,6 +140,13 @@ export default function Admin() {
                 <Tag className="w-4 h-4" />
                 Booking Sources
               </TabsTrigger>
+              <TabsTrigger
+                value="customize"
+                className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white"
+              >
+                <Palette className="w-4 h-4" />
+                Customize
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="users" className="space-y-0">
@@ -190,6 +199,10 @@ export default function Admin() {
 
             <TabsContent value="booking-sources" className="space-y-0">
               <SettingsBookingSources />
+            </TabsContent>
+
+            <TabsContent value="customize" className="space-y-0">
+              <BrandingSettings />
             </TabsContent>
           </Tabs>
         </div>

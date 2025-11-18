@@ -150,3 +150,7 @@ export const ForecastResponse: React.FC<ForecastResponseProps> = ({ data, onActi
   );
 };
 
+
+
+
+

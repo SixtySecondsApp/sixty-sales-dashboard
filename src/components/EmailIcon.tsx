@@ -50,8 +50,12 @@ export function EmailIcon() {
     if (isOpen && isGmailEnabled) {
       console.log('[EmailIcon] Gmail enabled:', isGmailEnabled);
       console.log('[EmailIcon] Loading:', isLoading);
-      console.log('[EmailIcon] Error:', emailsError);
-      console.log('[EmailIcon] Data:', emailsData);
+      if (emailsError) {
+        console.log('[EmailIcon] Error:', emailsError);
+      }
+      if (emailsData) {
+        console.log('[EmailIcon] Data:', emailsData);
+      }
     }
   }, [isOpen, isGmailEnabled, isLoading, emailsError, emailsData]);
   
