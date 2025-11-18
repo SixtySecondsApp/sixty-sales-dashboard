@@ -20,7 +20,10 @@ const ContactRecord: React.FC = () => {
   const { graph, isLoading, error } = useContactCompanyGraph('contact', id);
   
   const contact = graph?.contact;
-  const loading = isLoading;
+  // Keep loading state until we have definitive data or error
+  // This prevents showing "not found" while data is still loading
+  // Check if we're still waiting for initial data (isLoading) or if we have an id but no graph/error yet
+  const loading = isLoading || (!!id && !error && !graph);
 
   // Show skeleton loader while loading
   if (loading) {
@@ -50,7 +53,8 @@ const ContactRecord: React.FC = () => {
     );
   }
 
-  if (!contact) {
+  // Only show "not found" if we have finished loading and have no contact
+  if (!contact && !loading) {
     return (
       <div className="min-h-screen py-8">
         <div className="container mx-auto px-4">

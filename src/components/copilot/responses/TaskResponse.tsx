@@ -16,12 +16,29 @@ interface TaskResponseProps {
 }
 
 const formatDate = (dateString: string): string => {
+  if (!dateString) return 'No due date';
+  
   const date = new Date(dateString);
+  // Check if date is valid
+  if (isNaN(date.getTime())) {
+    return 'Invalid date';
+  }
+  
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const taskDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   
   const diffDays = Math.floor((taskDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // If the date is more than 1 year in the past, it's likely a data error
+  // Show the actual date instead of "X days ago"
+  if (diffDays < -365) {
+    return date.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
   
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Tomorrow';
@@ -188,19 +205,73 @@ const TaskCard: React.FC<{
             {task.contactName && (
               <span className="flex items-center gap-1">
                 <span className="text-gray-600">Contact:</span>
-                <span className="text-gray-300">{task.contactName}</span>
+                {task.contactId ? (
+                  <a
+                    href={`/crm/contacts/${task.contactId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer transition-colors"
+                  >
+                    {task.contactName}
+                  </a>
+                ) : (
+                  <span className="text-gray-300">{task.contactName}</span>
+                )}
               </span>
             )}
             {task.dealName && (
               <span className="flex items-center gap-1">
                 <span className="text-gray-600">Deal:</span>
-                <span className="text-gray-300">{task.dealName}</span>
+                {task.dealId ? (
+                  <a
+                    href={`/crm/deals/${task.dealId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer transition-colors"
+                  >
+                    {task.dealName}
+                  </a>
+                ) : (
+                  <span className="text-gray-300">{task.dealName}</span>
+                )}
               </span>
             )}
             {task.companyName && (
               <span className="flex items-center gap-1">
                 <span className="text-gray-600">Company:</span>
-                <span className="text-gray-300">{task.companyName}</span>
+                {task.companyId ? (
+                  <a
+                    href={`/crm/companies/${task.companyId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer transition-colors"
+                  >
+                    {task.companyName}
+                  </a>
+                ) : (
+                  <span className="text-gray-300">{task.companyName}</span>
+                )}
+              </span>
+            )}
+            {task.meetingName && (
+              <span className="flex items-center gap-1">
+                <span className="text-gray-600">Meeting:</span>
+                {task.meetingId ? (
+                  <a
+                    href={`/meetings/${task.meetingId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-blue-400 hover:text-blue-300 underline cursor-pointer transition-colors"
+                  >
+                    {task.meetingName}
+                  </a>
+                ) : (
+                  <span className="text-gray-300">{task.meetingName}</span>
+                )}
               </span>
             )}
             {task.taskType && task.taskType !== 'general' && (
@@ -238,9 +309,15 @@ const TaskCard: React.FC<{
                   </div>
                 )}
                 {task.companyId && (
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-1">
                     <span>Company ID:</span>
                     <span className="text-gray-300 font-mono text-[10px]">{task.companyId.slice(0, 8)}...</span>
+                  </div>
+                )}
+                {task.meetingId && (
+                  <div className="flex items-center justify-between">
+                    <span>Meeting ID:</span>
+                    <span className="text-gray-300 font-mono text-[10px]">{task.meetingId.slice(0, 8)}...</span>
                   </div>
                 )}
               </div>
@@ -261,7 +338,7 @@ const TaskCard: React.FC<{
           {task.dueDate ? (
             <span className={task.isOverdue ? 'text-red-400 font-medium' : ''}>
               {formatDate(task.dueDate)}
-              {task.isOverdue && ' (Overdue)'}
+              {task.isOverdue && task.daysUntilDue !== undefined && task.daysUntilDue > -365 && ' (Overdue)'}
               {task.daysUntilDue !== undefined && task.daysUntilDue >= 0 && !task.isOverdue && (
                 <span className="text-gray-400 ml-1">
                   ({task.daysUntilDue === 0 ? 'today' : task.daysUntilDue === 1 ? 'tomorrow' : `in ${task.daysUntilDue} days`})

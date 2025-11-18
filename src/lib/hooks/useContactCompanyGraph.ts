@@ -730,7 +730,7 @@ export function useContactCompanyGraph(
   
   const queryKey = ['contactCompanyGraph', type, id, userId];
   
-  const { data: graph, isLoading, error, refetch } = useQuery({
+  const { data: graph, isLoading, isFetching, error, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       if (!id || !userId) {
@@ -813,7 +813,7 @@ export function useContactCompanyGraph(
   return {
     graph,
     ...selectors,
-    isLoading,
+    isLoading: isLoading || isFetching,
     error,
     refetch,
     insights: graph?.insights,

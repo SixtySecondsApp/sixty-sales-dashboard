@@ -4514,9 +4514,11 @@ async function structureTaskResponse(
         contact_id,
         deal_id,
         company_id,
+        meeting_id,
         contacts:contact_id(id, first_name, last_name),
         deals:deal_id(id, name),
-        companies:company_id(id, name)
+        companies:company_id(id, name),
+        meetings:meeting_id(id, title)
       `)
       .or(`assigned_to.eq.${userId},created_by.eq.${userId}`)
       .order('priority', { ascending: false })
@@ -4568,6 +4570,8 @@ async function structureTaskResponse(
             dealName: task.deals?.name,
             companyId: task.company_id,
             companyName: task.companies?.name,
+            meetingId: task.meeting_id,
+            meetingName: task.meetings?.title,
             createdAt: task.created_at,
             updatedAt: task.updated_at
           })
@@ -4580,9 +4584,14 @@ async function structureTaskResponse(
       let isOverdue = false
       if (task.due_date) {
         const dueDate = new Date(task.due_date)
-        const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
-        daysUntilDue = Math.floor((dueDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-        isOverdue = daysUntilDue < 0
+        // Only calculate if date is valid
+        if (!isNaN(dueDate.getTime())) {
+          const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate())
+          daysUntilDue = Math.floor((dueDateOnly.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+          // Only mark as overdue if it's reasonably in the past (not more than 1 year)
+          // This prevents false positives from data errors
+          isOverdue = daysUntilDue < 0 && daysUntilDue > -365
+        }
       }
 
       const taskItem = {
@@ -4601,6 +4610,8 @@ async function structureTaskResponse(
         dealName: task.deals?.name,
         companyId: task.company_id,
         companyName: task.companies?.name,
+        meetingId: task.meeting_id,
+        meetingName: task.meetings?.title,
         createdAt: task.created_at,
         updatedAt: task.updated_at
       }
