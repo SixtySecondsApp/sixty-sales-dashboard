@@ -101,6 +101,35 @@ export function initializeNodeData(
     };
   }
 
+  // Initialize Freepik Mystic node
+  if (type === 'freepikImageGen') {
+    enhancedData = {
+      ...nodeData,
+      prompt: 'A futuristic city with flying cars, cyberpunk style',
+      negative_prompt: 'blurry, low quality',
+      aspect_ratio: 'square',
+      num_images: 1
+    };
+  }
+
+  // Initialize Freepik Upscale node
+  if (type === 'freepikUpscale') {
+    enhancedData = {
+      ...nodeData,
+      scale_factor: 2,
+      optimize_for: 'quality'
+    };
+  }
+
+  // Initialize Freepik Kling node
+  if (type === 'freepikVideoGen') {
+    enhancedData = {
+      ...nodeData,
+      prompt: 'Camera pans slowly to the right, cinematic lighting',
+      duration: '5'
+    };
+  }
+
   // Initialize Form node with default configuration
   if (type === 'form') {
     const timestamp = Date.now();
@@ -249,4 +278,3 @@ export function createWorkflowNode(
     data: enhancedData,
   };
 }
-

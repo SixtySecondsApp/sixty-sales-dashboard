@@ -28,6 +28,12 @@ export const WORKFLOW_AI_NODES = [
   { type: 'assistant_manager', label: 'Assistant Manager', description: 'Create/Update Assistant', iconName: 'Settings', nodeType: 'assistantManager' }
 ];
 
+export const WORKFLOW_MEDIA_NODES = [
+  { type: 'freepik_image_gen', label: 'Mystic Generator', description: 'Text to Image (Freepik)', iconName: 'Sparkles', nodeType: 'freepikImageGen' },
+  { type: 'freepik_upscale', label: 'Upscaler', description: 'Image Upscaling (Magnific)', iconName: 'Maximize', nodeType: 'freepikUpscale' },
+  { type: 'freepik_video_gen', label: 'Motion Generator', description: 'Image to Video (Kling)', iconName: 'Video', nodeType: 'freepikVideoGen' }
+];
+
 export const WORKFLOW_ACTIONS = [
   { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },
   { type: 'create_recurring_task', label: 'Recurring Task', iconName: 'CheckSquare', description: 'Scheduled tasks' },
