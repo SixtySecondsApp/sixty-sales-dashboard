@@ -1,101 +1,122 @@
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { GitBranch } from 'lucide-react';
+import React, { memo } from 'react';
+import { NodeProps, Handle, Position } from 'reactflow';
+import { GitBranch, Settings } from 'lucide-react';
+import { ModernNodeCard, HANDLE_STYLES } from './ModernNodeCard';
 
-interface ConditionalBranchNodeProps {
-  data: {
-    label?: string;
-    conditions?: Array<{
-      id: string;
-      field: string;
-      operator: string;
-      value: string;
-      output: string;
-    }>;
-    isConfigured?: boolean;
-  };
-  selected?: boolean;
+export interface ConditionalBranchNodeData {
+  label?: string;
+  conditions?: Array<{
+    id: string;
+    field: string;
+    operator: string;
+    value: string;
+    output: string;
+  }>;
+  isConfigured?: boolean;
+  testStatus?: string;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
-const ConditionalBranchNode: React.FC<ConditionalBranchNodeProps> = ({ data, selected }) => {
+const ConditionalBranchNode = memo(({ data, selected }: NodeProps<ConditionalBranchNodeData>) => {
   const conditions = data.conditions || [];
   const isConfigured = data.isConfigured || false;
-  
-  return (
-    <div className={`bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 rounded-lg p-3 min-w-[160px] shadow-sm dark:shadow-none ${
-      selected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
-    } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className="w-3 h-3 bg-white border-2 border-blue-500"
-      />
-      
-      {/* Multiple output handles for different branches */}
+
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
+    }
+    return data.testStatus === 'active' ? 'active' : undefined;
+  };
+
+  const CustomHandles = (
+    <>
       <Handle 
         type="source" 
         position={Position.Right} 
+        className={HANDLE_STYLES}
         id="transcript"
         style={{ top: '25%' }}
-        className="w-3 h-3 bg-yellow-400 border-2 border-yellow-600"
       />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="summary"
-        style={{ top: '50%' }}
-        className="w-3 h-3 bg-green-400 border-2 border-green-600"
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="action_items"
-        style={{ top: '75%' }}
-        className="w-3 h-3 bg-orange-400 border-2 border-orange-600"
-      />
-      
-      <div className="flex items-center gap-2 text-white mb-2">
-        <GitBranch className="w-5 h-5" />
-        <div className="font-semibold text-sm">Branch</div>
+      <div className="absolute right-[-28px] top-[25%] -translate-y-1/2 text-[10px] font-bold text-yellow-400 pointer-events-none">
+        Transcript
       </div>
       
-      <div className="text-xs text-blue-100 space-y-1">
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={HANDLE_STYLES}
+        id="summary"
+        style={{ top: '50%' }}
+      />
+      <div className="absolute right-[-20px] top-[50%] -translate-y-1/2 text-[10px] font-bold text-green-400 pointer-events-none">
+        Summary
+      </div>
+      
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={HANDLE_STYLES}
+        id="action_items"
+        style={{ top: '75%' }}
+      />
+      <div className="absolute right-[-24px] top-[75%] -translate-y-1/2 text-[10px] font-bold text-orange-400 pointer-events-none">
+        Actions
+      </div>
+    </>
+  );
+
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
+    </div>
+  ) : null;
+
+  return (
+    <ModernNodeCard
+      selected={selected}
+      icon={GitBranch}
+      title={data.label || 'Conditional Branch'}
+      subtitle={conditions.length > 0 ? `${conditions.length} condition${conditions.length !== 1 ? 's' : ''}` : 'Configure branches'}
+      color="text-blue-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      handleLeft={true}
+      handleRight={false}
+      handles={CustomHandles}
+      className="min-w-[240px]"
+    >
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
         {conditions.length > 0 ? (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {conditions.slice(0, 3).map((condition, idx) => (
-              <div key={idx} className="bg-blue-700/50 px-2 py-1 rounded text-[10px]">
+              <div key={idx} className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 font-mono">
                 {condition.field} {condition.operator} {condition.value}
               </div>
             ))}
             {conditions.length > 3 && (
-              <div className="text-[10px] text-blue-200">
-                +{conditions.length - 3} more
+              <div className="text-[10px] text-zinc-500 text-center">
+                +{conditions.length - 3} more condition{conditions.length - 3 !== 1 ? 's' : ''}
               </div>
             )}
           </div>
         ) : (
-          <div className="text-blue-200">No conditions</div>
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
+            <span>Configure branches</span>
+          </div>
         )}
       </div>
-      
-      {!isConfigured && (
-        <div className="mt-2 text-yellow-300 text-[10px]">
-          ⚠️ Configure branches
-        </div>
-      )}
-      
-      {/* Branch labels */}
-      <div className="absolute -right-20 top-[25%] -translate-y-1/2 text-[10px] text-yellow-400">
-        Transcript
-      </div>
-      <div className="absolute -right-16 top-[50%] -translate-y-1/2 text-[10px] text-green-400">
-        Summary
-      </div>
-      <div className="absolute -right-16 top-[75%] -translate-y-1/2 text-[10px] text-orange-400">
-        Actions
-      </div>
-    </div>
+    </ModernNodeCard>
   );
-};
+});
+
+ConditionalBranchNode.displayName = 'ConditionalBranchNode';
 
 export default ConditionalBranchNode;

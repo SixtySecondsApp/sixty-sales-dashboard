@@ -1,122 +1,108 @@
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { Database } from 'lucide-react';
+import React, { memo } from 'react';
+import { NodeProps } from 'reactflow';
+import { Database, Settings, Check } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
-interface MeetingUpsertNodeProps {
-  data: {
-    label?: string;
-    table?: string;
-    upsertKey?: string;
-    fields?: string[];
-    isConfigured?: boolean;
-    config?: {
-      handleAttendees?: boolean;
-      storeEmbedUrl?: boolean;
-      processMetrics?: boolean;
-      aiTrainingMetadata?: boolean;
-      linkContacts?: boolean;
-      enrichContacts?: boolean;
-      createCompanies?: boolean;
-      updateEngagement?: boolean;
-    };
+export interface MeetingUpsertNodeData {
+  label?: string;
+  table?: string;
+  upsertKey?: string;
+  fields?: string[];
+  isConfigured?: boolean;
+  config?: {
+    handleAttendees?: boolean;
+    storeEmbedUrl?: boolean;
+    processMetrics?: boolean;
+    aiTrainingMetadata?: boolean;
+    linkContacts?: boolean;
+    enrichContacts?: boolean;
+    createCompanies?: boolean;
+    updateEngagement?: boolean;
   };
-  selected?: boolean;
+  testStatus?: string;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
-const MeetingUpsertNode: React.FC<MeetingUpsertNodeProps> = ({ data, selected }) => {
+const MeetingUpsertNode = memo(({ data, selected }: NodeProps<MeetingUpsertNodeData>) => {
   const isConfigured = data.isConfigured || false;
   const config = data.config || {};
-  
+
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
+    }
+    return data.testStatus === 'active' ? 'active' : undefined;
+  };
+
+  const enabledFeatures = [];
+  if (config.handleAttendees) enabledFeatures.push('Attendees');
+  if (config.linkContacts) enabledFeatures.push('Link Contacts');
+  if (config.enrichContacts) enabledFeatures.push('Enrich');
+  if (config.createCompanies) enabledFeatures.push('Companies');
+  if (config.updateEngagement) enabledFeatures.push('Engagement');
+  if (config.storeEmbedUrl) enabledFeatures.push('Embed URL');
+  if (config.processMetrics) enabledFeatures.push('Metrics');
+  if (config.aiTrainingMetadata) enabledFeatures.push('AI Metadata');
+
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
+    </div>
+  ) : null;
+
   return (
-    <div className={`bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 rounded-lg p-3 min-w-[180px] shadow-sm dark:shadow-none ${
-      selected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
-    } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className="w-3 h-3 bg-white border-2 border-blue-500"
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className="w-3 h-3 bg-white border-2 border-blue-500"
-      />
-      
-      <div className="flex items-center gap-2 text-white mb-2">
-        <Database className="w-5 h-5" />
-        <div className="font-semibold text-sm">Upsert Meeting</div>
-      </div>
-      
-      <div className="text-xs text-blue-100 space-y-1">
-        <div className="bg-blue-700/50 px-2 py-1 rounded">
-          Table: {data.table || 'meetings'}
-        </div>
-        
+    <ModernNodeCard
+      selected={selected}
+      icon={Database}
+      title={data.label || 'Upsert Meeting'}
+      subtitle={data.table || 'meetings'}
+      color="text-blue-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      className="w-[300px]"
+    >
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
         {data.upsertKey && (
-          <div className="bg-blue-700/50 px-2 py-1 rounded">
-            Key: {data.upsertKey}
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Upsert Key</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 font-mono">
+              {data.upsertKey}
+            </div>
           </div>
         )}
-        
-        <div className="space-y-1 mt-2">
-          {config.handleAttendees && (
-            <div className="flex items-center gap-1">
-              <span className="text-blue-300">✓</span>
-              <span className="text-[10px]">Process attendees</span>
+
+        {enabledFeatures.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Features</label>
+            <div className="flex flex-wrap gap-1">
+              {enabledFeatures.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20 text-[9px] text-blue-300">
+                  <Check size={8} />
+                  {feature}
+                </div>
+              ))}
             </div>
-          )}
-          {config.linkContacts && (
-            <div className="flex items-center gap-1">
-              <span className="text-green-400">🔗</span>
-              <span className="text-[10px]">Link contacts</span>
-            </div>
-          )}
-          {config.enrichContacts && (
-            <div className="flex items-center gap-1">
-              <span className="text-yellow-400">⚡</span>
-              <span className="text-[10px]">Enrich contacts</span>
-            </div>
-          )}
-          {config.createCompanies && (
-            <div className="flex items-center gap-1">
-              <span className="text-purple-400">🏢</span>
-              <span className="text-[10px]">Create companies</span>
-            </div>
-          )}
-          {config.updateEngagement && (
-            <div className="flex items-center gap-1">
-              <span className="text-orange-400">📊</span>
-              <span className="text-[10px]">Update engagement</span>
-            </div>
-          )}
-          {config.storeEmbedUrl && (
-            <div className="flex items-center gap-1">
-              <span className="text-blue-300">✓</span>
-              <span className="text-[10px]">Store embed URL</span>
-            </div>
-          )}
-          {config.processMetrics && (
-            <div className="flex items-center gap-1">
-              <span className="text-blue-300">✓</span>
-              <span className="text-[10px]">Process metrics</span>
-            </div>
-          )}
-          {config.aiTrainingMetadata && (
-            <div className="flex items-center gap-1">
-              <span className="text-blue-300">✓</span>
-              <span className="text-[10px]">AI metadata</span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {!isConfigured && (
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
+            <span>Configure fields</span>
+          </div>
+        )}
       </div>
-      
-      {!isConfigured && (
-        <div className="mt-2 text-yellow-300 text-[10px]">
-          ⚠️ Configure fields
-        </div>
-      )}
-    </div>
+    </ModernNodeCard>
   );
-};
+});
+
+MeetingUpsertNode.displayName = 'MeetingUpsertNode';
 
 export default MeetingUpsertNode;

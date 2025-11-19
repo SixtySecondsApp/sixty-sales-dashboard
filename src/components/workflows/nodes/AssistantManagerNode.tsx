@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
-import { Settings, CheckCircle, XCircle, Clock, PlayCircle, FileText, Database, Code, Plus, Edit2 } from 'lucide-react';
+import { NodeProps } from 'reactflow';
+import { Settings, Code, Database, Plus, Edit2 } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
 export interface AssistantManagerNodeData {
   label: string;
@@ -39,38 +40,18 @@ export interface AssistantManagerNodeData {
 }
 
 const AssistantManagerNode = memo(({ data, selected }: NodeProps<AssistantManagerNodeData>) => {
-  const getExecutionStatusIcon = () => {
-    if (!data.executionMode) return null;
-    
-    switch (data.executionStatus) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-400" />;
-      case 'running':
-        return <PlayCircle className="w-4 h-4 text-blue-400 animate-pulse" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
-    }
-  };
-
-  const getExecutionStatusColor = () => {
-    if (!data.executionMode) return '';
-    
-    switch (data.executionStatus) {
-      case 'completed':
-        return 'ring-2 ring-green-400/30';
-      case 'failed':
-        return 'ring-2 ring-red-400/30';
-      case 'running':
-        return 'ring-2 ring-blue-400/30 animate-pulse';
-      default:
-        return 'ring-2 ring-gray-400/30';
-    }
-  };
-
   const isCreateMode = data.config?.operation === 'create';
   const OperationIcon = isCreateMode ? Plus : Edit2;
+
+  const mapStatus = () => {
+    if (!data.executionMode) return undefined;
+    switch (data.executionStatus) {
+      case 'completed': return 'success';
+      case 'failed': return 'failed';
+      case 'running': return 'active';
+      default: return 'idle';
+    }
+  };
 
   // Count enabled tools
   const enabledTools = [];
@@ -78,130 +59,75 @@ const AssistantManagerNode = memo(({ data, selected }: NodeProps<AssistantManage
   if (data.config?.tools?.fileSearch) enabledTools.push('Files');
   if (data.config?.tools?.functions?.length) enabledTools.push(`${data.config.tools.functions.length} Fn`);
 
+  const Badge = (
+    <div className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[9px] rounded border border-indigo-500/30 font-bold mr-1">
+      OpenAI
+    </div>
+  );
+
   return (
-    <div
-      className={`relative min-w-[140px] rounded-lg border-2 transition-all ${
-        selected
-          ? 'border-indigo-500 shadow-lg shadow-indigo-500/20 ring-offset-white dark:ring-offset-gray-950'
-          : 'border-indigo-400/50 hover:border-indigo-400'
-      } ${getExecutionStatusColor()} bg-violet-600 dark:bg-violet-600/20 backdrop-blur-sm border border-violet-500 dark:border-violet-500/30 shadow-sm dark:shadow-none`}
+    <ModernNodeCard
+      selected={selected}
+      icon={Settings}
+      title={data.config?.assistantName || data.label || (isCreateMode ? 'Create Assistant' : 'Update Assistant')}
+      subtitle={data.config?.model || `${isCreateMode ? 'Create' : 'Update'} Assistant`}
+      color="text-indigo-400"
+      status={mapStatus()}
+      badge={Badge}
+      className="w-[320px]"
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!bg-indigo-500 !border-indigo-600"
-        style={{ width: 10, height: 10 }}
-      />
-      
-      <div className="p-3">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <div className="p-1 bg-gradient-to-br from-indigo-500/30 to-purple-500/30 rounded-md">
-            <Settings className="w-3 h-3 text-indigo-300" />
-          </div>
-          <span className="text-xs font-semibold text-indigo-100">
-            Assistant Manager
-          </span>
-        </div>
-        
-        <div className="text-[10px] text-indigo-200/80 font-medium">
-          {data.label || (isCreateMode ? 'Create Assistant' : 'Update Assistant')}
-        </div>
-        
-        {/* Operation Badge */}
-        <div className="mt-1.5 flex items-center gap-1">
-          <OperationIcon className="w-2.5 h-2.5 text-indigo-300/60" />
-          <span className="text-[9px] text-indigo-300/60 capitalize">
-            {data.config?.operation || 'create'}
-          </span>
-        </div>
-
-        {/* Assistant Name */}
-        {data.config?.assistantName && (
-          <div className="mt-1 text-[9px] text-indigo-300/60 truncate">
-            {data.config.assistantName}
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {data.config?.instructions && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Instructions</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[60px] max-h-[100px] overflow-y-auto custom-scrollbar font-mono">
+              {data.config.instructions}
+            </div>
           </div>
         )}
 
-        {/* Model */}
-        {data.config?.model && (
-          <div className="mt-1 text-[8px] text-indigo-300/50 truncate">
-            Model: {data.config.model}
-          </div>
-        )}
-
-        {/* Tools Indicators */}
         {enabledTools.length > 0 && (
-          <div className="mt-1.5 flex items-center gap-1 flex-wrap">
+          <div className="flex flex-wrap gap-1.5">
             {data.config?.tools?.codeInterpreter && (
-              <div className="px-1 py-0.5 bg-blue-900/30 rounded text-[7px] text-blue-400 flex items-center gap-0.5">
-                <Code className="w-2 h-2" />
+              <div className="px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20 text-[9px] text-blue-300 flex items-center gap-1">
+                <Code size={10} />
                 Code
               </div>
             )}
             {data.config?.tools?.fileSearch && (
-              <div className="px-1 py-0.5 bg-green-900/30 rounded text-[7px] text-green-400 flex items-center gap-0.5">
-                <Database className="w-2 h-2" />
+              <div className="px-1.5 py-0.5 bg-green-500/10 rounded border border-green-500/20 text-[9px] text-green-300 flex items-center gap-1">
+                <Database size={10} />
                 Search
               </div>
             )}
             {data.config?.tools?.functions?.length && (
-              <div className="px-1 py-0.5 bg-purple-900/30 rounded text-[7px] text-purple-400">
+              <div className="px-1.5 py-0.5 bg-purple-500/10 rounded border border-purple-500/20 text-[9px] text-purple-300">
                 {data.config.tools.functions.length} Fn
               </div>
             )}
           </div>
         )}
 
-        {/* File Count */}
-        {data.config?.files && data.config.files.length > 0 && (
-          <div className="mt-1 flex items-center gap-1">
-            <FileText className="w-2.5 h-2.5 text-indigo-300/50" />
-            <span className="text-[8px] text-indigo-300/50">
-              {data.config.files.length} file{data.config.files.length !== 1 ? 's' : ''}
-            </span>
+        <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+          <div className="flex flex-col gap-1">
+            <span className="uppercase tracking-wider">Operation</span>
+            <span className="text-zinc-300 capitalize">{data.config?.operation || 'create'}</span>
           </div>
-        )}
-
-        {/* Execution Status Overlay */}
-        {data.executionMode && (
-          <div className="mt-2 flex items-center gap-2">
-            {getExecutionStatusIcon()}
-            <span className="text-[8px] text-indigo-200/70 capitalize">
-              {data.executionStatus}
-            </span>
-          </div>
-        )}
-
-        {/* Execution Data */}
-        {data.executionMode && data.executionData && (
-          <div className="mt-1 text-[8px] text-indigo-300/50 truncate">
-            {data.executionData.assistantId ? `ID: ${data.executionData.assistantId.slice(0, 8)}...` : 'Processing...'}
-          </div>
-        )}
-      </div>
-      
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!bg-indigo-500 !border-indigo-600"
-        style={{ width: 10, height: 10 }}
-      />
-      
-      {/* Configuration Indicator */}
-      {(data.config?.assistantName || data.config?.assistantId) && (
-        <div className="absolute -top-2 -right-2">
-          <div className="relative">
-            <div className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse" />
-            <div className="absolute inset-0 w-3 h-3 bg-indigo-400 rounded-full animate-ping" />
+          <div className="flex flex-col gap-1">
+            <span className="uppercase tracking-wider">Files</span>
+            <span className="text-zinc-300">{data.config?.files?.length || 0}</span>
           </div>
         </div>
-      )}
 
-      {/* OpenAI Badge */}
-      <div className="absolute -bottom-1 -right-1 px-1 py-0.5 bg-black/60 rounded text-[7px] text-indigo-400 font-mono">
-        OpenAI
+        {data.executionMode && data.executionData && (
+          <div className="pt-2 border-t border-zinc-800">
+            <div className="text-[10px] text-zinc-500">
+              {data.executionData.assistantId ? `ID: ${data.executionData.assistantId.slice(0, 8)}...` : 'Processing...'}
+            </div>
+          </div>
+        )}
       </div>
-    </div>
+    </ModernNodeCard>
   );
 });
 

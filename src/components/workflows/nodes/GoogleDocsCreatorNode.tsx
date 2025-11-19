@@ -1,90 +1,98 @@
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { FileText } from 'lucide-react';
+import React, { memo } from 'react';
+import { NodeProps } from 'reactflow';
+import { FileText, Settings, Check } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
-interface GoogleDocsCreatorNodeProps {
-  data: {
-    label?: string;
-    docTitle?: string;
-    folderId?: string;
-    permissions?: string[];
-    isConfigured?: boolean;
-    config?: {
-      formatTranscript?: boolean;
-      addTimestamps?: boolean;
-      shareWithAI?: boolean;
-      vectorDbReady?: boolean;
-    };
+export interface GoogleDocsCreatorNodeData {
+  label?: string;
+  docTitle?: string;
+  folderId?: string;
+  permissions?: string[];
+  isConfigured?: boolean;
+  config?: {
+    formatTranscript?: boolean;
+    addTimestamps?: boolean;
+    shareWithAI?: boolean;
+    vectorDbReady?: boolean;
   };
-  selected?: boolean;
+  testStatus?: string;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
-const GoogleDocsCreatorNode: React.FC<GoogleDocsCreatorNodeProps> = ({ data, selected }) => {
+const GoogleDocsCreatorNode = memo(({ data, selected }: NodeProps<GoogleDocsCreatorNodeData>) => {
   const isConfigured = data.isConfigured || false;
   const config = data.config || {};
-  
+
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
+    }
+    return data.testStatus === 'active' ? 'active' : undefined;
+  };
+
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
+    </div>
+  ) : null;
+
+  const enabledFeatures = [];
+  if (config.formatTranscript) enabledFeatures.push('Format');
+  if (config.addTimestamps) enabledFeatures.push('Timestamps');
+  if (config.shareWithAI) enabledFeatures.push('AI Access');
+  if (config.vectorDbReady) enabledFeatures.push('Vector DB');
+
   return (
-    <div className={`bg-emerald-600 dark:bg-emerald-600/20 backdrop-blur-sm border border-emerald-500 dark:border-emerald-500/30 shadow-sm dark:shadow-none rounded-lg p-3 min-w-[180px] ${
-      selected ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
-    } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className="w-3 h-3 bg-white border-2 border-green-500"
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className="w-3 h-3 bg-white border-2 border-green-500"
-      />
-      
-      <div className="flex items-center gap-2 text-white mb-2">
-        <FileText className="w-5 h-5" />
-        <div className="font-semibold text-sm">Create Google Doc</div>
-      </div>
-      
-      <div className="text-xs text-green-100 space-y-1">
-        {data.docTitle && (
-          <div className="bg-green-700/50 px-2 py-1 rounded">
-            📄 {data.docTitle}
+    <ModernNodeCard
+      selected={selected}
+      icon={FileText}
+      title={data.docTitle || data.label || 'Create Google Doc'}
+      subtitle={isConfigured ? 'Document creator' : 'Configure document'}
+      color="text-emerald-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      className="w-[280px]"
+    >
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {enabledFeatures.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Features</label>
+            <div className="flex flex-wrap gap-1">
+              {enabledFeatures.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20 text-[9px] text-emerald-300">
+                  <Check size={8} />
+                  {feature}
+                </div>
+              ))}
+            </div>
           </div>
         )}
-        
-        <div className="space-y-1 mt-2">
-          {config.formatTranscript && (
-            <div className="flex items-center gap-1">
-              <span className="text-green-300">✓</span>
-              <span className="text-[10px]">Format transcript</span>
-            </div>
-          )}
-          {config.addTimestamps && (
-            <div className="flex items-center gap-1">
-              <span className="text-green-300">✓</span>
-              <span className="text-[10px]">Add timestamps</span>
-            </div>
-          )}
-          {config.shareWithAI && (
-            <div className="flex items-center gap-1">
-              <span className="text-green-300">✓</span>
-              <span className="text-[10px]">AI access enabled</span>
-            </div>
-          )}
-          {config.vectorDbReady && (
-            <div className="flex items-center gap-1">
-              <span className="text-green-300">✓</span>
-              <span className="text-[10px]">Vector DB ready</span>
-            </div>
-          )}
-        </div>
+
+        {!isConfigured && (
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
+            <span>Google auth required</span>
+          </div>
+        )}
+
+        {data.permissions && data.permissions.length > 0 && (
+          <div className="text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+            <span className="uppercase tracking-wider">Permissions: </span>
+            <span className="text-zinc-300">{data.permissions.length} user{data.permissions.length !== 1 ? 's' : ''}</span>
+          </div>
+        )}
       </div>
-      
-      {!isConfigured && (
-        <div className="mt-2 text-yellow-300 text-[10px]">
-          ⚠️ Google auth required
-        </div>
-      )}
-    </div>
+    </ModernNodeCard>
   );
-};
+});
+
+GoogleDocsCreatorNode.displayName = 'GoogleDocsCreatorNode';
 
 export default GoogleDocsCreatorNode;

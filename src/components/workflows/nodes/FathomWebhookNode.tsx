@@ -1,54 +1,92 @@
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { Webhook } from 'lucide-react';
+import React, { memo } from 'react';
+import { NodeProps } from 'reactflow';
+import { Webhook, Settings } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
-interface FathomWebhookNodeProps {
-  data: {
-    label?: string;
-    webhookUrl?: string;
-    payloadTypes?: string[];
-    isConfigured?: boolean;
-    config?: {
-      acceptedTopics?: string[];
-      extractFathomId?: boolean;
-      validatePayload?: boolean;
-    };
+export interface FathomWebhookNodeData {
+  label?: string;
+  webhookUrl?: string;
+  payloadTypes?: string[];
+  isConfigured?: boolean;
+  config?: {
+    acceptedTopics?: string[];
+    extractFathomId?: boolean;
+    validatePayload?: boolean;
   };
-  selected?: boolean;
+  testStatus?: string;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
-const FathomWebhookNode: React.FC<FathomWebhookNodeProps> = ({ data, selected }) => {
+const FathomWebhookNode = memo(({ data, selected }: NodeProps<FathomWebhookNodeData>) => {
   const isConfigured = data.isConfigured || false;
-  
-  return (
-    <div className={`bg-purple-600 dark:bg-purple-600/20 backdrop-blur-sm border border-purple-500 dark:border-purple-500/30 rounded-lg p-2 min-w-[120px] shadow-sm dark:shadow-none ${
-      selected ? 'ring-2 ring-purple-500 ring-offset-2 ring-offset-white dark:ring-offset-gray-950' : ''
-    } ${isConfigured ? 'opacity-100' : 'opacity-80'}`}>
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        id="payload"
-        className="w-2.5 h-2.5 bg-white border-2 border-purple-500"
-      />
-      
-      <div className="flex items-center gap-1.5 text-white">
-        <Webhook className="w-4 h-4" />
-        <div className="font-semibold text-xs">Fathom Webhook</div>
-      </div>
-      
-      {data.payloadTypes && data.payloadTypes.length > 0 && (
-        <div className="text-[10px] text-purple-100 dark:text-purple-200 mt-1">
-          {data.payloadTypes.length} event{data.payloadTypes.length > 1 ? 's' : ''}
-        </div>
-      )}
 
-      {!isConfigured && (
-        <div className="mt-1 text-yellow-200 dark:text-yellow-300 text-[10px]">
-          ⚠️ Setup
-        </div>
-      )}
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
+    }
+    return data.testStatus === 'active' ? 'active' : undefined;
+  };
+
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
     </div>
+  ) : null;
+
+  return (
+    <ModernNodeCard
+      selected={selected}
+      icon={Webhook}
+      title={data.label || 'Fathom Webhook'}
+      subtitle={data.payloadTypes && data.payloadTypes.length > 0 ? `${data.payloadTypes.length} event${data.payloadTypes.length !== 1 ? 's' : ''}` : 'Webhook trigger'}
+      color="text-purple-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      handleLeft={false}
+      handleRight={true}
+      className="w-[280px]"
+    >
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {data.webhookUrl && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Webhook URL</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 font-mono break-all">
+              {data.webhookUrl}
+            </div>
+          </div>
+        )}
+
+        {data.payloadTypes && data.payloadTypes.length > 0 && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Event Types</label>
+            <div className="flex flex-wrap gap-1">
+              {data.payloadTypes.map((type, idx) => (
+                <span key={idx} className="px-1.5 py-0.5 bg-purple-500/10 rounded border border-purple-500/20 text-[9px] text-purple-300">
+                  {type}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isConfigured && (
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
+            <span>Setup required</span>
+          </div>
+        )}
+      </div>
+    </ModernNodeCard>
   );
-};
+});
+
+FathomWebhookNode.displayName = 'FathomWebhookNode';
 
 export default FathomWebhookNode;

@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps } from 'reactflow';
-import { FileText, Settings, CheckCircle, XCircle, Clock, PlayCircle } from 'lucide-react';
+import { NodeProps } from 'reactflow';
+import { FileText, Settings } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
 export interface FormField {
   id: string;
@@ -10,7 +11,7 @@ export interface FormField {
   required?: boolean;
   placeholder?: string;
   defaultValue?: any;
-  options?: Array<{ label: string; value: string }>; // For select fields
+  options?: Array<{ label: string; value: string }>;
   validation?: {
     minLength?: number;
     maxLength?: number;
@@ -49,120 +50,78 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
   const hasUrls = data.config?.testUrl && data.config?.productionUrl;
   const isConfigured = fieldCount > 0 && hasUrls;
 
-  const getExecutionStatusIcon = () => {
-    if (!data.executionMode) return null;
-    
-    switch (data.executionStatus) {
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-400" />;
-      case 'running':
-        return <PlayCircle className="w-4 h-4 text-blue-400 animate-pulse" />;
-      default:
-        return <Clock className="w-4 h-4 text-gray-400" />;
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
     }
+    return data.testStatus === 'active' ? 'active' : 
+           data.testStatus === 'success' ? 'success' : 
+           data.testStatus === 'failed' ? 'failed' : undefined;
   };
 
-  const getExecutionStatusColor = () => {
-    if (!data.executionMode) return '';
-    
-    switch (data.executionStatus) {
-      case 'completed':
-        return 'ring-2 ring-green-400/30';
-      case 'failed':
-        return 'ring-2 ring-red-400/30';
-      case 'running':
-        return 'ring-2 ring-blue-400/30 animate-pulse';
-      default:
-        return 'ring-2 ring-gray-400/30';
-    }
-  };
-  
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
+    </div>
+  ) : null;
+
   return (
-    <div
-      className={`relative min-w-[120px] rounded-lg border-2 transition-all ${
-        selected
-          ? 'border-blue-500 shadow-lg shadow-blue-500/20 ring-offset-white dark:ring-offset-gray-950'
-          : 'border-blue-400/50 hover:border-blue-400'
-      } ${getExecutionStatusColor()} bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 shadow-sm dark:shadow-none`}
+    <ModernNodeCard
+      selected={selected}
+      icon={FileText}
+      title={data.config?.formTitle || data.label || 'Form Trigger'}
+      subtitle={isConfigured ? `${fieldCount} field${fieldCount !== 1 ? 's' : ''}` : 'Configure form'}
+      color="text-blue-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      handleLeft={false}
+      handleRight={true}
+      className="w-[280px]"
     >
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!bg-blue-500 !border-blue-600"
-        style={{ width: 10, height: 10 }}
-      />
-      
-      <div className="p-3">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <div className="p-1 bg-blue-500/20 rounded-md">
-            <FileText className="w-3 h-3 text-blue-300" />
-          </div>
-          <span className="text-xs font-semibold text-blue-100">
-            Form Trigger
-          </span>
-        </div>
-        
-        <div className="text-[10px] text-blue-200/80">
-          {data.config?.formTitle || data.label || 'Configure Form'}
-        </div>
-        
-        {isConfigured && (
-          <div className="mt-1.5 space-y-0.5">
-            <div className="text-[9px] text-blue-300/60">
-              {fieldCount} field{fieldCount !== 1 ? 's' : ''} configured
-            </div>
-            {data.config?.authentication !== 'none' && (
-              <div className="text-[9px] text-blue-300/60">
-                Auth: {data.config?.authentication}
-              </div>
-            )}
-            <div className="text-[9px] text-green-400/60">
-              ✓ Forms ready
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {data.config?.formDescription && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Description</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[40px]">
+              {data.config.formDescription}
             </div>
           </div>
         )}
-        
+
+        {isConfigured && (
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+            <div className="flex flex-col gap-1">
+              <span className="uppercase tracking-wider">Fields</span>
+              <span className="text-zinc-300">{fieldCount}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="uppercase tracking-wider">Auth</span>
+              <span className="text-zinc-300 capitalize">{data.config?.authentication || 'None'}</span>
+            </div>
+          </div>
+        )}
+
         {!isConfigured && (
-          <div className="mt-1.5 flex items-center gap-1 text-[9px] text-yellow-400/80">
-            <Settings className="w-2.5 h-2.5" />
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
             <span>Needs configuration</span>
           </div>
         )}
-        
-        {data.testStatus && data.testStatus !== 'idle' && (
-          <div className={`mt-2 text-xs px-2 py-1 rounded ${
-            data.testStatus === 'active' ? 'bg-yellow-500/20 text-yellow-300' :
-            data.testStatus === 'success' ? 'bg-green-500/20 text-green-300' :
-            data.testStatus === 'failed' ? 'bg-red-500/20 text-red-300' :
-            'bg-gray-500/20 text-gray-300'
-          }`}>
-            {data.testStatus === 'active' ? 'Processing...' :
-             data.testStatus === 'success' ? 'Form submitted' :
-             data.testStatus === 'failed' ? 'Submission failed' :
-             data.testStatus}
-          </div>
-        )}
 
-        {/* Execution Status Overlay */}
-        {data.executionMode && (
-          <div className="mt-2 flex items-center gap-2">
-            {getExecutionStatusIcon()}
-            <span className="text-[8px] text-blue-200/70 capitalize">
-              {data.executionStatus}
-            </span>
-          </div>
-        )}
-
-        {/* Execution Data Tooltip */}
         {data.executionMode && data.executionData && (
-          <div className="mt-1 text-[8px] text-blue-300/50 truncate">
-            {data.executionData.submissionData ? 'Form data captured' : 'No submission data'}
+          <div className="pt-2 border-t border-zinc-800">
+            <div className="text-[10px] text-zinc-500 mb-1">
+              {data.executionData.submissionData ? 'Form data captured' : 'No submission data'}
+            </div>
           </div>
         )}
       </div>
-    </div>
+    </ModernNodeCard>
   );
 });
 

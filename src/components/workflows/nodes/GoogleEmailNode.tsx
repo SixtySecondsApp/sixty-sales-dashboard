@@ -1,76 +1,101 @@
-import React from 'react';
-import { Handle, Position } from 'reactflow';
-import { Mail } from 'lucide-react';
+import React, { memo } from 'react';
+import { NodeProps } from 'reactflow';
+import { Mail, Settings } from 'lucide-react';
+import { ModernNodeCard } from './ModernNodeCard';
 
-interface GoogleEmailNodeProps {
-  data: {
-    label: string;
-    description?: string;
-    config?: {
-      to: string[];
-      cc?: string[];
-      bcc?: string[];
-      subject: string;
-      body: string;
-      isHtml?: boolean;
-      attachments?: string[];
-    };
-    testStatus?: string;
+export interface GoogleEmailNodeData {
+  label: string;
+  description?: string;
+  config?: {
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject: string;
+    body: string;
+    isHtml?: boolean;
+    attachments?: string[];
   };
-  selected?: boolean;
+  testStatus?: string;
+  executionMode?: boolean;
+  executionData?: any;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'failed';
 }
 
-const GoogleEmailNode: React.FC<GoogleEmailNodeProps> = ({ data, selected }) => {
+const GoogleEmailNode = memo(({ data, selected }: NodeProps<GoogleEmailNodeData>) => {
   const isConfigured = data.config && data.config.to && data.config.to.length > 0 && data.config.subject;
-  const isActive = data.testStatus === 'active';
-  
-  return (
-    <div
-      className={`
-        bg-blue-600 dark:bg-blue-600/20 backdrop-blur-sm border border-blue-500 dark:border-blue-500/30 shadow-sm dark:shadow-none rounded-lg p-3 min-w-[180px]
-        border-2 relative transition-all duration-300
-        ${isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'}
-        ${selected ? 'ring-2 ring-blue-300 ring-offset-white dark:ring-offset-gray-950' : ''}
-        ${!isConfigured ? 'opacity-75' : ''}
-      `}
-    >
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className="w-3 h-3 bg-white border-2 border-blue-500"
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className="w-3 h-3 bg-white border-2 border-blue-500"
-      />
-      
-      <div className="flex items-center gap-2 text-white">
-        <div className="p-1.5 bg-white/20 rounded">
-          <Mail className="w-4 h-4" />
-        </div>
-        <div className="flex-1">
-          <div className="text-xs font-semibold">{data.label || 'Send Gmail'}</div>
-          <div className="text-[10px] opacity-80">
-            {data.description || (isConfigured ? `To: ${data.config?.to[0]}` : 'Click to configure')}
-          </div>
-        </div>
-      </div>
-      
-      {data.config && (
-        <div className="mt-2 text-[9px] text-white/70 space-y-0.5">
-          {data.config.to && <div>To: {data.config.to.join(', ')}</div>}
-          {data.config.subject && <div>Subject: {data.config.subject}</div>}
-        </div>
-      )}
-      
-      {!isConfigured && (
-        <div className="absolute -top-2 -right-2 w-4 h-4 bg-yellow-500 rounded-full flex items-center justify-center">
-          <span className="text-[8px] text-black font-bold">!</span>
-        </div>
-      )}
+
+  const mapStatus = () => {
+    if (data.executionMode) {
+      switch (data.executionStatus) {
+        case 'completed': return 'success';
+        case 'failed': return 'failed';
+        case 'running': return 'active';
+        default: return 'idle';
+      }
+    }
+    return data.testStatus === 'active' ? 'active' : undefined;
+  };
+
+  const ConfigBadge = !isConfigured ? (
+    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+      !
     </div>
+  ) : null;
+
+  return (
+    <ModernNodeCard
+      selected={selected}
+      icon={Mail}
+      title={data.label || 'Send Gmail'}
+      subtitle={isConfigured ? `To: ${data.config?.to[0]}${data.config?.to.length > 1 ? ` +${data.config.to.length - 1}` : ''}` : 'Configure email'}
+      color="text-blue-400"
+      status={mapStatus()}
+      badge={ConfigBadge}
+      className="w-[300px]"
+    >
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {data.config?.subject && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Subject</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800">
+              {data.config.subject}
+            </div>
+          </div>
+        )}
+
+        {data.config?.body && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Body</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[60px] max-h-[100px] overflow-y-auto custom-scrollbar">
+              {data.config.body}
+            </div>
+          </div>
+        )}
+
+        {!isConfigured && (
+          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+            <Settings size={12} />
+            <span>Needs configuration</span>
+          </div>
+        )}
+
+        {isConfigured && data.config && (
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+            <div className="flex flex-col gap-1">
+              <span className="uppercase tracking-wider">Recipients</span>
+              <span className="text-zinc-300">{data.config.to?.length || 0}</span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="uppercase tracking-wider">Format</span>
+              <span className="text-zinc-300">{data.config.isHtml ? 'HTML' : 'Text'}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </ModernNodeCard>
   );
-};
+});
+
+GoogleEmailNode.displayName = 'GoogleEmailNode';
 
 export default GoogleEmailNode;

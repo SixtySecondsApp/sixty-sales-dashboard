@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { NodeProps } from 'reactflow';
-import { Bot, Cpu, MessageSquare } from 'lucide-react';
+import { Bot, MessageSquare, Cpu } from 'lucide-react';
 import { ModernNodeCard } from './ModernNodeCard';
 
 export interface CustomGPTNodeData {
@@ -51,23 +51,44 @@ const CustomGPTNode = memo(({ data, selected }: NodeProps<CustomGPTNodeData>) =>
       handleLeft={true}
       handleRight={true}
       badge={
-        <div className="bg-emerald-500/10 text-emerald-400 text-[9px] px-1.5 py-0.5 rounded border border-emerald-500/20">
+        <div className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[9px] rounded border border-emerald-500/30 font-bold mr-1">
           OpenAI
         </div>
       }
+      className="w-[320px]"
     >
-      <div className="p-3 space-y-2 bg-zinc-900/50">
-        {data.config?.threadId && !data.config.createNewThread && (
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-            <MessageSquare size={10} />
-            <span className="truncate">Thread: {data.config.threadId.slice(0, 8)}...</span>
+      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        {data.config?.message && (
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Message</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[60px] max-h-[100px] overflow-y-auto custom-scrollbar font-mono">
+              {data.config.message}
+            </div>
           </div>
         )}
 
-        {data.config?.assistantId && (
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500">
-            <Cpu size={10} />
-            <span className="truncate">{data.config.assistantId}</span>
+        <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+          {data.config?.threadId && !data.config.createNewThread && (
+            <div className="flex items-center gap-1.5">
+              <MessageSquare size={10} />
+              <span className="truncate text-zinc-300">Thread: {data.config.threadId.slice(0, 8)}...</span>
+            </div>
+          )}
+
+          {data.config?.assistantId && (
+            <div className="flex items-center gap-1.5">
+              <Cpu size={10} />
+              <span className="truncate text-zinc-300">{data.config.assistantId.slice(0, 12)}...</span>
+            </div>
+          )}
+        </div>
+
+        {data.config?.temperature !== undefined && (
+          <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+            <span>Temperature: {data.config.temperature}</span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              {data.config.responseFormat || 'text'}
+            </span>
           </div>
         )}
 
@@ -77,9 +98,17 @@ const CustomGPTNode = memo(({ data, selected }: NodeProps<CustomGPTNodeData>) =>
              <div className="flex justify-between items-center text-[10px] text-zinc-500 mb-1">
                 <span className="capitalize">{data.executionStatus}</span>
                 {data.executionData?.threadId && (
-                  <span>{data.executionData.threadId.slice(0,8)}...</span>
+                  <span className="text-zinc-300">{data.executionData.threadId.slice(0,8)}...</span>
                 )}
              </div>
+             {data.executionData?.output && (
+               <div className="bg-green-500/10 p-2 rounded border border-green-500/20 text-[10px] text-green-300 font-mono break-words max-h-[80px] overflow-y-auto custom-scrollbar">
+                  {typeof data.executionData.output === 'string' 
+                    ? data.executionData.output
+                    : JSON.stringify(data.executionData.output, null, 2)
+                  }
+               </div>
+             )}
           </div>
         )}
       </div>
