@@ -1370,6 +1370,14 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       mappedActionType = 'create_task';
     }
     
+    // Validate template_id is a valid UUID or null
+    const getValidTemplateId = (): string | null => {
+      const templateId = selectedWorkflow?.template_id || selectedWorkflow?.id;
+      if (!templateId) return null;
+      // Only use if it's a valid UUID
+      return isValidUUID(templateId) ? templateId : null;
+    };
+
     const workflow = {
       id: isValidUUID(selectedWorkflow?.id) ? selectedWorkflow.id : undefined, // Only include valid UUID IDs
       name: workflowName,
@@ -1380,7 +1388,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
       action_type: mappedActionType,
       action_config: action_config,
       is_active: false, // Start inactive by default
-      template_id: selectedWorkflow?.template_id || selectedWorkflow?.id || null // Use template ID or fallback to ID if it's a template
+      template_id: getValidTemplateId() // Only use valid UUID template IDs
     };
     return workflow;
   };

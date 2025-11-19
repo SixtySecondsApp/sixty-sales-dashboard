@@ -171,6 +171,13 @@ export default function Workflows() {
 
       const userId = user?.id || 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459'; // Fallback for development
 
+      // Validate template_id is a valid UUID or null
+      const isValidUUID = (id: string | null | undefined): boolean => {
+        if (!id) return false;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(id);
+      };
+
       // Generate test scenarios for the workflow
       const testScenarios = WorkflowTestGenerator.generateTestScenarios(workflow);
       const workflowData: any = {
@@ -182,7 +189,7 @@ export default function Workflows() {
         trigger_conditions: workflow.trigger_config || {},
         action_type: workflow.action_type,
         action_config: workflow.action_config || {},
-        template_id: workflow.template_id,
+        template_id: isValidUUID(workflow.template_id) ? workflow.template_id : null,
         is_active: workflow.is_active || false,
         priority_level: 1
         // test_scenarios: testScenarios // Commented out until migration is applied
