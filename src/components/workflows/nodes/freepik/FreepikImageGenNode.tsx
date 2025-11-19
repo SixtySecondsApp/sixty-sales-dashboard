@@ -59,7 +59,7 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
     <button
       onClick={handleGenerate}
       disabled={isGenerating}
-      className={`p-1 rounded transition-colors ${isGenerating ? 'text-zinc-500' : 'text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10'}`}
+      className={`p-1 rounded transition-colors ${isGenerating ? 'text-gray-400 dark:text-zinc-500' : 'text-gray-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/10'}`}
       title="Generate Image"
     >
       {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
@@ -72,13 +72,13 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
       icon={Sparkles}
       title="Mystic Generator"
       subtitle="Text to Image"
-      color="text-purple-400"
+      color="text-purple-600 dark:text-purple-400"
       headerAction={GenerateButton}
       className="w-[280px]"
     >
       <div className="p-0">
         {/* Image Preview Area */}
-        <div className="relative w-full aspect-square bg-black/40 flex items-center justify-center overflow-hidden group">
+        <div className="relative w-full aspect-square bg-gray-100 dark:bg-black/40 flex items-center justify-center overflow-hidden group">
           {imageUrl ? (
             <>
               <img src={imageUrl} alt="Generated" className="w-full h-full object-cover" />
@@ -86,7 +86,7 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
                 <a 
                   href={imageUrl} 
                   download="mystic-generation.png"
-                  className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 text-zinc-200 transition-colors"
+                  className="p-2 bg-gray-800 dark:bg-zinc-800 rounded-full hover:bg-gray-700 dark:hover:bg-zinc-700 text-white dark:text-zinc-200 transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download size={16} />
@@ -94,7 +94,7 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
               </div>
             </>
           ) : (
-            <div className="text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
+            <div className="text-gray-500 dark:text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
               <ImageIcon size={24} className="opacity-50" />
               <span className="text-xs">Ready to generate</span>
             </div>
@@ -103,30 +103,30 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
           {/* Loading Overlay */}
           {isGenerating && (
             <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10 flex-col gap-2">
-              <Loader2 size={24} className="text-purple-400 animate-spin" />
-              <span className="text-xs text-purple-300 animate-pulse">Dreaming...</span>
+              <Loader2 size={24} className="text-purple-500 dark:text-purple-400 animate-spin" />
+              <span className="text-xs text-purple-600 dark:text-purple-300 animate-pulse">Dreaming...</span>
             </div>
           )}
         </div>
 
         {/* Inputs */}
-        <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Prompt</label>
-            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[60px]">
-              {data.prompt || <span className="text-zinc-600 italic">Enter prompt in configuration...</span>}
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Prompt</label>
+            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 min-h-[60px]">
+              {data.prompt || <span className="text-gray-400 dark:text-zinc-600 italic">Enter prompt in configuration...</span>}
             </div>
           </div>
           
           {error && (
-            <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded border border-red-400/20">
+            <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+          <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-zinc-500 pt-2 border-t border-gray-200 dark:border-zinc-800">
             <span>{data.aspect_ratio || 'square'}</span>
-            <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            <span className="px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/20">
               MYSTIC V1
             </span>
           </div>
@@ -138,4 +138,3 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
 
 FreepikImageGenNode.displayName = 'FreepikImageGenNode';
 export default FreepikImageGenNode;
-

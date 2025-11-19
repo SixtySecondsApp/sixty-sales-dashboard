@@ -18,8 +18,8 @@ export const TriggerNode = ({ data, selected }: any) => {
       handleRight={true}
     >
       {data.description && (
-        <div className="p-3 bg-zinc-900/50">
-          <div className="text-xs text-zinc-400 leading-relaxed">
+        <div className="p-3 bg-gray-50 dark:bg-zinc-900/50">
+          <div className="text-xs text-gray-700 dark:text-zinc-400 leading-relaxed">
             {data.description}
           </div>
         </div>

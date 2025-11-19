@@ -37,15 +37,15 @@ export const ConditionNode = ({ data, selected }: any) => {
       icon={GitBranch}
       title={data.label}
       subtitle="Condition"
-      color="text-blue-400"
+      color="text-blue-600 dark:text-blue-400"
       status={data.testStatus}
       handleLeft={true}
       handleRight={false} // We provide custom handles
       handles={CustomHandles}
       className="min-w-[220px]" // Slightly wider for the labels
     >
-      <div className="p-3 bg-zinc-900/50">
-        <div className="text-xs text-zinc-300 font-mono bg-black/20 p-1.5 rounded border border-zinc-800/50">
+      <div className="p-3 bg-gray-50 dark:bg-zinc-900/50">
+        <div className="text-xs text-gray-700 dark:text-zinc-300 font-mono bg-gray-100 dark:bg-black/20 p-1.5 rounded border border-gray-200 dark:border-zinc-800/50">
           {data.condition || 'If condition met'}
         </div>
       </div>

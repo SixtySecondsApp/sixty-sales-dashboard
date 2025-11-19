@@ -75,7 +75,7 @@ export default function FreepikFlow() {
   );
 
   return (
-    <div className="w-full h-full bg-[#0f0f0f] min-h-[500px] rounded-xl overflow-hidden border border-zinc-800">
+    <div className="w-full h-full bg-gray-50 dark:bg-[#0f0f0f] min-h-[500px] rounded-xl overflow-hidden border border-gray-300 dark:border-zinc-800">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -88,8 +88,8 @@ export default function FreepikFlow() {
         className="freepik-theme"
         minZoom={0.2}
       >
-        <Background color="#333" gap={20} size={1} />
-        <Controls className="bg-[#1e1e1e] border border-zinc-800 fill-zinc-400" />
+        <Background color="#e5e7eb" gap={20} size={1} className="dark:[&_svg]:!stroke-gray-700" />
+        <Controls className="bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-zinc-800 fill-gray-600 dark:fill-zinc-400 [&_button]:bg-white dark:[&_button]:bg-[#1e1e1e] [&_button]:border-gray-300 dark:[&_button]:border-zinc-800 [&_button:hover]:bg-gray-50 dark:[&_button:hover]:bg-zinc-800" />
       </ReactFlow>
 
       {/* Global CSS overrides */}
@@ -97,7 +97,8 @@ export default function FreepikFlow() {
         .react-flow__attribution { display: none; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #9ca3af; border-radius: 2px; }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; }
       `}</style>
     </div>
   );

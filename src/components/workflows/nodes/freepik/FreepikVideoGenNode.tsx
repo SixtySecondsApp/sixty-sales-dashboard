@@ -81,7 +81,7 @@ const FreepikVideoGenNode = memo(({ data, selected }: NodeProps<FreepikVideoGenN
     <button
       onClick={handleGenerate}
       disabled={isGenerating || !data.input_image}
-      className={`p-1 rounded transition-colors ${isGenerating ? 'text-zinc-500' : 'text-zinc-400 hover:text-orange-400 hover:bg-orange-500/10'}`}
+      className={`p-1 rounded transition-colors ${isGenerating ? 'text-gray-400 dark:text-zinc-500' : 'text-gray-500 dark:text-zinc-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-500/10'}`}
       title="Generate Video"
     >
       {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Film size={14} />}
@@ -94,13 +94,13 @@ const FreepikVideoGenNode = memo(({ data, selected }: NodeProps<FreepikVideoGenN
       icon={Video}
       title="Motion Generator"
       subtitle="Kling v2.5"
-      color="text-orange-400"
+      color="text-orange-600 dark:text-orange-400"
       headerAction={GenerateButton}
       className="w-[320px]"
     >
       <div className="p-0">
         {/* Video Preview Area */}
-        <div className="relative w-full aspect-video bg-black/40 flex items-center justify-center overflow-hidden group">
+        <div className="relative w-full aspect-video bg-gray-100 dark:bg-black/40 flex items-center justify-center overflow-hidden group">
           {videoUrl ? (
             <>
               <video 
@@ -126,13 +126,13 @@ const FreepikVideoGenNode = memo(({ data, selected }: NodeProps<FreepikVideoGenN
              <div className="relative w-full h-full">
                 <img src={data.input_image} alt="Reference" className="w-full h-full object-cover opacity-50" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <span className="bg-black/60 px-2 py-1 rounded text-[10px] text-zinc-300 flex items-center gap-1">
+                   <span className="bg-black/60 px-2 py-1 rounded text-[10px] text-white dark:text-zinc-300 flex items-center gap-1">
                      <Play size={10} /> Ready to animate
                    </span>
                 </div>
              </div>
           ) : (
-            <div className="text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
+            <div className="text-gray-500 dark:text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
               <Film size={24} className="opacity-50" />
               <span className="text-xs">Connect an image</span>
             </div>
@@ -142,9 +142,9 @@ const FreepikVideoGenNode = memo(({ data, selected }: NodeProps<FreepikVideoGenN
           {isGenerating && (
             <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10 flex-col gap-2 px-8">
               <Loader2 size={24} className="text-orange-400 animate-spin" />
-              <span className="text-xs text-orange-300 animate-pulse">Animating frame by frame...</span>
+              <span className="text-xs text-orange-600 dark:text-orange-300 animate-pulse">Animating frame by frame...</span>
               {/* Progress Bar */}
-              <div className="w-full h-1 bg-zinc-800 rounded overflow-hidden mt-2">
+              <div className="w-full h-1 bg-gray-200 dark:bg-zinc-800 rounded overflow-hidden mt-2">
                 <div 
                   className="h-full bg-orange-500 transition-all duration-500" 
                   style={{ width: `${progress}%` }}
@@ -155,23 +155,23 @@ const FreepikVideoGenNode = memo(({ data, selected }: NodeProps<FreepikVideoGenN
         </div>
 
         {/* Inputs */}
-        <div className="p-3 space-y-3 bg-[#1e1e1e]">
+        <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Motion Prompt</label>
-            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[40px]">
-              {data.prompt || <span className="text-zinc-600 italic">Describe the movement...</span>}
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Motion Prompt</label>
+            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 min-h-[40px]">
+              {data.prompt || <span className="text-gray-400 dark:text-zinc-600 italic">Describe the movement...</span>}
             </div>
           </div>
           
           {error && (
-            <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded border border-red-400/20">
+            <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20">
               {error}
             </div>
           )}
 
-          <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+          <div className="flex items-center justify-between text-[10px] text-gray-500 dark:text-zinc-500 pt-2 border-t border-gray-200 dark:border-zinc-800">
             <span>{data.duration || '5'}s duration</span>
-            <span className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
+            <span className="px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20">
               PRO
             </span>
           </div>

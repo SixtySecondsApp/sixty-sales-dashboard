@@ -45,7 +45,7 @@ export const ActionNode = ({ data, selected, id }: any) => {
       handleLeft={true}
       handleRight={true}
     >
-      <div className="p-3 bg-zinc-900/50">
+      <div className="p-3 bg-gray-50 dark:bg-zinc-900/50">
         {isMultiAction && data.executionMode && (
           <div className="mb-2">
             <span className="text-[10px] uppercase font-bold text-yellow-500/80 bg-yellow-500/10 px-1.5 py-0.5 rounded">
@@ -54,7 +54,7 @@ export const ActionNode = ({ data, selected, id }: any) => {
           </div>
         )}
         {data.description && (
-          <div className="text-xs text-zinc-400 leading-relaxed">
+          <div className="text-xs text-gray-700 dark:text-zinc-400 leading-relaxed">
             {data.description}
           </div>
         )}

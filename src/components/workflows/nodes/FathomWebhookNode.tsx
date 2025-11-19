@@ -35,7 +35,7 @@ const FathomWebhookNode = memo(({ data, selected }: NodeProps<FathomWebhookNodeD
   };
 
   const ConfigBadge = !isConfigured ? (
-    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+    <div className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 text-[9px] rounded border border-yellow-200 dark:border-yellow-500/30 font-bold mr-1">
       !
     </div>
   ) : null;
@@ -53,11 +53,11 @@ const FathomWebhookNode = memo(({ data, selected }: NodeProps<FathomWebhookNodeD
       handleRight={true}
       className="w-[280px]"
     >
-      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+      <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
         {data.webhookUrl && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Webhook URL</label>
-            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 font-mono break-all">
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Webhook URL</label>
+            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 font-mono break-all">
               {data.webhookUrl}
             </div>
           </div>
@@ -65,10 +65,10 @@ const FathomWebhookNode = memo(({ data, selected }: NodeProps<FathomWebhookNodeD
 
         {data.payloadTypes && data.payloadTypes.length > 0 && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Event Types</label>
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Event Types</label>
             <div className="flex flex-wrap gap-1">
               {data.payloadTypes.map((type, idx) => (
-                <span key={idx} className="px-1.5 py-0.5 bg-purple-500/10 rounded border border-purple-500/20 text-[9px] text-purple-300">
+                <span key={idx} className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-500/10 rounded border border-purple-200 dark:border-purple-500/20 text-[9px] text-purple-700 dark:text-purple-300">
                   {type}
                 </span>
               ))}
@@ -77,7 +77,7 @@ const FathomWebhookNode = memo(({ data, selected }: NodeProps<FathomWebhookNodeD
         )}
 
         {!isConfigured && (
-          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-[10px] text-yellow-600 dark:text-yellow-400/80 bg-yellow-50 dark:bg-yellow-500/10 p-2 rounded border border-yellow-200 dark:border-yellow-500/20">
             <Settings size={12} />
             <span>Setup required</span>
           </div>

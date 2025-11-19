@@ -73,7 +73,7 @@ const ConditionalBranchNode = memo(({ data, selected }: NodeProps<ConditionalBra
   );
 
   const ConfigBadge = !isConfigured ? (
-    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+    <div className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 text-[9px] rounded border border-yellow-200 dark:border-yellow-500/30 font-bold mr-1">
       !
     </div>
   ) : null;
@@ -92,11 +92,11 @@ const ConditionalBranchNode = memo(({ data, selected }: NodeProps<ConditionalBra
       handles={CustomHandles}
       className="min-w-[240px]"
     >
-      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+      <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
         {conditions.length > 0 ? (
           <div className="space-y-2">
             {conditions.slice(0, 3).map((condition, idx) => (
-              <div key={idx} className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 font-mono">
+              <div key={idx} className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 font-mono">
                 {condition.field} {condition.operator} {condition.value}
               </div>
             ))}
@@ -107,7 +107,7 @@ const ConditionalBranchNode = memo(({ data, selected }: NodeProps<ConditionalBra
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-[10px] text-yellow-600 dark:text-yellow-400/80 bg-yellow-50 dark:bg-yellow-500/10 p-2 rounded border border-yellow-200 dark:border-yellow-500/20">
             <Settings size={12} />
             <span>Configure branches</span>
           </div>

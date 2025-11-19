@@ -65,7 +65,7 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
   };
 
   const ConfigBadge = !isConfigured ? (
-    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+    <div className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 text-[9px] rounded border border-yellow-200 dark:border-yellow-500/30 font-bold mr-1">
       !
     </div>
   ) : null;
@@ -83,39 +83,39 @@ const FormNode = memo(({ data, selected }: NodeProps<FormNodeData>) => {
       handleRight={true}
       className="w-[280px]"
     >
-      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+      <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
         {data.config?.formDescription && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Description</label>
-            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[40px]">
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Description</label>
+            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 min-h-[40px]">
               {data.config.formDescription}
             </div>
           </div>
         )}
 
         {isConfigured && (
-          <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500 dark:text-zinc-500">
             <div className="flex flex-col gap-1">
               <span className="uppercase tracking-wider">Fields</span>
-              <span className="text-zinc-300">{fieldCount}</span>
+              <span className="text-gray-700 dark:text-zinc-300">{fieldCount}</span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="uppercase tracking-wider">Auth</span>
-              <span className="text-zinc-300 capitalize">{data.config?.authentication || 'None'}</span>
+              <span className="text-gray-700 dark:text-zinc-300 capitalize">{data.config?.authentication || 'None'}</span>
             </div>
           </div>
         )}
 
         {!isConfigured && (
-          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-[10px] text-yellow-600 dark:text-yellow-400/80 bg-yellow-50 dark:bg-yellow-500/10 p-2 rounded border border-yellow-200 dark:border-yellow-500/20">
             <Settings size={12} />
             <span>Needs configuration</span>
           </div>
         )}
 
         {data.executionMode && data.executionData && (
-          <div className="pt-2 border-t border-zinc-800">
-            <div className="text-[10px] text-zinc-500 mb-1">
+          <div className="pt-2 border-t border-gray-200 dark:border-zinc-800">
+            <div className="text-[10px] text-gray-500 dark:text-zinc-500 mb-1">
               {data.executionData.submissionData ? 'Form data captured' : 'No submission data'}
             </div>
           </div>

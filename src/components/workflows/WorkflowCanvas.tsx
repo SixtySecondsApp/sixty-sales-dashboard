@@ -1919,11 +1919,12 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           className="bg-gray-950 h-full"
           style={{ height: '100%' }}
         >
-          <Background color="#333" gap={20} size={1} />
-          <Controls className="bg-[#1e1e1e] border border-zinc-800 fill-zinc-400" />
+          <Background color="#e5e7eb" gap={20} size={1} className="dark:[&_svg]:!stroke-gray-700" />
+          <Controls className="bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-zinc-800 fill-gray-600 dark:fill-zinc-400 [&_button]:bg-white dark:[&_button]:bg-[#1e1e1e] [&_button]:border-gray-300 dark:[&_button]:border-zinc-800 [&_button:hover]:bg-gray-50 dark:[&_button:hover]:bg-zinc-800" />
           <MiniMap 
-            className="bg-[#1e1e1e] border border-zinc-800"
-            maskColor="rgba(0, 0, 0, 0.6)"
+            className="bg-white dark:bg-[#1e1e1e] border border-gray-300 dark:border-zinc-800"
+            maskColor="rgba(0, 0, 0, 0.1)"
+            style={{ backgroundColor: 'transparent' }}
             nodeColor={(node) => {
               if (node.type === 'trigger') return '#9333ea';
               if (node.type === 'condition') return '#2563eb';

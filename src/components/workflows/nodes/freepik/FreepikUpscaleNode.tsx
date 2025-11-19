@@ -56,7 +56,7 @@ const FreepikUpscaleNode = memo(({ data, selected }: NodeProps<FreepikUpscaleNod
     <button
       onClick={handleUpscale}
       disabled={isProcessing || !inputImage}
-      className={`p-1 rounded transition-colors ${isProcessing ? 'text-zinc-500' : 'text-zinc-400 hover:text-blue-400 hover:bg-blue-500/10'}`}
+      className={`p-1 rounded transition-colors ${isProcessing ? 'text-gray-400 dark:text-zinc-500' : 'text-gray-500 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/10'}`}
       title="Upscale Image"
     >
       {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <ArrowUpRight size={14} />}
@@ -69,13 +69,13 @@ const FreepikUpscaleNode = memo(({ data, selected }: NodeProps<FreepikUpscaleNod
       icon={Maximize}
       title="Upscaler"
       subtitle="Magnific Tech"
-      color="text-blue-400"
+      color="text-blue-600 dark:text-blue-400"
       headerAction={ProcessButton}
       className="w-[280px]"
     >
       <div className="p-0">
         {/* Comparison View / Output */}
-        <div className="relative w-full aspect-square bg-black/40 flex items-center justify-center overflow-hidden group">
+        <div className="relative w-full aspect-square bg-gray-100 dark:bg-black/40 flex items-center justify-center overflow-hidden group">
           {outputImage ? (
             <>
               <img src={outputImage} alt="Upscaled" className="w-full h-full object-cover" />
@@ -86,7 +86,7 @@ const FreepikUpscaleNode = memo(({ data, selected }: NodeProps<FreepikUpscaleNod
                 <a 
                   href={outputImage} 
                   download="upscaled-image.png"
-                  className="p-2 bg-zinc-800 rounded-full hover:bg-zinc-700 text-zinc-200 transition-colors"
+                  className="p-2 bg-gray-800 dark:bg-zinc-800 rounded-full hover:bg-gray-700 dark:hover:bg-zinc-700 text-white dark:text-zinc-200 transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Download size={16} />
@@ -97,11 +97,11 @@ const FreepikUpscaleNode = memo(({ data, selected }: NodeProps<FreepikUpscaleNod
              <div className="relative w-full h-full">
                 <img src={inputImage} alt="Input" className="w-full h-full object-cover opacity-50 grayscale" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                   <span className="bg-black/60 px-2 py-1 rounded text-[10px] text-zinc-300">Waiting to process</span>
+                   <span className="bg-black/60 px-2 py-1 rounded text-[10px] text-white dark:text-zinc-300">Waiting to process</span>
                 </div>
              </div>
           ) : (
-            <div className="text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
+            <div className="text-gray-500 dark:text-zinc-600 flex flex-col items-center gap-2 p-4 text-center">
               <ImageIcon size={24} className="opacity-50" />
               <span className="text-xs">Connect an image node</span>
             </div>
@@ -117,20 +117,20 @@ const FreepikUpscaleNode = memo(({ data, selected }: NodeProps<FreepikUpscaleNod
         </div>
 
         {/* Info */}
-        <div className="p-3 space-y-3 bg-[#1e1e1e]">
-          <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-500">
+        <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
+          <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-500 dark:text-zinc-500">
              <div className="flex flex-col gap-1">
                <span className="uppercase tracking-wider">Scale</span>
-               <span className="text-zinc-300">{data.scale_factor || 2}x</span>
+               <span className="text-gray-700 dark:text-zinc-300">{data.scale_factor || 2}x</span>
              </div>
              <div className="flex flex-col gap-1">
                <span className="uppercase tracking-wider">Mode</span>
-               <span className="text-zinc-300 capitalize">{data.optimize_for || 'Quality'}</span>
+               <span className="text-gray-700 dark:text-zinc-300 capitalize">{data.optimize_for || 'Quality'}</span>
              </div>
           </div>
           
           {error && (
-            <div className="text-[10px] text-red-400 bg-red-400/10 p-2 rounded border border-red-400/20">
+            <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20">
               {error}
             </div>
           )}

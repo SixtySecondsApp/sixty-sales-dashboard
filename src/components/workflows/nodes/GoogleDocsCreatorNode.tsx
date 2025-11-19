@@ -38,7 +38,7 @@ const GoogleDocsCreatorNode = memo(({ data, selected }: NodeProps<GoogleDocsCrea
   };
 
   const ConfigBadge = !isConfigured ? (
-    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+    <div className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 text-[9px] rounded border border-yellow-200 dark:border-yellow-500/30 font-bold mr-1">
       !
     </div>
   ) : null;
@@ -60,13 +60,13 @@ const GoogleDocsCreatorNode = memo(({ data, selected }: NodeProps<GoogleDocsCrea
       badge={ConfigBadge}
       className="w-[280px]"
     >
-      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+      <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
         {enabledFeatures.length > 0 && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Features</label>
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Features</label>
             <div className="flex flex-wrap gap-1">
               {enabledFeatures.map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500/10 rounded border border-emerald-500/20 text-[9px] text-emerald-300">
+                <div key={idx} className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-500/10 rounded border border-emerald-200 dark:border-emerald-500/20 text-[9px] text-emerald-700 dark:text-emerald-300">
                   <Check size={8} />
                   {feature}
                 </div>
@@ -76,16 +76,16 @@ const GoogleDocsCreatorNode = memo(({ data, selected }: NodeProps<GoogleDocsCrea
         )}
 
         {!isConfigured && (
-          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-[10px] text-yellow-600 dark:text-yellow-400/80 bg-yellow-50 dark:bg-yellow-500/10 p-2 rounded border border-yellow-200 dark:border-yellow-500/20">
             <Settings size={12} />
             <span>Google auth required</span>
           </div>
         )}
 
         {data.permissions && data.permissions.length > 0 && (
-          <div className="text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+          <div className="text-[10px] text-gray-500 dark:text-zinc-500 pt-2 border-t border-gray-200 dark:border-zinc-800">
             <span className="uppercase tracking-wider">Permissions: </span>
-            <span className="text-zinc-300">{data.permissions.length} user{data.permissions.length !== 1 ? 's' : ''}</span>
+            <span className="text-gray-700 dark:text-zinc-300">{data.permissions.length} user{data.permissions.length !== 1 ? 's' : ''}</span>
           </div>
         )}
       </div>

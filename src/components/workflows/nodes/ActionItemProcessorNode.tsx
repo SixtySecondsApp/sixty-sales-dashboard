@@ -89,7 +89,7 @@ const ActionItemProcessorNode = memo(({ data, selected }: NodeProps<ActionItemPr
   if (salesWorkflow) enabledFeatures.push({ name: 'Sales Workflow', icon: Target, color: 'emerald' });
 
   const ConfigBadge = !isConfigured ? (
-    <div className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-300 text-[9px] rounded border border-yellow-500/30 font-bold mr-1">
+    <div className="px-1.5 py-0.5 bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 text-[9px] rounded border border-yellow-200 dark:border-yellow-500/30 font-bold mr-1">
       !
     </div>
   ) : null;
@@ -105,18 +105,18 @@ const ActionItemProcessorNode = memo(({ data, selected }: NodeProps<ActionItemPr
       badge={ConfigBadge}
       className="w-[320px]"
     >
-      <div className="p-3 space-y-3 bg-[#1e1e1e]">
+      <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
         {enabledFeatures.length > 0 && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Features</label>
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Features</label>
             <div className="flex flex-wrap gap-1">
               {enabledFeatures.map((feature, idx) => {
                 const colorClasses = {
-                  yellow: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-300',
-                  blue: 'bg-blue-500/10 border-blue-500/20 text-blue-300',
-                  green: 'bg-green-500/10 border-green-500/20 text-green-300',
-                  purple: 'bg-purple-500/10 border-purple-500/20 text-purple-300',
-                  emerald: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                  yellow: 'bg-yellow-100 dark:bg-yellow-500/10 border-yellow-200 dark:border-yellow-500/20 text-yellow-700 dark:text-yellow-300',
+                  blue: 'bg-blue-100 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20 text-blue-700 dark:text-blue-300',
+                  green: 'bg-green-100 dark:bg-green-500/10 border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-300',
+                  purple: 'bg-purple-100 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/20 text-purple-700 dark:text-purple-300',
+                  emerald: 'bg-emerald-100 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-300'
                 };
                 const FeatureIcon = feature.icon;
                 return (
@@ -132,18 +132,18 @@ const ActionItemProcessorNode = memo(({ data, selected }: NodeProps<ActionItemPr
 
         {smartDeadlines && config.deadlineRules && (
           <div className="space-y-1">
-            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Deadline Rules</label>
+            <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Deadline Rules</label>
             <div className="grid grid-cols-2 gap-1 text-[9px]">
-              <div className="bg-red-500/10 px-1.5 py-1 rounded border border-red-500/20 text-red-300">
+              <div className="bg-red-100 dark:bg-red-500/10 px-1.5 py-1 rounded border border-red-200 dark:border-red-500/20 text-red-700 dark:text-red-300">
                 Urgent: {config.deadlineRules.urgentDays || 1}d
               </div>
-              <div className="bg-orange-500/10 px-1.5 py-1 rounded border border-orange-500/20 text-orange-300">
+              <div className="bg-orange-100 dark:bg-orange-500/10 px-1.5 py-1 rounded border border-orange-200 dark:border-orange-500/20 text-orange-700 dark:text-orange-300">
                 High: {config.deadlineRules.highDays || 3}d
               </div>
-              <div className="bg-yellow-500/10 px-1.5 py-1 rounded border border-yellow-500/20 text-yellow-300">
+              <div className="bg-yellow-100 dark:bg-yellow-500/10 px-1.5 py-1 rounded border border-yellow-200 dark:border-yellow-500/20 text-yellow-700 dark:text-yellow-300">
                 Medium: {config.deadlineRules.mediumDays || 7}d
               </div>
-              <div className="bg-green-500/10 px-1.5 py-1 rounded border border-green-500/20 text-green-300">
+              <div className="bg-green-100 dark:bg-green-500/10 px-1.5 py-1 rounded border border-green-200 dark:border-green-500/20 text-green-700 dark:text-green-300">
                 Low: {config.deadlineRules.lowDays || 14}d
               </div>
             </div>
@@ -151,7 +151,7 @@ const ActionItemProcessorNode = memo(({ data, selected }: NodeProps<ActionItemPr
         )}
 
         {!isConfigured && (
-          <div className="flex items-center gap-2 text-[10px] text-yellow-400/80 bg-yellow-500/10 p-2 rounded border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-[10px] text-yellow-600 dark:text-yellow-400/80 bg-yellow-50 dark:bg-yellow-500/10 p-2 rounded border border-yellow-200 dark:border-yellow-500/20">
             <AlertTriangle size={12} />
             <span>Configure processing rules</span>
           </div>
