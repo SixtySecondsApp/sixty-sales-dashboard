@@ -1,723 +1,614 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Unified Testing Lab Component
+ * Combines features from TestingLabNew and TestingLabEnhanced
+ * Supports both simulated and real data testing modes
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   TestTube,
   Play,
   Pause,
-  RotateCcw,
+  Square,
   CheckCircle,
   XCircle,
-  AlertTriangle,
-  Trophy,
-  Target,
-  Zap,
+  AlertCircle,
   Clock,
-  Activity,
-  TrendingUp,
-  Award,
-  Shield,
-  Star,
-  Flame,
-  Settings,
-  Info,
-  ChevronRight,
-  FileText,
   Database,
-  Bell,
-  CheckSquare
+  FileText,
+  Zap,
+  RefreshCw,
+  Eye,
+  Settings,
+  Activity,
+  Target,
+  TrendingUp,
+  X,
+  Loader2,
+  Globe,
+  FlaskConical
 } from 'lucide-react';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  MiniMap,
+  Background,
+  useNodesState,
+  useEdgesState,
+  ReactFlowProvider,
+  Handle,
+  Position
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import { workflowExecutionService, type WorkflowExecution, type NodeExecution } from '@/lib/services/workflowExecutionService';
+import { WorkflowTestEngine, TEST_SCENARIOS, TestExecutionState } from '@/lib/utils/workflowTestEngine';
+import AnimatedTestEdge from './AnimatedTestEdge';
+import NodeExecutionModal from './NodeExecutionModal';
+import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
-import { workflowRealtimeService } from '@/lib/services/workflowRealtimeService';
-import { formatDistanceToNow } from 'date-fns';
-
-interface TestScenario {
-  id: string;
-  name: string;
-  description: string;
-  test_type: 'unit' | 'integration' | 'performance' | 'edge_case';
-  difficulty: 'easy' | 'medium' | 'hard';
-  points: number;
-  mockData: any;
-  expectedResult?: any;
-}
-
-interface TestResult {
-  id: string;
-  scenario_id: string;
-  workflow_id: string;
-  status: 'passed' | 'failed' | 'skipped';
-  execution_time_ms: number;
-  actual_result?: any;
-  error_message?: string;
-  points_earned: number;
-  executed_at: string;
-}
-
-interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  icon: any;
-  unlocked: boolean;
-  progress: number;
-  total: number;
-}
-
-interface PlayerStats {
-  level: number;
-  xp: number;
-  next_level_xp: number;
-  total_points: number;
-  tests_run: number;
-  success_rate: number;
-  current_streak: number;
-}
 
 interface TestingLabProps {
   workflow: any;
 }
 
-const TestingLab: React.FC<TestingLabProps> = ({ workflow }) => {
-  const { userData: user } = useUser();
-  const [isRunning, setIsRunning] = useState(false);
-  const [currentTest, setCurrentTest] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [playerStats, setPlayerStats] = useState<PlayerStats>({
-    level: 1,
-    xp: 0,
-    next_level_xp: 100,
-    total_points: 0,
-    tests_run: 0,
-    success_rate: 0,
-    current_streak: 0
-  });
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [loading, setLoading] = useState(true);
-  // Generate test scenarios based on workflow type
-  const generateTestScenarios = (): TestScenario[] => {
-    if (!workflow) return [];
+interface TestResult {
+  id: string;
+  scenarioId: string;
+  scenarioName: string;
+  workflowName: string;
+  status: 'passed' | 'failed' | 'running';
+  executionTime: number;
+  timestamp: Date;
+  logs: any[];
+  nodesPassed: number;
+  nodesTotal: number;
+  executionProgress?: number;
+  errorMessage?: string;
+}
 
-    const baseScenarios: TestScenario[] = [
-      {
-        id: 'basic_trigger',
-        name: 'Basic Trigger Test',
-        description: 'Test if the workflow triggers correctly with standard data',
-        test_type: 'unit',
-        difficulty: 'easy',
-        points: 10,
-        mockData: generateMockTriggerData(workflow.trigger_type, 'standard')
-      },
-      {
-        id: 'condition_validation',
-        name: 'Condition Validation',
-        description: 'Verify conditions are evaluated correctly',
-        test_type: 'integration',
-        difficulty: 'medium',
-        points: 25,
-        mockData: generateMockTriggerData(workflow.trigger_type, 'conditions')
-      },
-      {
-        id: 'action_execution',
-        name: 'Action Execution',
-        description: 'Ensure actions execute properly in test mode',
-        test_type: 'integration',
-        difficulty: 'easy',
-        points: 15,
-        mockData: generateMockTriggerData(workflow.trigger_type, 'actions')
-      },
-      {
-        id: 'edge_cases',
-        name: 'Edge Case Handling',
-        description: 'Test with missing fields and boundary conditions',
-        test_type: 'edge_case',
-        difficulty: 'hard',
-        points: 50,
-        mockData: generateMockTriggerData(workflow.trigger_type, 'edge_cases')
-      },
-      {
-        id: 'performance',
-        name: 'Performance Test',
-        description: 'Verify workflow completes within time limits',
-        test_type: 'performance',
-        difficulty: 'hard',
-        points: 75,
-        mockData: generateMockTriggerData(workflow.trigger_type, 'performance')
-      }
-    ];
-
-    return baseScenarios;
-  };
-
-  const [scenarios, setScenarios] = useState<TestScenario[]>([]);
-
-  useEffect(() => {
-    if (workflow) {
-      setScenarios(generateTestScenarios());
-    }
-    loadTestingData();
-  }, [workflow]);
-
-  const loadTestingData = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      
-      // Load test results
-      const { data: results } = await supabase
-        .from('workflow_test_results')
-        .select('*')
-        .eq('executed_by', user.id)
-        .order('executed_at', { ascending: false })
-        .limit(50);
-
-      if (results) {
-        setTestResults(results.map(r => ({
-          id: r.id,
-          scenario_id: r.test_scenario,
-          workflow_id: r.rule_id,
-          status: r.status,
-          execution_time_ms: r.execution_time_ms || 0,
-          actual_result: r.actual_result,
-          error_message: r.error_message,
-          points_earned: r.points_awarded || 0,
-          executed_at: r.executed_at
-        })));
-      }
-
-      // Load achievements
-      const { data: userAchievements } = await supabase
-        .from('user_testing_achievements')
-        .select('*')
-        .eq('user_id', user.id);
-
-      if (userAchievements) {
-        setAchievements(userAchievements.map(a => ({
-          id: a.id,
-          name: a.achievement_name,
-          description: a.description || '',
-          icon: getAchievementIcon(a.achievement_type),
-          unlocked: a.is_completed,
-          progress: a.current_progress,
-          total: a.required_progress
-        })));
-      }
-
-      // Calculate player stats
-      calculatePlayerStats(results || []);
-      
-    } catch (error) {
-    } finally {
-      setLoading(false);
+// Unified test node component
+const TestNode = ({ data, selected, id }: any) => {
+  const status = data.testStatus || 'idle';
+  const isActive = status === 'active' || status === 'running';
+  
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'success': return 'border-green-500 bg-green-500/20';
+      case 'failed': return 'border-red-500 bg-red-500/20';
+      case 'running':
+      case 'active': return 'border-blue-500 bg-blue-500/20 animate-pulse';
+      case 'pending': return 'border-yellow-500 bg-yellow-500/20';
+      case 'skipped': return 'border-gray-500 bg-gray-500/20 opacity-50';
+      default: return 'border-gray-500 bg-gray-700';
     }
   };
-
-  // Helper Functions
-  const generateMockTriggerData = (triggerType: string, scenario: string): any => {
-    const baseData = {
-      id: 'test-' + Date.now(),
-      user_id: user?.id,
-      created_at: new Date().toISOString()
-    };
-
-    switch (triggerType) {
-      case 'deal_created':
-        return {
-          new: {
-            ...baseData,
-            company_name: scenario === 'edge_cases' ? '' : 'Test Company',
-            contact_name: scenario === 'edge_cases' ? null : 'John Doe',
-            stage: 'SQL',
-            value: scenario === 'conditions' ? 15000 : scenario === 'edge_cases' ? -100 : 5000,
-            monthly_value: scenario === 'conditions' ? 2000 : 0
-          }
-        };
-      case 'stage_changed':
-        return {
-          old: { stage: 'SQL' },
-          new: {
-            ...baseData,
-            stage: scenario === 'conditions' ? 'Opportunity' : 'Verbal',
-            company_name: 'Test Company'
-          }
-        };
-      case 'activity_created':
-        return {
-          new: {
-            ...baseData,
-            activity_type: scenario === 'conditions' ? 'meeting' : 'call',
-            description: 'Test activity',
-            deal_id: 'test-deal-123'
-          }
-        };
-      case 'task_completed':
-        return {
-          old: { completed: false },
-          new: {
-            ...baseData,
-            completed: true,
-            title: 'Test task',
-            priority: scenario === 'conditions' ? 'high' : 'medium'
-          }
-        };
-      default:
-        return { new: baseData };
-    }
-  };
-
-  const getAchievementIcon = (type: string): any => {
-    switch (type) {
-      case 'first_test': return Trophy;
-      case 'bug_hunter': return Target;
-      case 'perfect_score': return Star;
-      case 'speed_runner': return Zap;
-      case 'stress_tester': return Shield;
-      default: return Award;
-    }
-  };
-
-  const calculatePlayerStats = (results: any[]) => {
-    const totalTests = results.length;
-    const passedTests = results.filter(r => r.status === 'passed').length;
-    const totalPoints = results.reduce((sum, r) => sum + (r.points_awarded || 0), 0);
-    
-    // Calculate level based on points
-    const level = Math.floor(totalPoints / 100) + 1;
-    const xp = totalPoints % 100;
-    const nextLevelXp = 100;
-
-    // Calculate streak
-    let currentStreak = 0;
-    for (let i = 0; i < results.length; i++) {
-      if (results[i].status === 'passed') {
-        currentStreak++;
-      } else {
-        break;
-      }
-    }
-
-    setPlayerStats({
-      level,
-      xp,
-      next_level_xp: nextLevelXp,
-      total_points: totalPoints,
-      tests_run: totalTests,
-      success_rate: totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0,
-      current_streak: currentStreak
-    });
-  };
-
-  const runTest = async (scenario: TestScenario) => {
-    if (!workflow || !user) return;
-
-    setIsRunning(true);
-    setCurrentTest(scenario.id);
-    
-    try {
-      // Execute the workflow using the execution engine
-      const result = await workflowRealtimeService.testWorkflow(workflow.id, scenario.mockData);
-      
-      // Determine if test passed based on execution result
-      const passed = result.success && !result.error_message;
-      const pointsEarned = passed ? scenario.points : Math.floor(scenario.points * 0.1); // Partial points for attempts
-
-      // Create test result record
-      const testResult: TestResult = {
-        id: Date.now().toString(),
-        scenario_id: scenario.id,
-        workflow_id: workflow.id,
-        status: passed ? 'passed' : 'failed',
-        execution_time_ms: result.execution_time_ms,
-        actual_result: result.result_data,
-        error_message: result.error_message,
-        points_earned: pointsEarned,
-        executed_at: new Date().toISOString()
-      };
-
-      // Save test result to database
-      await supabase.from('workflow_test_results').insert({
-        rule_id: workflow.id,
-        template_id: workflow.template_id,
-        test_scenario: scenario.id,
-        test_type: scenario.test_type,
-        status: testResult.status,
-        execution_time_ms: testResult.execution_time_ms,
-        test_data: scenario.mockData,
-        expected_result: scenario.expectedResult,
-        actual_result: testResult.actual_result,
-        error_message: testResult.error_message,
-        points_awarded: pointsEarned,
-        difficulty: scenario.difficulty,
-        executed_by: user.id
-      });
-
-      // Update UI state
-      setTestResults(prev => [testResult, ...prev]);
-
-      // Update achievements and player stats
-      await updateAchievements(testResult);
-      await loadTestingData(); // Refresh all data
-    } catch (error) {
-      const testResult: TestResult = {
-        id: Date.now().toString(),
-        scenario_id: scenario.id,
-        workflow_id: workflow.id,
-        status: 'failed',
-        execution_time_ms: 0,
-        error_message: error instanceof Error ? error.message : 'Unknown error',
-        points_earned: 0,
-        executed_at: new Date().toISOString()
-      };
-
-      setTestResults(prev => [testResult, ...prev]);
-    } finally {
-      setIsRunning(false);
-      setCurrentTest(null);
-    }
-  };
-
-  const updateAchievements = async (testResult: TestResult) => {
-    if (!user) return;
-
-    // Check and update various achievements
-    const achievementUpdates = [];
-
-    // First test achievement
-    if (playerStats.tests_run === 0) {
-      achievementUpdates.push({
-        user_id: user.id,
-        achievement_type: 'first_test',
-        achievement_name: 'First Steps',
-        description: 'Run your first test',
-        current_progress: 1,
-        required_progress: 1,
-        is_completed: true,
-        points_awarded: 50,
-        earned_at: new Date().toISOString()
-      });
-    }
-
-    // Perfect score achievement
-    const recentResults = testResults.slice(0, 5);
-    if (recentResults.length === 5 && recentResults.every(r => r.status === 'passed')) {
-      achievementUpdates.push({
-        user_id: user.id,
-        achievement_type: 'perfect_score',
-        achievement_name: 'Perfect Score',
-        description: 'Pass 5 tests in a row',
-        current_progress: 5,
-        required_progress: 5,
-        is_completed: true,
-        points_awarded: 100
-      });
-    }
-
-    // Save achievements
-    for (const achievement of achievementUpdates) {
-      await supabase
-        .from('user_testing_achievements')
-        .upsert(achievement, { onConflict: 'user_id,achievement_type' });
-    }
-  };
-
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy': return 'text-green-400 bg-green-400/10';
-      case 'medium': return 'text-yellow-400 bg-yellow-400/10';
-      case 'hard': return 'text-red-400 bg-red-400/10';
-      default: return 'text-gray-400 bg-gray-400/10';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#37bd7e]"></div>
-      </div>
-    );
-  }
-
-  const xpProgress = (playerStats.xp / playerStats.next_level_xp) * 100;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Testing Laboratory</h2>
-            <p className="text-gray-400">Test your workflows and earn achievements</p>
-          </div>
-          
-          {/* Player Level */}
-          <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#37bd7e] to-purple-600 flex items-center justify-center">
-                  <span className="text-2xl font-bold text-white">{playerStats.level}</span>
-                </div>
-                {playerStats.current_streak > 3 && (
-                  <Flame className="absolute -top-1 -right-1 w-6 h-6 text-orange-400" />
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Level {playerStats.level} Tester</p>
-                <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-[#37bd7e] to-blue-500 transition-all duration-500"
-                    style={{ width: `${xpProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">{playerStats.xp}/{playerStats.next_level_xp} XP</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Total Points</p>
-              <p className="text-xl font-bold text-[#37bd7e]">{playerStats.total_points}</p>
-            </div>
-            <Trophy className="w-6 h-6 text-[#37bd7e]" />
-          </div>
-        </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Tests Run</p>
-              <p className="text-xl font-bold text-blue-400">{playerStats.tests_run}</p>
-            </div>
-            <Activity className="w-6 h-6 text-blue-400" />
-          </div>
-        </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Success Rate</p>
-              <p className="text-xl font-bold text-purple-400">{playerStats.success_rate}%</p>
-            </div>
-            <TrendingUp className="w-6 h-6 text-purple-400" />
-          </div>
-        </div>
-        <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-400">Current Streak</p>
-              <p className="text-xl font-bold text-orange-400">{playerStats.current_streak}</p>
-            </div>
-            <Flame className="w-6 h-6 text-orange-400" />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Test Scenarios */}
-        <div className="lg:col-span-2 space-y-4">
-          <h3 className="text-lg font-semibold text-white mb-4">Test Scenarios</h3>
-          
-          {!workflow ? (
-            <div className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-8 text-center">
-              <TestTube className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-400">Select a workflow to start testing</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {scenarios.map((scenario) => (
-                <motion.div
-                  key={scenario.id}
-                  whileHover={{ scale: 1.01 }}
-                  className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-lg p-4 hover:border-[#37bd7e]/30 transition-all"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {(() => {
-                        const lastResult = testResults.find(r => r.scenario_id === scenario.id && r.workflow_id === workflow?.id);
-                        const isPassed = lastResult?.status === 'passed';
-                        const hasTested = !!lastResult;
-                        
-                        return (
-                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                            hasTested
-                              ? isPassed ? 'bg-green-600/20' : 'bg-red-600/20'
-                              : 'bg-gray-700'
-                          }`}>
-                            {hasTested ? (
-                              isPassed ? (
-                                <CheckCircle className="w-5 h-5 text-green-400" />
-                              ) : (
-                                <XCircle className="w-5 h-5 text-red-400" />
-                              )
-                            ) : (
-                              <TestTube className="w-5 h-5 text-gray-400" />
-                            )}
-                          </div>
-                        );
-                      })()}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-white font-medium">{scenario.name}</h4>
-                          <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDifficultyColor(scenario.difficulty)}`}>
-                            {scenario.difficulty}
-                          </span>
-                          <span className="text-xs text-gray-500">+{scenario.points} pts</span>
-                        </div>
-                        <p className="text-sm text-gray-400 mt-1">{scenario.description}</p>
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={() => runTest(scenario)}
-                      disabled={isRunning}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                        isRunning && currentTest === scenario.id
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-[#37bd7e] hover:bg-[#37bd7e]/90 text-white'
-                      } ${isRunning && currentTest !== scenario.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {isRunning && currentTest === scenario.id ? (
-                        <>
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-4 h-4" />
-                          Run Test
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-          
-          {/* Test Results */}
-          {testResults.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Recent Results</h3>
-              <div className="space-y-2">
-                {testResults.slice(0, 5).map((result) => {
-                  const scenario = scenarios.find(s => s.id === result.scenario_id);
-                  return (
-                    <div
-                      key={result.id}
-                      className="bg-gray-800/30 rounded-lg p-3 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        {result.status === 'passed' ? (
-                          <CheckCircle className="w-5 h-5 text-green-400" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-400" />
-                        )}
-                        <div>
-                          <p className="text-sm text-white">{scenario?.name || result.scenario_id}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-xs text-gray-400">{result.execution_time_ms}ms</p>
-                            {result.points_earned > 0 && (
-                              <span className="text-xs text-[#37bd7e]">+{result.points_earned} pts</span>
-                            )}
-                          </div>
-                          {result.error_message && (
-                            <p className="text-xs text-red-400 mt-1">{result.error_message}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-xs font-medium ${
-                          result.status === 'passed' ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          {result.status === 'passed' ? 'Passed' : 'Failed'}
-                        </span>
-                        <p className="text-xs text-gray-500">
-                          {formatDistanceToNow(new Date(result.executed_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Achievements */}
+    <div className={`px-3 py-2 rounded-lg border-2 transition-all duration-300 ${getStatusColor(status)} ${selected ? 'ring-2 ring-blue-300' : ''}`}>
+      <Handle type="target" position={Position.Left} className="w-2 h-2 bg-white border-2 border-gray-500" />
+      <Handle type="source" position={Position.Right} className="w-2 h-2 bg-white border-2 border-gray-500" />
+      <div className="flex items-center gap-2 text-white">
+        {isActive && <Loader2 className="w-3 h-3 animate-spin" />}
+        {(status === 'completed' || status === 'success') && <CheckCircle className="w-3 h-3 text-green-400" />}
+        {status === 'failed' && <XCircle className="w-3 h-3 text-red-400" />}
+        {status === 'skipped' && <div className="w-3 h-3 text-gray-500">⊘</div>}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Achievements</h3>
-          <div className="space-y-3">
-            {achievements.map((achievement) => {
-              const Icon = achievement.icon;
-              const progress = (achievement.progress / achievement.total) * 100;
-              
-              return (
-                <div
-                  key={achievement.id}
-                  className={`bg-gray-900/50 backdrop-blur-xl border rounded-lg p-4 transition-all ${
-                    achievement.unlocked
-                      ? 'border-[#37bd7e]/30'
-                      : 'border-gray-800/50 opacity-60'
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      achievement.unlocked
-                        ? 'bg-[#37bd7e]/20'
-                        : 'bg-gray-700'
-                    }`}>
-                      <Icon className={`w-5 h-5 ${
-                        achievement.unlocked ? 'text-[#37bd7e]' : 'text-gray-500'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className={`text-sm font-medium ${
-                        achievement.unlocked ? 'text-white' : 'text-gray-400'
-                      }`}>
-                        {achievement.name}
-                      </h4>
-                      <p className="text-xs text-gray-500 mt-0.5">{achievement.description}</p>
-                      <div className="mt-2">
-                        <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                          <span>{achievement.progress}/{achievement.total}</span>
-                          <span>{Math.round(progress)}%</span>
-                        </div>
-                        <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full transition-all duration-500 ${
-                              achievement.unlocked
-                                ? 'bg-[#37bd7e]'
-                                : 'bg-gray-600'
-                            }`}
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="text-[10px] font-semibold">{data.label || data.type}</div>
+          {data.description && (
+            <div className="text-[8px] opacity-80">{data.description}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const nodeTypes = {
+  trigger: TestNode,
+  form: TestNode,
+  aiAgent: TestNode,
+  action: TestNode,
+  condition: TestNode,
+  router: TestNode,
+  default: TestNode
+};
+
+const edgeTypes = {
+  animated: AnimatedTestEdge
+};
+
+const TestingLab: React.FC<TestingLabProps> = ({ workflow }) => {
+  const { userData: user } = useUser();
+  const [testNodes, setTestNodes, onNodesChange] = useNodesState([]);
+  const [testEdges, setTestEdges, onEdgesChange] = useEdgesState([]);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [currentExecution, setCurrentExecution] = useState<WorkflowExecution | null>(null);
+  const [executionSpeed, setExecutionSpeed] = useState(1000);
+  const [selectedScenario, setSelectedScenario] = useState<string>(TEST_SCENARIOS[0]?.id || '');
+  const [customData, setCustomData] = useState<Record<string, any>>({});
+  const [showNodeModal, setShowNodeModal] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [selectedNodeExecution, setSelectedNodeExecution] = useState<NodeExecution | null>(null);
+  const [executionLog, setExecutionLog] = useState<string[]>([]);
+  const [testHistory, setTestHistory] = useState<WorkflowExecution[]>([]);
+  const [testMode, setTestMode] = useState<'simulated' | 'real'>('simulated');
+  const [realDataScenarios, setRealDataScenarios] = useState<any[]>([]);
+  const [isLoadingRealData, setIsLoadingRealData] = useState(false);
+  const [testExecutionState, setTestExecutionState] = useState<TestExecutionState | null>(null);
+  const testEngineRef = useRef<WorkflowTestEngine | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load test history
+  const loadTestHistory = async () => {
+    if (!workflow?.id) return;
+    
+    try {
+      await workflowExecutionService.loadAllExecutionsFromDatabase();
+      const executions = workflowExecutionService.getAllExecutions()
+        .filter(exec => exec.workflowId === workflow.id && exec.isTestMode)
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+        .slice(0, 10);
+      
+      setTestHistory(executions);
+    } catch (error) {
+      console.error('Failed to load test history:', error);
+    }
+  };
+
+  // Load real data scenarios
+  const loadRealDataScenarios = async () => {
+    if (!user) return;
+    
+    setIsLoadingRealData(true);
+    try {
+      const triggerNode = workflow?.canvas_data?.nodes?.find((n: any) => n.type === 'trigger');
+      if (!triggerNode) {
+        return;
+      }
+
+      const triggerType = triggerNode.data?.triggerType;
+      let scenarios = [];
+
+      switch (triggerType) {
+        case 'pipeline_stage_changed':
+          const { data: deals } = await supabase
+            .from('deals')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('updated_at', { ascending: false })
+            .limit(5);
+          
+          scenarios = (deals || []).map((deal: any) => ({
+            id: `real_deal_${deal.id}`,
+            name: `Real: ${deal.company_name}`,
+            description: `Test with actual deal: ${deal.company_name} (${deal.stage})`,
+            testData: {
+              dealId: deal.id,
+              companyName: deal.company_name,
+              stage: deal.stage,
+              value: deal.value,
+              assignedTo: deal.assigned_to
+            }
+          }));
+          break;
+
+        case 'activity_created':
+          const { data: activities } = await supabase
+            .from('activities')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          
+          scenarios = (activities || []).map((activity: any) => ({
+            id: `real_activity_${activity.id}`,
+            name: `Real: ${activity.type}`,
+            description: `Test with actual ${activity.type} activity`,
+            testData: {
+              activityId: activity.id,
+              type: activity.type,
+              dealId: activity.deal_id,
+              contactId: activity.contact_id,
+              notes: activity.notes
+            }
+          }));
+          break;
+
+        case 'deal_created':
+          const { data: recentDeals } = await supabase
+            .from('deals')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          
+          scenarios = (recentDeals || []).map((deal: any) => ({
+            id: `real_new_deal_${deal.id}`,
+            name: `Real: ${deal.company_name}`,
+            description: `Test with newly created deal: ${deal.company_name}`,
+            testData: {
+              dealId: deal.id,
+              companyName: deal.company_name,
+              value: deal.value,
+              stage: deal.stage
+            }
+          }));
+          break;
+      }
+
+      setRealDataScenarios(scenarios);
+    } catch (error) {
+      console.error('Failed to load real data scenarios:', error);
+    } finally {
+      setIsLoadingRealData(false);
+    }
+  };
+
+  // Initialize nodes
+  useEffect(() => {
+    if (workflow?.canvas_data?.nodes) {
+      const initialNodes = workflow.canvas_data.nodes.map((node: any) => ({
+        ...node,
+        data: {
+          ...node.data,
+          testStatus: 'idle' as const,
+          executionData: null
+        }
+      }));
+      setTestNodes(initialNodes);
+      setTestEdges(workflow.canvas_data.edges || []);
+      setSelectedScenario(TEST_SCENARIOS[0]?.id || '');
+      setExecutionLog([]);
+      loadTestHistory();
+      
+      if (testMode === 'real') {
+        loadRealDataScenarios();
+      }
+    }
+  }, [workflow, testMode]);
+
+  // Get available scenarios based on mode
+  const getAvailableScenarios = () => {
+    if (testMode === 'real') {
+      return realDataScenarios;
+    }
+    return TEST_SCENARIOS;
+  };
+
+  // Add log entry
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setExecutionLog(prev => [...prev, `${timestamp}: ${message}`]);
+  };
+
+  // Start test execution
+  const startExecution = async () => {
+    if (!workflow?.id) {
+      addLog('❌ No workflow selected');
+      return;
+    }
+
+    if (testNodes.length === 0) {
+      addLog('❌ No nodes to execute');
+      return;
+    }
+
+    setIsExecuting(true);
+    setIsPaused(false);
+    
+    addLog(`🚀 Starting ${testMode} test execution...`);
+    
+    // Reset all nodes
+    const resetNodes = testNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        testStatus: 'idle' as const,
+        executionData: null
+      }
+    }));
+    setTestNodes(resetNodes);
+
+    try {
+      // Get test data
+      const scenarios = getAvailableScenarios();
+      const scenario = scenarios.find(s => s.id === selectedScenario);
+      const testData = scenario?.testData || customData;
+
+      addLog(`📋 Using scenario: ${scenario?.name || 'Custom'}`);
+
+      // Create test engine
+      const engine = new WorkflowTestEngine(
+        testNodes,
+        testEdges,
+        (state) => {
+          setTestExecutionState(state);
+          // Update node states
+          const updatedNodes = testNodes.map(node => {
+            const nodeState = state.nodeStates.get(node.id);
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                testStatus: nodeState?.status || 'idle'
+              }
+            };
+          });
+          setTestNodes(updatedNodes);
+        }
+      );
+
+      testEngineRef.current = engine;
+
+      // Start execution
+      if (testMode === 'simulated') {
+        engine.startTest(scenario);
+      } else {
+        // Real data mode - use workflowExecutionService
+        const executionId = await workflowExecutionService.startExecution(
+          workflow.id,
+          testNodes,
+          testEdges,
+          'manual',
+          testData,
+          true,
+          workflow.name
+        );
+        
+        // Monitor execution
+        workflowExecutionService.subscribeToExecution(executionId, (execution) => {
+          setCurrentExecution(execution);
+          if (execution.status === 'completed' || execution.status === 'failed') {
+            setIsExecuting(false);
+            loadTestHistory();
+          }
+        });
+      }
+    } catch (error) {
+      addLog(`❌ Execution failed: ${error}`);
+      setIsExecuting(false);
+    }
+  };
+
+  const pauseExecution = () => {
+    if (testMode === 'simulated') {
+      testEngineRef.current?.pause();
+    }
+    setIsPaused(true);
+    addLog('⏸️ Execution paused');
+  };
+
+  const resumeExecution = () => {
+    if (testMode === 'simulated') {
+      testEngineRef.current?.resume();
+    }
+    setIsPaused(false);
+    addLog('▶️ Execution resumed');
+  };
+
+  const stopExecution = () => {
+    if (testMode === 'simulated') {
+      testEngineRef.current?.stop();
+    }
+    setIsExecuting(false);
+    setIsPaused(false);
+    setCurrentExecution(null);
+    addLog('⏹️ Execution stopped');
+    
+    // Reset nodes
+    const resetNodes = testNodes.map(node => ({
+      ...node,
+      data: {
+        ...node.data,
+        testStatus: 'idle' as const
+      }
+    }));
+    setTestNodes(resetNodes);
+  };
+
+  const handleNodeClick = (event: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+    if (currentExecution) {
+      const nodeExec = currentExecution.nodeExecutions.find(ne => ne.nodeId === node.id);
+      setSelectedNodeExecution(nodeExec || null);
+      setShowNodeModal(true);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-gray-900">
+      {/* Header */}
+      <div className="bg-gray-800 border-b border-gray-700 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <TestTube className="w-5 h-5 text-[#37bd7e]" />
+            <h2 className="text-lg font-semibold text-white">Testing Lab</h2>
+            <span className="text-xs text-gray-400">({workflow?.name || 'Unnamed Workflow'})</span>
           </div>
           
-          {/* Tips */}
-          <div className="mt-6 p-4 bg-blue-600/10 border border-blue-600/20 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Info className="w-5 h-5 text-blue-400 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-medium text-blue-400 mb-1">Pro Tip</h4>
-                <p className="text-xs text-gray-300">
-                  Run tests in sequence to build up your streak multiplier and earn bonus points!
-                </p>
-              </div>
-            </div>
+          {/* Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTestMode('simulated')}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                testMode === 'simulated'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              <FlaskConical className="w-4 h-4 inline mr-1" />
+              Simulated
+            </button>
+            <button
+              onClick={() => {
+                setTestMode('real');
+                loadRealDataScenarios();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                testMode === 'real'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              <Globe className="w-4 h-4 inline mr-1" />
+              Real Data
+            </button>
           </div>
         </div>
       </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Panel - Controls */}
+        <div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
+          {/* Scenario Selection */}
+          <div className="p-4 border-b border-gray-700">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Test Scenario
+            </label>
+            <select
+              value={selectedScenario}
+              onChange={(e) => setSelectedScenario(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
+              disabled={isExecuting}
+            >
+              {getAvailableScenarios().map(scenario => (
+                <option key={scenario.id} value={scenario.id}>
+                  {scenario.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Controls */}
+          <div className="p-4 border-b border-gray-700 space-y-3">
+            {!isExecuting ? (
+              <button
+                onClick={startExecution}
+                className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center justify-center gap-2"
+              >
+                <Play className="w-4 h-4" />
+                Start Test
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                {isPaused ? (
+                  <button
+                    onClick={resumeExecution}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4" />
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    onClick={pauseExecution}
+                    className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg flex items-center justify-center gap-2"
+                  >
+                    <Pause className="w-4 h-4" />
+                    Pause
+                  </button>
+                )}
+                <button
+                  onClick={stopExecution}
+                  className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg flex items-center justify-center gap-2"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop
+                </button>
+              </div>
+            )}
+
+            {/* Speed Control */}
+            {isExecuting && (
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Execution Speed</label>
+                <select
+                  value={executionSpeed}
+                  onChange={(e) => {
+                    const speed = Number(e.target.value);
+                    setExecutionSpeed(speed);
+                    testEngineRef.current?.setSpeed(speed);
+                  }}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm"
+                >
+                  <option value={500}>0.5x</option>
+                  <option value={1000}>1x</option>
+                  <option value={2000}>2x</option>
+                  <option value={5000}>5x</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Execution Log */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <h3 className="text-sm font-medium text-gray-300 mb-2">Execution Log</h3>
+            <div className="space-y-1">
+              {executionLog.length === 0 ? (
+                <p className="text-xs text-gray-500">No logs yet...</p>
+              ) : (
+                executionLog.map((log, index) => (
+                  <div key={index} className="text-xs text-gray-400 font-mono bg-gray-900 p-2 rounded">
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right Panel - Visualization */}
+        <div className="flex-1 bg-gray-900 relative">
+          {testNodes.length > 0 ? (
+            <ReactFlowProvider>
+              <ReactFlow
+                nodes={testNodes}
+                edges={testEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onNodeClick={handleNodeClick}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                fitView
+                className="bg-gray-900"
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={true}
+              >
+                <Background color="#374151" />
+                <Controls className="bg-gray-800 border-gray-700" />
+                <MiniMap 
+                  nodeColor="#6B7280"
+                  className="bg-gray-800 border border-gray-700"
+                />
+              </ReactFlow>
+            </ReactFlowProvider>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-500">
+              <div className="text-center">
+                <TestTube className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg font-semibold">No Workflow Loaded</p>
+                <p className="text-sm">Build your workflow in the Builder tab first</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Node Execution Modal */}
+      {showNodeModal && selectedNode && (
+        <NodeExecutionModal
+          isOpen={showNodeModal}
+          onClose={() => setShowNodeModal(false)}
+          nodeData={selectedNode.data}
+          executionData={selectedNodeExecution}
+        />
+      )}
     </div>
   );
 };

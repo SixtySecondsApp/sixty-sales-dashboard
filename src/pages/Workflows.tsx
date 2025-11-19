@@ -24,7 +24,7 @@ import WorkflowCanvas from '@/components/workflows/WorkflowCanvas';
 // Lazy-load heavy/non-default tabs
 const TemplateLibrary = lazy(() => import('@/components/workflows/TemplateLibrary'));
 const MyWorkflows = lazy(() => import('@/components/workflows/MyWorkflows'));
-const TestingLabNew = lazy(() => import('@/components/workflows/TestingLabNew'));
+const TestingLab = lazy(() => import('@/components/workflows/TestingLab'));
 const TestingLabCustomPayload = lazy(() => import('@/components/workflows/TestingLabCustomPayload'));
 const WorkflowInsights = lazy(() => import('@/components/workflows/WorkflowInsights'));
 import ExecutionsList from '@/components/workflows/ExecutionsList';
@@ -554,7 +554,7 @@ export default function Workflows() {
                 {testingMode === 'executions' ? (
                   <div className="h-full p-6">
                     <Suspense fallback={<div className="p-6">Loading test lab…</div>}>
-                      <TestingLabNew workflow={selectedWorkflow} />
+                      <TestingLab workflow={selectedWorkflow} />
                     </Suspense>
                   </div>
                 ) : (
