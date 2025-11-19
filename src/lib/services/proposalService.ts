@@ -824,9 +824,15 @@ export async function getProposalModelSettings(): Promise<ProposalModelSettings>
 
     const settings: Partial<ProposalModelSettings> = {};
     data?.forEach((item) => {
-      const key = item.key.replace('proposal_', '').replace('_model', '') as keyof ProposalModelSettings;
-      if (key === 'sow' || key === 'proposal' || key === 'focus' || key === 'goals') {
-        settings[`${key}_model`] = item.value;
+      const key = item.key.replace('proposal_', '').replace('_model', '');
+      if (key === 'sow') {
+        settings.sow_model = item.value;
+      } else if (key === 'proposal') {
+        settings.proposal_model = item.value;
+      } else if (key === 'focus') {
+        settings.focus_model = item.value;
+      } else if (key === 'goals') {
+        settings.goals_model = item.value;
       }
     });
 

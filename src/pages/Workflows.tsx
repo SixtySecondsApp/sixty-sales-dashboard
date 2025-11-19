@@ -474,16 +474,18 @@ export default function Workflows() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="h-full p-6"
+              className="h-full overflow-auto"
             >
-              <Suspense fallback={<div className="p-6">Loading templates…</div>}>
-                <TemplateLibrary 
-                  onSelectTemplate={(template) => {
-                    setSelectedWorkflow(template);
-                    setActiveTab('builder');
-                  }}
-                />
-              </Suspense>
+              <div className="p-6">
+                <Suspense fallback={<div className="p-6">Loading templates…</div>}>
+                  <TemplateLibrary 
+                    onSelectTemplate={(template) => {
+                      setSelectedWorkflow(template);
+                      setActiveTab('builder');
+                    }}
+                  />
+                </Suspense>
+              </div>
             </motion.div>
           )}
           

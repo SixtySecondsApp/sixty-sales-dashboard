@@ -332,8 +332,10 @@ export interface Task {
   contact_name?: string;
   company?: string; // Legacy field for backward compatibility
   meeting_action_item_id?: string; // Link to Fathom meeting action item
+  meeting_id?: string; // Direct reference to meeting
 
   // Metadata
+  metadata?: Record<string, any>; // JSONB metadata field for structured data
   created_at: string;
   updated_at: string;
   

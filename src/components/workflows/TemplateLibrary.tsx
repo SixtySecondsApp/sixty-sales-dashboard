@@ -1209,24 +1209,19 @@ const TemplateLibrary: React.FC<TemplateLibraryProps> = ({ onSelectTemplate }) =
         </select>
       </div>
 
-      {/* Template Grid (virtualized) */}
-      <VirtuosoGrid
-        className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-        totalCount={filteredTemplates.length}
-        itemContent={index => renderTemplateCard(index)}
-        components={{
-          // Use default wrappers; Tailwind classes applied on className above
-        }}
-      />
-
-      {/* Empty State */}
-      {filteredTemplates.length === 0 && (
+      {/* Template Grid */}
+      {filteredTemplates.length > 0 ? (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTemplates.map((template, index) => renderTemplateCard(index))}
+        </div>
+      ) : (
         <div className="text-center py-12">
           <BookOpen className="w-12 h-12 text-gray-600 mx-auto mb-3" />
           <h3 className="text-lg font-medium text-gray-400 mb-1">No templates found</h3>
           <p className="text-sm text-gray-500">Try adjusting your search or filters</p>
         </div>
       )}
+
 
       {/* Featured Badge */}
       <div className="mt-12 p-6 bg-gradient-to-r from-[#37bd7e]/10 to-purple-600/10 rounded-lg border border-[#37bd7e]/20">

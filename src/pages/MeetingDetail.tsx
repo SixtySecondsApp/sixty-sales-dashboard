@@ -39,6 +39,10 @@ interface Meeting {
   owner_email: string | null;
   fathom_embed_url?: string | null;
   thumbnail_url?: string | null;
+  company_id?: string | null;
+  primary_contact_id?: string | null;
+  contact?: any;
+  company?: any;
 }
 
 interface MeetingAttendee {
