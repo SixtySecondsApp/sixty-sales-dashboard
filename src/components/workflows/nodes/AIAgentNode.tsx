@@ -6,7 +6,8 @@ import {
   Zap, 
   Bot,
   Network,
-  Brain
+  Brain,
+  Play
 } from 'lucide-react';
 import { ModernNodeCard } from './ModernNodeCard';
 
@@ -86,6 +87,7 @@ const AIAgentNode = memo(({ data, selected }: NodeProps<AIAgentNodeData>) => {
     <button
       onClick={(e) => {
         e.stopPropagation();
+        // Open full config modal action would go here
         setIsConfigExpanded(!isConfigExpanded);
       }}
       className="p-1 hover:bg-zinc-700 rounded transition-colors text-zinc-500 hover:text-zinc-300"
@@ -104,57 +106,67 @@ const AIAgentNode = memo(({ data, selected }: NodeProps<AIAgentNodeData>) => {
       status={mapStatus()}
       badge={Badge}
       headerAction={ConfigButton}
+      className="w-[320px]"
     >
-      <div className="p-3 space-y-3">
-        {/* Model Info */}
-        {data.config?.modelProvider && (
-          <div className="flex items-center gap-2 text-[10px] text-zinc-500">
-            <span className="capitalize">{data.config.modelProvider}</span>
-            <span>•</span>
-            <span>{data.config.temperature ?? 0.7} temp</span>
+      <div className="p-0">
+        {/* Prompt Preview Area (Freepik Style) */}
+        <div className="p-3 bg-[#1e1e1e] space-y-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">System Prompt</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[60px] max-h-[100px] overflow-y-auto custom-scrollbar font-mono">
+              {data.config?.systemPrompt || <span className="text-zinc-600 italic">Define agent behavior...</span>}
+            </div>
           </div>
-        )}
 
-        {/* MCP Info */}
-        {data.config?.mcpEnabled && (
-          <div className="bg-indigo-500/10 rounded p-2 border border-indigo-500/20">
-            <div className="text-[10px] text-indigo-300 font-medium mb-1 flex items-center gap-1">
-              <Network size={10} /> MCP Context
-            </div>
-            <div className="text-[9px] text-indigo-200/70 space-y-0.5">
-              {data.config.mcpServers?.map(server => (
-                <div key={server}>• {server}</div>
-              ))}
+           <div className="space-y-1">
+            <label className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">User Prompt</label>
+            <div className="text-xs text-zinc-300 bg-zinc-900/50 p-2 rounded border border-zinc-800 min-h-[40px] max-h-[80px] overflow-y-auto custom-scrollbar font-mono">
+              {data.config?.userPrompt || <span className="text-zinc-600 italic">Enter task instructions...</span>}
             </div>
           </div>
-        )}
 
-        {/* Expanded Configuration */}
-        {isConfigExpanded && data.config && (
-          <div className="text-[10px] space-y-1 bg-black/20 p-2 rounded border border-zinc-800/50">
-            <div className="font-medium text-zinc-400">Configuration</div>
-            <div className="text-zinc-500 grid grid-cols-2 gap-x-2">
-              <span>Max Tokens:</span> <span className="text-zinc-300">{data.config.maxTokens || 'Default'}</span>
-              <span>Tools:</span> <span className="text-zinc-300">{data.config.mcpTools?.length || 0}</span>
-            </div>
+          {/* Model & Config Info */}
+          <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-zinc-800">
+             <div className="flex items-center gap-2">
+                <span className="capitalize">{data.config?.modelProvider || 'Provider'}</span>
+                <span>•</span>
+                <span>{data.config?.temperature ?? 0.7} temp</span>
+             </div>
+             {data.config?.mcpEnabled && (
+                <div className="flex items-center gap-1 text-indigo-400">
+                   <Network size={10} />
+                   <span>{data.config.mcpTools?.length || 0} tools</span>
+                </div>
+             )}
           </div>
-        )}
+
+          {/* MCP Servers List */}
+          {data.config?.mcpEnabled && data.config?.mcpServers && data.config.mcpServers.length > 0 && (
+             <div className="text-[9px] text-zinc-600 bg-zinc-900/30 p-1.5 rounded border border-zinc-800/50 flex flex-wrap gap-1">
+                {data.config.mcpServers.map(server => (
+                  <span key={server} className="px-1 rounded bg-indigo-500/5 text-indigo-300/70 border border-indigo-500/10">
+                    {server}
+                  </span>
+                ))}
+             </div>
+          )}
+        </div>
 
         {/* Execution Results */}
         {data.executionMode && (
-          <div className="pt-2 border-t border-zinc-800 space-y-2">
-             <div className="flex justify-between items-center text-[10px]">
-                <span className="text-zinc-500 capitalize">{data.executionStatus || 'Pending'}</span>
+          <div className="p-3 border-t border-zinc-800 bg-black/20">
+             <div className="flex justify-between items-center text-[10px] mb-2">
+                <span className="text-zinc-500 capitalize font-medium">{data.executionStatus || 'Pending'}</span>
                 {data.executionData?.duration && (
                   <span className="text-zinc-600">{data.executionData.duration}ms</span>
                 )}
              </div>
              
              {data.executionData?.output && (
-               <div className="bg-green-500/10 p-2 rounded border border-green-500/20 text-[10px] text-green-300 font-mono break-words">
+               <div className="bg-green-500/10 p-2 rounded border border-green-500/20 text-[10px] text-green-300 font-mono break-words max-h-[100px] overflow-y-auto custom-scrollbar">
                   {typeof data.executionData.output === 'string' 
-                    ? data.executionData.output.slice(0, 100) + (data.executionData.output.length > 100 ? '...' : '')
-                    : JSON.stringify(data.executionData.output).slice(0, 100)
+                    ? data.executionData.output
+                    : JSON.stringify(data.executionData.output, null, 2)
                   }
                </div>
              )}

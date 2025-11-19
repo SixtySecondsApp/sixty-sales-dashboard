@@ -25,14 +25,14 @@ export const WORKFLOW_CONDITIONS = [
 export const WORKFLOW_AI_NODES = [
   { type: 'ai_agent', label: 'AI Agent', description: 'Process with AI model', iconName: 'Sparkles', nodeType: 'aiAgent' },
   { type: 'custom_gpt', label: 'Custom GPT', description: 'Use OpenAI Assistant', iconName: 'Bot', nodeType: 'customGPT' },
-  { type: 'assistant_manager', label: 'Assistant Manager', description: 'Create/Update Assistant', iconName: 'Settings', nodeType: 'assistantManager' }
-];
-
-export const WORKFLOW_MEDIA_NODES = [
+  { type: 'assistant_manager', label: 'Assistant Manager', description: 'Create/Update Assistant', iconName: 'Settings', nodeType: 'assistantManager' },
   { type: 'freepik_image_gen', label: 'Mystic Generator', description: 'Text to Image (Freepik)', iconName: 'Sparkles', nodeType: 'freepikImageGen' },
   { type: 'freepik_upscale', label: 'Upscaler', description: 'Image Upscaling (Magnific)', iconName: 'Maximize', nodeType: 'freepikUpscale' },
   { type: 'freepik_video_gen', label: 'Motion Generator', description: 'Image to Video (Kling)', iconName: 'Video', nodeType: 'freepikVideoGen' }
 ];
+
+// Deprecated: Merged into WORKFLOW_AI_NODES
+export const WORKFLOW_MEDIA_NODES = [];
 
 export const WORKFLOW_ACTIONS = [
   { type: 'create_task', label: 'Create Task', iconName: 'CheckSquare', description: 'Generate task' },

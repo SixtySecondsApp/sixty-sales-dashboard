@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Target, GitBranch, CheckSquare, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { iconMap } from '../utils';
-import { WORKFLOW_TRIGGERS, WORKFLOW_CONDITIONS, WORKFLOW_ACTIONS, WORKFLOW_AI_NODES, WORKFLOW_MEDIA_NODES } from '../constants';
+import { WORKFLOW_TRIGGERS, WORKFLOW_CONDITIONS, WORKFLOW_ACTIONS, WORKFLOW_AI_NODES } from '../constants';
 
 export const WorkflowNodeLibrary: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,19 +26,13 @@ export const WorkflowNodeLibrary: React.FC = () => {
     node.description.toLowerCase().includes(query)
   );
 
-  const filteredMediaNodes = WORKFLOW_MEDIA_NODES.filter(node => 
-    !searchQuery || 
-    node.label.toLowerCase().includes(query) ||
-    node.description.toLowerCase().includes(query)
-  );
-
   const filteredActions = WORKFLOW_ACTIONS.filter(action => 
     !searchQuery || 
     action.label.toLowerCase().includes(query) ||
     action.description.toLowerCase().includes(query)
   );
 
-  const hasResults = filteredTriggers.length > 0 || filteredConditions.length > 0 || filteredAINodes.length > 0 || filteredActions.length > 0 || filteredMediaNodes.length > 0;
+  const hasResults = filteredTriggers.length > 0 || filteredConditions.length > 0 || filteredAINodes.length > 0 || filteredActions.length > 0;
 
   const handleDragStart = (e: React.DragEvent, type: string, data: any) => {
     e.dataTransfer.setData('nodeType', type);
@@ -69,6 +63,34 @@ export const WorkflowNodeLibrary: React.FC = () => {
             <Search className="w-12 h-12 text-gray-600 mx-auto mb-3" />
             <p className="text-gray-400 font-medium">No nodes found</p>
             <p className="text-gray-500 text-sm mt-1">Try searching for different keywords</p>
+          </div>
+        )}
+
+        {/* AI & Intelligence (Moved to Top) */}
+        {filteredAINodes.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">AI & Intelligence</h3>
+            <div className="space-y-2">
+              {filteredAINodes.map((node) => {
+                const NodeIcon = iconMap[node.iconName] || Sparkles;
+                return (
+                  <div
+                    key={node.type}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, node.nodeType || 'aiAgent', node)}
+                    className="bg-purple-50 dark:bg-purple-600/20 border border-purple-200 dark:border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-100 dark:hover:bg-purple-600/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <NodeIcon className="w-4 h-4 text-purple-400" />
+                      <div>
+                        <div className="text-sm text-gray-900 dark:text-white">{node.label}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">{node.description}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -119,62 +141,6 @@ export const WorkflowNodeLibrary: React.FC = () => {
                       <div>
                         <div className="text-sm text-gray-900 dark:text-white">{condition.label}</div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">{condition.condition}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* AI & Intelligence */}
-        {filteredAINodes.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">AI & Intelligence</h3>
-            <div className="space-y-2">
-              {filteredAINodes.map((node) => {
-                const NodeIcon = iconMap[node.iconName] || Sparkles;
-                return (
-                  <div
-                    key={node.type}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, node.nodeType || 'aiAgent', node)}
-                    className="bg-purple-50 dark:bg-purple-600/20 border border-purple-200 dark:border-purple-600/30 rounded-lg p-3 cursor-move hover:bg-purple-100 dark:hover:bg-purple-600/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <NodeIcon className="w-4 h-4 text-purple-400" />
-                      <div>
-                        <div className="text-sm text-gray-900 dark:text-white">{node.label}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">{node.description}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Media & Creative */}
-        {filteredMediaNodes.length > 0 && (
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Media & Creative</h3>
-            <div className="space-y-2">
-              {filteredMediaNodes.map((node) => {
-                const NodeIcon = iconMap[node.iconName] || ImageIcon;
-                return (
-                  <div
-                    key={node.type}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, node.nodeType || 'freepikImageGen', node)}
-                    className="bg-orange-50 dark:bg-orange-600/20 border border-orange-200 dark:border-orange-600/30 rounded-lg p-3 cursor-move hover:bg-orange-100 dark:hover:bg-orange-600/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <NodeIcon className="w-4 h-4 text-orange-400" />
-                      <div>
-                        <div className="text-sm text-gray-900 dark:text-white">{node.label}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">{node.description}</div>
                       </div>
                     </div>
                   </div>
