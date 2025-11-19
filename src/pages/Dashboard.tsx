@@ -509,7 +509,21 @@ export default function Dashboard() {
   
   // Lazy load recent deals only when user scrolls to that section
   const [loadRecentDeals, setLoadRecentDeals] = useState(false);
+  const [dealsLoadTimeout, setDealsLoadTimeout] = useState(false);
   const { activities: recentDeals, isLoading: isLoadingDeals } = useRecentDeals(loadRecentDeals);
+
+  // Add timeout for loading deals (10 seconds)
+  useEffect(() => {
+    if (loadRecentDeals && isLoadingDeals) {
+      const timeout = setTimeout(() => {
+        setDealsLoadTimeout(true);
+      }, 10000); // 10 second timeout
+
+      return () => clearTimeout(timeout);
+    } else if (!isLoadingDeals) {
+      setDealsLoadTimeout(false);
+    }
+  }, [loadRecentDeals, isLoadingDeals]);
 
   const selectedMonthRange = useMemo(() => {
     const start = startOfMonth(selectedMonth);
@@ -704,6 +718,21 @@ export default function Dashboard() {
             // Show loading placeholder when recent deals haven't been loaded yet
             <div className="text-center py-8">
               <div className="text-gray-600 dark:text-gray-500">Loading recent deals...</div>
+            </div>
+          ) : dealsLoadTimeout ? (
+            // Show error state if loading takes too long
+            <div className="text-center py-8">
+              <div className="text-amber-600 dark:text-amber-400 mb-2">Loading is taking longer than expected</div>
+              <button
+                onClick={() => {
+                  setDealsLoadTimeout(false);
+                  setLoadRecentDeals(false);
+                  setTimeout(() => setLoadRecentDeals(true), 100);
+                }}
+                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Retry
+              </button>
             </div>
           ) : isLoadingDeals ? (
             // Show loading state while fetching

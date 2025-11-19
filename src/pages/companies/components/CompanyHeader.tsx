@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { EnrichButton } from '@/components/crm/EnrichButton';
 import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import type { Company, Deal } from '@/lib/database/models';
 import { extractDomainFromCompany } from '@/lib/utils/domainUtils';
@@ -202,27 +203,40 @@ export function CompanyHeader({ company, deals, activities, clients }: CompanyHe
         </div>
 
         {/* Right: Quick Actions/Contact */}
-        <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
-          <h3 className="text-sm font-medium theme-text-tertiary mb-3">Primary Contact</h3>
-          {company.primary_contact ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <span className="text-xs font-medium text-emerald-500">
-                    {company.primary_contact.split(' ').map(n => n[0]).join('')}
-                  </span>
-                </div>
-                <div>
-                  <div className="text-sm font-medium theme-text-primary">{company.primary_contact}</div>
-                  {company.primary_email && (
-                    <div className="text-xs theme-text-tertiary">{company.primary_email}</div>
-                  )}
+        <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border space-y-4">
+          <div>
+            <h3 className="text-sm font-medium theme-text-tertiary mb-3">Primary Contact</h3>
+            {company.primary_contact ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                    <span className="text-xs font-medium text-emerald-500">
+                      {company.primary_contact.split(' ').map(n => n[0]).join('')}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium theme-text-primary">{company.primary_contact}</div>
+                    {company.primary_email && (
+                      <div className="text-xs theme-text-tertiary">{company.primary_email}</div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500 dark:text-gray-500">No primary contact set</div>
-          )}
+            ) : (
+              <div className="text-sm text-gray-500 dark:text-gray-500">No primary contact set</div>
+            )}
+          </div>
+          
+          <div className="pt-3 border-t border-gray-200 dark:border-gray-800">
+            <EnrichButton
+              type="company"
+              record={company}
+              onEnriched={() => {
+                // Optionally refresh company data or show success message
+                window.location.reload();
+              }}
+            />
+          </div>
         </div>
       </div>
 

@@ -56,6 +56,14 @@ export interface Contact {
   deals?: Deal[];
   deal_contacts?: DealContact[];
   contact_preferences?: ContactPreference;
+  profiles?: {
+    id: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    avatar_url?: string | null;
+    stage?: string | null;
+  };
 }
 
 /**
@@ -335,4 +343,34 @@ export interface Task {
   deal?: Deal;
   companies?: Company;
   contacts?: Contact;
-} 
+}
+
+/**
+ * Proposal Template model
+ */
+export interface ProposalTemplate {
+  id: string;
+  name: string;
+  type: 'goals' | 'sow' | 'proposal';
+  content: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Proposal model
+ */
+export interface Proposal {
+  id: string;
+  meeting_id?: string;
+  contact_id?: string;
+  type: 'goals' | 'sow' | 'proposal';
+  status: 'draft' | 'completed';
+  content: string;
+  title?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+ 

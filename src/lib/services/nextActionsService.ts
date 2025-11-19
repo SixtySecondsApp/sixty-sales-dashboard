@@ -160,12 +160,17 @@ export const nextActionsService = {
       const { data, error } = await query
 
       if (error) {
-        throw error
+        // Log error but don't throw - return empty array instead
+        // This prevents console spam from failed requests
+        console.warn('Failed to fetch next_action_suggestions:', error.message)
+        return []
       }
 
       return (data || []) as NextActionSuggestion[]
-    } catch (error) {
-      throw error
+    } catch (error: any) {
+      // Silently handle errors to prevent console spam
+      console.warn('Error in getSuggestions:', error?.message || 'Unknown error')
+      return []
     }
   },
 

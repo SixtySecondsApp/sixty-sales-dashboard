@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Edit, MessageCircle, Phone, ArrowLeft } from 'lucide-react';
+import { Edit, MessageCircle, Phone, ArrowLeft, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import ContactEditModal from '@/components/ContactEditModal';
+import { EnrichButton } from '@/components/crm/EnrichButton';
+import { ProposalWizard } from '@/components/proposals/ProposalWizard';
 import type { Contact } from '@/lib/database/models';
 import { extractDomainFromContact } from '@/lib/utils/domainUtils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
@@ -14,6 +16,7 @@ interface ContactHeaderProps {
 export function ContactHeader({ contact }: ContactHeaderProps) {
   const navigate = useNavigate();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showProposalWizard, setShowProposalWizard] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
   // Extract domain for logo
@@ -99,6 +102,22 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
           </div>
         </div>
         <div className="btn-group">
+          <EnrichButton
+            type="contact"
+            record={contact}
+            onEnriched={() => {
+              // Optionally refresh contact data or show success message
+              window.location.reload();
+            }}
+            className="btn-secondary"
+          />
+          <button 
+            className="btn-secondary"
+            onClick={() => setShowProposalWizard(true)}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Generate Proposal</span>
+          </button>
           <button 
             className="btn-primary"
             onClick={() => setShowEditModal(true)}
@@ -122,6 +141,15 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
         open={showEditModal}
         setOpen={setShowEditModal}
         contact={contact}
+      />
+
+      {/* Proposal Wizard */}
+      <ProposalWizard
+        open={showProposalWizard}
+        onOpenChange={setShowProposalWizard}
+        contactId={contact.id}
+        contactName={contact.first_name && contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.full_name || contact.email}
+        companyName={contact.company?.name}
       />
     </div>
   );

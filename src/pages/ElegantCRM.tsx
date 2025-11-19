@@ -608,7 +608,7 @@ export default function ElegantCRM() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search companies..."
+                  placeholder={activeTab === 'contacts' ? 'Search contacts...' : activeTab === 'companies' ? 'Search companies...' : activeTab === 'deals' ? 'Search deals...' : activeTab === 'meetings' ? 'Search meetings...' : 'Search...'}
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   className="h-8 pl-10 pr-4 py-1.5 text-xs bg-gray-100 dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700 rounded-md text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-200 w-64"

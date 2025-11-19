@@ -27,10 +27,16 @@ export function ContactSidebar({ contact, graph }: ContactSidebarProps) {
       : 0
   };
   
+  // Get owner information from joined profile or fallback to defaults
+  const ownerProfile = contact.profiles;
   const ownerInfo = {
-    name: contact.owner_id ? 'Assigned' : 'Unassigned',
-    title: 'Sales Rep',
-    email: contact.email,
+    name: ownerProfile 
+      ? `${ownerProfile.first_name || ''} ${ownerProfile.last_name || ''}`.trim() || ownerProfile.email || 'Unknown'
+      : contact.owner_id 
+        ? 'Assigned' 
+        : 'Unassigned',
+    title: ownerProfile?.stage || 'Sales Rep',
+    email: ownerProfile?.email || (contact.owner_id ? 'Loading...' : ''),
     assigned_date: contact.created_at
   };
 

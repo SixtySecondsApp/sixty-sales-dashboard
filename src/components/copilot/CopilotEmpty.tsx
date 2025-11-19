@@ -53,14 +53,14 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
           <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3">
             AI Copilot
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-lg">
+          <p className="text-gray-700 dark:text-gray-400 text-lg">
             Ask me anything about your pipeline, contacts, or next actions
           </p>
         </div>
 
         {/* Large Centered Input Box */}
         <div className="w-full max-w-2xl mb-8">
-          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-2xl p-6 shadow-2xl">
+          <div className="bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-2xl p-6 shadow-lg dark:shadow-2xl">
             <div className="flex items-end gap-4">
               <div className="flex-1">
                 <textarea
@@ -71,9 +71,9 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyDown={handleKeyPress}
                   className={cn(
-                    'w-full px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-xl',
-                    'text-base text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500',
-                    'focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50',
+                    'w-full px-6 py-4 bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl',
+                    'text-base text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500',
+                    'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500',
                     'resize-none overflow-hidden',
                     'transition-all duration-200'
                   )}
@@ -92,7 +92,7 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
 
         {/* Suggested Prompts */}
         <div className="w-full max-w-2xl">
-          <p className="text-sm font-semibold text-gray-500 dark:text-gray-500 uppercase mb-4 text-center tracking-wider">
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase mb-4 text-center tracking-wider">
             Try asking:
           </p>
           <div className="flex flex-col gap-3">
@@ -101,11 +101,11 @@ export const CopilotEmpty: React.FC<CopilotEmptyProps> = ({ onPromptClick }) => 
                 key={index}
                 onClick={() => onPromptClick(prompt)}
                 className={cn(
-                  'px-6 py-4 bg-gray-100 dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl',
-                  'text-base text-gray-700 dark:text-gray-300 text-left',
-                  'hover:bg-gray-200 dark:hover:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700/50 hover:scale-[1.02]',
+                  'px-6 py-4 bg-white dark:bg-gray-900/60 backdrop-blur-sm border border-gray-200 dark:border-gray-800/50 rounded-xl',
+                  'text-base text-gray-900 dark:text-gray-300 text-left',
+                  'hover:bg-gray-50 dark:hover:bg-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700/50 hover:scale-[1.02]',
                   'transition-all duration-200',
-                  'focus:outline-none focus:ring-2 focus:ring-blue-500/50'
+                  'focus:outline-none focus:ring-2 focus:ring-blue-500'
                 )}
               >
                 {prompt}

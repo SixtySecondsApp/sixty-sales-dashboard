@@ -13,7 +13,8 @@ import {
   Trash2,
   TrendingUp,
   Award,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ import { toast } from 'sonner';
 import MeetingCard from '@/components/MeetingCard';
 import ViewModeToggle from '@/components/ViewModeToggle';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
+import { ProposalWizard } from '@/components/proposals/ProposalWizard';
 import { useUser } from '@/lib/hooks/useUser';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
@@ -97,6 +99,7 @@ export function MeetingsView({
   const viewMode = externalViewMode || internalViewMode;
   const setViewMode = externalOnViewModeChange || setInternalViewMode;
   const [sentimentFilter, setSentimentFilter] = useState<string>('all');
+  const [showProposalWizard, setShowProposalWizard] = useState(false);
   // Initialize with undefined to let OwnerFilterV3 set default to "My Items"
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null | undefined>(undefined);
   const [sortField, setSortField] = useState<SortField>('meeting_start');
@@ -505,6 +508,16 @@ export function MeetingsView({
                 Export
               </Button>
               <Button 
+                onClick={() => setShowProposalWizard(true)}
+                variant="outline" 
+                size="sm"
+                className="border-gray-600 bg-gray-800/50 text-gray-100 hover:bg-gray-700/70 hover:text-white hover:border-gray-500"
+                disabled={isSelectModeActive && selectedMeetings.size === 0}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Generate Proposal
+              </Button>
+              <Button 
                 onClick={toggleSelectMode}
                 variant={isSelectModeActive ? "default" : "outline"}
                 className={isSelectModeActive ? "bg-violet-600 hover:bg-violet-700 text-white" : ""} 
@@ -542,6 +555,15 @@ export function MeetingsView({
               </div>
               
               <div className="flex items-center gap-2">
+                <Button 
+                  onClick={() => setShowProposalWizard(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500/50 text-blue-400 hover:text-blue-300"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Generate Proposal from Selected
+                </Button>
                 <Button 
                   onClick={() => setBulkDeleteDialogOpen(true)}
                   variant="outline"
@@ -662,6 +684,17 @@ export function MeetingsView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Proposal Wizard */}
+      <ProposalWizard
+        open={showProposalWizard}
+        onOpenChange={setShowProposalWizard}
+        meetingIds={isSelectModeActive && selectedMeetings.size > 0 
+          ? Array.from(selectedMeetings) 
+          : undefined}
+        contactName={filteredAndSortedMeetings[0]?.company?.name || undefined}
+        companyName={filteredAndSortedMeetings[0]?.company?.name || undefined}
+      />
     </motion.div>
   );
 }

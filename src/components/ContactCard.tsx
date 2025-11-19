@@ -338,7 +338,11 @@ const ContactCard: React.FC<ContactCardProps> = ({
           {getFullName()}
         </h3>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-          {contact.title || 'No title specified'}
+          {contact.title ? (
+            contact.title
+          ) : (
+            <span className="text-gray-400 dark:text-gray-600">—</span>
+          )}
         </p>
         {contact.company_name && (
           <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400/80">

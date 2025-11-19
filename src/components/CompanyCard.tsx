@@ -174,7 +174,15 @@ const CompanyCard: React.FC<CompanyCardProps> = ({
                 {company.name}
                 {isStarred() && <Star className="w-3 h-3 fill-yellow-500 text-yellow-500" />}
               </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{company.industry || 'Industry not specified'} • {company.size || 'Size not specified'} employees</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <span className={company.industry ? '' : 'text-gray-400 dark:text-gray-600'}>
+                  {company.industry || '—'}
+                </span>
+                {' • '}
+                <span className={company.size ? '' : 'text-gray-400 dark:text-gray-600'}>
+                  {company.size ? `${company.size} employees` : '—'}
+                </span>
+              </p>
             </div>
           </div>
           

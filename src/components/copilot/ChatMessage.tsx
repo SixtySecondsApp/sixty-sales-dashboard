@@ -31,7 +31,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
       )}
       <div className={cn('max-w-3xl', isUser ? '' : 'w-full')}>
         {isUser ? (
-          <div className="bg-blue-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl px-4 py-3 inline-block">
+          <div className="bg-blue-50 dark:bg-blue-500/10 backdrop-blur-sm border border-blue-200 dark:border-blue-500/20 rounded-xl px-4 py-3 inline-block">
             <p className="text-sm text-gray-900 dark:text-gray-100">{message.content}</p>
           </div>
         ) : (
@@ -61,10 +61,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg w-full"
+                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg dark:shadow-none w-full"
                 >
-                  <CopilotResponse
-                    response={message.structuredResponse}
+                  <CopilotResponse 
+                    response={message.structuredResponse} 
                     onActionClick={onActionClick}
                   />
                 </motion.div>
@@ -80,7 +80,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onActionClick
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.5, ease: "easeOut" }}
-                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg"
+                  className="bg-white dark:bg-gray-900/60 backdrop-blur-xl border border-gray-200 dark:border-gray-800/40 rounded-xl px-5 py-4 shadow-lg dark:shadow-none"
                 >
                   <p className="text-sm text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 </motion.div>

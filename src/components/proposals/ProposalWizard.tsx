@@ -1,0 +1,1533 @@
+import { useState, useEffect, useRef } from 'react';
+import { parseMeetingSummary, getMeetingSummaryPlainText } from '@/lib/utils/meetingSummaryParser';
+import { format } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users } from 'lucide-react';
+import {
+  generateGoals,
+  generateSOW,
+  generateProposal,
+  getMeetingTranscripts,
+  getTranscriptsFromMeetings,
+  saveProposal,
+  getJobStatus,
+  pollJobStatus,
+  analyzeFocusAreas,
+  type GenerateResponse,
+  type JobStatus,
+  type FocusArea,
+} from '@/lib/services/proposalService';
+import { supabase } from '@/lib/supabase/clientV2';
+
+const DESIGN_SYSTEM_SNIPPET = `<!-- DESIGN_SYSTEM_READY -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: ['class', '[data-theme="dark"]'],
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#eff6ff',
+            100: '#dbeafe',
+            200: '#bfdbfe',
+            300: '#93c5fd',
+            400: '#60a5fa',
+            500: '#3b82f6',
+            600: '#2563eb',
+            700: '#1d4ed8',
+            800: '#1e40af',
+            900: '#1e3a8a'
+          }
+        },
+        fontFamily: {
+          sans: ['Inter', 'system-ui', 'sans-serif']
+        },
+        boxShadow: {
+          glass: '0 8px 32px rgba(0, 0, 0, 0.3)'
+        }
+      }
+    }
+  };
+</script>
+<style>
+  body {
+    background: linear-gradient(135deg, #030712 0%, #111827 100%);
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #f3f4f6;
+    min-height: 100vh;
+    margin: 0;
+  }
+  .glass-card {
+    background: rgba(17, 24, 39, 0.8);
+    border: 1px solid rgba(55, 65, 81, 0.5);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(16px);
+  }
+  .glass-premium {
+    background: rgba(20, 28, 36, 0.6);
+    border: 1px solid rgba(45, 62, 78, 0.4);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(24px);
+  }
+</style>`;
+
+const ensureDesignSystemApplied = (html: string) => {
+  let output = html?.trim() || '';
+  if (!output) return output;
+
+  const hasDoctype = /<!DOCTYPE/i.test(output);
+  const hasHtmlTag = /<html[^>]*>/i.test(output);
+
+  if (!hasDoctype || !hasHtmlTag) {
+    output = `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+${DESIGN_SYSTEM_SNIPPET}
+</head>
+<body>
+${output}
+</body>
+</html>`;
+    return output;
+  }
+
+  // Ensure html tag has data-theme
+  output = output.replace(/<html([^>]*)>/i, (match, attrs = '') => {
+    if (/data-theme=/i.test(match)) return match;
+    const existingAttrs = attrs?.trim();
+    return existingAttrs ? `<html ${existingAttrs} data-theme="dark">` : '<html data-theme="dark">';
+  });
+
+  if (!/<!-- DESIGN_SYSTEM_READY -->/i.test(output)) {
+    if (/<head[^>]*>/i.test(output)) {
+      output = output.replace(/<head([^>]*)>/i, `<head$1>\n${DESIGN_SYSTEM_SNIPPET}\n`);
+    } else {
+      output = output.replace(/<html[^>]*>/i, (match) => `${match}\n<head>\n${DESIGN_SYSTEM_SNIPPET}\n</head>\n`);
+    }
+  }
+
+  return output;
+};
+
+type Step = 'select_meetings' | 'analyze_focus' | 'loading' | 'review_goals' | 'choose_format' | 'configure_document' | 'preview';
+
+interface MeetingContact {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  full_name: string | null;
+  email: string | null;
+  is_primary?: boolean;
+}
+
+interface Meeting {
+  id: string;
+  title: string;
+  meeting_start: string;
+  duration_minutes: number;
+  transcript_text: string | null;
+  summary: string | null;
+  contacts?: MeetingContact[];
+}
+
+interface ProposalWizardProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  contactId?: string;
+  meetingIds?: string[];
+  contactName?: string;
+  companyName?: string;
+}
+
+export function ProposalWizard({
+  open,
+  onOpenChange,
+  contactId,
+  meetingIds: initialMeetingIds,
+  contactName,
+  companyName,
+}: ProposalWizardProps) {
+  const [step, setStep] = useState<Step>('select_meetings');
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [selectedMeetingIds, setSelectedMeetingIds] = useState<Set<string>>(new Set());
+  const [transcripts, setTranscripts] = useState<string[]>([]);
+  const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
+  const [selectedFocusAreaIds, setSelectedFocusAreaIds] = useState<Set<string>>(new Set());
+  const [goals, setGoals] = useState<string>('');
+  const [selectedFormat, setSelectedFormat] = useState<'sow' | 'proposal' | null>(null);
+  const [documentConfig, setDocumentConfig] = useState<{
+    length_target?: 'short' | 'medium' | 'long';
+    word_limit?: number;
+    page_target?: number;
+  }>({});
+  const [finalContent, setFinalContent] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isTextareaFocusedRef = useRef(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeContentRef = useRef<string>('');
+  const lastIframeUpdateRef = useRef<number>(0);
+
+  const [iframeContent, setIframeContent] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedFormat !== 'proposal') {
+      setIframeContent(finalContent);
+      iframeContentRef.current = finalContent;
+      return;
+    }
+    if (!finalContent) return;
+
+    const now = Date.now();
+    const minInterval = loading ? 700 : 200;
+    const elapsed = now - lastIframeUpdateRef.current;
+    const delay = elapsed >= minInterval ? 0 : minInterval - elapsed;
+
+    const timeoutId = setTimeout(() => {
+      setIframeContent(finalContent);
+      iframeContentRef.current = finalContent;
+      lastIframeUpdateRef.current = Date.now();
+    }, delay);
+
+    return () => clearTimeout(timeoutId);
+  }, [finalContent, selectedFormat, loading]);
+
+  useEffect(() => {
+    if (!loading && selectedFormat === 'proposal' && finalContent && iframeContentRef.current !== finalContent) {
+      setIframeContent(finalContent);
+      iframeContentRef.current = finalContent;
+      lastIframeUpdateRef.current = Date.now();
+    }
+  }, [loading, selectedFormat, finalContent]);
+
+  // Step 1: Load meetings when dialog opens
+  useEffect(() => {
+    if (open) {
+      if (initialMeetingIds && initialMeetingIds.length > 0) {
+        // If specific meetings provided, load transcripts and show focus area selection
+        setSelectedMeetingIds(new Set(initialMeetingIds));
+        setStep('analyze_focus');
+        loadTranscripts(initialMeetingIds);
+      } else {
+        // Otherwise, show meeting selection
+        loadMeetings();
+      }
+    }
+  }, [open, initialMeetingIds]);
+
+  const loadMeetings = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      let query = supabase
+        .from('meetings')
+        .select('id, title, meeting_start, duration_minutes, transcript_text, summary')
+        .not('transcript_text', 'is', null)
+        .order('meeting_start', { ascending: false });
+
+      // Filter by contact or company
+      if (contactId) {
+        // Get meetings linked to this contact via primary_contact_id or meeting_contacts
+        const { data: meetingsByPrimary } = await supabase
+          .from('meetings')
+          .select('id')
+          .eq('primary_contact_id', contactId)
+          .eq('owner_user_id', user.id);
+
+        const { data: meetingContacts } = await supabase
+          .from('meeting_contacts')
+          .select('meeting_id')
+          .eq('contact_id', contactId);
+
+        const meetingIds = [
+          ...(meetingsByPrimary?.map(m => m.id) || []),
+          ...(meetingContacts?.map(mc => mc.meeting_id) || [])
+        ];
+
+        if (meetingIds.length > 0) {
+          query = query.in('id', meetingIds);
+        } else {
+          setMeetings([]);
+          setLoading(false);
+          setError('No meetings found for this contact.');
+          return;
+        }
+      } else if (companyName) {
+        // Try to find company by name and get meetings
+        const { data: company } = await supabase
+          .from('companies')
+          .select('id')
+          .eq('name', companyName)
+          .single();
+
+        if (company?.id) {
+          query = query.eq('company_id', company.id).eq('owner_user_id', user.id);
+        } else {
+          setMeetings([]);
+          setLoading(false);
+          setError('Company not found.');
+          return;
+        }
+      } else {
+        // No filter - get user's recent meetings with transcripts
+        query = query.eq('owner_user_id', user.id).limit(50);
+      }
+
+      const { data: meetingsData, error: meetingsError } = await query;
+
+      if (meetingsError) {
+        throw meetingsError;
+      }
+
+      if (!meetingsData || meetingsData.length === 0) {
+        setError('No meetings with transcripts found.');
+        setMeetings([]);
+      } else {
+        // Fetch contacts for each meeting
+        const meetingsWithContacts = await Promise.all(
+          meetingsData.map(async (meeting) => {
+            // Fetch external contacts via meeting_contacts junction
+            const { data: meetingContactsData } = await supabase
+              .from('meeting_contacts')
+              .select(`
+                contact_id,
+                is_primary,
+                contacts (
+                  id,
+                  first_name,
+                  last_name,
+                  full_name,
+                  email
+                )
+              `)
+              .eq('meeting_id', meeting.id);
+
+            const contacts: MeetingContact[] = (meetingContactsData || [])
+              .filter(mc => mc.contacts)
+              .map(mc => ({
+                ...(mc.contacts as any),
+                is_primary: mc.is_primary || false
+              }));
+
+            return {
+              ...meeting,
+              contacts
+            };
+          })
+        );
+
+        setMeetings(meetingsWithContacts);
+        // Pre-select all meetings by default
+        setSelectedMeetingIds(new Set(meetingsWithContacts.map(m => m.id)));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load meetings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTranscripts = async (meetingIdsToLoad?: string[]) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const idsToUse = meetingIdsToLoad || Array.from(selectedMeetingIds);
+      
+      if (idsToUse.length === 0) {
+        setError('Please select at least one meeting.');
+        setLoading(false);
+        return;
+      }
+
+      const loadedTranscripts = await getTranscriptsFromMeetings(idsToUse);
+
+      if (loadedTranscripts.length === 0) {
+        setError('No transcripts found. Please ensure selected meetings have transcripts available.');
+        setLoading(false);
+        return;
+      }
+
+      setTranscripts(loadedTranscripts);
+      setStep('analyze_focus');
+      await analyzeFocusAreasFromTranscripts(loadedTranscripts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load transcripts');
+      setLoading(false);
+    }
+  };
+
+  const handleMeetingToggle = (meetingId: string) => {
+    setSelectedMeetingIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(meetingId)) {
+        newSet.delete(meetingId);
+      } else {
+        newSet.add(meetingId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedMeetingIds.size === meetings.length) {
+      setSelectedMeetingIds(new Set());
+    } else {
+      setSelectedMeetingIds(new Set(meetings.map(m => m.id)));
+    }
+  };
+
+  const handleContinueFromSelection = () => {
+    if (selectedMeetingIds.size === 0) {
+      setError('Please select at least one meeting');
+      setStatusMessage('Please select at least one meeting');
+      return;
+    }
+    setError(null);
+    setStatusMessage(null);
+    setStep('analyze_focus');
+    loadTranscripts();
+  };
+
+  const analyzeFocusAreasFromTranscripts = async (transcriptList?: string[]) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const transcriptsToAnalyze = transcriptList && transcriptList.length > 0 ? transcriptList : transcripts;
+      if (!transcriptsToAnalyze || transcriptsToAnalyze.length === 0) {
+        throw new Error('No transcripts available to analyze.');
+      }
+
+      const result = await analyzeFocusAreas({
+        transcripts: transcriptsToAnalyze,
+        contact_name: contactName,
+        company_name: companyName,
+      });
+
+      if (!result.success || !result.focus_areas) {
+        throw new Error(result.error || 'Failed to analyze focus areas');
+      }
+
+      setFocusAreas(result.focus_areas);
+      // Pre-select all focus areas by default
+      setSelectedFocusAreaIds(new Set(result.focus_areas.map(fa => fa.id)));
+      setStep('analyze_focus');
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : 'Failed to analyze focus areas';
+          setError(errorMsg);
+          setStatusMessage(`Error: ${errorMsg}`);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+  const handleFocusAreaToggle = (focusAreaId: string) => {
+    setSelectedFocusAreaIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(focusAreaId)) {
+        newSet.delete(focusAreaId);
+      } else {
+        newSet.add(focusAreaId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllFocusAreas = () => {
+    if (selectedFocusAreaIds.size === focusAreas.length) {
+      setSelectedFocusAreaIds(new Set());
+    } else {
+      setSelectedFocusAreaIds(new Set(focusAreas.map(fa => fa.id)));
+    }
+  };
+
+  const handleContinueFromFocusAreas = async () => {
+    if (selectedFocusAreaIds.size === 0) {
+      setError('Please select at least one focus area');
+      setStatusMessage('Please select at least one focus area');
+      return;
+    }
+    setError(null);
+    setStatusMessage(null);
+    setStep('loading');
+    const selectedFocusAreas = Array.from(selectedFocusAreaIds).map(id => {
+      const fa = focusAreas.find(f => f.id === id);
+      return fa?.title || '';
+    }).filter(Boolean);
+    await generateGoalsFromTranscripts(transcripts, selectedFocusAreas);
+  };
+
+  const generateGoalsFromTranscripts = async (transcriptList: string[], selectedFocusAreas?: string[]) => {
+    setLoading(true);
+    setStep('loading');
+    setStatusMessage('Generating goals... This may take a minute.');
+    setGoals(''); // Clear previous goals
+    
+    try {
+      // Use streaming for goals generation
+      const result: GenerateResponse = await generateGoals(
+        {
+          transcripts: transcriptList,
+          contact_name: contactName,
+          company_name: companyName,
+          focus_areas: selectedFocusAreas,
+        },
+        (chunk: string) => {
+          // Update goals as chunks arrive
+          setGoals((prev) => prev + chunk);
+          setStatusMessage('Generating goals... Processing your request.');
+        }
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate goals');
+      }
+
+      // If streaming, content will be updated via onChunk callback
+      if (result.content) {
+        // Streaming response - content is already set via onChunk, just finalize
+        setGoals(result.content);
+        setStep('review_goals');
+        setStatusMessage(null); // Clear status - goals will be shown
+        setError(null);
+      } else if (result.job_id) {
+        // Fallback to polling if streaming not available
+        setStatusMessage('Generating goals... This may take a minute.');
+        
+        const jobStatus = await pollJobStatus(result.job_id, {
+          interval: 2000, // Poll every 2 seconds
+          maxAttempts: 150, // Max 5 minutes
+          onProgress: (status: JobStatus) => {
+            if (status.status === 'processing') {
+              setStatusMessage('Generating goals... Processing your request.');
+            }
+            // Update goals as they come in (if partial content available)
+            if (status.content) {
+              setGoals(status.content);
+            }
+          },
+        });
+
+        if (!jobStatus) {
+          throw new Error('Job polling timed out. Please check the job status manually.');
+        }
+
+        if (jobStatus.status === 'failed') {
+          throw new Error(jobStatus.error || 'Job failed');
+        }
+
+        if (jobStatus.status === 'completed' && jobStatus.content) {
+          setGoals(jobStatus.content);
+          setStep('review_goals');
+          setStatusMessage(null); // Clear status - goals will be shown
+          setError(null);
+        } else {
+          throw new Error('Job completed but no content received');
+        }
+      } else {
+        throw new Error('No content or job_id received');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to generate goals';
+      setError(errorMsg);
+      setStatusMessage(`Error: ${errorMsg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveGoals = () => {
+    setStep('choose_format');
+  };
+
+
+  const handleGenerateDocument = async () => {
+    setStep('preview');
+    setLoading(true);
+    setError(null);
+    
+    // Initialize with base HTML structure for proposals to prevent flashing
+    if (selectedFormat === 'proposal') {
+      const baseHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposal</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">Generating proposal...</div>
+</body>
+</html>`;
+      setFinalContent(baseHTML);
+      setIframeContent(baseHTML);
+      iframeContentRef.current = baseHTML;
+      lastIframeUpdateRef.current = Date.now();
+    } else {
+      setFinalContent(''); // Clear for SOW
+      setIframeContent('');
+      iframeContentRef.current = '';
+    }
+
+    try {
+      const selectedFocusAreas = Array.from(selectedFocusAreaIds).map(id => {
+        const fa = focusAreas.find(f => f.id === id);
+        return fa?.title || '';
+      }).filter(Boolean);
+
+      let result: GenerateResponse;
+      
+      if (selectedFormat === 'sow') {
+        // Use streaming for SOW
+        result = await generateSOW(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive
+            setFinalContent((prev) => prev + chunk);
+          }
+        );
+      } else {
+        // Use streaming for proposals
+        result = await generateProposal(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive - replace loading div with actual content
+            setFinalContent((prev) => {
+              // Remove markdown code block markers from chunk
+              let cleanChunk = chunk
+                .replace(/^```html\n?/gi, '')
+                .replace(/\n?```$/gi, '')
+                .replace(/^```\n?/gi, '')
+                .replace(/^html\n?/gi, '')
+                .trim();
+              
+              // If chunk contains complete HTML structure, use it directly
+              if (cleanChunk.includes('<!DOCTYPE') || (cleanChunk.includes('<html') && cleanChunk.includes('</html>'))) {
+                const normalized = cleanChunk.replace(/^html\s*/i, '').trim();
+                return ensureDesignSystemApplied(normalized);
+              }
+              
+              // If we have base HTML with loading message, start replacing it
+              if (prev.includes('Generating proposal...')) {
+                // If chunk starts with HTML structure, replace entire body
+                if (cleanChunk.includes('<!DOCTYPE') || cleanChunk.includes('<html')) {
+                  return ensureDesignSystemApplied(cleanChunk);
+                }
+                
+                // Otherwise, replace loading div and append content
+                const bodyStart = prev.indexOf('<body>');
+                const bodyEnd = prev.indexOf('</body>');
+                if (bodyStart !== -1 && bodyEnd !== -1) {
+                  const beforeBody = prev.substring(0, bodyStart + 6);
+                  const afterBody = prev.substring(bodyEnd);
+                  return beforeBody + cleanChunk + afterBody;
+                }
+                
+                // Fallback: just replace loading div
+                return prev.replace(/<div class="loading">Generating proposal\.\.\.<\/div>/, '') + cleanChunk;
+              }
+              
+              // Otherwise, append chunk to existing content
+              return prev + cleanChunk;
+            });
+          }
+        );
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to generate document');
+      }
+
+      if (result.content) {
+        // Final content received - ensure it's complete HTML for proposals
+        if (selectedFormat === 'proposal') {
+          // Ensure we have a complete HTML document
+          let htmlContent = result.content.trim();
+          
+          // Aggressively remove markdown code block markers and artifacts
+          htmlContent = htmlContent
+            .replace(/^```html\n?/gi, '')
+            .replace(/\n?```$/gi, '')
+            .replace(/^```\n?/gi, '')
+            .replace(/^html\s*/gi, '')
+            .replace(/^\s*html\s*/gi, '')
+            .trim();
+          
+          // Remove any leading "html" text that might appear
+          if (htmlContent.startsWith('html') && !htmlContent.startsWith('html>')) {
+            htmlContent = htmlContent.replace(/^html\s*/i, '').trim();
+          }
+          
+          // Ensure it starts with DOCTYPE or html tag
+          if (!htmlContent.includes('<!DOCTYPE') && !htmlContent.includes('<html')) {
+            // Wrap in basic HTML structure if needed
+            htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proposal</title>
+</head>
+<body>
+${htmlContent}
+</body>
+</html>`;
+          }
+          
+          const enhancedHtml = ensureDesignSystemApplied(htmlContent);
+          setFinalContent(enhancedHtml);
+          setIframeContent(enhancedHtml);
+          iframeContentRef.current = enhancedHtml;
+          lastIframeUpdateRef.current = Date.now();
+        } else {
+          setFinalContent(result.content);
+        }
+        setStatusMessage(null); // Clear status message on success - content will show
+        setError(null);
+      } else {
+        throw new Error('No content received');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to generate document';
+      setError(errorMsg);
+      setStatusMessage(`Error: ${errorMsg}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!finalContent || !selectedFormat) return;
+
+    try {
+      const saved = await saveProposal({
+        meeting_id: Array.from(selectedMeetingIds)[0],
+        contact_id: contactId,
+        type: selectedFormat,
+        status: 'generated',
+        content: finalContent,
+        title: `${selectedFormat === 'sow' ? 'SOW' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
+      });
+
+      if (saved) {
+        // Show brief success message in loading state before closing
+        setStatusMessage('Saved successfully!');
+        setTimeout(() => {
+          handleClose();
+        }, 1000);
+      } else {
+        setError('Failed to save proposal');
+        setStatusMessage('Error: Failed to save proposal');
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Error saving proposal';
+      setError(errorMsg);
+      setStatusMessage(`Error: ${errorMsg}`);
+    }
+  };
+
+  const [shouldClose, setShouldClose] = useState(false);
+
+  const handleClose = () => {
+    setStep('select_meetings');
+    setMeetings([]);
+    setSelectedMeetingIds(new Set());
+    setTranscripts([]);
+    setFocusAreas([]);
+    setSelectedFocusAreaIds(new Set());
+    setGoals('');
+    setSelectedFormat(null);
+    setDocumentConfig({});
+    setFinalContent('');
+    setIframeContent('');
+    iframeContentRef.current = '';
+    lastIframeUpdateRef.current = 0;
+    setError(null);
+    setStatusMessage(null);
+    setShouldClose(false);
+    isTextareaFocusedRef.current = false;
+    onOpenChange(false);
+  };
+
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen && !shouldClose) {
+      // Check if textarea is focused
+      if (isTextareaFocusedRef.current || textareaRef.current === document.activeElement) {
+        // Prevent closing - re-open immediately
+        setTimeout(() => onOpenChange(true), 0);
+        return;
+      }
+      
+      // Also check other form elements
+      const activeElement = document.activeElement;
+      const isFormElement = activeElement && (
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'INPUT' ||
+        activeElement.closest('textarea') ||
+        activeElement.closest('input')
+      );
+      
+      // Prevent closing if interacting with a form element
+      if (isFormElement) {
+        // Re-open immediately to prevent close
+        setTimeout(() => onOpenChange(true), 0);
+        return;
+      }
+    }
+    
+    if (!newOpen) {
+      handleClose();
+    }
+  };
+
+  const handleRegenerateGoals = async () => {
+    await generateGoalsFromTranscripts(transcripts);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        onInteractOutside={(e) => {
+          // Prevent closing when clicking on any interactive element inside
+          const target = e.target as HTMLElement;
+          // Check if the click is actually inside the dialog content
+          const dialogContent = e.currentTarget;
+          if (dialogContent.contains(target)) {
+            e.preventDefault();
+            return;
+          }
+          // Also prevent closing when clicking on form elements
+          if (target.tagName === 'TEXTAREA' || 
+              target.tagName === 'INPUT' ||
+              target.closest('textarea') ||
+              target.closest('input') ||
+              target.closest('[role="textbox"]')) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Allow ESC to close, but check if we're in a form element
+          const activeElement = document.activeElement;
+          if (activeElement && (
+            activeElement.tagName === 'TEXTAREA' ||
+            activeElement.tagName === 'INPUT'
+          )) {
+            // If focus is in textarea/input, blur it first instead of closing
+            (activeElement as HTMLElement).blur();
+            e.preventDefault();
+          }
+        }}
+      >
+        <DialogHeader className="pb-4">
+          <DialogTitle>Generate Proposal</DialogTitle>
+          <DialogDescription>
+            Create a proposal or SOW from call transcripts
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Step Indicator */}
+        <div className="flex items-center justify-center gap-2 mb-6 overflow-x-auto pb-2 pt-2">
+          {['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'].map((stepName, idx) => {
+            const stepNames = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
+            const stepLabels = ['Meetings', 'Focus', 'Goals', 'Format', 'Config', 'Preview'];
+            const currentStepIdx = stepNames.indexOf(step);
+            const isActive = idx <= currentStepIdx;
+            const isCurrent = step === stepName;
+            
+            return (
+              <div key={stepName} className="flex items-center">
+                <div className={`flex flex-col items-center ${
+                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                    isCurrent ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : isActive ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'
+                  }`}>
+                    {isActive && !isCurrent ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+                  </div>
+                  <span className="mt-1.5 text-xs font-medium whitespace-nowrap">{stepLabels[idx]}</span>
+                </div>
+                {idx < stepNames.length - 1 && (
+                  <ArrowRight className="w-4 h-4 text-gray-400 mx-1.5 flex-shrink-0" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Step 0: Select Meetings */}
+        {step === 'select_meetings' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Select Meetings to Include</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Choose which meetings to include in the proposal. Only meetings with transcripts are shown.
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">Loading meetings...</p>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-red-800 dark:text-red-200">{error}</p>
+                <Button onClick={loadMeetings} className="mt-4" variant="default">
+                  Retry
+                </Button>
+              </div>
+            ) : meetings.length === 0 ? (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-yellow-800 dark:text-yellow-200">
+                  No meetings with transcripts found.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {selectedMeetingIds.size} of {meetings.length} selected
+                  </div>
+                  <Button onClick={handleSelectAll} variant="secondary" size="sm">
+                    {selectedMeetingIds.size === meetings.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-lg p-4">
+                  {meetings.map((meeting) => (
+                    <div
+                      key={meeting.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        selectedMeetingIds.has(meeting.id)
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                          : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedMeetingIds.has(meeting.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedMeetingIds(prev => new Set(prev).add(meeting.id));
+                          } else {
+                            setSelectedMeetingIds(prev => {
+                              const newSet = new Set(prev);
+                              newSet.delete(meeting.id);
+                              return newSet;
+                            });
+                          }
+                        }}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-base mb-2 text-gray-900 dark:text-white">
+                          {meeting.title || 'Untitled Meeting'}
+                        </div>
+                        
+                        {/* Date and Duration */}
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-4 h-4" />
+                            <span className="font-medium">
+                              {meeting.meeting_start
+                                ? format(new Date(meeting.meeting_start), 'MMM d, yyyy')
+                                : 'No date'}
+                            </span>
+                          </div>
+                          {meeting.duration_minutes && (
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-4 h-4" />
+                              <span>{Math.round(meeting.duration_minutes)} min</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Attendees */}
+                        {meeting.contacts && meeting.contacts.length > 0 && (
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            <Users className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {meeting.contacts.map((contact, idx) => {
+                                const name = contact.full_name || 
+                                  `${contact.first_name || ''} ${contact.last_name || ''}`.trim() || 
+                                  contact.email || 
+                                  'Unknown';
+                                return (
+                                  <span
+                                    key={contact.id || idx}
+                                    className={`text-xs px-2 py-0.5 rounded-full ${
+                                      contact.is_primary
+                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                                    }`}
+                                  >
+                                    {name}
+                                    {contact.is_primary && (
+                                      <span className="ml-1 text-[10px]">(Primary)</span>
+                                    )}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Meeting Purpose - extracted from summary */}
+                        {meeting.summary && (() => {
+                          const parsed = parseMeetingSummary(meeting.summary);
+                          let purposeText = '';
+                          
+                          if (parsed.markdown) {
+                            // Extract text after "## Meeting Purpose" header
+                            const purposeMatch = parsed.markdown.match(/##\s+Meeting\s+Purpose\s*\n\n(.*?)(?=\n\n|$)/is);
+                            if (purposeMatch) {
+                              // Remove markdown links and formatting
+                              purposeText = purposeMatch[1]
+                                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove markdown links
+                                .replace(/\*\*/g, '') // Remove bold
+                                .replace(/\n+/g, ' ') // Replace newlines with spaces
+                                .trim();
+                            } else {
+                              // Fallback: get first paragraph or first 200 chars
+                              purposeText = getMeetingSummaryPlainText(meeting.summary)
+                                .substring(0, 200)
+                                .replace(/\n+/g, ' ')
+                                .trim();
+                            }
+                          } else {
+                            purposeText = getMeetingSummaryPlainText(meeting.summary)
+                              .substring(0, 200)
+                              .replace(/\n+/g, ' ')
+                              .trim();
+                          }
+                          
+                          if (purposeText) {
+                            return (
+                              <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                  Meeting Purpose:
+                                </div>
+                                <div className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                  {purposeText}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={handleContinueFromSelection}
+                    variant="default"
+                    disabled={selectedMeetingIds.size === 0}
+                  >
+                    Continue with {selectedMeetingIds.size} Meeting{selectedMeetingIds.size !== 1 ? 's' : ''}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 1.5: Analyze Focus Areas */}
+        {step === 'analyze_focus' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Select Focus Areas</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Review the key focus areas identified from your meetings. Select which areas to include in your proposal or SOW.
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400 text-center">
+                  {statusMessage || 'Analyzing transcripts...'}
+                </p>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-red-800 dark:text-red-200">{error}</p>
+                <Button onClick={analyzeFocusAreasFromTranscripts} className="mt-4" variant="default">
+                  Retry
+                </Button>
+              </div>
+            ) : focusAreas.length === 0 ? (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <p className="text-yellow-800 dark:text-yellow-200">
+                  No focus areas found. Proceeding with all content.
+                </p>
+                <Button onClick={handleContinueFromFocusAreas} className="mt-4" variant="default">
+                  Continue
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    {selectedFocusAreaIds.size} of {focusAreas.length} selected
+                  </div>
+                  <Button onClick={handleSelectAllFocusAreas} variant="secondary" size="sm">
+                    {selectedFocusAreaIds.size === focusAreas.length ? 'Deselect All' : 'Select All'}
+                  </Button>
+                </div>
+                <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-lg p-4">
+                  {focusAreas.map((focusArea) => (
+                    <div
+                      key={focusArea.id}
+                      className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+                        selectedFocusAreaIds.has(focusArea.id)
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                          : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedFocusAreaIds.has(focusArea.id)}
+                        onCheckedChange={() => handleFocusAreaToggle(focusArea.id)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-base mb-1 text-gray-900 dark:text-white">
+                          {focusArea.title}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                          {focusArea.description}
+                        </div>
+                        {focusArea.category && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Category: {focusArea.category}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between">
+                  <Button onClick={() => setStep('select_meetings')} variant="secondary">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handleContinueFromFocusAreas}
+                    variant="default"
+                    disabled={selectedFocusAreaIds.size === 0}
+                  >
+                    Continue with {selectedFocusAreaIds.size} Focus Area{selectedFocusAreaIds.size !== 1 ? 's' : ''}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Step 2: Loading/Analyzing */}
+        {step === 'loading' && (
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400 text-center">
+                  {statusMessage || 'Analyzing call transcripts and generating goals...'}
+                </p>
+                {statusMessage && statusMessage.includes('Processing') && (
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2 text-center">
+                    This may take a minute. Please wait...
+                  </p>
+                )}
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-red-800 dark:text-red-200">{error}</p>
+                <Button onClick={loadTranscripts} className="mt-4" variant="default">
+                  Retry
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {/* Step 3: Review Goals */}
+        {step === 'review_goals' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Review Generated Goals</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Review and edit the goals document before proceeding. This will be used to generate your proposal or SOW.
+              </p>
+              <Textarea
+                ref={textareaRef}
+                value={goals}
+                onChange={(e) => setGoals(e.target.value)}
+                rows={20}
+                className="font-mono text-sm"
+                placeholder="Goals content will appear here..."
+                onFocus={() => {
+                  isTextareaFocusedRef.current = true;
+                }}
+                onBlur={() => {
+                  isTextareaFocusedRef.current = false;
+                }}
+                onMouseDown={(e) => {
+                  // Prevent any potential event bubbling that might close the dialog
+                  e.stopPropagation();
+                }}
+              />
+            </div>
+            <div className="flex justify-between">
+              <Button onClick={handleRegenerateGoals} variant="secondary" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Regenerate Goals
+              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setStep('loading')} variant="secondary">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button onClick={handleApproveGoals} variant="default">
+                  Approve & Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Configure Document */}
+        {step === 'configure_document' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                Set the focus and length for your {selectedFormat === 'sow' ? 'Statement of Work' : 'proposal'}.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {/* Length Target */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Document Length</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(['short', 'medium', 'long'] as const).map((length) => (
+                    <Card
+                      key={length}
+                      className={`cursor-pointer transition-all hover:scale-105 ${
+                        documentConfig.length_target === length ? 'ring-2 ring-blue-500' : ''
+                      }`}
+                      onClick={() => setDocumentConfig(prev => ({ ...prev, length_target: length }))}
+                    >
+                      <CardContent className="p-4">
+                        <div className="font-semibold capitalize mb-1">{length}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          {length === 'short' && '< 1000 words / ~2 pages'}
+                          {length === 'medium' && '1000-2500 words / ~3-5 pages'}
+                          {length === 'long' && '> 2500 words / ~6+ pages'}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Word Limit */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Custom Word Limit (Optional)</label>
+                <input
+                  type="number"
+                  min="100"
+                  max="10000"
+                  step="100"
+                  placeholder="e.g., 1500"
+                  value={documentConfig.word_limit || ''}
+                  onChange={(e) => setDocumentConfig(prev => ({ 
+                    ...prev, 
+                    word_limit: e.target.value ? parseInt(e.target.value) : undefined 
+                  }))}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Override length target with a specific word count
+                </p>
+              </div>
+
+              {/* Page Target */}
+              <div>
+                <label className="text-sm font-medium mb-2 block">Target Pages (Optional)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  step="1"
+                  placeholder="e.g., 3"
+                  value={documentConfig.page_target || ''}
+                  onChange={(e) => setDocumentConfig(prev => ({ 
+                    ...prev, 
+                    page_target: e.target.value ? parseInt(e.target.value) : undefined 
+                  }))}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Target number of pages for the document
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('choose_format')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button onClick={handleGenerateDocument} variant="default">
+                Generate {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Choose Format */}
+        {step === 'choose_format' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold mb-2">Choose Document Format</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Select whether you want to generate a Statement of Work (SOW) or an HTML Proposal presentation.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'sow' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('sow');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Statement of Work
+                  </CardTitle>
+                  <CardDescription>
+                    A comprehensive SOW document in Markdown format
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Includes project objectives, proposed solution, pricing, timeline, and terms.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'proposal' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('proposal');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileCode className="w-5 h-5" />
+                    HTML Proposal
+                  </CardTitle>
+                  <CardDescription>
+                    An interactive HTML presentation with modern design
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Beautiful, interactive proposal with slides, animations, and professional styling.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setStep('review_goals')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 5: Preview */}
+        {step === 'preview' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Preview Generated Document</h3>
+              {selectedFormat === 'proposal' && (
+                <Button
+                  onClick={() => {
+                    const blob = new Blob([finalContent], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                  }}
+                  variant="secondary"
+                >
+                  Open in New Tab
+                </Button>
+              )}
+            </div>
+            {loading && !finalContent ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
+                <p className="text-gray-600 dark:text-gray-400 text-center">
+                  {statusMessage || `Generating ${selectedFormat === 'sow' ? 'SOW' : 'proposal'}...`}
+                </p>
+                {statusMessage && statusMessage.includes('Generating') && (
+                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2 text-center">
+                    This may take a minute. Please wait...
+                  </p>
+                )}
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <p className="text-red-800 dark:text-red-200">{error}</p>
+              </div>
+            ) : selectedFormat === 'proposal' && finalContent ? (
+              <Tabs defaultValue="preview" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                  <TabsTrigger value="html">HTML Code</TabsTrigger>
+                </TabsList>
+                <TabsContent value="preview" className="mt-4">
+                  <div className="border rounded-lg overflow-hidden relative">
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={iframeContent || finalContent}
+                      className="w-full h-[600px] border-0"
+                      title="Proposal Preview"
+                      sandbox="allow-same-origin allow-scripts"
+                    />
+                    {loading && (
+                      <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 z-10">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Generating...
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+                <TabsContent value="html" className="mt-4">
+                  <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50 relative">
+                    <div className="flex justify-end mb-2">
+                      <Button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(finalContent);
+                          setStatusMessage('Copied to clipboard!');
+                          setTimeout(() => setStatusMessage(null), 2000);
+                        }} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        Copy HTML
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={finalContent}
+                      onChange={(e) => setFinalContent(e.target.value)}
+                      className="w-full h-[550px] font-mono text-xs"
+                      placeholder="HTML content..."
+                    />
+                    {loading && (
+                      <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Generating...
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : selectedFormat === 'sow' && finalContent ? (
+              <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50 max-h-[600px] overflow-y-auto relative">
+                <pre className="whitespace-pre-wrap font-mono text-sm">
+                  {finalContent}
+                </pre>
+                {loading && (
+                  <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Generating...
+                  </div>
+                )}
+              </div>
+            ) : null}
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('choose_format')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => {
+                  setShouldClose(true);
+                  handleClose();
+                }} variant="secondary">
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} variant="default" disabled={!finalContent || loading}>
+                  Save Proposal
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+

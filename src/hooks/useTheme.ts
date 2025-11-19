@@ -51,11 +51,14 @@ function resolveTheme(mode: ThemeMode): ResolvedTheme {
 }
 
 /**
- * Applies the theme to the document
+ * Applies the theme to the document with smooth transition
  */
 function applyTheme(theme: ResolvedTheme) {
   const root = document.documentElement
 
+  // Add transition class for smooth theme changes
+  root.classList.add('theme-transition')
+  
   // Set data-theme attribute
   root.setAttribute('data-theme', theme)
 
@@ -65,6 +68,11 @@ function applyTheme(theme: ResolvedTheme) {
   } else {
     root.classList.remove('dark')
   }
+
+  // Remove transition class after animation completes
+  setTimeout(() => {
+    root.classList.remove('theme-transition')
+  }, 300)
 }
 
 /**

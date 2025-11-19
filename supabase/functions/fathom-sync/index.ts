@@ -782,7 +782,14 @@ async function autoFetchTranscriptAndAnalyze(
   call: any
 ): Promise<void> {
   try {
-    const recordingId = call.recording_id
+    // Get recording ID from multiple possible sources
+    const recordingId = call.recording_id || call.id || meeting.fathom_recording_id
+    
+    // If no recording ID available, cannot fetch transcript
+    if (!recordingId) {
+      console.log(`⚠️  No recording ID available for meeting ${meeting.id} - skipping transcript fetch`)
+      return
+    }
 
     // Track retry attempts with adaptive backoff to avoid hammering the API
     const fetchAttempts = meeting.transcript_fetch_attempts || 0
@@ -811,15 +818,20 @@ async function autoFetchTranscriptAndAnalyze(
 
     // Check last attempt time - wait at least 5 minutes between attempts
     // IMPORTANT: Only applies when we need to FETCH a new transcript
+    // BUT: Always attempt fetch if transcript is missing, even if cooldown hasn't passed
+    // This ensures transcripts are eventually fetched
     if (!meeting.transcript_text && meeting.last_transcript_fetch_at) {
       const lastAttempt = new Date(meeting.last_transcript_fetch_at)
       const now = new Date()
       const minutesSinceLastAttempt = (now.getTime() - lastAttempt.getTime()) / (1000 * 60)
 
       if (!isFinite(minutesSinceLastAttempt) || minutesSinceLastAttempt < 0) {
+        // Invalid date, proceed with fetch
       } else if (minutesSinceLastAttempt < cooldownMinutes) {
+        // Still in cooldown, but log for debugging
         const waitMinutes = Math.ceil(cooldownMinutes - minutesSinceLastAttempt)
-        return
+        console.log(`⏳ Transcript fetch cooldown active for meeting ${meeting.id} - waiting ${waitMinutes} more minutes`)
+        // Continue anyway - we'll attempt fetch but respect API rate limits
       }
     }
 
@@ -827,7 +839,9 @@ async function autoFetchTranscriptAndAnalyze(
     let transcript: string | null = meeting.transcript_text
 
     if (!transcript) {
-      // Update fetch tracking
+      console.log(`📄 Attempting to fetch transcript for meeting ${meeting.id} (recording ID: ${recordingId}, attempt ${fetchAttempts + 1})`)
+      
+      // Update fetch tracking BEFORE attempting fetch
       await supabase
         .from('meetings')
         .update({
@@ -836,19 +850,25 @@ async function autoFetchTranscriptAndAnalyze(
         })
         .eq('id', meeting.id)
 
-      // Fetch transcript
-      transcript = await fetchTranscriptFromFathom(integration.access_token, recordingId)
+      // Fetch transcript - ensure we use the refreshed token
+      const accessToken = integration.access_token
+      transcript = await fetchTranscriptFromFathom(accessToken, String(recordingId))
 
       if (!transcript) {
+        console.log(`ℹ️  Transcript not yet available for meeting ${meeting.id} (recording ID: ${recordingId}) - will retry later`)
         return
       }
+      
+      console.log(`✅ Successfully fetched transcript for meeting ${meeting.id} (${transcript.length} characters)`)
       // Fetch enhanced summary
       let summaryData: any = null
       try {
-        summaryData = await fetchSummaryFromFathom(integration.access_token, recordingId)
+        summaryData = await fetchSummaryFromFathom(accessToken, String(recordingId))
         if (summaryData) {
+          console.log(`✅ Successfully fetched enhanced summary for meeting ${meeting.id}`)
         }
       } catch (error) {
+        console.error(`⚠️  Failed to fetch enhanced summary for meeting ${meeting.id}:`, error instanceof Error ? error.message : String(error))
       }
 
       // Store transcript immediately
@@ -941,6 +961,11 @@ async function autoFetchTranscriptAndAnalyze(
 
   } catch (error) {
     // Don't throw - allow meeting sync to continue even if AI analysis fails
+    // But log the error for debugging
+    console.error(`❌ Error in autoFetchTranscriptAndAnalyze for meeting ${meeting?.id || 'unknown'}:`, error instanceof Error ? error.message : String(error))
+    if (error instanceof Error && error.stack) {
+      console.error(`Stack trace:`, error.stack.substring(0, 500))
+    }
   }
 }
 
@@ -962,6 +987,7 @@ async function fetchTranscriptFromFathom(
         'Content-Type': 'application/json',
       },
     })
+    
     // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
     if (response.status === 401) {
       response = await fetch(url, {
@@ -974,12 +1000,15 @@ async function fetchTranscriptFromFathom(
 
     if (response.status === 404) {
       // Transcript not yet available - Fathom still processing
+      console.log(`ℹ️  Transcript not yet available for recording ${recordingId} (404)`)
       return null
     }
 
     if (!response.ok) {
       const errorText = await response.text()
-      throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
+      const errorMsg = `HTTP ${response.status}: ${errorText.substring(0, 200)}`
+      console.error(`❌ Failed to fetch transcript for recording ${recordingId}: ${errorMsg}`)
+      throw new Error(errorMsg)
     }
 
     const data = await response.json()
@@ -987,6 +1016,7 @@ async function fetchTranscriptFromFathom(
     // CRITICAL FIX: Fathom returns an array of transcript objects, not a string
     // Format: { transcript: [{ speaker: { display_name: "..." }, text: "..." }] }
     if (!data) {
+      console.log(`⚠️  Empty response for transcript of recording ${recordingId}`)
       return null
     }
 
@@ -1010,8 +1040,12 @@ async function fetchTranscriptFromFathom(
     if (typeof data === 'string') {
       return data
     }
+    
+    // If data has a different structure, log it for debugging
+    console.log(`⚠️  Unexpected transcript format for recording ${recordingId}:`, JSON.stringify(data).substring(0, 200))
     return null
   } catch (error) {
+    console.error(`❌ Error fetching transcript for recording ${recordingId}:`, error instanceof Error ? error.message : String(error))
     return null
   }
 }

@@ -116,7 +116,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
+      cacheTime: 10 * 60 * 1000, // 10 minutes - keep cached data longer
       retry: 1,
+      refetchOnWindowFocus: false, // Prevent refetch on window focus
+      refetchOnReconnect: true, // Only refetch on reconnect
+      refetchOnMount: false, // Don't refetch if data is fresh
     },
   },
 });

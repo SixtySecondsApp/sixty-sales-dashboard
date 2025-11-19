@@ -33,6 +33,7 @@ import {
   Target
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ProposalWizard } from '@/components/proposals/ProposalWizard'
 
 interface Meeting {
   id: string
@@ -144,6 +145,7 @@ const MeetingDetail: React.FC = () => {
   const [startSeconds, setStartSeconds] = useState(0)
   const [thumbnailEnsured, setThumbnailEnsured] = useState(false)
   const [isExtracting, setIsExtracting] = useState(false)
+  const [showProposalWizard, setShowProposalWizard] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -436,12 +438,12 @@ const MeetingDetail: React.FC = () => {
           Back to Meetings
         </Button>
 
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="space-y-2 flex-1 min-w-0">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
               {meeting.title || 'Untitled Meeting'}
             </h1>
-            <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400 flex flex-wrap items-center gap-4">
               {meeting.company && (
                 <span className="flex items-center gap-1">
                   <Building className="h-4 w-4 text-gray-500" />
@@ -461,7 +463,7 @@ const MeetingDetail: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">
             <Badge
               variant={sentimentTone(meeting.sentiment_score) as any}
               className="backdrop-blur-sm"
@@ -478,6 +480,15 @@ const MeetingDetail: React.FC = () => {
                 {isExtracting ? 'Getting Action Items…' : 'Get Action Items'}
               </Button>
             )}
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => setShowProposalWizard(true)}
+              className="whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white border-0"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Generate Proposal
+            </Button>
             {meeting.coach_rating !== null && (
               <Badge variant="secondary" className="backdrop-blur-sm">
                 Coach {meeting.coach_rating}%
@@ -980,6 +991,15 @@ const MeetingDetail: React.FC = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Proposal Wizard */}
+      <ProposalWizard
+        open={showProposalWizard}
+        onOpenChange={setShowProposalWizard}
+        meetingIds={[meeting.id]}
+        contactName={meeting.contact ? `${meeting.contact.first_name || ''} ${meeting.contact.last_name || ''}`.trim() || meeting.contact.email : undefined}
+        companyName={meeting.company?.name}
+      />
     </div>
   )
 }

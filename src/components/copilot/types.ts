@@ -107,7 +107,11 @@ export type CopilotResponseType =
   | 'activity_planning'
   | 'company_intelligence'
   | 'workflow_process'
-  | 'search_discovery';
+  | 'search_discovery'
+  | 'contact_selection'
+  | 'activity_creation'
+  | 'task_creation'
+  | 'proposal_selection';
 
 export interface CopilotResponse {
   type: CopilotResponseType;
@@ -160,7 +164,11 @@ export type ResponseData =
   | ActivityPlanningResponseData
   | CompanyIntelligenceResponseData
   | WorkflowProcessResponseData
-  | SearchDiscoveryResponseData;
+  | SearchDiscoveryResponseData
+  | ContactSelectionResponseData
+  | ActivityCreationResponseData
+  | TaskCreationResponseData
+  | ProposalSelectionResponseData;
 
 // Pipeline Response
 export interface PipelineResponse extends CopilotResponse {
@@ -388,6 +396,8 @@ export interface TaskItem {
   dealName?: string;
   companyId?: string;
   companyName?: string;
+  meetingId?: string;
+  meetingName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1607,5 +1617,118 @@ export interface ResultCategory {
   type: string;
   count: number;
   results: SearchResult[];
+}
+
+// ============================================================================
+// Contact Selection Response
+// ============================================================================
+
+export interface ContactSelectionResponse extends CopilotResponse {
+  type: 'contact_selection';
+  data: ContactSelectionResponseData;
+}
+
+export interface ContactSelectionResponseData {
+  activityType: 'proposal' | 'meeting' | 'sale' | 'outbound' | 'task';
+  activityDate: string;
+  requiresContactSelection: boolean;
+  prefilledName: string;
+  prefilledEmail: string;
+  suggestedContacts?: ContactSuggestion[];
+  // Task-specific fields
+  taskTitle?: string;
+  taskType?: 'call' | 'email' | 'meeting' | 'follow_up' | 'demo' | 'proposal' | 'general';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+}
+
+export interface ContactSuggestion {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string;
+}
+
+// ============================================================================
+// Activity Creation Response
+// ============================================================================
+
+export interface ActivityCreationResponse extends CopilotResponse {
+  type: 'activity_creation';
+  data: ActivityCreationResponseData;
+}
+
+export interface ActivityCreationResponseData {
+  activityType: 'proposal' | 'meeting' | 'sale' | 'outbound';
+  activityDate: string;
+  contact: {
+    id: string;
+    name: string;
+    email?: string;
+    company?: string | null;
+    companyId?: string | null;
+  };
+  requiresContactSelection: boolean;
+}
+
+// ============================================================================
+// Task Creation Response
+// ============================================================================
+
+export interface TaskCreationResponse extends CopilotResponse {
+  type: 'task_creation';
+  data: TaskCreationResponseData;
+}
+
+export interface TaskCreationResponseData {
+  title: string;
+  description?: string;
+  dueDate: string | null;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  taskType: 'call' | 'email' | 'meeting' | 'follow_up' | 'demo' | 'proposal' | 'general';
+  contact: {
+    id: string;
+    name: string;
+    email?: string;
+    company?: string | null;
+    companyId?: string | null;
+  };
+  requiresContactSelection: boolean;
+  proposalId?: string | null;
+  dealId?: string | null;
+}
+
+// ============================================================================
+// Proposal Selection Response
+// ============================================================================
+
+export interface ProposalSelectionResponse extends CopilotResponse {
+  type: 'proposal_selection';
+  data: ProposalSelectionResponseData;
+}
+
+export interface ProposalSelectionResponseData {
+  contact: {
+    id: string;
+    name: string;
+    email?: string;
+    company?: string | null;
+    companyId?: string | null;
+  };
+  proposals: ProposalSuggestion[];
+  taskTitle: string;
+  taskType: 'call' | 'email' | 'meeting' | 'follow_up' | 'demo' | 'proposal' | 'general';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate: string | null;
+}
+
+export interface ProposalSuggestion {
+  id: string;
+  clientName: string;
+  details?: string;
+  amount?: number;
+  date: string;
+  dealId?: string | null;
+  dealName?: string | null;
+  dealValue?: number | null;
 }
 

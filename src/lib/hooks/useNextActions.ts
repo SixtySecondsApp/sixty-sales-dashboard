@@ -79,7 +79,14 @@ export function useNextActions(options: UseNextActionsOptions = {}): UseNextActi
     queryFn: () => nextActionsService.getSuggestions(finalFilters),
     enabled: !!user,
     refetchInterval,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes (increased from 30 seconds)
+    cacheTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    retry: 1, // Only retry once on failure
+    retryOnMount: false, // Don't retry if data exists in cache
+    onError: (error) => {
+      // Silently handle errors to prevent console spam
+      console.warn('Failed to fetch next actions:', error)
+    },
   })
 
   // Real-time subscription

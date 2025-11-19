@@ -3,9 +3,12 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 
 serve(async (req) => {
-  // Handle CORS preflight requests
+  // Handle CORS preflight requests - return proper status
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    })
   }
 
   try {

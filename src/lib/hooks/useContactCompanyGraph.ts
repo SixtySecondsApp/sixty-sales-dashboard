@@ -243,12 +243,13 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   // Check if user is admin - admins can view all contacts
   const isAdmin = userData ? isUserAdmin(userData) : false;
   
-  // Fetch contact with company - use maybeSingle() to handle case where contact doesn't exist
+  // Fetch contact with company and owner profile - use maybeSingle() to handle case where contact doesn't exist
   let query = supabase
     .from('contacts')
     .select(`
       *,
-      companies (*)
+      companies (*),
+      profiles:owner_id (id, first_name, last_name, email, avatar_url, stage)
     `)
     .eq('id', contactId);
   
@@ -278,6 +279,25 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   }
   
   const company = contact.companies;
+  
+  // If profile wasn't loaded via join, fetch it separately
+  // (This can happen if the foreign key points to auth.users instead of profiles)
+  let ownerProfile = contact.profiles;
+  if (!ownerProfile && contact.owner_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email, avatar_url, stage')
+      .eq('id', contact.owner_id)
+      .maybeSingle();
+    if (profile) {
+      ownerProfile = profile;
+    }
+  }
+  
+  // Attach owner profile to contact for use in components
+  if (ownerProfile) {
+    contact.profiles = ownerProfile;
+  }
   
   // Fetch all related data in parallel
   const [
