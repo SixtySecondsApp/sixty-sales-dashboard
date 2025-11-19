@@ -74,6 +74,7 @@ const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
 const MeetingDetail = lazy(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
 const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
 const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
@@ -324,6 +325,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />
+                <Route path="/freepik-flow" element={<AppLayout><div className="h-[calc(100vh-4rem)]"><FreepikFlow /></div></AppLayout>} />
                 <Route path="/test-fallback" element={<ProtectedRoute><TestFallback /></ProtectedRoute>} />
                 <Route path="/test-google-tasks" element={<AppLayout><TestGoogleTasks /></AppLayout>} />
               </Routes>

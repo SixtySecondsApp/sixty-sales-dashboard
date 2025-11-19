@@ -112,9 +112,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setHasMounted(true);
   }, []);
 
-  // Auto-collapse sidebar on email and calendar pages for more space
+  // Auto-collapse sidebar on specific pages for more space
   useEffect(() => {
-    const shouldCollapse = location.pathname === '/email' || location.pathname === '/calendar';
+    const collapsedPages = ['/email', '/calendar', '/workflows', '/freepik-flow'];
+    const shouldCollapse = collapsedPages.includes(location.pathname);
+    
     if (shouldCollapse) {
       setIsCollapsed(true);
     }

@@ -20,7 +20,7 @@ const AnimatedTestEdge: React.FC<AnimatedTestEdgeProps> = ({
   data,
   markerEnd,
 }) => {
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
@@ -31,55 +31,44 @@ const AnimatedTestEdge: React.FC<AnimatedTestEdgeProps> = ({
 
   const isActive = data?.isTestActive || false;
   const isFlowing = data?.isFlowing || false;
+  
+  // Style adaptation for "Modern Dark" theme
+  // Default: Zinc-600 (#52525b) - matches node borders
+  // Active: Yellow (#facc15)
+  const strokeColor = isActive ? '#facc15' : '#52525b';
 
   return (
     <>
-      {/* Background path for visibility */}
+      {/* Background path */}
       <path
         id={id}
         style={style}
-        className={`react-flow__edge-path ${isActive ? 'stroke-yellow-400' : ''}`}
+        className={`react-flow__edge-path transition-colors duration-300`}
         d={edgePath}
         markerEnd={markerEnd}
         strokeWidth={isActive ? 3 : 2}
-        stroke={isActive ? '#facc15' : '#37bd7e'}
+        stroke={strokeColor}
         fill="none"
-        strokeOpacity={isActive ? 1 : 0.6}
+        strokeOpacity={isActive ? 1 : 0.8}
       />
       
       {/* Animated flow indicator when test is running */}
       {isFlowing && (
         <>
-          {/* Gradient definition for the flow effect */}
-          <defs>
-            <linearGradient id={`flow-gradient-${id}`} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="transparent" />
-              <stop offset="50%" stopColor="#facc15" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="transparent" />
-            </linearGradient>
-          </defs>
-          
-          {/* Animated dots flowing along the path */}
-          <circle r="4" fill="#facc15">
-            <animateMotion dur="2s" repeatCount="indefinite">
+          <circle r="3" fill="#facc15">
+            <animateMotion dur="1.5s" repeatCount="indefinite">
               <mpath href={`#${id}`} />
             </animateMotion>
           </circle>
           
-          <circle r="4" fill="#facc15">
-            <animateMotion dur="2s" repeatCount="indefinite" begin="0.5s">
+          <circle r="3" fill="#facc15">
+            <animateMotion dur="1.5s" repeatCount="indefinite" begin="0.5s">
               <mpath href={`#${id}`} />
             </animateMotion>
           </circle>
           
-          <circle r="4" fill="#facc15">
-            <animateMotion dur="2s" repeatCount="indefinite" begin="1s">
-              <mpath href={`#${id}`} />
-            </animateMotion>
-          </circle>
-          
-          <circle r="4" fill="#facc15">
-            <animateMotion dur="2s" repeatCount="indefinite" begin="1.5s">
+          <circle r="3" fill="#facc15">
+            <animateMotion dur="1.5s" repeatCount="indefinite" begin="1s">
               <mpath href={`#${id}`} />
             </animateMotion>
           </circle>
@@ -91,9 +80,9 @@ const AnimatedTestEdge: React.FC<AnimatedTestEdgeProps> = ({
         <path
           style={{
             ...style,
-            strokeWidth: 3,
+            strokeWidth: 4,
             stroke: '#facc15',
-            strokeOpacity: 0.5,
+            strokeOpacity: 0.3,
           }}
           className="animate-pulse"
           d={edgePath}

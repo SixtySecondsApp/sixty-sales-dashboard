@@ -1,37 +1,54 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { GitBranch } from 'lucide-react';
-import { StatusIndicator } from '../../StatusIndicator';
-import { mapTestStatusToNodeStatus } from '../../utils';
+import { ModernNodeCard, HANDLE_STYLES } from '../ModernNodeCard';
 
 export const ConditionNode = ({ data, selected }: any) => {
-  const status = data.testStatus;
-  const nodeStatus = mapTestStatusToNodeStatus(status || 'idle');
-  const isActive = status === 'active';
   
+  const CustomHandles = (
+    <>
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={HANDLE_STYLES} 
+        id="true" 
+        style={{ top: '35%' }} 
+      />
+      <div className="absolute right-[-24px] top-[35%] -translate-y-1/2 text-[10px] font-bold text-green-500 pointer-events-none">
+        YES
+      </div>
+      
+      <Handle 
+        type="source" 
+        position={Position.Right} 
+        className={HANDLE_STYLES} 
+        id="false" 
+        style={{ top: '65%' }} 
+      />
+      <div className="absolute right-[-20px] top-[65%] -translate-y-1/2 text-[10px] font-bold text-red-500 pointer-events-none">
+        NO
+      </div>
+    </>
+  );
+
   return (
-    <div className={`bg-blue-600 rounded-lg p-3 min-w-[132px] border-2 shadow-lg relative transition-all duration-300 ${
-      isActive ? 'border-yellow-400 shadow-yellow-400/50 shadow-xl scale-105' : 'border-blue-500'
-    } ${selected ? 'ring-2 ring-blue-300' : ''}`}>
-      {nodeStatus !== 'idle' && (
-        <StatusIndicator 
-          status={nodeStatus}
-          variant="badge"
-          position="top-right"
-          size="sm"
-        />
-      )}
-      <Handle type="target" position={Position.Left} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="true" style={{top: '35%'}} />
-      <Handle type="source" position={Position.Right} className="w-2.5 h-2.5 bg-white border-2 border-blue-500" id="false" style={{top: '65%'}} />
-      <div className="flex items-center gap-1.5 text-white">
-        <GitBranch className="w-6 h-6" />
-        <div>
-          <div className="text-sm font-semibold">{data.label}</div>
-          <div className="text-xs opacity-80">{data.condition || 'If condition met'}</div>
+    <ModernNodeCard
+      selected={selected}
+      icon={GitBranch}
+      title={data.label}
+      subtitle="Condition"
+      color="text-blue-400"
+      status={data.testStatus}
+      handleLeft={true}
+      handleRight={false} // We provide custom handles
+      handles={CustomHandles}
+      className="min-w-[220px]" // Slightly wider for the labels
+    >
+      <div className="p-3 bg-zinc-900/50">
+        <div className="text-xs text-zinc-300 font-mono bg-black/20 p-1.5 rounded border border-zinc-800/50">
+          {data.condition || 'If condition met'}
         </div>
       </div>
-    </div>
+    </ModernNodeCard>
   );
 };
-

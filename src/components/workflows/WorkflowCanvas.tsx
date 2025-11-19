@@ -1913,10 +1913,11 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           className="bg-gray-950 h-full"
           style={{ height: '100%' }}
         >
-          <Background color="#374151" gap={20} />
-          <Controls className="bg-gray-800 border-gray-700" />
+          <Background color="#333" gap={20} size={1} />
+          <Controls className="bg-[#1e1e1e] border border-zinc-800 fill-zinc-400" />
           <MiniMap 
-            className="bg-gray-800 border-gray-700"
+            className="bg-[#1e1e1e] border border-zinc-800"
+            maskColor="rgba(0, 0, 0, 0.6)"
             nodeColor={(node) => {
               if (node.type === 'trigger') return '#9333ea';
               if (node.type === 'condition') return '#2563eb';
