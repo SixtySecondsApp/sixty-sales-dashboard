@@ -79,9 +79,6 @@ export const ExpandedNodeEditor: React.FC<ExpandedNodeEditorProps> = ({
     return null;
   }
 
-  // Use a default position if nodePosition is not provided
-  const safeNodePosition = nodePosition || { x: 0, y: 0 };
-
   // Calculate target position (3/4 of screen, centered)
   const targetWidth = window.innerWidth * 0.75;
   const targetHeight = window.innerHeight * 0.75;
