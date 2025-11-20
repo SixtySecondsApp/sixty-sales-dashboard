@@ -33,3 +33,4 @@ COMMENT ON FUNCTION trigger_suggest_next_actions_for_activity IS
   'Trigger function to auto-generate suggestions for important activities (email, proposal, call, demo). Uses details field, not notes.';
 
 
+

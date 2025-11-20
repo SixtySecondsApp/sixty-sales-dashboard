@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { LeadWithPrep } from '@/lib/services/leadService';
-import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink, Activity } from 'lucide-react';
+import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink, Activity, Calendar } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,14 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
     );
   }
 
-  const meetingStart = lead.meeting_start ? format(new Date(lead.meeting_start), 'PP, p') : 'TBD';
+  const bookedOn = lead.first_seen_at || lead.external_occured_at || lead.created_at;
+  const meetingStart = lead.meeting_start;
+  const bookedDisplay = bookedOn
+    ? `${format(new Date(bookedOn), 'PP, p')} (${formatDistanceToNow(new Date(bookedOn), { addSuffix: true })})`
+    : 'Unknown';
+  const meetingDisplay = meetingStart
+    ? `${format(new Date(meetingStart), 'PP, p')} (${formatDistanceToNow(new Date(meetingStart), { addSuffix: true })})`
+    : 'TBD';
 
   const handleQuickAdd = async (type: 'meeting' | 'outbound' | 'proposal' | 'sale') => {
     const clientName = lead.contact_name || lead.contact_email || 'Prospect';
@@ -145,8 +152,8 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
         </div>
 
         <section className="grid grid-cols-1 gap-2 sm:gap-3 sm:grid-cols-2">
-          <InfoTile icon={User} label="Contact" value={lead.contact_email ?? 'N/A'} />
-          <InfoTile icon={Timer} label="Meeting" value={meetingStart} />
+          <InfoTile icon={Calendar} label="Booked On" value={bookedDisplay} />
+          <InfoTile icon={Timer} label="Call Date" value={meetingDisplay} />
           <InfoTile icon={Globe} label="Domain" value={lead.domain || 'Unknown'} />
           <InfoTile icon={Mail} label="Scheduler" value={lead.scheduler_email ?? 'N/A'} />
         </section>

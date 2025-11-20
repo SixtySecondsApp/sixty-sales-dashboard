@@ -10,6 +10,163 @@ const JSON_HEADERS = {
   "Content-Type": "application/json",
 };
 
+function buildLeadMetadata(booking: SavvyCalBooking) {
+  const metadata: Record<string, unknown> = {
+    import_source: "savvycal_csv",
+    csv_imported_at: new Date().toISOString(),
+    csv_link_id: booking.link_id,
+    csv_poll_id: booking.poll_id,
+    location: booking.location,
+    scheduler_display_name: booking.scheduler_display_name,
+    organizer_display_name: booking.organizer_display_name,
+  };
+
+  if (booking.question_1) {
+    metadata.question_1 = {
+      question: booking.question_1,
+      answer: booking.answer_1,
+    };
+  }
+
+  if (booking.question_2) {
+    metadata.question_2 = {
+      question: booking.question_2,
+      answer: booking.answer_2,
+    };
+  }
+
+  return metadata;
+}
+
+function calculateDurationMinutes(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null;
+  const diffMs = endDate.getTime() - startDate.getTime();
+  return diffMs > 0 ? Math.round(diffMs / 60000) : null;
+}
+
+async function upsertLeadFromBooking(
+  supabase: any,
+  booking: SavvyCalBooking,
+  contactId: string | null,
+  companyId: string | null,
+  userId: string,
+  sourceMapping: { source: string; sourceId: string | null },
+  domain: string | null,
+  effectiveOrgId: string | null
+): Promise<{ leadId: string | null; created: boolean }> {
+  const contactEmail = booking.scheduler_email?.toLowerCase() || booking.organizer_email?.toLowerCase() || null;
+
+  const nameParts = booking.scheduler_display_name?.split(" ") || [];
+  const firstName = nameParts[0] || null;
+  const lastName = nameParts.slice(1).join(" ") || null;
+
+  const { data: existingLead } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("external_source", "savvycal")
+    .eq("external_id", booking.id)
+    .maybeSingle();
+
+  const createdAt = booking.start_at ?? booking.created_at ?? new Date().toISOString();
+  const firstSeenAt = booking.created_at ?? booking.start_at ?? createdAt;
+
+  const basePayload: Record<string, unknown> = {
+    external_source: "savvycal",
+    external_id: booking.id,
+    external_occured_at: booking.start_at ?? booking.created_at ?? new Date().toISOString(),
+    booking_link_id: booking.link_id,
+    status: "new",
+    priority: "normal",
+    enrichment_status: "pending",
+    prep_status: "pending",
+    owner_id: userId,
+    created_by: userId,
+    company_id: companyId,
+    contact_id: contactId,
+    contact_name: booking.scheduler_display_name || booking.organizer_display_name || null,
+    contact_first_name: firstName,
+    contact_last_name: lastName || booking.organizer_display_name || null,
+    contact_email: contactEmail,
+    contact_phone: booking.scheduler_phone_number,
+    scheduler_email: booking.scheduler_email || booking.organizer_email || null,
+    scheduler_name: booking.scheduler_display_name || booking.organizer_display_name || null,
+    domain,
+    meeting_title: booking.summary,
+    meeting_description: booking.description,
+    meeting_start: booking.start_at,
+    meeting_end: booking.end_at,
+    meeting_duration_minutes: calculateDurationMinutes(booking.start_at, booking.end_at),
+    meeting_url: booking.url,
+    utm_source: booking.utm_source,
+    utm_medium: booking.utm_medium,
+    utm_campaign: booking.utm_campaign,
+    utm_term: booking.utm_term,
+    utm_content: booking.utm_content,
+    metadata: buildLeadMetadata(booking),
+    tags: [sourceMapping.source || "Unknown", "SavvyCal CSV Import"].filter(Boolean),
+    updated_at: new Date().toISOString(),
+    external_attendee_emails: booking.scheduler_email ? [booking.scheduler_email.toLowerCase()] : [],
+    booking_link_slug: null,
+    booking_link_name: null,
+    booking_scope_slug: booking.poll_id,
+    meeting_timezone: null,
+    conferencing_type: null,
+    conferencing_url: booking.url,
+    source_id: sourceMapping.sourceId,
+    source_channel: sourceMapping.source || null,
+    source_campaign: booking.utm_campaign,
+    source_medium: booking.utm_medium,
+  };
+
+  const insertPayload: Record<string, unknown> = {
+    ...basePayload,
+    created_at: createdAt,
+    first_seen_at: firstSeenAt,
+  };
+
+  if (effectiveOrgId) {
+    insertPayload.org_id = effectiveOrgId;
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    ...basePayload,
+  };
+
+  if (effectiveOrgId) {
+    updatePayload.org_id = effectiveOrgId;
+  }
+
+  if (existingLead) {
+    const { data: updatedLead, error: updateLeadError } = await supabase
+      .from("leads")
+      .update(updatePayload)
+      .eq("id", existingLead.id)
+      .select("id")
+      .single();
+
+    if (updateLeadError) {
+      throw updateLeadError;
+    }
+
+    return { leadId: updatedLead?.id ?? existingLead.id, created: false };
+  }
+
+  const { data: newLead, error: insertLeadError } = await supabase
+    .from("leads")
+    .insert(insertPayload)
+    .select("id")
+    .single();
+
+  if (insertLeadError) {
+    throw insertLeadError;
+  }
+
+  return { leadId: newLead?.id ?? null, created: true };
+}
+
 interface SavvyCalBooking {
   id: string;
   link_id: string;
@@ -54,6 +211,8 @@ interface ImportResult {
     companiesCreated: number;
     dealsCreated: number;
     activitiesCreated: number;
+    leadsCreated: number;
+    leadsUpdated: number;
   };
 }
 
@@ -107,18 +266,24 @@ function parseCSV(csvText: string): SavvyCalBooking[] {
 async function getSourceMapping(
   supabase: any,
   linkId: string,
-  orgId: string
+  orgId: string | null
 ): Promise<{ source: string; sourceId: string | null }> {
-  const { data } = await supabase
+  let query = supabase
     .from('savvycal_source_mappings')
     .select('source, source_id')
-    .eq('link_id', linkId)
-    .eq('org_id', orgId)
-    .single();
+    .eq('link_id', linkId);
+  
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+  
+  const { data: mappings } = await query.limit(1);
+
+  const mapping = mappings && mappings.length > 0 ? mappings[0] : null;
 
   return {
-    source: data?.source || 'Unknown',
-    sourceId: data?.source_id || null,
+    source: mapping?.source || 'Unknown',
+    sourceId: mapping?.source_id || null,
   };
 }
 
@@ -128,18 +293,24 @@ async function findOrCreateContact(
   firstName: string | null,
   lastName: string | null,
   phone: string | null,
-  orgId: string,
+  orgId: string | null,
   userId: string
 ): Promise<string | null> {
   if (!email) return null;
 
   // Try to find existing contact
-  const { data: existing } = await supabase
+  let query = supabase
     .from('contacts')
-    .select('id')
-    .eq('email', email.toLowerCase().trim())
-    .eq('org_id', orgId)
-    .single();
+    .select('id, phone')
+    .eq('email', email.toLowerCase().trim());
+  
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+  
+  const { data: existingContacts } = await query.limit(1);
+
+  const existing = existingContacts && existingContacts.length > 0 ? existingContacts[0] : null;
 
   if (existing) {
     // Update phone if provided and missing
@@ -153,16 +324,21 @@ async function findOrCreateContact(
   }
 
   // Create new contact
+  const contactData: any = {
+    email: email.toLowerCase().trim(),
+    first_name: firstName || null,
+    last_name: lastName || null,
+    phone: phone || null,
+    owner_id: userId,
+  };
+  
+  if (orgId) {
+    contactData.org_id = orgId;
+  }
+  
   const { data: newContact, error } = await supabase
     .from('contacts')
-    .insert({
-      email: email.toLowerCase().trim(),
-      first_name: firstName || null,
-      last_name: lastName || null,
-      phone: phone || null,
-      owner_id: userId,
-      org_id: orgId,
-    })
+    .insert(contactData)
     .select('id')
     .single();
 
@@ -177,7 +353,7 @@ async function findOrCreateCompany(
   supabase: any,
   domain: string | null,
   companyName: string | null,
-  orgId: string,
+  orgId: string | null,
   userId: string
 ): Promise<string | null> {
   // Extract domain from email if not provided
@@ -190,42 +366,55 @@ async function findOrCreateCompany(
 
   // Try to find by domain first
   if (domain) {
-    const { data: existing } = await supabase
+    let query = supabase
       .from('companies')
       .select('id')
-      .eq('domain', domain.toLowerCase())
-      .eq('org_id', orgId)
-      .single();
+      .eq('domain', domain.toLowerCase());
+    
+    if (orgId) {
+      query = query.eq('org_id', orgId);
+    }
+    
+    const { data: existingCompanies } = await query.limit(1);
 
-    if (existing) {
-      companyId = existing.id;
+    if (existingCompanies && existingCompanies.length > 0) {
+      companyId = existingCompanies[0].id;
     }
   }
 
   // Try to find by name if domain search failed
   if (!companyId && companyName) {
-    const { data: existing } = await supabase
+    let query = supabase
       .from('companies')
       .select('id')
-      .eq('name', companyName.trim())
-      .eq('org_id', orgId)
-      .single();
+      .eq('name', companyName.trim());
+    
+    if (orgId) {
+      query = query.eq('org_id', orgId);
+    }
+    
+    const { data: existingCompanies } = await query.limit(1);
 
-    if (existing) {
-      companyId = existing.id;
+    if (existingCompanies && existingCompanies.length > 0) {
+      companyId = existingCompanies[0].id;
     }
   }
 
   // Create new company if not found
   if (!companyId && companyName) {
+    const companyData: any = {
+      name: companyName.trim(),
+      domain: domain ? domain.toLowerCase() : null,
+      owner_id: userId,
+    };
+    
+    if (orgId) {
+      companyData.org_id = orgId;
+    }
+    
     const { data: newCompany, error } = await supabase
       .from('companies')
-      .insert({
-        name: companyName.trim(),
-        domain: domain ? domain.toLowerCase() : null,
-        owner_id: userId,
-        org_id: orgId,
-      })
+      .insert(companyData)
       .select('id')
       .single();
 
@@ -270,12 +459,15 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
     const { csvText, userId, orgId, testMode = false } = await req.json();
 
-    if (!csvText || !userId || !orgId) {
+    if (!csvText || !userId) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: csvText, userId, orgId" }),
+        JSON.stringify({ error: "Missing required fields: csvText, userId" }),
         { status: 400, headers: JSON_HEADERS }
       );
     }
+
+    // orgId is optional - if not provided, we'll use null (for single-tenant mode)
+    const effectiveOrgId = orgId || null;
 
     // Parse CSV
     const bookings = parseCSV(csvText);
@@ -306,6 +498,8 @@ serve(async (req) => {
         companiesCreated: 0,
         dealsCreated: 0,
         activitiesCreated: 0,
+        leadsCreated: 0,
+        leadsUpdated: 0,
       },
     };
 
@@ -327,7 +521,7 @@ serve(async (req) => {
         linkIdSet.add(booking.link_id);
 
         // Get source mapping
-        const sourceMapping = await getSourceMapping(supabase, booking.link_id, orgId);
+        const sourceMapping = await getSourceMapping(supabase, booking.link_id, effectiveOrgId);
         if (sourceMapping.source === 'Unknown') {
           unmappedLinkIds.add(booking.link_id);
         }
@@ -346,7 +540,7 @@ serve(async (req) => {
           supabase,
           domain,
           null, // We don't have company name in CSV
-          orgId,
+          effectiveOrgId,
           userId
         );
         if (companyId && result.report) {
@@ -373,7 +567,7 @@ serve(async (req) => {
           firstName,
           lastName,
           booking.scheduler_phone_number,
-          orgId,
+          effectiveOrgId,
           userId
         );
         if (contactId && result.report) {
@@ -399,26 +593,66 @@ serve(async (req) => {
 
         // Find or create deal
         let dealId: string | null = null;
+        let isDuplicate = false;
         
-        // Check for existing deal by contact email
-        const { data: existingDeal } = await supabase
+        // First, check for existing deal by savvycal_booking_id (most reliable duplicate check)
+        let dealQuery = supabase
           .from('deals')
           .select('id')
-          .eq('contact_email', booking.scheduler_email.toLowerCase())
-          .eq('org_id', orgId)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+          .eq('savvycal_booking_id', booking.id);
+        
+        if (effectiveOrgId) {
+          dealQuery = dealQuery.eq('org_id', effectiveOrgId);
+        }
+        
+        const { data: existingDealByBookingId } = await dealQuery.limit(1);
 
-        if (existingDeal) {
-          dealId = existingDeal.id;
-          result.updated++;
+        if (existingDealByBookingId && existingDealByBookingId.length > 0) {
+          // This booking has already been imported - skip creating duplicate deal
+          dealId = existingDealByBookingId[0].id;
+          isDuplicate = true;
+          
+          // Check if activity already exists for this booking
+          let activityQuery = supabase
+            .from('activities')
+            .select('id')
+            .eq('savvycal_booking_id', booking.id);
+          
+          if (effectiveOrgId) {
+            activityQuery = activityQuery.eq('org_id', effectiveOrgId);
+          }
+          
+          const { data: existingActivity } = await activityQuery.limit(1);
+          
+          if (existingActivity && existingActivity.length > 0) {
+            // Both deal and activity exist - fully duplicate, skip entirely
+            result.skipped++;
+            continue;
+          }
+          // Deal exists but activity doesn't - we'll create the missing activity below
         } else {
-          // Create new deal in SQL stage
-          const { data: newDeal, error: dealError } = await supabase
+          // No deal found by booking ID, check for existing deal by contact email
+          let existingDealQuery = supabase
             .from('deals')
-            .insert({
+            .select('id')
+            .eq('contact_email', booking.scheduler_email.toLowerCase())
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+          
+          if (effectiveOrgId) {
+            existingDealQuery = existingDealQuery.eq('org_id', effectiveOrgId);
+          }
+          
+          const { data: existingDeals, error: dealLookupError } = await existingDealQuery.limit(1);
+
+          if (dealLookupError) {
+            result.errors.push(`Failed to lookup deal for ${booking.scheduler_email}: ${dealLookupError.message}`);
+          } else if (existingDeals && existingDeals.length > 0) {
+            dealId = existingDeals[0].id;
+            result.updated++;
+          } else {
+            // Create new deal in SQL stage
+            const dealData: any = {
               name: `${booking.scheduler_display_name} - Meeting`,
               company: domain || 'Unknown',
               contact_email: booking.scheduler_email.toLowerCase(),
@@ -426,42 +660,67 @@ serve(async (req) => {
               value: 0,
               stage_id: sqlStageId,
               owner_id: userId,
-              org_id: orgId,
               status: 'active',
               primary_contact_id: contactId,
               company_id: companyId,
               savvycal_booking_id: booking.id,
               savvycal_link_id: booking.link_id,
               // Note: source_id is stored in savvycal_source_mappings, not directly on deals
-            })
-            .select('id')
-            .single();
+            };
+            
+            if (effectiveOrgId) {
+              dealData.org_id = effectiveOrgId;
+            }
+            
+            const { data: newDeal, error: dealError } = await supabase
+              .from('deals')
+              .insert(dealData)
+              .select('id')
+              .single();
 
-          if (dealError) {
-            result.errors.push(`Failed to create deal for ${booking.scheduler_email}: ${dealError.message}`);
-          } else {
-            dealId = newDeal.id;
-            result.created++;
-            if (result.report) result.report.dealsCreated++;
+            if (dealError) {
+              result.errors.push(`Failed to create deal for ${booking.scheduler_email}: ${dealError.message}`);
+            } else {
+              dealId = newDeal.id;
+              result.created++;
+              if (result.report) result.report.dealsCreated++;
+            }
           }
         }
 
-        // Create activity for the meeting
+        // Create activity for the meeting (check for duplicates first)
         if (dealId) {
-          const activityNotes = [
-            `Meeting: ${booking.summary}`,
-            booking.description ? `Description: ${booking.description}` : null,
-            booking.location ? `Location: ${booking.location}` : null,
-            booking.question_1 && booking.answer_1 ? `Q: ${booking.question_1}\nA: ${booking.answer_1}` : null,
-            booking.question_2 && booking.answer_2 ? `Q: ${booking.question_2}\nA: ${booking.answer_2}` : null,
-            booking.utm_source ? `UTM Source: ${booking.utm_source}` : null,
-            booking.utm_campaign ? `UTM Campaign: ${booking.utm_campaign}` : null,
-            `Source: ${sourceMapping.source}`,
-          ].filter(Boolean).join('\n\n');
-
-          const { error: activityError } = await supabase
+          // Always check if activity already exists for this booking ID
+          let activityCheckQuery = supabase
             .from('activities')
-            .insert({
+            .select('id')
+            .eq('savvycal_booking_id', booking.id);
+          
+          if (effectiveOrgId) {
+            activityCheckQuery = activityCheckQuery.eq('org_id', effectiveOrgId);
+          }
+          
+          const { data: existingActivity } = await activityCheckQuery.limit(1);
+
+          if (existingActivity && existingActivity.length > 0) {
+            // Activity already exists, skip creating duplicate
+            if (!isDuplicate) {
+              result.skipped++;
+            }
+          } else {
+            // Create new activity (either new booking or missing activity for existing deal)
+            const activityNotes = [
+              `Meeting: ${booking.summary}`,
+              booking.description ? `Description: ${booking.description}` : null,
+              booking.location ? `Location: ${booking.location}` : null,
+              booking.question_1 && booking.answer_1 ? `Q: ${booking.question_1}\nA: ${booking.answer_1}` : null,
+              booking.question_2 && booking.answer_2 ? `Q: ${booking.question_2}\nA: ${booking.answer_2}` : null,
+              booking.utm_source ? `UTM Source: ${booking.utm_source}` : null,
+              booking.utm_campaign ? `UTM Campaign: ${booking.utm_campaign}` : null,
+              `Source: ${sourceMapping.source}`,
+            ].filter(Boolean).join('\n\n');
+
+            const activityData: any = {
               type: 'meeting',
               client_name: booking.scheduler_display_name,
               contact_identifier: booking.scheduler_email.toLowerCase(),
@@ -469,18 +728,46 @@ serve(async (req) => {
               date: booking.start_at,
               details: activityNotes,
               user_id: userId,
-              org_id: orgId,
               deal_id: dealId,
               contact_id: contactId,
               company_id: companyId,
               savvycal_booking_id: booking.id,
               savvycal_link_id: booking.link_id,
-            });
+            };
+            
+            if (effectiveOrgId) {
+              activityData.org_id = effectiveOrgId;
+            }
+            
+            const { error: activityError } = await supabase
+              .from('activities')
+              .insert(activityData);
 
-          if (activityError) {
-            result.errors.push(`Failed to create activity for ${booking.scheduler_email}: ${activityError.message}`);
+            if (activityError) {
+              result.errors.push(`Failed to create activity for ${booking.scheduler_email}: ${activityError.message}`);
+            } else {
+              if (result.report) result.report.activitiesCreated++;
+            }
+          }
+        }
+
+        // Create or update lead record
+        const { leadId, created: leadCreated } = await upsertLeadFromBooking(
+          supabase,
+          booking,
+          contactId,
+          companyId,
+          userId,
+          sourceMapping,
+          domain,
+          effectiveOrgId
+        );
+
+        if (leadId && result.report) {
+          if (leadCreated) {
+            result.report.leadsCreated++;
           } else {
-            if (result.report) result.report.activitiesCreated++;
+            result.report.leadsUpdated++;
           }
         }
 
@@ -489,6 +776,21 @@ serve(async (req) => {
         result.errors.push(`Error processing ${booking.id}: ${error.message}`);
         result.skipped++;
       }
+    }
+
+    // Trigger lead prep if we created new leads
+    if ((result.report?.leadsCreated || 0) > 0) {
+      const prepUrl = `${SUPABASE_URL}/functions/v1/process-lead-prep`;
+      fetch(prepUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({}),
+      }).catch(() => {
+        // Non-blocking
+      });
     }
 
     // Update report

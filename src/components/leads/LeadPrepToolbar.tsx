@@ -1,3 +1,4 @@
+import React from 'react';
 import { RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -10,13 +11,23 @@ interface LeadPrepToolbarProps {
 }
 
 export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload, isUploading }: LeadPrepToolbarProps) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && onUpload) {
+    if (file && onUpload && !isProcessing && !isUploading) {
       onUpload(file);
     }
     // Reset input
-    e.target.value = '';
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleUploadClick = () => {
+    if (!isProcessing && !isUploading && fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   return (
@@ -30,8 +41,9 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload,
 
       <div className="flex items-center gap-2">
         {onUpload && (
-          <label htmlFor="savvycal-csv-upload" className="cursor-pointer">
+          <>
             <button
+              onClick={handleUploadClick}
               disabled={isProcessing || isUploading}
               className={cn(
                 'inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60',
@@ -41,16 +53,17 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload,
               <Upload className="h-4 w-4" />
               {isUploading ? 'Uploading…' : 'Import SavvyCal CSV'}
             </button>
-          </label>
+            <input
+              ref={fileInputRef}
+              id="savvycal-csv-upload"
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="hidden"
+              disabled={isProcessing || isUploading}
+            />
+          </>
         )}
-        <input
-          id="savvycal-csv-upload"
-          type="file"
-          accept=".csv"
-          onChange={handleFileChange}
-          className="hidden"
-          disabled={isProcessing || isUploading}
-        />
         <button
           onClick={onRefresh}
           disabled={isProcessing || isUploading}

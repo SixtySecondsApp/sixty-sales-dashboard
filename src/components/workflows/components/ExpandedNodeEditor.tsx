@@ -79,6 +79,13 @@ export const ExpandedNodeEditor: React.FC<ExpandedNodeEditorProps> = ({
     return null;
   }
 
+  // Create handleUpdate that uses the current node.id
+  const handleUpdate = useCallback((field: string, value: any) => {
+    if (node?.id) {
+      onUpdateNode(node.id, { [field]: value });
+    }
+  }, [node?.id, onUpdateNode]);
+
   // Calculate target position (3/4 of screen, centered)
   const targetWidth = window.innerWidth * 0.75;
   const targetHeight = window.innerHeight * 0.75;
@@ -122,9 +129,6 @@ export const ExpandedNodeEditor: React.FC<ExpandedNodeEditorProps> = ({
     }
   }, [safeNodePosition, reactFlowInstance, getScreenPosition]);
 
-  const handleUpdate = (field: string, value: any) => {
-    onUpdateNode(node.id, { [field]: value });
-  };
 
   return (
     <AnimatePresence>
@@ -248,12 +252,18 @@ const renderNodeSpecificContent = (node: Node, handleUpdate: (field: string, val
       return renderTriggerContent(node, handleUpdate);
     case 'action':
       return renderActionContent(node, handleUpdate);
+    case 'imageInput':
+      return renderImageInputContent(node, handleUpdate);
     case 'freepikImageGen':
       return renderFreepikImageGenContent(node, handleUpdate);
     case 'freepikUpscale':
       return renderFreepikUpscaleContent(node, handleUpdate);
     case 'freepikVideoGen':
       return renderFreepikVideoGenContent(node, handleUpdate);
+    case 'freepikLipSync':
+      return renderFreepikLipSyncContent(node, handleUpdate);
+    case 'freepikMusic':
+      return renderFreepikMusicContent(node, handleUpdate);
     case 'aiAgent':
       return renderAIAgentContent(node, handleUpdate);
     case 'customGPT':
@@ -396,6 +406,40 @@ const renderActionContent = (node: Node, handleUpdate: (field: string, value: an
 };
 
 // Render Freepik Image Gen content
+const renderImageInputContent = (node: Node, handleUpdate: (field: string, value: any) => void) => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Label
+        </label>
+        <input
+          type="text"
+          value={node.data.label || 'Input Image'}
+          onChange={(e) => handleUpdate('label', e.target.value)}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Input Image"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Image URL
+        </label>
+        <input
+          type="url"
+          value={node.data.src || ''}
+          onChange={(e) => handleUpdate('src', e.target.value)}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="https://example.com/image.jpg"
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Enter an image URL or upload an image directly in the node
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const renderFreepikImageGenContent = (node: Node, handleUpdate: (field: string, value: any) => void) => {
   return (
     <div className="space-y-4">
@@ -512,6 +556,90 @@ const renderFreepikVideoGenContent = (node: Node, handleUpdate: (field: string, 
           <option value="5">5 seconds</option>
           <option value="10">10 seconds</option>
         </select>
+      </div>
+    </div>
+  );
+};
+
+// Render Freepik Lip Sync content
+const renderFreepikLipSyncContent = (node: Node, handleUpdate: (field: string, value: any) => void) => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Input Video URL (Optional override)
+        </label>
+        <input
+          type="text"
+          value={node.data.input_video || ''}
+          onChange={(e) => handleUpdate('input_video', e.target.value)}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Override video input..."
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Normally provided by connection, but can be overridden here.
+        </p>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Input Audio URL (Optional override)
+        </label>
+        <input
+          type="text"
+          value={node.data.input_audio || ''}
+          onChange={(e) => handleUpdate('input_audio', e.target.value)}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Override audio input..."
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Normally provided by connection, but can be overridden here.
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// Render Freepik Music content
+const renderFreepikMusicContent = (node: Node, handleUpdate: (field: string, value: any) => void) => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Music Prompt
+        </label>
+        <textarea
+          value={node.data.prompt || ''}
+          onChange={(e) => handleUpdate('prompt', e.target.value)}
+          className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none h-32 font-mono"
+          placeholder="Describe the music you want..."
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Style
+        </label>
+        <select
+          value={node.data.style || 'cinematic'}
+          onChange={(e) => handleUpdate('style', e.target.value)}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {['ambient', 'electronic', 'cinematic', 'corporate', 'energetic', 'calm', 'upbeat', 'dramatic', 'background', 'custom'].map(style => (
+            <option key={style} value={style}>{style}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Duration (seconds)
+        </label>
+        <input
+          type="number"
+          value={node.data.duration || 30}
+          onChange={(e) => handleUpdate('duration', parseInt(e.target.value))}
+          min={5}
+          max={120}
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
     </div>
   );

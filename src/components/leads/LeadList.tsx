@@ -101,18 +101,21 @@ export function LeadList({
       });
     }
     
+    const getBookedDate = (lead: LeadWithPrep) =>
+      lead.first_seen_at || lead.external_occured_at || lead.created_at || lead.meeting_start || null;
+
     if (filterType === 'booked_date') {
       return filtered.sort((a, b) => {
-        const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const aDate = getBookedDate(a) ? new Date(getBookedDate(a) as string).getTime() : 0;
+        const bDate = getBookedDate(b) ? new Date(getBookedDate(b) as string).getTime() : 0;
         return bDate - aDate; // Most recent first
       });
     }
     
-    // Default: sort by created_at (booked date)
+    // Default: sort by booked date (first_seen/external)
     return filtered.sort((a, b) => {
-      const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const aDate = getBookedDate(a) ? new Date(getBookedDate(a) as string).getTime() : 0;
+      const bDate = getBookedDate(b) ? new Date(getBookedDate(b) as string).getTime() : 0;
       return bDate - aDate;
     });
   }, [leads, filterType, searchQuery]);
@@ -479,8 +482,15 @@ function LeadListItem({
   }, [companyName, lead.contact_name, lead.contact_email, domainForLogo]);
 
   // Format dates
-  const bookedDate = lead.created_at || lead.external_occured_at;
+  const bookedDate = lead.first_seen_at || lead.external_occured_at || lead.created_at;
   const meetingDate = lead.meeting_start;
+  const bookedDateFormatted = bookedDate ? format(new Date(bookedDate), 'MMM d, yyyy • h:mm a') : null;
+  const meetingDateFormatted = meetingDate ? format(new Date(meetingDate), 'MMM d, yyyy • h:mm a') : null;
+  const meetingStatus = meetingDate
+    ? new Date(meetingDate).getTime() < Date.now()
+      ? `Completed ${formatDistanceToNow(new Date(meetingDate), { addSuffix: true })}`
+      : `In ${formatDistanceToNow(new Date(meetingDate))}`
+    : null;
 
   // Consolidated status badge
   const prepStatus = lead.prep_status?.toLowerCase() || 'pending';
@@ -605,13 +615,21 @@ function LeadListItem({
             {bookedDate && (
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                <span>Booked {formatDistanceToNow(new Date(bookedDate), { addSuffix: true })}</span>
+                <span>
+                  Booked on {bookedDateFormatted}{' '}
+                  <span className="text-gray-400">
+                    ({formatDistanceToNow(new Date(bookedDate), { addSuffix: true })})
+                  </span>
+                </span>
               </div>
             )}
             {meetingDate && (
               <div className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                <span>Meeting {format(new Date(meetingDate), 'MMM d, h:mm a')}</span>
+                <span>
+                  Call {meetingDateFormatted}{' '}
+                  {meetingStatus && <span className="text-gray-400">({meetingStatus})</span>}
+                </span>
               </div>
             )}
           </div>

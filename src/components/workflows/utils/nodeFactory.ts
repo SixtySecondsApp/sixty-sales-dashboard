@@ -101,6 +101,15 @@ export function initializeNodeData(
     };
   }
 
+  // Initialize Image Input node
+  if (type === 'imageInput') {
+    enhancedData = {
+      ...nodeData,
+      label: nodeData.label || 'Input Image',
+      src: nodeData.src || null
+    };
+  }
+
   // Initialize Freepik Mystic node
   if (type === 'freepikImageGen') {
     enhancedData = {

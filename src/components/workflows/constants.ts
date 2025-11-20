@@ -26,9 +26,13 @@ export const WORKFLOW_AI_NODES = [
   { type: 'ai_agent', label: 'AI Agent', description: 'Process with AI model', iconName: 'Sparkles', nodeType: 'aiAgent' },
   { type: 'custom_gpt', label: 'Custom GPT', description: 'Use OpenAI Assistant', iconName: 'Bot', nodeType: 'customGPT' },
   { type: 'assistant_manager', label: 'Assistant Manager', description: 'Create/Update Assistant', iconName: 'Settings', nodeType: 'assistantManager' },
-  { type: 'freepik_image_gen', label: 'Mystic Generator', description: 'Text to Image (Freepik)', iconName: 'Sparkles', nodeType: 'freepikImageGen' },
+  { type: 'prospect_research', label: 'Prospect Research', description: 'AI-powered prospect research', iconName: 'Search', nodeType: 'prospectResearch' },
+  { type: 'image_input', label: 'Image Input', description: 'Input image source', iconName: 'Image', nodeType: 'imageInput' },
+  { type: 'freepik_image_gen', label: 'Image Generator', description: 'AI Image Creation (Multiple Models)', iconName: 'Sparkles', nodeType: 'freepikImageGen' },
   { type: 'freepik_upscale', label: 'Upscaler', description: 'Image Upscaling (Magnific)', iconName: 'Maximize', nodeType: 'freepikUpscale' },
-  { type: 'freepik_video_gen', label: 'Motion Generator', description: 'Image to Video (Kling)', iconName: 'Video', nodeType: 'freepikVideoGen' }
+  { type: 'freepik_video_gen', label: 'Video Generator', description: 'AI Video Creation (Multiple Models)', iconName: 'Video', nodeType: 'freepikVideoGen' },
+  { type: 'freepik_lip_sync', label: 'Lip Sync', description: 'Sync audio to video', iconName: 'MessageSquare', nodeType: 'freepikLipSync' },
+  { type: 'freepik_music', label: 'Music Generator', description: 'AI Music Creation', iconName: 'Music', nodeType: 'freepikMusic' }
 ];
 
 // Deprecated: Merged into WORKFLOW_AI_NODES

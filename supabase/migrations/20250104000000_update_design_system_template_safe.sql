@@ -272,3 +272,4 @@ WHERE NOT EXISTS (
     SELECT 1 FROM proposal_templates WHERE type = 'design_system' AND is_default = true
 );
 
+

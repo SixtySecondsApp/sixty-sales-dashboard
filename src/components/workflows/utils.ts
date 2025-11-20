@@ -19,7 +19,13 @@ import {
   Edit, 
   GitMerge, 
   Bot, 
-  Sparkles 
+  Sparkles,
+  Image,
+  Maximize,
+  Video,
+  MessageSquare,
+  Music,
+  Search
 } from 'lucide-react';
 import { NodeExecutionState } from '@/lib/utils/workflowTestEngine';
 import { NodeStatus } from './StatusIndicator';
@@ -46,7 +52,13 @@ export const iconMap: { [key: string]: any } = {
   Edit,
   GitMerge,
   Bot,
-  Sparkles
+  Sparkles,
+  Image,
+  Maximize,
+  Video,
+  MessageSquare,
+  Music,
+  Search
 };
 
 // Map legacy test status to new NodeStatus type

@@ -32,3 +32,4 @@ echo ""
 echo "The Edge Function is configured to use Claude 4.5 Haiku for this test."
 echo "Try generating a proposal in the app to see if it works!"
 
+

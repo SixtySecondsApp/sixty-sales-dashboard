@@ -15,3 +15,4 @@ WHERE key = 'proposal_focus_model'
   AND value LIKE '%haiku%'
   AND value != 'anthropic/claude-haiku-4.5';
 
+

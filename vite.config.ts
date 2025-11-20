@@ -38,7 +38,7 @@ export default defineConfig({
     // Force a specific port to maintain authentication consistency
     strictPort: true,
     host: true, // Listen on all addresses
-    port: 5173, // Fixed port - will error if in use rather than switching
+    port: 5175, // Fixed port - will error if in use rather than switching
     // Commented out proxy to allow API test suite to work with Supabase Edge Functions
     // proxy: {
     //   '/api': {

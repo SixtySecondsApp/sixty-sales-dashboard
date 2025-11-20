@@ -76,45 +76,33 @@ export const useOrgStore = create<OrgStore>()(
         set({ isLoading: true, error: null });
 
         try {
-          // If multi-tenant is disabled, use default org or first org
+          // If multi-tenant is disabled, we don't need organizations table
           if (!isMultiTenantEnabled()) {
             const defaultOrgId = getDefaultOrgId();
             if (defaultOrgId) {
-              // Fetch the default org
-              const { data: org, error: orgError } = await supabase
-                .from('organizations')
-                .select('*')
-                .eq('id', defaultOrgId)
-                .single();
-
-              if (orgError) throw orgError;
-
+              // Use the default org ID without querying the table
+              logger.log('[OrgStore] Multi-tenant disabled, using default org ID:', defaultOrgId);
               set({
                 activeOrgId: defaultOrgId,
-                organizations: [org],
+                organizations: [],
                 memberships: [],
                 isLoading: false,
+                error: null,
               });
               return;
             }
 
-            // If no default org configured, get first org
-            const { data: orgs, error: orgsError } = await supabase
-              .from('organizations')
-              .select('*')
-              .limit(1);
-
-            if (orgsError) throw orgsError;
-
-            if (orgs && orgs.length > 0) {
-              set({
-                activeOrgId: orgs[0].id,
-                organizations: orgs,
-                memberships: [],
-                isLoading: false,
-              });
-              return;
-            }
+            // No default org configured and multi-tenant is disabled
+            // Use a placeholder/null orgId - the app should work without it
+            logger.log('[OrgStore] Multi-tenant disabled, no default org configured - using null orgId');
+            set({
+              activeOrgId: null,
+              organizations: [],
+              memberships: [],
+              isLoading: false,
+              error: null,
+            });
+            return;
           }
 
           // Multi-tenant enabled: fetch user's memberships
@@ -330,6 +318,7 @@ export function useHasOrgRole(
 
   return roleHierarchy[userRole] >= roleHierarchy[role];
 }
+
 
 
 

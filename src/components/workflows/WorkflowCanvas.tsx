@@ -16,7 +16,8 @@ import ReactFlow, {
   Position,
   NodeTypes,
   ReactFlowProvider,
-  useReactFlow
+  useReactFlow,
+  EdgeChange
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { motion } from 'framer-motion';
@@ -83,6 +84,10 @@ import ActionItemProcessorNode from './nodes/ActionItemProcessorNode';
 import FreepikImageGenNode from './nodes/freepik/FreepikImageGenNode';
 import FreepikUpscaleNode from './nodes/freepik/FreepikUpscaleNode';
 import FreepikVideoGenNode from './nodes/freepik/FreepikVideoGenNode';
+import FreepikLipSyncNode from './nodes/freepik/FreepikLipSyncNode';
+import FreepikMusicNode from './nodes/freepik/FreepikMusicNode';
+import ImageInputNode from './nodes/freepik/ImageInputNode';
+import ProspectResearchNode from './nodes/ProspectResearchNode';
 import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
 import FormPreview from './FormPreview';
@@ -126,9 +131,13 @@ const baseNodeTypes: NodeTypes = {
   googleDocsCreator: GoogleDocsCreatorNode,
   meetingUpsert: MeetingUpsertNode,
   actionItemProcessor: ActionItemProcessorNode,
+  imageInput: ImageInputNode,
   freepikImageGen: FreepikImageGenNode,
   freepikUpscale: FreepikUpscaleNode,
-  freepikVideoGen: FreepikVideoGenNode
+  freepikVideoGen: FreepikVideoGenNode,
+  freepikLipSync: FreepikLipSyncNode,
+  freepikMusic: FreepikMusicNode,
+  prospectResearch: ProspectResearchNode
 };
 
 // Merge with registered custom nodes
@@ -154,8 +163,8 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   executionMode = false, 
   executionData 
 }) => {
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+const [nodes, setNodes, onNodesChangeBase] = useNodesState([]);
+const [edges, setEdges, onEdgesChangeBase] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
   
   // Expanded node editor state
@@ -188,6 +197,151 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     // Call the base handler
     onNodesChangeBase(changes);
   }, [onNodesChangeBase, expandedNodeId]);
+
+  const getNodeLabel = useCallback((node?: Node) => {
+    if (!node) return 'Node';
+    return (node.data && (node.data as any).label) || (node.data && (node.data as any).name) || node.id;
+  }, []);
+
+  const extractImageFromNode = useCallback((node?: Node) => {
+    if (!node?.data) return undefined;
+    const data = node.data as any;
+    const candidateFields = [
+      'generated_image',
+      'image',
+      'image_url',
+      'thumbnail',
+      'src',
+      'input_image',
+      'reference_image',
+      'preview'
+    ];
+    for (const field of candidateFields) {
+      const value = data[field];
+      if (typeof value === 'string' && value.length > 0) {
+        return value;
+      }
+    }
+    return undefined;
+  }, []);
+
+  const extractTextFromNode = useCallback((node?: Node) => {
+    if (!node?.data) return undefined;
+    const data = node.data as any;
+    const candidateFields = [
+      'research_summary',
+      'summary',
+      'generated_text',
+      'output_text',
+      'description',
+      'notes',
+      'prompt'
+    ];
+    for (const field of candidateFields) {
+      const value = data[field];
+      if (typeof value === 'string' && value.trim().length > 0) {
+        return value;
+      }
+    }
+    const executionOutput = data.executionData?.output;
+    if (typeof executionOutput === 'string' && executionOutput.trim().length > 0) {
+      return executionOutput;
+    }
+    return undefined;
+  }, []);
+
+  const handleVideoNodeConnection = useCallback(
+    (edgeId: string, params: Edge | Connection, sourceNode?: Node) => {
+      if (!params.target || !params.targetHandle) return;
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== params.target || node.type !== 'freepikVideoGen') {
+            return node;
+          }
+          const updatedData: any = { ...node.data };
+          const sourceLabel = getNodeLabel(sourceNode);
+          if (params.targetHandle === 'input_image') {
+            const baseFrame = extractImageFromNode(sourceNode);
+            if (baseFrame) {
+              updatedData.input_image = baseFrame;
+              updatedData.input_image_source_label = sourceLabel;
+              updatedData.input_image_edge_id = edgeId;
+            }
+          } else if (params.targetHandle === 'start_frame') {
+            const startFrame = extractImageFromNode(sourceNode);
+            if (startFrame) {
+              updatedData.start_frame = startFrame;
+              updatedData.start_frame_source_label = sourceLabel;
+              updatedData.start_frame_edge_id = edgeId;
+            }
+          } else if (params.targetHandle === 'end_frame') {
+            const endFrame = extractImageFromNode(sourceNode);
+            if (endFrame) {
+              updatedData.end_frame = endFrame;
+              updatedData.end_frame_source_label = sourceLabel;
+              updatedData.end_frame_edge_id = edgeId;
+            }
+          } else if (params.targetHandle === 'prompt_context') {
+            const promptText = extractTextFromNode(sourceNode);
+            if (promptText) {
+              updatedData.prompt = promptText;
+              updatedData.prompt_source_label = sourceLabel;
+              updatedData.prompt_edge_id = edgeId;
+            }
+          }
+          return { ...node, data: updatedData };
+        })
+      );
+    },
+    [setNodes, extractImageFromNode, extractTextFromNode, getNodeLabel]
+  );
+
+  const handleVideoNodeEdgeRemoval = useCallback(
+    (edge: Edge) => {
+      if (!edge.target || !edge.targetHandle) return;
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id !== edge.target || node.type !== 'freepikVideoGen') {
+            return node;
+          }
+          const updatedData: any = { ...node.data };
+          if (edge.targetHandle === 'input_image' && updatedData.input_image_edge_id === edge.id) {
+            delete updatedData.input_image;
+            delete updatedData.input_image_source_label;
+            delete updatedData.input_image_edge_id;
+          } else if (edge.targetHandle === 'start_frame' && updatedData.start_frame_edge_id === edge.id) {
+            delete updatedData.start_frame;
+            delete updatedData.start_frame_source_label;
+            delete updatedData.start_frame_edge_id;
+          } else if (edge.targetHandle === 'end_frame' && updatedData.end_frame_edge_id === edge.id) {
+            delete updatedData.end_frame;
+            delete updatedData.end_frame_source_label;
+            delete updatedData.end_frame_edge_id;
+          } else if (edge.targetHandle === 'prompt_context' && updatedData.prompt_edge_id === edge.id) {
+            delete updatedData.prompt_source_label;
+            delete updatedData.prompt_edge_id;
+          }
+          return { ...node, data: updatedData };
+        })
+      );
+    },
+    [setNodes]
+  );
+
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      changes.forEach((change) => {
+        if (change.type === 'remove') {
+          const removedEdge = edges.find((edge) => edge.id === change.id);
+          if (removedEdge) {
+            handleVideoNodeEdgeRemoval(removedEdge);
+          }
+        }
+      });
+      onEdgesChangeBase(changes);
+    },
+    [edges, handleVideoNodeEdgeRemoval, onEdgesChangeBase]
+  );
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -198,6 +352,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [lastSavedData, setLastSavedData] = useState<string>('');
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  const [, setHasUnsavedChanges] = useState(false);
   const [nodeSearchQuery, setNodeSearchQuery] = useState('');
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -592,14 +747,26 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         animated = true;
       }
       
+      const edgeId =
+        (params as Edge).id ||
+        `edge-${params.source || 'unknown'}-${params.target || 'unknown'}-${Date.now()}`;
+
       // Allow the connection
-      setEdges((eds) => addEdge({
-        ...params,
-        animated,
-        style: edgeStyle
-      }, eds));
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            id: edgeId,
+            animated,
+            style: edgeStyle
+          },
+          eds
+        )
+      );
+
+      handleVideoNodeConnection(edgeId, params, sourceNode);
     },
-    [setEdges, nodes, edges]
+    [setEdges, nodes, edges, handleVideoNodeConnection]
   );
 
   // Handle node selection
@@ -928,7 +1095,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   // Close dropdown when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (runDropdownRef.current && !runDropdownRef.current.contains(event.target as Node)) {
+      if (runDropdownRef.current && !runDropdownRef.current.contains(event.target as globalThis.Node)) {
         setShowRunDropdown(false);
       }
     };
@@ -1969,6 +2136,7 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           
           return (
             <ExpandedNodeEditor
+              key={expandedNodeId} // Force re-render when node changes
               node={expandedNode}
               nodePosition={expandedNodePosition}
               onClose={() => {
