@@ -105,6 +105,7 @@ import { RouterNode } from './nodes/standard/RouterNode';
 import { iconMap } from './utils';
 import { WorkflowNodeLibrary } from './components/WorkflowNodeLibrary';
 import { LocalTestPanel } from './components/LocalTestPanel';
+import { ExpandedNodeEditor } from './components/ExpandedNodeEditor';
 import { createWorkflowNode, calculateNodePosition } from './utils/nodeFactory';
 import { nodeRegistry } from './utils/nodeRegistry';
 
@@ -157,6 +158,10 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [showNodePanel, setShowNodePanel] = useState(true);
   
+  // Expanded node editor state
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+  const [expandedNodePosition, setExpandedNodePosition] = useState<{ x: number; y: number } | null>(null);
+  
   // Track if user has manually moved nodes or tidied them
   const [userHasInteracted, setUserHasInteracted] = useState(false);
   const [hasTidied, setHasTidied] = useState(false);
@@ -170,11 +175,19 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
     
     if (hasPositionChange) {
       setUserHasInteracted(true);
+      
+      // Update expanded node position if it's being moved
+      const positionChange = changes.find((change: any) => 
+        change.type === 'position' && change.id === expandedNodeId
+      );
+      if (positionChange && positionChange.position) {
+        setExpandedNodePosition(positionChange.position);
+      }
     }
     
     // Call the base handler
     onNodesChangeBase(changes);
-  }, [onNodesChangeBase]);
+  }, [onNodesChangeBase, expandedNodeId]);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -599,22 +612,34 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
         return;
       }
 
-      // Normal editing mode
+      // Normal editing mode - expand node editor
+      // For nodes with special modals, still use modals but also allow expansion
       if (node.type === 'aiAgent') {
         setSelectedAINode(node);
         setShowAIConfigModal(true);
+        // Also expand the editor
+        setExpandedNodeId(node.id);
+        setExpandedNodePosition(node.position);
       } else if (node.type === 'customGPT') {
         setSelectedCustomGPTNode(node);
         setShowCustomGPTConfigModal(true);
+        setExpandedNodeId(node.id);
+        setExpandedNodePosition(node.position);
       } else if (node.type === 'assistantManager') {
         setSelectedAssistantManagerNode(node);
         setShowAssistantManagerConfigModal(true);
+        setExpandedNodeId(node.id);
+        setExpandedNodePosition(node.position);
       } else if (node.type === 'form') {
         setSelectedFormNode(node);
         setShowFormConfigModal(true);
+        setExpandedNodeId(node.id);
+        setExpandedNodePosition(node.position);
       } else {
+        // For other nodes (including freepikImageGen, freepikUpscale, freepikVideoGen), expand the editor
         setSelectedNode(node);
-        setShowNodeEditor(true);
+        setExpandedNodeId(node.id);
+        setExpandedNodePosition(node.position || { x: 0, y: 0 });
       }
     },
     [executionMode]
@@ -1871,13 +1896,6 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
             Tidy Nodes
           </button>
           <button
-            onClick={() => setShowNodePanel(!showNodePanel)}
-            className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
-          >
-            <Settings className="w-4 h-4" />
-            {showNodePanel ? 'Hide' : 'Show'} Panel
-          </button>
-          <button
             onClick={handleSave}
             className="px-3 py-2 bg-[#37bd7e] hover:bg-[#37bd7e]/90 text-white rounded-lg text-sm transition-colors flex items-center gap-2"
           >
@@ -1944,8 +1962,36 @@ const WorkflowCanvas: React.FC<WorkflowCanvasProps> = ({
           </div>
         )}
 
-        {/* Node Editor Panel - Hide when test panel is active */}
-        {showNodeEditor && selectedNode && !showTestPanel && (
+        {/* Expanded Node Editor */}
+        {expandedNodeId && reactFlowInstance.current && (() => {
+          const expandedNode = nodes.find(n => n.id === expandedNodeId);
+          if (!expandedNode) return null;
+          
+          return (
+            <ExpandedNodeEditor
+              node={expandedNode}
+              nodePosition={expandedNodePosition}
+              onClose={() => {
+                setExpandedNodeId(null);
+                setExpandedNodePosition(null);
+                setSelectedNode(null);
+              }}
+              onUpdateNode={updateNodeData}
+              onNodeClick={(nodeId) => {
+                const clickedNode = nodes.find(n => n.id === nodeId);
+                if (clickedNode) {
+                  setExpandedNodeId(nodeId);
+                  setExpandedNodePosition(clickedNode.position);
+                  setSelectedNode(clickedNode);
+                }
+              }}
+              reactFlowInstance={reactFlowInstance.current}
+            />
+          );
+        })()}
+
+        {/* Node Editor Panel - REMOVED - Now using ExpandedNodeEditor */}
+        {false && showNodeEditor && selectedNode && !showTestPanel && (
           <motion.div
             initial={{ x: 300 }}
             animate={{ x: 0 }}

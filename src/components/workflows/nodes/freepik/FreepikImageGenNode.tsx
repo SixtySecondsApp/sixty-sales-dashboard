@@ -113,9 +113,12 @@ const FreepikImageGenNode = memo(({ data, selected }: NodeProps<FreepikImageGenN
         <div className="p-3 space-y-3 bg-white dark:bg-[#1e1e1e]">
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Prompt</label>
-            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 min-h-[60px]">
-              {data.prompt || <span className="text-gray-400 dark:text-zinc-600 italic">Enter prompt in configuration...</span>}
+            <div className="text-xs text-gray-700 dark:text-zinc-300 bg-gray-50 dark:bg-zinc-900/50 p-2 rounded border border-gray-200 dark:border-zinc-800 min-h-[60px] break-words">
+              {data.prompt || <span className="text-gray-400 dark:text-zinc-600 italic">Click node to configure prompt...</span>}
             </div>
+            <p className="text-[9px] text-gray-400 dark:text-zinc-600 mt-1">
+              Click the node to open configuration panel
+            </p>
           </div>
           
           {error && (
