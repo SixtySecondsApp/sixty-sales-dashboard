@@ -5,6 +5,8 @@ import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 import { useState, useMemo, useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { Calendar, Clock, User, Tag, RotateCw, Loader2, Search } from 'lucide-react';
 
+type FilterType = 'all' | 'meeting_date' | 'booked_date';
+
 interface LeadListProps {
   leads: LeadWithPrep[];
   selectedLeadId: string | null;
@@ -13,9 +15,11 @@ interface LeadListProps {
   onReprocessLead?: (leadId: string) => Promise<void> | void;
   reprocessingLeadId?: string | null;
   isReprocessing?: boolean;
+  filterType?: FilterType;
+  onFilterTypeChange?: (filter: FilterType) => void;
+  searchQuery?: string;
+  onSearchQueryChange?: (query: string) => void;
 }
-
-type FilterType = 'all' | 'meeting_date' | 'booked_date';
 
 export function LeadList({
   leads,
@@ -25,14 +29,22 @@ export function LeadList({
   onReprocessLead,
   reprocessingLeadId,
   isReprocessing,
+  filterType: externalFilterType,
+  onFilterTypeChange: externalOnFilterTypeChange,
+  searchQuery: externalSearchQuery,
+  onSearchQueryChange: externalOnSearchQueryChange,
 }: LeadListProps) {
-  if (leads.length > 0) {
-  }
-  
-  const [filterType, setFilterType] = useState<FilterType>('all');
+  // Use external props if provided, otherwise use internal state
+  const [internalFilterType, setInternalFilterType] = useState<FilterType>('all');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const filterType = externalFilterType ?? internalFilterType;
+  const searchQuery = externalSearchQuery ?? internalSearchQuery;
+  
+  const setFilterType = externalOnFilterTypeChange ?? setInternalFilterType;
+  const setSearchQuery = externalOnSearchQueryChange ?? setInternalSearchQuery;
 
   const handleToggleSearch = () => {
     setIsSearchOpen((prev) => {
@@ -41,6 +53,10 @@ export function LeadList({
       }
       return !prev;
     });
+  };
+
+  const handleSearchQueryChange = (value: string) => {
+    setSearchQuery(value);
   };
 
   useEffect(() => {
@@ -53,8 +69,15 @@ export function LeadList({
     return () => clearTimeout(timer);
   }, [isSearchOpen]);
 
-  // Sort leads based on filter type
+  // If external filter props are provided, leads are already filtered/sorted - use as-is
+  // Otherwise, apply internal filtering/sorting
   const sortedLeads = useMemo(() => {
+    // If external props provided, leads are already filtered/sorted by parent
+    if (externalFilterType !== undefined || externalSearchQuery !== undefined) {
+      return leads;
+    }
+
+    // Internal filtering/sorting logic
     const normalizedQuery = searchQuery.trim().toLowerCase();
 
     const matchesQuery = (lead: LeadWithPrep) => {
@@ -118,7 +141,7 @@ export function LeadList({
       const bDate = getBookedDate(b) ? new Date(getBookedDate(b) as string).getTime() : 0;
       return bDate - aDate;
     });
-  }, [leads, filterType, searchQuery]);
+  }, [leads, filterType, searchQuery, externalFilterType, externalSearchQuery]);
 
   const trimmedSearchQuery = searchQuery.trim();
   const showSearchEmptyState = Boolean(trimmedSearchQuery) && sortedLeads.length === 0;
@@ -210,7 +233,7 @@ export function LeadList({
               ref={searchInputRef}
               type="text"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => handleSearchQueryChange(event.target.value)}
               placeholder="Search leads..."
               className="h-full w-full bg-transparent text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-500"
             />

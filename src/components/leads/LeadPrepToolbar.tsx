@@ -1,6 +1,7 @@
 import React from 'react';
 import { RefreshCw, Sparkles, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { LeadViewToggle } from './LeadViewToggle';
 
 interface LeadPrepToolbarProps {
   isProcessing: boolean;
@@ -8,9 +9,19 @@ interface LeadPrepToolbarProps {
   onRefresh: () => void;
   onUpload?: (file: File) => void;
   isUploading?: boolean;
+  viewMode?: 'list' | 'table';
+  onViewModeChange?: (view: 'list' | 'table') => void;
 }
 
-export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload, isUploading }: LeadPrepToolbarProps) {
+export function LeadPrepToolbar({ 
+  isProcessing, 
+  onGenerate, 
+  onRefresh, 
+  onUpload, 
+  isUploading,
+  viewMode,
+  onViewModeChange,
+}: LeadPrepToolbarProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +51,13 @@ export function LeadPrepToolbar({ isProcessing, onGenerate, onRefresh, onUpload,
       </div>
 
       <div className="flex items-center gap-2">
+        {viewMode && onViewModeChange && (
+          <LeadViewToggle
+            view={viewMode}
+            onViewChange={onViewModeChange}
+            disabled={isProcessing || isUploading}
+          />
+        )}
         {onUpload && (
           <>
             <button

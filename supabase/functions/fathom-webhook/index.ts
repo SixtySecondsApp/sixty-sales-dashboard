@@ -136,6 +136,44 @@ serve(async (req) => {
     }
 
     const syncResult = await syncResponse.json()
+
+    // Check if meeting was created and if transcript is missing - enqueue retry job
+    try {
+      // Find the meeting by recording ID
+      const { data: meeting, error: meetingError } = await supabase
+        .from('meetings')
+        .select('id, transcript_text, fathom_recording_id')
+        .eq('fathom_recording_id', String(recordingId))
+        .eq('owner_user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (!meetingError && meeting && !meeting.transcript_text) {
+        // Transcript not available - enqueue retry job
+        console.log(`📋 Enqueueing transcript retry job for meeting ${meeting.id} (recording: ${recordingId})`)
+        
+        const { data: retryJobId, error: enqueueError } = await supabase
+          .rpc('enqueue_transcript_retry', {
+            p_meeting_id: meeting.id,
+            p_user_id: userId,
+            p_recording_id: String(recordingId),
+            p_initial_attempt_count: 1, // Initial webhook attempt counts as attempt 1
+          })
+
+        if (enqueueError) {
+          console.error(`⚠️  Failed to enqueue retry job: ${enqueueError.message}`)
+        } else {
+          console.log(`✅ Enqueued retry job ${retryJobId} for meeting ${meeting.id}`)
+        }
+      } else if (meeting && meeting.transcript_text) {
+        console.log(`✅ Transcript already available for meeting ${meeting.id}`)
+      }
+    } catch (error) {
+      // Non-fatal - log but don't fail the webhook
+      console.error(`⚠️  Error checking/enqueueing retry job:`, error instanceof Error ? error.message : String(error))
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

@@ -1,357 +1,181 @@
-# Deal Health Monitoring - Deployment Summary
+# Transcript Retry System - Deployment Summary
 
-## ✅ Deployment Status: SUCCESS
+## ✅ Deployment Complete
 
-**Date**: November 1, 2025
-**Time**: 14:36 UTC
-**Function**: calculate-deal-health
-**Status**: ACTIVE
+### Edge Function
+- **Status**: ✅ Deployed successfully
+- **Function Name**: `fathom-transcript-retry`
+- **Project**: `ewtuefzeogytgmsnkpmb`
+- **URL**: `https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/fathom-transcript-retry`
 
----
+### Database Migrations
+Three migration files created and ready to apply:
+1. `20250125000001_create_transcript_retry_jobs.sql` - Core retry queue system
+2. `20250125000002_setup_transcript_retry_cron.sql` - Cron job setup
+3. `20250125000003_create_transcript_retry_monitoring.sql` - Monitoring views
 
-## Deployment Details
+### Code Changes
+- ✅ Created `fathom-transcript-retry` Edge Function
+- ✅ Created `_shared/fathomTranscript.ts` shared module
+- ✅ Updated `fathom-webhook` to enqueue retry jobs
+- ✅ Updated `fathom-sync` to enqueue retry jobs
+- ✅ Updated `backfill-transcripts` to clear retry jobs
+- ✅ Updated `fetch-transcript` to clear retry jobs
 
-### Edge Function Deployed
-- **Function Name**: calculate-deal-health
-- **Function ID**: df524e46-14ef-4a5b-a3d9-9600c547f1fd
-- **Version**: 1
-- **Status**: ACTIVE
-- **Deployed At**: 2025-11-01 14:36:53 UTC
-- **Dashboard URL**: https://supabase.com/dashboard/project/ewtuefzeogytgmsnkpmb/functions
+## 🔍 Verification Steps
 
-### Files Uploaded
-1. `supabase/functions/calculate-deal-health/index.ts` - Main Edge Function
-2. `supabase/functions/_shared/cors.ts` - Shared CORS utilities
-
----
-
-## ⏳ Next Steps Required
-
-### 1. Schedule Cron Job via Supabase Dashboard
-
-The CLI version (2.33.9) doesn't support the `schedule` command. You need to schedule the cron job through the Supabase Dashboard.
-
-**Steps**:
-
-1. **Navigate to Edge Functions**
-   - Go to: https://supabase.com/dashboard/project/ewtuefzeogytgmsnkpmb/functions
-   - Find `calculate-deal-health` in the list
-
-2. **Configure Cron Schedule**
-   - Click on the `calculate-deal-health` function
-   - Look for "Cron" or "Schedule" settings (usually in function settings/configuration)
-   - Set the cron expression: `0 2 * * *` (Daily at 2:00 AM UTC)
-   - Save the configuration
-
-3. **Verify Schedule**
-   - Confirm the schedule shows "Daily at 2:00 AM UTC"
-   - Check that the status is "Active"
-
-**Alternative Cron Schedules** (if you want to change timing):
-```
-0 * * * *      - Every hour
-0 */6 * * *    - Every 6 hours
-0 0 * * *      - Daily at midnight UTC
-0 8 * * 1-5    - Weekdays at 8 AM UTC
-```
-
----
-
-### 2. Test the Edge Function
-
-#### Manual Test via Dashboard
-
-1. **Go to Function Page**
-   - Navigate to: https://supabase.com/dashboard/project/ewtuefzeogytgmsnkpmb/functions/calculate-deal-health
-
-2. **Test Invocation**
-   - Look for "Test" or "Invoke" button
-   - Click to manually trigger the function
-   - Should return a JSON response with:
-     ```json
-     {
-       "success": true,
-       "timestamp": "2025-11-01T...",
-       "results": {
-         "total_deals": 10,
-         "updated": 5,
-         "skipped": 5,
-         "failed": 0,
-         "errors": []
-       }
-     }
-     ```
-
-#### Test via CLI (Alternative)
-
-```bash
-# Manual invocation
-supabase functions invoke calculate-deal-health
-
-# Expected output:
-# {
-#   "success": true,
-#   "timestamp": "2025-11-01T14:36:53.000Z",
-#   "results": {
-#     "total_deals": 10,
-#     "updated": 5,
-#     "skipped": 5,
-#     "failed": 0
-#   }
-# }
-```
-
-#### Test via HTTP Request (Alternative)
-
-```bash
-# Get your function URL from dashboard
-curl -X POST \
-  https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/calculate-deal-health \
-  -H "Authorization: Bearer YOUR_ANON_KEY" \
-  -H "Content-Type: application/json"
-```
-
----
-
-### 3. Monitor Function Logs
-
-#### Via Dashboard
-1. Go to function page
-2. Look for "Logs" or "Invocations" tab
-3. Monitor for successful executions
-4. Check for any errors or warnings
-
-#### Via CLI
-```bash
-# Tail logs in real-time
-supabase functions logs calculate-deal-health --tail
-
-# View recent logs
-supabase functions logs calculate-deal-health --limit 100
-
-# Filter for errors
-supabase functions logs calculate-deal-health --tail | grep ERROR
-```
-
----
-
-### 4. Verify Database Updates
-
-After the function runs (either manually or via cron), verify the database:
-
+### 1. Verify Database Migrations Applied
+Run in Supabase SQL Editor:
 ```sql
--- Check recent calculations
-SELECT
-  deal_id,
-  overall_health_score,
-  health_status,
-  last_calculated_at,
-  EXTRACT(EPOCH FROM (NOW() - last_calculated_at))/3600 AS hours_ago
-FROM deal_health_scores
-ORDER BY last_calculated_at DESC
+-- Quick check - should return 1 row
+SELECT COUNT(*) FROM information_schema.tables 
+WHERE table_name = 'fathom_transcript_retry_jobs';
+```
+
+Or run the full verification script:
+```sql
+-- File: scripts/verify-transcript-retry-setup.sql
+```
+
+### 2. Verify Cron Job Scheduled
+```sql
+SELECT jobname, schedule, active 
+FROM cron.job 
+WHERE jobname = 'fathom-transcript-retry';
+```
+
+Expected: Should show `schedule = '*/5 * * * *'` and `active = true`
+
+### 3. Verify Edge Function Accessible
+Check in Supabase Dashboard:
+- Navigate to: Functions → `fathom-transcript-retry`
+- Verify it shows as deployed
+- Check logs for any errors
+
+### 4. Test Retry Job Creation
+
+**Easy Method (Recommended):**
+```sql
+-- Auto-enqueue retry jobs for meetings missing transcripts
+SELECT * FROM auto_enqueue_missing_transcript_retries(10);
+
+-- Verify jobs created
+SELECT * FROM v_pending_transcript_retries
+ORDER BY created_at DESC
 LIMIT 10;
+```
 
--- Count scores updated in last hour
-SELECT COUNT(*)
-FROM deal_health_scores
-WHERE last_calculated_at > NOW() - INTERVAL '1 hour';
+**Manual Method:**
+```sql
+-- Find a meeting without transcript
+SELECT id, title, fathom_recording_id, owner_user_id
+FROM meetings 
+WHERE transcript_text IS NULL 
+  AND fathom_recording_id IS NOT NULL 
+LIMIT 1;
 
--- View historical snapshots
-SELECT
-  deal_id,
-  overall_health_score,
-  health_status,
-  snapshot_at
-FROM deal_health_history
-ORDER BY snapshot_at DESC
+-- Enqueue retry job (replace with actual UUIDs from above)
+SELECT enqueue_transcript_retry(
+  'meeting-id-here'::UUID,
+  'user-id-here'::UUID,
+  'recording-id-here',
+  1
+);
+
+-- Verify job created
+SELECT * FROM v_pending_transcript_retries 
+WHERE meeting_id = 'meeting-id-here'::UUID;
+```
+
+### 5. Test Retry Processor
+Manually trigger (requires service role key):
+```bash
+curl -X POST 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/fathom-transcript-retry' \
+  -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{"batch_size": 10}'
+```
+
+Check response - should return JSON with `success: true` and job counts.
+
+## 📊 Monitoring
+
+### View Current Statistics
+```sql
+SELECT * FROM v_transcript_retry_stats;
+```
+
+### View Pending Jobs
+```sql
+SELECT * FROM v_pending_transcript_retries
+ORDER BY next_retry_at ASC;
+```
+
+### View Failed Jobs
+```sql
+SELECT * FROM v_failed_transcript_retries
+ORDER BY updated_at DESC
 LIMIT 20;
 ```
 
----
+## 🧪 End-to-End Test
 
-## 🧪 Testing Checklist
+1. **Trigger a webhook** for a meeting that doesn't have a transcript yet
+2. **Check retry job created**:
+   ```sql
+   SELECT * FROM v_pending_transcript_retries 
+   ORDER BY created_at DESC LIMIT 1;
+   ```
+3. **Wait 5 minutes** (or manually trigger retry processor)
+4. **Check job processed**:
+   ```sql
+   SELECT * FROM fathom_transcript_retry_jobs 
+   WHERE meeting_id = 'your-meeting-id'::UUID 
+   ORDER BY updated_at DESC LIMIT 1;
+   ```
+5. **Verify transcript fetched** (if available):
+   ```sql
+   SELECT id, transcript_text IS NOT NULL as has_transcript 
+   FROM meetings 
+   WHERE id = 'your-meeting-id'::UUID;
+   ```
 
-### Pre-Production Tests
+## 📝 Documentation
 
-- [ ] **Manual Invocation**: Test function manually via dashboard
-- [ ] **Response Validation**: Verify JSON response structure
-- [ ] **Database Verification**: Check `deal_health_scores` table updated
-- [ ] **History Tracking**: Verify `deal_health_history` snapshots created
-- [ ] **Error Handling**: Check logs for any errors or warnings
-- [ ] **Performance**: Verify function completes within reasonable time (< 10 minutes)
+- **System Overview**: `TRANSCRIPT_RETRY_SYSTEM.md`
+- **Test Procedures**: `TRANSCRIPT_RETRY_TEST_RESULTS.md`
+- **Verification Script**: `scripts/verify-transcript-retry-setup.sql`
+- **Test Script**: `scripts/test-transcript-retry-system.sh`
 
-### Post-Schedule Tests
+## 🎯 Success Criteria
 
-- [ ] **Cron Schedule**: Verify cron job is configured correctly
-- [ ] **Daily Execution**: Confirm function runs at 2 AM UTC
-- [ ] **Smart Refresh**: Verify only stale scores are updated
-- [ ] **Logging**: Check logs after first scheduled run
-- [ ] **Alerts**: Set up alerts for failed executions (optional)
+- ✅ Edge Function deployed and accessible
+- ⏳ Database migrations applied (verify in SQL Editor)
+- ⏳ Cron job scheduled and active (verify with SQL query)
+- ⏳ Retry jobs can be created (test with SQL)
+- ⏳ Retry processor can process jobs (test with curl or wait for cron)
+- ⏳ Webhook integration creates retry jobs automatically (test with real webhook)
 
-### UI Tests
+## 🚨 Common Issues
 
-- [ ] **Dashboard Load**: Navigate to `/crm/health`
-- [ ] **Timestamp Display**: Verify "Updated X hours ago" shows
-- [ ] **Smart Refresh**: Click "Smart Refresh" button (green)
-- [ ] **Toast Notification**: Confirm toast shows updated/skipped counts
-- [ ] **Contact Pages**: Verify health badges show on contact records
-- [ ] **Company Pages**: Verify health badges show on company records
+### Migrations Not Applied
+- Check Supabase Dashboard → Database → Migrations
+- Manually run migration files if needed
 
----
+### Cron Job Not Running
+- Verify `pg_cron` extension is enabled
+- Check cron job exists: `SELECT * FROM cron.job WHERE jobname = 'fathom-transcript-retry';`
+- Check cron logs: `SELECT * FROM cron_job_logs ORDER BY created_at DESC LIMIT 10;`
 
-## 📊 Success Metrics
+### Edge Function Errors
+- Check Edge Function logs in Supabase Dashboard
+- Verify service role key is configured in database settings
+- Check OAuth credentials for Fathom integration
 
-### Expected Behavior
+## ✨ Next Actions
 
-1. **Staleness Ratio**
-   - First run: 100% of deals updated (all stale)
-   - Daily runs: 5-20% of deals updated (typical staleness rate)
-   - After refresh: 0% stale until next day
-
-2. **Execution Time**
-   - Small dataset (< 100 deals): 1-2 minutes
-   - Medium dataset (100-500 deals): 2-5 minutes
-   - Large dataset (500-1000 deals): 5-10 minutes
-
-3. **Database Impact**
-   - Health scores: 1 upsert per updated deal
-   - History snapshots: 1 insert per updated deal
-   - Query load: Minimal (indexed queries)
-
----
-
-## 🚨 Troubleshooting
-
-### Function Not Running
-
-**Symptom**: No recent `last_calculated_at` timestamps in database
-
-**Solutions**:
-1. Check function status in dashboard (should be "ACTIVE")
-2. Verify cron schedule is configured
-3. Check function logs for errors
-4. Try manual invocation to test
-
-### High Error Rate
-
-**Symptom**: Many errors in function logs
-
-**Common Issues**:
-1. **Database Connection**: Check Supabase service role key
-2. **Missing Data**: Some deals may have incomplete data
-3. **Timeout**: Function exceeding execution time limit
-
-**Solutions**:
-1. Review error messages in logs
-2. Check deal data quality
-3. Consider batch size optimization
-
-### Slow Performance
-
-**Symptom**: Function takes > 10 minutes to complete
-
-**Solutions**:
-1. Check number of active deals
-2. Review database indexes
-3. Consider optimizing queries
-4. Implement batch processing
-
----
-
-## 🔧 Configuration Options
-
-### Change Staleness Threshold
-
-**Default**: 24 hours
-
-To change, edit `supabase/functions/calculate-deal-health/index.ts`:
-
-```typescript
-// Line 87-88
-const staleThreshold = new Date();
-staleThreshold.setHours(staleThreshold.getHours() - 24); // Change 24 to desired hours
-```
-
-Then redeploy:
-```bash
-supabase functions deploy calculate-deal-health
-```
-
-### Change Cron Schedule
-
-Update the cron expression in dashboard:
-- Current: `0 2 * * *` (Daily at 2 AM UTC)
-- Every 6 hours: `0 */6 * * *`
-- Every hour: `0 * * * *`
-- Twice daily: `0 2,14 * * *` (2 AM and 2 PM)
-
----
-
-## 📚 Additional Resources
-
-### Documentation
-- **Implementation Guide**: `DEAL_HEALTH_COMPLETE.md`
-- **Deployment Guide**: `DEAL_HEALTH_DEPLOYMENT.md`
-- **Edge Function Code**: `supabase/functions/calculate-deal-health/index.ts`
-
-### Supabase Dashboard
-- **Functions Dashboard**: https://supabase.com/dashboard/project/ewtuefzeogytgmsnkpmb/functions
-- **Edge Function Docs**: https://supabase.com/docs/guides/functions
-- **Cron Jobs Guide**: https://supabase.com/docs/guides/functions/schedule-functions
-
-### Support
-- Check function logs for errors
-- Review database queries for data quality
-- Consult Supabase documentation for Edge Functions
-- Contact support with function ID: `df524e46-14ef-4a5b-a3d9-9600c547f1fd`
-
----
-
-## ✅ Deployment Verification
-
-Run this checklist to confirm successful deployment:
-
-1. ✅ **Edge Function Deployed**
-   - Function ID: df524e46-14ef-4a5b-a3d9-9600c547f1fd
-   - Status: ACTIVE
-   - Version: 1
-
-2. ⏳ **Cron Job Scheduled** (PENDING - via dashboard)
-   - Schedule: `0 2 * * *` (Daily at 2 AM UTC)
-   - Status: To be configured
-
-3. ⏳ **Manual Test Passed** (PENDING - to be tested)
-   - Test invocation successful
-   - Database updated
-   - Logs clean
-
-4. ⏳ **First Scheduled Run** (PENDING - after cron setup)
-   - Executed at 2 AM UTC
-   - Completed successfully
-   - Database updated
-
----
-
-## 🎯 Next Actions
-
-**Immediate (Required)**:
-1. ✅ Deploy Edge Function - **COMPLETE**
-2. ⏳ Schedule cron job via dashboard - **TO DO**
-3. ⏳ Test function manually - **TO DO**
-4. ⏳ Verify database updates - **TO DO**
-
-**Short-term (Within 24 hours)**:
-5. Monitor first scheduled run
-6. Check logs for any issues
-7. Verify smart refresh works on UI
-
-**Long-term (Within 1 week)**:
-8. Gather user feedback
-9. Monitor performance metrics
-10. Optimize as needed
-
----
-
-**Deployment Completed By**: Claude Code Assistant
-**Deployment Time**: 2025-11-01 14:36:53 UTC
-**Next Review**: After first scheduled run (2025-11-02 02:00:00 UTC)
+1. **Apply migrations** if not already applied (check Supabase Dashboard)
+2. **Verify cron job** is scheduled and active
+3. **Test with a real meeting** to see retry jobs being created
+4. **Monitor** using the provided views and queries
+5. **Check logs** regularly to ensure system is working correctly

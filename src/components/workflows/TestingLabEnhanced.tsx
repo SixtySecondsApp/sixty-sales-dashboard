@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TestTube,
@@ -66,90 +66,99 @@ interface TestingLabEnhancedProps {
   workflow?: any;
 }
 
+// Define node components separately to avoid React Flow warnings about new nodeTypes objects
+const TriggerNode = ({ data }: any) => (
+  <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
+    data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
+    data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
+    data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
+    'border-purple-600 bg-purple-600/20'
+  }`}>
+    <div className="text-xs font-medium text-white">{data.label}</div>
+    {data.testStatus && (
+      <div className="mt-1">
+        {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
+        {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
+        {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
+        {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
+      </div>
+    )}
+  </div>
+);
+
+const ConditionNode = ({ data }: any) => (
+  <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
+    data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
+    data.testStatus === 'success' ? (data.conditionPassed ? 'border-green-400 bg-green-400/20' : 'border-orange-400 bg-orange-400/20') :
+    data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
+    data.testStatus === 'skipped' ? 'border-gray-500 bg-gray-500/20' :
+    'border-blue-600 bg-blue-600/20'
+  }`}>
+    <div className="text-xs font-medium text-white">{data.label}</div>
+    {data.testStatus && (
+      <div className="mt-1">
+        {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
+        {data.testStatus === 'success' && (
+          data.conditionPassed ? 
+          <CheckCircle className="w-3 h-3 text-green-400 mx-auto" /> :
+          <XCircle className="w-3 h-3 text-orange-400 mx-auto" />
+        )}
+        {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
+        {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
+      </div>
+    )}
+    {data.testStatus === 'success' && data.conditionResult !== undefined && (
+      <div className="mt-1 text-[10px] text-center">
+        {data.conditionResult ? 'PASS' : 'FAIL'}
+      </div>
+    )}
+  </div>
+);
+
+const ActionNode = ({ data }: any) => (
+  <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
+    data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
+    data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
+    data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
+    data.testStatus === 'skipped' ? 'border-gray-500 bg-gray-500/20 opacity-50' :
+    'border-[#37bd7e] bg-[#37bd7e]/20'
+  }`}>
+    <div className="text-xs font-medium text-white">{data.label}</div>
+    {data.testStatus && (
+      <div className="mt-1">
+        {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
+        {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
+        {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
+        {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
+      </div>
+    )}
+  </div>
+);
+
+const RouterNode = ({ data }: any) => (
+  <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
+    data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
+    data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
+    data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
+    'border-orange-600 bg-orange-600/20'
+  }`}>
+    <div className="text-xs font-medium text-white">{data.label}</div>
+    {data.testStatus && (
+      <div className="mt-1">
+        {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
+        {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
+        {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
+        {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
+      </div>
+    )}
+  </div>
+);
+
 const nodeTypes = {
-  trigger: ({ data }: any) => (
-    <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
-      data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
-      data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
-      data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
-      'border-purple-600 bg-purple-600/20'
-    }`}>
-      <div className="text-xs font-medium text-white">{data.label}</div>
-      {data.testStatus && (
-        <div className="mt-1">
-          {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
-          {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
-          {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
-          {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
-        </div>
-      )}
-    </div>
-  ),
-  condition: ({ data }: any) => (
-    <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
-      data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
-      data.testStatus === 'success' ? (data.conditionPassed ? 'border-green-400 bg-green-400/20' : 'border-orange-400 bg-orange-400/20') :
-      data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
-      data.testStatus === 'skipped' ? 'border-gray-500 bg-gray-500/20' :
-      'border-blue-600 bg-blue-600/20'
-    }`}>
-      <div className="text-xs font-medium text-white">{data.label}</div>
-      {data.testStatus && (
-        <div className="mt-1">
-          {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
-          {data.testStatus === 'success' && (
-            data.conditionPassed ? 
-            <CheckCircle className="w-3 h-3 text-green-400 mx-auto" /> :
-            <XCircle className="w-3 h-3 text-orange-400 mx-auto" />
-          )}
-          {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
-          {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
-        </div>
-      )}
-      {data.testStatus === 'success' && data.conditionResult !== undefined && (
-        <div className="mt-1 text-[10px] text-center">
-          {data.conditionResult ? 'PASS' : 'FAIL'}
-        </div>
-      )}
-    </div>
-  ),
-  action: ({ data }: any) => (
-    <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
-      data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
-      data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
-      data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
-      data.testStatus === 'skipped' ? 'border-gray-500 bg-gray-500/20 opacity-50' :
-      'border-[#37bd7e] bg-[#37bd7e]/20'
-    }`}>
-      <div className="text-xs font-medium text-white">{data.label}</div>
-      {data.testStatus && (
-        <div className="mt-1">
-          {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
-          {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
-          {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
-          {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
-        </div>
-      )}
-    </div>
-  ),
-  router: ({ data }: any) => (
-    <div className={`px-4 py-2 rounded-lg border-2 transition-all ${
-      data.testStatus === 'active' ? 'border-yellow-400 bg-yellow-400/20 animate-pulse' :
-      data.testStatus === 'success' ? 'border-green-400 bg-green-400/20' :
-      data.testStatus === 'failed' ? 'border-red-400 bg-red-400/20' :
-      'border-orange-600 bg-orange-600/20'
-    }`}>
-      <div className="text-xs font-medium text-white">{data.label}</div>
-      {data.testStatus && (
-        <div className="mt-1">
-          {data.testStatus === 'active' && <div className="w-1 h-1 bg-yellow-400 rounded-full animate-ping mx-auto" />}
-          {data.testStatus === 'success' && <CheckCircle className="w-3 h-3 text-green-400 mx-auto" />}
-          {data.testStatus === 'failed' && <XCircle className="w-3 h-3 text-red-400 mx-auto" />}
-          {data.testStatus === 'skipped' && <div className="w-3 h-3 text-gray-500 mx-auto">⊘</div>}
-        </div>
-      )}
-    </div>
-  )
+  trigger: TriggerNode,
+  condition: ConditionNode,
+  action: ActionNode,
+  router: RouterNode
 };
 
 const edgeTypes = {
@@ -180,6 +189,10 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
   });
   const testEngineRef = useRef<WorkflowTestEngine | null>(null);
   const reactFlowInstance = useRef<any>(null);
+
+  // Use useMemo for nodeTypes and edgeTypes to ensure referential stability
+  const memoizedNodeTypes = useMemo(() => nodeTypes, []);
+  const memoizedEdgeTypes = useMemo(() => edgeTypes, []);
 
   // Load real data scenarios from database
   const loadRealDataScenarios = async () => {
@@ -498,7 +511,7 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
         // Set nodes with initial state
         setNodes(workflow.canvas_data.nodes || []);
         // Set edges with visible styles so connections show immediately
-        setEdges((workflow.canvas_data.edges || []).map(edge => ({
+        setEdges((workflow.canvas_data.edges || []).map((edge: any) => ({
           ...edge,
           type: 'default',
           style: {
@@ -1096,8 +1109,8 @@ const TestingLabEnhanced: React.FC<TestingLabEnhancedProps> = ({ workflow }) => 
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onInit={(instance) => { reactFlowInstance.current = instance; }}
-                  nodeTypes={nodeTypes}
-                  edgeTypes={edgeTypes}
+                  nodeTypes={memoizedNodeTypes}
+                  edgeTypes={memoizedEdgeTypes}
                   defaultEdgeOptions={{
                     type: 'default',
                     style: { stroke: '#6b7280', strokeWidth: 2 }

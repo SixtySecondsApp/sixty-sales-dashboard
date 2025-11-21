@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { matchOrCreateCompany } from '../_shared/companyMatching.ts'
 import { selectPrimaryContact, determineMeetingCompany } from '../_shared/primaryContactSelection.ts'
 import { analyzeTranscriptWithClaude, deduplicateActionItems, type TranscriptAnalysis } from './aiAnalysis.ts'
+import { fetchTranscriptFromFathom, fetchSummaryFromFathom } from '../_shared/fathomTranscript.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -969,130 +970,7 @@ async function autoFetchTranscriptAndAnalyze(
   }
 }
 
-/**
- * Fetch transcript from Fathom API
- * Uses dual authentication: X-Api-Key first, then Bearer fallback
- */
-async function fetchTranscriptFromFathom(
-  accessToken: string,
-  recordingId: string
-): Promise<string | null> {
-  try {
-    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
-    
-    // Try X-Api-Key first (preferred for Fathom API)
-    let response = await fetch(url, {
-      headers: {
-        'X-Api-Key': accessToken,
-        'Content-Type': 'application/json',
-      },
-    })
-    
-    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
-    if (response.status === 401) {
-      response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    }
-
-    if (response.status === 404) {
-      // Transcript not yet available - Fathom still processing
-      console.log(`ℹ️  Transcript not yet available for recording ${recordingId} (404)`)
-      return null
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      const errorMsg = `HTTP ${response.status}: ${errorText.substring(0, 200)}`
-      console.error(`❌ Failed to fetch transcript for recording ${recordingId}: ${errorMsg}`)
-      throw new Error(errorMsg)
-    }
-
-    const data = await response.json()
-
-    // CRITICAL FIX: Fathom returns an array of transcript objects, not a string
-    // Format: { transcript: [{ speaker: { display_name: "..." }, text: "..." }] }
-    if (!data) {
-      console.log(`⚠️  Empty response for transcript of recording ${recordingId}`)
-      return null
-    }
-
-    // Handle array format (most common)
-    if (Array.isArray(data.transcript)) {
-      const lines = data.transcript.map((segment: any) => {
-        const speaker = segment?.speaker?.display_name ? `${segment.speaker.display_name}: ` : ''
-        const text = segment?.text || ''
-        return `${speaker}${text}`.trim()
-      })
-      const plaintext = lines.join('\n')
-      return plaintext
-    }
-
-    // Handle string format (fallback)
-    if (typeof data.transcript === 'string') {
-      return data.transcript
-    }
-
-    // If data itself is a string
-    if (typeof data === 'string') {
-      return data
-    }
-    
-    // If data has a different structure, log it for debugging
-    console.log(`⚠️  Unexpected transcript format for recording ${recordingId}:`, JSON.stringify(data).substring(0, 200))
-    return null
-  } catch (error) {
-    console.error(`❌ Error fetching transcript for recording ${recordingId}:`, error instanceof Error ? error.message : String(error))
-    return null
-  }
-}
-
-/**
- * Fetch enhanced summary from Fathom API
- * Uses dual authentication: X-Api-Key first, then Bearer fallback
- */
-async function fetchSummaryFromFathom(
-  accessToken: string,
-  recordingId: string
-): Promise<any | null> {
-  try {
-    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/summary`
-    
-    // Try X-Api-Key first (preferred for Fathom API)
-    let response = await fetch(url, {
-      headers: {
-        'X-Api-Key': accessToken,
-        'Content-Type': 'application/json',
-      },
-    })
-    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
-    if (response.status === 401) {
-      response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
-    }
-
-    if (response.status === 404) {
-      // Summary not yet available
-      return null
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 200)}`)
-    }
-
-    return await response.json()
-  } catch (error) {
-    return null
-  }
-}
+// Transcript fetching functions are now imported from _shared/fathomTranscript.ts
 
 /**
  * Sync a single call from Fathom to database
@@ -1244,6 +1122,40 @@ async function syncSingleCall(
     // AUTO-FETCH TRANSCRIPT AND SUMMARY
     // Attempt to fetch transcript and summary automatically for AI analysis
     await autoFetchTranscriptAndAnalyze(supabase, ownerUserId, integration, meeting, call)
+
+    // Check if transcript was fetched - if not, enqueue retry job
+    try {
+      const { data: updatedMeeting, error: checkError } = await supabase
+        .from('meetings')
+        .select('id, transcript_text, fathom_recording_id, transcript_fetch_attempts')
+        .eq('id', meeting.id)
+        .single()
+
+      if (!checkError && updatedMeeting && !updatedMeeting.transcript_text) {
+        // Transcript still not available - enqueue retry job
+        const recordingId = call.recording_id || call.id || updatedMeeting.fathom_recording_id
+        if (recordingId) {
+          console.log(`📋 Enqueueing transcript retry job for meeting ${updatedMeeting.id} (recording: ${recordingId}, attempts: ${updatedMeeting.transcript_fetch_attempts || 0})`)
+          
+          const { data: retryJobId, error: enqueueError } = await supabase
+            .rpc('enqueue_transcript_retry', {
+              p_meeting_id: updatedMeeting.id,
+              p_user_id: ownerUserId,
+              p_recording_id: String(recordingId),
+              p_initial_attempt_count: updatedMeeting.transcript_fetch_attempts || 1,
+            })
+
+          if (enqueueError) {
+            console.error(`⚠️  Failed to enqueue retry job: ${enqueueError.message}`)
+          } else {
+            console.log(`✅ Enqueued retry job ${retryJobId} for meeting ${updatedMeeting.id}`)
+          }
+        }
+      }
+    } catch (error) {
+      // Non-fatal - log but don't fail the sync
+      console.error(`⚠️  Error checking/enqueueing retry job:`, error instanceof Error ? error.message : String(error))
+    }
 
     // Process participants (use calendar_invitees from actual API)
     // IMPORTANT: Separate handling for internal vs external participants to avoid duplication

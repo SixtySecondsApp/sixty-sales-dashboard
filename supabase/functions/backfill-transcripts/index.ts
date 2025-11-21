@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { fetchTranscriptFromFathom } from '../_shared/fathomTranscript.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -79,95 +80,7 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
   return tokenData.access_token
 }
 
-/**
- * Fetch transcript from Fathom API
- * Uses dual authentication: X-Api-Key first, then Bearer fallback
- */
-async function fetchTranscriptFromFathom(
-  accessToken: string,
-  recordingId: string
-): Promise<string | null> {
-  try {
-    const url = `https://api.fathom.ai/external/v1/recordings/${recordingId}/transcript`
-    console.log(`🔍 Fetching transcript from: ${url}`)
-    console.log(`📝 Recording ID: ${recordingId} (type: ${typeof recordingId})`)
-    
-    // Try X-Api-Key first (preferred for Fathom API)
-    let response = await fetch(url, {
-      headers: {
-        'X-Api-Key': accessToken,
-        'Content-Type': 'application/json',
-      },
-    })
-    
-    console.log(`📡 First attempt status: ${response.status}`)
-    
-    // If X-Api-Key fails with 401, try Bearer (for OAuth tokens)
-    if (response.status === 401) {
-      console.log(`🔄 Trying Bearer token authentication...`)
-      response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      console.log(`📡 Bearer attempt status: ${response.status}`)
-    }
-
-    if (response.status === 404) {
-      // Try to get more info about why 404
-      const errorText = await response.text()
-      console.log(`⚠️  404 Response body: ${errorText.substring(0, 500)}`)
-      console.log(`ℹ️  Transcript not yet available for recording ${recordingId} (404)`)
-      return null
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      const errorMsg = `HTTP ${response.status}: ${errorText.substring(0, 200)}`
-      console.error(`❌ Failed to fetch transcript for recording ${recordingId}: ${errorMsg}`)
-      console.error(`📋 Full error response: ${errorText}`)
-      throw new Error(errorMsg)
-    }
-
-    const data = await response.json()
-
-    // CRITICAL FIX: Fathom returns an array of transcript objects, not a string
-    // Format: { transcript: [{ speaker: { display_name: "..." }, text: "..." }] }
-    if (!data) {
-      console.log(`⚠️  Empty response for transcript of recording ${recordingId}`)
-      return null
-    }
-
-    // Handle array format (most common)
-    if (Array.isArray(data.transcript)) {
-      const lines = data.transcript.map((segment: any) => {
-        const speaker = segment?.speaker?.display_name ? `${segment.speaker.display_name}: ` : ''
-        const text = segment?.text || ''
-        return `${speaker}${text}`.trim()
-      })
-      const plaintext = lines.join('\n')
-      return plaintext
-    }
-
-    // Handle string format (fallback)
-    if (typeof data.transcript === 'string') {
-      return data.transcript
-    }
-
-    // If data itself is a string
-    if (typeof data === 'string') {
-      return data
-    }
-    
-    // If data has a different structure, log it for debugging
-    console.log(`⚠️  Unexpected transcript format for recording ${recordingId}:`, JSON.stringify(data).substring(0, 200))
-    return null
-  } catch (error) {
-    console.error(`❌ Error fetching transcript for recording ${recordingId}:`, error instanceof Error ? error.message : String(error))
-    return null
-  }
-}
+// Transcript fetching function is now imported from _shared/fathomTranscript.ts
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -353,6 +266,15 @@ serve(async (req) => {
         } else {
           progress.successful++
           console.log(`✅ Successfully updated meeting ${meeting.id} with transcript`)
+          
+          // Clear any pending retry jobs for this meeting
+          try {
+            await supabase.rpc('complete_transcript_retry_job', { p_meeting_id: meeting.id })
+            console.log(`✅ Cleared retry jobs for meeting ${meeting.id}`)
+          } catch (error) {
+            // Non-fatal - log but don't fail
+            console.error(`⚠️  Failed to clear retry jobs:`, error instanceof Error ? error.message : String(error))
+          }
         }
 
         // Small delay to avoid rate limiting

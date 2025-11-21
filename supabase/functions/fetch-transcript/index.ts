@@ -264,6 +264,16 @@ serve(async (req) => {
     if (updateError) {
       throw updateError
     }
+
+    // Clear any pending retry jobs for this meeting
+    try {
+      await supabase.rpc('complete_transcript_retry_job', { p_meeting_id: meetingId })
+      console.log(`✅ Cleared retry jobs for meeting ${meetingId}`)
+    } catch (error) {
+      // Non-fatal - log but don't fail
+      console.error(`⚠️  Failed to clear retry jobs:`, error instanceof Error ? error.message : String(error))
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
