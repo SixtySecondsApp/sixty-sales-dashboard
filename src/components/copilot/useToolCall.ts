@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ToolCall, ToolStep, ToolType, ToolState } from './types';
+import type { ToolCall, ToolStep, ToolType, ToolState } from './toolTypes';
 import logger from '@/lib/utils/logger';
 
 interface ExecuteStepParams {
@@ -29,6 +29,11 @@ function getStepsForTool(toolType: ToolType): Omit<ToolStep, 'id'>[] {
       { label: 'Loading contact history', icon: 'users', state: 'pending' },
       { label: 'Retrieving last meeting notes', icon: 'calendar', state: 'pending' },
       { label: 'Generating personalized email', icon: 'mail', state: 'pending' }
+    ],
+    email_search: [
+      { label: 'Connecting to Gmail', icon: 'mail', state: 'pending' },
+      { label: 'Searching inbox', icon: 'database', state: 'pending' },
+      { label: 'Loading email details', icon: 'activity', state: 'pending' }
     ],
     calendar_search: [
       { label: 'Connecting to Google Calendar', icon: 'calendar', state: 'pending' },

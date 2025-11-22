@@ -1,13 +1,15 @@
 import { type ReactNode, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import type { LeadWithPrep } from '@/lib/services/leadService';
-import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink, Activity, Calendar } from 'lucide-react';
+import { ClipboardList, Globe, Mail, Timer, User, Building2, ExternalLink, Activity, Calendar, Sparkles } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import type { Activity as ActivityType } from '@/lib/hooks/useActivities';
+import { useLeadReprocessor } from '@/lib/hooks/useLeads';
+import { toast } from 'sonner';
 
 type LeadPrepNoteRecord = LeadWithPrep['lead_prep_notes'][number];
 
@@ -17,6 +19,7 @@ interface LeadDetailPanelProps {
 
 export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
   const emit = useEventEmitter();
+  const { mutateAsync: reprocessLead, isPending: isEnriching } = useLeadReprocessor();
 
   // Fetch activities for the contact or company
   const { data: activities = [], isLoading: activitiesLoading } = useQuery<ActivityType[]>({
@@ -103,6 +106,17 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
         }
       }
     });
+  };
+
+  const handleEnrichLead = async () => {
+    if (!lead?.id) return;
+    
+    try {
+      await reprocessLead(lead.id);
+      toast.success('Lead enrichment started - insights will appear shortly');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Failed to enrich lead');
+    }
   };
 
   return (
@@ -233,8 +247,20 @@ export function LeadDetailPanel({ lead }: LeadDetailPanelProps) {
               .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
               .map((note) => <LeadNoteCard key={note.id} note={note} />)
           ) : (
-            <div className="rounded-xl border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-              No prep notes yet. Trigger the prep workflow to generate insights.
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/50 p-8 text-center dark:border-gray-700 dark:bg-gray-900/30">
+              <Sparkles className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600 mb-4" />
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                No prep notes yet. Enrich this lead to generate AI-powered insights.
+              </p>
+              <Button 
+                onClick={handleEnrichLead}
+                disabled={isEnriching}
+                size="sm"
+                className="gap-2"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isEnriching ? 'Enriching...' : 'Enrich Lead'}
+              </Button>
             </div>
           )}
         </section>
@@ -355,27 +381,93 @@ function parseLeadNoteBody(body: string): LeadNoteBlock[] {
     return [];
   }
 
-  // Pre-clean: Remove malformed JSON artifacts and code blocks that might have leaked through
+  // Pre-clean: Remove JSON artifacts while preserving legitimate content
   let normalized = body.replace(/\r\n/g, '\n').trim();
   
-  // Remove malformed code blocks like ```json { or incomplete code blocks
-  normalized = normalized.replace(/```\s*(?:json\s*)?\{\s*/g, '');
-  normalized = normalized.replace(/```\s*(?:json\s*)?/g, '');
+  // Remove code block markers
+  normalized = normalized.replace(/```\s*json\s*/gi, '');
+  normalized = normalized.replace(/```/g, '');
   
-  // Remove orphaned JSON key patterns that might have leaked through
-  normalized = normalized.replace(/["']?([a-z_]+)["']?\s*:\s*/gi, '');
-  normalized = normalized.replace(/[a-z_]*_and_[a-z_]*["']?\s*:\s*/gi, '');
+  // Remove JSON structural characters at line boundaries
+  normalized = normalized.replace(/^\s*[\{\[]\s*/gm, '');
+  normalized = normalized.replace(/\s*[\}\]]\s*$/gm, '');
   
-  // Remove orphaned braces
-  normalized = normalized.replace(/^\s*\{\s*/, '');
-  normalized = normalized.replace(/\s*\}\s*$/, '');
+  // Remove JSON property keys ONLY - be very specific
+  // Only remove if it has quotes OR underscores (JSON keys) OR is lowercase snake_case
+  // This preserves normal content like "Key Services:" or "What They Offer:"
+  normalized = normalized.replace(/^\s*["'][a-z_]+["']\s*:\s*/gim, ''); // Quoted keys like "role":
+  normalized = normalized.replace(/^\s*[a-z]+_[a-z_]+\s*:\s*/gim, ''); // Snake_case like role_and_responsibilities:
+  
+  // Remove orphaned quotes ONLY when they surround entire lines
+  normalized = normalized.replace(/^\s*["'](.+)["']\s*$/gm, '$1');
+  
+  // Clean up malformed markdown bold markers
+  // Remove quotes around bold text: **"text"** -> **text**
+  normalized = normalized.replace(/\*\*\s*["'](.+?)["']\s*\*\*/g, '**$1**');
+  
+  // Fix multiple asterisks: **** or more -> **
+  normalized = normalized.replace(/\*{3,}/g, '**');
+  
+  // Remove incomplete bold markers at end of text
+  normalized = normalized.replace(/\s*\*\*\s*$/gm, '');
+  
+  // Remove standalone braces and structural JSON characters from middle of text
+  normalized = normalized.replace(/\s+[\{\}]\s+/g, ' ');
+  normalized = normalized.replace(/^\s*[\{\}]\s*/gm, '');
+  
+  // Clean up spacing
+  normalized = normalized.replace(/\s+/g, ' ');
+  normalized = normalized.replace(/\s+\n/g, '\n');
+  normalized = normalized.replace(/\n\s+/g, '\n');
+  
+  // Split into lines and clean
+  let lines = normalized.split('\n').map(line => line.trim()).filter(line => {
+    if (!line) return false;
+    // Remove lines that are ONLY JSON keys (not "Key Services:" which is content)
+    if (/^["']?[a-z_]{3,}["']?\s*:\s*$/.test(line)) return false;
+    // Remove lines with only braces/brackets
+    if (/^[\{\}\[\]]+$/.test(line)) return false;
+    // Remove lines that are just opening braces with quotes
+    if (/^["'\{\s]+$/.test(line)) return false;
+    // Remove very short lines that are likely artifacts (but keep bullet points)
+    if (line.length < 3 && !/^[-•]/.test(line)) return false;
+    return true;
+  });
+  
+  // Remove duplicate consecutive lines and similar near-duplicates
+  const deduped: string[] = [];
+  let lastLine = '';
+  
+  for (const line of lines) {
+    // Skip exact duplicates
+    if (line === lastLine) {
+      continue;
+    }
+    
+    // Skip if this line is a substring of the last line (common AI duplication)
+    if (lastLine && lastLine.includes(line) && line.length > 10) {
+      continue;
+    }
+    
+    // Skip if the last line is a substring of this line (keep the longer one)
+    if (lastLine && line.includes(lastLine) && lastLine.length > 10) {
+      deduped[deduped.length - 1] = line; // Replace last with current (longer)
+      lastLine = line;
+      continue;
+    }
+    
+    deduped.push(line);
+    lastLine = line;
+  }
+  
+  normalized = deduped.join('\n').trim();
   
   if (!normalized) {
     return [];
   }
 
   const blocks: LeadNoteBlock[] = [];
-  const lines = normalized.split('\n');
+  lines = normalized.split('\n');
   let paragraphBuffer: string[] = [];
   let listBuffer: string[] = [];
   let collectingList = false;

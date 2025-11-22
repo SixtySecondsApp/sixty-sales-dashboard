@@ -243,14 +243,10 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   // Check if user is admin - admins can view all contacts
   const isAdmin = userData ? isUserAdmin(userData) : false;
   
-  // Fetch contact with company and owner profile - use maybeSingle() to handle case where contact doesn't exist
+  // Fetch contact with owner profile - fetch company via separate query to avoid FK issues
   let query = supabase
     .from('contacts')
-    .select(`
-      *,
-      companies (*),
-      profiles:owner_id (id, first_name, last_name, email, avatar_url, stage)
-    `)
+    .select('*')
     .eq('id', contactId);
   
   // Only filter by owner_id if user is not an admin
@@ -278,7 +274,36 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
     throw error;
   }
   
-  const company = contact.companies;
+  // Fetch company information separately to avoid FK issues between contacts and clients/companies
+  let company = null;
+  if (contact.company_id) {
+    // Try clients table first (CRM standard)
+    const { data: clientCompany, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', contact.company_id)
+      .maybeSingle();
+
+    if (clientCompany) {
+      company = clientCompany;
+    } else if (clientError && clientError.code !== 'PGRST116') {
+      logger.warn('⚠️ Failed to fetch company from clients table, trying companies table...', clientError);
+    }
+
+    if (!company) {
+      const { data: legacyCompany, error: legacyCompanyError } = await supabase
+        .from('companies')
+        .select('*')
+        .eq('id', contact.company_id)
+        .maybeSingle();
+
+      if (legacyCompany) {
+        company = legacyCompany;
+      } else if (legacyCompanyError && legacyCompanyError.code !== 'PGRST116') {
+        logger.error('❌ Failed to fetch company from both clients and companies tables:', legacyCompanyError);
+      }
+    }
+  }
   
   // If profile wasn't loaded via join, fetch it separately
   // (This can happen if the foreign key points to auth.users instead of profiles)

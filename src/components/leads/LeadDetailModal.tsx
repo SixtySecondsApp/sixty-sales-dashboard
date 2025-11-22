@@ -29,7 +29,7 @@ export function LeadDetailModal({ isOpen, onClose, lead }: LeadDetailModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm pt-20 pb-12 px-4"
       onClick={(e) => {
         // Close on backdrop click
         if (e.target === e.currentTarget) {
@@ -39,7 +39,7 @@ export function LeadDetailModal({ isOpen, onClose, lead }: LeadDetailModalProps)
     >
       <div
         className={cn(
-          'relative w-full max-w-4xl max-h-[90vh] overflow-hidden',
+          'relative w-full max-w-4xl max-h-full overflow-hidden',
           'bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-800',
           'flex flex-col'
         )}

@@ -35,6 +35,7 @@ import { ContactSelectionResponse } from './responses/ContactSelectionResponse';
 import { ActivityCreationResponse } from './responses/ActivityCreationResponse';
 import { TaskCreationResponse } from './responses/TaskCreationResponse';
 import { ProposalSelectionResponse } from './responses/ProposalSelectionResponse';
+import { ActionSummaryResponse } from './responses/ActionSummaryResponse';
 import type { CopilotResponse as CopilotResponseType } from './types';
 
 interface CopilotResponseProps {
@@ -141,6 +142,9 @@ export const CopilotResponse: React.FC<CopilotResponseProps> = ({ response, onAc
     
     case 'proposal_selection':
       return <ProposalSelectionResponse data={response} onActionClick={onActionClick} />;
+    
+    case 'action_summary':
+      return <ActionSummaryResponse data={response} onActionClick={onActionClick} />;
     
     default:
       // Fallback to text response if type is unknown

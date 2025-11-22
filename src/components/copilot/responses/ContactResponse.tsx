@@ -251,32 +251,62 @@ export const ContactResponse: React.FC<ContactResponseProps> = ({ data, onAction
         <MetricCard label="Pending Tasks" value={metrics.pendingTasks} variant="default" />
       </div>
 
-      {/* Recent Emails */}
-      {emails.length > 0 && (
-        <div className="space-y-3">
-          <div 
-            onClick={() => toggleSection('emails')}
-            className="flex items-center justify-between cursor-pointer"
+      {/* Recent Emails Section - Always show with "View All Emails" button */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
+            <Mail className="w-4 h-4 text-blue-400" />
+            Recent Emails {emails.length > 0 && `(${emails.length})`}
+          </h4>
+          <button
+            onClick={() => {
+              // Trigger email search for this contact
+              onActionClick?.('search_emails', { 
+                contactEmail: contact.email,
+                contactName: contact.name 
+              });
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 transition-colors text-xs font-medium"
           >
-            <h4 className="text-sm font-semibold text-gray-300 flex items-center gap-2">
-              <Mail className="w-4 h-4 text-blue-400" />
-              Recent Emails ({emails.length})
-            </h4>
-            {expandedSection === 'emails' ? (
-              <ChevronUp className="w-4 h-4 text-gray-500" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            )}
-          </div>
-          {expandedSection === 'emails' && (
-            <div className="space-y-2">
-              {emails.map(email => (
-                <EmailCard key={email.id} email={email} />
-              ))}
-            </div>
-          )}
+            <Mail className="w-3.5 h-3.5" />
+            View All Emails
+          </button>
         </div>
-      )}
+        
+        {emails.length > 0 && (
+          <>
+            <div 
+              onClick={() => toggleSection('emails')}
+              className="flex items-center gap-2 cursor-pointer text-xs text-gray-500 hover:text-gray-400"
+            >
+              {expandedSection === 'emails' ? (
+                <>
+                  <ChevronUp className="w-3 h-3" />
+                  <span>Hide recent emails</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3 h-3" />
+                  <span>Show {emails.length} recent emails from CRM</span>
+                </>
+              )}
+            </div>
+            {expandedSection === 'emails' && (
+              <div className="space-y-2">
+                {emails.map(email => (
+                  <EmailCard key={email.id} email={email} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        
+        {emails.length === 0 && (
+          <div className="text-xs text-gray-500 italic">
+            No recent emails in CRM history. Click "View All Emails" to search Gmail.
+          </div>
+        )}
+      </div>
 
       {/* Deals */}
       {deals.length > 0 && (

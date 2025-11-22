@@ -109,12 +109,7 @@ export const nextActionsService = {
     try {
       let query = supabase
         .from('next_action_suggestions')
-        .select(`
-          *,
-          companies:companies!next_action_suggestions_company_id_fkey(id, name, domain),
-          deals:deals!next_action_suggestions_deal_id_fkey(id, title, stage),
-          tasks:tasks!next_action_suggestions_created_task_id_fkey(id, title, status)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       // Apply filters

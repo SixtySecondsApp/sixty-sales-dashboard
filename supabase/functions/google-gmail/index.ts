@@ -6,7 +6,9 @@ import {
   trashEmail,
   starEmail,
   markAsRead,
-  getFullLabel
+  getFullLabel,
+  replyToEmail,
+  forwardEmail
 } from './gmail-actions.ts';
 
 async function refreshAccessToken(refreshToken: string, supabase: any, userId: string): Promise<string> {
@@ -238,6 +240,37 @@ serve(async (req) => {
           throw new Error('read must be a boolean for markAsRead action');
         }
         response = await markAsRead(accessToken, requestBody.messageId.trim(), requestBody.read);
+        break;
+      
+      case 'reply':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for reply action');
+        }
+        if (!requestBody.body) {
+          throw new Error('body is required for reply action');
+        }
+        response = await replyToEmail(
+          accessToken,
+          requestBody.messageId,
+          requestBody.body,
+          requestBody.replyAll || false,
+          requestBody.isHtml || false
+        );
+        break;
+      
+      case 'forward':
+        if (!requestBody.messageId) {
+          throw new Error('messageId is required for forward action');
+        }
+        if (!requestBody.to || !Array.isArray(requestBody.to) || requestBody.to.length === 0) {
+          throw new Error('to (array of recipients) is required for forward action');
+        }
+        response = await forwardEmail(
+          accessToken,
+          requestBody.messageId,
+          requestBody.to,
+          requestBody.additionalMessage
+        );
         break;
       
       case 'sync':

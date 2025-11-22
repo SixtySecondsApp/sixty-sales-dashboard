@@ -10,10 +10,12 @@ import type {
   CopilotState,
   CopilotContext as CopilotContextType,
   CopilotContextPayload,
-  Recommendation,
+  Recommendation
+} from '@/components/copilot/types';
+import type {
   ToolCall,
   ToolType
-} from '@/components/copilot/types';
+} from '@/components/copilot/toolTypes';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
 
@@ -189,6 +191,27 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     if (lowerMessage.includes('pipeline') || lowerMessage.includes('deal') || lowerMessage.includes('priority') || lowerMessage.includes('attention')) {
       return 'pipeline_data';
     }
+    // Email queries - distinguish between drafting and searching
+    const emailSearchKeywords = [
+      'last email',
+      'recent email',
+      'emails from',
+      'emails with',
+      'email history',
+      'what emails',
+      'my emails',
+      'show emails',
+      'inbox',
+      'gmail',
+      'messages from'
+    ];
+    const isEmailSearch = emailSearchKeywords.some(keyword => lowerMessage.includes(keyword)) ||
+      (lowerMessage.includes('email') && (lowerMessage.includes('what') || lowerMessage.includes('show') || lowerMessage.includes('find') || lowerMessage.includes('last') || lowerMessage.includes('recent')));
+    
+    if (isEmailSearch) {
+      return 'email_search';
+    }
+    
     if (lowerMessage.includes('email') || lowerMessage.includes('draft')) {
       return 'email_draft';
     }
@@ -243,6 +266,11 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           { label: 'Loading contact history', icon: 'users' },
           { label: 'Retrieving last meeting notes', icon: 'calendar' },
           { label: 'Generating personalized email', icon: 'mail' }
+        ],
+        email_search: [
+          { label: 'Connecting to Gmail', icon: 'mail' },
+          { label: 'Searching inbox', icon: 'database' },
+          { label: 'Loading email details', icon: 'activity' }
         ],
         calendar_search: [
           { label: 'Connecting to Google Calendar', icon: 'calendar' },

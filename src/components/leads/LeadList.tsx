@@ -2,7 +2,7 @@ import type { LeadWithPrep } from '@/lib/services/leadService';
 import { format, formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
-import { useState, useMemo, useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback, type KeyboardEvent, type MouseEvent } from 'react';
 import { Calendar, Clock, User, Tag, RotateCw, Loader2, Search } from 'lucide-react';
 
 type FilterType = 'all' | 'meeting_date' | 'booked_date';
@@ -19,6 +19,9 @@ interface LeadListProps {
   onFilterTypeChange?: (filter: FilterType) => void;
   searchQuery?: string;
   onSearchQueryChange?: (query: string) => void;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export function LeadList({
@@ -33,6 +36,9 @@ export function LeadList({
   onFilterTypeChange: externalOnFilterTypeChange,
   searchQuery: externalSearchQuery,
   onSearchQueryChange: externalOnSearchQueryChange,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: LeadListProps) {
   // Use external props if provided, otherwise use internal state
   const [internalFilterType, setInternalFilterType] = useState<FilterType>('all');
@@ -146,6 +152,33 @@ export function LeadList({
   const trimmedSearchQuery = searchQuery.trim();
   const showSearchEmptyState = Boolean(trimmedSearchQuery) && sortedLeads.length === 0;
 
+  // Intersection observer for infinite scroll
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasMore || !onLoadMore || isLoadingMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          onLoadMore();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [hasMore, onLoadMore, isLoadingMore]);
+
   if (isLoading) {
     return (
       <div className="flex flex-1 items-center justify-center py-12 text-sm text-gray-500 dark:text-gray-400">
@@ -245,26 +278,45 @@ export function LeadList({
       <div className="flex-1 overflow-y-auto">
         {showSearchEmptyState ? (
           <div className="flex h-full items-center justify-center px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-            No leads match “{trimmedSearchQuery}”. Try another name, company, or email.
+            No leads match "{trimmedSearchQuery}". Try another name, company, or email.
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-800">
-            {sortedLeads.map((lead) => {
-              return (
-                <LeadListItem
-                  key={lead.id}
-                  lead={lead}
-                  isSelected={selectedLeadId === lead.id}
-                  onSelect={() => onSelect(lead.id)}
-                  onReprocessLead={onReprocessLead}
-                  isReprocessingLead={reprocessingLeadId === lead.id}
-                  disableReprocess={
-                    Boolean(isReprocessing) && reprocessingLeadId !== null && reprocessingLeadId !== lead.id
-                  }
-                />
-              );
-            })}
-          </div>
+          <>
+            <div className="divide-y divide-gray-200 dark:divide-gray-800">
+              {sortedLeads.map((lead) => {
+                return (
+                  <LeadListItem
+                    key={lead.id}
+                    lead={lead}
+                    isSelected={selectedLeadId === lead.id}
+                    onSelect={() => onSelect(lead.id)}
+                    onReprocessLead={onReprocessLead}
+                    isReprocessingLead={reprocessingLeadId === lead.id}
+                    disableReprocess={
+                      Boolean(isReprocessing) && reprocessingLeadId !== null && reprocessingLeadId !== lead.id
+                    }
+                  />
+                );
+              })}
+            </div>
+
+            {/* Load More Trigger */}
+            {hasMore && (
+              <div
+                ref={loadMoreRef}
+                className="flex items-center justify-center py-6 text-sm text-gray-500 dark:text-gray-400"
+              >
+                {isLoadingMore ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Loading more leads...</span>
+                  </div>
+                ) : (
+                  <span>Scroll to load more</span>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

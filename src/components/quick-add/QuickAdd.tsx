@@ -1029,28 +1029,59 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                                    contact.email);
                 
                 // Extract company information
+                // Priority order:
+                // 1. contact.company (object) -> company.name and company.website
+                // 2. contact.companies (joined relation) -> companies.name and companies.website
+                // 3. contact.company_name (string)
+                // 4. contact._form_website or contact.company_website (string)
+                // 5. Extract from email domain
                 let companyName = '';
                 let websiteUrl = '';
                 
-                if (contact._form_website || contact.company_website) {
-                  websiteUrl = contact._form_website || contact.company_website;
-                  if (!companyName && websiteUrl) {
-                    const cleanUrl = websiteUrl.replace(/^(https?:\/\/)?(www\.)?/, '');
-                    const domain = cleanUrl.split('.')[0];
-                    companyName = domain.charAt(0).toUpperCase() + domain.slice(1);
+                // Check if contact.company is an object (from includeCompany join)
+                if (contact.company && typeof contact.company === 'object') {
+                  companyName = contact.company.name || '';
+                  websiteUrl = contact.company.website || '';
+                }
+                // Check contact.companies (joined relation from API)
+                else if (contact.companies) {
+                  if (typeof contact.companies === 'object') {
+                    companyName = contact.companies.name || '';
+                    websiteUrl = contact.companies.website || '';
+                  } else {
+                    // Fallback if companies is a string
+                    companyName = contact.companies;
+                  }
+                }
+                // Check company_name field (string)
+                else if (contact.company_name) {
+                  companyName = contact.company_name;
+                }
+                // Check if company is a string (legacy format)
+                else if (contact.company && typeof contact.company === 'string') {
+                  companyName = contact.company;
+                }
+                
+                // If we still don't have a website, check other sources
+                if (!websiteUrl) {
+                  if (contact._form_website) {
+                    websiteUrl = contact._form_website;
+                  } else if (contact.company_website) {
+                    websiteUrl = contact.company_website;
                   }
                 }
                 
-                if (contact.company || contact.company_name) {
-                  companyName = contact.company || contact.company_name;
-                } else if (contact.companies?.name) {
-                  companyName = contact.companies.name;
-                  if (!websiteUrl) {
-                    websiteUrl = contact.companies.website || '';
-                  }
-                } else if (!companyName) {
-                  const domain = contact.email?.split('@')[1];
-                  if (domain && !['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com'].includes(domain.toLowerCase())) {
+                // If we have a website but no company name, extract from website
+                if (!companyName && websiteUrl) {
+                  const cleanUrl = websiteUrl.replace(/^(https?:\/\/)?(www\.)?/, '');
+                  const domain = cleanUrl.split('.')[0];
+                  companyName = domain.charAt(0).toUpperCase() + domain.slice(1);
+                }
+                
+                // Fallback: Extract from email domain if no company info found
+                if (!companyName && contact.email) {
+                  const domain = contact.email.split('@')[1];
+                  if (domain && !['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'icloud.com', 'protonmail.com', 'aol.com'].includes(domain.toLowerCase())) {
                     const domainParts = domain.split('.');
                     if (domainParts.length >= 2) {
                       companyName = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);

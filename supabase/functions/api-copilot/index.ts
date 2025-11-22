@@ -25,6 +25,8 @@ import {
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const ANTHROPIC_VERSION = '2023-06-01' // API version for tool calling
+const GOOGLE_CLIENT_ID = Deno.env.get('GOOGLE_CLIENT_ID') || ''
+const GOOGLE_CLIENT_SECRET = Deno.env.get('GOOGLE_CLIENT_SECRET') || ''
 
 interface ChatRequest {
   message: string
@@ -56,6 +58,15 @@ interface ToolResult {
   tool_use_id: string
   content: string
   is_error?: boolean
+}
+
+interface ToolExecutionDetail {
+  toolName: string
+  args: any
+  result: any
+  latencyMs: number
+  success: boolean
+  error?: string
 }
 
 interface StructuredResponse {
@@ -103,6 +114,19 @@ interface TaskData {
 interface UserData {
   id: string
   email?: string
+}
+
+interface GmailMessageSummary {
+  id: string
+  threadId?: string
+  subject: string
+  snippet: string
+  date: string
+  direction: 'sent' | 'received' | 'unknown'
+  from: string[]
+  to: string[]
+  historyId?: string
+  link?: string
 }
 
 serve(async (req) => {
@@ -557,7 +581,9 @@ async function handleChat(
         client,
         targetUserId, // Use targetUserId (may be different user if admin querying)
         aiResponse.tools_used || [],
-        userId // Pass requesting user ID for permission checks
+        userId, // Pass requesting user ID for permission checks
+        body.context,
+        aiResponse.tool_executions || [] // Pass detailed tool execution metadata
       )
       if (structuredResponse) {
         console.log('[STRUCTURED] ✅ Structured response generated via detection:', structuredResponse.type)
@@ -1650,6 +1676,21 @@ const AVAILABLE_TOOLS = [
       required: ['id']
     }
   },
+  {
+    name: 'calendar_availability',
+    description: 'Calculate calendar availability (free/busy) for a date range.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        startDate: { type: 'string', description: 'Start of the window (ISO). Defaults to now.' },
+        endDate: { type: 'string', description: 'End of the window (ISO). Defaults to 7 days from start.' },
+        durationMinutes: { type: 'number', default: 60, description: 'Required meeting duration in minutes.' },
+        workingHoursStart: { type: 'string', default: '09:00', description: 'Day start in HH:mm (user timezone).' },
+        workingHoursEnd: { type: 'string', default: '17:00', description: 'Day end in HH:mm (user timezone).' },
+        excludeWeekends: { type: 'boolean', default: true, description: 'Exclude weekends when true.' }
+      }
+    }
+  },
   // Tasks CRUD (for task management)
   {
     name: 'tasks_create',
@@ -1709,6 +1750,85 @@ const AVAILABLE_TOOLS = [
       },
       required: ['id']
     }
+  },
+  // Clients CRUD (for subscription management)
+  {
+    name: 'clients_create',
+    description: 'Create a new client record for subscription management. Use this when converting a deal to a client or creating a new client subscription.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        company_name: { type: 'string', description: 'Client company name (required)' },
+        contact_name: { type: 'string', description: 'Primary contact name' },
+        contact_email: { type: 'string', description: 'Primary contact email' },
+        subscription_amount: { type: 'number', description: 'Monthly recurring revenue (MRR) amount' },
+        status: { type: 'string', enum: ['active', 'churned', 'paused'], default: 'active', description: 'Client subscription status' },
+        deal_id: { type: 'string', description: 'Optional reference to original deal that was converted' },
+        subscription_start_date: { type: 'string', description: 'Date when subscription started (ISO format)' }
+      },
+      required: ['company_name']
+    }
+  },
+  {
+    name: 'clients_read',
+    description: 'Read client records with filtering options. Use this to view client subscriptions, find clients by company name, or check subscription status.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Client ID (for single client)' },
+        company_name: { type: 'string', description: 'Filter by company name' },
+        status: { type: 'string', enum: ['active', 'churned', 'paused'], description: 'Filter by status' },
+        deal_id: { type: 'string', description: 'Filter by deal ID' },
+        limit: { type: 'number', default: 50, description: 'Maximum number of clients to return' }
+      }
+    }
+  },
+  {
+    name: 'clients_update',
+    description: 'Update a client record. Use this to update subscription amounts (MRR), change status, or modify client information. This is the primary tool for updating monthly subscription amounts.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Client ID' },
+        company_name: { type: 'string', description: 'Company name' },
+        contact_name: { type: 'string', description: 'Primary contact name' },
+        contact_email: { type: 'string', description: 'Primary contact email' },
+        subscription_amount: { type: 'number', description: 'Monthly recurring revenue (MRR) amount - use this to update subscription amounts' },
+        status: { type: 'string', enum: ['active', 'churned', 'paused'] },
+        subscription_start_date: { type: 'string', description: 'Subscription start date (ISO format)' },
+        churn_date: { type: 'string', description: 'Churn date (ISO format, only when status is churned)' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'clients_delete',
+    description: 'Delete a client record. Use with caution - this permanently removes the client subscription record.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'Client ID' }
+      },
+      required: ['id']
+    }
+  },
+  {
+    name: 'emails_search',
+    description: 'Search your connected Gmail account for recent emails with a specific contact or keyword query.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        contact_email: { type: 'string', description: 'Email address of the contact to filter on' },
+        contact_id: { type: 'string', description: 'Contact ID to derive the email from' },
+        contact_name: { type: 'string', description: 'Contact name if email is unknown' },
+        query: { type: 'string', description: 'Additional Gmail query or keyword (subject, company, etc.)' },
+        direction: { type: 'string', enum: ['sent', 'received', 'both'], default: 'both', description: 'Filter by direction relative to the contact' },
+        start_date: { type: 'string', description: 'Start date (ISO) for filtering emails' },
+        end_date: { type: 'string', description: 'End date (ISO) for filtering emails' },
+        label: { type: 'string', description: 'Gmail label to filter on (e.g., "to respond")' },
+        limit: { type: 'number', default: 10, description: 'Maximum number of messages to return (max 20)' }
+      }
+    }
   }
 ]
 
@@ -1731,6 +1851,7 @@ async function callClaudeAPI(
   tools_success_count?: number;
   tools_error_count?: number;
   tool_execution_time_ms?: number;
+  tool_executions?: ToolExecutionDetail[];
 }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured')
@@ -1757,23 +1878,36 @@ You have access to CRUD (Create, Read, Update, Delete) operations for all major 
 **Activities**: Create and manage sales activities (sales, outbound, meetings, proposals)
 **Pipeline (Deals)**: Manage deals with stages, values, probabilities, and status
 **Leads (Contacts)**: Manage contacts with companies, emails, and relationships
+**Clients**: Manage client subscriptions with monthly recurring revenue (MRR) tracking
 **Roadmap**: Create and manage roadmap items (features, bugs, improvements)
 **Calendar**: Manage calendar events and scheduling
 **Tasks**: Create and manage tasks linked to contacts, deals, or companies
+
+**CRITICAL: When users request actions that modify data (marking deals as won, updating client subscriptions, creating tasks, etc.), you MUST use the appropriate write operations (create, update). Do not just read data - actively perform the requested changes using the available tools.**
 
 **Key Capabilities**:
 - When reading meetings, you get full Fathom transcripts (transcript_text), AI summaries, action items, and sentiment analysis
 - All operations respect user ownership and permissions
 - You can filter, sort, and search across all entities
 - Related data is automatically included (e.g., meeting action items, deal stages)
+- When updating deals, you can change status to 'won', 'lost', or 'cancelled'
+- When updating clients, you can modify subscription_amount (MRR) and other client fields
 
 **Examples of what you can do**:
 - "Show me all meetings from last week with their transcripts and action items"
 - "Create a new deal for Acme Corp worth $50,000 in the Opportunity stage"
+- "Mark the deal for Anuncia as closed won and set the client subscription to £5000 per month"
 - "Update the status of deal XYZ to 'won'"
 - "Create a task to follow up with John Smith tomorrow"
 - "Find all contacts at TechCorp"
 - "Create a roadmap item for adding email templates"
+- "Update the client subscription amount for Company ABC to $10,000 per month"
+
+**Action Execution Guidelines**:
+- When a user asks you to mark a deal as won, use pipeline_update with status='won'
+- When a user asks you to update a client subscription amount, use clients_update with subscription_amount
+- When a user asks you to create a task, use tasks_create
+- Always use the appropriate write operations to complete user requests - don't just read and report
 
 Use the appropriate CRUD operations to complete user requests. Be intelligent about which operations to use and provide helpful summaries of what you did.
 
@@ -1838,6 +1972,7 @@ Be helpful, proactive, and action-oriented.`
   let toolsSuccessCount = 0
   let toolsErrorCount = 0
   const toolExecutionStartTime = Date.now()
+  const toolExecutions: ToolExecutionDetail[] = [] // Detailed execution tracking
 
   // Handle tool use - Claude may request to use tools
   let maxToolIterations = 5 // Prevent infinite loops
@@ -1894,7 +2029,17 @@ Be helpful, proactive, and action-oriented.`
           )
           
           const toolResult = await Promise.race([toolPromise, timeoutPromise])
+          const toolLatencyMs = Date.now() - toolStartTime
           toolsSuccessCount++
+          
+          // Track detailed execution metadata
+          toolExecutions.push({
+            toolName: toolCall.name,
+            args: toolCall.input,
+            result: toolResult,
+            latencyMs: toolLatencyMs,
+            success: true
+          })
           
           toolResults.push({
             type: 'tool_result',
@@ -1902,7 +2047,19 @@ Be helpful, proactive, and action-oriented.`
             content: JSON.stringify(toolResult)
           })
         } catch (error: any) {
+          const toolLatencyMs = Date.now() - toolStartTime
           toolsErrorCount++
+          
+          // Track failed execution metadata
+          toolExecutions.push({
+            toolName: toolCall.name,
+            args: toolCall.input,
+            result: null,
+            latencyMs: toolLatencyMs,
+            success: false,
+            error: error.message || String(error)
+          })
+          
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolCall.id,
@@ -1981,7 +2138,8 @@ Be helpful, proactive, and action-oriented.`
     tool_iterations: toolIterations,
     tools_success_count: toolsSuccessCount,
     tools_error_count: toolsErrorCount,
-    tool_execution_time_ms: toolExecutionTimeMs
+    tool_execution_time_ms: toolExecutionTimeMs,
+    tool_executions: toolExecutions
   }
 }
 
@@ -2025,6 +2183,12 @@ async function executeToolCall(
     
     case 'tasks':
       return await handleTasksCRUD(operation, args, client, userId)
+    
+    case 'clients':
+      return await handleClientsCRUD(operation, args, client, userId)
+
+    case 'emails':
+      return await handleEmailsTool(operation, args, client, userId)
     
     default:
       throw new Error(`Unknown entity: ${entity}`)
@@ -2467,11 +2631,65 @@ async function handleLeadsCRUD(operation: string, args: any, client: any, userId
     }
 
     case 'update': {
-      const { id, ...updates } = args
+      const { id, company, company_id, ...updates } = args
+      
+      // Resolve company name to company_id if company name provided
+      let resolvedCompanyId = company_id
+      if (company && !company_id) {
+        // Try to find company by name in clients table first (CRM uses clients)
+        let companyData = null
+        let companyError = null
+        
+        // Try clients table first (most common in CRM)
+        const clientsResult = await client
+          .from('clients')
+          .select('id')
+          .ilike('company_name', `%${company}%`)
+          .eq('owner_id', userId)
+          .limit(1)
+          .maybeSingle()
+        
+        if (clientsResult.data) {
+          resolvedCompanyId = clientsResult.data.id
+        } else {
+          // Fallback to companies table if clients doesn't exist
+          const companiesResult = await client
+            .from('companies')
+            .select('id')
+            .ilike('name', `%${company}%`)
+            .eq('owner_id', userId)
+            .limit(1)
+            .maybeSingle()
+          
+          if (companiesResult.data) {
+            resolvedCompanyId = companiesResult.data.id
+          } else {
+            // If company not found, try creating it in clients table
+            const { data: newCompany, error: createError } = await client
+              .from('clients')
+              .insert({
+                company_name: company,
+                owner_id: userId
+              })
+              .select('id')
+              .single()
+            
+            if (!createError && newCompany) {
+              resolvedCompanyId = newCompany.id
+            }
+          }
+        }
+      }
+      
+      // Build update object
+      const updateData: any = { ...updates }
+      if (resolvedCompanyId) {
+        updateData.company_id = resolvedCompanyId
+      }
       
       const { data, error } = await client
         .from('contacts')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
         .eq('owner_id', userId)
         .select()
@@ -2667,8 +2885,204 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
       return { success: true, message: 'Calendar event deleted successfully' }
     }
 
+    case 'availability': {
+      return await handleCalendarAvailability(args, client, userId)
+    }
+
     default:
       throw new Error(`Unknown operation: ${operation}`)
+  }
+}
+
+// Calendar Availability
+async function handleCalendarAvailability(args: any, client: any, userId: string): Promise<any> {
+  const {
+    startDate,
+    endDate,
+    durationMinutes = 60,
+    workingHoursStart = '09:00',
+    workingHoursEnd = '17:00',
+    excludeWeekends = true
+  } = args || {}
+
+  const timezone = await getUserTimezone(client, userId)
+  const normalizedDuration = clampDurationMinutes(durationMinutes)
+  const safeStartTime = normalizeTimeInput(workingHoursStart, '09:00')
+  const safeEndTime = normalizeTimeInput(workingHoursEnd, '17:00')
+
+  const now = new Date()
+  const parsedStart = parseDateInput(startDate, now)
+  const parsedEnd = parseDateInput(endDate, addDays(parsedStart, 7))
+
+  let rangeStart = startOfZonedDay(parsedStart, timezone)
+  let rangeEnd = endOfZonedDay(parsedEnd, timezone)
+  const maxRangeDays = 30
+  if (rangeEnd.getTime() - rangeStart.getTime() > maxRangeDays * 24 * 60 * 60 * 1000) {
+    rangeEnd = endOfZonedDay(addDays(rangeStart, maxRangeDays), timezone)
+  }
+  if (rangeEnd <= rangeStart) {
+    rangeEnd = endOfZonedDay(addDays(rangeStart, 1), timezone)
+  }
+
+  const { data: rawEvents, error } = await client
+    .from('calendar_events')
+    .select(`
+      id,
+      title,
+      start_time,
+      end_time,
+      location,
+      status,
+      meeting_url,
+      deal_id,
+      contact_id,
+      attendees:calendar_attendees(name, email)
+    `)
+    .eq('user_id', userId)
+    .gte('start_time', rangeStart.toISOString())
+    .lte('end_time', rangeEnd.toISOString())
+    .order('start_time', { ascending: true })
+
+  if (error) {
+    throw new Error(`Failed to read calendar events: ${error.message}`)
+  }
+
+  let meetingFallbackEvents: any[] = []
+  if (!rawEvents || rawEvents.length === 0) {
+    const { data: meetingRows, error: meetingError } = await client
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        meeting_start,
+        meeting_end,
+        duration_minutes,
+        owner_user_id,
+        company_id,
+        primary_contact_id
+      `)
+      .eq('owner_user_id', userId)
+      .gte('meeting_start', rangeStart.toISOString())
+      .lte('meeting_start', rangeEnd.toISOString())
+
+    if (!meetingError && meetingRows && meetingRows.length > 0) {
+      meetingFallbackEvents = meetingRows
+        .filter(meeting => meeting.meeting_start)
+        .map(meeting => {
+          const startIso = meeting.meeting_start
+          const endIso =
+            meeting.meeting_end ||
+            (meeting.meeting_start && meeting.duration_minutes
+              ? new Date(new Date(meeting.meeting_start).getTime() + meeting.duration_minutes * 60000).toISOString()
+              : meeting.meeting_start)
+
+          return {
+            id: `meeting-${meeting.id}`,
+            title: meeting.title || 'Meeting',
+            start_time: startIso,
+            end_time: endIso,
+            location: null,
+            status: 'confirmed',
+            meeting_url: null,
+            deal_id: meeting.company_id,
+            contact_id: meeting.primary_contact_id,
+            attendees: [],
+            source: 'meetings'
+          }
+        })
+    }
+  }
+
+  const combinedEvents = [...(rawEvents || []), ...meetingFallbackEvents]
+
+  const normalizedEvents = combinedEvents
+    .map(event => {
+      const start = new Date(event.start_time)
+      const end = new Date(event.end_time)
+      return {
+        ...event,
+        start,
+        end
+      }
+    })
+    .filter(event => !isNaN(event.start.getTime()) && !isNaN(event.end.getTime()))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+
+  const availabilitySlots: Array<{ start: string; end: string; durationMinutes: number }> = []
+  const allSlots: Array<{ start: Date; end: Date; durationMinutes: number }> = []
+
+  let dayCursor = new Date(rangeStart)
+  while (dayCursor <= rangeEnd) {
+    const { weekday } = getZonedDateParts(dayCursor, timezone)
+    if (!(excludeWeekends && (weekday === 0 || weekday === 6))) {
+      const dayWorkStart = zonedTimeOnDate(dayCursor, safeStartTime, timezone)
+      let dayWorkEnd = zonedTimeOnDate(dayCursor, safeEndTime, timezone)
+      if (dayWorkEnd <= dayWorkStart) {
+        dayWorkEnd = addMinutes(dayWorkStart, 8 * 60)
+      }
+
+      const overlappingEvents = normalizedEvents
+        .map(event => ({
+          start: new Date(Math.max(event.start.getTime(), dayWorkStart.getTime())),
+          end: new Date(Math.min(event.end.getTime(), dayWorkEnd.getTime()))
+        }))
+        .filter(interval => interval.end > interval.start)
+
+      const mergedBusy = mergeIntervals(overlappingEvents)
+      const freeSlots = calculateFreeSlotsForDay(dayWorkStart, dayWorkEnd, mergedBusy, normalizedDuration)
+      for (const slot of freeSlots) {
+        allSlots.push(slot)
+      }
+    }
+
+    dayCursor = addDays(dayCursor, 1)
+  }
+
+  const totalFreeMinutes = allSlots.reduce((sum, slot) => sum + slot.durationMinutes, 0)
+  const totalBusyMinutes = normalizedEvents.reduce((sum, event) => {
+    const diff = Math.max(0, event.end.getTime() - event.start.getTime())
+    return sum + diff / 60000
+  }, 0)
+
+  for (const slot of allSlots.slice(0, 25)) {
+    availabilitySlots.push({
+      start: slot.start.toISOString(),
+      end: slot.end.toISOString(),
+      durationMinutes: slot.durationMinutes
+    })
+  }
+
+  const busySlots = normalizedEvents.map(event => ({
+    id: event.id,
+    title: event.title || 'Busy',
+    start: event.start.toISOString(),
+    end: event.end.toISOString()
+  }))
+
+  return {
+    success: true,
+    availableSlots: availabilitySlots,
+    totalAvailableSlots: allSlots.length,
+    busySlots,
+    events: combinedEvents,
+    summary: {
+      totalFreeMinutes,
+      totalBusyMinutes,
+      totalFreeHours: Number((totalFreeMinutes / 60).toFixed(1)),
+      totalBusyHours: Number((totalBusyMinutes / 60).toFixed(1)),
+      meetingCount: normalizedEvents.length
+    },
+    range: {
+      start: rangeStart.toISOString(),
+      end: rangeEnd.toISOString()
+    },
+    timezone,
+    durationMinutes: normalizedDuration,
+    workingHours: {
+      start: safeStartTime,
+      end: safeEndTime
+    },
+    excludeWeekends: !!excludeWeekends
   }
 }
 
@@ -2790,6 +3204,219 @@ async function handleTasksCRUD(operation: string, args: any, client: any, userId
 
     default:
       throw new Error(`Unknown operation: ${operation}`)
+  }
+}
+
+// Clients CRUD
+async function handleClientsCRUD(operation: string, args: any, client: any, userId: string): Promise<any> {
+  switch (operation) {
+    case 'create': {
+      const { company_name, contact_name, contact_email, subscription_amount, status = 'active', deal_id, subscription_start_date } = args
+      
+      if (!company_name) {
+        throw new Error('Company name is required')
+      }
+      
+      const clientData: any = {
+        company_name,
+        owner_id: userId,
+        status
+      }
+      
+      if (contact_name) clientData.contact_name = contact_name
+      if (contact_email) clientData.contact_email = contact_email
+      if (subscription_amount !== undefined) clientData.subscription_amount = subscription_amount
+      if (deal_id) clientData.deal_id = deal_id
+      if (subscription_start_date) {
+        clientData.subscription_start_date = subscription_start_date
+      } else {
+        // Default to today if not provided
+        clientData.subscription_start_date = new Date().toISOString().split('T')[0]
+      }
+
+      const { data, error } = await client
+        .from('clients')
+        .insert(clientData)
+        .select()
+        .single()
+
+      if (error) throw new Error(`Failed to create client: ${error.message}`)
+
+      return { success: true, client: data, message: `Client "${company_name}" created successfully` }
+    }
+
+    case 'read': {
+      const { id, company_name, status, deal_id, limit = 50 } = args
+
+      let query = client
+        .from('clients')
+        .select('*')
+        .eq('owner_id', userId)
+
+      if (id) {
+        query = query.eq('id', id).single()
+      } else {
+        if (company_name) query = query.ilike('company_name', `%${company_name}%`)
+        if (status) query = query.eq('status', status)
+        if (deal_id) query = query.eq('deal_id', deal_id)
+        query = query.order('created_at', { ascending: false }).limit(limit)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw new Error(`Failed to read clients: ${error.message}`)
+
+      return { success: true, clients: Array.isArray(data) ? data : [data], count: Array.isArray(data) ? data.length : 1 }
+    }
+
+    case 'update': {
+      const { id, ...updates } = args
+      
+      if (!id) {
+        throw new Error('Client ID is required for update')
+      }
+      
+      // Handle churn_date logic - if status is being set to churned, ensure churn_date is set
+      if (updates.status === 'churned' && !updates.churn_date) {
+        updates.churn_date = new Date().toISOString().split('T')[0]
+      }
+      // If status is changing away from churned, clear churn_date
+      if (updates.status && updates.status !== 'churned' && updates.churn_date === undefined) {
+        // Check current status first
+        const { data: currentClient } = await client
+          .from('clients')
+          .select('status')
+          .eq('id', id)
+          .eq('owner_id', userId)
+          .single()
+        
+        if (currentClient && currentClient.status === 'churned') {
+          updates.churn_date = null
+        }
+      }
+      
+      const { data, error } = await client
+        .from('clients')
+        .update(updates)
+        .eq('id', id)
+        .eq('owner_id', userId)
+        .select()
+        .single()
+
+      if (error) throw new Error(`Failed to update client: ${error.message}`)
+
+      return { success: true, client: data, message: 'Client updated successfully' }
+    }
+
+    case 'delete': {
+      const { id } = args
+      
+      const { error } = await client
+        .from('clients')
+        .delete()
+        .eq('id', id)
+        .eq('owner_id', userId)
+
+      if (error) throw new Error(`Failed to delete client: ${error.message}`)
+
+      return { success: true, message: 'Client deleted successfully' }
+    }
+
+    default:
+      throw new Error(`Unknown operation: ${operation}`)
+  }
+}
+
+// Emails tool (Gmail search)
+async function handleEmailsTool(operation: string, args: any, client: any, userId: string): Promise<any> {
+  if (operation !== 'search') {
+    throw new Error(`Unknown operation for emails: ${operation}`)
+  }
+
+  const {
+    contact_email,
+    contact_id,
+    contact_name,
+    query,
+    direction = 'both',
+    start_date,
+    end_date,
+    limit = 10,
+    label
+  } = args || {}
+
+  let resolvedContactId = contact_id || null
+  let contactEmail: string | null = contact_email ? String(contact_email).trim() : null
+  let contactName: string | null = contact_name ? String(contact_name).trim() : null
+
+  if (!contactEmail && resolvedContactId) {
+    const { data } = await client
+      .from('contacts')
+      .select('id, email, full_name')
+      .eq('id', resolvedContactId)
+      .eq('owner_id', userId)
+      .maybeSingle()
+    if (data) {
+      contactEmail = data.email || contactEmail
+      contactName = data.full_name || contactName
+      resolvedContactId = data.id
+    }
+  }
+
+  if (!contactEmail && contactName) {
+    const { data } = await client
+      .from('contacts')
+      .select('id, email, full_name')
+      .eq('owner_id', userId)
+      .ilike('full_name', `%${contactName}%`)
+      .maybeSingle()
+    if (data) {
+      contactEmail = data.email || contactEmail
+      contactName = data.full_name || contactName
+      resolvedContactId = data.id
+    }
+  }
+
+  const normalizedDirection: 'sent' | 'received' | 'both' =
+    direction === 'sent' || direction === 'received' ? direction : 'both'
+  const sanitizedLimit = Math.min(Math.max(Number(limit) || 10, 1), 20)
+
+  let messages: GmailMessageSummary[] = []
+  let source: 'gmail' | 'activities' | 'none' = 'gmail'
+  let warning: string | null = null
+
+  try {
+    const gmailResult = await searchGmailMessages(client, userId, {
+      contactEmail,
+      query: query || contactName || contactEmail || null,
+      limit: sanitizedLimit,
+      direction: normalizedDirection,
+      startDate: start_date || null,
+      endDate: end_date || null,
+      label: label || null
+    })
+    messages = gmailResult.messages
+  } catch (error) {
+    warning = error.message || 'Unable to reach Gmail'
+    console.error('[EMAILS_TOOL] Gmail search failed:', error)
+    if (resolvedContactId) {
+      messages = await fetchEmailActivitiesFallback(client, userId, resolvedContactId, sanitizedLimit)
+      source = messages.length ? 'activities' : 'none'
+    } else {
+      source = 'none'
+    }
+  }
+
+  return {
+    success: true,
+    source,
+    warning,
+    messages,
+    matchedContact: {
+      contact_id: resolvedContactId,
+      contact_email: contactEmail,
+      contact_name: contactName
+    }
   }
 }
 
@@ -2941,6 +3568,282 @@ Return your response as JSON in this exact format:
 }
 
 /**
+ * Gmail + Communication Helpers
+ */
+async function refreshGmailAccessToken(
+  client: any,
+  integrationId: string,
+  userId: string,
+  refreshToken?: string | null
+): Promise<{ accessToken: string; expiresAt: string }> {
+  if (!refreshToken) {
+    throw new Error('No refresh token available for Gmail integration. Please reconnect your Google account.')
+  }
+
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    throw new Error('Google OAuth credentials are not configured on the server.')
+  }
+
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  })
+
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.error_description || payload.error?.message || 'Failed to refresh Gmail token')
+  }
+
+  const expiresAtDate = new Date()
+  expiresAtDate.setSeconds(expiresAtDate.getSeconds() + (payload.expires_in || 3600))
+
+  await client
+    .from('google_integrations')
+    .update({
+      access_token: payload.access_token,
+      expires_at: expiresAtDate.toISOString()
+    })
+    .eq('id', integrationId)
+
+  return {
+    accessToken: payload.access_token,
+    expiresAt: expiresAtDate.toISOString()
+  }
+}
+
+async function getGmailAccessToken(
+  client: any,
+  userId: string
+): Promise<{ accessToken: string; integrationId: string }> {
+  const { data: integration, error } = await client
+    .from('google_integrations')
+    .select('id, access_token, refresh_token, expires_at')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !integration) {
+    throw new Error('Google integration not found. Connect your Gmail account in Settings.')
+  }
+
+  let accessToken = integration.access_token
+  const expiresAt = integration.expires_at ? new Date(integration.expires_at) : null
+  const needsRefresh = !accessToken || (expiresAt && expiresAt.getTime() <= Date.now() + 60_000)
+
+  if (needsRefresh) {
+    const refreshed = await refreshGmailAccessToken(client, integration.id, userId, integration.refresh_token)
+    accessToken = refreshed.accessToken
+  }
+
+  return { accessToken, integrationId: integration.id }
+}
+
+function extractEmailsFromHeader(header?: string): string[] {
+  if (!header) return []
+  const matches = header.match(/[\w.+-]+@[\w.-]+\.\w+/g)
+  if (!matches) return []
+  return matches.map(email => email.trim())
+}
+
+function sanitizeSubject(subject?: string): string {
+  if (!subject || !subject.trim()) return '(No subject)'
+  return subject.trim()
+}
+
+function determineDirection(
+  contactEmail: string | null,
+  fromList: string[],
+  toList: string[]
+): 'sent' | 'received' | 'unknown' {
+  if (!contactEmail) return 'unknown'
+  const normalized = contactEmail.toLowerCase()
+  if (fromList.some(email => email.toLowerCase() === normalized)) return 'received'
+  if (toList.some(email => email.toLowerCase() === normalized)) return 'sent'
+  return 'unknown'
+}
+
+function toUnixTimestamp(dateString?: string | null): number | null {
+  if (!dateString) return null
+  const parsed = new Date(dateString)
+  if (isNaN(parsed.getTime())) return null
+  return Math.floor(parsed.getTime() / 1000)
+}
+
+async function searchGmailMessages(
+  client: any,
+  userId: string,
+  options: {
+    contactEmail?: string | null
+    query?: string | null
+    limit?: number
+    direction?: 'sent' | 'received' | 'both'
+    startDate?: string | null
+    endDate?: string | null
+    label?: string | null
+  }
+): Promise<{ messages: GmailMessageSummary[]; source: 'gmail' }> {
+  const { accessToken } = await getGmailAccessToken(client, userId)
+  const limit = Math.min(Math.max(options.limit || 10, 1), 20)
+
+  const qParts: string[] = []
+  if (options.contactEmail) {
+    const normalizedEmail = options.contactEmail.trim()
+    if (options.direction === 'sent') {
+      qParts.push(`to:${normalizedEmail}`)
+    } else if (options.direction === 'received') {
+      qParts.push(`from:${normalizedEmail}`)
+    } else {
+      qParts.push(`(from:${normalizedEmail} OR to:${normalizedEmail})`)
+    }
+  }
+
+  if (options.query) {
+    const safeQuery = options.query.replace(/"/g, '').trim()
+    if (safeQuery) qParts.push(`"${safeQuery}"`)
+  }
+
+  if (options.label) {
+    const safeLabel = options.label.replace(/"/g, '').trim()
+    if (safeLabel) qParts.push(`label:"${safeLabel}"`)
+  }
+
+  const after = toUnixTimestamp(options.startDate || null)
+  const before = toUnixTimestamp(options.endDate || null)
+  if (after) qParts.push(`after:${after}`)
+  if (before) qParts.push(`before:${before}`)
+
+  const params = new URLSearchParams({
+    maxResults: String(limit)
+  })
+  if (qParts.length > 0) {
+    params.set('q', qParts.join(' '))
+  }
+
+  const listResponse = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  })
+
+  if (listResponse.status === 404) {
+    return { messages: [], source: 'gmail' }
+  }
+
+  const listPayload = await listResponse.json().catch(() => ({}))
+  if (!listResponse.ok) {
+    throw new Error(listPayload.error?.message || 'Failed to fetch Gmail messages')
+  }
+
+  const messageRefs = (listPayload.messages || []).slice(0, limit)
+  if (messageRefs.length === 0) {
+    return { messages: [], source: 'gmail' }
+  }
+
+  const baseHeaders = ['Subject', 'From', 'To', 'Date']
+
+  const detailedResults = await Promise.allSettled(
+    messageRefs.map(async (msg: any) => {
+      const detailUrl = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`)
+      detailUrl.searchParams.set('format', 'metadata')
+      baseHeaders.forEach(header => detailUrl.searchParams.append('metadataHeaders', header))
+
+      const detailResponse = await fetch(detailUrl.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      })
+
+      if (!detailResponse.ok) {
+        return null
+      }
+
+      const detail = await detailResponse.json()
+      const headerList = detail.payload?.headers || []
+      const getHeader = (name: string) => headerList.find((h: any) => h.name === name)?.value || ''
+      const subject = sanitizeSubject(getHeader('Subject'))
+      const snippet = detail.snippet || ''
+      const sentDate = getHeader('Date')
+      const date = sentDate
+        ? new Date(sentDate).toISOString()
+        : detail.internalDate
+          ? new Date(Number(detail.internalDate)).toISOString()
+          : new Date().toISOString()
+      const fromList = extractEmailsFromHeader(getHeader('From'))
+      const toList = extractEmailsFromHeader(getHeader('To'))
+
+      return {
+        id: detail.id,
+        threadId: detail.threadId,
+        subject,
+        snippet,
+        date,
+        from: fromList,
+        to: toList,
+        historyId: detail.historyId,
+        direction: determineDirection(options.contactEmail || null, fromList, toList),
+        link: detail.threadId ? `https://mail.google.com/mail/u/0/#inbox/${detail.threadId}` : undefined
+      } as GmailMessageSummary
+    })
+  )
+
+  const messages: GmailMessageSummary[] = []
+  for (const result of detailedResults) {
+    if (result.status === 'fulfilled' && result.value) {
+      messages.push(result.value)
+    }
+  }
+
+  return { messages, source: 'gmail' }
+}
+
+async function fetchEmailActivitiesFallback(
+  client: any,
+  userId: string,
+  contactId?: string | null,
+  limit: number = 10
+): Promise<GmailMessageSummary[]> {
+  if (!contactId) return []
+
+  const { data, error } = await client
+    .from('activities')
+    .select('id, details, date')
+    .eq('user_id', userId)
+    .eq('contact_id', contactId)
+    .eq('type', 'email')
+    .order('date', { ascending: false })
+    .limit(limit)
+
+  if (error || !data) {
+    if (error) console.error('Error fetching fallback activities:', error)
+    return []
+  }
+
+  return data.map((activity: any) => ({
+    id: activity.id,
+    subject: sanitizeSubject(activity.details?.substring(0, 80) || 'Email'),
+    snippet: activity.details || '',
+    date: activity.date,
+    direction: 'unknown' as const,
+    from: [],
+    to: [],
+    historyId: undefined,
+    threadId: undefined,
+    link: undefined
+  }))
+}
+
+/**
  * Extract user ID from message by matching names
  * Looks for patterns like "Phil's performance", "show me John's", etc.
  */
@@ -3035,6 +3938,229 @@ async function extractUserIdFromMessage(
   }
 }
 
+interface ContactResolutionResult {
+  contact: ContactData | null
+  contactEmail: string | null
+  contactName: string | null
+  searchTerm: string | null
+}
+
+async function resolveContactReference(
+  client: any,
+  userId: string,
+  userMessage: string,
+  context?: ChatRequest['context']
+): Promise<ContactResolutionResult> {
+  let contact: ContactData | null = null
+  let contactEmail: string | null = null
+  let contactName: string | null = null
+  let searchTerm: string | null = null
+
+  // Context contactId takes priority
+  if (context?.contactId && isValidUUID(context.contactId)) {
+    const { data } = await client
+      .from('contacts')
+      .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+      .eq('id', context.contactId)
+      .eq('owner_id', userId)
+      .maybeSingle()
+    if (data) {
+      contact = data as ContactData
+    }
+  }
+
+  const emailPattern = /[\w\.-]+@[\w\.-]+\.\w+/
+  const emailMatch = userMessage.match(emailPattern)
+  if (emailMatch) {
+    contactEmail = emailMatch[0].toLowerCase()
+    if (!contact) {
+      const { data } = await client
+        .from('contacts')
+        .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+        .eq('email', contactEmail)
+        .eq('owner_id', userId)
+        .maybeSingle()
+      if (data) {
+        contact = data as ContactData
+      }
+    }
+  }
+
+  if (!contact) {
+    const { nameCandidate, companyCandidate } = extractNameAndCompanyFromMessage(userMessage)
+    if (nameCandidate) {
+      searchTerm = nameCandidate
+      let contactsQuery = client
+        .from('contacts')
+        .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
+        .eq('owner_id', userId)
+      const nameParts = nameCandidate.split(/\s+/).filter(Boolean)
+      if (nameParts.length > 1) {
+        const first = nameParts[0]
+        const last = nameParts.slice(1).join(' ')
+        contactsQuery = contactsQuery.or(`full_name.ilike.%${nameCandidate}%,first_name.ilike.%${first}%,last_name.ilike.%${last}%`)
+      } else {
+        contactsQuery = contactsQuery.or(`first_name.ilike.%${nameCandidate}%,full_name.ilike.%${nameCandidate}%`)
+      }
+      if (companyCandidate) {
+        contactsQuery = contactsQuery.ilike('companies.name', `%${companyCandidate}%`)
+      }
+      const { data: contacts } = await contactsQuery.limit(5)
+      if (contacts && contacts.length > 0) {
+        contact = contacts[0] as ContactData
+      }
+    }
+  }
+
+  if (contact && contact.email) {
+    contactEmail = contact.email
+  }
+
+  if (!contactName) {
+    contactName = contact?.full_name || `${contact?.first_name || ''} ${contact?.last_name || ''}`.trim() || searchTerm || contactEmail
+  }
+
+  return {
+    contact,
+    contactEmail,
+    contactName,
+    searchTerm
+  }
+}
+
+function extractNameAndCompanyFromMessage(
+  message: string
+): { nameCandidate: string | null; companyCandidate: string | null } {
+  const atPattern = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+at\s+([A-Z][\w& ]+)/i
+  const atMatch = message.match(atPattern)
+  if (atMatch && atMatch[1]) {
+    return {
+      nameCandidate: atMatch[1].trim(),
+      companyCandidate: atMatch[2]?.trim() || null
+    }
+  }
+
+  const patterns = [
+    /emails?\s+from\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
+    /emails?\s+to\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
+    /with\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
+    /about\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i,
+    /regarding\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})/i
+  ]
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern)
+    if (match && match[1]) {
+      return { nameCandidate: match[1].trim(), companyCandidate: null }
+    }
+  }
+
+  return { nameCandidate: null, companyCandidate: null }
+}
+
+function extractEmailLimitFromMessage(message: string): number {
+  const limitPattern = /last\s+(\d+)\s+emails?/i
+  const fallbackPattern = /(\d+)\s+(?:recent|latest)\s+emails?/i
+  const match = message.match(limitPattern) || message.match(fallbackPattern)
+  if (match && match[1]) {
+    const parsed = parseInt(match[1], 10)
+    if (!isNaN(parsed)) {
+      return Math.min(Math.max(parsed, 3), 20)
+    }
+  }
+  return 10
+}
+
+function detectEmailDirection(messageLower: string): 'sent' | 'received' | 'both' {
+  if (
+    messageLower.includes('emails to') ||
+    messageLower.includes('email to') ||
+    messageLower.includes('that i sent') ||
+    messageLower.includes('i sent') ||
+    messageLower.includes('from me')
+  ) {
+    return 'sent'
+  }
+  if (
+    messageLower.includes('emails from') ||
+    messageLower.includes('email from') ||
+    messageLower.includes('from ') && messageLower.includes('email')
+  ) {
+    return 'received'
+  }
+  return 'both'
+}
+
+function extractDateRangeFromMessage(
+  messageLower: string
+): { startDate?: string | null; endDate?: string | null } {
+  const now = new Date()
+  const startOfDay = (date: Date) => {
+    const d = new Date(date)
+    d.setHours(0, 0, 0, 0)
+    return d
+  }
+  const endOfDay = (date: Date) => {
+    const d = new Date(date)
+    d.setHours(23, 59, 59, 999)
+    return d
+  }
+  const subtractDays = (days: number) => {
+    const d = new Date(now)
+    d.setDate(d.getDate() - days)
+    return d
+  }
+
+  if (messageLower.includes('today')) {
+    return { startDate: startOfDay(now).toISOString(), endDate: endOfDay(now).toISOString() }
+  }
+
+  if (messageLower.includes('yesterday')) {
+    const yesterday = subtractDays(1)
+    return { startDate: startOfDay(yesterday).toISOString(), endDate: endOfDay(yesterday).toISOString() }
+  }
+
+  const daysMatch = messageLower.match(/last\s+(\d+)\s+days?/)
+  if (daysMatch && daysMatch[1]) {
+    const days = parseInt(daysMatch[1], 10)
+    if (!isNaN(days)) {
+      return { startDate: subtractDays(days).toISOString(), endDate: null }
+    }
+  }
+
+  if (messageLower.includes('last week')) {
+    return { startDate: subtractDays(7).toISOString(), endDate: null }
+  }
+
+  if (messageLower.includes('last two weeks')) {
+    return { startDate: subtractDays(14).toISOString(), endDate: null }
+  }
+
+  if (messageLower.includes('last month')) {
+    return { startDate: subtractDays(30).toISOString(), endDate: null }
+  }
+
+  return {}
+}
+
+function extractLabelFromMessage(message: string): string | null {
+  const quotedLabel = message.match(/label\s+(?:named\s+)?["']([^"']+)["']/i)
+  if (quotedLabel && quotedLabel[1]) {
+    return quotedLabel[1].trim()
+  }
+
+  const simpleLabel = message.match(/label\s+(?:called\s+)?([A-Za-z0-9 \-_]+)/i)
+  if (simpleLabel && simpleLabel[1]) {
+    const label = simpleLabel[1].trim()
+    if (label) {
+      // Remove trailing question words
+      return label.replace(/\?$/, '').trim()
+    }
+  }
+
+  return null
+}
+
 /**
  * Detect intent from user message and structure response accordingly
  */
@@ -3044,12 +4170,33 @@ async function detectAndStructureResponse(
   client: any,
   userId: string,
   toolsUsed: string[] = [],
-  requestingUserId?: string // Admin user making the request
+  requestingUserId?: string, // Admin user making the request
+  context?: ChatRequest['context'],
+  toolExecutions: ToolExecutionDetail[] = [] // Detailed tool execution metadata
 ): Promise<StructuredResponse | null> {
   const messageLower = userMessage.toLowerCase()
   
   // Store original message for limit extraction
   const originalMessage = userMessage
+  
+  // FIRST: Check if there are successful write operations (create/update/delete) in tool executions
+  // If so, generate an action summary response instead of defaulting to pipeline/task summaries
+  if (toolExecutions && toolExecutions.length > 0) {
+    const writeOperations = toolExecutions.filter(exec => {
+      if (!exec.success) return false
+      const toolName = exec.toolName
+      // Check if it's a write operation (create, update, delete)
+      return toolName.includes('_create') || toolName.includes('_update') || toolName.includes('_delete')
+    })
+    
+    if (writeOperations.length > 0) {
+      console.log('[ACTION-SUMMARY] Found write operations, generating action summary:', writeOperations.map(e => e.toolName))
+      const actionSummary = await structureActionSummaryResponse(client, userId, writeOperations, userMessage)
+      if (actionSummary) {
+        return actionSummary
+      }
+    }
+  }
   
   // Detect task creation requests (check before activity creation)
   const taskCreationKeywords = [
@@ -3111,25 +4258,102 @@ async function detectAndStructureResponse(
   }
   
   // Detect email-related queries
-  if (
-    messageLower.includes('draft') && messageLower.includes('email') ||
-    messageLower.includes('write') && messageLower.includes('email') ||
-    messageLower.includes('follow-up') && messageLower.includes('email') ||
-    messageLower.includes('email to')
-  ) {
-    // Email responses would be structured here
-    // For now, return null to use text format
+  const isEmailDraftRequest =
+    (messageLower.includes('draft') && messageLower.includes('email')) ||
+    (messageLower.includes('write') && messageLower.includes('email')) ||
+    (messageLower.includes('follow-up') && messageLower.includes('email')) ||
+    messageLower.includes('email to') ||
+    messageLower.includes('compose email')
+
+  if (isEmailDraftRequest) {
+    // Let Claude handle drafting for now
     return null
+  }
+
+  const emailHistoryKeywords = [
+    'last email',
+    'last emails',
+    'recent email',
+    'recent emails',
+    'emails from',
+    'emails with',
+    'emails have',
+    'emails did',
+    'email history',
+    'communication history',
+    'email thread',
+    'gmail',
+    'inbox',
+    'messages from',
+    'latest emails',
+    'label'
+  ]
+
+  const genericEmailQuery =
+    messageLower.includes('email') && (
+      messageLower.includes('show') ||
+      messageLower.includes('find') ||
+      messageLower.includes('list') ||
+      messageLower.includes('last') ||
+      messageLower.includes('past') ||
+      messageLower.includes('recent') ||
+      messageLower.includes('what') ||
+      messageLower.includes('have i had') ||
+      messageLower.includes('label') ||
+      messageLower.includes('this evening') ||
+      messageLower.includes('tonight') ||
+      messageLower.includes('today') ||
+      messageLower.includes('hours')
+    )
+
+  const wantsEmailHistory =
+    emailHistoryKeywords.some(keyword => messageLower.includes(keyword)) ||
+    genericEmailQuery
+
+  if (wantsEmailHistory) {
+    const structured = await structureCommunicationHistoryResponse(client, userId, userMessage, context)
+    if (structured) {
+      return structured
+    }
   }
   
   // Detect calendar/meeting queries
-  if (
+  const isCalendarQuery =
     messageLower.includes('meeting') ||
     messageLower.includes('calendar') ||
     messageLower.includes('schedule') ||
-    messageLower.includes('availability')
-  ) {
-    // Calendar responses would be structured here
+    messageLower.includes('availability') ||
+    messageLower.includes('free time')
+
+  if (isCalendarQuery) {
+    const availabilityKeywords = [
+      'when am i free',
+      'free this',
+      'free on',
+      'find time',
+      'find availability',
+      'availability',
+      'free time',
+      'open slot',
+      'book time',
+      'available on',
+      'next free',
+      'available slots'
+    ]
+
+    const wantsAvailability =
+      availabilityKeywords.some(keyword => messageLower.includes(keyword)) ||
+      (messageLower.includes('free') && (messageLower.includes('when') || messageLower.includes('what'))) ||
+      messageLower.includes('free on') ||
+      messageLower.includes('open time')
+
+    if (wantsAvailability) {
+      const structured = await structureCalendarAvailabilityResponse(client, userId, userMessage)
+      if (structured) {
+        return structured
+      }
+    }
+
     return null
   }
   
@@ -3329,7 +4553,7 @@ async function structureActivityCreationResponse(
     let contactsQuery = client
       .from('contacts')
       .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
-      .eq('user_id', userId)
+      .eq('owner_id', userId)
     
     // Search by first and last name
     if (firstName && lastName) {
@@ -3624,7 +4848,7 @@ async function structureTaskCreationResponse(
     let contactsQuery = client
       .from('contacts')
       .select('id, first_name, last_name, full_name, email, company_id, companies:company_id(id, name)')
-      .eq('user_id', userId)
+      .eq('owner_id', userId)
     
     // Search by first and last name
     if (firstName && lastName) {
@@ -3879,7 +5103,7 @@ async function structureContactResponse(
           companies:company_id(id, name)
         `)
         .eq('email', contactEmail)
-        .eq('user_id', userId)
+        .eq('owner_id', userId)
         .maybeSingle()
       
       contact = contactByEmail as ContactData | null
@@ -3907,7 +5131,7 @@ async function structureContactResponse(
             companies:company_id(id, name)
           `)
           .eq('first_name', firstName)
-          .eq('user_id', userId)
+          .eq('owner_id', userId)
         
         if (lastName) {
           query = query.eq('last_name', lastName)
@@ -4201,6 +5425,216 @@ async function structureContactResponse(
       }
     }
   } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Structure communication history response (emails)
+ */
+async function structureCommunicationHistoryResponse(
+  client: any,
+  userId: string,
+  userMessage: string,
+  context?: ChatRequest['context']
+): Promise<StructuredResponse | null> {
+  try {
+    const messageLower = userMessage.toLowerCase()
+    const { contact, contactEmail, contactName, searchTerm } = await resolveContactReference(client, userId, userMessage, context)
+    const contactId = contact?.id || null
+    const labelFilter = extractLabelFromMessage(userMessage)
+    const limit = extractEmailLimitFromMessage(userMessage)
+    const direction = detectEmailDirection(messageLower)
+    const { startDate, endDate } = extractDateRangeFromMessage(messageLower)
+
+    let emails: GmailMessageSummary[] = []
+    const dataSource: string[] = []
+    let warning: string | null = null
+
+    try {
+      const gmailResult = await searchGmailMessages(client, userId, {
+        contactEmail,
+        query: contactEmail ? null : searchTerm || null,
+        limit,
+        direction,
+        startDate: startDate || null,
+        endDate: endDate || null,
+        label: labelFilter || null
+      })
+      emails = gmailResult.messages
+      dataSource.push('gmail')
+    } catch (error) {
+      warning = error.message || 'Unable to reach Gmail'
+      console.error('[COMM-HISTORY] Gmail fetch failed:', error)
+      if (contact?.id) {
+        const fallback = await fetchEmailActivitiesFallback(client, userId, contact.id, limit)
+        if (fallback.length) {
+          emails = fallback
+          dataSource.push('activities')
+        }
+      }
+    }
+
+    const sortedEmails = [...emails].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const communications = sortedEmails.map(email => ({
+      id: email.id,
+      type: 'email' as const,
+      subject: email.subject,
+      summary: email.snippet,
+      date: email.date,
+      direction: email.direction,
+      participants: [...new Set([...email.from, ...email.to])]
+    }))
+
+    const timeline = sortedEmails.map(email => ({
+      id: `${email.id}-timeline`,
+      date: email.date,
+      type: 'email',
+      title: `${email.direction === 'received' ? 'Received' : email.direction === 'sent' ? 'Sent' : 'Email'}: ${email.subject}`,
+      description: email.snippet,
+      relatedTo: contactName || contactEmail || searchTerm || undefined
+    }))
+
+    const mostRecent = sortedEmails[0]
+    const emailsSent = sortedEmails.filter(email => email.direction === 'sent').length
+    const summaryStats = {
+      totalCommunications: communications.length,
+      emailsSent,
+      callsMade: 0,
+      meetingsHeld: 0,
+      lastContact: mostRecent?.date,
+      communicationFrequency: communications.length >= limit
+        ? 'high'
+        : communications.length >= Math.max(3, Math.floor(limit / 2))
+          ? 'medium'
+          : 'low'
+    }
+
+    const overdueFollowUps: Array<{
+      id: string
+      type: 'email'
+      title: string
+      dueDate: string
+      daysOverdue: number
+      contactId?: string
+      contactName?: string
+      dealId?: string
+      dealName?: string
+    }> = []
+    if (contactId && mostRecent) {
+      const daysSince = Math.floor((Date.now() - new Date(mostRecent.date).getTime()) / (1000 * 60 * 60 * 24))
+      if (daysSince >= 5) {
+        overdueFollowUps.push({
+          id: `followup-${mostRecent.id}`,
+          type: 'email',
+          title: `Follow up with ${contactName || 'this contact'}`,
+          dueDate: mostRecent.date,
+          daysOverdue: daysSince,
+          contactId,
+          contactName: contactName || undefined
+        })
+      }
+    }
+
+    const nextActions: Array<{
+      id: string
+      type: 'email'
+      title: string
+      dueDate?: string
+      priority: 'high' | 'medium' | 'low'
+      contactId?: string
+      contactName?: string
+      dealId?: string
+      dealName?: string
+    }> = []
+    if (contactId) {
+      nextActions.push({
+        id: 'send-follow-up',
+        type: 'email',
+        title: `Draft a follow-up to ${contactName || 'this contact'}`,
+        dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        priority: 'high',
+        contactId,
+        contactName: contactName || undefined
+      })
+    }
+
+    const actions: Array<{
+      id: string
+      label: string
+      type: 'primary' | 'secondary' | 'tertiary'
+      icon: string
+      callback: string
+      params?: any
+    }> = []
+    if (contactId) {
+      actions.push({
+        id: 'view-contact',
+        label: 'Open Contact',
+        type: 'primary',
+        icon: 'user',
+        callback: `/crm/contacts/${contactId}`
+      })
+      actions.push({
+        id: 'create-follow-up-task',
+        label: 'Create Follow-up Task',
+        type: 'secondary',
+        icon: 'check-square',
+        callback: 'create_task',
+        params: {
+          title: `Follow up with ${contactName || 'contact'}`,
+          contactId,
+          taskType: 'email',
+          priority: 'high'
+        }
+      })
+    }
+    if (mostRecent?.link) {
+      actions.push({
+        id: 'open-gmail-thread',
+        label: 'Open in Gmail',
+        type: 'tertiary',
+        icon: 'mail',
+        callback: mostRecent.link
+      })
+    }
+
+    const scopeDescription = labelFilter
+      ? `tagged "${labelFilter}"`
+      : contactName
+        ? `with ${contactName}`
+        : contactEmail
+          ? `with ${contactEmail}`
+          : 'from your inbox'
+
+    const summary = communications.length
+      ? `Here are the last ${communications.length} emails ${scopeDescription}.`
+      : warning
+        ? `I couldn't load Gmail data ${scopeDescription}: ${warning}.`
+        : `I couldn't find any recent emails ${scopeDescription}.`
+
+    return {
+      type: 'communication_history',
+      summary,
+      data: {
+        contactId,
+        contactName: contactName || undefined,
+        communications,
+        timeline,
+        overdueFollowUps,
+        nextActions,
+        summary: summaryStats
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: dataSource.length ? dataSource : ['gmail_unavailable'],
+        totalCount: communications.length,
+        warning
+      }
+    }
+  } catch (error) {
+    console.error('[COMM-HISTORY] Failed to structure response:', error)
     return null
   }
 }
@@ -4757,6 +6191,591 @@ async function structureTaskResponse(
 }
 
 /**
+ * Structure calendar availability info for Copilot UI
+ */
+async function structureCalendarAvailabilityResponse(
+  client: any,
+  userId: string,
+  userMessage?: string
+): Promise<StructuredResponse | null> {
+  try {
+    const timezone = await getUserTimezone(client, userId)
+    const request = inferAvailabilityRequestFromMessage(userMessage, timezone)
+
+    const availabilityResult = await handleCalendarAvailability(
+      {
+        startDate: request.start.toISOString(),
+        endDate: request.end.toISOString(),
+        durationMinutes: request.durationMinutes,
+        workingHoursStart: request.workingHoursStart,
+        workingHoursEnd: request.workingHoursEnd,
+        excludeWeekends: request.excludeWeekends
+      },
+      client,
+      userId
+    )
+
+    if (!availabilityResult) {
+      return null
+    }
+
+    const now = new Date()
+    const meetings = (availabilityResult.events || []).map((event: any) => {
+      const startTime = event.start_time
+      const endTime = event.end_time
+      const startDateObj = new Date(startTime)
+      let status: 'past' | 'today' | 'upcoming' = 'upcoming'
+      if (startDateObj.getTime() < now.getTime()) {
+        status = 'past'
+      } else if (isSameZonedDay(startDateObj, timezone)) {
+        status = 'today'
+      }
+
+      const attendees = (event.attendees || []).map((att: any) => ({
+        name: att.name || att.email || 'Attendee',
+        email: att.email || ''
+      }))
+
+      return {
+        id: event.id,
+        title: event.title || 'Calendar Event',
+        attendees,
+        startTime,
+        endTime,
+        status,
+        location: event.location || undefined,
+        hasPrepBrief: false,
+        dealId: event.deal_id || undefined,
+        contactId: event.contact_id || undefined
+      }
+    }).slice(0, 10)
+
+    const availabilitySlots = (availabilityResult.availableSlots || []).map((slot: any) => ({
+      startTime: slot.start,
+      endTime: slot.end,
+      duration: slot.durationMinutes
+    }))
+
+    const slotSummary = availabilitySlots.length > 0
+      ? formatAvailabilitySlotSummary(availabilitySlots[0], timezone)
+      : null
+
+    const summary = availabilitySlots.length > 0
+      ? `You're free ${slotSummary}. I found ${availabilitySlots.length} open slot${availabilitySlots.length === 1 ? '' : 's'} ${request.description}.`
+      : `No ${request.durationMinutes}-minute blocks are available ${request.description}. Try expanding the range or adjusting working hours.`
+
+    const actions: Array<{
+      id: string
+      label: string
+      type: 'primary' | 'secondary' | 'tertiary'
+      icon: string
+      callback: string
+      params?: any
+    }> = [
+      {
+        id: 'open-calendar',
+        label: 'Open Calendar',
+        type: 'primary',
+        icon: 'calendar',
+        callback: '/calendar'
+      }
+    ]
+
+    if (availabilitySlots.length > 0) {
+      actions.push({
+        id: 'copy-availability',
+        label: 'Copy availability summary',
+        type: 'secondary',
+        icon: 'clipboard',
+        callback: 'copilot://copy-availability',
+        params: {
+          timezone,
+          slots: availabilitySlots.slice(0, 3)
+        }
+      })
+    }
+
+    return {
+      type: 'calendar',
+      summary,
+      data: {
+        meetings,
+        availability: availabilitySlots
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['calendar_events'],
+        timezone,
+        dateRange: availabilityResult.range,
+        requestedDurationMinutes: availabilityResult.durationMinutes,
+        workingHours: availabilityResult.workingHours,
+        slotsEvaluated: availabilityResult.totalAvailableSlots,
+        totalFreeMinutes: availabilityResult.summary?.totalFreeMinutes,
+        totalBusyMinutes: availabilityResult.summary?.totalBusyMinutes
+      }
+    }
+  } catch (error) {
+    console.error('[STRUCTURED] Error building calendar availability response', error)
+    return null
+  }
+}
+
+/**
+ * Shared helpers for calendar availability calculations
+ */
+function clampDurationMinutes(value: number): number {
+  if (!value || Number.isNaN(value)) {
+    return 60
+  }
+  return Math.min(240, Math.max(15, Math.round(value)))
+}
+
+function normalizeTimeInput(value: string | undefined, fallback: string): string {
+  const pattern = /^([01]?\d|2[0-3]):([0-5]\d)$/
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (pattern.test(trimmed)) {
+      const [hours, minutes] = trimmed.split(':')
+      return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`
+    }
+  }
+  return fallback
+}
+
+function parseDateInput(value?: string, fallback?: Date): Date {
+  if (value) {
+    const parsed = new Date(value)
+    if (!isNaN(parsed.getTime())) {
+      return parsed
+    }
+  }
+  return fallback ? new Date(fallback) : new Date()
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date)
+  result.setUTCDate(result.getUTCDate() + days)
+  return result
+}
+
+function addMinutes(date: Date, minutes: number): Date {
+  const result = new Date(date)
+  result.setTime(result.getTime() + minutes * 60000)
+  return result
+}
+
+function startOfZonedDay(date: Date, timeZone: string): Date {
+  const parts = getZonedDateParts(date, timeZone)
+  return zonedDateTimeToUtc(parts.year, parts.month, parts.day, 0, 0, 0, timeZone)
+}
+
+function endOfZonedDay(date: Date, timeZone: string): Date {
+  const parts = getZonedDateParts(date, timeZone)
+  return zonedDateTimeToUtc(parts.year, parts.month, parts.day, 23, 59, 59, timeZone)
+}
+
+function zonedTimeOnDate(date: Date, timeString: string, timeZone: string): Date {
+  const parts = getZonedDateParts(date, timeZone)
+  const [hours = '0', minutes = '0'] = timeString.split(':')
+  const hourNum = Math.min(23, Math.max(0, parseInt(hours, 10) || 0))
+  const minuteNum = Math.min(59, Math.max(0, parseInt(minutes, 10) || 0))
+  return zonedDateTimeToUtc(parts.year, parts.month, parts.day, hourNum, minuteNum, 0, timeZone)
+}
+
+function getZonedDateParts(
+  date: Date,
+  timeZone: string
+): { year: number; month: number; day: number; weekday: number } {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short'
+  })
+
+  const partValues: Record<string, string> = {}
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') {
+      partValues[part.type] = part.value
+    }
+  }
+
+  const weekdayMap: Record<string, number> = {
+    sun: 0,
+    mon: 1,
+    tue: 2,
+    wed: 3,
+    thu: 4,
+    fri: 5,
+    sat: 6
+  }
+
+  const weekday = weekdayMap[(partValues.weekday || '').slice(0, 3).toLowerCase()] ?? 0
+
+  return {
+    year: Number(partValues.year),
+    month: Number(partValues.month),
+    day: Number(partValues.day),
+    weekday
+  }
+}
+
+function zonedDateTimeToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  timeZone: string
+): Date {
+  const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, second))
+  const offsetMinutes = getTimezoneOffsetMinutes(timeZone, utcDate)
+  return new Date(utcDate.getTime() - offsetMinutes * 60000)
+}
+
+function getTimezoneOffsetMinutes(timeZone: string, date: Date): number {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+
+  const partValues: Record<string, string> = {}
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') {
+      partValues[part.type] = part.value
+    }
+  }
+
+  const asUTC = Date.UTC(
+    Number(partValues.year),
+    Number(partValues.month) - 1,
+    Number(partValues.day),
+    Number(partValues.hour),
+    Number(partValues.minute),
+    Number(partValues.second)
+  )
+
+  return (asUTC - date.getTime()) / 60000
+}
+
+function mergeIntervals(intervals: Array<{ start: Date; end: Date }>): Array<{ start: Date; end: Date }> {
+  if (!intervals.length) {
+    return []
+  }
+  const sorted = intervals
+    .map(interval => ({
+      start: new Date(interval.start.getTime()),
+      end: new Date(interval.end.getTime())
+    }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime())
+
+  const merged: Array<{ start: Date; end: Date }> = [sorted[0]]
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i]
+    const last = merged[merged.length - 1]
+    if (current.start <= last.end) {
+      if (current.end > last.end) {
+        last.end = current.end
+      }
+    } else {
+      merged.push(current)
+    }
+  }
+  return merged
+}
+
+function calculateFreeSlotsForDay(
+  dayStart: Date,
+  dayEnd: Date,
+  busyIntervals: Array<{ start: Date; end: Date }>,
+  durationMinutes: number
+): Array<{ start: Date; end: Date; durationMinutes: number }> {
+  const available: Array<{ start: Date; end: Date; durationMinutes: number }> = []
+  const merged = mergeIntervals(busyIntervals)
+  let cursor = new Date(dayStart)
+
+  for (const interval of merged) {
+    if (interval.start > cursor) {
+      const gapMinutes = (interval.start.getTime() - cursor.getTime()) / 60000
+      if (gapMinutes >= durationMinutes) {
+        available.push({
+          start: new Date(cursor),
+          end: new Date(interval.start),
+          durationMinutes: gapMinutes
+        })
+      }
+    }
+    if (interval.end > cursor) {
+      cursor = new Date(interval.end)
+    }
+  }
+
+  if (cursor < dayEnd) {
+    const gapMinutes = (dayEnd.getTime() - cursor.getTime()) / 60000
+    if (gapMinutes >= durationMinutes) {
+      available.push({
+        start: new Date(cursor),
+        end: new Date(dayEnd),
+        durationMinutes: gapMinutes
+      })
+    }
+  }
+
+  return available
+}
+
+async function getUserTimezone(client: any, userId: string): Promise<string> {
+  const fallback = 'UTC'
+  try {
+    const { data, error } = await client
+      .from('profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle()
+    if (!error && data?.timezone) {
+      return data.timezone
+    }
+  } catch (_err) {
+    // Ignore missing column or table errors and fall through
+  }
+
+  try {
+    const { data, error } = await client
+      .from('user_settings')
+      .select('timezone')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (!error && data?.timezone) {
+      return data.timezone
+    }
+  } catch (_err) {
+    // Ignore errors
+  }
+
+  return fallback
+}
+
+interface AvailabilityRequestDetails {
+  start: Date
+  end: Date
+  durationMinutes: number
+  workingHoursStart: string
+  workingHoursEnd: string
+  excludeWeekends: boolean
+  description: string
+}
+
+function inferAvailabilityRequestFromMessage(
+  message: string | undefined,
+  timeZone: string
+): AvailabilityRequestDetails {
+  const lower = (message || '').toLowerCase()
+  const duration = extractDurationFromMessage(lower) ?? 60
+  const workingHoursStart = lower.includes('early morning') ? '08:00' : '09:00'
+  const workingHoursEnd = lower.includes('evening') ? '19:00' : '17:00'
+  const excludeWeekends = !(lower.includes('weekend') || lower.includes('weekends'))
+
+  let description = 'over the next week'
+  let start = startOfZonedDay(new Date(), timeZone)
+  let end = endOfZonedDay(addDays(start, 6), timeZone)
+
+  if (lower.includes('today')) {
+    start = startOfZonedDay(new Date(), timeZone)
+    end = endOfZonedDay(new Date(), timeZone)
+    return {
+      start,
+      end,
+      durationMinutes: duration,
+      workingHoursStart,
+      workingHoursEnd,
+      excludeWeekends,
+      description: `today (${formatHumanReadableRange(start, end, timeZone)})`
+    }
+  }
+
+  if (lower.includes('tomorrow')) {
+    const tomorrow = addDays(new Date(), 1)
+    start = startOfZonedDay(tomorrow, timeZone)
+    end = endOfZonedDay(tomorrow, timeZone)
+    return {
+      start,
+      end,
+      durationMinutes: duration,
+      workingHoursStart,
+      workingHoursEnd,
+      excludeWeekends,
+      description: `tomorrow (${formatHumanReadableRange(start, end, timeZone)})`
+    }
+  }
+
+  if (lower.includes('next week')) {
+    const nextWeekStart = startOfWeekZoned(addDays(new Date(), 7), timeZone)
+    start = nextWeekStart
+    end = endOfWeekZoned(nextWeekStart, timeZone)
+    return {
+      start,
+      end,
+      durationMinutes: duration,
+      workingHoursStart,
+      workingHoursEnd,
+      excludeWeekends,
+      description: `next week (${formatHumanReadableRange(start, end, timeZone)})`
+    }
+  }
+
+  if (lower.includes('this week')) {
+    start = startOfWeekZoned(new Date(), timeZone)
+    end = endOfWeekZoned(start, timeZone)
+    return {
+      start,
+      end,
+      durationMinutes: duration,
+      workingHoursStart,
+      workingHoursEnd,
+      excludeWeekends,
+      description: `this week (${formatHumanReadableRange(start, end, timeZone)})`
+    }
+  }
+
+  const dayMap: Array<{ key: string; index: number }> = [
+    { key: 'sunday', index: 0 },
+    { key: 'monday', index: 1 },
+    { key: 'tuesday', index: 2 },
+    { key: 'wednesday', index: 3 },
+    { key: 'thursday', index: 4 },
+    { key: 'friday', index: 5 },
+    { key: 'saturday', index: 6 }
+  ]
+
+  for (const day of dayMap) {
+    if (lower.includes(day.key)) {
+      const preferNextWeek = lower.includes('next week') || lower.includes(`next ${day.key}`)
+      const dayDate = getNextWeekdayDate(day.index, preferNextWeek, timeZone)
+      start = startOfZonedDay(dayDate, timeZone)
+      end = endOfZonedDay(dayDate, timeZone)
+      return {
+        start,
+        end,
+        durationMinutes: duration,
+        workingHoursStart,
+        workingHoursEnd,
+        excludeWeekends,
+        description: `on ${formatHumanReadableRange(start, end, timeZone)}`
+      }
+    }
+  }
+
+  return {
+    start,
+    end,
+    durationMinutes: duration,
+    workingHoursStart,
+    workingHoursEnd,
+    excludeWeekends,
+    description
+  }
+}
+
+function extractDurationFromMessage(messageLower: string): number | null {
+  if (!messageLower) return null
+  const durationMatch = messageLower.match(/(\d+)\s*(?:-?\s*)(minute|minutes|min|mins|hour|hours|hr|hrs)/)
+  if (durationMatch && durationMatch[1]) {
+    const value = parseInt(durationMatch[1], 10)
+    if (!isNaN(value)) {
+      if (durationMatch[2].includes('hour') || durationMatch[2].includes('hr')) {
+        return clampDurationMinutes(value * 60)
+      }
+      return clampDurationMinutes(value)
+    }
+  }
+  if (messageLower.includes('half hour') || messageLower.includes('half-hour')) {
+    return 30
+  }
+  if (messageLower.includes('quarter hour') || messageLower.includes('quarter-hour')) {
+    return 15
+  }
+  return null
+}
+
+function startOfWeekZoned(date: Date, timeZone: string): Date {
+  const start = startOfZonedDay(date, timeZone)
+  const { weekday } = getZonedDateParts(date, timeZone)
+  const daysToSubtract = (weekday + 6) % 7
+  return addDays(start, -daysToSubtract)
+}
+
+function endOfWeekZoned(startOfWeek: Date, timeZone: string): Date {
+  return endOfZonedDay(addDays(startOfWeek, 6), timeZone)
+}
+
+function getNextWeekdayDate(targetDay: number, preferNextWeek: boolean, timeZone: string): Date {
+  const todayStart = startOfZonedDay(new Date(), timeZone)
+  const { weekday } = getZonedDateParts(todayStart, timeZone)
+  let daysAhead = (targetDay - weekday + 7) % 7
+  if (daysAhead === 0 && !preferNextWeek) {
+    return todayStart
+  }
+  if (preferNextWeek) {
+    daysAhead = daysAhead === 0 ? 7 : daysAhead + 7
+  }
+  return addDays(todayStart, daysAhead || 7)
+}
+
+function isSameZonedDay(date: Date, timeZone: string): boolean {
+  const partsA = getZonedDateParts(date, timeZone)
+  const partsB = getZonedDateParts(new Date(), timeZone)
+  return partsA.year === partsB.year && partsA.month === partsB.month && partsA.day === partsB.day
+}
+
+function formatHumanReadableRange(start: Date, end: Date, timeZone: string): string {
+  const startFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  })
+  const endFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: 'short',
+    day: 'numeric'
+  })
+  const sameDay = isSameZonedDay(start, timeZone) && isSameZonedDay(end, timeZone)
+  if (sameDay) {
+    return startFormatter.format(start)
+  }
+  return `${startFormatter.format(start)} and ${endFormatter.format(end)}`
+}
+
+function formatAvailabilitySlotSummary(
+  slot: { startTime: string; endTime: string },
+  timeZone: string
+): string {
+  const start = new Date(slot.startTime)
+  const end = new Date(slot.endTime)
+  const dayFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  })
+  const timeFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+  return `${dayFormatter.format(start)} at ${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
+}
+
+/**
  * Structure roadmap response from roadmap creation
  */
 async function structureRoadmapResponse(
@@ -4851,6 +6870,215 @@ async function structureRoadmapResponse(
       }
     }
   } catch (error) {
+    return null
+  }
+}
+
+/**
+ * Structure action summary response from successful tool executions
+ * Groups create/update/delete operations and presents them in a user-friendly format
+ */
+async function structureActionSummaryResponse(
+  client: any,
+  userId: string,
+  writeOperations: ToolExecutionDetail[],
+  userMessage: string
+): Promise<StructuredResponse | null> {
+  try {
+    const actions: Array<{
+      id: string
+      label: string
+      type: string
+      icon: string
+      callback: string
+      params?: any
+    }> = []
+    
+    const actionItems: Array<{
+      entityType: string
+      operation: string
+      entityId?: string
+      entityName?: string
+      details?: string
+      success: boolean
+    }> = []
+    
+    let dealsUpdated = 0
+    let clientsUpdated = 0
+    let tasksCreated = 0
+    let activitiesCreated = 0
+    let contactsUpdated = 0
+    
+    // Process each write operation
+    for (const exec of writeOperations) {
+      const [entity, operation] = exec.toolName.split('_')
+      const result = exec.result
+      
+      if (!result || !result.success) continue
+      
+      let entityType = entity
+      let entityId: string | undefined
+      let entityName: string | undefined
+      let details: string | undefined
+      
+      // Extract entity information based on operation type
+      if (operation === 'create') {
+        if (entity === 'pipeline' && result.deal) {
+          entityType = 'deal'
+          entityId = result.deal.id
+          entityName = result.deal.name || result.deal.company
+          dealsUpdated++
+        } else if (entity === 'clients' && result.client) {
+          entityType = 'client'
+          entityId = result.client.id
+          entityName = result.client.company_name
+          if (result.client.subscription_amount) {
+            details = `Subscription: £${parseFloat(result.client.subscription_amount).toLocaleString()}/month`
+          }
+          clientsUpdated++
+        } else if (entity === 'tasks' && result.task) {
+          entityType = 'task'
+          entityId = result.task.id
+          entityName = result.task.title
+          tasksCreated++
+        } else if (entity === 'activities' && result.activity) {
+          entityType = 'activity'
+          entityId = result.activity.id
+          entityName = result.activity.client_name || result.activity.type
+          activitiesCreated++
+        } else if (entity === 'leads' && result.contact) {
+          entityType = 'contact'
+          entityId = result.contact.id
+          entityName = result.contact.full_name || result.contact.email
+          if (result.contact.company_id) {
+            details = `Created contact with company link`
+          }
+          contactsUpdated++
+        }
+      } else if (operation === 'update') {
+        if (entity === 'pipeline' && result.deal) {
+          entityType = 'deal'
+          entityId = result.deal.id
+          entityName = result.deal.name || result.deal.company
+          // Check if status was updated to 'won'
+          if (exec.args.status === 'won') {
+            details = 'Marked as closed won'
+          } else {
+            details = 'Updated successfully'
+          }
+          dealsUpdated++
+        } else if (entity === 'clients' && result.client) {
+          entityType = 'client'
+          entityId = result.client.id
+          entityName = result.client.company_name
+          if (exec.args.subscription_amount !== undefined) {
+            details = `Subscription updated to £${parseFloat(exec.args.subscription_amount).toLocaleString()}/month`
+          } else {
+            details = 'Updated successfully'
+          }
+          clientsUpdated++
+        } else if (entity === 'leads' && result.contact) {
+          entityType = 'contact'
+          entityId = result.contact.id
+          entityName = result.contact.full_name || result.contact.email || result.contact.first_name
+          // Try to detect what was updated
+          if (exec.args.company_id || exec.args.company) {
+            details = `Company updated to ${exec.args.company || 'linked company'}`
+          } else {
+            details = 'Contact updated successfully'
+          }
+          contactsUpdated++
+        }
+      }
+      
+      if (entityId) {
+        actionItems.push({
+          entityType,
+          operation,
+          entityId,
+          entityName,
+          details,
+          success: true
+        })
+      }
+    }
+    
+    // Generate summary text
+    const actionCounts: string[] = []
+    if (dealsUpdated > 0) actionCounts.push(`${dealsUpdated} deal${dealsUpdated > 1 ? 's' : ''}`)
+    if (clientsUpdated > 0) actionCounts.push(`${clientsUpdated} client${clientsUpdated > 1 ? 's' : ''}`)
+    if (contactsUpdated > 0) actionCounts.push(`${contactsUpdated} contact${contactsUpdated > 1 ? 's' : ''}`)
+    if (tasksCreated > 0) actionCounts.push(`${tasksCreated} task${tasksCreated > 1 ? 's' : ''}`)
+    if (activitiesCreated > 0) actionCounts.push(`${activitiesCreated} activit${activitiesCreated > 1 ? 'ies' : 'y'}`)
+    
+    const summary = actionCounts.length > 0
+      ? `I've successfully completed your request. Updated ${actionCounts.join(', ')}.`
+      : "I've completed the requested actions."
+    
+    // Generate quick actions
+    if (dealsUpdated > 0) {
+      actions.push({
+        id: 'view-pipeline',
+        label: 'View Pipeline',
+        type: 'primary',
+        icon: 'briefcase',
+        callback: '/crm/pipeline'
+      })
+    }
+    
+    if (clientsUpdated > 0) {
+      actions.push({
+        id: 'view-clients',
+        label: 'View Clients',
+        type: 'secondary',
+        icon: 'users',
+        callback: '/crm/clients'
+      })
+    }
+    
+    if (contactsUpdated > 0) {
+      actions.push({
+        id: 'view-contacts',
+        label: 'View Contacts',
+        type: 'secondary',
+        icon: 'users',
+        callback: '/crm/contacts'
+      })
+    }
+    
+    if (tasksCreated > 0) {
+      actions.push({
+        id: 'view-tasks',
+        label: 'View Tasks',
+        type: 'secondary',
+        icon: 'check-circle',
+        callback: '/crm/tasks'
+      })
+    }
+    
+    return {
+      type: 'action_summary',
+      summary,
+      data: {
+        actionsCompleted: actionItems.length,
+        actionItems,
+        metrics: {
+          dealsUpdated,
+          clientsUpdated,
+          contactsUpdated,
+          tasksCreated,
+          activitiesCreated
+        }
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['tool_executions'],
+        confidence: 100
+      }
+    }
+  } catch (error) {
+    console.error('[ACTION-SUMMARY] Error generating action summary:', error)
     return null
   }
 }

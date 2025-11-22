@@ -1,24 +1,39 @@
-# Plan - Workflow Node Audit
+# Plan - Copilot Email Search Tool
 
 ## Objectives
-- Inventory every node in the workflow automation feature and capture its configuration surface area.
-- Validate that each node's configuration schema matches what the runtime expects (inputs, secrets, triggers).
-- Exercise each node by sending the appropriate API requests or simulated payloads to confirm connectivity.
-- Produce an audit artifact summarizing status, failures, and remediation steps.
+- Give AI Copilot first-class access to connected Gmail accounts for historical lookup requests.
+- Define a Claude tool schema that supports contact-scoped email searches with optional filters.
+- Return rich structured responses (communication history) so the UI can render email timelines.
 
 ## Tasks
-- [ ] Locate workflow node definitions (DB tables, config files, or code) and document their metadata.
-- [ ] Map configuration requirements (fields, defaults, external dependencies) for every node.
-- [ ] Design and run API-level tests that call each node with realistic data to verify they complete successfully.
-- [ ] Capture results/logs, file bugs for broken nodes, and update documentation with findings.
+- [x] Review existing Copilot + Gmail integrations to understand available data and auth flows.
+- [ ] Expand Copilot edge function with a Gmail search tool + handler.
+- [ ] Add structured response detection that turns “show last emails” queries into communication history payloads.
+- [ ] Document testing steps and follow-up work once backend + UI wiring is complete.
 
 ## Milestones
-- **Node Inventory Complete** – Full list of nodes with owner/config references.
-- **Connectivity Verified** – API exercise executed for all nodes with pass/fail notes.
-- **Audit Report Delivered** – Written summary checked into repo with recommended fixes.
+- **Tool Schema Ready** – `emails_search` tool published in `AVAILABLE_TOOLS`.
+- **Server Handler Complete** – Gmail helper + fallback to CRM activities with structured response.
+- **UI Verified** – Copilot renders `communication_history` blocks populated from Gmail.
 
-## Current Focus – Freepik Workflow Reliability
-- [x] Inspect Freepik workflow nodes and client service for CORS blockers.
-- [x] Build Supabase `freepik-proxy` edge function that forwards authenticated requests.
-- [x] Refactor `freepikService` to route through the proxy instead of browser fetch calls.
-- [ ] Validate UI generators against the proxy and document deployment/secret steps.
+## Current Focus – Email Retrieval Experience
+- [x] Baseline analysis of Copilot architecture and Gmail edge functions.
+- [ ] Implement Gmail access helper + token refresh inside `api-copilot`.
+- [ ] Ship structured response builder + detection heuristics for communication questions.
+
+## Workstream: Calendar Copilot Availability
+
+### Objectives
+- Enable Copilot to answer “when am I free?” queries without manual calendar IDs.
+- Provide timezone-aware free/busy calculations sourced from `calendar_events`.
+- Surface availability slots alongside meetings in the Copilot UI.
+
+### Tasks
+- [x] Implement `calendar_availability` tool + backend handler.
+- [x] Add structured response detection + builder for availability questions.
+- [ ] Polish UI actions (slot copy, quick scheduling) after validation.
+
+### Milestones
+- **Availability Tool Online** – Claude can call `calendar_availability` with inferred ranges.
+- **Structured Response Ready** – Copilot emits calendar responses containing slots + meetings.
+- **UI Visibility** – Calendar card displays open blocks with timezone context.

@@ -13,43 +13,117 @@ interface CalendarResponseProps {
   onActionClick?: (action: any) => void;
 }
 
-const formatTime = (timeString: string): string => {
+const formatTime = (timeString: string, timeZone?: string): string => {
   const date = new Date(timeString);
   return date.toLocaleTimeString('en-GB', {
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    timeZone
   });
 };
 
-const formatDate = (timeString: string): string => {
+const formatDate = (timeString: string, timeZone?: string): string => {
   const date = new Date(timeString);
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (date.toDateString() === today.toDateString()) {
+  const dateString = date.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone
+  });
+
+  const todayString = today.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone
+  });
+
+  const tomorrowString = tomorrow.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone
+  });
+
+  if (dateString === todayString) {
     return 'Today';
-  } else if (date.toDateString() === tomorrow.toDateString()) {
-    return 'Tomorrow';
-  } else {
-    return date.toLocaleDateString('en-GB', {
-      weekday: 'short',
-      day: 'numeric',
-      month: 'short'
-    });
   }
+  if (dateString === tomorrowString) {
+    return 'Tomorrow';
+  }
+
+  return dateString;
+};
+
+const formatAvailabilityLabel = (startTime: string, endTime: string, timeZone?: string): string => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const dayLabel = start.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    timeZone
+  });
+  const startLabel = start.toLocaleTimeString('en-GB', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone
+  });
+  const endLabel = end.toLocaleTimeString('en-GB', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone
+  });
+  return `${dayLabel} · ${startLabel} – ${endLabel}`;
 };
 
 export const CalendarResponse: React.FC<CalendarResponseProps> = ({ data, onActionClick }) => {
   const now = new Date();
+  const meetings = data.data.meetings || [];
+  const availability = data.data.availability || [];
+  const timezone = (data.metadata as Record<string, any> | undefined)?.timezone as string | undefined;
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-gray-300">{data.summary}</p>
 
+      {/* Availability Slots */}
+      {availability.length > 0 && (
+        <div className="bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-100">Open Time Slots</h4>
+            {timezone && <span className="text-xs text-gray-500">{timezone}</span>}
+          </div>
+          <div className="space-y-2">
+            {availability.map(slot => (
+              <div
+                key={slot.startTime}
+                className="flex items-center justify-between text-xs text-gray-400 p-2 rounded-lg bg-gray-800/40"
+              >
+                <div className="flex flex-col">
+                  <span className="text-gray-100 font-medium">
+                    {formatAvailabilityLabel(slot.startTime, slot.endTime, timezone)}
+                  </span>
+                  <span className="text-gray-500">{slot.duration} min block</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Meetings List */}
       <div className="space-y-3">
-        {data.data.meetings.map(meeting => {
+        {meetings.length === 0 && (
+          <div className="text-sm text-gray-500">
+            No meetings scheduled for this range.
+          </div>
+        )}
+        {meetings.map(meeting => {
           const startTime = new Date(meeting.startTime);
           const minutesUntil = Math.floor((startTime.getTime() - now.getTime()) / 60000);
           const isUpcoming = minutesUntil > 0 && minutesUntil < 120;
@@ -69,7 +143,7 @@ export const CalendarResponse: React.FC<CalendarResponseProps> = ({ data, onActi
                   </h5>
                   <div className="flex items-center gap-2 text-xs text-gray-500">
                     <Clock className="w-3 h-3" />
-                    {formatDate(meeting.startTime)} {formatTime(meeting.startTime)} - {formatTime(meeting.endTime)}
+                    {formatDate(meeting.startTime, timezone)} {formatTime(meeting.startTime, timezone)} - {formatTime(meeting.endTime, timezone)}
                     {isUpcoming && (
                       <span className="ml-2 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">
                         In {minutesUntil} min

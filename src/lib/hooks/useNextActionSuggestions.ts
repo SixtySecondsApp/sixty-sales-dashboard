@@ -33,10 +33,7 @@ export function useNextActionSuggestions(activityId: string, activityType: strin
 
       const { data, error: fetchError } = await supabase
         .from('next_action_suggestions')
-        .select(`
-          *,
-          tasks!created_task_id(status)
-        `)
+        .select('*')
         .eq('activity_id', activityId)
         .eq('activity_type', activityType)
         .order('urgency', { ascending: false })
@@ -48,7 +45,7 @@ export function useNextActionSuggestions(activityId: string, activityType: strin
       // Map the task status to suggestions
       const suggestionsWithTaskStatus = (data || []).map(suggestion => ({
         ...suggestion,
-        task_status: (suggestion.tasks as any)?.status || null
+        task_status: null
       }));
 
       setSuggestions(suggestionsWithTaskStatus);

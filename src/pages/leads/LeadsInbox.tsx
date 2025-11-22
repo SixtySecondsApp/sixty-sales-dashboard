@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { LeadWithPrep } from '@/lib/services/leadService';
 import { toast } from 'sonner';
@@ -36,6 +36,10 @@ export default function LeadsInbox() {
   const viewMode = (searchParams.get('view') || 'list') as 'list' | 'table';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = 20;
+
+  // Lazy loading state for list view
+  const [visibleCount, setVisibleCount] = useState(20);
+  const BATCH_SIZE = 20;
 
   // Filter and sort state (shared between list and table views)
   const [filterType, setFilterType] = useState<'all' | 'meeting_date' | 'booked_date'>('all');
@@ -174,6 +178,17 @@ export default function LeadsInbox() {
     return filteredAndSortedLeads.slice(start, end);
   }, [filteredAndSortedLeads, currentPage, pageSize]);
 
+  // Lazy loaded leads for list view
+  const lazyLoadedLeads = useMemo(() => {
+    return filteredAndSortedLeads.slice(0, visibleCount);
+  }, [filteredAndSortedLeads, visibleCount]);
+
+  const hasMoreLeads = visibleCount < filteredAndSortedLeads.length;
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount((prev) => Math.min(prev + BATCH_SIZE, filteredAndSortedLeads.length));
+  }, [filteredAndSortedLeads.length, BATCH_SIZE]);
+
   // Reset to page 1 if current page is out of bounds
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
@@ -196,6 +211,27 @@ export default function LeadsInbox() {
     () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
     [leads, selectedLeadId]
   );
+
+  // Auto-select first lead on page load or when current selection is not in filtered list
+  useEffect(() => {
+    if (filteredAndSortedLeads.length === 0) {
+      // No leads, clear selection
+      if (selectedLeadId !== null) {
+        setSelectedLeadId(null);
+      }
+      return;
+    }
+
+    // Check if currently selected lead is in the filtered list
+    const isSelectedInList = filteredAndSortedLeads.some(lead => lead.id === selectedLeadId);
+
+    // Auto-select first lead if:
+    // 1. No lead is selected, OR
+    // 2. Selected lead is not in the current filtered list
+    if (!selectedLeadId || !isSelectedInList) {
+      setSelectedLeadId(filteredAndSortedLeads[0].id);
+    }
+  }, [filteredAndSortedLeads, selectedLeadId]);
 
   const handleGeneratePrep = async () => {
     try {
@@ -516,7 +552,7 @@ export default function LeadsInbox() {
         lead={selectedLead}
       />
       <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
-        <div className="flex h-full min-h-[calc(100vh-160px)] sm:min-h-[calc(100vh-140px)] lg:min-h-[calc(100vh-120px)] flex-col rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800/60 dark:bg-gray-950/40 overflow-hidden">
+        <div className="flex h-[calc(100vh-160px)] sm:h-[calc(100vh-140px)] lg:h-[calc(100vh-120px)] flex-col rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800/60 dark:bg-gray-950/40 overflow-hidden">
           <LeadPrepToolbar
             isProcessing={isPending || isFetching}
             onGenerate={handleGeneratePrep}
@@ -626,32 +662,28 @@ export default function LeadsInbox() {
         ) : (
           <div className="flex flex-1 flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-gray-200 dark:divide-gray-800 overflow-hidden">
             {/* Lead List - Full width on mobile, wider sidebar on desktop */}
-            <div className="w-full lg:w-[32rem] lg:max-w-[32rem] flex-shrink-0 overflow-y-auto h-64 lg:h-auto flex flex-col">
-              <div className="flex-1 overflow-y-auto">
-              <LeadList
-                leads={paginatedLeads}
-                selectedLeadId={selectedLead?.id ?? null}
-                onSelect={(id) => setSelectedLeadId(id)}
-                isLoading={isLoading}
-                onReprocessLead={handleReprocessLead}
-                reprocessingLeadId={reprocessingLeadId}
-                isReprocessing={isReprocessingLead}
-                filterType={filterType}
-                onFilterTypeChange={setFilterType}
-                searchQuery={searchQuery}
-                onSearchQueryChange={setSearchQuery}
-              />
+            <div className="w-full lg:w-[32rem] lg:max-w-[32rem] flex-shrink-0 flex flex-col h-64 lg:h-auto">
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <LeadList
+                  leads={lazyLoadedLeads}
+                  selectedLeadId={selectedLead?.id ?? null}
+                  onSelect={(id) => setSelectedLeadId(id)}
+                  isLoading={isLoading}
+                  onReprocessLead={handleReprocessLead}
+                  reprocessingLeadId={reprocessingLeadId}
+                  isReprocessing={isReprocessingLead}
+                  filterType={filterType}
+                  onFilterTypeChange={setFilterType}
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={setSearchQuery}
+                  onLoadMore={handleLoadMore}
+                  hasMore={hasMoreLeads}
+                  isLoadingMore={false}
+                />
               </div>
-              <LeadPagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalItems={filteredAndSortedLeads.length}
-                pageSize={pageSize}
-                onPageChange={handlePageChange}
-              />
             </div>
             {/* Lead Detail - Full width on mobile, flex-1 on desktop */}
-            <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950/60">
+            <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950/60 min-h-0">
               <LeadDetailPanel lead={selectedLead} />
             </div>
           </div>

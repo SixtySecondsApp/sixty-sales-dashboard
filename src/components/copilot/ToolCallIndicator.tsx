@@ -19,7 +19,7 @@ import {
   Target,
   LucideIcon
 } from 'lucide-react';
-import type { ToolCall, ToolStep, ToolState, ToolType } from './types';
+import type { ToolCall, ToolStep, ToolState, ToolType } from './toolTypes';
 
 interface ToolCallIndicatorProps {
   toolCall: ToolCall;
@@ -57,6 +57,13 @@ const toolConfig: Record<ToolType, ToolConfig> = {
     gradient: 'from-purple-500 via-purple-600 to-purple-700',
     iconColor: 'text-purple-400',
     glowColor: 'shadow-purple-500/20'
+  },
+  email_search: {
+    icon: Mail,
+    label: 'Email Search',
+    gradient: 'from-blue-500 via-indigo-600 to-purple-700',
+    iconColor: 'text-blue-400',
+    glowColor: 'shadow-blue-500/20'
   },
   calendar_search: {
     icon: Calendar,

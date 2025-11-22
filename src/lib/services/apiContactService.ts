@@ -164,10 +164,16 @@ export class ApiContactService {
           
           if (!companiesError && companies) {
             const companiesMap = new Map(companies.map(c => [c.id, c]));
-            enrichedContacts = processedContacts.map(contact => ({
-              ...contact,
-              company: contact.company_id ? companiesMap.get(contact.company_id) : undefined
-            }));
+            enrichedContacts = processedContacts.map(contact => {
+              const company = contact.company_id ? companiesMap.get(contact.company_id) : undefined;
+              return {
+                ...contact,
+                company: company, // Full company object
+                company_name: company?.name || contact.company_name || null, // String name for easy access
+                company_website: company?.website || contact.company_website || null, // Website for easy access
+                companies: company ? { name: company.name, website: company.website } : undefined // API-compatible format
+              };
+            });
           }
         }
       }

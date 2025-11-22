@@ -10,6 +10,8 @@ import { ChatMessage } from './copilot/ChatMessage';
 import { ChatInput } from './copilot/ChatInput';
 import { CopilotService } from '@/lib/services/copilotService';
 import logger from '@/lib/utils/logger';
+import { supabase } from '@/lib/supabase/clientV2';
+import { toast } from 'sonner';
 
 interface CopilotProps {
   onGenerateEmail?: (contactId?: string) => void;
@@ -60,7 +62,227 @@ export const Copilot: React.FC<CopilotProps> = ({
     }, 100);
   };
 
-  const handleActionClick = async (action: any) => {
+  const handleActionClick = async (action: any, data?: any) => {
+    // Handle string-based actions (from CommunicationHistoryResponse)
+    if (typeof action === 'string') {
+      const emailId = data?.emailId;
+      
+      switch (action) {
+        case 'reply':
+          if (!emailId) {
+            toast.error('Email ID is required to reply');
+            return;
+          }
+          try {
+            // Get email details first to extract reply information
+            const { data: emailData, error: emailError } = await supabase.functions.invoke('google-gmail', {
+              body: { action: 'get', messageId: emailId }
+            });
+            
+            if (emailError) throw emailError;
+            
+            // Extract reply-to email from headers
+            const headers = emailData?.payload?.headers || [];
+            const fromHeader = headers.find((h: any) => h.name?.toLowerCase() === 'from');
+            const subjectHeader = headers.find((h: any) => h.name?.toLowerCase() === 'subject');
+            
+            // Extract email from "Name <email@example.com>" format
+            const extractEmail = (str: string) => {
+              const match = str.match(/<(.+)>/);
+              return match ? match[1] : str.trim();
+            };
+            
+            const replyTo = fromHeader ? extractEmail(fromHeader.value) : '';
+            const subject = subjectHeader?.value || 'Re: Email';
+            const replySubject = subject.startsWith('Re:') ? subject : `Re: ${subject}`;
+            
+            // Prompt user for reply body (in a real implementation, you'd open a composer modal)
+            const replyBody = prompt(`Reply to: ${replyTo}\nSubject: ${replySubject}\n\nEnter your reply:`);
+            
+            if (!replyBody) {
+              return; // User cancelled
+            }
+            
+            // Send reply via Gmail API
+            const { error: replyError } = await supabase.functions.invoke('google-gmail?action=reply', {
+              body: {
+                messageId: emailId,
+                body: replyBody,
+                replyAll: false,
+                isHtml: false
+              }
+            });
+            
+            if (replyError) throw replyError;
+            
+            toast.success('Reply sent successfully');
+            logger.log('Reply sent:', emailId);
+          } catch (error) {
+            logger.error('Error replying to email:', error);
+            toast.error('Failed to send reply');
+          }
+          break;
+          
+        case 'forward':
+          if (!emailId) {
+            toast.error('Email ID is required to forward');
+            return;
+          }
+          try {
+            // Prompt user for recipients
+            const recipientsInput = prompt('Enter email addresses to forward to (comma-separated):');
+            if (!recipientsInput) {
+              return; // User cancelled
+            }
+            
+            const recipients = recipientsInput.split(',').map(e => e.trim()).filter(e => e);
+            if (recipients.length === 0) {
+              toast.error('Please enter at least one recipient');
+              return;
+            }
+            
+            // Optional: Prompt for additional message
+            const additionalMessage = prompt('Optional: Add a message before forwarding:') || undefined;
+            
+            // Forward email via Gmail API
+            const { error: forwardError } = await supabase.functions.invoke('google-gmail?action=forward', {
+              body: {
+                messageId: emailId,
+                to: recipients,
+                additionalMessage
+              }
+            });
+            
+            if (forwardError) throw forwardError;
+            
+            toast.success('Email forwarded successfully');
+            logger.log('Email forwarded:', emailId);
+          } catch (error) {
+            logger.error('Error forwarding email:', error);
+            toast.error('Failed to forward email');
+          }
+          break;
+          
+        case 'archive':
+          if (!emailId) {
+            toast.error('Email ID is required to archive');
+            return;
+          }
+          try {
+            const { error } = await supabase.functions.invoke('google-gmail?action=archive', {
+              body: { messageId: emailId }
+            });
+            
+            if (error) throw error;
+            
+            toast.success('Email archived successfully');
+            logger.log('Email archived:', emailId);
+          } catch (error) {
+            logger.error('Error archiving email:', error);
+            toast.error('Failed to archive email');
+          }
+          break;
+          
+        case 'star':
+          if (!emailId) {
+            toast.error('Email ID is required to star');
+            return;
+          }
+          try {
+            // Toggle star - we'd need to check current state, but for now just star it
+            const { error } = await supabase.functions.invoke('google-gmail?action=star', {
+              body: { messageId: emailId, starred: true }
+            });
+            
+            if (error) throw error;
+            
+            toast.success('Email starred');
+            logger.log('Email starred:', emailId);
+          } catch (error) {
+            logger.error('Error starring email:', error);
+            toast.error('Failed to star email');
+          }
+          break;
+          
+        case 'add_to_task':
+          if (!emailId) {
+            toast.error('Email ID is required to create task');
+            return;
+          }
+          try {
+            // Get email details first
+            const { data: emailData, error: emailError } = await supabase.functions.invoke('google-gmail', {
+              body: { action: 'get', messageId: emailId }
+            });
+            
+            if (emailError) throw emailError;
+            
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+              toast.error('You must be logged in to create tasks');
+              return;
+            }
+            
+            // Extract email subject and snippet for task
+            const subject = emailData?.payload?.headers?.find((h: any) => h.name === 'Subject')?.value || 'Email follow-up';
+            const snippet = emailData?.snippet || '';
+            
+            // Create task from email
+            const taskData: any = {
+              title: `Follow up: ${subject}`,
+              description: `Task created from email:\n\n${snippet}`,
+              status: 'todo',
+              priority: 'medium',
+              task_type: 'email',
+              assigned_to: user.id,
+              created_by: user.id,
+              contact_email: user.email, // Required field
+              due_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
+            };
+            
+            // Add metadata if supported
+            try {
+              taskData.metadata = {
+                source: 'email_copilot',
+                email_id: emailId
+              };
+            } catch (e) {
+              // Metadata might not be supported, continue without it
+            }
+            
+            const { data: task, error: taskError } = await supabase
+              .from('tasks')
+              .insert(taskData)
+              .select()
+              .single();
+            
+            if (taskError) throw taskError;
+            
+            toast.success('Task created successfully');
+            logger.log('Task created from email:', task);
+          } catch (error) {
+            logger.error('Error creating task from email:', error);
+            toast.error('Failed to create task from email');
+          }
+          break;
+          
+        default:
+          logger.log('Unknown action:', action);
+      }
+      return;
+    }
+    
+    // Handle special action types
+    if (action === 'search_emails' || (typeof action === 'object' && action.type === 'search_emails')) {
+      const params = typeof action === 'object' ? action : {};
+      const query = params.contactEmail 
+        ? `Show me all emails from ${params.contactName || params.contactEmail}`
+        : 'Show me my recent emails';
+      sendMessage(query);
+      return;
+    }
+    
     // Handle API callbacks
     if (action.callback && action.callback.startsWith('/api/')) {
       try {
