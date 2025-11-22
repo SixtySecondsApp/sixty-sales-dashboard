@@ -11,6 +11,7 @@ import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { ContactDealHealthWidget } from '@/components/ContactDealHealthWidget';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
 import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
+import { RelationshipHealthWidget } from '@/components/relationship-health/RelationshipHealthWidget';
 
 interface ContactRightPanelProps {
   contact: Contact;
@@ -121,6 +122,13 @@ export function ContactRightPanel({ contact, graph }: ContactRightPanelProps) {
   // Component always renders - no loading skeleton needed since parent handles loading
   return (
     <div className="space-y-6">
+      {/* Relationship Health Widget */}
+      <RelationshipHealthWidget
+        relationshipType="contact"
+        relationshipId={contact.id}
+        relationshipName={`${contact.first_name || ''} ${contact.last_name || ''}`.trim()}
+      />
+
       {/* Deal Health Widget */}
       <ContactDealHealthWidget contactId={contact.id} />
 
