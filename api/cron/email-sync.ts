@@ -32,7 +32,12 @@ export default async function handler(req: any, res: any) {
     // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
     const supabaseUrl = process.env.SUPABASE_URL;
     // Use publishable key for edge function calls (edge functions validate internally)
+    // Try SUPABASE_ANON_KEY first (for serverless functions), then fallback to VITE_ version
     const supabasePublishableKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabasePublishableKey) {
+      throw new Error('Missing SUPABASE_ANON_KEY or VITE_SUPABASE_ANON_KEY - required for edge function authentication');
+    }
 
     if (!supabaseUrl || !supabasePublishableKey) {
       throw new Error('Missing Supabase configuration');
