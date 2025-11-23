@@ -88,7 +88,7 @@ const ElegantCRM = lazy(() => import('@/pages/ElegantCRM'));
 const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 const Admin = lazy(() => import('@/pages/Admin')); // Keep for individual admin pages
 const Insights = lazy(() => import('@/pages/Insights'));
-const Workflows = lazy(() => import('@/pages/Workflows'));
+const Workflows = lazyWithRetry(() => import('@/pages/Workflows'));
 const Integrations = lazy(() => import('@/pages/Integrations'));
 const GoogleCallback = lazy(() => import('@/pages/GoogleCallback'));
 const FathomCallback = lazy(() => import('@/pages/auth/FathomCallback'));
@@ -117,7 +117,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5 * 60 * 1000, // 5 minutes
-      cacheTime: 10 * 60 * 1000, // 10 minutes - keep cached data longer
+      gcTime: 10 * 60 * 1000, // 10 minutes - keep cached data longer (formerly cacheTime)
       retry: 1,
       refetchOnWindowFocus: false, // Prevent refetch on window focus
       refetchOnReconnect: true, // Only refetch on reconnect
