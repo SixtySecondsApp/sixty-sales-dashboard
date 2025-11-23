@@ -24,6 +24,14 @@ interface GhostDetectionPanelProps {
   onResolveAll?: () => void;
 }
 
+/**
+ * Renders a panel showing ghost-detection signals, grouping them into active warnings and resolved signals and providing optional resolve actions.
+ *
+ * @param signals - Array of ghost detection signals. Signals with a `resolved_at` timestamp are treated as resolved.
+ * @param onResolveSignal - Optional handler called with a signal `id` when an individual signal is marked resolved.
+ * @param onResolveAll - Optional handler called when the "Resolve All" action is triggered.
+ * @returns The UI element that displays active warnings, resolved signals (collapsible), and appropriate empty states.
+ */
 export function GhostDetectionPanel({
   signals,
   onResolveSignal,

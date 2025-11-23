@@ -221,7 +221,15 @@ function App() {
   );
 }
 
-// Separate component that can use auth context
+/**
+ * Provide the app's route configuration and global UI elements, handling both public and protected pages.
+ *
+ * Initializes audit session tracking, renders preloading and route structure (public routes, auth routes,
+ * and protected app routes), and includes global UI such as the toaster and version manager.
+ *
+ * @param performanceMetrics - Optional performance metrics object used to populate or report performance data.
+ * @param measurePerformance - If true, enables collection or measurement of runtime performance for rendered routes.
+ */
 function AppContent({ performanceMetrics, measurePerformance }: any) {
   // Initialize audit session tracking - now inside AuthProvider
   useInitializeAuditSession();

@@ -18,6 +18,15 @@ interface ContactRightPanelProps {
   graph?: ContactCompanyGraph;
 }
 
+/**
+ * Render the right-side panel for a contact, displaying relationship health, deal health, active deals, AI suggestions, recent activity, and AI-generated insights.
+ *
+ * The component reads optional graph data (deals and activities), uses hooks to fetch next-action suggestions and deal health scores, and provides UI controls for navigating to deals and opening the next-actions panel.
+ *
+ * @param contact - The contact whose information and related UI should be shown.
+ * @param graph - Optional contact-company graph containing pre-fetched `deals` and `activities`; when omitted, the component treats those lists as empty.
+ * @returns A React element representing the contact's right-side panel UI.
+ */
 export function ContactRightPanel({ contact, graph }: ContactRightPanelProps) {
   const navigate = useNavigate();
   const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);

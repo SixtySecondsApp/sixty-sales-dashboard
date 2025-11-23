@@ -17,6 +17,18 @@ interface HealthScoreBadgeProps {
   className?: string;
 }
 
+/**
+ * Render a compact, color-coded badge that displays a numeric health score with status and optional trend.
+ *
+ * @param score - Numeric health score to display.
+ * @param status - One of 'healthy', 'at_risk', 'critical', or 'ghost'; determines the badge color scheme and optional warning icon.
+ * @param trend - Optional trend indicator: 'improving', 'stable', or 'declining'; selects the trend icon and color.
+ * @param size - Visual size variant: 'sm', 'md', or 'lg' (defaults to 'md').
+ * @param showScore - Whether to show the numeric score (defaults to true).
+ * @param showTrend - Whether to show the trend icon when `trend` is provided (defaults to true).
+ * @param className - Optional additional CSS classes applied to the badge container.
+ * @returns A JSX element rendering the styled health score badge with optional label, warning icon for 'ghost' status, and trend indicator.
+ */
 export function HealthScoreBadge({
   score,
   status,
@@ -131,6 +143,14 @@ interface HealthScoreCircleProps {
   showLabel?: boolean;
 }
 
+/**
+ * Render a circular health progress indicator showing a numeric score.
+ *
+ * @param score - Numeric health score from 0 to 100 used to determine progress and color
+ * @param size - Diameter of the circle in pixels (defaults to 40)
+ * @param showLabel - Whether to display the "Health" label beneath the circle
+ * @returns A JSX element containing an SVG progress circle with the score centered and an optional "Health" label
+ */
 export function HealthScoreCircle({ score, size = 40, showLabel = true }: HealthScoreCircleProps) {
   // Determine color based on score
   const getColor = (score: number) => {

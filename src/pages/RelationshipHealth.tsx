@@ -8,6 +8,11 @@
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { RelationshipHealthDashboard } from '@/components/relationship-health/RelationshipHealthDashboard';
 
+/**
+ * Page component that displays the Relationship Health dashboard for authenticated users or a sign-in prompt otherwise.
+ *
+ * @returns The rendered page: a centered "Please sign in to view relationship health" message when no user is authenticated, or the RelationshipHealthDashboard wrapped in padding with the current user's id.
+ */
 export default function RelationshipHealth() {
   const { user } = useAuth();
 

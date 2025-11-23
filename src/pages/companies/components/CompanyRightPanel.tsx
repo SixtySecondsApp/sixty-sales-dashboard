@@ -38,6 +38,14 @@ interface CompanyRightPanelProps {
   graph?: ContactCompanyGraph;
 }
 
+/**
+ * Render the right-hand panel for a company showing relationship health, quick actions, AI suggestions, deal health, recent activity, and key metrics.
+ *
+ * @param company - Company data used to populate widgets and metrics (name, id, created_at, last_activity_date, total_deal_value, etc.)
+ * @param deals - List of deals for the company used to derive opportunities, won rate, and deal-specific health
+ * @param activities - List of recent activities used to populate the activity timeline and influence health scoring
+ * @returns The JSX element that composes the company right-side panel UI
+ */
 export function CompanyRightPanel({ company, deals, activities }: CompanyRightPanelProps) {
   const [showNextActionsPanel, setShowNextActionsPanel] = useState(false);
 

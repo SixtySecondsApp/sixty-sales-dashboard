@@ -28,6 +28,15 @@ interface RelationshipHealthWidgetProps {
   compact?: boolean;
 }
 
+/**
+ * Render a relationship health UI showing score, signal breakdown, ghost risk warnings, and controls to view details or send interventions for a contact or company.
+ *
+ * @param relationshipType - Either `'contact'` or `'company'`; determines which entity the widget represents
+ * @param relationshipId - The ID of the contact or company to load health data for
+ * @param relationshipName - Optional display name for the relationship (used in UI where applicable)
+ * @param compact - When true, render a condensed card with minimal details and a condensed intervention action
+ * @returns A React element displaying the relationship health widget, or `null` when no health data is available
+ */
 export function RelationshipHealthWidget({
   relationshipType,
   relationshipId,

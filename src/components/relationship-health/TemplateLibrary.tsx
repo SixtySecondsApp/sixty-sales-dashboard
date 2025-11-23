@@ -39,6 +39,16 @@ interface TemplateLibraryProps {
 
 type TemplateType = 'permission_to_close' | 'value_add' | 'pattern_interrupt' | 'soft_checkin' | 'channel_switch' | 'all';
 
+/**
+ * Renders a template library UI for browsing, filtering, creating, editing, previewing, and archiving intervention templates.
+ *
+ * Provides controls for type filtering, text search, sorting, and toggling archived templates; presents templates as cards and exposes modals for editing/creating and previewing.
+ *
+ * @param onSelectTemplate - Optional callback invoked with a template when the user chooses "Use Template"
+ * @param allowEdit - If `true`, edit and archive actions are enabled for templates
+ * @param allowCreate - If `true`, the UI shows controls to create new templates
+ * @returns A React element that renders the Template Library user interface
+ */
 export function TemplateLibrary({
   onSelectTemplate,
   allowEdit = true,
@@ -270,6 +280,16 @@ interface TemplateCardProps {
   onPreview: () => void;
 }
 
+/**
+ * Render a card representing an intervention template with metadata, performance metrics, personalization badges, and action buttons.
+ *
+ * @param template - Intervention template data used to populate the card (includes name, description, template_type, variant flags, performance metrics, times_sent, personalization fields, and is_archived).
+ * @param onSelect - Optional callback invoked with the template when the user chooses "Use Template".
+ * @param onEdit - Optional callback invoked when the user clicks the edit action.
+ * @param onArchive - Optional callback invoked when the user clicks the archive action.
+ * @param onPreview - Callback invoked to open the template preview.
+ * @returns A JSX element rendering the template card UI.
+ */
 function TemplateCard({ template, onSelect, onEdit, onArchive, onPreview }: TemplateCardProps) {
   const recoveryRate = template.recovery_rate_percent || 0;
   const responseRate = template.times_sent > 0
@@ -398,6 +418,16 @@ interface TemplateEditorModalProps {
   onClose: () => void;
 }
 
+/**
+ * Render a modal form for creating or editing an intervention template.
+ *
+ * Displays form fields for template name, type, variant, subject, body, description,
+ * personalization, and a control-variant flag; submits the collected input when saved.
+ *
+ * @param template - The existing template to edit, or `null` to create a new template.
+ * @param onSave - Callback invoked with the assembled `CreateTemplateInput` when the form is submitted.
+ * @param onClose - Callback invoked to close the modal without saving.
+ */
 function TemplateEditorModal({ template, onSave, onClose }: TemplateEditorModalProps) {
   const [formData, setFormData] = useState<CreateTemplateInput>({
     templateName: template?.template_name || '',
@@ -544,6 +574,16 @@ interface TemplatePreviewModalProps {
   onClose: () => void;
 }
 
+/**
+ * Renders a centered preview modal showing the given template with sample personalization data substituted.
+ *
+ * Replaces template placeholders (e.g., `{{first_name}}`) with example values and displays the subject (if present),
+ * the rendered body, and a note indicating the content is a sample preview.
+ *
+ * @param template - The intervention template to preview; its `template_body` is rendered with sample personalization values.
+ * @param onClose - Callback invoked to close the preview modal.
+ * @returns The modal element displaying the preview.
+ */
 function TemplatePreviewModal({ template, onClose }: TemplatePreviewModalProps) {
   // Sample personalization data
   const sampleData = {
