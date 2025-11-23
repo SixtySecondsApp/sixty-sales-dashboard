@@ -27,8 +27,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     // Note: Vercel serverless functions don't have access to VITE_ prefixed vars
-    // Use SUPABASE_URL instead (set in Vercel environment variables)
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    // Use SUPABASE_URL (set in Vercel environment variables) - NOT VITE_SUPABASE_URL
+    // VITE_ prefixed vars are exposed to browser and should never contain sensitive keys
+    const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
