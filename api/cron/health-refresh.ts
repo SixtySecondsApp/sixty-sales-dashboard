@@ -6,14 +6,14 @@
  */
 
 export default async function handler(req: any, res: any) {
-  // Only allow POST requests (Vercel cron jobs use GET by default, but we'll handle both)
+  // Only allow GET/POST requests (Vercel cron jobs use GET by default)
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   // Verify cron secret
   const cronSecret = process.env.CRON_SECRET;
-  const providedSecret = req.headers['x-cron-secret'] || req.query.secret;
+  const providedSecret = req.headers['x-cron-secret'] || (req.query?.secret as string);
 
   if (cronSecret && providedSecret !== cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });

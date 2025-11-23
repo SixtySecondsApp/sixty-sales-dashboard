@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
 
   // Verify cron secret
   const cronSecret = process.env.CRON_SECRET;
-  const providedSecret = req.headers['x-cron-secret'] || req.query.secret;
+  const providedSecret = req.headers['x-cron-secret'] || (req.query?.secret as string);
 
   if (cronSecret && providedSecret !== cronSecret) {
     return res.status(401).json({ error: 'Unauthorized' });
