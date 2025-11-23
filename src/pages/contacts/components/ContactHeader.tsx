@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Edit, MessageCircle, Phone, ArrowLeft, FileText } from 'lucide-react';
+import { Edit, MessageCircle, Phone, ArrowLeft, FileText, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import ContactEditModal from '@/components/ContactEditModal';
-import { EnrichButton } from '@/components/crm/EnrichButton';
+import { EnrichButton } from '@/components/CRM/EnrichButton';
 import { ProposalWizard } from '@/components/proposals/ProposalWizard';
+import { EmailComposerEnhanced } from '@/components/email/EmailComposerEnhanced';
 import type { Contact } from '@/lib/database/models';
 import { extractDomainFromContact } from '@/lib/utils/domainUtils';
 import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
@@ -17,6 +18,7 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
   const navigate = useNavigate();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showProposalWizard, setShowProposalWizard] = useState(false);
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
   const [logoError, setLogoError] = useState(false);
 
   // Extract domain for logo
@@ -125,6 +127,13 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
             <Edit className="w-4 h-4" />
             <span>Edit Contact</span>
           </button>
+          <button 
+            className="btn-secondary"
+            onClick={() => setShowEmailComposer(true)}
+          >
+            <Mail className="w-4 h-4" />
+            <span>Email</span>
+          </button>
           <button className="btn-secondary">
             <MessageCircle className="w-4 h-4" />
             <span>Message</span>
@@ -150,6 +159,14 @@ export function ContactHeader({ contact }: ContactHeaderProps) {
         contactId={contact.id}
         contactName={contact.first_name && contact.last_name ? `${contact.first_name} ${contact.last_name}` : contact.full_name || contact.email}
         companyName={contact.company?.name}
+      />
+
+      {/* AI Email Composer */}
+      <EmailComposerEnhanced
+        isOpen={showEmailComposer}
+        onClose={() => setShowEmailComposer(false)}
+        initialTo={contact.email}
+        contactId={contact.id}
       />
     </div>
   );
