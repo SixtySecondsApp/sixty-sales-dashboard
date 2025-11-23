@@ -310,9 +310,12 @@ serve(async (req) => {
 
   } catch (error) {
     // Log error details for debugging
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+
     console.error('[google-gmail] Error:', {
-      message: error?.message || 'Unknown error',
-      stack: error?.stack,
+      message: errorMessage,
+      stack: errorStack,
       action: action || url.searchParams.get('action') || 'unknown',
       requestBody: req.method === 'POST' ? requestBody : null,
       url: req.url
@@ -320,12 +323,13 @@ serve(async (req) => {
     
     return new Response(
       JSON.stringify({ 
-        error: error?.message || 'Internal server error',
+        success: false,
+        error: errorMessage,
         details: 'Gmail service error',
         action: action || url.searchParams.get('action') || 'unknown'
       }),
       {
-        status: 400,
+        status: 200, // Return 200 to allow client to parse the error message
         headers: { 
           ...corsHeaders, 
           'Content-Type': 'application/json' 
@@ -644,13 +648,24 @@ async function syncEmailsToContacts(
       hasMore: !!data.nextPageToken,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
     // Update sync status with error
+    // First, get the current consecutive_errors value
+    const { data: currentStatus } = await supabase
+      .from('email_sync_status')
+      .select('consecutive_errors')
+      .eq('integration_id', integrationId)
+      .single();
+    
+    const currentConsecutiveErrors = currentStatus?.consecutive_errors || 0;
+    
     await supabase
       .from('email_sync_status')
       .update({
-        last_error: error.message,
+        last_error: errorMessage,
         last_error_at: new Date().toISOString(),
-        consecutive_errors: supabase.sql`consecutive_errors + 1`,
+        consecutive_errors: currentConsecutiveErrors + 1,
         updated_at: new Date().toISOString(),
       })
       .eq('integration_id', integrationId);
