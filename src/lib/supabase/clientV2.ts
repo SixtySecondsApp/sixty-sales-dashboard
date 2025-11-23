@@ -3,15 +3,16 @@ import { Database } from '../database.types';
 import logger from '@/lib/utils/logger';
 
 // Environment variables with validation
+// Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-// SECURITY: Never use VITE_SUPABASE_SERVICE_ROLE_KEY in frontend code!
-// Service role keys bypass RLS and should NEVER be exposed to the browser.
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY; // Publishable key (safe for frontend)
+// SECURITY: Never use Secret keys (formerly service role keys) in frontend code!
+// Secret keys bypass RLS and should NEVER be exposed to the browser.
 // The supabaseAdmin client should only be used server-side (edge functions, API routes).
-const supabaseServiceKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+const supabaseSecretKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabasePublishableKey) {
   throw new Error(
     'Missing required Supabase environment variables. Please check your .env.local file.'
   );
@@ -40,7 +41,7 @@ function getSupabaseClient(): TypedSupabaseClient {
       }
     }
 
-    supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    supabaseInstance = createClient<Database>(supabaseUrl, supabasePublishableKey, {
       auth: {
         persistSession: true,
         // Removed custom storageKey to use default sb-[project-ref]-auth-token format
@@ -104,34 +105,37 @@ export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient
 });
 
 /**
- * Get the admin Supabase client for service role operations
+ * Get the admin Supabase client for secret key operations
  * 
  * SECURITY WARNING: This should NOT be used in frontend code!
- * Service role keys bypass Row Level Security and should NEVER be exposed to the browser.
+ * Secret keys (formerly service role keys) bypass Row Level Security and should NEVER be exposed to the browser.
  * 
  * This client should only be used in:
  * - Server-side code (Node.js scripts)
  * - Edge functions (Supabase Edge Functions)
  * - API routes (Vercel serverless functions)
  * 
- * For frontend operations, use the regular `supabase` client which respects RLS.
+ * For frontend operations, use the regular `supabase` client which uses the Publishable key and respects RLS.
  */
 function getSupabaseAdminClient(): TypedSupabaseClient {
   // SECURITY: Admin client should not be available in frontend
   // If you need admin operations, use edge functions or API routes instead
   console.warn(
     '⚠️ SECURITY WARNING: supabaseAdmin should not be used in frontend code. ' +
-    'Service role keys bypass RLS and expose your database. ' +
+    'Secret keys bypass RLS and expose your database. ' +
     'Use edge functions or API routes for admin operations instead.'
   );
   
   // Return regular client instead of admin client
-  // This prevents accidental exposure of service role keys
+  // This prevents accidental exposure of secret keys
   return getSupabaseClient();
 }
 
 /**
- * Admin Supabase client for service role operations - Proxy wrapper for safe initialization
+ * Admin Supabase client for secret key operations - Proxy wrapper for safe initialization
+ * 
+ * NOTE: This client is disabled in frontend code for security.
+ * Use edge functions or API routes for operations requiring secret keys.
  */
 export const supabaseAdmin: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
   get(target, prop) {

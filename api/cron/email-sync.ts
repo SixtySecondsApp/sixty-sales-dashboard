@@ -29,10 +29,11 @@ export default async function handler(req: any, res: any) {
     // Note: Vercel serverless functions don't have access to VITE_ prefixed vars
     // Use SUPABASE_URL (set in Vercel environment variables) - NOT VITE_SUPABASE_URL
     // VITE_ prefixed vars are exposed to browser and should never contain sensitive keys
+    // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Secret key (server-side only)
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseSecretKey) {
       throw new Error('Missing Supabase configuration');
     }
 
@@ -43,7 +44,7 @@ export default async function handler(req: any, res: any) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Authorization': `Bearer ${supabaseSecretKey}`, // Secret key for server-side operations
         'x-cron-secret': cronSecret || '',
       },
     });
