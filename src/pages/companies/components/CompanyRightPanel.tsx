@@ -29,6 +29,7 @@ import { NextActionBadge, NextActionPanel } from '@/components/next-actions';
 import { CompanyDealHealthWidget } from '@/components/CompanyDealHealthWidget';
 import { DealHealthBadge } from '@/components/DealHealthBadge';
 import { useDealHealthScore } from '@/lib/hooks/useDealHealth';
+import { RelationshipHealthWidget } from '@/components/relationship-health/RelationshipHealthWidget';
 
 interface CompanyRightPanelProps {
   company: Company;
@@ -141,6 +142,13 @@ export function CompanyRightPanel({ company, deals, activities }: CompanyRightPa
 
   return (
     <div className="space-y-6">
+      {/* Relationship Health Widget */}
+      <RelationshipHealthWidget
+        relationshipType="company"
+        relationshipId={company.id}
+        relationshipName={company.name || 'Unknown Company'}
+      />
+
       {/* Quick Actions */}
       <div className="theme-bg-card backdrop-blur-xl rounded-xl p-4 theme-border">
         <h3 className="text-sm font-medium theme-text-tertiary mb-3">Quick Actions</h3>
