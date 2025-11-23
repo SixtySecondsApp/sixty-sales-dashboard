@@ -31,21 +31,24 @@ export default async function handler(req: any, res: any) {
     // VITE_ prefixed vars are exposed to browser and should never contain sensitive keys
     // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Secret key (server-side only)
+    // Use publishable key for edge function calls (edge functions validate internally)
+    const supabasePublishableKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseSecretKey) {
+    if (!supabaseUrl || !supabasePublishableKey) {
       throw new Error('Missing Supabase configuration');
     }
 
     // Call Supabase Edge Function
-    // Note: Edge functions authenticate using the cron secret, not Bearer token
-    // The edge function uses its own SUPABASE_SERVICE_ROLE_KEY from environment
+    // Edge functions require Authorization header with publishable key or user JWT
+    // The edge function authenticates using cron secret AND uses its own SUPABASE_SERVICE_ROLE_KEY for DB operations
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/scheduled-health-refresh`;
     
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabasePublishableKey}`, // Publishable key for edge function auth
+        'apikey': supabasePublishableKey, // Also include as apikey header
         'x-cron-secret': cronSecret || '',
       },
     });
