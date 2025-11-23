@@ -5,7 +5,10 @@ import logger from '@/lib/utils/logger';
 // Environment variables with validation
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+// SECURITY: Never use VITE_SUPABASE_SERVICE_ROLE_KEY in frontend code!
+// Service role keys bypass RLS and should NEVER be exposed to the browser.
+// The supabaseAdmin client should only be used server-side (edge functions, API routes).
+const supabaseServiceKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate required environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
@@ -102,25 +105,29 @@ export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient
 
 /**
  * Get the admin Supabase client for service role operations
- * Uses lazy initialization to avoid vendor bundle issues
+ * 
+ * SECURITY WARNING: This should NOT be used in frontend code!
+ * Service role keys bypass Row Level Security and should NEVER be exposed to the browser.
+ * 
+ * This client should only be used in:
+ * - Server-side code (Node.js scripts)
+ * - Edge functions (Supabase Edge Functions)
+ * - API routes (Vercel serverless functions)
+ * 
+ * For frontend operations, use the regular `supabase` client which respects RLS.
  */
 function getSupabaseAdminClient(): TypedSupabaseClient {
-  if (!supabaseAdminInstance && supabaseServiceKey) {
-    supabaseAdminInstance = createClient<Database>(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false, // Don't persist admin sessions
-        autoRefreshToken: false, // Disable auto refresh for admin
-        storageKey: 'sb.auth.admin.v2', // Separate storage key
-        debug: false // Disable debug logging
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'sales-dashboard-admin-v2'
-        }
-      }
-    });
-  }
-  return supabaseAdminInstance || getSupabaseClient(); // Fallback to regular client if no service key
+  // SECURITY: Admin client should not be available in frontend
+  // If you need admin operations, use edge functions or API routes instead
+  console.warn(
+    '⚠️ SECURITY WARNING: supabaseAdmin should not be used in frontend code. ' +
+    'Service role keys bypass RLS and expose your database. ' +
+    'Use edge functions or API routes for admin operations instead.'
+  );
+  
+  // Return regular client instead of admin client
+  // This prevents accidental exposure of service role keys
+  return getSupabaseClient();
 }
 
 /**
