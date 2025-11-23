@@ -72,8 +72,11 @@ export interface InterventionOutcome {
 // =====================================================
 
 /**
- * Deploy an intervention (create and mark as pending)
- * User must manually send via their email client
+ * Create a new intervention record and initialize it with a pending status.
+ *
+ * @param deployment - Deployment details including relationship, contact, personalized template, channel, and scoring metadata
+ * @param userId - ID of the user creating the intervention
+ * @returns The created `Intervention` on success, `null` on failure
  */
 export async function deployIntervention(
   deployment: InterventionDeployment,
@@ -117,7 +120,9 @@ export async function deployIntervention(
 }
 
 /**
- * Mark intervention as sent (user sent it manually)
+ * Mark an intervention's status as 'sent' and record the current time in `sent_at`.
+ *
+ * @returns `true` if the database update succeeded, `false` otherwise.
  */
 export async function markInterventionAsSent(interventionId: string): Promise<boolean> {
   try {
@@ -137,7 +142,12 @@ export async function markInterventionAsSent(interventionId: string): Promise<bo
 }
 
 /**
- * Track email opened (from tracking pixel or email provider webhook)
+ * Mark an intervention as opened, increment its open count, and set open timestamps.
+ *
+ * Sets the intervention's status to `opened`, updates `opened_at`, increments `open_count`, and sets `first_open_at` when this is the first recorded open.
+ *
+ * @param interventionId - The ID of the intervention to update
+ * @returns `true` if the intervention record was successfully updated, `false` otherwise.
  */
 export async function trackInterventionOpened(interventionId: string): Promise<boolean> {
   try {
@@ -174,7 +184,10 @@ export async function trackInterventionOpened(interventionId: string): Promise<b
 }
 
 /**
- * Track link clicked
+ * Record that an intervention's link was clicked and increment its click count.
+ *
+ * @param interventionId - The ID of the intervention to update
+ * @returns `true` if the intervention was updated successfully, `false` otherwise.
  */
 export async function trackInterventionClicked(interventionId: string): Promise<boolean> {
   try {
@@ -203,7 +216,15 @@ export async function trackInterventionClicked(interventionId: string): Promise<
 }
 
 /**
- * Track prospect replied
+ * Mark an intervention as replied and record the respondent's details.
+ *
+ * Updates the intervention's status to `replied`, sets `replied_at` to the current time,
+ * stores the provided `responseType` and optional `responseText`.
+ *
+ * @param interventionId - The ID of the intervention to update
+ * @param responseType - The categorized response type (e.g., `interested_later`, `not_interested`)
+ * @param responseText - Optional free-form text of the respondent's message
+ * @returns `true` if the database update succeeded, `false` otherwise
  */
 export async function trackInterventionReplied(
   interventionId: string,
@@ -229,7 +250,10 @@ export async function trackInterventionReplied(
 }
 
 /**
- * Mark intervention as recovered (relationship re-engaged)
+ * Set an intervention's status to recovered and record the recovery timestamp and outcome.
+ *
+ * @param interventionId - The intervention's identifier
+ * @returns `true` if the intervention was updated successfully, `false` otherwise
  */
 export async function markInterventionRecovered(interventionId: string): Promise<boolean> {
   try {
@@ -250,7 +274,10 @@ export async function markInterventionRecovered(interventionId: string): Promise
 }
 
 /**
- * Update intervention outcome
+ * Apply an outcome and optional response details to an intervention record.
+ *
+ * @param outcome - Outcome details specifying the intervention id, outcome state, optional outcome notes, and optional response type/text to store on the intervention
+ * @returns `true` if the database update succeeded, `false` otherwise.
  */
 export async function updateInterventionOutcome(outcome: InterventionOutcome): Promise<boolean> {
   try {
@@ -283,7 +310,9 @@ export async function updateInterventionOutcome(outcome: InterventionOutcome): P
 // =====================================================
 
 /**
- * Get intervention by ID
+ * Fetches a single intervention by its unique identifier.
+ *
+ * @returns The matching `Intervention`, or `null` if not found or on error.
  */
 export async function getIntervention(interventionId: string): Promise<Intervention | null> {
   try {
@@ -301,7 +330,9 @@ export async function getIntervention(interventionId: string): Promise<Intervent
 }
 
 /**
- * Get all interventions for a contact
+ * Fetches all interventions associated with a contact, ordered by newest first.
+ *
+ * @returns An array of Intervention objects for the contact, or an empty array if none are found or on error.
  */
 export async function getContactInterventions(contactId: string): Promise<Intervention[]> {
   try {
@@ -319,7 +350,10 @@ export async function getContactInterventions(contactId: string): Promise<Interv
 }
 
 /**
- * Get active interventions for user
+ * Fetch interventions for a user that are considered active (statuses: pending, sent, delivered, opened) and still have an outcome of "pending", ordered newest first.
+ *
+ * @param userId - The user id to filter interventions by
+ * @returns An array of matching Intervention objects; returns an empty array when no interventions are found or on error
  */
 export async function getActiveInterventions(userId: string): Promise<Intervention[]> {
   try {
@@ -339,7 +373,10 @@ export async function getActiveInterventions(userId: string): Promise<Interventi
 }
 
 /**
- * Get all interventions for user
+ * Fetches all interventions belonging to a user, ordered by newest first.
+ *
+ * @param userId - The ID of the user whose interventions to fetch
+ * @returns The interventions for `userId` ordered by `created_at` descending; an empty array if none are found or on error
  */
 export async function getUserInterventions(userId: string): Promise<Intervention[]> {
   try {
@@ -361,7 +398,16 @@ export async function getUserInterventions(userId: string): Promise<Intervention
 // =====================================================
 
 /**
- * Get intervention success rate for user
+ * Compute aggregate success metrics for a user's interventions.
+ *
+ * @param userId - The user identifier to scope the metrics
+ * @returns An object with:
+ *   - `totalSent`: number of interventions with a non-null `sent_at`
+ *   - `totalReplied`: number of interventions whose status is `replied` or `recovered`
+ *   - `totalRecovered`: number of interventions whose status is `recovered`
+ *   - `responseRate`: `totalReplied` as a percentage of `totalSent` (rounded)
+ *   - `recoveryRate`: `totalRecovered` as a percentage of `totalSent` (rounded)
+ *   - `avgResponseTimeHours`: average hours between `sent_at` and `replied_at` for replied interventions, or `null` if not applicable
  */
 export async function getInterventionSuccessRate(userId: string): Promise<{
   totalSent: number;
@@ -435,7 +481,18 @@ export async function getInterventionSuccessRate(userId: string): Promise<{
 }
 
 /**
- * Get intervention analytics by time period
+ * Produce aggregated intervention metrics for a user over a recent time window.
+ *
+ * @param userId - The user identifier to filter interventions by
+ * @param days - Number of days to look back from now (defaults to 30)
+ * @returns An object with:
+ *  - `period`: human-readable label for the window,
+ *  - `sent`: number of interventions sent in the window,
+ *  - `opened`: number of interventions opened (or clicked/replied/recovered),
+ *  - `replied`: number of interventions with a reply (including recovered),
+ *  - `recovered`: number of interventions marked recovered,
+ *  - `responseRate`: percentage of sent interventions that were replied to (rounded),
+ *  - `recoveryRate`: percentage of sent interventions that were recovered (rounded)
  */
 export async function getInterventionAnalytics(
   userId: string,
@@ -507,8 +564,12 @@ export async function getInterventionAnalytics(
 // =====================================================
 
 /**
- * Generate AI-suggested reply to prospect response
- * Placeholder for future AI edge function integration
+ * Generate a suggested reply based on a prospect's response.
+ *
+ * @param interventionId - Identifier of the intervention the response belongs to
+ * @param responseText - The prospect's response message used to contextualize the suggestion
+ * @param responseType - Categorization of the response; expected values include `interested_later`, `still_interested`, `not_interested`, `went_competitor`, or other custom types
+ * @returns A suggested reply message tailored to the response; returns an empty string if a suggestion cannot be generated
  */
 export async function generateSuggestedReply(
   interventionId: string,

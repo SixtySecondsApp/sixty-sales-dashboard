@@ -91,7 +91,10 @@ export interface TemplateRecommendation {
 // =====================================================
 
 /**
- * Get all active templates (system + user's custom)
+ * Retrieve all active intervention templates available to a user, including system templates and the user's custom templates.
+ *
+ * @param userId - The id of the user whose custom templates should be included
+ * @returns The list of active intervention templates available to the user
  */
 export async function getAllTemplates(userId: string): Promise<InterventionTemplate[]> {
   try {
@@ -116,7 +119,11 @@ export async function getAllTemplates(userId: string): Promise<InterventionTempl
 }
 
 /**
- * Get templates by context trigger
+ * Retrieve active intervention templates that match a given context trigger.
+ *
+ * @param context - The context trigger to match (for example, `"general_ghosting"`).
+ * @param userId - The ID of the user whose custom templates should be included alongside system templates.
+ * @returns An array of active InterventionTemplate objects whose `context_trigger` equals `context`, including system templates and templates owned by `userId`. Returns an empty array if no templates are found or on error.
  */
 export async function getTemplatesByContext(
   context: string,
@@ -139,7 +146,9 @@ export async function getTemplatesByContext(
 }
 
 /**
- * Get template by ID
+ * Retrieve a single intervention template by its ID.
+ *
+ * @returns The matching `InterventionTemplate`, or `null` if not found or an error occurs.
  */
 export async function getTemplateById(templateId: string): Promise<InterventionTemplate | null> {
   try {
@@ -161,8 +170,15 @@ export async function getTemplateById(templateId: string): Promise<InterventionT
 // =====================================================
 
 /**
- * Select best template for intervention
- * Uses AI-like logic to choose optimal template based on context
+ * Selects the most suitable intervention template for a given personalization context and user.
+ *
+ * Ranks templates that match the context trigger by combining signals from past recovery performance,
+ * ghosting severity, relationship health, and recency, then returns the top recommendation along with
+ * up to three alternative templates and a human-readable reasoning string.
+ *
+ * @param context - Personalization context containing ghost risk, relationship health, and other signals used to score templates
+ * @param userId - ID of the user whose templates (including system templates) should be considered
+ * @returns The selected TemplateRecommendation (selected template, confidenceScore, reasoning, and up to three alternatives), or `null` if no suitable template is found
  */
 export async function selectBestTemplate(
   context: PersonalizationContext,
@@ -268,9 +284,15 @@ export async function selectBestTemplate(
 // =====================================================
 
 /**
- * Personalize template with AI
- * In production, this would call an edge function with Anthropic API
- * For now, we'll use rule-based personalization
+ * Personalizes an intervention template for a contact using rule-based heuristics.
+ *
+ * Builds personalization data (sender name, first name, company, last meaningful interaction, tailored assumptions and reconnect suggestions),
+ * replaces `{{field}}` placeholders in the template subject and body, and computes a confidence score based on available signals.
+ *
+ * @param template - The intervention template to personalize (subject, template_body, personalization_fields, recovery_rate_percent, etc.)
+ * @param context - Context about the contact and relationship (contact name, company, relationship health, ghost risk signals, optional last meaningful interaction)
+ * @param senderName - The display name to use as the sender in personalization fields
+ * @returns A PersonalizedTemplate containing `templateId`, `subject`, `body`, `personalizationData`, and `confidenceScore`; `null` if personalization fails. 
  */
 export async function personalizeTemplate(
   template: InterventionTemplate,
@@ -373,8 +395,9 @@ export async function personalizeTemplate(
 }
 
 /**
- * Personalize template using AI edge function (future implementation)
- * This will call the Anthropic API for more sophisticated personalization
+ * Personalizes an intervention template using an AI edge function, falling back to rule-based personalization if the AI path is unavailable or errors.
+ *
+ * @returns A `PersonalizedTemplate` with the personalized `subject`, `body`, `personalizationData`, and `confidenceScore`, or `null` if personalization could not be produced.
  */
 export async function personalizeTemplateWithAI(
   template: InterventionTemplate,
@@ -420,7 +443,11 @@ export async function personalizeTemplateWithAI(
 // =====================================================
 
 /**
- * Create custom template
+ * Inserts a new custom intervention template for the given user.
+ *
+ * @param userId - The id of the user who will own the created template
+ * @param templateData - Partial template fields to set (metadata, subject, body, personalization_fields, variants, tags, etc.)
+ * @returns The newly created InterventionTemplate, or `null` if creation failed
  */
 export async function createTemplate(
   userId: string,
@@ -451,7 +478,11 @@ export async function createTemplate(
 }
 
 /**
- * Update template
+ * Update fields of an existing non-system intervention template.
+ *
+ * @param templateId - The ID of the template to update
+ * @param updates - Partial template fields to apply; system templates are protected and will not be updated
+ * @returns The updated `InterventionTemplate` on success, or `null` if the template could not be updated or an error occurred
  */
 export async function updateTemplate(
   templateId: string,
@@ -479,7 +510,11 @@ export async function updateTemplate(
 }
 
 /**
- * Delete template
+ * Delete a non-system intervention template owned by the specified user.
+ *
+ * @param templateId - The ID of the template to delete
+ * @param userId - The ID of the user who must own the template for deletion to proceed
+ * @returns `true` if the template was deleted, `false` otherwise
  */
 export async function deleteTemplate(templateId: string, userId: string): Promise<boolean> {
   try {
@@ -502,7 +537,19 @@ export async function deleteTemplate(templateId: string, userId: string): Promis
 // =====================================================
 
 /**
- * Get template performance analytics
+ * Provide performance metrics for a template identified by its ID.
+ *
+ * @param templateId - The ID of the template to retrieve performance for
+ * @returns An object containing the `template` and a `performance` summary:
+ * - `sent`: number of times sent
+ * - `opened`: number of times opened
+ * - `replied`: number of replies
+ * - `recovered`: number of recoveries
+ * - `openRate`: percentage (0-100) of opens among sent
+ * - `responseRate`: response rate percentage
+ * - `recoveryRate`: recovery rate percentage
+ * - `avgResponseTime`: average response time in hours, or `null` if unavailable  
+ * Returns `null` if the template is not found or an error occurs.
  */
 export async function getTemplatePerformance(templateId: string): Promise<{
   template: InterventionTemplate;
@@ -541,7 +588,14 @@ export async function getTemplatePerformance(templateId: string): Promise<{
 }
 
 /**
- * Get all templates with performance comparison
+ * Retrieve a user's templates and return each paired with basic performance metrics.
+ *
+ * @param userId - The ID of the user whose templates should be retrieved
+ * @returns An array of objects each containing:
+ *  - `template`: the intervention template
+ *  - `performance.sent`: the number of times the template was sent
+ *  - `performance.responseRate`: reply rate as a percentage (0–100)
+ *  - `performance.recoveryRate`: recovery rate as a percentage (0–100)
  */
 export async function compareTemplatePerformance(userId: string): Promise<Array<{
   template: InterventionTemplate;

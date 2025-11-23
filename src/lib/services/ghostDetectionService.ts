@@ -62,8 +62,13 @@ export interface GhostRiskAssessment {
 // =====================================================
 
 /**
- * Detect email no-response signal
- * Triggers when 2+ emails sent without reply
+ * Detects when a contact has sent multiple emails without receiving a reply within the last 14 days.
+ *
+ * Returns a partial `GhostDetectionSignal` for `email_no_response` including `severity`, `signal_context`, and `signal_data` with counts and last email details; returns `null` if no signal is detected.
+ *
+ * Severity: `high` when exactly 2 unreplied emails are found, `critical` when 3 or more unreplied emails are found.
+ *
+ * @returns A `Partial<GhostDetectionSignal>` describing the detected `email_no_response` signal, or `null` if the condition is not met.
  */
 async function detectEmailNoResponse(
   contactId: string,
@@ -111,8 +116,14 @@ async function detectEmailNoResponse(
 }
 
 /**
- * Detect response time increase signal
- * Triggers when response time is 3x+ baseline
+ * Detects whether recent inbound response times have increased enough to indicate a ghosting risk.
+ *
+ * Evaluates up to five inbound response times from the last 30 days and compares their average to the provided baseline. If the average is at least 3× the baseline, returns a signal with severity `high` (or `critical` when the increase is ≥5×); otherwise returns `null`.
+ *
+ * @param contactId - The contact whose communication events will be evaluated
+ * @param userId - The user associated with the communication events
+ * @param baselineResponseTimeHours - Baseline inbound response time in hours used for comparison; when `null` no detection is performed
+ * @returns A partial `GhostDetectionSignal` describing the response-time increase when detected, `null` if no signal is triggered or on error
  */
 async function detectResponseTimeIncrease(
   contactId: string,
@@ -164,8 +175,14 @@ async function detectResponseTimeIncrease(
 }
 
 /**
- * Detect email opens declined signal
- * Triggers when email open rate drops significantly
+ * Detects a significant drop in email open rate for a contact compared to the prior 30-day period.
+ *
+ * Compares recent (last 30 days) and historical (30–60 days ago) email open rates and produces a ghosting signal
+ * when the open rate declines by 40 percentage points or more, or when the recent open rate falls below 20%.
+ *
+ * @param contactId - The contact's unique identifier
+ * @param userId - The user's unique identifier performing the detection
+ * @returns A `Partial<GhostDetectionSignal>` with `signal_type: 'email_opens_declined'`, `severity`, `signal_context`, and `signal_data` when a decline is detected; `null` otherwise.
  */
 async function detectEmailOpensDeclined(
   contactId: string,
@@ -227,8 +244,9 @@ async function detectEmailOpensDeclined(
 }
 
 /**
- * Detect meeting rescheduled repeatedly signal
- * Triggers when meetings rescheduled 2+ times without new date
+ * Detects when meetings for a contact have been rescheduled or cancelled repeatedly without a new meeting being scheduled.
+ *
+ * @returns A partial GhostDetectionSignal for a `meeting_rescheduled_repeatedly` signal containing severity, `signal_context`, and `signal_data`, or `null` if no signal is detected.
  */
 async function detectMeetingRescheduledRepeatedly(
   contactId: string,
@@ -286,8 +304,11 @@ async function detectMeetingRescheduledRepeatedly(
 }
 
 /**
- * Detect sentiment declining signal
- * Triggers when meeting sentiment shows negative trend
+ * Detects a declining trend in meeting sentiment for a contact.
+ *
+ * Triggers when there are at least three meetings with sentiment scores and the most recent score is lower than the average of the two previous scores by 0.15 or more. Severity is set to `critical` if the recent score is below -0.3, `high` if the decline is 0.25 or greater, and `medium` otherwise. The returned signal includes `signal_type: 'sentiment_declining'`, a human-readable `signal_context`, and `signal_data` with recent/previous sentiment values, change magnitude, and meeting count.
+ *
+ * @returns A Partial<GhostDetectionSignal> describing the detected `'sentiment_declining'` signal, or `null` if no decline is detected or on error.
  */
 async function detectSentimentDeclining(
   contactId: string,
@@ -333,8 +354,15 @@ async function detectSentimentDeclining(
 }
 
 /**
- * Detect thread dropout signal
- * Triggers when prospect stops responding mid-conversation
+ * Detects when a conversation thread appears to have dropped out after the prospect stopped replying.
+ *
+ * Considers recent email events and signals when a thread with at least three messages ends with an outbound message
+ * and the last message was sent by us at least 5 days ago. Severity is `high` if the last message was >= 10 days ago,
+ * otherwise `medium`.
+ *
+ * @returns A `Partial<GhostDetectionSignal>` for a `thread_dropout` signal containing `signal_data` (including
+ * `thread_length`, `days_since_last`, `thread_position`, and `last_subject`) when a dropout is detected, or `null`
+ * if no dropout is found or an error occurs.
  */
 async function detectThreadDropout(
   contactId: string,
@@ -403,8 +431,15 @@ async function detectThreadDropout(
 }
 
 /**
- * Detect engagement pattern break signal
- * Triggers when regular engagement suddenly stops
+ * Detects when the time since last contact significantly exceeds the expected contact cadence.
+ *
+ * Returns a partial `GhostDetectionSignal` when days since last contact exceed twice the provided baseline contact frequency.
+ * Severity is `critical` if the gap exceeds four times the baseline, otherwise `high`. The returned object includes
+ * `signal_context` describing the gap and `signal_data` with `days_since_last_contact`, `baseline_frequency_days`,
+ * and `expected_contact_days`.
+ *
+ * @param baselineContactFrequencyDays - The typical number of days between contacts for this relationship; detection is skipped when `null`.
+ * @returns A partial `GhostDetectionSignal` describing the engagement gap, or `null` if no signal is triggered.
  */
 async function detectEngagementPatternBreak(
   contactId: string,
@@ -457,7 +492,13 @@ async function detectEngagementPatternBreak(
 // =====================================================
 
 /**
- * Run all ghost detection checks for a relationship
+ * Run all ghost-detection checks for a relationship and persist any newly found signals.
+ *
+ * @param relationshipHealthId - The relationship health record identifier to attach detected signals to
+ * @param contactId - The contact (prospect) identifier to analyze
+ * @param userId - The user identifier performing or owning the detection
+ * @param healthScore - Current relationship health score and baselines used by detectors
+ * @returns An array of active (unresolved) GhostDetectionSignal records for the relationship; includes newly inserted signals or existing unresolved signals
  */
 export async function detectGhostingSignals(
   relationshipHealthId: string,
@@ -534,7 +575,17 @@ export async function detectGhostingSignals(
 }
 
 /**
- * Calculate comprehensive ghost risk assessment
+ * Compute overall ghosting risk for a relationship by aggregating detected ghosting signals and the provided health score.
+ *
+ * @param healthScore - Current relationship health metrics used as the base for probability adjustments.
+ * @returns A GhostRiskAssessment with:
+ *  - `isGhostRisk`: `true` when the computed probability meets the risk threshold,
+ *  - `ghostProbabilityPercent`: the final ghost probability (0–100),
+ *  - `daysUntilPredictedGhost`: estimated days until a ghosting event or `null` if not predicted,
+ *  - `signals`: detected ghosting signals considered in the assessment,
+ *  - `highestSeverity`: the most severe level among detected signals or `none`,
+ *  - `recommendedAction`: suggested next step (`monitor`, `intervene_soon`, `intervene_now`, `urgent`),
+ *  - `contextTrigger`: optional intervention template context derived from signal types.
  */
 export async function assessGhostRisk(
   relationshipHealthId: string,
@@ -608,7 +659,10 @@ export async function assessGhostRisk(
 }
 
 /**
- * Resolve a ghost signal (e.g., prospect responded)
+ * Mark a ghost detection signal as resolved by setting its `resolved_at` timestamp.
+ *
+ * @param signalId - The ID of the ghost detection signal to resolve
+ * @returns `true` if the signal was successfully updated, `false` otherwise
  */
 export async function resolveGhostSignal(signalId: string): Promise<boolean> {
   try {
@@ -625,7 +679,13 @@ export async function resolveGhostSignal(signalId: string): Promise<boolean> {
 }
 
 /**
- * Resolve all signals for a relationship (e.g., relationship recovered)
+ * Mark all unresolved ghost detection signals for a relationship as resolved.
+ *
+ * Sets the `resolved_at` timestamp on every `ghost_detection_signals` row where
+ * `relationship_health_id` matches `relationshipHealthId` and `resolved_at` is null.
+ *
+ * @param relationshipHealthId - The ID of the relationship health record whose signals should be resolved
+ * @returns `true` if the update completed without error, `false` otherwise
  */
 export async function resolveAllSignalsForRelationship(relationshipHealthId: string): Promise<boolean> {
   try {
@@ -643,7 +703,10 @@ export async function resolveAllSignalsForRelationship(relationshipHealthId: str
 }
 
 /**
- * Get active ghost signals for a relationship
+ * Retrieve unresolved ghost detection signals for the given relationship.
+ *
+ * @param relationshipHealthId - The ID of the relationship_health record to query
+ * @returns An array of active (unresolved) GhostDetectionSignal records; returns an empty array if none are found or on error
  */
 export async function getActiveGhostSignals(relationshipHealthId: string): Promise<GhostDetectionSignal[]> {
   try {
