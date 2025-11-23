@@ -27,10 +27,10 @@ export default async function handler(req: any, res: any) {
 
   try {
     // Note: Vercel serverless functions don't have access to VITE_ prefixed vars
-    // Use SUPABASE_URL or DATABASE_URL (set in Vercel environment variables) - NOT VITE_SUPABASE_URL
+    // Use SUPABASE_URL (set in Vercel environment variables) - NOT VITE_SUPABASE_URL
     // VITE_ prefixed vars are exposed to browser and should never contain sensitive keys
     // Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.DATABASE_URL;
+    const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Secret key (server-side only)
 
     if (!supabaseUrl || !supabaseSecretKey) {
@@ -38,13 +38,14 @@ export default async function handler(req: any, res: any) {
     }
 
     // Call Supabase Edge Function
+    // Note: Edge functions authenticate using the cron secret, not Bearer token
+    // The edge function uses its own SUPABASE_SERVICE_ROLE_KEY from environment
     const edgeFunctionUrl = `${supabaseUrl}/functions/v1/scheduled-email-sync`;
     
     const response = await fetch(edgeFunctionUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseSecretKey}`, // Secret key for server-side operations
         'x-cron-secret': cronSecret || '',
       },
     });
