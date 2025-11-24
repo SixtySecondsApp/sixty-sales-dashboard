@@ -617,6 +617,37 @@ async function storeSuggestions(
   return storedSuggestions
 }
 
+const FALLBACK_DAYS_BY_URGENCY: Record<string, number> = {
+  critical: 1,
+  high: 2,
+  medium: 3,
+  low: 7
+}
+
+function computeSafeDueDate(
+  suggestion: any
+): { dueDate: string; originalDeadline?: string | null } {
+  const now = new Date()
+  const recommended = suggestion?.recommended_deadline
+    ? new Date(suggestion.recommended_deadline)
+    : null
+
+  if (recommended && !isNaN(recommended.getTime()) && recommended.getTime() > now.getTime()) {
+    return { dueDate: recommended.toISOString() }
+  }
+
+  const fallback = new Date(now)
+  const urgencyKey = (suggestion?.urgency || '').toLowerCase()
+  const normalizedUrgency = urgencyKey === 'urgent' ? 'critical' : urgencyKey
+  const fallbackDays = FALLBACK_DAYS_BY_URGENCY[normalizedUrgency] ?? FALLBACK_DAYS_BY_URGENCY.medium
+  fallback.setDate(fallback.getDate() + fallbackDays)
+
+  return {
+    dueDate: fallback.toISOString(),
+    originalDeadline: suggestion?.recommended_deadline || null
+  }
+}
+
 /**
  * AUTO-CREATE TASKS from AI suggestions (NEW UNIFIED SYSTEM)
  * Automatically converts accepted AI suggestions into tasks
@@ -654,13 +685,14 @@ async function autoCreateTasksFromSuggestions(
       }
       const priority = priorityMap[suggestion.urgency] || 'medium'
 
-      // Create task
+      const { dueDate, originalDeadline } = computeSafeDueDate(suggestion)
+
       const taskData = {
         title: suggestion.title,
         description: suggestion.reasoning,
         task_type: suggestion.action_type,
         priority: priority,
-        due_date: suggestion.recommended_deadline,
+        due_date: dueDate,
         status: 'pending',
         assigned_to: ownerId,
         created_by: ownerId,
@@ -675,7 +707,10 @@ async function autoCreateTasksFromSuggestions(
           urgency: suggestion.urgency,
           ai_model: suggestion.ai_model,
           auto_created: true,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          ...(originalDeadline
+            ? { original_recommended_deadline: originalDeadline }
+            : {})
         }
       }
 

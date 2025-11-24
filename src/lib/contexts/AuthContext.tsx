@@ -183,18 +183,76 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Sign in function
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      logger.log('🔐 Attempting sign in for:', email.toLowerCase().trim());
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase().trim(),
         password,
       });
 
       if (error) {
-        return { error: { message: authUtils.formatAuthError(error) } };
+        // Log full error details including response body if available
+        const errorDetails: any = {
+          message: error.message,
+          status: error.status,
+          name: error.name,
+        };
+        
+        // Try to extract more details from the error
+        if ((error as any).response) {
+          errorDetails.response = (error as any).response;
+        }
+        if ((error as any).error_description) {
+          errorDetails.error_description = (error as any).error_description;
+        }
+        if ((error as any).code) {
+          errorDetails.code = (error as any).code;
+        }
+        
+        logger.error('❌ Sign in error:', errorDetails);
+        console.error('Full Supabase auth error object:', error);
+        
+        // Log additional details for 500 errors
+        if (error.status === 500) {
+          logger.error('⚠️ Server error (500) - Possible causes:', {
+            '1': 'Password may be incorrect - verify password in Supabase Dashboard',
+            '2': 'User account may be locked or disabled',
+            '3': 'Supabase project configuration issue - check Auth settings',
+            '4': 'Temporary Supabase service issue - check Supabase status page',
+            '5': 'Password hash mismatch - try resetting password in Supabase Dashboard'
+          });
+          
+          // Suggest password reset for 500 errors
+          console.warn('💡 Tip: If password is correct, try resetting it in Supabase Dashboard → Authentication → Users → Reset Password');
+        }
+        
+        return { 
+          error: { 
+            message: authUtils.formatAuthError(error),
+            status: error.status || (error as any).statusCode || 0
+          } 
+        };
+      }
+
+      if (data?.user) {
+        logger.log('✅ Sign in successful for:', data.user.email);
       }
 
       return { error: null };
-    } catch (error) {
-      return { error: { message: authUtils.formatAuthError(error) } };
+    } catch (error: any) {
+      logger.error('❌ Sign in exception:', {
+        message: error?.message,
+        status: error?.status || error?.statusCode,
+        stack: error?.stack,
+        fullError: error
+      });
+      
+      return { 
+        error: { 
+          message: authUtils.formatAuthError(error),
+          status: error?.status || error?.statusCode || 500
+        } 
+      };
     }
   }, []);
 

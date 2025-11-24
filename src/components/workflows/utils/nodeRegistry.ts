@@ -84,8 +84,39 @@ class NodeRegistry {
   }
 }
 
+import { FindLinkedInNode } from '../nodes/linkedin/FindLinkedInNode';
+import { ScrapeLinkedInNode } from '../nodes/linkedin/ScrapeLinkedInNode';
+import { OutreachTemplateNode } from '../nodes/linkedin/OutreachTemplateNode';
+
+// ... existing code ...
+
 // Singleton instance
 export const nodeRegistry = new NodeRegistry();
+
+// Register default nodes
+nodeRegistry.register({
+  type: 'findLinkedIn',
+  component: FindLinkedInNode,
+  category: 'ai',
+  description: 'Find LinkedIn URL using AI search',
+  icon: 'Search'
+});
+
+nodeRegistry.register({
+  type: 'scrapeLinkedIn',
+  component: ScrapeLinkedInNode,
+  category: 'integration',
+  description: 'Scrape rich profile data from LinkedIn',
+  icon: 'Database'
+});
+
+nodeRegistry.register({
+  type: 'outreachTemplate',
+  component: OutreachTemplateNode,
+  category: 'ai',
+  description: 'Generate personalized outreach email',
+  icon: 'Mail'
+});
 
 // Export convenience functions
 export const registerNode = (nodeDef: CustomNodeDefinition) => nodeRegistry.register(nodeDef);

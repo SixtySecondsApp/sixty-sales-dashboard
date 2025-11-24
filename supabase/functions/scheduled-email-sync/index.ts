@@ -80,32 +80,141 @@ serve(async (req) => {
     const results = {
       usersProcessed: 0,
       emailsSynced: 0,
+      contactsWithEmails: 0,
       errors: [] as string[],
     };
 
     for (const user of activeUsers) {
       try {
-        // Call email sync for this user (incremental - last 24 hours)
-        // Note: This would need to call the email sync service logic
-        // For now, we'll trigger it via a database function or direct API call
-        
-        // Get user's CRM contacts count
+        // Get user's CRM contacts with emails
         // NOTE: contacts table uses owner_id, not user_id
-        const { data: contacts } = await supabase
+        const { data: contacts, error: contactsError } = await supabase
           .from('contacts')
-          .select('id', { count: 'exact', head: true })
+          .select('id, email')
           .eq('owner_id', user.id)
           .not('email', 'is', null);
+
+        if (contactsError) {
+          throw new Error(`Failed to fetch contacts: ${contactsError.message}`);
+        }
 
         if (!contacts || contacts.length === 0) {
           // Skip users with no CRM contacts
           continue;
         }
 
-        // Trigger email sync via RPC or direct service call
-        // For now, we'll log that sync should happen
-        // In production, you'd call the email sync service here
-        
+        results.contactsWithEmails += contacts.length;
+
+        // Fetch emails from Gmail API (last 24 hours only for incremental sync)
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+        const afterTimestamp = Math.floor(oneDayAgo.getTime() / 1000);
+
+        // Call Gmail edge function to fetch recent emails
+        const { data: gmailData, error: gmailError } = await supabase.functions.invoke('google-gmail', {
+          body: {
+            action: 'list',
+            query: `after:${afterTimestamp}`,
+            maxResults: 100, // Limit for daily sync
+            userId: user.id,
+          },
+        });
+
+        if (gmailError) {
+          // If Gmail integration is not set up or has errors, skip this user
+          // Don't throw - continue with other users
+          results.errors.push(`User ${user.id} Gmail error: ${gmailError.message}`);
+          continue;
+        }
+
+        const messages = gmailData?.messages || [];
+
+        // Create a set of CRM contact emails for matching
+        const crmEmails = new Set(
+          contacts
+            .map(c => c.email?.toLowerCase().trim())
+            .filter((email): email is string => Boolean(email))
+        );
+
+        // Process each email and store if it matches a CRM contact
+        let emailsStoredForUser = 0;
+        for (const message of messages) {
+          try {
+            // Extract email addresses from headers
+            const headers = message.payload?.headers || [];
+            const fromHeader = headers.find((h: any) => h.name === 'From');
+            const toHeader = headers.find((h: any) => h.name === 'To');
+            const subjectHeader = headers.find((h: any) => h.name === 'Subject');
+            const dateHeader = headers.find((h: any) => h.name === 'Date');
+
+            // Extract from email
+            const fromMatch = fromHeader?.value?.match(/<([^>]+)>/) ||
+                              fromHeader?.value?.match(/([\w\.-]+@[\w\.-]+\.\w+)/);
+            const fromEmail = fromMatch ? fromMatch[1] : fromHeader?.value;
+
+            // Extract to emails
+            const toEmails = toHeader?.value?.match(/[\w\.-]+@[\w\.-]+\.\w+/g) || [];
+
+            // Check if email involves a CRM contact
+            const normalizedFrom = fromEmail?.toLowerCase().trim();
+            const matchesCRM = (normalizedFrom && crmEmails.has(normalizedFrom)) ||
+                               toEmails.some(e => crmEmails.has(e.toLowerCase().trim()));
+
+            if (!matchesCRM) {
+              continue; // Skip non-CRM emails
+            }
+
+            // Find matching contact
+            let contactId = null;
+            if (normalizedFrom && crmEmails.has(normalizedFrom)) {
+              const contact = contacts.find(c => c.email?.toLowerCase().trim() === normalizedFrom);
+              contactId = contact?.id || null;
+            } else {
+              // Check recipients
+              for (const toEmail of toEmails) {
+                const normalized = toEmail.toLowerCase().trim();
+                if (crmEmails.has(normalized)) {
+                  const contact = contacts.find(c => c.email?.toLowerCase().trim() === normalized);
+                  if (contact) {
+                    contactId = contact.id;
+                    break;
+                  }
+                }
+              }
+            }
+
+            // Store as communication event (without AI analysis for now)
+            // AI analysis can be done asynchronously later
+            const { error: insertError } = await supabase
+              .from('communication_events')
+              .insert({
+                user_id: user.id,
+                contact_id: contactId,
+                event_type: 'email_received', // Simplified - could detect sent vs received
+                communication_date: dateHeader ? new Date(dateHeader.value).toISOString() : new Date().toISOString(),
+                subject: subjectHeader?.value || '',
+                summary: `Email: ${subjectHeader?.value || '(no subject)'}`,
+                external_id: message.id,
+                metadata: {
+                  from: fromEmail,
+                  to: toEmails,
+                  gmail_message_id: message.id,
+                  synced_at: new Date().toISOString(),
+                },
+              })
+              .select('id')
+              .single();
+
+            if (!insertError) {
+              emailsStoredForUser++;
+            }
+          } catch (emailError: any) {
+            // Continue processing other emails even if one fails
+            console.error(`Error processing email ${message.id}:`, emailError);
+          }
+        }
+
+        results.emailsSynced += emailsStoredForUser;
         results.usersProcessed++;
       } catch (error: any) {
         results.errors.push(`User ${user.id}: ${error.message}`);
@@ -117,7 +226,6 @@ serve(async (req) => {
         success: results.errors.length === 0,
         ...results,
         timestamp: new Date().toISOString(),
-        note: 'Email sync logic needs to be implemented - this is a placeholder',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

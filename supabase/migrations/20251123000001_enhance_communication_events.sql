@@ -74,3 +74,5 @@ COMMENT ON COLUMN communication_events.action_items IS 'AI-extracted action item
 COMMENT ON COLUMN communication_events.urgency IS 'AI-determined urgency level (low, medium, high)';
 COMMENT ON COLUMN communication_events.response_required IS 'Whether AI determined a response is required';
 
+
+

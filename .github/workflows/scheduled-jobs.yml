@@ -1,0 +1,35 @@
+name: Scheduled Jobs (Backup)
+
+# NOTE: This workflow is kept as a backup option.
+# Primary cron jobs are now configured in Vercel (see vercel.json).
+# You can disable this workflow or keep it as a fallback.
+
+on:
+  schedule:
+    # Run at 7am UTC (backup to Vercel cron)
+    - cron: '0 7 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  health-refresh:
+    name: Refresh Health Scores (Backup)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Health Refresh Function
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/scheduled-health-refresh"
+
+  email-sync:
+    name: Sync Emails (Backup)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Email Sync Function
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/scheduled-email-sync"
+

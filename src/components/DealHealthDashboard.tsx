@@ -28,6 +28,13 @@ import { motion } from 'framer-motion';
 import { formatDistanceToNow } from 'date-fns';
 import { useUsers } from '@/lib/hooks/useUsers';
 import { useUser } from '@/lib/hooks/useUser';
+import { InterventionModal } from '@/components/relationship-health/InterventionModal';
+import { adaptDealHealthToInterventionContext } from '@/lib/services/dealHealthInterventionAdapter';
+import { selectBestTemplate, personalizeTemplate } from '@/lib/services/interventionTemplateService';
+import type { PersonalizationContext } from '@/lib/services/interventionTemplateService';
+import type { InterventionTemplate, PersonalizedTemplate } from '@/lib/services/interventionTemplateService';
+import { Send } from 'lucide-react';
+import { SentimentBadge, RelationshipStrengthBadge } from '@/components/health/SentimentAndRelationshipBadges';
 
 type HealthFilter = 'all' | 'healthy' | 'warning' | 'critical' | 'stalled';
 type SortBy = 'health_asc' | 'health_desc' | 'days_in_stage' | 'risk_level';
@@ -41,13 +48,8 @@ export function DealHealthDashboard() {
   const [calculating, setCalculating] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>('me'); // 'me' or 'all' or specific user ID
 
-  // Smart refresh on component mount (only update stale scores)
-  React.useEffect(() => {
-    if (!loading && healthScores.length > 0) {
-      // Smart refresh in background (don't block UI)
-      smartRefresh(24).catch(err => undefined);
-    }
-  }, []);
+  // Note: Health scores are now refreshed via scheduled jobs, not on page load
+  // Users can manually refresh using the "Recalculate All" button if needed
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -350,10 +352,61 @@ function StatCard({ label, value, icon: Icon, color, onClick, active }: StatCard
 
 function DealHealthCard({ healthScore }: { healthScore: ExtendedHealthScore }) {
   const [expanded, setExpanded] = useState(false);
+  const [showInterventionModal, setShowInterventionModal] = useState(false);
+  const [interventionContext, setInterventionContext] = useState<PersonalizationContext | null>(null);
+  const [recommendedTemplate, setRecommendedTemplate] = useState<InterventionTemplate | null>(null);
+  const [personalizedTemplate, setPersonalizedTemplate] = useState<PersonalizedTemplate | null>(null);
+  const [alternativeTemplates, setAlternativeTemplates] = useState<InterventionTemplate[]>([]);
+  const [loadingIntervention, setLoadingIntervention] = useState(false);
+  const { user } = useUser();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);
   };
+
+  // Handle intervention button click
+  const handleSendIntervention = async () => {
+    if (!user) return;
+
+    setLoadingIntervention(true);
+    try {
+      // Adapt deal health to intervention context
+      const context = await adaptDealHealthToInterventionContext(healthScore, user.id);
+      if (!context) {
+        console.error('Failed to adapt deal health to intervention context');
+        return;
+      }
+
+      setInterventionContext(context);
+
+      // Select best template
+      const recommendation = await selectBestTemplate(context, user.id);
+      if (recommendation) {
+        setRecommendedTemplate(recommendation.template);
+        setAlternativeTemplates(recommendation.alternatives || []);
+
+        // Personalize template
+        const personalized = await personalizeTemplate(
+          recommendation.template,
+          context,
+          user.first_name && user.last_name
+            ? `${user.first_name} ${user.last_name}`
+            : user.email || 'Sales Rep'
+        );
+
+        setPersonalizedTemplate(personalized);
+      }
+
+      setShowInterventionModal(true);
+    } catch (error) {
+      console.error('Error preparing intervention:', error);
+    } finally {
+      setLoadingIntervention(false);
+    }
+  };
+
+  // Check if deal needs intervention (stalled or critical)
+  const needsIntervention = healthScore.health_status === 'stalled' || healthScore.health_status === 'critical';
 
   return (
     <motion.div
@@ -400,6 +453,23 @@ function DealHealthCard({ healthScore }: { healthScore: ExtendedHealthScore }) {
                   <Users className="h-4 w-4" />
                   <span>{healthScore.deal_owner_name}</span>
                 </div>
+              )}
+
+              {/* Sentiment badge */}
+              {(healthScore.sentiment_score !== undefined || healthScore.sentiment_trend) && (
+                <SentimentBadge 
+                  sentimentScore={healthScore.sentiment_score ?? null}
+                  sentimentTrend={healthScore.sentiment_trend}
+                />
+              )}
+
+              {/* Relationship strength badge */}
+              {(healthScore.engagement_score !== undefined || healthScore.activity_score !== undefined || healthScore.days_since_last_activity !== undefined) && (
+                <RelationshipStrengthBadge
+                  engagementScore={healthScore.engagement_score ?? null}
+                  communicationScore={healthScore.activity_score ?? null}
+                  daysSinceLastContact={healthScore.days_since_last_activity ?? null}
+                />
               )}
 
               {healthScore.deal_value !== undefined && healthScore.deal_value > 0 && (
@@ -518,14 +588,73 @@ function DealHealthCard({ healthScore }: { healthScore: ExtendedHealthScore }) {
           </motion.div>
         )}
 
-        {/* Toggle button */}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          {expanded ? 'Show Less' : 'Show Details'}
-        </button>
+        {/* Action Buttons */}
+        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {expanded ? 'Show Less' : 'Show Details'}
+          </button>
+
+          {needsIntervention && (
+            <button
+              onClick={handleSendIntervention}
+              disabled={loadingIntervention}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            >
+              <Send className="h-4 w-4" />
+              {loadingIntervention ? 'Loading...' : 'Send Intervention'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Intervention Modal */}
+      {showInterventionModal && interventionContext && (
+        <InterventionModal
+          isOpen={showInterventionModal}
+          onClose={() => {
+            setShowInterventionModal(false);
+            setInterventionContext(null);
+            setRecommendedTemplate(null);
+            setPersonalizedTemplate(null);
+            setAlternativeTemplates([]);
+          }}
+          relationshipHealth={interventionContext.relationshipHealth}
+          ghostRisk={interventionContext.ghostRisk}
+          contactName={interventionContext.contactName}
+          companyName={interventionContext.companyName || undefined}
+          recommendedTemplate={recommendedTemplate || undefined}
+          personalizedTemplate={personalizedTemplate || undefined}
+          alternativeTemplates={alternativeTemplates}
+          onSelectTemplate={(templateId) => {
+            // Find and personalize selected template
+            const template = [...(recommendedTemplate ? [recommendedTemplate] : []), ...alternativeTemplates].find(
+              (t) => t.id === templateId
+            );
+            if (template && user) {
+              personalizeTemplate(
+                template,
+                interventionContext,
+                user.first_name && user.last_name
+                  ? `${user.first_name} ${user.last_name}`
+                  : user.email || 'Sales Rep'
+              ).then((personalized) => {
+                if (personalized) {
+                  setPersonalizedTemplate(personalized);
+                  setRecommendedTemplate(template);
+                }
+              });
+            }
+          }}
+          onSendIntervention={async (channel) => {
+            // TODO: Implement actual sending logic
+            console.log('Sending intervention via', channel, personalizedTemplate);
+            setShowInterventionModal(false);
+          }}
+        />
+      )}
     </motion.div>
   );
 }

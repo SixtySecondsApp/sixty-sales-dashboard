@@ -12,6 +12,15 @@ interface ProxyRequestBody {
 }
 
 async function forwardRequest(endpoint: string, method: SupportedMethod, payload: any, apiKey: string) {
+  const url = `${FREEPIK_API_BASE}${endpoint}`
+  
+  console.log(`[freepik-proxy] Forwarding request`, {
+    method,
+    endpoint,
+    url,
+    hasPayload: !!payload
+  })
+
   const fetchInit: RequestInit = {
     method,
     headers: {
@@ -25,7 +34,7 @@ async function forwardRequest(endpoint: string, method: SupportedMethod, payload
     fetchInit.body = JSON.stringify(payload ?? {})
   }
 
-  const response = await fetch(`${FREEPIK_API_BASE}${endpoint}`, fetchInit)
+  const response = await fetch(url, fetchInit)
   const responseText = await response.text()
 
   let parsedBody: unknown = null
@@ -36,6 +45,15 @@ async function forwardRequest(endpoint: string, method: SupportedMethod, payload
       parsedBody = { raw: responseText }
     }
   }
+
+  console.log(`[freepik-proxy] Response received`, {
+    method,
+    endpoint,
+    status: response.status,
+    ok: response.ok,
+    hasBody: !!parsedBody,
+    bodyKeys: parsedBody && typeof parsedBody === 'object' ? Object.keys(parsedBody) : []
+  })
 
   return { response, parsedBody }
 }
@@ -83,6 +101,12 @@ serve(async (req) => {
     const headers = { ...corsHeaders, 'Content-Type': 'application/json' }
 
     if (!response.ok) {
+      console.error(`[freepik-proxy] API error`, {
+        endpoint,
+        method,
+        status: response.status,
+        error: parsedBody
+      })
       return new Response(
         JSON.stringify({
           error: parsedBody && typeof parsedBody === 'object' && 'message' in parsedBody

@@ -47,3 +47,5 @@ WHERE p.id = u.id
 COMMENT ON COLUMN profiles.last_login_at IS 'Last time user logged in, used for automated health refresh scheduling';
 COMMENT ON FUNCTION update_last_login() IS 'Automatically updates profiles.last_login_at when auth.users.last_sign_in_at changes';
 
+
+

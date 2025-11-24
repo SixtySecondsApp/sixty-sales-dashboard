@@ -43,12 +43,6 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
       label: 'Meetings',
       href: '/meetings',
       description: 'Call recordings and analytics'
-    },
-    {
-      icon: Activity,
-      label: 'Health',
-      href: '/crm/health',
-      description: 'Deal health monitoring and analytics'
     }
   ];
 
@@ -57,7 +51,6 @@ export function CRMNavigation({ className }: CRMNavigationProps) {
     if (location.pathname.includes('/contacts')) return 'Contacts';
     if (location.pathname.includes('/deals') || location.pathname.includes('/pipeline')) return 'Deals';
     if (location.pathname.includes('/meetings')) return 'Meetings';
-    if (location.pathname.includes('/health')) return 'Health';
     return 'CRM';
   };
 

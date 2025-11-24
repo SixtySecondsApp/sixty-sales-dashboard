@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
 import { useCompanies } from '@/lib/hooks/useCompanies';
+import { LinkedInEnrichmentService } from '@/lib/services/linkedinEnrichmentService';
 import { cn } from '@/lib/utils';
 import logger from '@/lib/utils/logger';
 
@@ -350,6 +351,17 @@ export function ContactSearchModal({
           ? `Contact and company "${company.name}" created successfully!`
           : 'Contact created successfully!';
         toast.success(successMessage);
+        
+        // Trigger background enrichment
+        const fullName = `${contactData.first_name} ${contactData.last_name || ''}`.trim();
+        LinkedInEnrichmentService.enrichContactProfile(
+          newContact.id, 
+          fullName, 
+          contactData.email, 
+          contactData.company_name
+        ).then(success => {
+          if (success) toast.success('Contact profile enriched with LinkedIn data');
+        });
         
         // Attach the website and company information to the contact object
         const enrichedContact = {

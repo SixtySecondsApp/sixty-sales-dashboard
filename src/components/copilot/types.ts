@@ -6,6 +6,8 @@
 // Copilot Types
 // ============================================================================
 
+import type { ToolCall } from '../copilot/toolTypes';
+
 export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -51,11 +53,27 @@ export interface CopilotState {
   conversationId?: string;
 }
 
+export interface TemporalContextPayload {
+  isoString: string;
+  localeString: string;
+  date: string;
+  time: string;
+  timezone: string;
+  offsetMinutes: number;
+}
+
 export interface CopilotContext {
   currentView?: 'dashboard' | 'contact' | 'pipeline' | 'deal';
   contactId?: string;
   dealIds?: string[];
   userId: string;
+  temporalContext?: TemporalContextPayload;
+}
+
+export interface CopilotContextPayload {
+  message: string;
+  conversationId?: string;
+  context: CopilotContext;
 }
 
 export interface CopilotAPIRequest {
@@ -74,6 +92,8 @@ export interface CopilotAPIResponse {
   conversationId: string;
   timestamp: string;
 }
+
+export type CopilotResponsePayload = CopilotAPIResponse;
 
 // ============================================================================
 // Structured Response Types
@@ -111,7 +131,8 @@ export type CopilotResponseType =
   | 'contact_selection'
   | 'activity_creation'
   | 'task_creation'
-  | 'proposal_selection';
+  | 'proposal_selection'
+  | 'action_summary';
 
 export interface CopilotResponse {
   type: CopilotResponseType;
@@ -135,6 +156,20 @@ export interface ResponseMetadata {
   timeGenerated: string;
   dataSource: string[];
   confidence?: number; // 0-100
+  warning?: string;
+  timezone?: string;
+  dateRange?: {
+    start?: string;
+    end?: string;
+  };
+  requestedDurationMinutes?: number;
+  workingHours?: {
+    start: string;
+    end: string;
+  };
+  slotsEvaluated?: number;
+  totalFreeMinutes?: number;
+  totalBusyMinutes?: number;
 }
 
 export type ResponseData = 
@@ -168,7 +203,8 @@ export type ResponseData =
   | ContactSelectionResponseData
   | ActivityCreationResponseData
   | TaskCreationResponseData
-  | ProposalSelectionResponseData;
+  | ProposalSelectionResponseData
+  | ActionSummaryResponseData;
 
 // Pipeline Response
 export interface PipelineResponse extends CopilotResponse {
@@ -180,7 +216,7 @@ export interface PipelineResponseData {
   criticalDeals: Deal[];
   highPriorityDeals: Deal[];
   healthyDeals?: Deal[];
-  dataIssues?: DataIssue[];
+  dataIssues?: PipelineDataIssue[];
   metrics: PipelineMetrics;
   showStatsFirst?: boolean; // If true, show stats with filters before results
 }
@@ -198,7 +234,7 @@ export interface Deal {
   reason: string; // Why it needs attention
 }
 
-export interface DataIssue {
+export interface PipelineDataIssue {
   type: 'missing_close_date' | 'low_probability' | 'stale_deal' | 'no_activity';
   dealId: string;
   dealName: string;
@@ -549,7 +585,7 @@ export interface ActionItem {
   completed: boolean;
   assignee?: string;
   assigneeId?: string;
-  dueDate?: Date;
+  dueDate?: string | Date;
   meetingId?: string;
 }
 
@@ -567,7 +603,7 @@ export interface AIInsight {
   content: string;
   priority: 'high' | 'medium' | 'low';
   suggestedActions?: string[];
-  metadata?: Record<string, any>;
+  metadata: Record<string, any>;
   expiresAt?: Date;
 }
 
@@ -608,6 +644,92 @@ export interface CopilotSuggestion {
   id: string;
   query: string;
   action: () => void;
+}
+
+// ============================================================================
+// Roadmap Response
+// ============================================================================
+
+export interface RoadmapResponse extends CopilotResponse {
+  type: 'roadmap';
+  data: RoadmapResponseData;
+}
+
+export interface RoadmapResponseData {
+  roadmapItem: RoadmapItem;
+  success: boolean;
+  message?: string;
+}
+
+export interface RoadmapItem {
+  id: string;
+  title: string;
+  description?: string;
+  type: 'feature' | 'bug' | 'improvement' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: 'submitted' | 'under_review' | 'in_progress' | 'testing' | 'completed' | 'rejected';
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// ============================================================================
+// Sales Coach Response
+// ============================================================================
+
+export interface SalesCoachResponse extends CopilotResponse {
+  type: 'sales_coach';
+  data: SalesCoachResponseData;
+}
+
+export interface SalesCoachResponseData {
+  comparison: {
+    sales: MetricComparison;
+    activities: MetricComparison;
+    meetings: MetricComparison;
+    winRate: MetricComparison;
+    dealSize: MetricComparison;
+    overall: 'improving' | 'declining' | 'stable';
+  };
+  metrics: {
+    currentMonth: {
+      totalRevenue: number;
+      totalActivities: number;
+      totalMeetings: number;
+      dealsClosed: number;
+      winRate: number;
+      averageDealSize: number;
+    };
+    previousMonth: {
+      totalRevenue: number;
+      totalActivities: number;
+      totalMeetings: number;
+      dealsClosed: number;
+      winRate: number;
+      averageDealSize: number;
+    };
+  };
+  insights: Insight[];
+  recommendations: Recommendation[];
+  period: {
+    current: {
+      month: string;
+      year: number;
+      day: number;
+    };
+    previous: {
+      month: string;
+      year: number;
+      day: number;
+    };
+  };
+}
+
+export interface Insight {
+  id: string;
+  type: 'positive' | 'warning' | 'opportunity';
+  title: string;
+  description: string;
+  impact: 'high' | 'medium' | 'low';
 }
 
 // ============================================================================
@@ -781,6 +903,15 @@ export interface Ranking {
   totalMembers: number;
   percentile: number; // 0-100
   category: 'top_performer' | 'above_average' | 'average' | 'below_average';
+}
+
+export interface MetricComparison {
+  metric: string;
+  current: number;
+  previous: number;
+  change: number; // percentage
+  changeType: 'increase' | 'decrease' | 'neutral';
+  trend: 'up' | 'down' | 'stable';
 }
 
 // ============================================================================
@@ -1222,7 +1353,7 @@ export interface Interaction {
   keyPoints?: string[];
 }
 
-export interface ActionItem {
+export interface MeetingActionItem {
   id: string;
   title: string;
   status: 'pending' | 'completed';
@@ -1269,14 +1400,14 @@ export interface DataQualityResponse extends CopilotResponse {
 }
 
 export interface DataQualityResponseData {
-  issues: DataIssue[];
+  issues: QualityDataIssue[];
   duplicates: DuplicateRecord[];
   incompleteRecords: IncompleteRecord[];
   metrics: DataQualityMetrics;
   recommendations: string[];
 }
 
-export interface DataIssue {
+export interface QualityDataIssue {
   id: string;
   type: 'missing_close_date' | 'missing_email' | 'missing_phone' | 'missing_value' | 'stale_data' | 'invalid_data';
   entityType: 'deal' | 'contact' | 'company' | 'activity';
@@ -1590,13 +1721,14 @@ export interface SearchDiscoveryResponse extends CopilotResponse {
 
 export interface SearchDiscoveryResponseData {
   query: string;
-  results: SearchResult[];
+  results: DiscoverySearchResult[];
   filters: AppliedFilter[];
   totalResults: number;
   categories: ResultCategory[];
+  metadata: Record<string, any>;
 }
 
-export interface SearchResult {
+export interface DiscoverySearchResult {
   id: string;
   type: 'deal' | 'contact' | 'company' | 'meeting' | 'activity' | 'task';
   title: string;
@@ -1616,7 +1748,7 @@ export interface AppliedFilter {
 export interface ResultCategory {
   type: string;
   count: number;
-  results: SearchResult[];
+  results: DiscoverySearchResult[];
 }
 
 // ============================================================================
@@ -1731,4 +1863,61 @@ export interface ProposalSuggestion {
   dealName?: string | null;
   dealValue?: number | null;
 }
+
+// ============================================================================
+// Action Summary Response
+// ============================================================================
+
+export interface ActionSummaryResponse extends CopilotResponse {
+  type: 'action_summary';
+  data: ActionSummaryResponseData;
+}
+
+export interface ActionSummaryResponseData {
+  actionsCompleted: number;
+  actionItems: ActionItem[];
+  metrics: ActionMetrics;
+}
+
+export interface ActionItem {
+  entityType: string;
+  operation: string;
+  entityId?: string;
+  entityName?: string;
+  details?: string;
+  success: boolean;
+}
+
+export interface ActionMetrics {
+  dealsUpdated: number;
+  clientsUpdated: number;
+  contactsUpdated: number;
+  tasksCreated: number;
+  activitiesCreated: number;
+}
+
+// ============================================================================
+// Action Summary Response
+// ============================================================================
+
+export interface ActionSummaryResponse extends CopilotResponse {
+  type: 'action_summary';
+  data: ActionSummaryResponseData;
+}
+
+export interface ActionSummaryResponseData {
+  actionsCompleted: number;
+  actionItems: ActionItem[];
+  metrics: ActionMetrics;
+}
+
+export interface ActionItem {
+  entityType: string;
+  operation: string;
+  entityId?: string;
+  entityName?: string;
+  details?: string;
+  success: boolean;
+}
+
 

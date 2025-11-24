@@ -6,7 +6,7 @@
  * ghost risks, intervention opportunities, and actionable insights.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   useAllRelationshipsHealth,
   useGhostRisks,
@@ -18,8 +18,14 @@ import { GhostDetectionPanel } from './GhostDetectionPanel';
 import { InterventionModal } from './InterventionModal';
 import { TemplateLibrary } from './TemplateLibrary';
 import { RelationshipTimeline } from './RelationshipTimeline';
+import { RelationshipDetailModal } from './RelationshipDetailModal';
+import { RelationshipAvatar } from './RelationshipAvatar';
+import { SentimentBadge, RelationshipStrengthBadge } from '@/components/health/SentimentAndRelationshipBadges';
 import type { RelationshipHealthScore } from '@/lib/services/relationshipHealthService';
-import type { GhostRisk } from '@/lib/services/ghostDetectionService';
+import type { GhostRiskAssessment } from '@/lib/services/ghostDetectionService';
+import { supabase } from '@/lib/supabase/clientV2';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingDown,
   AlertTriangle,
@@ -35,6 +41,7 @@ import {
   ArrowDown,
   Clock,
   Target,
+  RefreshCw,
 } from 'lucide-react';
 
 interface RelationshipHealthDashboardProps {
@@ -45,17 +52,70 @@ type ViewMode = 'overview' | 'at-risk' | 'interventions' | 'templates' | 'analyt
 type SortOption = 'health' | 'risk' | 'recent' | 'value';
 
 export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashboardProps) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [sortBy, setSortBy] = useState<SortOption>('health');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRelationship, setSelectedRelationship] = useState<RelationshipHealthScore | null>(null);
-  const [selectedGhostRisk, setSelectedGhostRisk] = useState<GhostRisk | null>(null);
+  const [selectedGhostRisk, setSelectedGhostRisk] = useState<GhostRiskAssessment | null>(null);
   const [showInterventionModal, setShowInterventionModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [relationshipNames, setRelationshipNames] = useState<Record<string, { name: string; type: 'contact' | 'company'; email?: string; domain?: string }>>({});
 
   // Fetch data
-  const { relationships, isLoading: loadingRelationships } = useAllRelationshipsHealth(userId);
-  const { ghostRisks, isLoading: loadingGhosts } = useGhostRisks(userId);
-  const { analytics } = useInterventionAnalytics(userId, 30);
+  const { healthScores: relationships, loading: loadingRelationships, calculateAllHealth } = useAllRelationshipsHealth();
+  const { ghostRisks, loading: loadingGhosts } = useGhostRisks();
+  const { analytics } = useInterventionAnalytics(30);
+  const [calculating, setCalculating] = useState(false);
+
+  // Fetch contact/company names and domains for relationships
+  useEffect(() => {
+    if (!relationships || relationships.length === 0) return;
+
+    const fetchNames = async () => {
+      const names: Record<string, { name: string; type: 'contact' | 'company'; email?: string; domain?: string }> = {};
+      
+      // Get unique contact IDs
+      const contactIds = [...new Set(relationships.filter(r => r.contact_id).map(r => r.contact_id!))];
+      // Get unique company IDs
+      const companyIds = [...new Set(relationships.filter(r => r.company_id).map(r => r.company_id!))];
+
+      // Fetch contacts
+      if (contactIds.length > 0) {
+        const { data: contacts } = await supabase
+          .from('contacts')
+          .select('id, first_name, last_name, email, full_name, company_id, companies:company_id(website)')
+          .in('id', contactIds);
+
+        contacts?.forEach(contact => {
+          const name = contact.full_name || 
+                      (contact.first_name && contact.last_name ? `${contact.first_name} ${contact.last_name}` : 
+                       contact.first_name || contact.last_name || contact.email || 'Unknown');
+          const email = contact.email || '';
+          const domain = email ? email.split('@')[1] : (contact.companies as any)?.website || null;
+          names[contact.id] = { name, type: 'contact', email, domain };
+        });
+      }
+
+      // Fetch companies
+      if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+          .from('companies')
+          .select('id, name, website')
+          .in('id', companyIds);
+
+        companies?.forEach(company => {
+          const domain = company.website ? company.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] : null;
+          names[company.id] = { name: company.name || 'Unknown Company', type: 'company', domain };
+        });
+      }
+
+      setRelationshipNames(names);
+    };
+
+    fetchNames();
+  }, [relationships]);
 
   // Calculate summary stats
   const stats = useMemo(() => {
@@ -92,9 +152,12 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((r) => {
-        // TODO: Join with contacts/companies to search by name
-        return r.contact_id?.toLowerCase().includes(query) ||
-               r.company_id?.toLowerCase().includes(query);
+        const id = r.contact_id || r.company_id || '';
+        const nameInfo = relationshipNames[id];
+        if (nameInfo) {
+          return nameInfo.name.toLowerCase().includes(query);
+        }
+        return id.toLowerCase().includes(query);
       });
     }
 
@@ -119,9 +182,26 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
     return filtered;
   }, [relationships, searchQuery, viewMode, sortBy]);
 
-  const handleSendIntervention = (relationshipHealth: RelationshipHealthScore, ghostRisk: GhostRisk) => {
+  // Helper to create a basic GhostRiskAssessment from RelationshipHealthScore
+  const createGhostRiskAssessment = (relationship: RelationshipHealthScore): GhostRiskAssessment => {
+    return {
+      isGhostRisk: relationship.is_ghost_risk,
+      ghostProbabilityPercent: relationship.ghost_probability_percent || 0,
+      daysUntilPredictedGhost: relationship.days_until_predicted_ghost,
+      signals: [], // Will be loaded when needed
+      highestSeverity: relationship.risk_level === 'critical' ? 'critical' : 
+                      relationship.risk_level === 'high' ? 'high' :
+                      relationship.risk_level === 'medium' ? 'medium' : 'low',
+      recommendedAction: relationship.health_status === 'ghost' ? 'urgent' :
+                        relationship.health_status === 'critical' ? 'intervene_now' :
+                        relationship.health_status === 'at_risk' ? 'intervene_soon' : 'monitor',
+      contextTrigger: null,
+    };
+  };
+
+  const handleSendIntervention = (relationshipHealth: RelationshipHealthScore) => {
     setSelectedRelationship(relationshipHealth);
-    setSelectedGhostRisk(ghostRisk);
+    setSelectedGhostRisk(createGhostRiskAssessment(relationshipHealth));
     setShowInterventionModal(true);
   };
 
@@ -143,10 +223,25 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
             AI-powered early warning system for relationship decay
           </p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors">
-          <Settings className="w-4 h-4" />
-          Settings
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              setCalculating(true);
+              await calculateAllHealth();
+              setCalculating(false);
+            }}
+            disabled={calculating || loadingRelationships}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Calculate health scores for all your contacts"
+          >
+            <RefreshCw className={`w-4 h-4 ${calculating ? 'animate-spin' : ''}`} />
+            {calculating ? 'Calculating...' : 'Calculate Health Scores'}
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2 bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors">
+            <Settings className="w-4 h-4" />
+            Settings
+          </button>
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -270,16 +365,17 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
                 Urgent: Relationships at Risk ({ghostRisks.length})
               </h2>
               <div className="space-y-3">
-                {ghostRisks.slice(0, 5).map((risk) => {
-                  const relationship = relationships?.find((r) => r.id === risk.relationshipHealthId);
-                  if (!relationship) return null;
+                {ghostRisks.slice(0, 5).map((relationship) => {
+                  const ghostRisk = createGhostRiskAssessment(relationship);
+                  const relationshipId = relationship.contact_id || relationship.company_id || '';
+                  const nameInfo = relationshipNames[relationshipId];
                   return (
                     <InterventionAlertCard
-                      key={risk.id}
+                      key={relationship.id}
                       relationshipHealth={relationship}
-                      ghostRisk={risk}
-                      contactName={risk.contactId || 'Unknown'} // TODO: Join with contacts
-                      onSendIntervention={() => handleSendIntervention(relationship, risk)}
+                      ghostRisk={ghostRisk}
+                      contactName={nameInfo?.name || relationshipId || 'Unknown'}
+                      onSendIntervention={() => handleSendIntervention(relationship)}
                       onSnooze={() => {}}
                       onMarkHandled={() => {}}
                     />
@@ -313,15 +409,40 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
           </div>
 
           {/* Relationship List */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {filteredRelationships.map((relationship) => (
-              <RelationshipCard
-                key={relationship.id}
-                relationship={relationship}
-                onClick={() => setSelectedRelationship(relationship)}
-              />
-            ))}
-          </div>
+          {filteredRelationships.length === 0 ? (
+            <div className="text-center py-12 bg-white/5 border border-white/10 rounded-lg">
+              <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+              <p className="text-gray-400 text-lg mb-2">
+                {relationships.length === 0 
+                  ? 'No relationship health scores found'
+                  : 'No relationships match your filters'}
+              </p>
+              {relationships.length === 0 && (
+                <p className="text-sm text-gray-500 mb-4">
+                  Click "Calculate Health Scores" above to analyze your contacts and generate health scores.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredRelationships.map((relationship) => {
+                const relationshipId = relationship.contact_id || relationship.company_id || '';
+                const nameInfo = relationshipNames[relationshipId];
+                return (
+                  <RelationshipCard
+                    key={relationship.id}
+                    relationship={relationship}
+                    relationshipName={nameInfo?.name}
+                    relationshipInfo={nameInfo}
+                    onClick={() => {
+                      setSelectedRelationship(relationship);
+                      setShowDetailModal(true);
+                    }}
+                  />
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -332,16 +453,17 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
             Showing {filteredRelationships.length} relationships requiring attention
           </p>
           <div className="space-y-3">
-            {ghostRisks?.map((risk) => {
-              const relationship = relationships?.find((r) => r.id === risk.relationshipHealthId);
-              if (!relationship) return null;
+            {ghostRisks?.map((relationship) => {
+              const ghostRisk = createGhostRiskAssessment(relationship);
+              const relationshipId = relationship.contact_id || relationship.company_id || '';
+              const nameInfo = relationshipNames[relationshipId];
               return (
                 <InterventionAlertCard
-                  key={risk.id}
+                  key={relationship.id}
                   relationshipHealth={relationship}
-                  ghostRisk={risk}
-                  contactName={risk.contactId || 'Unknown'}
-                  onSendIntervention={() => handleSendIntervention(relationship, risk)}
+                  ghostRisk={ghostRisk}
+                  contactName={nameInfo?.name || relationshipId || 'Unknown'}
+                  onSendIntervention={() => handleSendIntervention(relationship)}
                   onSnooze={() => {}}
                   onMarkHandled={() => {}}
                 />
@@ -384,6 +506,30 @@ export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashbo
           onSendIntervention={async () => {
             // Handle intervention sending
             setShowInterventionModal(false);
+          }}
+        />
+      )}
+
+      {/* Relationship Detail Modal */}
+      {showDetailModal && selectedRelationship && user && (
+        <RelationshipDetailModal
+          relationship={selectedRelationship}
+          relationshipName={relationshipNames[selectedRelationship.contact_id || selectedRelationship.company_id || '']?.name || 'Unknown'}
+          relationshipInfo={relationshipNames[selectedRelationship.contact_id || selectedRelationship.company_id || '']}
+          userId={user.id}
+          onClose={() => {
+            setShowDetailModal(false);
+            setSelectedRelationship(null);
+          }}
+          onViewContact={() => {
+            if (selectedRelationship.contact_id) {
+              navigate(`/crm/contacts/${selectedRelationship.contact_id}`);
+            }
+          }}
+          onViewCompany={() => {
+            if (selectedRelationship.company_id) {
+              navigate(`/crm/companies/${selectedRelationship.company_id}`);
+            }
           }}
         />
       )}
@@ -492,27 +638,56 @@ function TabButton({ active, onClick, icon: Icon, badge, children }: TabButtonPr
 interface RelationshipCardProps {
   relationship: RelationshipHealthScore;
   onClick: () => void;
+  relationshipName?: string;
+  relationshipInfo?: { name: string; type: 'contact' | 'company'; email?: string; domain?: string };
 }
 
-function RelationshipCard({ relationship, onClick }: RelationshipCardProps) {
+function RelationshipCard({ relationship, onClick, relationshipName, relationshipInfo }: RelationshipCardProps) {
   return (
     <button
       onClick={onClick}
       className="w-full p-4 bg-white/5 border border-white/10 rounded-lg hover:bg-white/[0.07] transition-colors text-left"
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1">
-          <h3 className="text-white font-semibold mb-1">
-            {relationship.contact_id || relationship.company_id || 'Unknown'}
+      <div className="flex items-start gap-3 mb-3">
+        {/* Avatar/Logo */}
+        <div className="flex-shrink-0">
+          <RelationshipAvatar
+            name={relationshipName || 'Unknown'}
+            type={relationship.relationship_type}
+            domain={relationshipInfo?.domain}
+            email={relationshipInfo?.email}
+            size="md"
+          />
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <h3 className="text-white font-semibold mb-1 truncate">
+            {relationshipName || relationship.contact_id || relationship.company_id || 'Unknown'}
           </h3>
-          <p className="text-sm text-gray-400">
-            {relationship.relationship_type === 'contact' ? 'Contact' : 'Company'}
-          </p>
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            <p className="text-sm text-gray-400">
+              {relationship.relationship_type === 'contact' ? 'Contact' : 'Company'}
+            </p>
+            {/* Sentiment badge */}
+            <SentimentBadge 
+              sentimentScore={relationship.sentiment_score}
+              sentimentTrend={relationship.sentiment_trend}
+              size="sm"
+            />
+            {/* Relationship strength badge */}
+            <RelationshipStrengthBadge
+              engagementScore={relationship.engagement_quality_score}
+              communicationScore={relationship.communication_frequency_score}
+              daysSinceLastContact={relationship.days_since_last_contact}
+              size="sm"
+            />
+          </div>
         </div>
         <HealthScoreBadge
           score={relationship.overall_health_score}
           status={relationship.health_status}
-          trend={relationship.health_trend}
+          trend={relationship.sentiment_trend === 'improving' ? 'improving' :
+                 relationship.sentiment_trend === 'declining' ? 'declining' : 'stable'}
           size="sm"
         />
       </div>

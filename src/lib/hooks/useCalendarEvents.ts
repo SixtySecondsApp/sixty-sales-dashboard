@@ -82,8 +82,59 @@ export function useHistoricalSyncStatus(enabled = true) {
   });
 }
 
-// Auto-sync functionality has been permanently removed
-// All calendar syncing is now manual and user-initiated
+/**
+ * Hook to enable hourly background sync for current month
+ * Syncs calendar events every hour to keep database fresh
+ */
+export function useHourlyCalendarSync(enabled = true) {
+  const syncCalendar = useSyncCalendar();
+  const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      // Clear interval if disabled
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+      return;
+    }
+
+    // Sync current month every hour
+    const syncCurrentMonth = () => {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+      console.log('[HOURLY-SYNC] Syncing current month:', {
+        start: startOfMonth.toISOString(),
+        end: endOfMonth.toISOString()
+      });
+
+      syncCalendar.mutate({
+        action: 'sync-incremental',
+        calendarId: 'primary',
+        startDate: startOfMonth.toISOString(),
+        endDate: endOfMonth.toISOString()
+      });
+    };
+
+    // Initial sync on mount
+    syncCurrentMonth();
+
+    // Set up hourly interval (3600000 ms = 1 hour)
+    syncIntervalRef.current = setInterval(syncCurrentMonth, 3600000);
+
+    return () => {
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+    };
+  }, [enabled, syncCalendar.mutate]);
+
+  return { isSyncing: syncCalendar.isPending };
+}
 
 /**
  * Hook to link calendar event to a contact

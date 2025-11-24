@@ -188,9 +188,9 @@ export const nextActionsService = {
    */
   async getPendingSuggestionsCount(userId?: string): Promise<number> {
     try {
-      const { data, error } = await supabase.rpc('get_pending_suggestions_count', {
+      const { data, error } = await ((supabase.rpc as any)('get_pending_suggestions_count', {
         p_user_id: userId || null,
-      })
+      }))
 
       if (error) {
         return 0
@@ -210,10 +210,10 @@ export const nextActionsService = {
     taskOptions?: CreateTaskOptions
   ): Promise<string> {
     try {
-      const { data, error } = await supabase.rpc('accept_next_action_suggestion', {
+      const { data, error } = await ((supabase.rpc as any)('accept_next_action_suggestion', {
         p_suggestion_id: suggestionId,
         p_task_data: taskOptions || null,
-      })
+      }))
 
       if (error) {
         throw error
@@ -230,10 +230,10 @@ export const nextActionsService = {
    */
   async dismissSuggestion(suggestionId: string, feedback?: string): Promise<boolean> {
     try {
-      const { data, error } = await supabase.rpc('dismiss_next_action_suggestion', {
+      const { data, error } = await ((supabase.rpc as any)('dismiss_next_action_suggestion', {
         p_suggestion_id: suggestionId,
         p_feedback: feedback || null,
-      })
+      }))
 
       if (error) {
         throw error
@@ -313,13 +313,13 @@ export const nextActionsService = {
    */
   async markSuggestionCompleted(suggestionId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('next_action_suggestions')
+      const { error } = await ((supabase
+        .from('next_action_suggestions') as any)
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
         })
-        .eq('id', suggestionId)
+        .eq('id', suggestionId))
 
       if (error) {
         throw error

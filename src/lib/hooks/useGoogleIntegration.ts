@@ -3,6 +3,24 @@ import { googleApi } from '@/lib/api/googleIntegration';
 import { supabase } from '@/lib/supabase/clientV2';
 import type { PostgrestError } from '@supabase/supabase-js';
 
+// Enhanced retry configuration with exponential backoff
+const RETRY_CONFIG = {
+  retries: 3,
+  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 10000), // Exponential backoff: 1s, 2s, 4s, max 10s
+  shouldRetry: (failureCount: number, error: any) => {
+    // Don't retry on authentication errors
+    if (error?.message?.includes('auth') || error?.message?.includes('token')) {
+      return false;
+    }
+    // Don't retry on 400 Bad Request
+    if (error?.message?.includes('400')) {
+      return false;
+    }
+    // Retry on network errors and 500s
+    return failureCount < 3;
+  },
+};
+
 // Query Keys
 export const GOOGLE_QUERY_KEYS = {
   integration: ['google', 'integration'] as const,
@@ -118,24 +136,25 @@ export function useGmailEmails(query?: string, enabled = true) {
     queryFn: async () => {
       // Use supabase.functions.invoke which handles CORS automatically
       const response = await supabase.functions.invoke('google-gmail', {
-        body: { 
+        body: {
           action: 'list',
           query,
-          maxResults: 50
+          maxResults: 200 // Increased to show more emails
         }
       });
-      
+
       if (response.error) {
         // Provide more detailed error information
         const errorMessage = response.error.message || 'Unknown error';
         throw new Error(`Gmail API error: ${errorMessage}`);
       }
-      
+
       return response.data;
     },
     enabled,
     staleTime: 60 * 1000, // 1 minute
-    retry: 1,
+    retry: RETRY_CONFIG.shouldRetry,
+    retryDelay: RETRY_CONFIG.retryDelay,
   });
 }
 
@@ -144,24 +163,25 @@ export function useGmailGetMessage(messageId: string | null, enabled = true) {
     queryKey: GOOGLE_QUERY_KEYS.gmail.message(messageId),
     queryFn: async () => {
       if (!messageId) throw new Error('Message ID is required');
-      
+
       const response = await supabase.functions.invoke('google-gmail', {
-        body: { 
+        body: {
           action: 'get',
           messageId
         }
       });
-      
+
       if (response.error) {
         const errorMessage = response.error.message || 'Unknown error';
         throw new Error(`Gmail API error: ${errorMessage}`);
       }
-      
+
       return response.data;
     },
     enabled: enabled && !!messageId,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 1,
+    retry: RETRY_CONFIG.shouldRetry,
+    retryDelay: RETRY_CONFIG.retryDelay,
   });
 }
 
@@ -499,19 +519,36 @@ export function useGmailArchive() {
 
 export function useGmailTrash() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (messageId: string) => {
       const response = await supabase.functions.invoke('google-gmail?action=delete', {
         body: { messageId }
       });
-      
+
       if (response.error) throw response.error;
       return response.data;
     },
     onSuccess: () => {
       // Invalidate Gmail queries to refresh the list
       queryClient.invalidateQueries({ queryKey: ['google', 'gmail', 'emails'] });
+    },
+  });
+}
+
+export function useGmailGetAttachment() {
+  return useMutation({
+    mutationFn: async ({ messageId, attachmentId }: { messageId: string; attachmentId: string }) => {
+      const response = await supabase.functions.invoke('google-gmail?action=get-attachment', {
+        body: { messageId, attachmentId }
+      });
+
+      if (response.error) {
+        const errorMessage = response.error.message || 'Failed to download attachment';
+        throw new Error(errorMessage);
+      }
+
+      return response.data;
     },
   });
 }

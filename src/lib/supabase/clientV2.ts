@@ -13,9 +13,15 @@ const supabaseSecretKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_S
 
 // Validate required environment variables
 if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error(
-    'Missing required Supabase environment variables. Please check your .env.local file.'
-  );
+  const isProduction = typeof window !== 'undefined' && 
+    (window.location.hostname.includes('vercel.app') || 
+     window.location.hostname.includes('sixtyseconds.video'));
+  
+  const errorMessage = isProduction
+    ? 'Missing required Supabase environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables, then redeploy.'
+    : 'Missing required Supabase environment variables. Please check your .env.local file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.';
+  
+  throw new Error(errorMessage);
 }
 
 // Typed Supabase client
@@ -215,6 +221,17 @@ export const authUtils = {
     
     if (status === 429) {
       return 'Too many requests. Please wait a moment and try again.';
+    }
+    
+    if (status === 500) {
+      // Log detailed error for debugging
+      console.error('Supabase 500 Error Details:', {
+        message,
+        status,
+        error: error
+      });
+      
+      return 'Server error occurred. Possible causes: 1) User account may not exist - check Supabase Dashboard → Authentication → Users, 2) Temporary Supabase service issue - try again in a moment, 3) Project configuration issue - verify Supabase project settings. Check browser console for details.';
     }
 
     // Common error message improvements

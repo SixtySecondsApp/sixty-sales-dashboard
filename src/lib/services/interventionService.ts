@@ -450,18 +450,27 @@ export async function getInterventionAnalytics(
   recoveryRate: number;
 }> {
   try {
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    // Validate days parameter
+    const validDays = Number.isFinite(days) && days > 0 ? days : 30;
+    const startDate = new Date(Date.now() - validDays * 24 * 60 * 60 * 1000);
+    
+    // Validate date before converting to ISO
+    if (isNaN(startDate.getTime())) {
+      throw new Error('Invalid date calculation');
+    }
+    
+    const startDateISO = startDate.toISOString();
 
     const { data: interventions } = await supabase
       .from('interventions')
       .select('status')
       .eq('user_id', userId)
-      .gte('sent_at', startDate)
+      .gte('sent_at', startDateISO)
       .not('sent_at', 'is', null);
 
     if (!interventions || interventions.length === 0) {
       return {
-        period: `Last ${days} days`,
+        period: `Last ${validDays} days`,
         sent: 0,
         opened: 0,
         replied: 0,
@@ -480,7 +489,7 @@ export async function getInterventionAnalytics(
     const recoveryRate = sent > 0 ? Math.round((recovered / sent) * 100) : 0;
 
     return {
-      period: `Last ${days} days`,
+      period: `Last ${validDays} days`,
       sent,
       opened,
       replied,
@@ -490,8 +499,9 @@ export async function getInterventionAnalytics(
     };
   } catch (error) {
     console.error('Error getting intervention analytics:', error);
+    const validDays = Number.isFinite(days) && days > 0 ? days : 30;
     return {
-      period: `Last ${days} days`,
+      period: `Last ${validDays} days`,
       sent: 0,
       opened: 0,
       replied: 0,

@@ -28,6 +28,10 @@ export interface QuickAddFormData {
   // Roadmap specific fields
   roadmap_type: 'feature' | 'bug' | 'improvement' | 'other';
   roadmap_priority: 'low' | 'medium' | 'high' | 'critical';
+  // Relationship IDs
+  company_id?: string;
+  contact_id?: string;
+  meeting_id?: string;
 }
 
 export interface TaskType {

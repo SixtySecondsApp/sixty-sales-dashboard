@@ -6,11 +6,11 @@
 import React, { useState } from 'react';
 import { Mail, Briefcase, Activity, Calendar, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Phone, Building2 } from 'lucide-react';
 import { ActionButtons } from '../ActionButtons';
-import type { ContactResponse, EmailSummary, ContactDeal, ContactActivity, ContactMeeting, ContactTask } from '../types';
+import type { ContactResponse as ContactResponseType, EmailSummary, ContactDeal, ContactActivity, ContactMeeting, ContactTask } from '../types';
 import { getMeetingSummaryPlainText } from '@/lib/utils/meetingSummaryParser';
 
 interface ContactResponseProps {
-  data: ContactResponse;
+  data: ContactResponseType;
   onActionClick?: (action: any) => void;
 }
 
@@ -261,7 +261,8 @@ export const ContactResponse: React.FC<ContactResponseProps> = ({ data, onAction
           <button
             onClick={() => {
               // Trigger email search for this contact
-              onActionClick?.('search_emails', { 
+              onActionClick?.({ 
+                type: 'search_emails',
                 contactEmail: contact.email,
                 contactName: contact.name 
               });

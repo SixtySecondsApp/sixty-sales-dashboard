@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { useUser } from '@/lib/hooks/useUser';
+import { LinkedInEnrichmentService } from '@/lib/services/linkedinEnrichmentService';
 
 interface AddContactModalProps {
   isOpen: boolean;
@@ -122,6 +123,18 @@ export function AddContactModal({ isOpen, onClose, onSuccess }: AddContactModalP
       
       if (newContact) {
         toast.success('Contact added successfully');
+        
+        // Trigger background enrichment
+        const fullName = `${contactData.first_name} ${contactData.last_name || ''}`.trim();
+        LinkedInEnrichmentService.enrichContactProfile(
+          newContact.id, 
+          fullName, 
+          contactData.email, 
+          contactData.company_name
+        ).then(success => {
+          if (success) toast.success('Contact profile enriched with LinkedIn data');
+        });
+
         onSuccess?.();
         handleClose();
       } else {

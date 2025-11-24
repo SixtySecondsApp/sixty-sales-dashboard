@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -28,8 +28,15 @@ import {
 import { cn } from '@/lib/utils';
 import { format, addDays, addWeeks, addMonths, setHours, setMinutes } from 'date-fns';
 import { useCreateCalendarEvent, useUpdateCalendarEvent, useDeleteCalendarEvent } from '@/lib/hooks/useGoogleIntegration';
+import { useCalendarEventsFromDB } from '@/lib/hooks/useCalendarEvents';
 import { ContactSearchModal } from '@/components/ContactSearchModal';
 import { toast } from 'sonner';
+import { checkConflicts, EventConflict } from '@/lib/utils/conflictDetection';
+import { generateRRule, createSimpleRecurrence, rruleToGoogleRecurrence, describeRecurrence } from '@/lib/utils/rruleUtils';
+import { ConflictWarning } from './ConflictWarning';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useFocusTrap } from '@/lib/hooks/useKeyboardNavigation';
+import { getEventLabel, getConflictAnnouncement, announceToScreenReader } from '@/lib/utils/accessibilityUtils';
 
 interface CalendarEventEditorProps {
   isOpen: boolean;
@@ -138,10 +145,28 @@ export function CalendarEventEditor({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(true);
   const [visibility, setVisibility] = useState<'public' | 'private'>('public');
-  
+
+  // Conflict detection and deletion confirmation
+  const [conflicts, setConflicts] = useState<EventConflict[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const createEvent = useCreateCalendarEvent();
   const updateEvent = useUpdateCalendarEvent();
   const deleteEvent = useDeleteCalendarEvent();
+
+  // Accessibility: Focus trap for modal
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, modalRef, onClose);
+
+  // Fetch existing events for conflict detection - memoize dates to prevent infinite loops
+  const [conflictCheckStart] = useState(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)); // 30 days ago
+  const [conflictCheckEnd] = useState(() => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)); // 90 days ahead
+
+  const { data: existingEvents = [] } = useCalendarEventsFromDB(
+    conflictCheckStart,
+    conflictCheckEnd,
+    true
+  );
 
   useEffect(() => {
     if (event) {
@@ -158,7 +183,7 @@ export function CalendarEventEditor({
       setVideoConference(event.videoConference || null);
       setBusy(event.busy !== false);
       setVisibility(event.visibility || 'public');
-      
+
       // Set dates and times
       const start = new Date(event.start);
       const end = new Date(event.end || event.start);
@@ -174,6 +199,56 @@ export function CalendarEventEditor({
       setEndTime('10:00');
     }
   }, [event, selectedDate]);
+
+  // Check for conflicts when date/time changes
+  useEffect(() => {
+    if (!startDate || !existingEvents.length) {
+      setConflicts([]);
+      return;
+    }
+
+    try {
+      let startDateTime: Date;
+      let endDateTime: Date;
+
+      if (allDay) {
+        startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+        endDateTime = new Date(`${endDate || startDate}T23:59:59.999Z`);
+      } else {
+        const startDateStr = `${startDate}T${startTime || '09:00'}:00`;
+        const endDateStr = `${endDate || startDate}T${endTime || '10:00'}:00`;
+        startDateTime = new Date(startDateStr);
+        endDateTime = new Date(endDateStr);
+      }
+
+      // Skip if dates are invalid
+      if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+        return;
+      }
+
+      const conflictResult = checkConflicts(
+        {
+          id: event?.id,
+          start: startDateTime,
+          end: endDateTime,
+        },
+        existingEvents,
+        event?.id
+      );
+
+      setConflicts(conflictResult.conflicts);
+
+      // Announce conflicts to screen readers
+      if (conflictResult.conflicts.length > 0) {
+        const severity = conflictResult.conflicts[0].severity;
+        const announcement = getConflictAnnouncement(conflictResult.conflicts.length, severity);
+        announceToScreenReader(announcement, severity === 'high' ? 'assertive' : 'polite');
+      }
+    } catch (error) {
+      // Silently handle any date parsing errors
+      setConflicts([]);
+    }
+  }, [startDate, startTime, endDate, endTime, allDay, existingEvents, event?.id]);
 
   const handleSave = async () => {
     if (!title || !startDate) {
@@ -194,23 +269,61 @@ export function CalendarEventEditor({
         // For timed events, ensure proper timezone handling
         const startDateStr = `${startDate}T${startTime || '09:00'}:00`;
         const endDateStr = `${endDate || startDate}T${endTime || '10:00'}:00`;
-        
+
         startDateTime = new Date(startDateStr);
         endDateTime = new Date(endDateStr);
-        
+
         // Validate dates
         if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
           toast.error('Invalid date or time format');
           return;
         }
-        
+
         // Ensure end time is after start time
         if (endDateTime <= startDateTime) {
           endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Add 1 hour
         }
       }
 
-      const googleEventData = {
+      // Prepare recurrence rule if recurring
+      let recurrence: string[] | undefined;
+      if (isRecurring && recurringPattern) {
+        try {
+          // Convert UI recurring pattern to RRULE
+          const rrulePattern = createSimpleRecurrence(
+            recurringPattern.frequency,
+            {
+              interval: recurringPattern.interval || 1,
+              weekDays: recurringPattern.daysOfWeek?.map(day => {
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                return days[day];
+              }),
+              monthDay: recurringPattern.dayOfMonth,
+              endDate: recurringPattern.endDate,
+              occurrences: recurringPattern.endAfterOccurrences,
+            }
+          );
+
+          const rruleString = generateRRule(rrulePattern);
+          recurrence = rruleToGoogleRecurrence(rruleString);
+
+          // Show description of recurrence to user
+          toast.info(`Recurring: ${describeRecurrence(rrulePattern)}`);
+        } catch (error) {
+          toast.error('Failed to create recurrence pattern. Saving as single event.');
+          console.error('Recurrence error:', error);
+        }
+      }
+
+      // Prepare reminders for Google Calendar API
+      const googleReminders = reminders
+        .filter(r => r.minutes >= 0)
+        .map(r => ({
+          method: r.method,
+          minutes: r.minutes,
+        }));
+
+      const googleEventData: any = {
         summary: title,
         description: description || '',
         location: location || '',
@@ -218,19 +331,26 @@ export function CalendarEventEditor({
         endTime: endDateTime.toISOString(),
         attendees: attendees.filter(email => email.trim() !== ''),
         calendarId: 'primary',
-        allDay
+        allDay,
       };
+
+      // Add reminders if any
+      if (googleReminders.length > 0) {
+        googleEventData.reminders = {
+          useDefault: false,
+          overrides: googleReminders,
+        };
+      }
+
+      // Add recurrence if set
+      if (recurrence) {
+        googleEventData.recurrence = recurrence;
+      }
+
       if (event?.id) {
         await updateEvent.mutateAsync({
           eventId: event.id,
-          calendarId: 'primary',
-          summary: title,
-          description: description || '',
-          location: location || '',
-          startTime: startDateTime.toISOString(),
-          endTime: endDateTime.toISOString(),
-          attendees: attendees.filter(email => email.trim() !== ''),
-          allDay
+          ...googleEventData,
         });
         toast.success('Event updated successfully');
       } else {
@@ -253,27 +373,33 @@ export function CalendarEventEditor({
           recurring: isRecurring ? recurringPattern : undefined,
           videoConference,
           busy,
-          visibility
+          visibility,
         });
       }
-      
+
+      // Clear conflicts and close
+      setConflicts([]);
       handleClose();
     } catch (error) {
       toast.error(`Failed to save event: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
     if (!event?.id) return;
-    
-    if (!confirm('Are you sure you want to delete this event?')) return;
 
     try {
       await deleteEvent.mutateAsync(event.id);
       toast.success('Event deleted successfully');
+      setShowDeleteConfirm(false);
       handleClose();
     } catch (error) {
       toast.error('Failed to delete event');
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -341,18 +467,24 @@ export function CalendarEventEditor({
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={handleClose}
+          role="presentation"
         >
           <motion.div
+            ref={modalRef}
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
             className="bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="event-editor-title"
+            aria-describedby={conflicts.length > 0 ? "event-conflicts" : undefined}
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-[#37bd7e]" />
+              <h2 id="event-editor-title" className="text-lg font-semibold flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#37bd7e]" aria-hidden="true" />
                 {event ? 'Edit Event' : 'New Event'}
               </h2>
               <motion.button
@@ -360,21 +492,36 @@ export function CalendarEventEditor({
                 whileTap={{ scale: 0.95 }}
                 onClick={handleClose}
                 className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                aria-label="Close event editor"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </motion.button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Conflict Warning */}
+              {conflicts.length > 0 && (
+                <div id="event-conflicts" role="alert" aria-live="assertive">
+                  <ConflictWarning conflicts={conflicts} showDetails={true} />
+                </div>
+              )}
+
               {/* Title */}
               <div>
+                <label htmlFor="event-title" className="sr-only">
+                  Event title
+                </label>
                 <input
+                  id="event-title"
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Add title"
                   className="w-full text-xl font-semibold bg-transparent border-b border-gray-700 pb-2 focus:outline-none focus:border-[#37bd7e] transition-colors"
+                  aria-required="true"
+                  aria-invalid={!title}
+                  autoFocus
                 />
               </div>
 
@@ -752,7 +899,7 @@ export function CalendarEventEditor({
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={handleDelete}
+                    onClick={handleDeleteClick}
                     className="px-4 py-2 text-red-400 hover:text-red-300 transition-colors flex items-center gap-2"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -784,6 +931,19 @@ export function CalendarEventEditor({
           </motion.div>
         </motion.div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Event?"
+        description={`Are you sure you want to delete "${event?.title || 'this event'}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+        isLoading={deleteEvent.isPending}
+      />
     </AnimatePresence>
   );
 }

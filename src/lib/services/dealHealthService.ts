@@ -379,22 +379,53 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
     // 3. Get meeting data (last 30 days and last 3 meetings for sentiment)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Note: Filtering by owner_user_id only since deals.company is TEXT but meetings.company_id is UUID
-    const { data: meetings, error: meetingsError } = await supabase
+    // Get meetings directly linked to this deal via deal_id column
+    const { data: directMeetings, error: directMeetingsError } = await supabase
       .from('meetings')
       .select('id, meeting_start, sentiment_score')
-      .eq('owner_user_id', deal.owner_id)
+      .eq('deal_id', dealId)
       .order('meeting_start', { ascending: false })
       .limit(10);
 
-    if (meetingsError) {
+    // Also get meetings linked via deal_meetings junction table
+    const { data: junctionMeetings, error: junctionError } = await supabase
+      .from('deal_meetings')
+      .select('meeting_id')
+      .eq('deal_id', dealId);
+
+    // Fetch junction meeting details
+    let junctionMeetingDetails: any[] = [];
+    if (junctionMeetings && junctionMeetings.length > 0) {
+      const junctionMeetingIds = junctionMeetings.map(jm => jm.meeting_id);
+      const { data: junctionDetails } = await supabase
+        .from('meetings')
+        .select('id, meeting_start, sentiment_score')
+        .in('id', junctionMeetingIds)
+        .order('meeting_start', { ascending: false })
+        .limit(10);
+      junctionMeetingDetails = junctionDetails || [];
     }
 
-    const meetingsLast30Days = meetings?.filter(m =>
-      m.meeting_start && new Date(m.meeting_start) >= new Date(thirtyDaysAgo)
-    ) || [];
+    // Combine meetings, avoiding duplicates
+    const directMeetingIds = new Set((directMeetings || []).map(m => m.id));
+    const uniqueJunctionMeetings = (junctionMeetingDetails || []).filter(m => !directMeetingIds.has(m.id));
+    const allMeetings = [...(directMeetings || []), ...uniqueJunctionMeetings]
+      .sort((a, b) => {
+        const dateA = a.meeting_start ? new Date(a.meeting_start).getTime() : 0;
+        const dateB = b.meeting_start ? new Date(b.meeting_start).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice(0, 10);
 
-    const lastThreeMeetings = meetings?.slice(0, 3).filter(m => m.sentiment_score !== null) || [];
+    if (directMeetingsError || junctionError) {
+      // Continue with available data
+    }
+
+    const meetingsLast30Days = allMeetings.filter(m =>
+      m.meeting_start && new Date(m.meeting_start) >= new Date(thirtyDaysAgo)
+    );
+
+    const lastThreeMeetings = allMeetings.slice(0, 3).filter(m => m.sentiment_score !== null);
 
     // Calculate sentiment metrics
     const sentimentScores = lastThreeMeetings
@@ -418,7 +449,7 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
     }
 
     // Days since last meeting
-    const lastMeeting = meetings && meetings.length > 0 ? meetings[0] : null;
+    const lastMeeting = allMeetings && allMeetings.length > 0 ? allMeetings[0] : null;
     const daysSinceLastMeeting = lastMeeting?.meeting_start
       ? Math.floor((now.getTime() - new Date(lastMeeting.meeting_start).getTime()) / (1000 * 60 * 60 * 24))
       : null;
@@ -441,11 +472,63 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       ? Math.floor((now.getTime() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    // 5. Calculate average response time (simplified - based on activity frequency)
-    // In real implementation, this would track actual response times
+    // 4. Get email communications from communication_events
+    const { data: emails, error: emailsError } = await supabase
+      .from('communication_events')
+      .select('*')
+      .eq('deal_id', dealId)
+      .in('event_type', ['email_sent', 'email_received'])
+      .gte('communication_date', thirtyDaysAgo)
+      .order('communication_date', { ascending: false });
+
+    if (emailsError) {
+      // Continue with available data
+    }
+
+    const emailCount30Days = emails?.length || 0;
+    
+    // Calculate email sentiment (from AI analysis)
+    const emailSentiments = emails
+      ?.filter(e => e.sentiment_score !== null)
+      .map(e => e.sentiment_score as number) || [];
+    
+    const emailSentiment = emailSentiments.length > 0
+      ? emailSentiments.reduce((sum, s) => sum + s, 0) / emailSentiments.length
+      : null;
+
+    // Combine meeting and email sentiment for overall sentiment
+    const allSentimentScores = [
+      ...sentimentScores,
+      ...emailSentiments.slice(0, 3), // Include up to 3 most recent email sentiments
+    ];
+    
+    const combinedAvgSentiment = allSentimentScores.length > 0
+      ? allSentimentScores.reduce((sum, s) => sum + s, 0) / allSentimentScores.length
+      : avgSentiment; // Fallback to meeting sentiment if no email sentiment
+
+    // Update sentiment trend if we have email data
+    let finalSentimentTrend = sentimentTrend;
+    if (emailSentiments.length >= 2 && sentimentScores.length >= 1) {
+      const recentEmail = emailSentiments[0];
+      const olderEmail = emailSentiments[1];
+      const emailChange = recentEmail - olderEmail;
+      
+      if (Math.abs(emailChange) > 0.1) {
+        // Email sentiment trend overrides meeting trend if more significant
+        finalSentimentTrend = emailChange > 0.1 ? 'improving' : 'declining';
+      }
+    }
+
+    // 5. Calculate average response time from email response times
     let avgResponseTimeHours: number | null = null;
-    if (activityCount30Days > 0) {
-      // Estimate based on activity density
+    const emailResponseTimes = emails
+      ?.filter(e => e.response_time_hours !== null)
+      .map(e => e.response_time_hours as number) || [];
+    
+    if (emailResponseTimes.length > 0) {
+      avgResponseTimeHours = emailResponseTimes.reduce((sum, t) => sum + t, 0) / emailResponseTimes.length;
+    } else if (activityCount30Days > 0) {
+      // Fallback: Estimate based on activity density
       const hoursPerActivity = (30 * 24) / activityCount30Days;
       avgResponseTimeHours = Math.round(hoursPerActivity);
     }
@@ -456,13 +539,13 @@ async function fetchDealMetrics(dealId: string): Promise<DealHealthMetrics | nul
       daysSinceLastMeeting,
       daysSinceLastActivity,
       sentimentData: {
-        average: avgSentiment,
-        trend: sentimentTrend,
+        average: combinedAvgSentiment,
+        trend: finalSentimentTrend,
         lastThreeMeetings: sentimentScores,
       },
       engagementData: {
         meetingCount30Days: meetingsLast30Days.length,
-        activityCount30Days,
+        activityCount30Days: activityCount30Days + emailCount30Days, // Include emails in activity count
         avgResponseTimeHours,
       },
     };

@@ -59,6 +59,7 @@ const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
 // Health Monitoring routes
 const DealHealthDashboard = lazyWithRetry(() => import('@/components/DealHealthDashboard').then(m => ({ default: m.DealHealthDashboard })));
 const RelationshipHealth = lazyWithRetry(() => import('@/pages/RelationshipHealth'));
+const HealthMonitoring = lazyWithRetry(() => import('@/pages/HealthMonitoring'));
 
 // Auth routes - lazy load with retry except login
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
@@ -310,8 +311,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
                 <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
                 <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
-                <Route path="/crm/health" element={<AppLayout><DealHealthDashboard /></AppLayout>} />
-                <Route path="/crm/relationship-health" element={<AppLayout><RelationshipHealth /></AppLayout>} />
+                <Route path="/crm/health" element={<AppLayout><HealthMonitoring /></AppLayout>} />
+                <Route path="/crm/relationship-health" element={<Navigate to="/crm/health?tab=relationships" replace />} />
 
                 {/* Other routes */}
                 <Route path="/payments" element={<Navigate to="/clients" replace />} />

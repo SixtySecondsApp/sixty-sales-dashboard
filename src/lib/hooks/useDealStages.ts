@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/config';
 import { apiCall } from '@/lib/utils/apiUtils';
 import { supabase } from '@/lib/supabase/clientV2';
-import { createClient } from '@supabase/supabase-js';
 import logger from '@/lib/utils/logger';
 
 interface DealStage {
@@ -33,30 +32,8 @@ export function useDealStages() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          logger.log('⚠️ No session found - skipping Edge Functions, going straight to service key fallback for stages...');
-          
-          // Skip Edge Functions entirely and go straight to service key fallback
-          const serviceSupabase = createClient(
-            import.meta.env.VITE_SUPABASE_URL,
-            import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-          );
-          
-          logger.log('🛡️ Stages service key fallback (no auth)...');
-          const { data: serviceStagesData, error: serviceError } = await (serviceSupabase as any)
-            .from('deal_stages')
-            .select('*')
-            .order('order_position');
-            
-          if (serviceError) {
-            logger.error('❌ Service key stages fallback failed:', serviceError);
-            throw serviceError;
-          }
-          
-          logger.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
-          logger.log('📊 Stage data structure:', serviceStagesData?.[0]);
-          serviceStagesData?.forEach((stage: any) => logger.log(`   📋 Stage: id=${stage.id}, name=${stage.name}, order=${stage.order_position}`));
-          
-          setStages(serviceStagesData || []);
+          logger.log('⚠️ No session found - user must be authenticated to fetch stages');
+          setError(new Error('Authentication required'));
           setIsLoading(false);
           return;
         }
@@ -71,35 +48,7 @@ export function useDealStages() {
         
         if (supabaseError) {
           logger.error('❌ Stages fetch failed:', supabaseError);
-          logger.log('🔄 Trying stages with service role key...');
-          
-          // Last resort: try with service role key
-          try {
-            const serviceSupabase = createClient(
-              import.meta.env.VITE_SUPABASE_URL,
-              import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
-            );
-            
-            const { data: serviceStagesData, error: serviceError } = await (serviceSupabase as any)
-              .from('deal_stages')
-              .select('*')
-              .order('order_position');
-              
-            if (serviceError) {
-              logger.error('❌ Service key stages fallback also failed:', serviceError);
-              throw serviceError;
-            }
-            
-            logger.log(`✅ Service key stages fallback successful: Retrieved ${serviceStagesData?.length || 0} stages`);
-            serviceStagesData?.forEach((stage: any) => logger.log(`   📋 Stage: ${stage.name}`));
-            
-            setStages(serviceStagesData || []);
-            return;
-            
-          } catch (serviceError) {
-            logger.error('❌ All stages fallback methods failed:', serviceError);
-            throw serviceError;
-          }
+          throw supabaseError;
         }
         
         logger.log(`✅ Stages fetch successful: Retrieved ${stagesData?.length || 0} stages`);

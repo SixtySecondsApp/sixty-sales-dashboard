@@ -34,8 +34,10 @@ import {
   Plus,
   Tag,
   Repeat,
-  Link
+  Link,
+  Mail
 } from 'lucide-react';
+import { EmailComposerEnhanced } from '@/components/email/EmailComposerEnhanced';
 
 interface CalendarEventModalProps {
   event: CalendarEvent;
@@ -73,6 +75,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const [attendeeInput, setAttendeeInput] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
 
   useEffect(() => {
     setFormData(event);
@@ -434,7 +437,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         </motion.div>
 
         <DialogFooter className="flex items-center justify-between">
-          <div>
+          <div className="flex items-center space-x-3">
             {!isCreating && onDelete && (
               <Button
                 type="button"
@@ -444,6 +447,17 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete
+              </Button>
+            )}
+            {!isCreating && formData.category === 'meeting' && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowEmailComposer(true)}
+                className="border-emerald-600/50 text-emerald-400 hover:bg-emerald-600/10"
+              >
+                <Mail className="w-4 h-4 mr-2" />
+                Send Follow-up Email
               </Button>
             )}
           </div>
@@ -468,6 +482,16 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      {/* Email Composer for Follow-up Emails */}
+      <EmailComposerEnhanced
+        isOpen={showEmailComposer}
+        onClose={() => setShowEmailComposer(false)}
+        calendarEventId={!isCreating ? formData.id : undefined}
+        contactId={formData.contactId}
+        dealId={formData.dealId}
+        initialSubject={`Follow-up: ${formData.title}`}
+      />
     </Dialog>
   );
 };

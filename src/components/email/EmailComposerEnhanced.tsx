@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -26,12 +26,34 @@ import {
   Save,
   FileText,
   Zap,
-  Sparkles
+  Sparkles,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGmailSend } from '@/lib/hooks/useGoogleIntegration';
+import { useDraftAutosave } from '@/lib/hooks/useDraftAutosave';
+import { DraftManager } from './DraftManager';
+import { EmailDraft } from '@/lib/utils/draftStorage';
+import { TemplateSelectorModal } from './TemplateSelectorModal';
+import { type TemplateContext, type PersonalizedEmail } from '@/lib/services/salesTemplateService';
 import { toast } from 'sonner';
-import { format, addDays, addHours } from 'date-fns';
+import { format, addDays, addHours, formatDistanceToNow } from 'date-fns';
+import { supabase } from '@/lib/supabase/clientV2';
+import logger from '@/lib/utils/logger';
+import { TipTapEditor } from './TipTapEditor';
+import { scheduleEmail } from '@/lib/services/scheduledEmailService';
+import { useUndoSend } from '@/lib/hooks/useUndoSend';
+import { SmartReplyPanel } from './SmartReplyPanel';
+import { ContactAutoComplete } from './ContactAutoComplete';
+import { emailActivityLogger } from '@/lib/services/emailActivityLogger';
+import {
+  getComposerButtonLabel,
+  getEmailActionAnnouncement,
+  useEmailFocusTrap,
+  KEYBOARD_KEYS,
+  announceToScreenReader
+} from '@/lib/utils/accessibilityUtils';
 
 interface EmailComposerEnhancedProps {
   isOpen: boolean;
@@ -41,6 +63,9 @@ interface EmailComposerEnhancedProps {
   initialTo?: string;
   initialSubject?: string;
   initialBody?: string;
+  contactId?: string;
+  calendarEventId?: string;
+  dealId?: string;
 }
 
 interface EmailTemplate {
@@ -146,7 +171,10 @@ export function EmailComposerEnhanced({
   template,
   initialTo,
   initialSubject,
-  initialBody
+  initialBody,
+  contactId,
+  calendarEventId,
+  dealId
 }: EmailComposerEnhancedProps) {
   const [to, setTo] = useState(initialTo || '');
   const [cc, setCc] = useState('');
@@ -164,10 +192,73 @@ export function EmailComposerEnhanced({
   const [showAiSuggestions, setShowAiSuggestions] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [isDraft, setIsDraft] = useState(false);
-  
+  const [showDraftManager, setShowDraftManager] = useState(false);
+  const [showSalesTemplates, setShowSalesTemplates] = useState(false);
+  const [templateContext, setTemplateContext] = useState<TemplateContext | undefined>();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const editorRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const toInputRef = useRef<HTMLInputElement>(null);
   const sendEmail = useGmailSend();
+
+  // Focus trap for accessibility
+  useEmailFocusTrap(isOpen, modalRef, toInputRef);
+
+  // Escape key handler to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === KEYBOARD_KEYS.ESCAPE && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  // Undo send functionality (5-second window)
+  const { startUndoWindow, isUndoActive, remainingTime, cancelSend } = useUndoSend({
+    onSendConfirmed: () => {
+      toast.success('Email sent successfully');
+      announceToScreenReader(getEmailActionAnnouncement('sent'));
+      if (currentDraftId) {
+        deleteCurrentDraft();
+      }
+      handleClose();
+    },
+  });
+
+  // Prepare draft data for auto-save
+  const draftData = useMemo(() => ({
+    to,
+    cc,
+    bcc,
+    subject,
+    body,
+    attachments: attachments.map(f => ({
+      name: f.name,
+      size: f.size,
+      type: f.type
+    })),
+    isReply: !!replyTo,
+    replyToId: replyTo?.id
+  }), [to, cc, bcc, subject, body, attachments, replyTo]);
+
+  // Auto-save hook
+  const {
+    currentDraftId,
+    lastSaved,
+    isSaving,
+    hasUnsavedChanges,
+    saveNow,
+    deleteCurrentDraft,
+    loadDraft
+  } = useDraftAutosave(draftData, {
+    enabled: isOpen,
+    onDraftSaved: () => {
+      setIsDraft(true);
+    }
+  });
 
   useEffect(() => {
     if (replyTo) {
@@ -189,6 +280,111 @@ export function EmailComposerEnhanced({
     }
   }, [replyTo, template, initialTo, initialSubject, initialBody]);
 
+  // Build template context when modal opens with contact/calendar/deal IDs
+  useEffect(() => {
+    const buildTemplateContext = async () => {
+      if (!showSalesTemplates) {
+        return;
+      }
+
+      if (!contactId && !calendarEventId && !dealId) {
+        setTemplateContext(undefined);
+        return;
+      }
+
+      try {
+        const context: TemplateContext = {};
+
+        // Fetch contact if ID provided
+        if (contactId) {
+          const { data: contact } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('id', contactId)
+            .single();
+
+          if (contact) {
+            context.contact = {
+              id: contact.id,
+              full_name: contact.full_name,
+              email: contact.email,
+              company_name: contact.company_name,
+              title: contact.title,
+              linkedin_url: contact.linkedin_url
+            };
+          }
+        }
+
+        // Fetch calendar event if ID provided
+        if (calendarEventId) {
+          const { data: event } = await supabase
+            .from('calendar_events')
+            .select('*')
+            .eq('id', calendarEventId)
+            .single();
+
+          if (event) {
+            context.calendar_event = {
+              id: event.id,
+              title: event.title,
+              start_time: event.start_time,
+              end_time: event.end_time,
+              description: event.description,
+              attendees: event.attendees || []
+            };
+          }
+        }
+
+        // Fetch deal if ID provided
+        if (dealId) {
+          const { data: deal } = await supabase
+            .from('deals')
+            .select('*')
+            .eq('id', dealId)
+            .single();
+
+          if (deal) {
+            context.deal = {
+              id: deal.id,
+              title: deal.title,
+              value: deal.value,
+              stage: deal.stage,
+              description: deal.description
+            };
+          }
+        }
+
+        // Get current user profile
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (profile) {
+            context.user_profile = {
+              id: profile.id,
+              full_name: profile.full_name,
+              email: user.email || '',
+              title: profile.title,
+              company_name: profile.company_name
+            };
+          }
+        }
+
+        setTemplateContext(context);
+        logger.log('📧 Built template context:', context);
+      } catch (error) {
+        logger.error('Failed to build template context:', error);
+        setTemplateContext(undefined);
+      }
+    };
+
+    buildTemplateContext();
+  }, [showSalesTemplates, contactId, calendarEventId, dealId]);
+
   const handleSend = async () => {
     if (!to || !subject) {
       toast.error('Please fill in required fields');
@@ -198,37 +394,105 @@ export function EmailComposerEnhanced({
     try {
       // Add signature to body
       const fullBody = `${body}\n\n${selectedSignature.html}`;
-      
+
       if (isScheduled && scheduleDate) {
-        // TODO: Implement scheduled sending
-        toast.info('Email scheduled for ' + format(new Date(scheduleDate), 'PPpp'));
-      } else {
-        await sendEmail.mutateAsync({
+        // Schedule email for later sending
+        await scheduleEmail({
           to,
           cc,
           bcc,
           subject,
           body: fullBody,
-          attachments: attachments.map(f => f.name)
+          scheduledFor: new Date(scheduleDate),
+          replyToMessageId: replyTo?.id,
+          threadId: replyTo?.threadId,
+          contactId,
+          dealId,
+          calendarEventId,
         });
-        toast.success('Email sent successfully');
+        toast.success('Email scheduled for ' + format(new Date(scheduleDate), 'PPpp'));
+        announceToScreenReader(getEmailActionAnnouncement('scheduled'));
+
+        // Log scheduled email activity for CRM contacts
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await emailActivityLogger.logOutboundEmail({
+            emailId: `scheduled-${Date.now()}`,
+            subject,
+            from: user.email || '',
+            to,
+            cc,
+            direction: 'outbound',
+            timestamp: new Date(scheduleDate), // Use scheduled time
+            body: fullBody,
+            threadId: replyTo?.threadId,
+          });
+        }
+
+        // Delete draft after successful schedule
+        if (currentDraftId) {
+          deleteCurrentDraft();
+        }
+        handleClose();
+      } else {
+        // Use undo send window for immediate sends (5-second delay)
+        startUndoWindow(async () => {
+          await sendEmail.mutateAsync({
+            to,
+            cc,
+            bcc,
+            subject,
+            body: fullBody,
+            attachments: attachments.map(f => f.name)
+          });
+
+          // Log email activity for CRM contacts
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            await emailActivityLogger.logOutboundEmail({
+              emailId: `sent-${Date.now()}`, // Generate temp ID
+              subject,
+              from: user.email || '',
+              to,
+              cc,
+              direction: 'outbound',
+              timestamp: new Date(),
+              body: fullBody,
+              threadId: replyTo?.threadId,
+            });
+          }
+        });
+        // Don't close or delete draft here - handled in onSendConfirmed callback
       }
-      
-      handleClose();
     } catch (error) {
       toast.error('Failed to send email');
     }
   };
 
-  const handleSaveDraft = () => {
-    setIsDraft(true);
-    // TODO: Save to drafts
-    toast.success('Email saved as draft');
+  const handleSaveDraft = async () => {
+    const savedDraft = await saveNow();
+    if (savedDraft) {
+      toast.success('Draft saved');
+    }
+  };
+
+  const handleLoadDraft = (draft: EmailDraft) => {
+    setTo(draft.to);
+    setCc(draft.cc || '');
+    setBcc(draft.bcc || '');
+    setSubject(draft.subject);
+    setBody(draft.body);
+    setShowCc(!!draft.cc);
+    setShowBcc(!!draft.bcc);
+    // Note: Cannot restore actual File objects from stored drafts
+    // Attachments would need to be re-uploaded
+    toast.info('Draft loaded. Note: Attachments need to be re-uploaded.');
   };
 
   const handleClose = () => {
-    if (body && !isDraft) {
-      if (!confirm('Discard email draft?')) return;
+    // Don't prompt if draft is auto-saved or empty
+    if (hasUnsavedChanges && !isDraft) {
+      if (!confirm('You have unsaved changes. Close anyway?')) return;
     }
     setTo('');
     setCc('');
@@ -262,16 +526,11 @@ export function EmailComposerEnhanced({
     toast.success(`Applied "${template.name}" template`);
   };
 
-  const formatText = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
-    editorRef.current?.focus();
-  };
+  const handleSalesTemplateSelect = (personalized: PersonalizedEmail) => {
+    setSubject(personalized.subject);
+    setBody(personalized.body);
 
-  const insertLink = () => {
-    const url = prompt('Enter URL:');
-    if (url) {
-      formatText('createLink', url);
-    }
+    toast.success('AI-personalized template applied successfully');
   };
 
   const scheduleSuggestions = [
@@ -315,6 +574,10 @@ export function EmailComposerEnhanced({
           onClick={handleClose}
         >
           <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="email-composer-title"
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
@@ -323,16 +586,37 @@ export function EmailComposerEnhanced({
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <Send className="w-5 h-5 text-[#37bd7e]" />
-                {replyTo ? 'Reply' : 'New Email'}
-              </h2>
+              <div className="flex items-center gap-4">
+                <h2 id="email-composer-title" className="text-lg font-semibold flex items-center gap-2">
+                  <Send className="w-5 h-5 text-[#37bd7e]" />
+                  {replyTo ? 'Reply' : 'New Email'}
+                </h2>
+
+                {/* Auto-save status */}
+                {currentDraftId && (
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : lastSaved ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                        <span>Saved {formatDistanceToNow(lastSaved, { addSuffix: true })}</span>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center gap-2">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setIsMinimized(true)}
                   className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                  aria-label={getComposerButtonLabel('minimize')}
                 >
                   <ChevronDown className="w-4 h-4" />
                 </motion.button>
@@ -341,86 +625,39 @@ export function EmailComposerEnhanced({
                   whileTap={{ scale: 0.95 }}
                   onClick={handleClose}
                   className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+                  aria-label={getComposerButtonLabel('close')}
                 >
                   <X className="w-4 h-4" />
                 </motion.button>
               </div>
             </div>
 
-            {/* Toolbar */}
-            <div className="flex items-center gap-1 p-2 border-b border-gray-800">
-              <button
-                onClick={() => formatText('bold')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Bold"
-              >
-                <Bold className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('italic')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Italic"
-              >
-                <Italic className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('underline')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Underline"
-              >
-                <Underline className="w-4 h-4" />
-              </button>
-              <div className="w-px h-6 bg-gray-800 mx-1" />
-              <button
-                onClick={insertLink}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Insert Link"
-              >
-                <Link className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('insertUnorderedList')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Bullet List"
-              >
-                <List className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('insertOrderedList')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Numbered List"
-              >
-                <ListOrdered className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('formatBlock', 'blockquote')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Quote"
-              >
-                <Quote className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => formatText('formatBlock', 'pre')}
-                className="p-2 rounded hover:bg-gray-800 transition-colors"
-                title="Code"
-              >
-                <Code className="w-4 h-4" />
-              </button>
-              <div className="w-px h-6 bg-gray-800 mx-1" />
+            {/* Toolbar - Templates and AI */}
+            <div className="flex items-center gap-1 p-2 border-b border-gray-800" role="toolbar" aria-label="Email composer tools">
               <button
                 onClick={() => setShowTemplates(!showTemplates)}
                 className="p-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
-                title="Templates"
+                aria-label={getComposerButtonLabel('template')}
+                aria-expanded={showTemplates}
               >
                 <FileText className="w-4 h-4" />
                 <span className="text-xs">Templates</span>
               </button>
               <button
-                onClick={() => setShowAiSuggestions(!showAiSuggestions)}
+                onClick={() => setShowSalesTemplates(true)}
                 className="p-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
-                title="AI Suggestions"
+                aria-label={getComposerButtonLabel('aiTemplate')}
               >
                 <Sparkles className="w-4 h-4 text-[#37bd7e]" />
+                <span className="text-xs">AI Templates</span>
+              </button>
+              <button
+                onClick={() => setShowAiSuggestions(!showAiSuggestions)}
+                className="p-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-1"
+                aria-label={getComposerButtonLabel('aiSuggestion')}
+                aria-expanded={showAiSuggestions}
+              >
+                <Zap className="w-4 h-4 text-yellow-400" />
                 <span className="text-xs">AI</span>
               </button>
             </div>
@@ -470,12 +707,11 @@ export function EmailComposerEnhanced({
             <div className="p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-gray-400 w-16">To:</label>
-                <input
-                  type="email"
+                <ContactAutoComplete
                   value={to}
-                  onChange={(e) => setTo(e.target.value)}
+                  onChange={setTo}
                   placeholder="recipient@example.com"
-                  className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#37bd7e]/50"
+                  className="flex-1"
                 />
                 <button
                   onClick={() => setShowCc(!showCc)}
@@ -494,12 +730,11 @@ export function EmailComposerEnhanced({
               {showCc && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-400 w-16">Cc:</label>
-                  <input
-                    type="email"
+                  <ContactAutoComplete
                     value={cc}
-                    onChange={(e) => setCc(e.target.value)}
+                    onChange={setCc}
                     placeholder="cc@example.com"
-                    className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#37bd7e]/50"
+                    className="flex-1"
                   />
                 </div>
               )}
@@ -507,12 +742,11 @@ export function EmailComposerEnhanced({
               {showBcc && (
                 <div className="flex items-center gap-2">
                   <label className="text-sm text-gray-400 w-16">Bcc:</label>
-                  <input
-                    type="email"
+                  <ContactAutoComplete
                     value={bcc}
-                    onChange={(e) => setBcc(e.target.value)}
+                    onChange={setBcc}
                     placeholder="bcc@example.com"
-                    className="flex-1 bg-gray-800/50 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#37bd7e]/50"
+                    className="flex-1"
                   />
                 </div>
               )}
@@ -531,16 +765,23 @@ export function EmailComposerEnhanced({
 
             {/* Body */}
             <div className="flex-1 p-4 pt-0">
-              <div
-                ref={editorRef}
-                contentEditable
-                className="w-full h-full min-h-[200px] bg-gray-800/50 border border-gray-700 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#37bd7e]/50"
-                onInput={(e) => setBody(e.currentTarget.textContent || '')}
-                suppressContentEditableWarning
-              >
-                {body}
-              </div>
+              <TipTapEditor
+                content={body}
+                onChange={setBody}
+                placeholder="Write your email..."
+                className="h-full"
+              />
             </div>
+
+            {/* AI Smart Reply Panel (shown when replying) */}
+            {replyTo && (
+              <SmartReplyPanel
+                replyToEmail={replyTo}
+                onSelectReply={(content) => {
+                  setBody(content);
+                }}
+              />
+            )}
 
             {/* Attachments */}
             {attachments.length > 0 && (
@@ -633,6 +874,16 @@ export function EmailComposerEnhanced({
                 >
                   <Save className="w-4 h-4" />
                 </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowDraftManager(true)}
+                  className="px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors flex items-center gap-2"
+                  title="Manage drafts"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="text-sm">Drafts</span>
+                </motion.button>
               </div>
 
               <div className="flex items-center gap-2">
@@ -668,6 +919,22 @@ export function EmailComposerEnhanced({
               </div>
             </div>
           </motion.div>
+
+          {/* Draft Manager Modal */}
+          <DraftManager
+            isOpen={showDraftManager}
+            onClose={() => setShowDraftManager(false)}
+            onLoadDraft={handleLoadDraft}
+            currentDraftId={currentDraftId}
+          />
+
+          {/* Sales Template Selector Modal */}
+          <TemplateSelectorModal
+            isOpen={showSalesTemplates}
+            onClose={() => setShowSalesTemplates(false)}
+            onSelect={handleSalesTemplateSelect}
+            context={templateContext}
+          />
         </motion.div>
       )}
     </AnimatePresence>

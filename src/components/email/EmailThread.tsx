@@ -1,13 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  X, 
-  Star, 
-  Archive, 
-  Reply, 
-  ReplyAll, 
-  Forward, 
-  Trash2, 
+import {
+  X,
+  Star,
+  Archive,
+  Reply,
+  ReplyAll,
+  Forward,
+  Trash2,
   MoreHorizontal,
   Paperclip,
   Download,
@@ -21,32 +21,12 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow, format } from 'date-fns';
-
-interface EmailThread {
-  id: string;
-  from: string;
-  fromName: string;
-  content: string;
-  bodyHtml?: string;
-  timestamp: Date;
-  attachments?: string[];
-}
-
-interface Email {
-  id: string;
-  from: string;
-  fromName: string;
-  subject: string;
-  preview: string;
-  timestamp: Date;
-  read: boolean;
-  starred: boolean;
-  important: boolean;
-  labels: string[];
-  attachments: number;
-  thread: EmailThread[];
-}
+import { formatDistanceToNow, format, isSameDay, isToday, isYesterday } from 'date-fns';
+import type { Email, EmailThread as EmailThreadType } from '@/types/email';
+import { EmailAttachment } from './EmailAttachment';
+import { EmailSummaryPanel } from './EmailSummaryPanel';
+import { EmailToTaskButton } from './EmailToTaskButton';
+import { EmailToDealButton } from './EmailToDealButton';
 
 interface EmailThreadProps {
   email: Email;
@@ -65,8 +45,46 @@ export function EmailThread({
   onArchiveEmail,
   onReply
 }: EmailThreadProps) {
-  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set([email.thread[0]?.id]));
+  // Expand the LATEST message by default (most recent), not the first
+  const latestMessageId = email.thread.length > 0 ? email.thread[email.thread.length - 1]?.id : null;
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
+    new Set(latestMessageId ? [latestMessageId] : [])
+  );
   const [showAllMessages, setShowAllMessages] = useState(false);
+
+  // Group messages by date for better organization
+  const messagesByDate = useMemo(() => {
+    const grouped: { date: string; label: string; messages: EmailThreadType[] }[] = [];
+    const dateMap = new Map<string, EmailThreadType[]>();
+
+    email.thread.forEach((message) => {
+      const dateKey = format(message.timestamp, 'yyyy-MM-dd');
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, []);
+      }
+      dateMap.get(dateKey)!.push(message);
+    });
+
+    // Convert map to array with formatted date labels
+    Array.from(dateMap.entries())
+      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+      .forEach(([dateKey, messages]) => {
+        const date = new Date(dateKey);
+        let label = '';
+
+        if (isToday(date)) {
+          label = 'Today';
+        } else if (isYesterday(date)) {
+          label = 'Yesterday';
+        } else {
+          label = format(date, 'MMMM d, yyyy');
+        }
+
+        grouped.push({ date: dateKey, label, messages });
+      });
+
+    return grouped;
+  }, [email.thread]);
 
   const toggleMessage = (messageId: string) => {
     const newExpanded = new Set(expandedMessages);
@@ -127,8 +145,41 @@ export function EmailThread({
     ));
   };
 
-  const visibleMessages = showAllMessages ? email.thread : email.thread.slice(0, 3);
-  const hiddenMessageCount = email.thread.length - visibleMessages.length;
+  // Determine visible messages based on showAllMessages
+  const visibleDateGroups = useMemo(() => {
+    if (showAllMessages) {
+      return messagesByDate;
+    }
+
+    // Show only the latest 3 messages across all date groups
+    const allMessages = messagesByDate.flatMap(group =>
+      group.messages.map(msg => ({ ...msg, dateLabel: group.label }))
+    );
+    const recentMessages = allMessages.slice(-3);
+
+    // Regroup the recent messages by date
+    const recentGroups: { date: string; label: string; messages: EmailThreadType[] }[] = [];
+    const recentDateMap = new Map<string, { label: string; messages: EmailThreadType[] }>();
+
+    recentMessages.forEach((msg) => {
+      const dateKey = format(msg.timestamp, 'yyyy-MM-dd');
+      if (!recentDateMap.has(dateKey)) {
+        const dateGroup = messagesByDate.find(g => g.date === dateKey);
+        recentDateMap.set(dateKey, { label: dateGroup!.label, messages: [] });
+      }
+      recentDateMap.get(dateKey)!.messages.push(msg);
+    });
+
+    recentDateMap.forEach((value, dateKey) => {
+      recentGroups.push({ date: dateKey, label: value.label, messages: value.messages });
+    });
+
+    return recentGroups.sort((a, b) => a.date.localeCompare(b.date));
+  }, [messagesByDate, showAllMessages]);
+
+  const totalMessageCount = email.thread.length;
+  const visibleMessageCount = visibleDateGroups.reduce((sum, group) => sum + group.messages.length, 0);
+  const hiddenMessageCount = totalMessageCount - visibleMessageCount;
 
   return (
     <div className="h-full flex flex-col bg-gray-900/20 backdrop-blur-xl">
@@ -196,6 +247,16 @@ export function EmailThread({
             Reply
           </motion.button>
 
+          {/* Email to Task Conversion */}
+          <EmailToTaskButton
+            email={email as any}
+          />
+
+          {/* Email to Deal Conversion */}
+          <EmailToDealButton
+            email={email as any}
+          />
+
           <div className="flex items-center gap-1">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -240,21 +301,47 @@ export function EmailThread({
         </div>
       </div>
 
+      {/* AI Summary Panel (for threads with multiple messages) */}
+      {email.thread.length > 1 && (
+        <div className="px-6 pt-6">
+          <EmailSummaryPanel
+            email={email.thread.map(msg => ({
+              ...msg,
+              ...email,
+              body: msg.body || msg.snippet || ''
+            }) as any)}
+            className="mb-0"
+          />
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-6">
           <AnimatePresence>
-            {visibleMessages.map((message, index) => {
-              const isExpanded = expandedMessages.has(message.id);
-              const isLatest = index === email.thread.length - 1;
+            {visibleDateGroups.map((dateGroup, groupIndex) => (
+              <div key={dateGroup.date} className="space-y-4">
+                {/* Date Divider */}
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700/50 to-transparent" />
+                  <span className="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 py-1 bg-gray-800/50 rounded-full border border-gray-700/50">
+                    {dateGroup.label}
+                  </span>
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-700/50 to-transparent" />
+                </div>
 
-              return (
-                <motion.div
+                {/* Messages for this date */}
+                {dateGroup.messages.map((message, messageIndex) => {
+                  const isExpanded = expandedMessages.has(message.id);
+                  const isLatest = message.id === latestMessageId;
+
+                  return (
+                    <motion.div
                   key={message.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.1 }}
+                  transition={{ delay: (groupIndex * dateGroup.messages.length + messageIndex) * 0.05 }}
                   className={cn(
                     'bg-gray-900/30 backdrop-blur-sm rounded-xl border border-gray-800/50 overflow-hidden',
                     isLatest && 'ring-1 ring-[#37bd7e]/20'
@@ -319,39 +406,11 @@ export function EmailThread({
                               </h4>
                               <div className="space-y-2">
                                 {message.attachments.map((attachment, attachIndex) => (
-                                  <motion.div
-                                    key={attachIndex}
-                                    whileHover={{ scale: 1.02 }}
-                                    className="flex items-center gap-3 p-3 bg-gray-800/30 rounded-lg border border-gray-700/50 hover:border-gray-600/50 transition-colors cursor-pointer"
-                                  >
-                                    <div className="w-8 h-8 rounded bg-[#37bd7e]/20 flex items-center justify-center">
-                                      <Paperclip className="w-4 h-4 text-[#37bd7e]" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm text-gray-200 truncate">
-                                        {attachment}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        PDF Document • 2.3 MB
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <motion.button
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        className="p-1 rounded hover:bg-gray-700/50 transition-colors"
-                                      >
-                                        <Download className="w-4 h-4 text-gray-400" />
-                                      </motion.button>
-                                      <motion.button
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        className="p-1 rounded hover:bg-gray-700/50 transition-colors"
-                                      >
-                                        <ExternalLink className="w-4 h-4 text-gray-400" />
-                                      </motion.button>
-                                    </div>
-                                  </motion.div>
+                                  <EmailAttachment
+                                    key={attachment.id || attachIndex}
+                                    attachment={attachment}
+                                    messageId={email.id}
+                                  />
                                 ))}
                               </div>
                             </div>
@@ -363,6 +422,8 @@ export function EmailThread({
                 </motion.div>
               );
             })}
+              </div>
+            ))}
           </AnimatePresence>
 
           {/* Show More Messages */}

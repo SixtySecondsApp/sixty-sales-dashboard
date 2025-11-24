@@ -32,6 +32,61 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ actions, onActionC
       return;
     }
 
+    // Handle copilot:// protocol actions
+    if (action.callback.startsWith('copilot://')) {
+      const protocol = action.callback.replace('copilot://', '');
+
+      if (protocol === 'copy-availability') {
+        try {
+          // Format availability slots for clipboard
+          const slots = action.params?.slots || [];
+          const timezone = action.params?.timezone || '';
+
+          let text = 'My availability:\n\n';
+          slots.forEach((slot: any) => {
+            const start = new Date(slot.startTime);
+            const end = new Date(slot.endTime);
+            const dateStr = start.toLocaleDateString('en-GB', {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+              timeZone: timezone
+            });
+            const startTime = start.toLocaleTimeString('en-GB', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: timezone
+            });
+            const endTime = end.toLocaleTimeString('en-GB', {
+              hour: '2-digit',
+              minute: '2-digit',
+              timeZone: timezone
+            });
+            text += `• ${dateStr} ${startTime} - ${endTime}\n`;
+          });
+
+          if (timezone) {
+            text += `\nTimezone: ${timezone}`;
+          }
+
+          await navigator.clipboard.writeText(text);
+
+          // Visual feedback - could be enhanced with a toast notification
+          const button = document.activeElement as HTMLButtonElement;
+          if (button) {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('Failed to copy availability:', error);
+        }
+      }
+      return;
+    }
+
     // Handle API callbacks
     if (action.callback.startsWith('/api/')) {
       try {
@@ -42,7 +97,7 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({ actions, onActionC
           },
           body: JSON.stringify(action.params || {})
         });
-        
+
         if (response.ok) {
           const result = await response.json();
           // Show success notification or handle result

@@ -99,25 +99,36 @@ export const CalendarResponse: React.FC<CalendarResponseProps> = ({ data, onActi
             {timezone && <span className="text-xs text-gray-500">{timezone}</span>}
           </div>
           <div className="space-y-2">
-            {availability.map(slot => (
-              <div
-                key={slot.startTime}
-                className="flex items-center justify-between text-xs text-gray-400 p-2 rounded-lg bg-gray-800/40"
-              >
-                <div className="flex flex-col">
-                  <span className="text-gray-100 font-medium">
-                    {formatAvailabilityLabel(slot.startTime, slot.endTime, timezone)}
+            {availability.map(slot => {
+              const is60Min = slot.duration >= 60;
+              const badgeColor = is60Min ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+              const badgeText = is60Min ? '60 min' : '30 min';
+
+              return (
+                <div
+                  key={slot.startTime}
+                  className="flex items-center justify-between text-xs text-gray-400 p-2 rounded-lg bg-gray-800/40 hover:bg-gray-800/60 transition-colors"
+                >
+                  <div className="flex flex-col flex-1">
+                    <span className="text-gray-100 font-medium">
+                      {formatAvailabilityLabel(slot.startTime, slot.endTime, timezone)}
+                    </span>
+                    {slot.duration > 60 && (
+                      <span className="text-gray-500 text-[11px]">{slot.duration} min available</span>
+                    )}
+                  </div>
+                  <span className={`px-2 py-0.5 rounded border text-[10px] font-medium flex-shrink-0 ${badgeColor}`}>
+                    {badgeText}
                   </span>
-                  <span className="text-gray-500">{slot.duration} min block</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Meetings List */}
-      <div className="space-y-3">
+      {/* Meetings List - Compact Design */}
+      <div className="space-y-1.5">
         {meetings.length === 0 && (
           <div className="text-sm text-gray-500">
             No meetings scheduled for this range.
@@ -128,48 +139,66 @@ export const CalendarResponse: React.FC<CalendarResponseProps> = ({ data, onActi
           const minutesUntil = Math.floor((startTime.getTime() - now.getTime()) / 60000);
           const isUpcoming = minutesUntil > 0 && minutesUntil < 120;
           const isPast = minutesUntil < 0;
+          const attendeeCount = meeting.attendees.length;
+          const attendeeNames = attendeeCount > 0
+            ? attendeeCount <= 2
+              ? meeting.attendees.map(a => a.name).join(', ')
+              : `${meeting.attendees[0]?.name || 'Unknown'} +${attendeeCount - 1}`
+            : 'No attendees';
 
           return (
-            <div 
+            <div
               key={meeting.id}
-              className={`bg-gray-900/80 backdrop-blur-sm border border-gray-800/50 rounded-lg p-4 ${
-                isUpcoming ? 'border-l-4 border-l-blue-500' : ''
-              } ${isPast ? 'opacity-60' : ''}`}
+              className={`bg-gray-900/60 backdrop-blur-sm border border-gray-800/50 rounded-lg p-2.5 hover:bg-gray-900/80 transition-colors ${
+                isUpcoming ? 'border-l-2 border-l-blue-500' : ''
+              } ${isPast ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h5 className="text-sm font-medium text-gray-100 mb-1">
-                    {meeting.title}
-                  </h5>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <Clock className="w-3 h-3" />
-                    {formatDate(meeting.startTime, timezone)} {formatTime(meeting.startTime, timezone)} - {formatTime(meeting.endTime, timezone)}
-                    {isUpcoming && (
-                      <span className="ml-2 px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded">
-                        In {minutesUntil} min
-                      </span>
+              {/* Main row with title, time, and status */}
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h5 className="text-sm font-medium text-gray-100 truncate">
+                      {meeting.title}
+                    </h5>
+                    {meeting.hasPrepBrief && (
+                      <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full flex-shrink-0" title="Prep brief available" />
                     )}
                   </div>
-                  {meeting.location && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      📍 {meeting.location}
-                    </div>
-                  )}
                 </div>
-                {meeting.hasPrepBrief && (
-                  <div className="w-2 h-2 bg-emerald-400 rounded-full" title="Prep brief available" />
+                {isUpcoming && (
+                  <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded text-[10px] font-medium flex-shrink-0">
+                    {minutesUntil}m
+                  </span>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-3 h-3 text-gray-500" />
-                <span className="text-xs text-gray-400">
-                  {meeting.attendees.map(a => a.name).join(', ')}
-                </span>
+              {/* Compact info row */}
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3 flex-shrink-0" />
+                  <span className="whitespace-nowrap">
+                    {formatDate(meeting.startTime, timezone)} {formatTime(meeting.startTime, timezone)}-{formatTime(meeting.endTime, timezone)}
+                  </span>
+                </div>
+
+                {attendeeCount > 0 && (
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Users className="w-3 h-3 flex-shrink-0" />
+                    <span className="truncate">{attendeeNames}</span>
+                  </div>
+                )}
+
+                {meeting.location && (
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="flex-shrink-0">📍</span>
+                    <span className="truncate">{meeting.location}</span>
+                  </div>
+                )}
               </div>
 
+              {/* Prep brief button - only show if available and not past */}
               {meeting.hasPrepBrief && !isPast && (
-                <button 
+                <button
                   onClick={() => {
                     if (onActionClick) {
                       onActionClick({
@@ -181,9 +210,9 @@ export const CalendarResponse: React.FC<CalendarResponseProps> = ({ data, onActi
                       });
                     }
                   }}
-                  className="w-full px-3 py-2 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-medium hover:bg-blue-600/20 transition-colors"
+                  className="w-full mt-2 px-2 py-1 bg-blue-600/10 text-blue-400 border border-blue-500/20 rounded text-[11px] font-medium hover:bg-blue-600/20 transition-colors"
                 >
-                  View Prep Brief
+                  View Prep
                 </button>
               )}
             </div>

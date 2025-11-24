@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veo 3 API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #a855f7;
+            margin-top: 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .success {
+            background: #1e3a1e;
+            border: 1px solid #4CAF50;
+            color: #90ee90;
+        }
+        .error {
+            background: #3a1e1e;
+            border: 1px solid #f44336;
+            color: #ffaaaa;
+        }
+        .info {
+            background: #1e1e3a;
+            border: 1px solid #2196F3;
+            color: #aaccff;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #333;
+            border-top-color: #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            color: #ccc;
+        }
+        .video-preview {
+            margin-top: 15px;
+            max-width: 100%;
+        }
+        .video-preview video {
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        .polling-status {
+            margin-top: 10px;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Veo 3 API Test</h1>
+        <p>Test Veo 3 video generation API. Uses app service when available, or direct API calls with your key.</p>
+        
+        <div id="apiKeySection" style="display: none;">
+            <label for="apiKey">API Key (if not using app service):</label>
+            <input type="password" id="apiKey" placeholder="Enter your Veo3 API key">
+            <small style="color: #888; display: block; margin-top: 5px;">Get your key from <a href="https://www.veo3gen.co/" target="_blank" style="color: #4CAF50;">veo3gen.co</a></small>
+        </div>
+        
+        <label for="prompt">Prompt:</label>
+        <textarea id="prompt" rows="3">A beautiful sunset over mountains with vibrant colors, cinematic style</textarea>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label for="model">Model:</label>
+                <select id="model">
+                    <option value="veo-3.0-fast-generate-preview">Fast Generate</option>
+                    <option value="veo-3.0-generate-preview">Quality Generate</option>
+                </select>
+            </div>
+            <div>
+                <label for="duration">Duration (seconds):</label>
+                <select id="duration">
+                    <option value="5">5 seconds</option>
+                    <option value="8" selected>8 seconds</option>
+                    <option value="10">10 seconds</option>
+                </select>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div>
+                <label for="aspectRatio">Aspect Ratio:</label>
+                <select id="aspectRatio">
+                    <option value="16:9" selected>16:9 (Landscape)</option>
+                    <option value="9:16">9:16 (Portrait)</option>
+                    <option value="1:1">1:1 (Square)</option>
+                </select>
+            </div>
+            <div style="display: flex; align-items: end;">
+                <label style="display: flex; align-items: center; gap: 10px; margin-top: 0;">
+                    <input type="checkbox" id="generateAudio" checked>
+                    <span>Generate Audio</span>
+                </label>
+            </div>
+        </div>
+        
+        <button id="testBtn" onclick="testAPI()">🚀 Test API</button>
+        <button onclick="clearResults()">Clear Results</button>
+        
+        <div id="pollingStatus" class="polling-status" style="display: none;"></div>
+        <div id="result"></div>
+        <div id="videoPreview" class="video-preview"></div>
+    </div>
+
+    <script type="module">
+        const VEO3_API_BASE = 'https://api.veo3gen.co/api/veo';
+        
+        // Try to import the service from the app
+        let veo3Service = null;
+        let useDirectAPI = false;
+        
+        async function loadService() {
+            try {
+                // Try to import from the app's service (works when served from Vite dev server)
+                const module = await import('/src/lib/services/veo3Service.ts');
+                veo3Service = module.veo3Service;
+                console.log('✅ Service loaded successfully (using app service)');
+                document.getElementById('apiKeySection').style.display = 'none';
+                return true;
+            } catch (error) {
+                console.warn('⚠️ Could not load app service, will use direct API:', error.message);
+                // Show API key input for direct API mode
+                document.getElementById('apiKeySection').style.display = 'block';
+                useDirectAPI = true;
+                return true; // Still return true, we can use direct API
+            }
+        }
+        
+        // Direct API implementation (fallback)
+        const directVeo3API = {
+            async generateVideo(params) {
+                const apiKey = document.getElementById('apiKey').value?.trim();
+                if (!apiKey) {
+                    throw new Error('API key required. Enter your Veo3 API key above.');
+                }
+                
+                const response = await fetch(`${VEO3_API_BASE}/text-to-video`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey,
+                    },
+                    body: JSON.stringify({
+                        prompt: params.prompt,
+                        model: params.model || 'veo-3.0-fast-generate-preview',
+                        durationSeconds: params.durationSeconds || 8,
+                        generateAudio: params.generateAudio !== undefined ? params.generateAudio : true,
+                        ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
+                    }),
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                    const errorMessage = errorData.error?.message || errorData.message || response.statusText;
+                    throw new Error(`Veo3 API error: ${errorMessage}`);
+                }
+                
+                const data = await response.json();
+                if (!data.taskId) {
+                    throw new Error('No task ID received from Veo3 API');
+                }
+                
+                return {
+                    taskId: data.taskId,
+                    status: 'pending'
+                };
+            },
+            
+            async getTaskStatus(taskId) {
+                const apiKey = document.getElementById('apiKey').value?.trim();
+                if (!apiKey) {
+                    throw new Error('API key required');
+                }
+                
+                const response = await fetch(`${VEO3_API_BASE}/status/${taskId}`, {
+                    method: 'GET',
+                    headers: {
+                        'X-API-Key': apiKey,
+                    },
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+                    const errorMessage = errorData.error?.message || errorData.message || response.statusText;
+                    throw new Error(`Veo3 API error: ${errorMessage}`);
+                }
+                
+                const data = await response.json();
+                return {
+                    taskId: data.taskId || taskId,
+                    videoUrl: data.videoUrl || data.video_url || data.url,
+                    status: data.status?.toLowerCase() || 'pending',
+                    error: data.error
+                };
+            }
+        };
+        
+        window.testAPI = async function() {
+            const btn = document.getElementById('testBtn');
+            const resultDiv = document.getElementById('result');
+            const videoPreview = document.getElementById('videoPreview');
+            const pollingStatus = document.getElementById('pollingStatus');
+            
+            // Ensure service is loaded
+            if (!veo3Service && !useDirectAPI) {
+                const loaded = await loadService();
+                if (!loaded) return;
+            }
+            
+            // Determine which API to use
+            const api = veo3Service || directVeo3API;
+            const mode = veo3Service ? 'app service' : 'direct API';
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> Testing...';
+            resultDiv.innerHTML = '';
+            videoPreview.innerHTML = '';
+            pollingStatus.style.display = 'none';
+            
+            const prompt = document.getElementById('prompt').value;
+            const model = document.getElementById('model').value;
+            const durationSeconds = parseInt(document.getElementById('duration').value);
+            const aspectRatio = document.getElementById('aspectRatio').value;
+            const generateAudio = document.getElementById('generateAudio').checked;
+            
+            showResult('info', `🧪 Testing Veo 3 API (${mode})...\n📝 Prompt: "${prompt}"\n🎬 Model: ${model}\n⏱️  Duration: ${durationSeconds}s\n📐 Aspect: ${aspectRatio}\n🔊 Audio: ${generateAudio}\n\n`);
+            
+            try {
+                const startTime = Date.now();
+                
+                // Step 1: Start generation
+                const result = await api.generateVideo({
+                    prompt: prompt,
+                    model: model,
+                    durationSeconds: durationSeconds,
+                    generateAudio: generateAudio,
+                    aspectRatio: aspectRatio
+                });
+                
+                const initDuration = Date.now() - startTime;
+                
+                if (!result.taskId) {
+                    throw new Error('No task ID received');
+                }
+                
+                let resultText = `✅ Generation started!\n\n`;
+                resultText += `⏱️  Init time: ${initDuration}ms\n`;
+                resultText += `🆔 Task ID: ${result.taskId}\n\n`;
+                resultText += `⏳ Polling for completion...\n`;
+                showResult('info', resultText);
+                
+                // Step 2: Poll for status
+                pollingStatus.style.display = 'block';
+                pollingStatus.textContent = `Polling status... (Task: ${result.taskId.substring(0, 8)}...)`;
+                
+                let attempts = 0;
+                const maxAttempts = 60; // 5 minutes
+                let finalStatus = null;
+                
+                const pollInterval = setInterval(async () => {
+                    attempts++;
+                    pollingStatus.textContent = `Polling attempt ${attempts}... (Task: ${result.taskId.substring(0, 8)}...)`;
+                    
+                    try {
+                        const status = await api.getTaskStatus(result.taskId);
+                        finalStatus = status;
+                        
+                        const statusLower = status.status?.toLowerCase() || 'unknown';
+                        pollingStatus.textContent = `Status: ${statusLower} (Attempt ${attempts}/${maxAttempts})`;
+                        
+                        if (statusLower === 'completed' && status.videoUrl) {
+                            clearInterval(pollInterval);
+                            const totalDuration = Date.now() - startTime;
+                            
+                            let successText = `✅ SUCCESS!\n\n`;
+                            successText += `⏱️  Total time: ${Math.round(totalDuration / 1000)}s\n`;
+                            successText += `🆔 Task ID: ${result.taskId}\n`;
+                            successText += `📹 Video URL: ${status.videoUrl}\n\n`;
+                            
+                            // Display video
+                            const video = document.createElement('video');
+                            video.src = status.videoUrl;
+                            video.controls = true;
+                            video.style.width = '100%';
+                            video.onerror = () => {
+                                videoPreview.innerHTML = '<p style="color: #f44336;">⚠️ Video failed to load. URL: ' + status.videoUrl + '</p>';
+                            };
+                            videoPreview.innerHTML = '<h3>Generated Video:</h3>';
+                            videoPreview.appendChild(video);
+                            
+                            showResult('success', successText);
+                            pollingStatus.style.display = 'none';
+                            btn.disabled = false;
+                            btn.innerHTML = '🚀 Test API';
+                        } else if (statusLower === 'failed') {
+                            clearInterval(pollInterval);
+                            showResult('error', `❌ Generation failed\n\nError: ${status.error || 'Unknown error'}`);
+                            pollingStatus.style.display = 'none';
+                            btn.disabled = false;
+                            btn.innerHTML = '🚀 Test API';
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            showResult('error', `⚠️ Max polling attempts reached. Video may still be processing.\n\nTask ID: ${result.taskId}\nCheck status manually.`);
+                            pollingStatus.style.display = 'none';
+                            btn.disabled = false;
+                            btn.innerHTML = '🚀 Test API';
+                        }
+                    } catch (error) {
+                        console.error('Polling error:', error);
+                        if (attempts >= maxAttempts) {
+                            clearInterval(pollInterval);
+                            showResult('error', `❌ Polling failed after ${attempts} attempts\n\nError: ${error.message}`);
+                            pollingStatus.style.display = 'none';
+                            btn.disabled = false;
+                            btn.innerHTML = '🚀 Test API';
+                        }
+                    }
+                }, 5000); // Poll every 5 seconds
+                
+            } catch (error) {
+                let errorText = `❌ ERROR\n\n`;
+                errorText += `Message: ${error.message}\n\n`;
+                
+                if (error.stack) {
+                    errorText += `Stack trace:\n${error.stack.split('\n').slice(0, 5).join('\n')}\n`;
+                }
+                
+                showResult('error', errorText);
+                pollingStatus.style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = '🚀 Test API';
+            }
+        };
+        
+        window.clearResults = function() {
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('videoPreview').innerHTML = '';
+            document.getElementById('pollingStatus').style.display = 'none';
+        };
+        
+        function showResult(type, text) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = text;
+        }
+        
+        // Load service on page load
+        loadService();
+    </script>
+</body>
+</html>
+

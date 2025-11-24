@@ -1,22 +1,55 @@
-import React, { memo, useState } from 'react';
-import { NodeProps } from 'reactflow';
-import { Image as ImageIcon, Upload, Link as LinkIcon } from 'lucide-react';
+import React, { memo, useState, useEffect, useCallback } from 'react';
+import { NodeProps, useReactFlow } from 'reactflow';
+import { Image as ImageIcon, Upload, Link as LinkIcon, Sparkles, Loader2 } from 'lucide-react';
 import { ModernNodeCard } from '../ModernNodeCard';
+import { nanoBananaService } from '@/lib/services/nanoBananaService';
 
 export interface ImageInputNodeData {
   src?: string; // Image URL or base64
   label?: string;
+  // Nano Banana Pro generation options
+  generatePrompt?: string;
+  aspectRatio?: 'square' | 'portrait' | 'landscape';
 }
 
-const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) => {
+const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInputNodeData>) => {
   const [imageUrl, setImageUrl] = useState<string | null>(data.src || null);
   const [isEditing, setIsEditing] = useState(false);
   const [inputUrl, setInputUrl] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [showGenerate, setShowGenerate] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState(data.generatePrompt || '');
+  const [aspectRatio, setAspectRatio] = useState<'square' | 'portrait' | 'landscape'>(data.aspectRatio || 'square');
+  const { setNodes } = useReactFlow();
+
+  useEffect(() => {
+    setImageUrl(data.src || null);
+  }, [data.src]);
+
+  const updateNodeImage = useCallback(
+    (value: string | null) => {
+      setImageUrl(value);
+      setNodes((nodes) =>
+        nodes.map((node) => {
+          if (node.id !== id) return node;
+          const updatedData = { ...node.data };
+          if (value) {
+            updatedData.src = value;
+          } else {
+            delete updatedData.src;
+          }
+          return { ...node, data: updatedData };
+        })
+      );
+    },
+    [id, setNodes]
+  );
 
   const handleImageUrlSubmit = (e: React.FormEvent) => {
     e.stopPropagation();
     if (inputUrl.trim()) {
-      setImageUrl(inputUrl.trim());
+      updateNodeImage(inputUrl.trim());
       setIsEditing(false);
       setInputUrl('');
     }
@@ -29,9 +62,55 @@ const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) 
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
-        setImageUrl(result);
+        if (result) {
+          updateNodeImage(result);
+        }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGenerate = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!generatePrompt.trim()) {
+      setGenerationError('Please enter a prompt');
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerationError(null);
+
+    try {
+      const result = await nanoBananaService.generateImage({
+        prompt: generatePrompt.trim(),
+        aspect_ratio: aspectRatio,
+        num_images: 1,
+      });
+
+      if (result.images && result.images.length > 0) {
+        updateNodeImage(result.images[0]);
+        // Update node data with generation settings
+        setNodes((nodes) =>
+          nodes.map((node) => {
+            if (node.id !== id) return node;
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                generatePrompt: generatePrompt.trim(),
+                aspectRatio: aspectRatio,
+              }
+            };
+          })
+        );
+        setShowGenerate(false);
+      } else {
+        throw new Error('No images returned from Nano Banana Pro');
+      }
+    } catch (err: any) {
+      setGenerationError(err.message || 'Generation failed');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -72,9 +151,9 @@ const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) 
             <div className="text-gray-500 dark:text-zinc-600 flex flex-col items-center gap-3 p-4 text-center">
               <ImageIcon size={32} className="opacity-50" />
               <span className="text-xs">No image selected</span>
-              {!isEditing && (
-                <div className="flex gap-2">
-                  <label className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded cursor-pointer transition-colors">
+              {!isEditing && !showGenerate && (
+                <div className="flex flex-col gap-2 w-full px-4">
+                  <label className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded cursor-pointer transition-colors text-center">
                     <Upload size={12} className="inline mr-1" />
                     Upload
                     <input
@@ -90,10 +169,20 @@ const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) 
                       e.stopPropagation();
                       setIsEditing(true);
                     }}
-                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-xs rounded transition-colors flex items-center justify-center gap-1"
                   >
                     <LinkIcon size={12} />
                     URL
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowGenerate(true);
+                    }}
+                    className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white text-xs rounded transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Sparkles size={12} />
+                    Generate (Nano Banana Pro)
                   </button>
                 </div>
               )}
@@ -104,7 +193,7 @@ const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) 
         {/* URL Input Form */}
         {isEditing && (
           <div className="p-3 bg-white dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-zinc-800">
-            <form onSubmit={handleImageUrlSubmit} className="space-y-2">
+            <form onSubmit={handleImageUrlSubmit} className="space-y-2" data-testid="image-url-form">
               <input
                 type="url"
                 value={inputUrl}
@@ -135,6 +224,82 @@ const ImageInputNode = memo(({ data, selected }: NodeProps<ImageInputNodeData>) 
                 </button>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Nano Banana Pro Generation Form */}
+        {showGenerate && (
+          <div className="p-3 bg-white dark:bg-[#1e1e1e] border-t border-gray-200 dark:border-zinc-800">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-gray-700 dark:text-zinc-300 flex items-center gap-1">
+                  <Sparkles size={12} className="text-yellow-500" />
+                  Nano Banana Pro
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowGenerate(false);
+                    setGenerationError(null);
+                  }}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-zinc-300"
+                >
+                  Cancel
+                </button>
+              </div>
+              
+              <textarea
+                value={generatePrompt}
+                onChange={(e) => setGeneratePrompt(e.target.value)}
+                placeholder="Describe the image you want to generate..."
+                className="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded text-gray-700 dark:text-zinc-300 placeholder-gray-400 dark:placeholder-zinc-600 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/50 outline-none resize-none min-h-[60px]"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+              
+              <div className="flex gap-1">
+                {(['square', 'portrait', 'landscape'] as const).map((ratio) => (
+                  <button
+                    key={ratio}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAspectRatio(ratio);
+                    }}
+                    className={`flex-1 px-2 py-1 text-[10px] rounded transition-colors ${
+                      aspectRatio === ratio
+                        ? 'bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-300 dark:border-yellow-500/20'
+                        : 'bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-zinc-300 hover:border-yellow-400 dark:hover:border-yellow-500'
+                    }`}
+                  >
+                    {ratio.charAt(0).toUpperCase() + ratio.slice(1)}
+                  </button>
+                ))}
+              </div>
+
+              {generationError && (
+                <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20">
+                  {generationError}
+                </div>
+              )}
+
+              <button
+                onClick={handleGenerate}
+                disabled={isGenerating || !generatePrompt.trim()}
+                className="w-full px-2 py-1.5 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white text-xs rounded transition-colors flex items-center justify-center gap-1"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 size={12} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={12} />
+                    Generate Image
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
 

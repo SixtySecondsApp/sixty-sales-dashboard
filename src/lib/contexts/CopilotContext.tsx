@@ -9,15 +9,16 @@ import type {
   CopilotMessage,
   CopilotState,
   CopilotContext as CopilotContextType,
-  CopilotContextPayload,
   Recommendation
 } from '@/components/copilot/types';
 import type {
   ToolCall,
-  ToolType
+  ToolType,
+  ToolState
 } from '@/components/copilot/toolTypes';
 import { supabase } from '@/lib/supabase/clientV2';
 import logger from '@/lib/utils/logger';
+import { getTemporalContext } from '@/lib/utils/temporalContext';
 
 interface CopilotContextValue {
   isOpen: boolean;
@@ -56,11 +57,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   });
   const [context, setContextState] = useState<CopilotContextType>({
     userId: '',
-    currentView: 'dashboard',
-    context: {
-    userId: '',
     currentView: 'dashboard'
-    }
   });
   const [pendingQuery, setPendingQuery] = useState<{ query: string; startNewChat: boolean } | null>(null);
 
@@ -73,11 +70,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
       if (session?.user) {
         setContextState(prev => ({
           ...prev,
-          userId: session.user.id,
-          context: {
-            ...prev.context,
           userId: session.user.id
-          }
         }));
       }
     };
@@ -134,20 +127,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
   }, []);
 
   const setContext = useCallback((newContext: Partial<CopilotContextType>) => {
-    setContextState(prev => {
-      // If newContext has a context property, merge it with the existing context
-      if (newContext.context) {
-        return {
-          ...prev,
-          ...newContext,
-          context: {
-            ...prev.context,
-            ...newContext.context
-          }
-        };
-      }
-      return { ...prev, ...newContext };
-    });
+    setContextState(prev => ({
+      ...prev,
+      ...newContext
+    }));
   }, []);
 
   // Helper function to detect intent and determine tool type
@@ -326,7 +309,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
     return {
       id: `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       tool: toolType,
-      state: 'initiating',
+      state: 'initiating' as ToolState,
       startTime: Date.now(),
       steps
     };
@@ -386,10 +369,10 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                 if (msg.id === assistantMessageId && msg.toolCall) {
                   const updatedToolCall: ToolCall = {
                     ...msg.toolCall,
-                    state: i === 0 ? 'fetching' : i === toolCall.steps.length - 1 ? 'completing' : 'processing',
+                    state: (i === 0 ? 'fetching' : i === toolCall.steps.length - 1 ? 'completing' : 'processing') as ToolState,
                     steps: msg.toolCall.steps.map((step, idx) => ({
                       ...step,
-                      state: idx < i ? 'complete' : idx === i ? 'active' : 'pending',
+                      state: (idx < i ? 'complete' : idx === i ? 'active' : 'pending') as ToolState,
                       duration: idx < i ? (300 + Math.random() * 200) : undefined,
                       metadata: idx < i && step.label.includes('Fetching') ? { count: Math.floor(Math.random() * 100) } : undefined
                     }))
@@ -412,7 +395,7 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
                   ...msg,
                   toolCall: {
                     ...msg.toolCall,
-                    state: 'complete'
+                    state: 'complete' as ToolState
                   }
                 };
               }
@@ -431,12 +414,13 @@ export const CopilotProvider: React.FC<CopilotProviderProps> = ({ children }) =>
           );
           
           // Format context for API
-          const apiContext: CopilotContextPayload['context'] = {
-            userId: context.userId || context.context?.userId || '',
-            currentView: context.currentView || context.context?.currentView || 'dashboard',
-            contactId: context.context?.contactId,
-            dealIds: context.context?.dealIds,
-            taskId: context.context?.taskId
+          const apiContext: CopilotContextType = {
+            ...context,
+            userId: context.userId || '',
+            currentView: context.currentView || 'dashboard',
+            contactId: context.contactId,
+            dealIds: context.dealIds,
+            temporalContext: getTemporalContext()
           };
           
           response = await Promise.race([

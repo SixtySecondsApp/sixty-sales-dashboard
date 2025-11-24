@@ -81,21 +81,35 @@ serve(async (req) => {
 
     for (const user of activeUsers) {
       try {
-        // TODO: Implement health score refresh
-        // Option 1: Create RPC functions in PostgreSQL that call the TypeScript service logic
-        // Option 2: Call an internal edge function that wraps the health calculation services
-        // Option 3: Duplicate the health calculation logic here in Deno
-        
-        // For now, we'll call the refresh functions via HTTP to another edge function
-        // or use RPC functions that need to be created
-        
-        // Placeholder: This needs to be implemented to actually refresh health scores
-        // The logic exists in:
-        // - src/lib/services/dealHealthService.ts::refreshStaleHealthScores()
-        // - src/lib/services/relationshipHealthService.ts::calculateAllContactsHealth()
-        
-        results.dealsRefreshed++;
-        results.relationshipsRefreshed++;
+        // Refresh deal health scores using PostgreSQL RPC function
+        const { data: dealResults, error: dealError } = await supabase
+          .rpc('refresh_deal_health_scores', {
+            p_user_id: user.id,
+            p_max_age_hours: 24
+          });
+
+        if (dealError) {
+          throw new Error(`Deal health refresh failed: ${dealError.message}`);
+        }
+
+        // Count deals that were actually updated
+        const dealsUpdated = (dealResults || []).filter((r: any) => r.updated === true).length;
+        results.dealsRefreshed += dealsUpdated;
+
+        // Refresh relationship health scores using PostgreSQL RPC function
+        const { data: relationshipResults, error: relationshipError } = await supabase
+          .rpc('refresh_relationship_health_scores', {
+            p_user_id: user.id,
+            p_max_age_hours: 24
+          });
+
+        if (relationshipError) {
+          throw new Error(`Relationship health refresh failed: ${relationshipError.message}`);
+        }
+
+        // Count relationships that were actually updated
+        const relationshipsUpdated = (relationshipResults || []).filter((r: any) => r.updated === true).length;
+        results.relationshipsRefreshed += relationshipsUpdated;
 
         results.usersProcessed++;
       } catch (error: any) {

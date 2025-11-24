@@ -10,11 +10,12 @@
  * - Deal stage transitions
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCommunicationPattern } from '@/lib/hooks/useRelationshipHealth';
 import type { CommunicationEvent } from '@/lib/services/communicationTrackingService';
 import type { Intervention } from '@/lib/services/interventionService';
 import type { GhostDetectionSignal } from '@/lib/services/ghostDetectionService';
+import { supabase } from '@/lib/supabase/clientV2';
 import { formatDistanceToNow } from 'date-fns';
 import {
   Mail,
@@ -71,21 +72,157 @@ export function RelationshipTimeline({
   showInterventions = true,
   maxItems,
 }: RelationshipTimelineProps) {
-  const { communications, isLoading } = useCommunicationPattern(contactId, userId);
+  const { communications, isLoading: loadingCommunications } = useCommunicationPattern(contactId);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [loadingMeetings, setLoadingMeetings] = useState(false);
+  const [loadingDeals, setLoadingDeals] = useState(false);
+
+  const isLoading = loadingCommunications || loadingMeetings || loadingDeals;
 
   const [selectedTypes, setSelectedTypes] = useState<Set<TimelineEventType>>(
-    new Set(['communication', 'intervention', 'health_change', 'ghost_signal'])
+    new Set(['communication', 'intervention', 'health_change', 'ghost_signal', 'deal_stage'])
   );
   const [showOnlySignificant, setShowOnlySignificant] = useState(false);
+
+  // Fetch meetings from meetings table
+  useEffect(() => {
+    if (!contactId || !userId) return;
+
+    const fetchMeetings = async () => {
+      setLoadingMeetings(true);
+      try {
+        // First get contact's company_id
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('company_id')
+          .eq('id', contactId)
+          .single();
+
+        const companyId = contact?.company_id;
+
+        // Fetch meetings linked to this contact (by primary_contact_id or company_id)
+        let query = supabase
+          .from('meetings')
+          .select('id, title, meeting_start, meeting_end, duration_minutes, summary, sentiment_score, share_url')
+          .eq('owner_user_id', userId)
+          .eq('primary_contact_id', contactId);
+
+        const { data: meetingsByContact, error: contactError } = await query
+          .order('meeting_start', { ascending: false })
+          .limit(50);
+
+        // Also fetch meetings by company if contact has a company
+        let meetingsByCompany: any[] = [];
+        if (companyId) {
+          const { data: companyMeetings, error: companyError } = await supabase
+            .from('meetings')
+            .select('id, title, meeting_start, meeting_end, duration_minutes, summary, sentiment_score, share_url')
+            .eq('owner_user_id', userId)
+            .eq('company_id', companyId)
+            .order('meeting_start', { ascending: false })
+            .limit(50);
+
+          if (!companyError && companyMeetings) {
+            meetingsByCompany = companyMeetings;
+          }
+        }
+
+        // Combine and deduplicate meetings
+        const allMeetings = [...(meetingsByContact || []), ...meetingsByCompany];
+        const uniqueMeetings = Array.from(
+          new Map(allMeetings.map(m => [m.id, m])).values()
+        );
+
+        if (!contactError) {
+          setMeetings(uniqueMeetings);
+        }
+      } catch (error) {
+        console.error('Error fetching meetings:', error);
+      } finally {
+        setLoadingMeetings(false);
+      }
+    };
+
+    fetchMeetings();
+  }, [contactId, userId]);
+
+  // Fetch deals and stage transitions
+  useEffect(() => {
+    if (!contactId || !userId) return;
+
+    const fetchDeals = async () => {
+      setLoadingDeals(true);
+      try {
+        // First get contact email
+        const { data: contact } = await supabase
+          .from('contacts')
+          .select('email')
+          .eq('id', contactId)
+          .single();
+
+        const contactEmail = contact?.email;
+
+        // Fetch deals linked to this contact
+        let query = supabase
+          .from('deals')
+          .select(`
+            id,
+            name,
+            value,
+            stage_id,
+            updated_at,
+            created_at,
+            deal_stages!inner(name, color)
+          `)
+          .eq('owner_id', userId);
+
+        // Build OR condition for contact matching
+        if (contactEmail) {
+          query = query.or(`primary_contact_id.eq.${contactId},contact_email.eq.${contactEmail}`);
+        } else {
+          query = query.eq('primary_contact_id', contactId);
+        }
+
+        const { data: dealsData, error } = await query
+          .order('updated_at', { ascending: false })
+          .limit(50);
+
+        if (!error && dealsData) {
+          setDeals(dealsData);
+        }
+      } catch (error) {
+        console.error('Error fetching deals:', error);
+      } finally {
+        setLoadingDeals(false);
+      }
+    };
+
+    fetchDeals();
+  }, [contactId, userId]);
 
   // Build timeline events from all data sources
   const timelineEvents = useMemo(() => {
     const events: TimelineEvent[] = [];
 
-    // Add communication events
+    // Add communication events (emails, calls, etc.)
     if (selectedTypes.has('communication') && communications) {
       communications.forEach((comm) => {
         events.push(createCommunicationEvent(comm));
+      });
+    }
+
+    // Add meetings from meetings table
+    if (selectedTypes.has('communication') && meetings.length > 0) {
+      meetings.forEach((meeting) => {
+        events.push(createMeetingEvent(meeting));
+      });
+    }
+
+    // Add deal stage transitions
+    if (selectedTypes.has('deal_stage') && deals.length > 0) {
+      deals.forEach((deal) => {
+        events.push(createDealStageEvent(deal));
       });
     }
 
@@ -103,7 +240,7 @@ export function RelationshipTimeline({
     }
 
     return events;
-  }, [communications, selectedTypes, showOnlySignificant, maxItems]);
+  }, [communications, meetings, deals, selectedTypes, showOnlySignificant, maxItems]);
 
   const toggleType = (type: TimelineEventType) => {
     const newTypes = new Set(selectedTypes);
@@ -194,6 +331,12 @@ export function RelationshipTimeline({
             color="red"
           />
         )}
+        <FilterChip
+          label="Deal Stages"
+          active={selectedTypes.has('deal_stage')}
+          onClick={() => toggleType('deal_stage')}
+          color="orange"
+        />
 
         <div className="ml-auto flex items-center gap-2">
           <label className="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
@@ -360,6 +503,57 @@ function createCommunicationEvent(comm: CommunicationEvent): TimelineEvent {
   };
 }
 
+function createMeetingEvent(meeting: any): TimelineEvent {
+  const duration = meeting.duration_minutes 
+    ? `${Math.round(meeting.duration_minutes)} min`
+    : 'Duration unknown';
+  
+  return {
+    id: `meeting-${meeting.id}`,
+    type: 'communication',
+    timestamp: meeting.meeting_start,
+    title: meeting.title || 'Meeting',
+    description: meeting.summary || `Meeting held (${duration})`,
+    icon: Video,
+    iconColor: 'text-purple-400',
+    bgColor: 'bg-purple-500/10',
+    data: {
+      meetingId: meeting.id,
+      title: meeting.title,
+      summary: meeting.summary,
+      duration: meeting.duration_minutes,
+      sentimentScore: meeting.sentiment_score,
+      shareUrl: meeting.share_url,
+      startTime: meeting.meeting_start,
+      endTime: meeting.meeting_end,
+    },
+  };
+}
+
+function createDealStageEvent(deal: any): TimelineEvent {
+  const stageName = deal.deal_stages?.name || 'Unknown Stage';
+  const dealValue = deal.value ? `$${deal.value.toLocaleString()}` : '';
+  
+  return {
+    id: `deal-${deal.id}-${deal.updated_at}`,
+    type: 'deal_stage',
+    timestamp: deal.updated_at || deal.created_at,
+    title: `Deal: ${deal.name || 'Unnamed Deal'}`,
+    description: `Moved to ${stageName}${dealValue ? ` (${dealValue})` : ''}`,
+    icon: FileText,
+    iconColor: 'text-orange-400',
+    bgColor: 'bg-orange-500/10',
+    data: {
+      dealId: deal.id,
+      dealName: deal.name,
+      stageName: stageName,
+      stageColor: deal.deal_stages?.color,
+      value: deal.value,
+      updatedAt: deal.updated_at,
+    },
+  };
+}
+
 function isSignificantEvent(event: TimelineEvent): boolean {
   // Define what makes an event "significant"
   if (event.type === 'intervention') return true;
@@ -383,6 +577,46 @@ function isSignificantEvent(event: TimelineEvent): boolean {
 
 function renderEventDetails(event: TimelineEvent) {
   if (event.type === 'communication') {
+    // Meeting event details
+    if (event.data.meetingId) {
+      return (
+        <div className="space-y-2 text-sm">
+          {event.data.summary && (
+            <div>
+              <span className="text-gray-400">Summary:</span>
+              <p className="text-white mt-1 p-2 bg-white/5 rounded text-xs">
+                {event.data.summary}
+              </p>
+            </div>
+          )}
+          <div className="flex items-center gap-4 text-xs">
+            {event.data.duration && (
+              <span className="text-gray-400">
+                Duration: {Math.round(event.data.duration)} min
+              </span>
+            )}
+            {event.data.sentimentScore !== null && (
+              <span className={`${event.data.sentimentScore > 0 ? 'text-green-400' : event.data.sentimentScore < 0 ? 'text-red-400' : 'text-gray-400'}`}>
+                Sentiment: {event.data.sentimentScore > 0 ? '+' : ''}{event.data.sentimentScore.toFixed(2)}
+              </span>
+            )}
+            {event.data.shareUrl && (
+              <a
+                href={event.data.shareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-blue-400 hover:text-blue-300"
+              >
+                <ExternalLink className="w-3 h-3" />
+                View Recording
+              </a>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Email/communication event details
     return (
       <div className="space-y-2 text-sm">
         {event.data.subject && (
@@ -425,6 +659,34 @@ function renderEventDetails(event: TimelineEvent) {
             </span>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (event.type === 'deal_stage') {
+    return (
+      <div className="space-y-2 text-sm">
+        <div>
+          <span className="text-gray-400">Deal:</span>{' '}
+          <span className="text-white font-medium">{event.data.dealName}</span>
+        </div>
+        {event.data.value && (
+          <div>
+            <span className="text-gray-400">Value:</span>{' '}
+            <span className="text-white">${event.data.value.toLocaleString()}</span>
+          </div>
+        )}
+        {event.data.stageName && (
+          <div>
+            <span className="text-gray-400">Stage:</span>{' '}
+            <span 
+              className="text-white px-2 py-1 rounded text-xs"
+              style={{ backgroundColor: event.data.stageColor ? `${event.data.stageColor}20` : undefined }}
+            >
+              {event.data.stageName}
+            </span>
+          </div>
+        )}
       </div>
     );
   }

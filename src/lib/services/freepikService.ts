@@ -73,6 +73,82 @@ export interface FreepikMusicParams {
   style?: string;
 }
 
+export type FreepikTaskStatus =
+  | 'CREATED'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'ERROR'
+  | 'CANCELED'
+  | 'REJECTED'
+  | string;
+
+export interface FreepikTaskData {
+  generated?: string[];
+  task_id?: string;
+  status?: FreepikTaskStatus;
+  has_nsfw?: boolean[];
+}
+
+export interface FreepikTaskResponse {
+  data?: FreepikTaskData;
+  generated?: string[];
+  task_id?: string;
+  status?: FreepikTaskStatus;
+  has_nsfw?: boolean[];
+  [key: string]: any;
+}
+
+export interface FreepikImageGenerationResult extends FreepikTaskResponse {}
+
+export const extractFreepikGeneratedImages = (response?: FreepikTaskResponse): string[] | undefined => {
+  if (!response) return undefined;
+  
+  // Check nested data.generated first
+  if (Array.isArray(response.data?.generated) && response.data.generated.length > 0) {
+    // Validate URLs
+    const validUrls = response.data.generated.filter(url => 
+      typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:'))
+    );
+    if (validUrls.length > 0) return validUrls;
+  }
+  
+  // Fallback to root-level generated
+  if (Array.isArray(response.generated) && response.generated.length > 0) {
+    const validUrls = response.generated.filter(url => 
+      typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:'))
+    );
+    if (validUrls.length > 0) return validUrls;
+  }
+  
+  return undefined;
+};
+
+export const extractFreepikTaskId = (response?: FreepikTaskResponse): string | undefined => {
+  const taskId = response?.data?.task_id || response?.task_id;
+  // Validate task ID format (should be a non-empty string)
+  if (taskId && typeof taskId === 'string' && taskId.trim().length > 0) {
+    return taskId.trim();
+  }
+  return undefined;
+};
+
+export const extractFreepikTaskStatus = (response?: FreepikTaskResponse): FreepikTaskStatus | undefined => {
+  return response?.data?.status || response?.status || undefined;
+};
+
+const isTerminalFailureStatus = (status?: FreepikTaskStatus) => {
+  if (!status) return false;
+  return ['FAILED', 'ERROR', 'CANCELED', 'REJECTED'].includes(status.toUpperCase());
+};
+
+interface PollingOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 class FreepikService {
   private async proxyRequest<T = any>(endpoint: string, options: ProxyOptions = {}): Promise<T> {
     // Route requests through the Supabase Edge Function so we avoid exposing
@@ -110,20 +186,39 @@ class FreepikService {
   }
 
   /**
+   * Get the POST endpoint for a given model
+   */
+  private getPostEndpoint(model: ImageModel): string {
+    if (model === 'mystic') {
+      return '/mystic';
+    } else if (model === 'text-to-image') {
+      return '/text-to-image';
+    } else {
+      return `/text-to-image/${model}`;
+    }
+  }
+
+  /**
+   * Get the GET endpoint pattern for polling a task status
+   * This should match the POST endpoint pattern for each model
+   */
+  private getPollingEndpoint(model: ImageModel, taskId: string): string {
+    const postEndpoint = this.getPostEndpoint(model);
+    return `${postEndpoint}/${taskId}`;
+  }
+
+  /**
    * Generate images from text using various models
    */
-  async generateImage(params: FreepikImageGenerationParams) {
+  async generateImage(params: FreepikImageGenerationParams): Promise<FreepikImageGenerationResult> {
     const model = params.model || 'mystic';
-    let endpoint = '';
-    
-    // Map model to endpoint
-    if (model === 'mystic') {
-      endpoint = '/mystic';
-    } else if (model === 'text-to-image') {
-      endpoint = '/text-to-image';
-    } else {
-      endpoint = `/text-to-image/${model}`;
-    }
+    const endpoint = this.getPostEndpoint(model);
+
+    console.log(`[Freepik] Starting image generation`, {
+      model,
+      endpoint,
+      prompt: params.prompt?.substring(0, 50) + '...'
+    });
 
     const body: any = {
       prompt: params.prompt,
@@ -143,7 +238,55 @@ class FreepikService {
       body.image.reference = params.reference_image;
     }
 
-    return this.request(endpoint, body);
+    try {
+      const initialResponse = await this.request<FreepikImageGenerationResult>(endpoint, body);
+      console.log(`[Freepik] POST response received`, {
+        model,
+        endpoint,
+        hasData: !!initialResponse.data,
+        hasGenerated: !!extractFreepikGeneratedImages(initialResponse)
+      });
+
+      // Check if images are immediately available
+      const generated = extractFreepikGeneratedImages(initialResponse);
+      if (generated && generated.length > 0) {
+        console.log(`[Freepik] Images immediately available`, {
+          model,
+          count: generated.length
+        });
+        return initialResponse;
+      }
+
+      // Extract task ID for polling
+      const taskId = extractFreepikTaskId(initialResponse);
+      if (!taskId) {
+        console.error(`[Freepik] No task ID in response`, {
+          model,
+          endpoint,
+          response: JSON.stringify(initialResponse).substring(0, 200)
+        });
+        throw new Error(
+          `Freepik did not return a task id for this generation request. ` +
+          `Model: ${model}, Endpoint: ${endpoint}. ` +
+          `Response: ${JSON.stringify(initialResponse).substring(0, 200)}`
+        );
+      }
+
+      console.log(`[Freepik] Task ID extracted, starting polling`, {
+        model,
+        taskId,
+        endpoint
+      });
+
+      return this.pollForImageResult(model, taskId);
+    } catch (error: any) {
+      console.error(`[Freepik] Generation failed`, {
+        model,
+        endpoint,
+        error: error.message
+      });
+      throw error;
+    }
   }
 
   /**
@@ -206,6 +349,110 @@ class FreepikService {
       duration: params.duration || 30,
       style: params.style
     });
+  }
+
+  private async pollForImageResult(model: ImageModel, taskId: string, options: PollingOptions = {}) {
+    const { intervalMs = 2000, timeoutMs = 60000 } = options;
+    const statusEndpoint = this.getPollingEndpoint(model, taskId);
+    const startedAt = Date.now();
+    let attempt = 0;
+
+    console.log(`[Freepik] Polling started`, {
+      model,
+      taskId,
+      statusEndpoint,
+      timeoutMs
+    });
+
+    // Add initial delay before first poll attempt (API might need time to process)
+    await sleep(1000);
+
+    while (Date.now() - startedAt < timeoutMs) {
+      if (attempt > 0) {
+        await sleep(intervalMs);
+      }
+
+      try {
+        console.log(`[Freepik] Polling attempt ${attempt + 1}`, {
+          model,
+          taskId,
+          statusEndpoint,
+          elapsed: Date.now() - startedAt
+        });
+
+        const statusResponse = await this.getRequest<FreepikImageGenerationResult>(statusEndpoint);
+        const status = extractFreepikTaskStatus(statusResponse);
+        
+        console.log(`[Freepik] Polling response`, {
+          model,
+          taskId,
+          status,
+          hasGenerated: !!extractFreepikGeneratedImages(statusResponse)
+        });
+
+        // Check if images are available
+        const generated = extractFreepikGeneratedImages(statusResponse);
+        if (generated && generated.length > 0) {
+          console.log(`[Freepik] Polling completed successfully`, {
+            model,
+            taskId,
+            imageCount: generated.length,
+            attempts: attempt + 1,
+            elapsed: Date.now() - startedAt
+          });
+          return statusResponse;
+        }
+
+        // Check for terminal failure statuses
+        if (isTerminalFailureStatus(status)) {
+          const errorMsg = `Freepik generation failed with status ${status}. Model: ${model}, Task ID: ${taskId}, Endpoint: ${statusEndpoint}`;
+          console.error(`[Freepik] Terminal failure`, {
+            model,
+            taskId,
+            status,
+            response: JSON.stringify(statusResponse).substring(0, 300)
+          });
+          throw new Error(errorMsg);
+        }
+
+        // Log progress for non-terminal statuses
+        if (status && ['CREATED', 'IN_PROGRESS'].includes(status.toUpperCase())) {
+          console.log(`[Freepik] Task still processing`, {
+            model,
+            taskId,
+            status,
+            attempt: attempt + 1
+          });
+        }
+
+        attempt += 1;
+      } catch (error: any) {
+        // If it's a terminal error, re-throw it
+        if (error.message?.includes('failed with status')) {
+          throw error;
+        }
+        
+        // Log polling errors but continue trying
+        console.warn(`[Freepik] Polling error (will retry)`, {
+          model,
+          taskId,
+          attempt: attempt + 1,
+          error: error.message
+        });
+        
+        attempt += 1;
+      }
+    }
+
+    const errorMsg = `Freepik generation timed out after ${timeoutMs}ms. Model: ${model}, Task ID: ${taskId}, Endpoint: ${statusEndpoint}, Attempts: ${attempt}`;
+    console.error(`[Freepik] Polling timeout`, {
+      model,
+      taskId,
+      statusEndpoint,
+      attempts: attempt,
+      timeoutMs
+    });
+    throw new Error(errorMsg);
   }
 
   /**

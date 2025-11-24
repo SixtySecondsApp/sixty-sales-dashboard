@@ -41,11 +41,11 @@ export class ApiContactService {
         owner_id: owner_id
       };
 
-      const { data: newCompany, error: createError } = await supabase
+      const { data: newCompany, error: createError } = await (supabase
         .from('companies')
-        .insert(companyData)
+        .insert(companyData as any)
         .select()
-        .single();
+        .single() as any);
 
       if (createError) {
         logger.error('Error creating company:', createError);
@@ -132,7 +132,7 @@ export class ApiContactService {
       // Debug log raw data from database
       logger.log(`📊 Raw contacts from DB: ${contacts?.length || 0} total`);
       if (contacts && contacts.length > 0) {
-        logger.log('First 3 contacts:', contacts.slice(0, 3).map(c => ({
+        logger.log('First 3 contacts:', (contacts as any).slice(0, 3).map((c: any) => ({
           id: c.id?.substring(0, 8),
           name: `${c.first_name} ${c.last_name}`,
           email: c.email,
@@ -141,7 +141,7 @@ export class ApiContactService {
       }
 
       // Process contacts to add computed fields
-      let processedContacts = (contacts || []).map(contact => ({
+      let processedContacts = ((contacts as any) || []).map((contact: any) => ({
         ...contact,
         // Generate full_name since it doesn't exist in the database
         full_name: (contact.first_name && contact.last_name 
@@ -153,25 +153,25 @@ export class ApiContactService {
       let enrichedContacts = processedContacts;
       if (options?.includeCompany && processedContacts.length > 0) {
         const companyIds = [...new Set(processedContacts
-          .filter(c => c.company_id)
-          .map(c => c.company_id))];
+          .filter((c: any) => c.company_id)
+          .map((c: any) => c.company_id))];
         
         if (companyIds.length > 0) {
-          const { data: companies, error: companiesError } = await supabase
+          const { data: companies, error: companiesError } = await (supabase
             .from('companies')
             .select('*')
-            .in('id', companyIds);
+            .in('id', companyIds) as any);
           
           if (!companiesError && companies) {
-            const companiesMap = new Map(companies.map(c => [c.id, c]));
-            enrichedContacts = processedContacts.map(contact => {
+            const companiesMap = new Map((companies as any).map((c: any) => [c.id, c]));
+            enrichedContacts = processedContacts.map((contact: any) => {
               const company = contact.company_id ? companiesMap.get(contact.company_id) : undefined;
               return {
                 ...contact,
                 company: company, // Full company object
-                company_name: company?.name || contact.company_name || null, // String name for easy access
-                company_website: company?.website || contact.company_website || null, // Website for easy access
-                companies: company ? { name: company.name, website: company.website } : undefined // API-compatible format
+                company_name: (company as any)?.name || contact.company_name || null, // String name for easy access
+                company_website: (company as any)?.website || contact.company_website || null, // Website for easy access
+                companies: company ? { name: (company as any).name, website: (company as any).website } : undefined // API-compatible format
               };
             });
           }
@@ -261,23 +261,23 @@ export class ApiContactService {
 
       // Format the contact data to match the expected interface
       const formattedContact: Contact = {
-        id: contact.id,
-        email: contact.email,
-        first_name: contact.first_name,
-        last_name: contact.last_name,
+        id: (contact as any).id,
+        email: (contact as any).email,
+        first_name: (contact as any).first_name,
+        last_name: (contact as any).last_name,
         // Generate full_name since it doesn't exist in the database
-        full_name: (contact.first_name && contact.last_name 
-            ? `${contact.first_name} ${contact.last_name}` 
-            : contact.first_name || contact.last_name || ''),
-        phone: contact.phone,
-        title: contact.title,
-        company_id: contact.company_id,
+        full_name: ((contact as any).first_name && (contact as any).last_name 
+            ? `${(contact as any).first_name} ${(contact as any).last_name}` 
+            : (contact as any).first_name || (contact as any).last_name || ''),
+        phone: (contact as any).phone,
+        title: (contact as any).title,
+        company_id: (contact as any).company_id,
         // company_name and is_primary don't exist in the database
-        linkedin_url: contact.linkedin_url,
-        notes: contact.notes,
-        owner_id: contact.owner_id,
-        created_at: contact.created_at,
-        updated_at: contact.updated_at,
+        linkedin_url: (contact as any).linkedin_url,
+        notes: (contact as any).notes,
+        owner_id: (contact as any).owner_id,
+        created_at: (contact as any).created_at,
+        updated_at: (contact as any).updated_at,
       };
 
       logger.log('✅ Contact fetched successfully from Supabase:', formattedContact.email);
@@ -359,11 +359,11 @@ export class ApiContactService {
       // Remove company_website from the data sent to the database (it's not a database field)
       const { company_website, ...dbContactData } = finalContactData;
       
-      const { data: contact, error } = await supabase
+      const { data: contact, error } = await (supabase
         .from('contacts')
-        .insert(dbContactData)
+        .insert(dbContactData as any)
         .select()
-        .single();
+        .single() as any);
 
       if (error) {
         logger.error('Error creating contact in Supabase:', error);
@@ -401,12 +401,12 @@ export class ApiContactService {
       // Use direct Supabase query for updating contacts
       logger.log('📋 Updating contact directly via Supabase');
       
-      const { data: contact, error } = await supabase
-        .from('contacts')
+      const { data: contact, error } = await ((supabase
+        .from('contacts') as any)
         .update(updates)
         .eq('id', id)
         .select()
-        .single();
+        .single());
 
       if (error) {
         logger.error('Error updating contact in Supabase:', error);

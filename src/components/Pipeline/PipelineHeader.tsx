@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download, Info, ArrowUpDown, Grid3X3, List } from 'lucide-react';
+import { Search, Filter, PlusCircle, LayoutGrid, Table, X, PoundSterling, Percent, Users, ArrowDownUp, Calendar, Clock, Target, Zap, TrendingUp, AlertTriangle, Bookmark, Sliders, CheckCircle2, Download, Info, ArrowUpDown, Grid3X3, List, Activity, HeartPulse } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { usePipeline } from '@/lib/contexts/PipelineContext';
 import { OwnerFilterV3 } from '@/components/OwnerFilterV3';
 import { OwnerFilterV2 } from '@/components/OwnerFilterV2';
@@ -30,6 +31,7 @@ export function PipelineHeader({
   sortBy,
   onSortChange 
 }: PipelineHeaderProps) {
+  const navigate = useNavigate();
   const { 
     searchTerm, 
     setSearchTerm, 
@@ -417,6 +419,28 @@ export function PipelineHeader({
             <Download className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Export CSV</span>
             <span className="sm:hidden">Export</span>
+          </Button>
+
+          <Button
+            onClick={() => navigate('/crm/health')}
+            variant="default"
+            className="px-4 py-2.5"
+            title="View deal health monitoring and analytics"
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Deal Health</span>
+            <span className="sm:hidden">Health</span>
+          </Button>
+
+          <Button
+            onClick={() => navigate('/crm/relationship-health')}
+            variant="default"
+            className="px-4 py-2.5"
+            title="View relationship health monitoring and ghost detection"
+          >
+            <HeartPulse className="w-4 h-4 mr-2" />
+            <span className="hidden sm:inline">Relationship Health</span>
+            <span className="sm:hidden">Relationships</span>
           </Button>
         </div>
 

@@ -3,6 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Profile from '@/pages/Profile';
 import Preferences from '@/pages/Preferences';
 import ProposalSettings from '@/pages/settings/ProposalSettings';
+import AIPersonalizationSettings from '@/pages/settings/AIPersonalizationSettings';
+import { EmailSyncPanel } from '@/components/health/EmailSyncPanel';
 
 export default function Settings() {
   const [tab, setTab] = useState('account');
@@ -23,6 +25,8 @@ export default function Settings() {
               <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Account</TabsTrigger>
               <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Appearance</TabsTrigger>
               <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Proposals</TabsTrigger>
+              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
+              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
             </TabsList>
 
             <TabsContent value="account" className="space-y-0">
@@ -37,6 +41,14 @@ export default function Settings() {
 
             <TabsContent value="proposals" className="space-y-0">
               <ProposalSettings />
+            </TabsContent>
+
+            <TabsContent value="ai-personalization" className="space-y-0">
+              <AIPersonalizationSettings />
+            </TabsContent>
+
+            <TabsContent value="email-sync" className="space-y-6">
+              <EmailSyncPanel />
             </TabsContent>
           </Tabs>
         </div>

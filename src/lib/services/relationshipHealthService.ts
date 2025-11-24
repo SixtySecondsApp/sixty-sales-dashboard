@@ -483,19 +483,38 @@ async function fetchRelationshipMetrics(
       : null;
 
     // Sentiment from meetings
-    const recentSentiments = allMeetings
+    const meetingSentiments = allMeetings
       ?.slice(0, 3)
       .map((m) => m.sentiment_score)
       .filter((s): s is number => s !== null) || [];
 
-    const avgSentiment = recentSentiments.length > 0
-      ? recentSentiments.reduce((sum, s) => sum + s, 0) / recentSentiments.length
+    // Sentiment from emails (AI analyzed)
+    const emailSentiments = recentComms
+      .filter((c) => c.sentiment_score !== null && 
+                     (c.event_type === 'email_sent' || c.event_type === 'email_received'))
+      .slice(0, 5) // Get up to 5 most recent email sentiments
+      .map((c) => c.sentiment_score as number);
+
+    // Combine meeting and email sentiments
+    const allSentiments = [...meetingSentiments, ...emailSentiments];
+
+    const avgSentiment = allSentiments.length > 0
+      ? allSentiments.reduce((sum, s) => sum + s, 0) / allSentiments.length
       : null;
 
     let sentimentTrend: 'improving' | 'stable' | 'declining' | 'unknown' = 'unknown';
-    if (recentSentiments.length >= 3) {
-      const recent = recentSentiments[0];
-      const older = (recentSentiments[1] + recentSentiments[2]) / 2;
+    if (allSentiments.length >= 3) {
+      const recent = allSentiments[0];
+      const older = (allSentiments[1] + allSentiments[2]) / 2;
+      const change = recent - older;
+
+      if (change > 0.1) sentimentTrend = 'improving';
+      else if (change < -0.1) sentimentTrend = 'declining';
+      else sentimentTrend = 'stable';
+    } else if (emailSentiments.length >= 2) {
+      // Use email sentiment trend if we have enough email data
+      const recent = emailSentiments[0];
+      const older = emailSentiments[1];
       const change = recent - older;
 
       if (change > 0.1) sentimentTrend = 'improving';
@@ -670,7 +689,9 @@ export async function calculateRelationshipHealth(
       response_rate_percent: metrics.responseRatePercent,
       email_open_rate_percent: metrics.emailOpenRatePercent,
       meeting_count_30_days: metrics.meetingCount30Days,
-      email_count_30_days: metrics.communicationCount30Days, // TODO: Filter to emails only
+      email_count_30_days: recentComms.filter((c) => 
+        c.event_type === 'email_sent' || c.event_type === 'email_received'
+      ).length,
       total_interactions_30_days: metrics.communicationCount30Days,
 
       baseline_response_time_hours: metrics.baselineResponseTimeHours,
@@ -722,10 +743,11 @@ export async function calculateRelationshipHealth(
 export async function calculateAllContactsHealth(userId: string): Promise<RelationshipHealthScore[]> {
   try {
     // Get all contacts for user
+    // Note: contacts table uses owner_id, not user_id
     const { data: contacts, error } = await supabase
       .from('contacts')
       .select('id')
-      .eq('user_id', userId);
+      .eq('owner_id', userId);
 
     if (error || !contacts) return [];
 

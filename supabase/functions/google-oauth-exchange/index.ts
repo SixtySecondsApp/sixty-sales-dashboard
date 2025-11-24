@@ -6,6 +6,7 @@ function getCorsHeaders(req: Request) {
   const origin = req.headers.get('Origin');
   const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5175',
     'http://localhost:3000',
     'https://sales.sixtyseconds.video'
   ];

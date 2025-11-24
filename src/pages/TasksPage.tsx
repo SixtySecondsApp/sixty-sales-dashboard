@@ -13,7 +13,7 @@ const TasksPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
-  const [view, setView] = useState<'list' | 'kanban'>('kanban');
+  const [view, setView] = useState<'list' | 'kanban'>('list');
   const [showMeetingTasksOnly, setShowMeetingTasksOnly] = useState(false);
 
   useEffect(() => {

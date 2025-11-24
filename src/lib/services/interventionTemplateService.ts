@@ -8,6 +8,7 @@
 import { supabase } from '@/lib/supabase/clientV2';
 import type { RelationshipHealthScore } from './relationshipHealthService';
 import type { GhostRiskAssessment } from './ghostDetectionService';
+import type { DealHealthScore } from './dealHealthService';
 
 // =====================================================
 // Types
@@ -54,6 +55,7 @@ export interface PersonalizationContext {
   companyName: string | null;
   relationshipHealth: RelationshipHealthScore;
   ghostRisk: GhostRiskAssessment;
+  dealHealth?: DealHealthScore; // Optional deal health for deal-based interventions
   lastMeaningfulInteraction?: {
     type: string;
     date: string;
@@ -169,8 +171,26 @@ export async function selectBestTemplate(
   userId: string
 ): Promise<TemplateRecommendation | null> {
   try {
-    // Get context trigger from ghost risk assessment
-    const contextTrigger = context.ghostRisk.contextTrigger || 'general_ghosting';
+    // Get context trigger from ghost risk assessment or deal health
+    let contextTrigger = context.ghostRisk.contextTrigger;
+    
+    // If no context trigger from ghost risk, check deal health
+    if (!contextTrigger && context.dealHealth) {
+      if (context.dealHealth.health_status === 'stalled') {
+        contextTrigger = 'multiple_followups_ignored';
+      } else if (context.dealHealth.health_status === 'critical') {
+        // Check for proposal or meeting context
+        if (context.dealHealth.risk_factors?.some((f) => f.includes('proposal'))) {
+          contextTrigger = 'after_proposal';
+        } else if (context.dealHealth.risk_factors?.some((f) => f.includes('meeting'))) {
+          contextTrigger = 'after_meeting_noshow';
+        } else {
+          contextTrigger = 'general_ghosting';
+        }
+      }
+    }
+    
+    contextTrigger = contextTrigger || 'general_ghosting';
 
     // Get templates for this context
     const templates = await getTemplatesByContext(contextTrigger, userId);
