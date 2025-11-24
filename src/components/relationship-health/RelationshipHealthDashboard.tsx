@@ -44,6 +44,16 @@ interface RelationshipHealthDashboardProps {
 type ViewMode = 'overview' | 'at-risk' | 'interventions' | 'templates' | 'analytics';
 type SortOption = 'health' | 'risk' | 'recent' | 'value';
 
+/**
+ * Render the Relationship Health Dashboard for a given user.
+ *
+ * Fetches relationship health data, ghost-risk alerts, and intervention analytics for the specified user,
+ * then presents summary statistics, filtered/sortable relationship lists, urgent alerts, templates, and an
+ * intervention workflow UI including a modal to send interventions.
+ *
+ * @param userId - ID of the user whose relationships and analytics should be displayed
+ * @returns The JSX element for the Relationship Health Dashboard
+ */
 export function RelationshipHealthDashboard({ userId }: RelationshipHealthDashboardProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('overview');
   const [sortBy, setSortBy] = useState<SortOption>('health');
@@ -399,6 +409,16 @@ interface StatCardProps {
   percentage?: number;
 }
 
+/**
+ * Renders a small statistic card showing a label, an icon, a primary value, and an optional percentage.
+ *
+ * @param label - Human-readable label shown above the value
+ * @param value - Primary value displayed prominently
+ * @param icon - Icon component rendered in the colored square at the top-right
+ * @param color - Visual theme for the icon background; one of "blue", "green", "yellow", "orange", or "red"
+ * @param percentage - Optional percentage displayed to the right of the value (rendered as `percentage%`)
+ * @returns A JSX element containing the styled stat card
+ */
 function StatCard({ label, value, icon: Icon, color, percentage }: StatCardProps) {
   const colors = {
     blue: 'bg-blue-500/10 text-blue-400',
@@ -434,6 +454,16 @@ interface MetricCardProps {
   trend?: 'up' | 'down';
 }
 
+/**
+ * Renders a compact metric card showing a label, icon, numeric/text value, and an optional trend indicator.
+ *
+ * @param label - Short descriptor shown above the metric value
+ * @param value - Primary metric to display (number or text)
+ * @param icon - Icon component rendered next to the label
+ * @param color - Theme color for the icon (affects icon color classes)
+ * @param trend - Optional trend direction; `'up'` shows a green upward arrow, `'down'` shows a red downward arrow
+ * @returns A JSX element representing the styled metric card
+ */
 function MetricCard({ label, value, icon: Icon, color, trend }: MetricCardProps) {
   const colors = {
     blue: 'text-blue-400',
@@ -468,6 +498,18 @@ interface TabButtonProps {
   children: React.ReactNode;
 }
 
+/**
+ * Renders a tab-like button used to switch dashboard views with an optional notification badge.
+ *
+ * Displays an icon and label, highlights when active, invokes `onClick` when pressed, and shows a red circular badge when `badge` is a positive number (values above 99 render as "99+").
+ *
+ * @param active - Whether the tab is currently active (affects visual styling)
+ * @param onClick - Click handler invoked when the tab is pressed
+ * @param icon - Icon component to render at the start of the tab
+ * @param badge - Optional numeric badge count; omitted when `undefined` or 0
+ * @param children - Visible label content for the tab
+ * @returns The rendered tab button element
+ */
 function TabButton({ active, onClick, icon: Icon, badge, children }: TabButtonProps) {
   return (
     <button
@@ -494,6 +536,16 @@ interface RelationshipCardProps {
   onClick: () => void;
 }
 
+/**
+ * Renders a compact, clickable card that displays a relationship's identity, health badge, and three sub-scores.
+ *
+ * Shows the contact or company identifier, relationship type, an overall HealthScoreBadge (score, status, trend),
+ * communication/response/engagement scores, and optional last-contact days. Clicking the card invokes the provided handler.
+ *
+ * @param relationship - Relationship health data to display (identifiers, overall score, health status/trend, component scores, and last-contact info)
+ * @param onClick - Callback invoked when the card is clicked
+ * @returns A button-styled card element that summarizes a single relationship's health for use in lists or grids
+ */
 function RelationshipCard({ relationship, onClick }: RelationshipCardProps) {
   return (
     <button

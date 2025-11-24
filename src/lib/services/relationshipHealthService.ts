@@ -113,8 +113,13 @@ export interface RelationshipMetrics {
 // =====================================================
 
 /**
- * Calculate communication frequency score (0-100)
- * Compares recent communication frequency to baseline
+ * Scores recent communication frequency on a 0–100 scale relative to an established baseline or fixed thresholds.
+ *
+ * When `baselineFrequencyDays` is provided, the score reflects the ratio of observed 30-day communications to the expected count derived from the baseline. When `baselineFrequencyDays` is `null`, predefined absolute thresholds for `currentCount30Days` are used.
+ *
+ * @param currentCount30Days - Number of communications observed in the last 30 days
+ * @param baselineFrequencyDays - Average number of days between communications in the baseline period, or `null` if no baseline exists
+ * @returns A score from `0` to `100` where higher values indicate healthier communication frequency relative to the baseline or absolute thresholds
  */
 function calculateCommunicationFrequencyScore(
   currentCount30Days: number,
@@ -141,8 +146,16 @@ function calculateCommunicationFrequencyScore(
 }
 
 /**
- * Calculate response behavior score (0-100)
- * Based on response rate and response time vs baseline
+ * Compute a 0–100 response behavior score from response rate and response time.
+ *
+ * Combines a response-rate component (up to 50 points) with a response-time component
+ * (up to 50 points or penalties when slower than baseline, or evaluated against absolute
+ * thresholds if no baseline is provided) and clamps the result to 0–100.
+ *
+ * @param responseRatePercent - Percentage of responses (0–100), or `null` if unavailable
+ * @param avgResponseTimeHours - Average response time in hours, or `null` if unavailable
+ * @param baselineResponseTimeHours - Historical baseline average response time in hours, or `null` if unavailable
+ * @returns A number between `0` and `100` where higher values indicate better response behavior
  */
 function calculateResponseBehaviorScore(
   responseRatePercent: number | null,
@@ -192,8 +205,12 @@ function calculateResponseBehaviorScore(
 }
 
 /**
- * Calculate engagement quality score (0-100)
- * Based on email opens, meeting attendance
+ * Computes an engagement-quality score based on email open rate, recent meeting frequency, and meeting recency.
+ *
+ * @param emailOpenRatePercent - Email open rate as a percentage (0–100). Use `null` when open-rate data is unavailable.
+ * @param meetingCount30Days - Number of meetings in the last 30 days.
+ * @param daysSinceLastMeeting - Days since the most recent meeting. Use `null` when no prior meetings are recorded.
+ * @returns A number between 0 and 100 where higher values indicate stronger engagement quality.
  */
 function calculateEngagementQualityScore(
   emailOpenRatePercent: number | null,
@@ -227,8 +244,11 @@ function calculateEngagementQualityScore(
 }
 
 /**
- * Calculate sentiment score (0-100)
- * Based on average sentiment from communications
+ * Convert an average sentiment and its trend into a 0–100 sentiment score.
+ *
+ * @param avgSentiment - Average sentiment on a -1 (very negative) to 1 (very positive) scale; `null` indicates no available sentiment data
+ * @param trend - Direction of recent sentiment change: `improving`, `stable`, `declining`, or `unknown`
+ * @returns A sentiment score from 0 to 100; returns 50 when `avgSentiment` is `null`
  */
 function calculateSentimentScore(
   avgSentiment: number | null,
@@ -247,8 +267,15 @@ function calculateSentimentScore(
 }
 
 /**
- * Calculate meeting pattern score (0-100)
- * Based on meeting frequency vs baseline
+ * Scores meeting frequency against expected baseline to produce a meeting-pattern score from 0–100.
+ *
+ * When a baseline is not provided, absolute 30-day thresholds are used: 4+ meetings => 100, 2–3 => 75, 1 => 50, 0 => 25.
+ * When a baseline (average days between meetings) is provided, an expected 30-day meeting count is computed as `30 / baselineMeetingFrequencyDays`
+ * and the actual count is compared to that expectation using ratio bands: ratio >= 1.0 => 100, >= 0.75 => 75, >= 0.5 => 50, >= 0.25 => 25, else 0.
+ *
+ * @param meetingCount30Days - Number of meetings in the last 30 days.
+ * @param baselineMeetingFrequencyDays - Baseline average days between meetings, or `null` if no baseline is available.
+ * @returns Meeting pattern score between 0 and 100; higher values indicate meeting frequency meets or exceeds expectations.
  */
 function calculateMeetingPatternScore(
   meetingCount30Days: number,
@@ -274,8 +301,9 @@ function calculateMeetingPatternScore(
 }
 
 /**
- * Calculate overall health score
- * Weighted average of all signal scores
+ * Compute the overall relationship health score as a weighted aggregation of available signal scores.
+ *
+ * @returns The overall health score (0–100) rounded to the nearest integer; returns 50 if no signal scores are provided.
  */
 function calculateOverallHealthScore(scores: {
   communicationFrequency: number | null;
@@ -324,7 +352,11 @@ function calculateOverallHealthScore(scores: {
 }
 
 /**
- * Determine health status from overall score
+ * Map overall health score and ghost flag to a health status label.
+ *
+ * @param score - Overall health score on a 0–100 scale
+ * @param isGhostRisk - When true, indicates the relationship is considered a ghost risk and forces the `ghost` status
+ * @returns `ghost` if `isGhostRisk` is true; `healthy` if `score` is greater than or equal to 70; `at_risk` if `score` is greater than or equal to 50; `critical` otherwise
  */
 function determineHealthStatus(score: number, isGhostRisk: boolean): RelationshipHealthScore['health_status'] {
   if (isGhostRisk) return 'ghost';
@@ -334,7 +366,11 @@ function determineHealthStatus(score: number, isGhostRisk: boolean): Relationshi
 }
 
 /**
- * Determine risk level
+ * Map an overall health score and detected risk factors to a discrete risk level.
+ *
+ * @param healthScore - Overall health score on a 0–100 scale
+ * @param riskFactors - Array of identified risk factor identifiers
+ * @returns The risk level: `critical` when there are 4+ risk factors or `healthScore` < 30; `high` when there are 3+ risk factors or `healthScore` < 45; `medium` when there are 2+ risk factors or `healthScore` < 60; otherwise `low`
  */
 function determineRiskLevel(
   healthScore: number,
@@ -347,7 +383,10 @@ function determineRiskLevel(
 }
 
 /**
- * Identify risk factors based on metrics
+ * Produce a list of risk factor identifiers inferred from relationship metrics.
+ *
+ * @param metrics - Computed relationship metrics used to evaluate contact, response, engagement, sentiment, and deal risks
+ * @returns An array of risk factor keys (e.g. `no_contact_21_days`, `low_response_rate`, `sentiment_declining`, `majority_deals_at_risk`) representing observed risks for the relationship
  */
 function identifyRiskFactors(metrics: RelationshipMetrics): string[] {
   const factors: string[] = [];
@@ -404,7 +443,14 @@ function identifyRiskFactors(metrics: RelationshipMetrics): string[] {
 // =====================================================
 
 /**
- * Fetch all raw metrics needed for relationship health calculation
+ * Gather raw communication, meeting, sentiment, deal, and baseline metrics for a relationship required to compute health scores.
+ *
+ * This function queries communication events, meetings, deals, and recent history to derive metrics used by the health calculators, including contact/response timings, response and email-open rates, 30-day counts, meeting counts and recency, recent sentiment and trend, related deal counts/values, and 90-day baselines for response time, contact frequency, and meeting frequency.
+ *
+ * @param relationshipType - Either `'contact'` or `'company'`, indicating which relationship column to query
+ * @param relationshipId - The ID of the contact or company to collect metrics for
+ * @param userId - The owner user's ID used to scope queries
+ * @returns A populated `RelationshipMetrics` object with the gathered metrics, or `null` if an error occurs while fetching data
  */
 async function fetchRelationshipMetrics(
   relationshipType: 'contact' | 'company',
@@ -597,7 +643,12 @@ async function fetchRelationshipMetrics(
 // =====================================================
 
 /**
- * Calculate and save health score for a relationship
+ * Compute signal-based health scores for a contact or company, persist the result to the database, and return the stored record.
+ *
+ * @param relationshipType - Either `'contact'` or `'company'` indicating which relationship type to evaluate
+ * @param relationshipId - The ID of the contact or company to evaluate
+ * @param userId - The owner user's ID for whom the health score is being calculated
+ * @returns The persisted RelationshipHealthScore record, or `null` if calculation or persistence failed
  */
 export async function calculateRelationshipHealth(
   relationshipType: 'contact' | 'company',
@@ -717,7 +768,10 @@ export async function calculateRelationshipHealth(
 }
 
 /**
- * Calculate health for all contacts owned by user
+ * Compute and return relationship health scores for every contact owned by the specified user.
+ *
+ * @param userId - ID of the user whose contacts will be processed
+ * @returns An array of persisted RelationshipHealthScore records for each contact; empty if none or on error
  */
 export async function calculateAllContactsHealth(userId: string): Promise<RelationshipHealthScore[]> {
   try {
@@ -744,7 +798,9 @@ export async function calculateAllContactsHealth(userId: string): Promise<Relati
 }
 
 /**
- * Get health score for a relationship
+ * Retrieve the stored health score for a contact or company relationship.
+ *
+ * @returns The RelationshipHealthScore for the relationship, or `null` if none exists or an error occurs.
  */
 export async function getRelationshipHealthScore(
   relationshipType: 'contact' | 'company',
@@ -766,7 +822,10 @@ export async function getRelationshipHealthScore(
 }
 
 /**
- * Get all relationship health scores for user
+ * Retrieve all relationship health scores for a user, ordered by worst health first.
+ *
+ * @param userId - The ID of the user whose relationship health scores to retrieve
+ * @returns An array of RelationshipHealthScore records ordered by `overall_health_score` ascending (worst first)
  */
 export async function getUserRelationshipHealthScores(userId: string): Promise<RelationshipHealthScore[]> {
   try {
@@ -784,7 +843,10 @@ export async function getUserRelationshipHealthScores(userId: string): Promise<R
 }
 
 /**
- * Get relationships at ghost risk
+ * Retrieve all relationship health records for a user that are flagged as ghost risk, ordered by highest ghost probability.
+ *
+ * @param userId - The ID of the user whose relationships should be queried
+ * @returns An array of RelationshipHealthScore objects for relationships with `is_ghost_risk = true`, ordered by `ghost_probability_percent` descending; returns an empty array if none found or on error
  */
 export async function getGhostRiskRelationships(userId: string): Promise<RelationshipHealthScore[]> {
   try {

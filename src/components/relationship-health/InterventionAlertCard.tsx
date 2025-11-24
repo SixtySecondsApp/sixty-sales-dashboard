@@ -21,6 +21,21 @@ interface InterventionAlertCardProps {
   onMarkHandled: () => void;
 }
 
+/**
+ * Render a ghost-risk intervention alert card showing health metrics, prioritized risk signals, suggested actions, and controls for sending or deferring an intervention.
+ *
+ * Displays contact and company details, a health score badge with trend, up to two prominent risk signals (with an expandable list for additional signals), last-contact indicator, key engagement metrics (response, opens, meetings), a suggested template action, and three action buttons (Send Template, Snooze, Mark Handled). The card styling and urgency indicator reflect the highest signal severity.
+ *
+ * @param relationshipHealth - Object containing relationship metrics such as overall_health_score, health_status, days_since_last_contact, response_rate_percent, email_open_rate_percent, and meeting_count_30_days.
+ * @param ghostRisk - Object describing ghost-risk assessment including signals (with severity and context), ghostProbabilityPercent, highestSeverity, recommendedAction, contextTrigger, and daysUntilPredictedGhost.
+ * @param contactName - Display name for the contact associated with this alert.
+ * @param companyName - Optional company name to display beneath the contact name.
+ * @param dealValue - Optional numeric deal value; when provided and greater than zero it is displayed formatted in GBP.
+ * @param onSendIntervention - Callback invoked when the "Send Template" action is triggered.
+ * @param onSnooze - Callback invoked when the "Snooze" action is triggered.
+ * @param onMarkHandled - Callback invoked when the "Mark Handled" action is triggered.
+ * @returns The rendered intervention alert card as a JSX element.
+ */
 export function InterventionAlertCard({
   relationshipHealth,
   ghostRisk,

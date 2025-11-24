@@ -63,6 +63,17 @@ interface TimelineEvent {
   data?: any;
 }
 
+/**
+ * Render a relationship timeline UI that aggregates communications, interventions, health changes, ghost signals, and deal-stage events with filtering, expandable details, and CSV export.
+ *
+ * @param contactId - ID of the contact whose timeline is displayed
+ * @param userId - ID of the user context used to load communications and patterns
+ * @param showHealthChanges - When `true`, include health change events in the filters (default: `true`)
+ * @param showGhostSignals - When `true`, include ghost signal events in the filters (default: `true`)
+ * @param showInterventions - When `true`, include intervention events in the filters (default: `true`)
+ * @param maxItems - Optional limit for the number of timeline events to display; when omitted all matching events are shown
+ * @returns A React element rendering the interactive relationship timeline
+ */
 export function RelationshipTimeline({
   contactId,
   userId,
@@ -246,6 +257,15 @@ interface FilterChipProps {
   color: 'blue' | 'purple' | 'green' | 'red';
 }
 
+/**
+ * Renders a clickable, styled filter chip used to toggle timeline filters.
+ *
+ * @param label - Text displayed inside the chip
+ * @param active - Whether the chip is currently active (affects styling)
+ * @param onClick - Click handler invoked when the chip is pressed
+ * @param color - Visual color theme for the chip; one of `'blue' | 'purple' | 'green' | 'red'`
+ * @returns A button element styled as a rounded filter chip
+ */
 function FilterChip({ label, active, onClick, color }: FilterChipProps) {
   const colors = {
     blue: active ? 'bg-blue-500 text-white' : 'bg-blue-500/10 text-blue-400 hover:bg-blue-500/20',
@@ -270,6 +290,15 @@ interface TimelineEventCardProps {
   isLast: boolean;
 }
 
+/**
+ * Render a timeline card for a single event, showing icon, title, description, relative timestamp, and optional expandable details.
+ *
+ * Displays a "Latest" badge when the event is the most recent. If `event.data` is present, a More/Less control is shown to toggle an expanded details section produced by `renderEventDetails`.
+ *
+ * @param event - The timeline event to render. Expected to include `title`, `description`, `timestamp`, `icon`, `iconColor`, `bgColor`, and an optional `data` payload used for expanded details.
+ * @param isFirst - Whether this event is the newest item in the timeline; when true, a "Latest" badge is rendered.
+ * @returns A React element representing the timeline event card.
+ */
 function TimelineEventCard({ event, isFirst }: TimelineEventCardProps) {
   const Icon = event.icon;
   const [isExpanded, setIsExpanded] = useState(false);
@@ -323,7 +352,16 @@ function TimelineEventCard({ event, isFirst }: TimelineEventCardProps) {
   );
 }
 
-// Helper functions
+/**
+ * Convert a CommunicationEvent into a TimelineEvent for display in the relationship timeline.
+ *
+ * Maps communication type, direction, timestamp, and content into the timeline event fields and
+ * embeds communication metadata (direction, subject, body, open/click/reply flags, response time)
+ * in the event `data` payload.
+ *
+ * @param comm - The communication record to convert
+ * @returns A TimelineEvent representing the communication, with `data` containing the original communication metadata
+ */
 
 function createCommunicationEvent(comm: CommunicationEvent): TimelineEvent {
   const isInbound = comm.direction === 'inbound';
@@ -360,6 +398,12 @@ function createCommunicationEvent(comm: CommunicationEvent): TimelineEvent {
   };
 }
 
+/**
+ * Determines whether a timeline event should be treated as significant.
+ *
+ * @param event - The timeline event to evaluate.
+ * @returns `true` if the event is an intervention, ghost signal, health change, or a communication that was replied to or matches a significant communication type (`meeting_held`, `proposal_sent`, `proposal_viewed`, `email_replied`); `false` otherwise.
+ */
 function isSignificantEvent(event: TimelineEvent): boolean {
   // Define what makes an event "significant"
   if (event.type === 'intervention') return true;
@@ -381,6 +425,16 @@ function isSignificantEvent(event: TimelineEvent): boolean {
   return false;
 }
 
+/**
+ * Render expanded detail markup for a timeline event.
+ *
+ * For events of type `communication`, produces JSX containing the subject (if present),
+ * a truncated body preview (up to 200 characters), badges indicating opened/clicked/replied
+ * states, and a rounded response-time label when available. Returns `null` for all other event types.
+ *
+ * @param event - The timeline event to render details for
+ * @returns The JSX element with communication details, or `null` for non-communication events
+ */
 function renderEventDetails(event: TimelineEvent) {
   if (event.type === 'communication') {
     return (

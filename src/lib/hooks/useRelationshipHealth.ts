@@ -68,7 +68,14 @@ import {
 // =====================================================
 
 /**
- * Hook to get and manage health score for a specific relationship
+ * Manage and subscribe to the health score for a specific contact or company relationship.
+ *
+ * @returns An object containing:
+ * - `healthScore`: the current RelationshipHealthScore or `null`
+ * - `loading`: `true` while a fetch or calculation is in progress
+ * - `error`: an error message string or `null`
+ * - `refresh`: function to re-fetch the health score
+ * - `calculateHealth`: function to recalculate and update the health score
  */
 export function useRelationshipHealthScore(
   relationshipType: 'contact' | 'company',
@@ -166,7 +173,18 @@ export function useRelationshipHealthScore(
 // =====================================================
 
 /**
- * Hook to get health scores for all user's relationships
+ * Manage and provide health scores for all relationships of the current user.
+ *
+ * Provides reactive state for the user's relationship health scores, a loading flag, an optional error message,
+ * a `refresh` function to re-fetch scores, and a `calculateAllHealth` function to trigger recalculation for all contacts
+ * and refresh the stored scores.
+ *
+ * @returns An object containing:
+ *  - `healthScores`: the array of relationship health scores
+ *  - `loading`: `true` while an operation is in progress, `false` otherwise
+ *  - `error`: an error message string when a fetch or calculation fails, or `null`
+ *  - `refresh`: a function to re-fetch the user's relationship health scores
+ *  - `calculateAllHealth`: a function to recalculate health for all contacts and refresh the scores
  */
 export function useAllRelationshipsHealth() {
   const { user } = useAuth();
@@ -255,7 +273,13 @@ export function useAllRelationshipsHealth() {
 // =====================================================
 
 /**
- * Hook to get relationships at risk of ghosting
+ * Provides relationships at risk of ghosting for the current user along with loading and error state and a refresh function.
+ *
+ * @returns An object containing:
+ * - `ghostRisks` — the list of relationship health scores identified as ghosting risks
+ * - `loading` — `true` while the risks are being fetched, `false` otherwise
+ * - `error` — an error message when fetching fails, or `null` when there is no error
+ * - `refresh` — a function to re-fetch the ghost risk relationships
  */
 export function useGhostRisks() {
   const { user } = useAuth();
@@ -299,7 +323,18 @@ export function useGhostRisks() {
 // =====================================================
 
 /**
- * Hook for ghost detection for a specific relationship
+ * Detects ghosting signals and computes a risk assessment for a specific relationship, and provides actions to resolve those signals.
+ *
+ * @param relationshipHealthId - The identifier of the relationship's health record to analyze.
+ * @param contactId - The contact identifier associated with the relationship.
+ * @param healthScore - The current health score for the relationship used as input to detection and assessment.
+ * @returns An object containing:
+ *  - `signals`: the list of detected ghosting signals,
+ *  - `riskAssessment`: the computed ghost risk assessment or `null` if unavailable,
+ *  - `loading`: whether detection/assessment is in progress,
+ *  - `refresh`: a function to re-run detection and assessment,
+ *  - `resolveSignal`: a function to resolve a single signal by id,
+ *  - `resolveAllSignals`: a function to resolve all signals for the relationship.
  */
 export function useGhostDetection(
   relationshipHealthId: string | null,
@@ -377,7 +412,10 @@ export function useGhostDetection(
 // =====================================================
 
 /**
- * Hook for managing intervention templates
+ * Provides intervention templates for the current user, optionally scoped to a specific context, and a way to refresh them.
+ *
+ * @param contextTrigger - Optional context identifier used to filter templates (for example, a trigger name or event)
+ * @returns An object with `templates` — the retrieved InterventionTemplate array, `loading` — `true` while templates are being fetched, and `refresh` — a function to re-fetch templates
  */
 export function useInterventionTemplates(contextTrigger?: string) {
   const { user } = useAuth();
@@ -417,7 +455,16 @@ export function useInterventionTemplates(contextTrigger?: string) {
 // =====================================================
 
 /**
- * Hook for managing interventions
+ * Manage interventions for a specific contact or the current user's active interventions.
+ *
+ * @param contactId - Optional contact ID to fetch interventions for a single contact; when omitted, the hook returns the user's active interventions.
+ * @returns An object containing:
+ *  - `interventions`: interventions for the specified contact (empty if `contactId` is not provided),
+ *  - `activeInterventions`: the user's active interventions (empty if `contactId` is provided),
+ *  - `loading`: `true` while data is being fetched,
+ *  - `refresh`: function to re-fetch the current list,
+ *  - `markAsSent`: function that marks an intervention as sent by ID,
+ *  - `markAsRecovered`: function that marks an intervention as recovered by ID
  */
 export function useInterventions(contactId?: string) {
   const { user } = useAuth();
@@ -479,7 +526,14 @@ export function useInterventions(contactId?: string) {
 // =====================================================
 
 /**
- * Hook for intervention analytics
+ * Fetches intervention analytics and success rate for the current user over a recent time window.
+ *
+ * @param days - Number of past days to include in the analytics window (default: 30)
+ * @returns An object with:
+ *  - `analytics`: analytics data for the specified window,
+ *  - `successRate`: overall intervention success rate,
+ *  - `loading`: `true` while data is being fetched, `false` otherwise,
+ *  - `refresh`: function to re-fetch the analytics
  */
 export function useInterventionAnalytics(days: number = 30) {
   const { user } = useAuth();
@@ -523,7 +577,14 @@ export function useInterventionAnalytics(days: number = 30) {
 // =====================================================
 
 /**
- * Hook for analyzing communication patterns
+ * Provides communication pattern analysis and recent communications for a specified contact.
+ *
+ * @param contactId - The contact's ID to analyze; if `null`, no analysis or fetch is performed.
+ * @returns An object with:
+ *  - `pattern`: The analyzed `CommunicationPattern` for the contact, or `null` if unavailable.
+ *  - `communications`: An array of recent `CommunicationEvent` objects (up to 50).
+ *  - `loading`: `true` while the pattern and communications are being fetched, `false` otherwise.
+ *  - `refresh`: A function to re-run the analysis and refresh communications.
  */
 export function useCommunicationPattern(contactId: string | null) {
   const { user } = useAuth();

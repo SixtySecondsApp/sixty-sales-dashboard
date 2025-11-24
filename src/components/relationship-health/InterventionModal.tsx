@@ -39,6 +39,23 @@ interface InterventionModalProps {
 
 type Step = 'detection' | 'recommendation' | 'send' | 'response';
 
+/**
+ * Renders a multi-step Intervention modal for detecting ghost risk, previewing AI-recommended templates,
+ * sending an intervention, and tracking responses.
+ *
+ * @param isOpen - Controls modal visibility.
+ * @param onClose - Callback invoked to close the modal.
+ * @param relationshipHealth - Overall relationship health metrics and last meaningful interaction.
+ * @param ghostRisk - Ghosting risk assessment including probability and warning signals.
+ * @param contactName - Display name of the contact.
+ * @param companyName - Optional company name to display alongside the contact.
+ * @param recommendedTemplate - Optional AI-recommended intervention template metadata.
+ * @param personalizedTemplate - Optional personalized template containing `subject`, `body`, and `confidenceScore`.
+ * @param alternativeTemplates - Optional list of alternative templates the user can choose from.
+ * @param onSelectTemplate - Callback invoked with a template id when an alternative template is selected.
+ * @param onSendIntervention - Callback invoked with the chosen channel ('email' | 'linkedin') when the intervention is sent.
+ * @returns The modal's JSX element when `isOpen` is true, or `null` when closed.
+ */
 export function InterventionModal({
   isOpen,
   onClose,

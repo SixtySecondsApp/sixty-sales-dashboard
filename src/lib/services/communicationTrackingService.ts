@@ -98,7 +98,14 @@ export interface CommunicationPattern {
 // =====================================================
 
 /**
- * Record a communication event
+ * Create and store a communication event for a user.
+ *
+ * Computes an inbound response time when applicable, generates a body snippet, initializes counters/flags,
+ * and for inbound events marks previous outbound messages to the same contact as replied.
+ *
+ * @param input - Event details (contact/company/deal references, event type/direction, subject/body, threading info, external references, event timestamp, and optional metadata)
+ * @param userId - ID of the user who owns the event
+ * @returns The inserted `CommunicationEvent` record, or `null` if insertion failed
  */
 export async function recordCommunicationEvent(
   input: CreateCommunicationEventInput,
@@ -179,7 +186,10 @@ export async function recordCommunicationEvent(
 }
 
 /**
- * Mark previous outbound messages as replied
+ * Flag previous outbound communication events to a contact as replied for the given user.
+ *
+ * @param userId - The ID of the user who owns the messages
+ * @param contactId - The ID of the contact whose outbound messages should be marked as replied
  */
 async function markPreviousAsReplied(userId: string, contactId: string): Promise<void> {
   try {
@@ -196,7 +206,10 @@ async function markPreviousAsReplied(userId: string, contactId: string): Promise
 }
 
 /**
- * Track email opened
+ * Mark an email event as opened and increment its open count.
+ *
+ * @param eventId - The identifier of the communication event to update
+ * @returns `true` if the record was updated successfully (including incrementing the open count), `false` otherwise (e.g., if the event does not exist or the update failed)
  */
 export async function trackEmailOpened(eventId: string): Promise<boolean> {
   try {
@@ -224,7 +237,10 @@ export async function trackEmailOpened(eventId: string): Promise<boolean> {
 }
 
 /**
- * Track link clicked
+ * Mark a communication event as having a clicked link and increment its click count.
+ *
+ * @param eventId - Identifier of the communication event to update
+ * @returns `true` if the event was updated successfully, `false` otherwise.
  */
 export async function trackLinkClicked(eventId: string): Promise<boolean> {
   try {
@@ -256,7 +272,11 @@ export async function trackLinkClicked(eventId: string): Promise<boolean> {
 // =====================================================
 
 /**
- * Get communication history for a contact
+ * Fetches recent communication events for a contact.
+ *
+ * @param contactId - The ID of the contact whose communication history to retrieve
+ * @param limit - Maximum number of events to return (defaults to 50)
+ * @returns An array of CommunicationEvent objects ordered by most recent `event_timestamp` first; returns an empty array if none are found or on error
  */
 export async function getContactCommunications(
   contactId: string,
@@ -278,7 +298,10 @@ export async function getContactCommunications(
 }
 
 /**
- * Get recent communications for user
+ * Fetches a user's communications within the past `days` days.
+ *
+ * @param days - Time window in days to include (default: 30)
+ * @returns An array of CommunicationEvent records ordered by `event_timestamp` descending; empty array if none or on error.
  */
 export async function getRecentCommunications(
   userId: string,
@@ -302,7 +325,10 @@ export async function getRecentCommunications(
 }
 
 /**
- * Get communication thread
+ * Fetches all communication events belonging to a thread, ordered by event timestamp ascending.
+ *
+ * @param threadId - The thread identifier to retrieve events for
+ * @returns An array of CommunicationEvent objects for the thread ordered by `event_timestamp` ascending; an empty array if there are no events or the thread cannot be retrieved
  */
 export async function getCommunicationThread(threadId: string): Promise<CommunicationEvent[]> {
   try {
@@ -324,7 +350,17 @@ export async function getCommunicationThread(threadId: string): Promise<Communic
 // =====================================================
 
 /**
- * Analyze communication patterns for a contact
+ * Compute aggregated communication metrics for a contact for a given user.
+ *
+ * Calculates totals and breakdowns by event type, average inbound response time (hours),
+ * outbound response rate (percentage of outbound messages that were replied), the most recent
+ * contact timestamp, days since last contact, and the average number of days between events.
+ *
+ * @param contactId - Identifier of the contact to analyze
+ * @param userId - Identifier of the user who owns the communications
+ * @returns A CommunicationPattern containing counts, averages, rates, last contact date, and frequency.
+ *          If no events exist for the contact (or an error occurs), returns a pattern with zeros for counts
+ *          and `null` for time-based metrics where appropriate.
  */
 export async function analyzeContactCommunicationPattern(
   contactId: string,
@@ -428,7 +464,12 @@ export async function analyzeContactCommunicationPattern(
 }
 
 /**
- * Get unanswered outbound messages
+ * Retrieve outbound messages to a contact that have not been replied to within a recent time window.
+ *
+ * @param contactId - The contact's identifier to filter messages
+ * @param userId - The user's identifier owning the messages
+ * @param days - Lookback window in days (default: 14)
+ * @returns An array of outbound `CommunicationEvent` records for the contact with `was_replied = false` and `event_timestamp` within the lookback window
  */
 export async function getUnansweredOutbound(
   contactId: string,
@@ -456,7 +497,11 @@ export async function getUnansweredOutbound(
 }
 
 /**
- * Get active threads (conversations with recent activity)
+ * Identify conversation threads for a user that had activity within the recent time window.
+ *
+ * @param userId - The ID of the user whose threads are being queried
+ * @param days - Time window in days to consider for recent activity (defaults to 7)
+ * @returns An array of thread summaries with `threadId`, `lastActivity` (ISO timestamp of the most recent event), and `messageCount` (number of events in the thread within the window)
  */
 export async function getActiveThreads(
   userId: string,
@@ -507,7 +552,9 @@ export async function getActiveThreads(
 // =====================================================
 
 /**
- * Get last communication timestamp for a contact
+ * Retrieve the most recent communication timestamp for a contact.
+ *
+ * @returns The most recent event's `event_timestamp` as a string, or `null` if no events are found or an error occurs.
  */
 export async function getLastCommunicationDate(contactId: string): Promise<string | null> {
   try {
@@ -526,7 +573,9 @@ export async function getLastCommunicationDate(contactId: string): Promise<strin
 }
 
 /**
- * Get days since last contact
+ * Compute the number of whole days since the most recent communication for a contact.
+ *
+ * @returns The number of whole days since the contact's last communication, or `null` if no communications exist.
  */
 export async function getDaysSinceLastContact(contactId: string): Promise<number | null> {
   const lastDate = await getLastCommunicationDate(contactId);
@@ -536,8 +585,16 @@ export async function getDaysSinceLastContact(contactId: string): Promise<number
 }
 
 /**
- * Import communication events from external source (e.g., Gmail, Outlook)
- * Placeholder for future email integration
+ * Import multiple external communication events for a user while avoiding duplicates by external ID.
+ *
+ * For each event, if an `externalId` is present and a record with the same `external_id` and `external_source`
+ * already exists, the event is counted as skipped. Otherwise the event is recorded and counted as imported;
+ * failures to record are counted as errors.
+ *
+ * @param userId - The owning user's ID
+ * @param source - The external source of the events (`'gmail' | 'outlook' | 'linkedin'`)
+ * @param events - Array of events to import
+ * @returns An object with counts: `imported` for successfully recorded events, `skipped` for detected duplicates, and `errors` for failed insertions
  */
 export async function importExternalCommunications(
   userId: string,
