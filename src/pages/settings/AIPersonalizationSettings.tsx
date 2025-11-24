@@ -1,0 +1,215 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Plus, Trash2, Check, Sparkles, PenTool, Save } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
+import { SalesTemplateService, type UserWritingStyle } from '@/lib/services/salesTemplateService';
+import logger from '@/lib/utils/logger';
+
+export default function AIPersonalizationSettings() {
+  const [styles, setStyles] = useState<UserWritingStyle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentStyle, setCurrentStyle] = useState<Partial<UserWritingStyle>>({
+    name: '',
+    tone_description: '',
+    examples: ['']
+  });
+
+  useEffect(() => {
+    fetchStyles();
+  }, []);
+
+  const fetchStyles = async () => {
+    try {
+      setIsLoading(true);
+      const data = await SalesTemplateService.getWritingStyles();
+      setStyles(data);
+    } catch (error) {
+      toast.error('Failed to load writing styles');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!currentStyle.name || !currentStyle.tone_description || !currentStyle.examples?.length) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    try {
+      // Filter empty examples
+      const cleanExamples = currentStyle.examples.filter(ex => ex.trim());
+      
+      await SalesTemplateService.createWritingStyle({
+        name: currentStyle.name,
+        tone_description: currentStyle.tone_description,
+        examples: cleanExamples,
+        is_default: styles.length === 0 // Make default if it's the first one
+      });
+
+      toast.success('Writing style saved');
+      setIsEditing(false);
+      setCurrentStyle({ name: '', tone_description: '', examples: [''] });
+      fetchStyles();
+    } catch (error) {
+      toast.error('Failed to save writing style');
+    }
+  };
+
+  const addExampleField = () => {
+    setCurrentStyle(prev => ({
+      ...prev,
+      examples: [...(prev.examples || []), '']
+    }));
+  };
+
+  const updateExample = (index: number, value: string) => {
+    const newExamples = [...(currentStyle.examples || [])];
+    newExamples[index] = value;
+    setCurrentStyle(prev => ({ ...prev, examples: newExamples }));
+  };
+
+  const removeExample = (index: number) => {
+    const newExamples = currentStyle.examples?.filter((_, i) => i !== index);
+    setCurrentStyle(prev => ({ ...prev, examples: newExamples }));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Writing Style & AI Voice</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Train the AI to write exactly like you by providing examples and tone instructions.
+          </p>
+        </div>
+        {!isEditing && (
+          <Button onClick={() => setIsEditing(true)} className="bg-[#37bd7e] hover:bg-[#2da76c]">
+            <Plus className="w-4 h-4 mr-2" />
+            New Writing Style
+          </Button>
+        )}
+      </div>
+
+      {isEditing && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-4"
+        >
+          <div className="flex items-center gap-2 text-[#37bd7e] mb-2">
+            <Sparkles className="w-5 h-5" />
+            <h3 className="font-medium">Create New Style</h3>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Style Name</label>
+            <Input
+              placeholder="e.g., Professional Direct, Friendly Casual"
+              value={currentStyle.name}
+              onChange={(e) => setCurrentStyle(s => ({ ...s, name: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Tone Description</label>
+            <Textarea
+              placeholder="Describe the tone (e.g., 'Direct, value-focused, minimal fluff. Use short sentences.')"
+              value={currentStyle.tone_description}
+              onChange={(e) => setCurrentStyle(s => ({ ...s, tone_description: e.target.value }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Example Emails (The AI mimics this)</label>
+            {currentStyle.examples?.map((ex, idx) => (
+              <div key={idx} className="flex gap-2">
+                <Textarea
+                  placeholder="Paste a real email you sent that performed well..."
+                  value={ex}
+                  onChange={(e) => updateExample(idx, e.target.value)}
+                  className="min-h-[80px]"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeExample(idx)}
+                  className="mt-2 text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addExampleField} className="mt-2">
+              <Plus className="w-3 h-3 mr-2" />
+              Add Another Example
+            </Button>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+            <Button onClick={handleSave} className="bg-[#37bd7e] hover:bg-[#2da76c]">
+              <Save className="w-4 h-4 mr-2" />
+              Save Style
+            </Button>
+          </div>
+        </motion.div>
+      )}
+
+      <div className="grid gap-4">
+        {styles.map((style) => (
+          <Card key={style.id} className="border-l-4 border-l-[#37bd7e]">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {style.name}
+                    {style.is_default && (
+                      <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                        Default
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {style.tone_description}
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="icon">
+                    <PenTool className="w-4 h-4 text-gray-400" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Training Data ({style.examples.length} examples)</p>
+                <div className="bg-gray-100 dark:bg-gray-800 rounded p-3 text-sm italic text-gray-600 dark:text-gray-300">
+                  "{style.examples[0]}"
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+
+        {!isLoading && styles.length === 0 && !isEditing && (
+          <div className="text-center py-12 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
+            <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">No Styles Yet</h3>
+            <p className="text-sm text-gray-500 mb-4">Create a writing style to teach the AI your voice.</p>
+            <Button onClick={() => setIsEditing(true)} variant="outline">Create Your First Style</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+

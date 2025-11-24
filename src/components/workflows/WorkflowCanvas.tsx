@@ -87,6 +87,8 @@ import FreepikVideoGenNode from './nodes/freepik/FreepikVideoGenNode';
 import FreepikLipSyncNode from './nodes/freepik/FreepikLipSyncNode';
 import FreepikMusicNode from './nodes/freepik/FreepikMusicNode';
 import ImageInputNode from './nodes/freepik/ImageInputNode';
+import NanoBananaImageGenNode from './nodes/nanobanana/NanoBananaImageGenNode';
+import Veo3VideoGenNode from './nodes/veo3/Veo3VideoGenNode';
 import ProspectResearchNode from './nodes/ProspectResearchNode';
 import type { FormField } from './nodes/FormNode';
 import FormConfigModal from './FormConfigModal';
@@ -133,8 +135,10 @@ const baseNodeTypes: NodeTypes = {
   actionItemProcessor: ActionItemProcessorNode,
   imageInput: ImageInputNode,
   freepikImageGen: FreepikImageGenNode,
+  nanobananaImageGen: NanoBananaImageGenNode,
   freepikUpscale: FreepikUpscaleNode,
   freepikVideoGen: FreepikVideoGenNode,
+  veo3VideoGen: Veo3VideoGenNode,
   freepikLipSync: FreepikLipSyncNode,
   freepikMusic: FreepikMusicNode,
   prospectResearch: ProspectResearchNode

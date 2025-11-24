@@ -260,6 +260,8 @@ const renderNodeSpecificContent = (node: Node, handleUpdate: (field: string, val
       return renderFreepikUpscaleContent(node, handleUpdate);
     case 'freepikVideoGen':
       return renderFreepikVideoGenContent(node, handleUpdate);
+    case 'veo3VideoGen':
+      return renderVeo3VideoGenContent(node, handleUpdate);
     case 'freepikLipSync':
       return renderFreepikLipSyncContent(node, handleUpdate);
     case 'freepikMusic':
@@ -433,8 +435,49 @@ const renderImageInputContent = (node: Node, handleUpdate: (field: string, value
           placeholder="https://example.com/image.jpg"
         />
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Enter an image URL or upload an image directly in the node
+          Enter an image URL, upload an image, or generate one with Nano Banana Pro
         </p>
+      </div>
+      
+      {/* Nano Banana Pro Generation Options */}
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Nano Banana Pro</span>
+          <span className="text-xs px-2 py-0.5 bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-500/20 rounded">
+            AI Generation
+          </span>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Generation Prompt
+            </label>
+            <textarea
+              value={node.data.generatePrompt || ''}
+              onChange={(e) => handleUpdate('generatePrompt', e.target.value)}
+              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+              placeholder="Describe the image you want to generate..."
+              rows={3}
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Enter a prompt to generate an image using Nano Banana Pro (Gemini 3 Pro Image)
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Aspect Ratio
+            </label>
+            <select
+              value={node.data.aspectRatio || 'square'}
+              onChange={(e) => handleUpdate('aspectRatio', e.target.value)}
+              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="square">Square</option>
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -556,6 +599,84 @@ const renderFreepikVideoGenContent = (node: Node, handleUpdate: (field: string, 
           <option value="5">5 seconds</option>
           <option value="10">10 seconds</option>
         </select>
+      </div>
+    </div>
+  );
+};
+
+// Render Veo 3 Video Gen content
+const renderVeo3VideoGenContent = (node: Node, handleUpdate: (field: string, value: any) => void) => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Video Prompt
+        </label>
+        <textarea
+          value={node.data.prompt || ''}
+          onChange={(e) => handleUpdate('prompt', e.target.value)}
+          className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none h-32 font-mono"
+          placeholder="Describe the video you want to generate..."
+        />
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Enter a detailed prompt describing the video scene, action, and style
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Model
+          </label>
+          <select
+            value={node.data.model || 'veo-3.0-fast-generate-preview'}
+            onChange={(e) => handleUpdate('model', e.target.value)}
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="veo-3.0-fast-generate-preview">Fast Generate</option>
+            <option value="veo-3.0-generate-preview">Quality Generate</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Duration
+          </label>
+          <select
+            value={node.data.durationSeconds || 8}
+            onChange={(e) => handleUpdate('durationSeconds', parseInt(e.target.value))}
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value={5}>5 seconds</option>
+            <option value={8}>8 seconds</option>
+            <option value={10}>10 seconds</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Aspect Ratio
+          </label>
+          <select
+            value={node.data.aspectRatio || '16:9'}
+            onChange={(e) => handleUpdate('aspectRatio', e.target.value)}
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+          >
+            <option value="16:9">16:9 (Landscape)</option>
+            <option value="9:16">9:16 (Portrait)</option>
+            <option value="1:1">1:1 (Square)</option>
+          </select>
+        </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={node.data.generateAudio !== undefined ? node.data.generateAudio : true}
+              onChange={(e) => handleUpdate('generateAudio', e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-purple-500 focus:ring-purple-500"
+            />
+            <span>Generate Audio</span>
+          </label>
+        </div>
       </div>
     </div>
   );

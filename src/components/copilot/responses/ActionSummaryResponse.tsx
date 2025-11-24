@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActionSummaryResponse as ActionSummaryResponseType } from '../types';
+import type { ActionSummaryResponse as ActionSummaryResponseType } from '../types';
 import { CheckCircle2, Briefcase, Users, CheckSquare, Activity, ArrowRight, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

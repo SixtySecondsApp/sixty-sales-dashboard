@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useUser } from '@/lib/hooks/useUser';
@@ -56,6 +56,30 @@ export default function Workflows() {
     { id: 'insights', label: 'Insights', icon: BarChart3, description: 'Analytics & metrics' }
   ];
 
+  const loadWorkflowStats = useCallback(async () => {
+    try {
+      // Don't set loading to true here since we want fast page load
+      const { data: rules, error } = await supabase
+        .from('user_automation_rules')
+        .select('*');
+      const activeWorkflows = rules?.filter(r => r.is_active).length || 0;
+      const totalWorkflows = rules?.length || 0;
+
+      setStats({
+        totalWorkflows,
+        activeWorkflows,
+        successRate: 95,
+        testsRun: 128
+      });
+    } catch (err) {
+      // Continue anyway - stats are not critical for functionality
+      // Silently fail - stats are not critical
+      if (err instanceof Error) {
+        console.debug('Failed to load workflow stats:', err.message);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     // No need to check admin status - workflows are available to all users
     loadWorkflowStats();
@@ -80,27 +104,7 @@ export default function Workflows() {
       // Auto-hide after 8 seconds for errors
       setTimeout(() => setShowSlackError(''), 8000);
     }
-  }, [user]);
-
-  const loadWorkflowStats = async () => {
-    try {
-      // Don't set loading to true here since we want fast page load
-      const { data: rules, error } = await supabase
-        .from('user_automation_rules')
-        .select('*');
-      const activeWorkflows = rules?.filter(r => r.is_active).length || 0;
-      const totalWorkflows = rules?.length || 0;
-
-      setStats({
-        totalWorkflows,
-        activeWorkflows,
-        successRate: 95,
-        testsRun: 128
-      });
-    } catch (error) {
-      // Continue anyway - stats are not critical for functionality
-    }
-  };
+  }, [user, loadWorkflowStats]);
 
   const handleWorkflowSelect = (workflow: any) => {
     setSelectedWorkflow(workflow);
@@ -139,7 +143,9 @@ export default function Workflows() {
         } else {
           setSelectedWorkflow(workflow);
         }
-      } catch (error) {
+      } catch (err) {
+        // Silently handle error - fallback workflow already set
+        console.debug('Failed to load workflow for execution:', err instanceof Error ? err.message : 'Unknown error');
       }
     }
   };
@@ -244,8 +250,9 @@ export default function Workflows() {
       
       // Return the saved workflow data
       return result.data?.[0];
-    } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error occurred';
+    } catch (err: any) {
+      const errorMessage = err?.message || err?.toString() || 'Unknown error occurred';
+      console.error('Failed to save workflow:', err);
       alert(`Failed to save workflow: ${errorMessage}\n\nPlease check the console for details.`);
     }
   };
@@ -259,7 +266,9 @@ export default function Workflows() {
       
       if (error) throw error;
       await loadWorkflowStats();
-    } catch (error) {
+    } catch (err) {
+      // Silently handle error - deletion may have already succeeded
+      console.debug('Failed to delete workflow:', err instanceof Error ? err.message : 'Unknown error');
     }
   };
 

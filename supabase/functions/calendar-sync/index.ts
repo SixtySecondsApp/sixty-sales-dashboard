@@ -97,14 +97,46 @@ serve(async (req) => {
       accessToken = await refreshAccessToken(integration.refresh_token, sb, user.id);
     }
 
+    // Fetch org_id first (required for calendar_calendars and calendar_events upserts)
+    // org_id is NOT NULL after backfill migration, so we must fetch it
+    let orgId: string | null = null;
+    try {
+      const { data: orgMembership } = await sb
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      orgId = orgMembership?.org_id || null;
+      
+      // If no membership found, try to get default org
+      if (!orgId) {
+        const { data: defaultOrg } = await sb
+          .from('organizations')
+          .select('id')
+          .eq('is_default', true)
+          .limit(1)
+          .maybeSingle();
+        orgId = defaultOrg?.id || null;
+      }
+    } catch (error) {
+      console.error('Failed to fetch org_id, this may cause constraint violations:', error);
+      // Note: If org_id is NOT NULL, this will fail - but we'll let the database error surface
+    }
+
     // Ensure calendar record exists
+    const calendarPayload: any = {
+      user_id: user.id,
+      external_id: calendarId,
+      sync_enabled: true,
+    };
+    if (orgId) {
+      calendarPayload.org_id = orgId;
+    }
+
     const { data: calRecord } = await sb
       .from('calendar_calendars')
-      .upsert({
-        user_id: user.id,
-        external_id: calendarId,
-        sync_enabled: true,
-      }, { onConflict: 'user_id,external_id' })
+      .upsert(calendarPayload, { onConflict: 'user_id,external_id' })
       .select('id, last_sync_token, historical_sync_completed')
       .single();
 
@@ -113,7 +145,9 @@ serve(async (req) => {
     if (!calendarRecordId) {
       throw new Error('Calendar record not found');
     }
+
     // Create sync log (started)
+    // Note: orgId is already fetched above and will be reused in the event processing loop
     const { data: logRow } = await sb
       .from('calendar_sync_logs')
       .insert({
@@ -212,13 +246,75 @@ serve(async (req) => {
             raw_data: ev,
           };
 
-          const { data: upserted, error: upsertError } = await sb
+          // Include org_id in payload if available
+          if (orgId) {
+            payload.org_id = orgId;
+          }
+
+          // Try upsert with ON CONFLICT first (works if migration is applied)
+          // Fallback to manual check/update/insert if ON CONFLICT fails
+          let upserted: any = null;
+          let upsertError: any = null;
+
+          // Always try upsert first, even without org_id
+          const result = await sb
             .from('calendar_events')
-            .upsert(payload, { onConflict: 'external_id,user_id' })
+            .upsert(payload, { onConflict: 'user_id,external_id' })
             .select('id');
+          upserted = result.data;
+          upsertError = result.error;
+
+          // If ON CONFLICT failed (likely migration not applied or constraint issue), use manual upsert
+          if (upsertError && (upsertError.code === '42P10' || upsertError.message?.includes('ON CONFLICT'))) {
+            // Fallback: Check if event exists, then update or insert
+            const { data: existing, error: checkError } = await sb
+              .from('calendar_events')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('external_id', ev.id)
+              .maybeSingle();
+
+            if (checkError) {
+              console.error('Error checking for existing event:', checkError);
+              upsertError = checkError;
+            } else if (existing) {
+              // Update existing event
+              const { data, error } = await sb
+                .from('calendar_events')
+                .update(payload)
+                .eq('id', existing.id)
+                .select('id');
+              upserted = data;
+              upsertError = error;
+              if (error) {
+                console.error('Error updating existing event:', error);
+              }
+            } else {
+              // Insert new event
+              const { data, error } = await sb
+                .from('calendar_events')
+                .insert(payload)
+                .select('id');
+              upserted = data;
+              upsertError = error;
+              if (error) {
+                console.error('Error inserting new event:', error);
+              }
+            }
+          }
 
           if (upsertError) {
             // Log detailed error for debugging
+            console.error('Error upserting event:', {
+              error: upsertError,
+              code: upsertError?.code,
+              message: upsertError?.message,
+              details: upsertError?.details,
+              hint: upsertError?.hint,
+              external_id: ev.id,
+              user_id: user.id,
+              has_org_id: !!orgId
+            });
             continue;
           }
 

@@ -206,11 +206,40 @@ export function useUserDealsHealth() {
             }
           }
 
-          // Get meeting count for this deal
-          const { count: meetingCount } = await supabase
+          // Get meeting count for this specific deal
+          const dealId = deal?.id || score.deal_id;
+          
+          // Count meetings directly linked to this deal via deal_id column
+          const { count: directMeetingCount } = await supabase
             .from('meetings')
             .select('id', { count: 'exact', head: true })
-            .eq('owner_user_id', deal?.owner_id || user.id);
+            .eq('deal_id', dealId);
+          
+          // Also check deal_meetings junction table for additional meetings
+          const { data: junctionMeetings } = await supabase
+            .from('deal_meetings')
+            .select('meeting_id')
+            .eq('deal_id', dealId);
+          
+          // Combine counts: use direct count, add junction meetings that aren't already counted
+          let meetingCount = directMeetingCount || 0;
+          if (junctionMeetings && junctionMeetings.length > 0) {
+            // If we have direct meetings, check which junction meetings are already counted
+            if (meetingCount > 0) {
+              const { data: directMeetings } = await supabase
+                .from('meetings')
+                .select('id')
+                .eq('deal_id', dealId);
+              const directMeetingIds = new Set((directMeetings || []).map(m => m.id));
+              const junctionMeetingIds = junctionMeetings.map(jm => jm.meeting_id);
+              // Count junction meetings that aren't in direct meetings
+              const additionalMeetings = junctionMeetingIds.filter(id => !directMeetingIds.has(id));
+              meetingCount = meetingCount + additionalMeetings.length;
+            } else {
+              // No direct meetings, use junction count
+              meetingCount = junctionMeetings.length;
+            }
+          }
 
           return {
             ...score,

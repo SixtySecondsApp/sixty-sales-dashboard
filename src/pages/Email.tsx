@@ -26,9 +26,12 @@ import { cn } from '@/lib/utils';
 import { EmailList } from '@/components/email/EmailList';
 import { EmailThread } from '@/components/email/EmailThread';
 import { EmailComposerEnhanced } from '@/components/email/EmailComposerEnhanced';
-import { EmailFilters } from '@/components/email/EmailFilters';
+import { EmailFilterManager } from '@/components/email/EmailFilterManager';
 import { EmailQuickActions } from '@/components/email/EmailQuickActions';
-import { 
+import { EmailErrorBoundary } from '@/components/email/EmailErrorBoundary';
+import { EmailThreadSkeleton } from '@/components/email/EmailSkeleton';
+import { GmailNotConnectedEmptyState, EmailErrorEmptyState } from '@/components/email/EmailEmptyStates';
+import {
   useGoogleIntegration,
   useGoogleOAuthInitiate,
   useGmailEmails,
@@ -40,15 +43,30 @@ import {
   useGmailArchive,
   useGoogleServiceEnabled
 } from '@/lib/hooks/useGoogleIntegration';
+import {
+  useGmailEmailSubscription,
+  useGmailThreadSubscription,
+  useHourlyGmailSync
+} from '@/lib/hooks/useGmailSync';
+import { useDebouncedSearch } from '@/lib/hooks/useDebounce';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
+import { parseGmailAttachment } from '@/lib/utils/attachmentUtils';
 // import { emailAIService } from '@/lib/services/emailAIService'; // TODO: Add AI categorization
 
 export default function Email() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+
+  // Debounced search for performance optimization (300ms delay)
+  const {
+    searchQuery,
+    debouncedSearchQuery,
+    isSearching,
+    setSearchQuery
+  } = useDebouncedSearch('', 300);
+
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true); // Start collapsed on mobile
   const [selectedFolder, setSelectedFolder] = useState('INBOX');
@@ -100,7 +118,14 @@ export default function Email() {
   const { data: integration } = useGoogleIntegration();
   const isGmailEnabled = useGoogleServiceEnabled('gmail');
   const connectGoogle = useGoogleOAuthInitiate();
-  
+
+  // Enable real-time subscriptions for Gmail emails (keeps UI auto-updated)
+  useGmailEmailSubscription(isGmailEnabled);
+  useGmailThreadSubscription(isGmailEnabled);
+
+  // Enable hourly background sync for Gmail (keeps data fresh)
+  useHourlyGmailSync(isGmailEnabled);
+
   // Build Gmail query based on folder, category, label and search
   const gmailQuery = useMemo(() => {
     let query = '';
@@ -122,13 +147,13 @@ export default function Email() {
       query = query ? `${query} label:${selectedLabel}` : `label:${selectedLabel}`;
     }
     
-    // Search query
-    if (searchQuery) {
-      query = query ? `${query} ${searchQuery}` : searchQuery;
+    // Search query - use debounced value to reduce API calls
+    if (debouncedSearchQuery) {
+      query = query ? `${query} ${debouncedSearchQuery}` : debouncedSearchQuery;
     }
-    
+
     return query || 'in:inbox';
-  }, [selectedFolder, selectedCategory, selectedLabel, searchQuery]);
+  }, [selectedFolder, selectedCategory, selectedLabel, debouncedSearchQuery]);
   
   // Fetch emails from Gmail
   const { data: gmailData, isLoading: emailsLoading, error: gmailError, refetch: refetchEmails } = useGmailEmails(
@@ -143,7 +168,39 @@ export default function Email() {
     if (gmailError) {
     }
   }, [gmailData, gmailError]);
-  
+
+  // Error handling for Gmail connection
+  useEffect(() => {
+    if (connectGoogle.isError) {
+      const error = connectGoogle.error as Error;
+      toast.error(
+        error?.message || 'Failed to connect to Gmail. Please try again.',
+        {
+          description: 'Make sure you have a stable internet connection and try again.',
+          action: {
+            label: 'Retry',
+            onClick: () => connectGoogle.mutate(),
+          },
+        }
+      );
+    }
+  }, [connectGoogle.isError, connectGoogle.error, connectGoogle.mutate]);
+
+  // Error handling for Gmail email fetch
+  useEffect(() => {
+    if (gmailError) {
+      toast.error('Failed to load emails', {
+        description: gmailError instanceof Error
+          ? gmailError.message
+          : 'Unable to fetch your emails. Check your connection and try refreshing.',
+        action: {
+          label: 'Retry',
+          onClick: () => refetchEmails(),
+        },
+      });
+    }
+  }, [gmailError, refetchEmails]);
+
   // Fetch Gmail labels
   const { data: labelsData } = useGmailLabels(isGmailEnabled);
   
@@ -261,6 +318,12 @@ export default function Email() {
         labels: labelIds
       };
       
+          // Parse attachments from Gmail API with full metadata
+          const attachmentParts = msg.payload?.parts?.filter((p: any) => p.filename && p.filename.length > 0) || [];
+          const parsedAttachments = attachmentParts
+            .map((part: any) => parseGmailAttachment(part))
+            .filter((att: any) => att !== null);
+
           return {
             id: msg.id,
             threadId: msg.threadId,
@@ -273,14 +336,14 @@ export default function Email() {
             starred: labelIds.includes('STARRED'),
             important: labelIds.includes('IMPORTANT'),
             labels,
-            attachments: msg.payload?.parts?.filter((p: any) => p.filename).length || 0,
+            attachments: parsedAttachments.length,  // Count for list view
             thread: [{
               id: msg.id,
               from: fromEmail,
               fromName,
               content: body,
               timestamp,
-              attachments: msg.payload?.parts?.filter((p: any) => p.filename).map((p: any) => p.filename) || []
+              attachments: parsedAttachments  // Full attachment metadata for thread view
             }]
           };
         } catch (error) {
@@ -442,14 +505,17 @@ export default function Email() {
   };
 
   const filteredEmails = emails.filter(email => {
-    const matchesSearch = email.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         email.fromName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         email.preview.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesReadFilter = readFilter === 'all' || 
+    // Use debounced search query for consistent filtering
+    const matchesSearch = debouncedSearchQuery
+      ? email.subject.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        email.fromName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        email.preview.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      : true;
+
+    const matchesReadFilter = readFilter === 'all' ||
                              (readFilter === 'unread' && !email.read) ||
                              (readFilter === 'read' && email.read);
-    
+
     return matchesSearch && matchesReadFilter;
   });
 
@@ -494,6 +560,16 @@ export default function Email() {
     
     // If we have full email data, merge it
     if (fullEmailData) {
+      // Parse attachments if they're raw Gmail parts or use them if already parsed
+      const fullAttachments = fullEmailData.attachments
+        ? fullEmailData.attachments.map((a: any) => {
+            // If already has 'id' and 'mimeType', it's parsed
+            if (a.id && a.mimeType) return a;
+            // Otherwise parse it
+            return parseGmailAttachment(a);
+          }).filter((a: any) => a !== null)
+        : listEmail.thread[0]?.attachments || [];
+
       return {
         ...listEmail,
         body: fullEmailData.body,
@@ -501,7 +577,7 @@ export default function Email() {
         to: fullEmailData.to,
         cc: fullEmailData.cc,
         replyTo: fullEmailData.replyTo,
-        attachments: fullEmailData.attachments || [],
+        attachments: fullAttachments.length,  // Count
         read: fullEmailData.read,
         starred: fullEmailData.starred,
         labels: fullEmailData.labels || listEmail.labels,
@@ -512,7 +588,7 @@ export default function Email() {
           content: fullEmailData.body,
           bodyHtml: fullEmailData.bodyHtml,
           timestamp: new Date(fullEmailData.timestamp),
-          attachments: fullEmailData.attachments?.map((a: any) => a.filename) || []
+          attachments: fullAttachments  // Full attachment objects
         }]
       };
     }
@@ -523,7 +599,13 @@ export default function Email() {
   const unreadCount = emails.filter(email => !email.read).length;
 
   return (
-    <div className="h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-hidden">
+    <EmailErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('[Email Page] Error caught:', error, errorInfo);
+        // TODO: Send to error monitoring service
+      }}
+    >
+      <div className="h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 overflow-hidden">
       {/* Google Connection Banner */}
       {!isGmailEnabled && (
         <div className="bg-yellow-50 dark:bg-yellow-500/10 border-b border-yellow-200 dark:border-yellow-500/20 px-6 py-3">
@@ -597,7 +679,7 @@ export default function Email() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Search */}
+          {/* Search with debounced loading indicator */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-400" />
             <input
@@ -606,8 +688,12 @@ export default function Email() {
               placeholder="Search emails..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 w-80 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="pl-10 pr-10 py-2 w-80 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            {/* Show loading spinner when search is debouncing */}
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-blue-500 animate-spin" />
+            )}
           </div>
 
           {/* Actions */}
@@ -624,19 +710,23 @@ export default function Email() {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsComposerOpen(true)}
-              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors"
-              title="Compose email"
-            >
-              <Edit className="w-5 h-5" />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
               onClick={handleRefresh}
               disabled={isRefreshing || emailsLoading}
-              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors disabled:opacity-50"
-              title="Refresh emails"
+              className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={
+                isRefreshing
+                  ? "Gmail sync in progress..."
+                  : emailsLoading
+                  ? "Loading emails..."
+                  : "Refresh emails"
+              }
+              aria-label={
+                isRefreshing
+                  ? "Gmail sync in progress"
+                  : emailsLoading
+                  ? "Loading emails"
+                  : "Refresh emails"
+              }
             >
               <RefreshCw className={cn("w-5 h-5", (isRefreshing || emailsLoading) && "animate-spin")} />
             </motion.button>
@@ -652,7 +742,7 @@ export default function Email() {
                     const response = await supabase.functions.invoke('google-gmail?action=list', {
                       body: {
                         query: 'in:inbox',
-                        maxResults: 10
+                        maxResults: 200
                       }
                     });
                     if (response.error) {
@@ -897,7 +987,7 @@ export default function Email() {
         {/* Email List */}
         <div className={cn(
           'border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900',
-          selectedEmail ? 'w-96' : 'flex-1'
+          selectedEmail ? 'w-[450px] min-w-[400px]' : 'flex-1 min-w-[450px]'
         )}>
           <EmailList
             emails={filteredEmails}
@@ -907,6 +997,12 @@ export default function Email() {
             onStarEmail={handleStarEmail}
             onArchiveEmail={handleArchiveEmail}
             searchQuery={searchQuery}
+            isLoading={emailsLoading}
+            onClearSearch={() => setSearchQuery('')}
+            isGmailConnected={isGmailEnabled}
+            onConnectGmail={() => connectGoogle.mutate()}
+            onRefetch={() => refetchEmails()}
+            currentFolder={selectedFolder.toLowerCase()}
           />
         </div>
 
@@ -918,36 +1014,20 @@ export default function Email() {
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              className="flex-1 bg-white dark:bg-gray-950 overflow-hidden"
+              className="flex-1 bg-white dark:bg-gray-950 overflow-hidden min-w-[500px]"
             >
               {isLoadingFullEmail ? (
-                <div className="flex-1 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#37bd7e] mx-auto mb-3"></div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading email...</p>
-                  </div>
-                </div>
+                <EmailThreadSkeleton />
               ) : fullEmailError ? (
-                <div className="flex-1 flex items-center justify-center h-full">
-                  <div className="text-center p-6 max-w-md">
-                    <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Error loading email</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-                      {fullEmailError instanceof Error ? fullEmailError.message : 'Failed to load email details'}
-                    </p>
-                    <button
-                      onClick={() => {
-                        // Retry by clearing selection and reselecting
-                        const emailId = selectedEmail;
-                        setSelectedEmail(null);
-                        setTimeout(() => setSelectedEmail(emailId), 100);
-                      }}
-                      className="px-4 py-2 bg-[#37bd7e] text-white rounded-lg hover:bg-[#2da76c] transition-colors text-sm"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
+                <EmailErrorEmptyState
+                  onRetry={() => {
+                    // Retry by clearing selection and reselecting
+                    const emailId = selectedEmail;
+                    setSelectedEmail(null);
+                    setTimeout(() => setSelectedEmail(emailId), 100);
+                  }}
+                  error={fullEmailError instanceof Error ? fullEmailError.message : 'Failed to load email details'}
+                />
               ) : selectedEmailData ? (
                 <EmailThread
                   email={selectedEmailData}
@@ -983,8 +1063,8 @@ export default function Email() {
         initialBody={searchParams.get('body') || undefined}
       />
 
-      {/* Email Filters */}
-      <EmailFilters
+      {/* Email Filter Manager */}
+      <EmailFilterManager
         isOpen={showFilters}
         onClose={() => setShowFilters(false)}
       />
@@ -1013,6 +1093,7 @@ export default function Email() {
         </div>
       )}
 
-    </div>
+      </div>
+    </EmailErrorBoundary>
   );
 }

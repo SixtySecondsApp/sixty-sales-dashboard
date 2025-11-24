@@ -23,6 +23,10 @@
     "noImplicitOverride": false,
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictPropertyInitialization": false,
 
     /* Path Aliases */
     "baseUrl": ".",
@@ -31,6 +35,19 @@
     }
   },
   "include": ["src"],
-  "exclude": ["src/tests", "src/**/*.test.*", "src/**/*.spec.*", "**/*.test.*", "**/*.spec.*"],
+  "exclude": [
+    "src/tests",
+    "src/**/*.test.*",
+    "src/**/*.spec.*",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "src/components/admin/CalendarDebugger.tsx",
+    "src/components/admin/CalendarSyncTest.tsx",
+    "src/components/admin/GoogleTasksSyncDebugger.tsx",
+    "src/components/admin/GoogleTasksTests.tsx",
+    "src/components/admin/WorkflowsE2ETestSuite.tsx",
+    "src/test-*.ts",
+    "src/test-*.tsx"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

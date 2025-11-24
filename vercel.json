@@ -133,5 +133,15 @@
       "source": "/((?!api|.*\\.\\w+).*)",
       "destination": "/index.html"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/health-refresh",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/email-sync",
+      "schedule": "0 8 * * *"
+    }
   ]
 } 

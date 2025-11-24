@@ -37,3 +37,19 @@
 - **Availability Tool Online** – Claude can call `calendar_availability` with inferred ranges.
 - **Structured Response Ready** – Copilot emits calendar responses containing slots + meetings.
 - **UI Visibility** – Calendar card displays open blocks with timezone context.
+
+## Workstream: Freepik Workflow Image Linking
+
+### Objectives
+- Restore img2img flows on `/workflows` by ensuring Image Input nodes share data downstream.
+- Prevent "No image data received" errors when Mystic runs with reference imagery.
+
+### Tasks
+- [x] Reproduce Freepik failure and confirm Image Input nodes do not update React Flow state.
+- [x] Wire `ImageInputNode` to `useReactFlow().setNodes` so uploaded URLs/base64 strings persist.
+- [x] Implement Freepik task polling so Mystic waits for completed generations.
+- [ ] Validate in-app that Freepik generators receive reference data and can create images.
+
+### Milestones
+- **State Sync Fixed** – `data.src` updates immediately when users upload or paste images.
+- **Mystic Img2Img Working** – Image Generator nodes render results using Image Input references.

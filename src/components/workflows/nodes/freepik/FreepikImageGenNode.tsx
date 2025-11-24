@@ -1,8 +1,15 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useCallback } from 'react';
 import { NodeProps, Handle, Position, useReactFlow } from 'reactflow';
 import { Image as ImageIcon, Loader2, Sparkles, Download, RefreshCcw, ChevronDown } from 'lucide-react';
 import { ModernNodeCard, HANDLE_STYLES } from '../ModernNodeCard';
-import { freepikService, ImageModel } from '@/lib/services/freepikService';
+import {
+  freepikService,
+  ImageModel,
+  extractFreepikGeneratedImages,
+  extractFreepikTaskId,
+  extractFreepikTaskStatus,
+  type FreepikImageGenerationResult
+} from '@/lib/services/freepikService';
 
 export interface FreepikImageGenNodeData {
   prompt?: string;
@@ -12,6 +19,9 @@ export interface FreepikImageGenNodeData {
   num_images?: number;
   generated_image?: string; // Base64 or URL
   reference_image?: string; // For img2img
+  generated_images?: string[];
+  last_task_id?: string;
+  last_status?: string;
 }
 
 const IMAGE_MODELS: { value: ImageModel; label: string; description: string; supportsImg2Img: boolean }[] = [
@@ -32,12 +42,47 @@ const FreepikImageGenNode = memo(({ id, data, selected }: NodeProps<FreepikImage
   const [promptValue, setPromptValue] = useState(data.prompt || '');
   const [selectedModel, setSelectedModel] = useState<ImageModel>(data.model || 'mystic');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [pollingStatus, setPollingStatus] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(data.last_task_id || null);
   const { setNodes } = useReactFlow();
 
   useEffect(() => {
     setPromptValue(data.prompt || '');
     setSelectedModel(data.model || 'mystic');
   }, [data.prompt, data.model]);
+
+  useEffect(() => {
+    if (data.generated_image) {
+      setImageUrl(data.generated_image);
+    }
+    if (data.last_task_id) {
+      setTaskId(data.last_task_id);
+    }
+  }, [data.generated_image, data.last_task_id]);
+
+  const persistGeneratedImage = useCallback(
+    (result: FreepikImageGenerationResult, image: string, allImages?: string[]) => {
+      const taskId = extractFreepikTaskId(result);
+      const status = extractFreepikTaskStatus(result);
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  generated_image: image,
+                  generated_images: allImages || [image],
+                  last_task_id: taskId,
+                  last_status: status
+                }
+              }
+            : node
+        )
+      );
+    },
+    [id, setNodes]
+  );
 
   const updatePrompt = (value: string) => {
     setPromptValue(value);
@@ -94,6 +139,8 @@ const FreepikImageGenNode = memo(({ id, data, selected }: NodeProps<FreepikImage
 
     setIsGenerating(true);
     setError(null);
+    setPollingStatus("Creating task...");
+    setTaskId(null);
 
     try {
       const result = await freepikService.generateImage({
@@ -107,19 +154,33 @@ const FreepikImageGenNode = memo(({ id, data, selected }: NodeProps<FreepikImage
         reference_image: data.reference_image
       });
 
-      // Assuming result structure based on common API patterns
-      // Adjust based on actual response schema
-      if (result.data && result.data[0] && result.data[0].base64) {
-        const base64Image = `data:image/png;base64,${result.data[0].base64}`;
-        setImageUrl(base64Image);
-        // Update node data if possible (requires callback in real app)
-      } else if (result.data && result.data[0] && result.data[0].url) {
-         setImageUrl(result.data[0].url);
-      } else {
-        throw new Error("No image data received");
+      // Extract task ID for display
+      const extractedTaskId = extractFreepikTaskId(result);
+      if (extractedTaskId) {
+        setTaskId(extractedTaskId);
+        setPollingStatus("Polling for result...");
       }
+
+      const generated = extractFreepikGeneratedImages(result);
+      if (!generated || generated.length === 0) {
+        throw new Error(
+          `Freepik returned an empty response. ` +
+          `Model: ${selectedModel}${extractedTaskId ? `, Task ID: ${extractedTaskId}` : ''}. ` +
+          `Please try again.`
+        );
+      }
+
+      const primaryImage = generated[0];
+      setImageUrl(primaryImage);
+      setPollingStatus(null);
+      persistGeneratedImage(result, primaryImage, generated);
     } catch (err: any) {
-      setError(err.message || "Generation failed");
+      const errorMessage = err.message || "Generation failed";
+      const enhancedError = taskId 
+        ? `${errorMessage} (Model: ${selectedModel}, Task ID: ${taskId})`
+        : `${errorMessage} (Model: ${selectedModel})`;
+      setError(enhancedError);
+      setPollingStatus(null);
     } finally {
       setIsGenerating(false);
     }
@@ -249,7 +310,14 @@ const FreepikImageGenNode = memo(({ id, data, selected }: NodeProps<FreepikImage
           {isGenerating && (
             <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-10 flex-col gap-2">
               <Loader2 size={24} className="text-purple-500 dark:text-purple-400 animate-spin" />
-              <span className="text-xs text-purple-600 dark:text-purple-300 animate-pulse">Dreaming...</span>
+              <span className="text-xs text-purple-600 dark:text-purple-300 animate-pulse">
+                {pollingStatus || "Dreaming..."}
+              </span>
+              {taskId && (
+                <span className="text-[10px] text-purple-400 dark:text-purple-500 opacity-75">
+                  Task: {taskId.substring(0, 8)}...
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -269,8 +337,14 @@ const FreepikImageGenNode = memo(({ id, data, selected }: NodeProps<FreepikImage
           </div>
           
           {error && (
-            <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20">
-              {error}
+            <div className="text-[10px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-400/10 p-2 rounded border border-red-200 dark:border-red-400/20 space-y-1">
+              <div className="font-medium">Generation Failed</div>
+              <div className="text-[9px] opacity-90 break-words">{error}</div>
+              {taskId && (
+                <div className="text-[9px] opacity-75 mt-1 pt-1 border-t border-red-200 dark:border-red-400/20">
+                  Task ID: {taskId}
+                </div>
+              )}
             </div>
           )}
 

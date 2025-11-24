@@ -268,21 +268,21 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   }
   
   // For non-admins, verify ownership even if we fetched without filter
-  if (!isAdmin && contact.owner_id !== userId) {
+  if (!isAdmin && (contact as any).owner_id !== userId) {
     const error = new Error(`You don't have permission to view this contact`);
-    logger.error('Permission denied:', { contactId, userId, contactOwnerId: contact.owner_id });
+    logger.error('Permission denied:', { contactId, userId, contactOwnerId: (contact as any).owner_id });
     throw error;
   }
   
   // Fetch company information separately to avoid FK issues between contacts and clients/companies
   let company = null;
-  if (contact.company_id) {
+  if ((contact as any).company_id) {
     // Try clients table first (CRM standard)
-    const { data: clientCompany, error: clientError } = await supabase
+    const { data: clientCompany, error: clientError } = await (supabase
       .from('clients')
       .select('*')
-      .eq('id', contact.company_id)
-      .maybeSingle();
+      .eq('id', (contact as any).company_id)
+      .maybeSingle() as any);
 
     if (clientCompany) {
       company = clientCompany;
@@ -291,11 +291,11 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
     }
 
     if (!company) {
-      const { data: legacyCompany, error: legacyCompanyError } = await supabase
+      const { data: legacyCompany, error: legacyCompanyError } = await (supabase
         .from('companies')
         .select('*')
-        .eq('id', contact.company_id)
-        .maybeSingle();
+        .eq('id', (contact as any).company_id)
+        .maybeSingle() as any);
 
       if (legacyCompany) {
         company = legacyCompany;
@@ -307,13 +307,13 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   
   // If profile wasn't loaded via join, fetch it separately
   // (This can happen if the foreign key points to auth.users instead of profiles)
-  let ownerProfile = contact.profiles;
-  if (!ownerProfile && contact.owner_id) {
-    const { data: profile } = await supabase
+  let ownerProfile = (contact as any).profiles;
+  if (!ownerProfile && (contact as any).owner_id) {
+    const { data: profile } = await (supabase
       .from('profiles')
       .select('id, first_name, last_name, email, avatar_url, stage')
-      .eq('id', contact.owner_id)
-      .maybeSingle();
+      .eq('id', (contact as any).owner_id)
+      .maybeSingle() as any);
     if (profile) {
       ownerProfile = profile;
     }
@@ -321,7 +321,7 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   
   // Attach owner profile to contact for use in components
   if (ownerProfile) {
-    contact.profiles = ownerProfile;
+    (contact as any).profiles = ownerProfile;
   }
   
   // Fetch all related data in parallel
@@ -445,11 +445,11 @@ async function fetchContactGraph(contactId: string, userId: string, userData?: a
   
   // Compute insights
   const allTimestamps = [
-    ...activities.map(a => a.date || a.created_at),
-    ...meetings.map(m => m.meeting_start || m.created_at),
-    ...leads.map(l => l.meeting_start || l.created_at),
-    ...tasks.map(t => t.due_date || t.created_at),
-  ].filter(Boolean).map(d => new Date(d).getTime());
+    ...activities.map((a: any) => a.date || a.created_at),
+    ...meetings.map((m: any) => m.meeting_start || m.created_at),
+    ...leads.map((l: any) => l.meeting_start || l.created_at),
+    ...tasks.map((t: any) => t.due_date || t.created_at),
+  ].filter(Boolean).map((d: any) => new Date(d).getTime());
   
   const lastActivityDate = allTimestamps.length > 0
     ? new Date(Math.max(...allTimestamps)).toISOString()
@@ -534,20 +534,20 @@ async function fetchCompanyGraph(companyId: string, userId: string, userData?: a
   }
   
   // For non-admins, verify ownership even if we fetched without filter
-  if (!isAdmin && company.owner_id !== userId) {
+  if (!isAdmin && (company as any).owner_id !== userId) {
     const error = new Error(`You don't have permission to view this company`);
-    logger.error('Permission denied:', { companyId, userId, companyOwnerId: company.owner_id });
+    logger.error('Permission denied:', { companyId, userId, companyOwnerId: (company as any).owner_id });
     throw error;
   }
   
   // Fetch all contacts for this company
-  const { data: contacts } = await supabase
+  const { data: contacts } = await (supabase
     .from('contacts')
     .select('id')
       .eq('company_id', companyId)
-      .eq('owner_id', userId);
+      .eq('owner_id', userId) as any);
   
-  const contactIds = contacts?.map(c => c.id) || [];
+  const contactIds = (contacts as any)?.map((c: any) => c.id) || [];
   
   if (contactIds.length === 0) {
     // No contacts, return empty graph
@@ -664,13 +664,13 @@ async function fetchCompanyGraph(companyId: string, userId: string, userData?: a
   
   // Combine meetings from all queries
   const meetingsByCompany = meetingsByCompanyResult.status === 'fulfilled'
-    ? (meetingsByCompanyResult.value.data || [])
+    ? ((meetingsByCompanyResult.value as any).data || [])
     : [];
   const meetingsByPrimary = meetingsByPrimaryResult.status === 'fulfilled'
-    ? (meetingsByPrimaryResult.value.data || [])
+    ? ((meetingsByPrimaryResult.value as any).data || [])
     : [];
   const meetingsByJunction = meetingsByJunctionResult.status === 'fulfilled'
-    ? (meetingsByJunctionResult.value.data || [])
+    ? ((meetingsByJunctionResult.value as any).data || [])
       .map((mc: any) => mc.meetings)
       .filter(Boolean)
     : [];
@@ -682,18 +682,18 @@ async function fetchCompanyGraph(companyId: string, userId: string, userData?: a
   const meetings = Array.from(meetingsMap.values());
   
   const leads = leadsResult.status === 'fulfilled'
-    ? (leadsResult.value.data || [])
+    ? ((leadsResult.value as any).data || [])
     : [];
   
   // Combine deals from all queries
   const dealsByCompany = dealsByCompanyResult.status === 'fulfilled'
-    ? (dealsByCompanyResult.value.data || [])
+    ? ((dealsByCompanyResult.value as any).data || [])
     : [];
   const dealsByPrimary = dealsByPrimaryResult.status === 'fulfilled'
-    ? (dealsByPrimaryResult.value.data || [])
+    ? ((dealsByPrimaryResult.value as any).data || [])
     : [];
   const dealsByJunction = dealsByJunctionResult.status === 'fulfilled'
-    ? (dealsByJunctionResult.value.data || [])
+    ? ((dealsByJunctionResult.value as any).data || [])
       .map((dc: any) => dc.deals)
       .filter(Boolean)
     : [];
@@ -710,11 +710,11 @@ async function fetchCompanyGraph(companyId: string, userId: string, userData?: a
   
   // Compute insights (same as contact)
   const allTimestamps = [
-    ...activities.map(a => a.date || a.created_at),
-    ...meetings.map(m => m.meeting_start || m.created_at),
-    ...leads.map(l => l.meeting_start || l.created_at),
-    ...tasks.map(t => t.due_date || t.created_at),
-  ].filter(Boolean).map(d => new Date(d).getTime());
+    ...activities.map((a: any) => a.date || a.created_at),
+    ...meetings.map((m: any) => m.meeting_start || m.created_at),
+    ...leads.map((l: any) => l.meeting_start || l.created_at),
+    ...tasks.map((t: any) => t.due_date || t.created_at),
+  ].filter(Boolean).map((d: any) => new Date(d).getTime());
   
   const lastActivityDate = allTimestamps.length > 0
     ? new Date(Math.max(...allTimestamps)).toISOString()
@@ -927,15 +927,16 @@ export function useTimelineInfinite(
       });
       
       // Paginate
-      const start = pageParam * pageSize;
+      const start = (pageParam as number) * pageSize;
       const end = start + pageSize;
       
       return {
         items: items.slice(start, end),
-        nextCursor: end < items.length ? pageParam + 1 : undefined,
+        nextCursor: end < items.length ? (pageParam as number) + 1 : undefined,
       };
     },
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any) => lastPage?.nextCursor,
     enabled: !!id && !!userId,
     staleTime: 5 * 60 * 1000,
   });

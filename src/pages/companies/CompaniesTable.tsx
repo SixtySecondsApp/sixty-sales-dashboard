@@ -246,56 +246,8 @@ export default function CompaniesTable() {
             .order('created_at', { ascending: false });
           
           if (supabaseError) {
-            logger.error('❌ Companies anon fallback failed:', supabaseError);
-            logger.log('🔄 Trying companies with service role key...');
-            
-            // Last resort: try with service role key
-            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-            const serviceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-            
-            if (!supabaseUrl || !serviceKey) {
-              throw new Error('Missing Supabase configuration');
-            }
-            
-            const { createClient } = await import('@supabase/supabase-js');
-            const serviceSupabase = createClient(supabaseUrl, serviceKey);
-            
-            const { data: serviceCompaniesData, error: serviceError } = await (serviceSupabase as any)
-              .from('companies')
-              .select(`
-                *,
-                deals!company_id(
-                  id,
-                  value,
-                  status
-                )
-              `)
-              .order('created_at', { ascending: false });
-              
-            if (serviceError) {
-              logger.error('❌ Service key companies fallback failed:', serviceError);
-              throw serviceError;
-            }
-            
-            logger.log(`✅ Service key companies fallback successful: Retrieved ${serviceCompaniesData?.length || 0} companies`);
-            
-            // Process companies data to include deals count and value
-            const processedServiceCompanies = (serviceCompaniesData || []).map(company => {
-              const deals = company.deals || [];
-              const dealsCount = deals.length;
-              const dealsValue = deals.reduce((sum: number, deal: any) => {
-                return sum + (deal.value || 0);
-              }, 0);
-              
-              return {
-                ...company,
-                dealsCount,
-                dealsValue
-              };
-            });
-            
-            setCompanies(processedServiceCompanies);
-            return;
+            logger.error('❌ Companies fetch failed:', supabaseError);
+            throw supabaseError;
           }
           
           logger.log(`✅ Companies fallback successful: Retrieved ${companiesData?.length || 0} companies`);

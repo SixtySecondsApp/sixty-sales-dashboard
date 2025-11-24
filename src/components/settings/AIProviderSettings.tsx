@@ -89,7 +89,13 @@ export default function AIProviderSettings() {
           ? { ...key, isValid }
           : key
       ));
-    } catch (error) {
+      
+      // Log result for debugging
+      if (!isValid) {
+        console.warn(`[AI Settings] API key validation failed for ${provider}. Check browser console for details.`);
+      }
+    } catch (error: any) {
+      console.error(`[AI Settings] Error testing ${provider} API key:`, error);
       setApiKeys(keys => keys.map(key => 
         key.provider === provider 
           ? { ...key, isValid: false }
@@ -148,7 +154,7 @@ export default function AIProviderSettings() {
       case 'openrouter':
         return 'Get your API key from openrouter.ai';
       case 'gemini':
-        return 'Get your API key from makersuite.google.com/app/apikey';
+        return 'Get your API key from aistudio.google.com/app/apikey (enable Generative AI API in Google Cloud Console)';
       default:
         return '';
     }

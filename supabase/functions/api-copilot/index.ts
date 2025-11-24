@@ -38,7 +38,17 @@ interface ChatRequest {
     contactId?: string
     dealIds?: string[]
     taskId?: string
+    temporalContext?: TemporalContextPayload
   }
+}
+
+interface TemporalContextPayload {
+  isoString?: string
+  localeString?: string
+  date?: string
+  time?: string
+  timezone?: string
+  offsetMinutes?: number
 }
 
 interface DraftEmailRequest {
@@ -1221,6 +1231,14 @@ async function handleGetConversation(
 async function buildContext(client: any, userId: string, context?: ChatRequest['context']): Promise<string> {
   const contextParts: string[] = []
 
+  if (context?.temporalContext) {
+    const { date, time, timezone, localeString, isoString } = context.temporalContext
+    const primary = (date && time) ? `${date} at ${time}` : localeString || isoString
+    if (primary) {
+      contextParts.push(`Current date/time: ${primary}${timezone ? ` (${timezone})` : ''}`)
+    }
+  }
+
   if (context?.contactId) {
     const { data: contact } = await client
       .from('contacts')
@@ -1637,11 +1655,12 @@ const AVAILABLE_TOOLS = [
   },
   {
     name: 'calendar_read',
-    description: 'Read calendar events with filtering options.',
+    description: 'Read and search calendar events. Use this to find events by title (e.g., "gym", "meeting with John") or time range. When users want to move/update an event, first use this tool to find it by searching the title.',
     input_schema: {
       type: 'object',
       properties: {
         id: { type: 'string', description: 'Event ID (for single event)' },
+        title: { type: 'string', description: 'Search events by title (case-insensitive partial match, e.g., "gym" will find "Gym Session")' },
         startDate: { type: 'string', description: 'Filter by start date (ISO format)' },
         endDate: { type: 'string', description: 'Filter by end date (ISO format)' },
         calendar_id: { type: 'string', description: 'Filter by calendar ID' },
@@ -1678,12 +1697,12 @@ const AVAILABLE_TOOLS = [
   },
   {
     name: 'calendar_availability',
-    description: 'Calculate calendar availability (free/busy) for a date range.',
+    description: 'Check what\'s on the user\'s calendar or find free time slots. Use this tool when users ask about their calendar, meetings, availability, or free time. The tool returns both scheduled events and available time slots. Use the current date/time from context to parse relative dates like "Monday next week", "this coming Monday", "tomorrow", etc. Always use this tool instead of asking the user for dates - the context includes the current date/time.',
     input_schema: {
       type: 'object',
       properties: {
-        startDate: { type: 'string', description: 'Start of the window (ISO). Defaults to now.' },
-        endDate: { type: 'string', description: 'End of the window (ISO). Defaults to 7 days from start.' },
+        startDate: { type: 'string', description: 'Start of the window (ISO). Use current date/time from context to calculate relative dates like "Monday next week".' },
+        endDate: { type: 'string', description: 'End of the window (ISO). For single day queries like "Monday", use end of that day. Defaults to 7 days from start.' },
         durationMinutes: { type: 'number', default: 60, description: 'Required meeting duration in minutes.' },
         workingHoursStart: { type: 'string', default: '09:00', description: 'Day start in HH:mm (user timezone).' },
         workingHoursEnd: { type: 'string', default: '17:00', description: 'Day end in HH:mm (user timezone).' },
@@ -1880,7 +1899,15 @@ You have access to CRUD (Create, Read, Update, Delete) operations for all major 
 **Leads (Contacts)**: Manage contacts with companies, emails, and relationships
 **Clients**: Manage client subscriptions with monthly recurring revenue (MRR) tracking
 **Roadmap**: Create and manage roadmap items (features, bugs, improvements)
-**Calendar**: Manage calendar events and scheduling
+**Calendar**: Full calendar management with search and update capabilities.
+  - Use calendar_availability to check what's on calendar or find free time slots
+  - Use calendar_read with title parameter to search events (e.g., title: "gym" finds "Gym Session")
+  - When users want to move/reschedule an event, use this workflow:
+    1. Search for the event using calendar_read with title and date filters
+    2. Update the event using calendar_update with new start_time and end_time
+    3. Confirm the change to the user
+  - ALWAYS search for events first before asking user for event IDs
+  - Parse relative dates using current date/time from context (e.g., "Monday next week")
 **Tasks**: Create and manage tasks linked to contacts, deals, or companies
 
 **CRITICAL: When users request actions that modify data (marking deals as won, updating client subscriptions, creating tasks, etc.), you MUST use the appropriate write operations (create, update). Do not just read data - actively perform the requested changes using the available tools.**
@@ -1895,6 +1922,8 @@ You have access to CRUD (Create, Read, Update, Delete) operations for all major 
 
 **Examples of what you can do**:
 - "Show me all meetings from last week with their transcripts and action items"
+- "What's on my calendar on Monday?" → Use calendar_availability tool with startDate/endDate for that Monday (use current date from context)
+- "When am I free next week?" → Use calendar_availability tool with startDate/endDate for next week (use current date from context)
 - "Create a new deal for Acme Corp worth $50,000 in the Opportunity stage"
 - "Mark the deal for Anuncia as closed won and set the client subscription to £5000 per month"
 - "Update the status of deal XYZ to 'won'"
@@ -1907,6 +1936,7 @@ You have access to CRUD (Create, Read, Update, Delete) operations for all major 
 - When a user asks you to mark a deal as won, use pipeline_update with status='won'
 - When a user asks you to update a client subscription amount, use clients_update with subscription_amount
 - When a user asks you to create a task, use tasks_create
+- **When a user asks about their calendar (e.g., "what's on my calendar on Monday", "what meetings do I have", "when am I free"), ALWAYS use calendar_availability tool. Use the current date/time from context to parse relative dates - NEVER ask the user for today's date or a specific date.**
 - Always use the appropriate write operations to complete user requests - don't just read and report
 
 Use the appropriate CRUD operations to complete user requests. Be intelligent about which operations to use and provide helpful summaries of what you did.
@@ -2831,7 +2861,55 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
     }
 
     case 'read': {
-      const { id, startDate, endDate, calendar_id, deal_id, limit = 50 } = args
+      const { id, title, startDate, endDate, calendar_id, deal_id, limit = 50 } = args
+
+      console.log('[CALENDAR-READ] Query params:', {
+        userId,
+        id,
+        title,
+        startDate,
+        endDate,
+        calendar_id,
+        deal_id,
+        limit
+      })
+
+      console.log('[CALENDAR-READ] Date range query:', {
+        startDateISO: startDate,
+        endDateISO: endDate,
+        startDateParsed: startDate ? new Date(startDate).toISOString() : null,
+        endDateParsed: endDate ? new Date(endDate).toISOString() : null
+      })
+
+      // Check data freshness and log if sync may be needed
+      // The hourly background sync will keep data current
+      if (startDate && endDate) {
+        const rangeStart = new Date(startDate)
+        const rangeEnd = new Date(endDate)
+
+        // Check when this range was last synced
+        const { data: lastEvent } = await client
+          .from('calendar_events')
+          .select('updated_at')
+          .eq('user_id', userId)
+          .gte('start_time', rangeStart.toISOString())
+          .lte('start_time', rangeEnd.toISOString())
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        const lastUpdated = lastEvent ? new Date(lastEvent.updated_at) : null
+        const minutesSinceUpdate = lastUpdated
+          ? (Date.now() - lastUpdated.getTime()) / 1000 / 60
+          : Infinity
+
+        console.log('[CALENDAR-READ] Data freshness:', {
+          lastUpdated: lastUpdated?.toISOString(),
+          minutesSinceUpdate: minutesSinceUpdate.toFixed(1),
+          isStale: minutesSinceUpdate > 60,
+          note: 'Hourly background sync will update stale data'
+        })
+      }
 
       let query = client
         .from('calendar_events')
@@ -2841,8 +2919,40 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
       if (id) {
         query = query.eq('id', id).single()
       } else {
-        if (startDate) query = query.gte('start_time', startDate)
-        if (endDate) query = query.lte('end_time', endDate)
+        if (title) query = query.ilike('title', `%${title}%`) // Case-insensitive partial match
+
+        // Handle date range filtering for events
+        // For events that span time, we need to find events that OVERLAP with the date range
+        // An event overlaps if: event_start < range_end AND event_end > range_start
+        if (startDate && endDate) {
+          // Parse dates to ensure we have full timestamps
+          const rangeStart = new Date(startDate)
+          const rangeEnd = new Date(endDate)
+
+          // If same date (or endDate is not later than startDate), assume single day query
+          // Extend endDate to end of day to capture all events on that day
+          if (rangeEnd.getTime() <= rangeStart.getTime()) {
+            rangeEnd.setHours(23, 59, 59, 999)
+          }
+
+          console.log('[CALENDAR-READ] Adjusted date range:', {
+            originalStart: startDate,
+            originalEnd: endDate,
+            adjustedStart: rangeStart.toISOString(),
+            adjustedEnd: rangeEnd.toISOString()
+          })
+
+          // Events that overlap with our date range:
+          // - Event starts before or during our range: start_time < rangeEnd
+          // - Event ends after or during our range: end_time > rangeStart
+          query = query.lt('start_time', rangeEnd.toISOString())
+          query = query.gt('end_time', rangeStart.toISOString())
+        } else if (startDate) {
+          query = query.gte('start_time', startDate)
+        } else if (endDate) {
+          query = query.lte('start_time', endDate)
+        }
+
         if (calendar_id) query = query.eq('calendar_id', calendar_id)
         if (deal_id) query = query.eq('deal_id', deal_id)
         query = query.order('start_time', { ascending: true }).limit(limit)
@@ -2850,14 +2960,38 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
 
       const { data, error } = await query
 
-      if (error) throw new Error(`Failed to read calendar events: ${error.message}`)
+      if (error) {
+        console.error('[CALENDAR-READ] Error:', error)
+        throw new Error(`Failed to read calendar events: ${error.message}`)
+      }
+
+      console.log('[CALENDAR-READ] Found events:', {
+        count: Array.isArray(data) ? data.length : (data ? 1 : 0),
+        events: Array.isArray(data) ? data.map(e => ({ id: e.id, title: e.title, start: e.start_time, end: e.end_time })) : (data ? [{ id: data.id, title: data.title, start: data.start_time, end: data.end_time }] : [])
+      })
+
+      if (!data || (Array.isArray(data) && data.length === 0)) {
+        console.log('[CALENDAR-READ] No events found. Query filters applied:', {
+          hasTitle: !!title,
+          hasStartDate: !!startDate,
+          hasEndDate: !!endDate,
+          hasCalendarId: !!calendar_id,
+          hasDealId: !!deal_id
+        })
+      }
 
       return { success: true, events: Array.isArray(data) ? data : [data], count: Array.isArray(data) ? data.length : 1 }
     }
 
     case 'update': {
       const { id, ...updates } = args
-      
+
+      console.log('[CALENDAR-UPDATE] Updating event:', {
+        userId,
+        eventId: id,
+        updates
+      })
+
       const { data, error } = await client
         .from('calendar_events')
         .update(updates)
@@ -2866,7 +3000,17 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
         .select()
         .single()
 
-      if (error) throw new Error(`Failed to update calendar event: ${error.message}`)
+      if (error) {
+        console.error('[CALENDAR-UPDATE] Error:', error)
+        throw new Error(`Failed to update calendar event: ${error.message}`)
+      }
+
+      console.log('[CALENDAR-UPDATE] Success:', {
+        eventId: data?.id,
+        title: data?.title,
+        newStartTime: data?.start_time,
+        newEndTime: data?.end_time
+      })
 
       return { success: true, event: data, message: 'Calendar event updated successfully' }
     }
@@ -2894,6 +3038,108 @@ async function handleCalendarCRUD(operation: string, args: any, client: any, use
   }
 }
 
+/**
+ * Ensure calendar is synced before querying
+ * Checks user_sync_status and triggers sync if needed (stale or never synced)
+ */
+async function ensureCalendarSynced(
+  client: any,
+  userId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<void> {
+  try {
+    // Get user sync status (handle case where table doesn't exist yet)
+    let syncStatus: any = null
+    try {
+      const { data, error } = await client
+        .from('user_sync_status')
+        .select('calendar_last_synced_at, calendar_sync_token')
+        .eq('user_id', userId)
+        .maybeSingle()
+      
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned (expected)
+        console.error('[CALENDAR-SYNC] Error checking sync status:', error)
+        // If table doesn't exist, error.code will be different - continue to sync anyway
+      } else {
+        syncStatus = data
+      }
+    } catch (tableError: any) {
+      // Table might not exist if migration hasn't been applied
+      console.log('[CALENDAR-SYNC] user_sync_status table may not exist, will attempt sync anyway')
+    }
+
+    // Check if sync is needed (never synced or > 5 minutes old)
+    const needsSync = !syncStatus?.calendar_last_synced_at ||
+      (Date.now() - new Date(syncStatus.calendar_last_synced_at).getTime()) > 5 * 60 * 1000
+
+    if (needsSync) {
+      console.log('[CALENDAR-SYNC] Triggering sync for user:', userId, {
+        hasSyncStatus: !!syncStatus,
+        lastSynced: syncStatus?.calendar_last_synced_at,
+        syncToken: syncStatus?.calendar_sync_token ? 'present' : 'missing'
+      })
+      
+      // Call google-calendar-sync edge function using service role
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      
+      if (!supabaseUrl || !supabaseServiceKey) {
+        console.error('[CALENDAR-SYNC] Missing Supabase configuration')
+        return
+      }
+      
+      const syncResponse = await fetch(`${supabaseUrl}/functions/v1/google-calendar-sync`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json',
+          'X-Internal-Call': 'true',
+        },
+        body: JSON.stringify({
+          action: 'incremental-sync',
+          syncToken: syncStatus?.calendar_sync_token,
+          startDate,
+          endDate,
+          userId,
+        }),
+      })
+
+      if (!syncResponse.ok) {
+        const errorText = await syncResponse.text()
+        let errorData: any = {}
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { message: errorText }
+        }
+        console.error('[CALENDAR-SYNC] Sync failed:', {
+          status: syncResponse.status,
+          statusText: syncResponse.statusText,
+          error: errorData
+        })
+        // Don't throw - allow query to proceed with existing data
+        return
+      }
+
+      const syncResult = await syncResponse.json()
+      console.log('[CALENDAR-SYNC] Sync completed:', {
+        success: syncResult.success,
+        stats: syncResult.stats,
+        syncToken: syncResult.syncToken ? 'present' : 'missing'
+      })
+    } else {
+      console.log('[CALENDAR-SYNC] Sync not needed, last synced:', syncStatus?.calendar_last_synced_at)
+    }
+  } catch (error: any) {
+    console.error('[CALENDAR-SYNC] Error checking/syncing calendar:', {
+      message: error.message,
+      stack: error.stack
+    })
+    // Don't throw - allow query to proceed with existing data
+  }
+}
+
 // Calendar Availability
 async function handleCalendarAvailability(args: any, client: any, userId: string): Promise<any> {
   const {
@@ -2904,6 +3150,9 @@ async function handleCalendarAvailability(args: any, client: any, userId: string
     workingHoursEnd = '17:00',
     excludeWeekends = true
   } = args || {}
+
+  // Ensure calendar is synced before querying
+  await ensureCalendarSynced(client, userId, startDate, endDate)
 
   const timezone = await getUserTimezone(client, userId)
   const normalizedDuration = clampDurationMinutes(durationMinutes)
@@ -2924,6 +3173,16 @@ async function handleCalendarAvailability(args: any, client: any, userId: string
     rangeEnd = endOfZonedDay(addDays(rangeStart, 1), timezone)
   }
 
+  console.log('[CALENDAR-AVAILABILITY] Querying events:', {
+    userId,
+    rangeStart: rangeStart.toISOString(),
+    rangeEnd: rangeEnd.toISOString(),
+    timezone
+  })
+
+  // Query events that overlap with the time range
+  // An event overlaps if: start_time < rangeEnd AND end_time > rangeStart
+  // Also exclude deleted/cancelled events
   const { data: rawEvents, error } = await client
     .from('calendar_events')
     .select(`
@@ -2939,13 +3198,25 @@ async function handleCalendarAvailability(args: any, client: any, userId: string
       attendees:calendar_attendees(name, email)
     `)
     .eq('user_id', userId)
-    .gte('start_time', rangeStart.toISOString())
-    .lte('end_time', rangeEnd.toISOString())
+    .lt('start_time', rangeEnd.toISOString())
+    .gt('end_time', rangeStart.toISOString())
+    .neq('status', 'cancelled')
+    .neq('sync_status', 'deleted')
     .order('start_time', { ascending: true })
 
   if (error) {
+    console.error('[CALENDAR-AVAILABILITY] Query error:', error)
     throw new Error(`Failed to read calendar events: ${error.message}`)
   }
+
+  console.log('[CALENDAR-AVAILABILITY] Found events:', {
+    count: rawEvents?.length || 0,
+    events: rawEvents?.slice(0, 5).map((e: any) => ({
+      title: e.title,
+      start: e.start_time,
+      end: e.end_time
+    }))
+  })
 
   let meetingFallbackEvents: any[] = []
   if (!rawEvents || rawEvents.length === 0) {
@@ -3009,7 +3280,7 @@ async function handleCalendarAvailability(args: any, client: any, userId: string
     .sort((a, b) => a.start.getTime() - b.start.getTime())
 
   const availabilitySlots: Array<{ start: string; end: string; durationMinutes: number }> = []
-  const allSlots: Array<{ start: Date; end: Date; durationMinutes: number }> = []
+  const allSlots: Array<{ start: Date; end: Date; durationMinutes: number; slotType: '60min' | '30min' }> = []
 
   let dayCursor = new Date(rangeStart)
   while (dayCursor <= rangeEnd) {
@@ -3029,14 +3300,34 @@ async function handleCalendarAvailability(args: any, client: any, userId: string
         .filter(interval => interval.end > interval.start)
 
       const mergedBusy = mergeIntervals(overlappingEvents)
-      const freeSlots = calculateFreeSlotsForDay(dayWorkStart, dayWorkEnd, mergedBusy, normalizedDuration)
-      for (const slot of freeSlots) {
-        allSlots.push(slot)
+
+      // Calculate slots for both 60-min and 30-min durations
+      // Strategy: Prioritize 60-min slots, fall back to 30-min for smaller gaps
+      const freeSlots60 = calculateFreeSlotsForDay(dayWorkStart, dayWorkEnd, mergedBusy, 60)
+      const freeSlots30 = calculateFreeSlotsForDay(dayWorkStart, dayWorkEnd, mergedBusy, 30)
+
+      // Mark 60-min slots
+      for (const slot of freeSlots60) {
+        allSlots.push({ ...slot, slotType: '60min' })
+      }
+
+      // Add 30-min slots that don't overlap with 60-min slots (gaps 30-59 min)
+      for (const slot30 of freeSlots30) {
+        const overlapsWithSlot60 = freeSlots60.some(slot60 =>
+          slot30.start.getTime() === slot60.start.getTime()
+        )
+        // Only add if it's a smaller gap (30-59 min) not covered by 60-min slots
+        if (!overlapsWithSlot60 && slot30.durationMinutes < 60) {
+          allSlots.push({ ...slot30, slotType: '30min' })
+        }
       }
     }
 
     dayCursor = addDays(dayCursor, 1)
   }
+
+  // Sort by start time
+  allSlots.sort((a, b) => a.start.getTime() - b.start.getTime())
 
   const totalFreeMinutes = allSlots.reduce((sum, slot) => sum + slot.durationMinutes, 0)
   const totalBusyMinutes = normalizedEvents.reduce((sum, event) => {
@@ -3384,6 +3675,42 @@ async function handleEmailsTool(operation: string, args: any, client: any, userI
   let messages: GmailMessageSummary[] = []
   let source: 'gmail' | 'activities' | 'none' = 'gmail'
   let warning: string | null = null
+
+  // Check data freshness and log if sync may be needed
+  try {
+    let emailsQuery = client
+      .from('emails')
+      .select('updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    // Apply date range filter if provided
+    if (start_date) {
+      emailsQuery = emailsQuery.gte('received_at', start_date);
+    }
+    if (end_date) {
+      emailsQuery = emailsQuery.lte('received_at', end_date);
+    }
+
+    const { data: lastEmail } = await emailsQuery.maybeSingle();
+
+    const lastUpdated = lastEmail ? new Date(lastEmail.updated_at) : null;
+    const minutesSinceUpdate = lastUpdated
+      ? (Date.now() - lastUpdated.getTime()) / 1000 / 60
+      : Infinity;
+
+    console.log('[EMAIL-READ] Data freshness:', {
+      lastUpdated: lastUpdated?.toISOString(),
+      minutesSinceUpdate: minutesSinceUpdate.toFixed(1),
+      isStale: minutesSinceUpdate > 60,
+      note: 'Hourly background sync will update stale data',
+      startDate: start_date,
+      endDate: end_date
+    });
+  } catch (freshnessError) {
+    console.error('[EMAIL-READ] Freshness check error (non-critical):', freshnessError);
+  }
 
   try {
     const gmailResult = await searchGmailMessages(client, userId, {
@@ -4162,6 +4489,54 @@ function extractLabelFromMessage(message: string): string | null {
 }
 
 /**
+ * Check if a message is asking about calendar availability
+ */
+function isAvailabilityQuestion(messageLower: string): boolean {
+  if (!messageLower) return false
+
+  const triggerPhrases = [
+    'when am i free',
+    'when am i available',
+    'when do i have time',
+    'when can i meet',
+    'find a free slot',
+    'find availability',
+    'free on',
+    'free next',
+    'available on',
+    'available next',
+    'do i have time',
+    'open slots',
+    'open time',
+    'find time to meet',
+    'find time next week'
+  ]
+
+  // Calendar event queries (what's on calendar, what meetings, etc.)
+  const calendarEventPhrases = [
+    'what\'s on my calendar',
+    'what\'s on my schedule',
+    'what meetings',
+    'what events',
+    'show me my calendar',
+    'show me my schedule',
+    'calendar on',
+    'schedule on',
+    'meetings on',
+    'events on'
+  ]
+
+  const weekdayKeywords = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+  const containsTrigger = triggerPhrases.some(phrase => messageLower.includes(phrase))
+  const containsCalendarEvent = calendarEventPhrases.some(phrase => messageLower.includes(phrase))
+  const mentionsFree = messageLower.includes('free') || messageLower.includes('availability') || messageLower.includes('available')
+  const mentionsWeekday = weekdayKeywords.some(day => messageLower.includes(day))
+  const mentionsRelativeWeek = messageLower.includes('next week') || messageLower.includes('this week')
+  
+  return containsTrigger || containsCalendarEvent || (mentionsFree && (mentionsWeekday || mentionsRelativeWeek))
+}
+
+/**
  * Detect intent from user message and structure response accordingly
  */
 async function detectAndStructureResponse(
@@ -4179,6 +4554,39 @@ async function detectAndStructureResponse(
   // Store original message for limit extraction
   const originalMessage = userMessage
   
+  if (isAvailabilityQuestion(messageLower)) {
+    const availabilityStructured = await structureCalendarAvailabilityResponse(
+      client,
+      userId,
+      userMessage,
+      context?.temporalContext
+    )
+    if (availabilityStructured) {
+      return availabilityStructured
+    }
+  }
+
+  // Check if calendar_read was used (for specific event searches)
+  if (toolExecutions && toolExecutions.length > 0) {
+    const calendarReadExecution = toolExecutions.find(exec =>
+      exec.toolName === 'calendar_read' && exec.success
+    )
+
+    if (calendarReadExecution && calendarReadExecution.result) {
+      console.log('[CALENDAR-SEARCH] Found calendar_read execution, structuring response')
+      const calendarStructured = await structureCalendarSearchResponse(
+        client,
+        userId,
+        calendarReadExecution.result,
+        userMessage,
+        context?.temporalContext
+      )
+      if (calendarStructured) {
+        return calendarStructured
+      }
+    }
+  }
+
   // FIRST: Check if there are successful write operations (create/update/delete) in tool executions
   // If so, generate an action summary response instead of defaulting to pipeline/task summaries
   if (toolExecutions && toolExecutions.length > 0) {
@@ -4318,12 +4726,36 @@ async function detectAndStructureResponse(
   }
   
   // Detect calendar/meeting queries
+  const weekdayKeywords = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+  const calendarBaseKeywords = [
+    'meeting',
+    'calendar',
+    'schedule',
+    'availability',
+    'free time',
+    'free slot',
+    'free slots',
+    'when am i free',
+    'am i free',
+    'when am i available',
+    'when am i open',
+    'available on',
+    'available next',
+    'find time',
+    'find availability',
+    'book time',
+    'open slot',
+    'free this',
+    'free next',
+    'free on'
+  ]
+  const mentionsWeekday = weekdayKeywords.some(keyword => messageLower.includes(keyword))
+  const mentionsFreeOrAvailable = messageLower.includes('free') || messageLower.includes('available')
   const isCalendarQuery =
-    messageLower.includes('meeting') ||
-    messageLower.includes('calendar') ||
-    messageLower.includes('schedule') ||
-    messageLower.includes('availability') ||
-    messageLower.includes('free time')
+    calendarBaseKeywords.some(keyword => messageLower.includes(keyword)) ||
+    (mentionsFreeOrAvailable && mentionsWeekday) ||
+    (mentionsFreeOrAvailable && messageLower.includes('next week')) ||
+    (mentionsFreeOrAvailable && messageLower.includes('this week'))
 
   if (isCalendarQuery) {
     const availabilityKeywords = [
@@ -4348,7 +4780,12 @@ async function detectAndStructureResponse(
       messageLower.includes('open time')
 
     if (wantsAvailability) {
-      const structured = await structureCalendarAvailabilityResponse(client, userId, userMessage)
+      const structured = await structureCalendarAvailabilityResponse(
+        client, 
+        userId, 
+        userMessage,
+        context?.temporalContext
+      )
       if (structured) {
         return structured
       }
@@ -6191,16 +6628,122 @@ async function structureTaskResponse(
 }
 
 /**
+ * Structure calendar event search results for Copilot UI
+ */
+async function structureCalendarSearchResponse(
+  client: any,
+  userId: string,
+  calendarReadResult: any,
+  userMessage: string,
+  temporalContext?: TemporalContextPayload
+): Promise<StructuredResponse | null> {
+  try {
+    const timezone = await getUserTimezone(client, userId)
+    const currentDate = temporalContext?.isoString
+      ? new Date(temporalContext.isoString)
+      : new Date()
+
+    // Extract events from the calendar_read result
+    const events = calendarReadResult?.events || []
+
+    if (events.length === 0) {
+      return null // Let AI respond with "no events found"
+    }
+
+    console.log('[CALENDAR-SEARCH] Structuring response for', events.length, 'events')
+
+    // Map events to the format expected by CalendarResponse component
+    const meetings = events.map((event: any) => {
+      const startTime = event.start_time
+      const endTime = event.end_time
+      const startDateObj = new Date(startTime)
+      let status: 'past' | 'today' | 'upcoming' = 'upcoming'
+
+      if (startDateObj.getTime() < currentDate.getTime()) {
+        status = 'past'
+      } else if (isSameZonedDay(startDateObj, timezone, currentDate)) {
+        status = 'today'
+      }
+
+      const attendees = (event.attendees || []).map((att: any) => ({
+        name: att.name || att.email || 'Attendee',
+        email: att.email || ''
+      }))
+
+      return {
+        id: event.id,
+        title: event.title || 'Calendar Event',
+        attendees,
+        startTime,
+        endTime,
+        status,
+        location: event.location || undefined,
+        hasPrepBrief: false,
+        dealId: event.deal_id || undefined,
+        contactId: event.contact_id || undefined
+      }
+    })
+
+    // Generate appropriate summary
+    const summary = events.length === 1
+      ? `I found your ${events[0].title || 'event'}.`
+      : `I found ${events.length} event${events.length === 1 ? '' : 's'}.`
+
+    // Add relevant actions
+    const actions: Array<{
+      id: string
+      label: string
+      type: 'primary' | 'secondary' | 'tertiary'
+      icon: string
+      callback: string
+      params?: any
+    }> = [
+      {
+        id: 'open-calendar',
+        label: 'Open Calendar',
+        type: 'primary',
+        icon: 'calendar',
+        callback: '/calendar'
+      }
+    ]
+
+    return {
+      type: 'calendar',
+      summary,
+      data: {
+        meetings,
+        availability: [] // No availability slots for search results
+      },
+      actions,
+      metadata: {
+        timeGenerated: new Date().toISOString(),
+        dataSource: ['calendar_events'],
+        timezone,
+        eventCount: events.length
+      }
+    }
+  } catch (error) {
+    console.error('[CALENDAR-SEARCH] Error structuring response:', error)
+    return null
+  }
+}
+
+/**
  * Structure calendar availability info for Copilot UI
  */
 async function structureCalendarAvailabilityResponse(
   client: any,
   userId: string,
-  userMessage?: string
+  userMessage?: string,
+  temporalContext?: TemporalContextPayload
 ): Promise<StructuredResponse | null> {
   try {
     const timezone = await getUserTimezone(client, userId)
-    const request = inferAvailabilityRequestFromMessage(userMessage, timezone)
+    // Use temporal context date if available, otherwise fall back to current date
+    const currentDate = temporalContext?.isoString 
+      ? new Date(temporalContext.isoString) 
+      : new Date()
+    const request = inferAvailabilityRequestFromMessage(userMessage, timezone, currentDate)
 
     const availabilityResult = await handleCalendarAvailability(
       {
@@ -6219,7 +6762,7 @@ async function structureCalendarAvailabilityResponse(
       return null
     }
 
-    const now = new Date()
+    const now = currentDate
     const meetings = (availabilityResult.events || []).map((event: any) => {
       const startTime = event.start_time
       const endTime = event.end_time
@@ -6227,7 +6770,7 @@ async function structureCalendarAvailabilityResponse(
       let status: 'past' | 'today' | 'upcoming' = 'upcoming'
       if (startDateObj.getTime() < now.getTime()) {
         status = 'past'
-      } else if (isSameZonedDay(startDateObj, timezone)) {
+      } else if (isSameZonedDay(startDateObj, timezone, currentDate)) {
         status = 'today'
       }
 
@@ -6534,34 +7077,65 @@ function calculateFreeSlotsForDay(
 }
 
 async function getUserTimezone(client: any, userId: string): Promise<string> {
-  const fallback = 'UTC'
+  // Priority order:
+  // 1. Calendar integration (most accurate - detected from Google Calendar)
+  // 2. user_settings.preferences.timezone
+  // 3. profiles.timezone (if exists)
+  // 4. Default to Europe/London (UK timezone with automatic DST handling)
+
   try {
-    const { data, error } = await client
-      .from('profiles')
+    // First, check calendar_calendars for timezone detected from Google Calendar
+    const { data: calendarData, error: calendarError } = await client
+      .from('calendar_calendars')
       .select('timezone')
-      .eq('id', userId)
+      .eq('user_id', userId)
+      .eq('external_id', 'primary')
       .maybeSingle()
-    if (!error && data?.timezone) {
-      return data.timezone
+    
+    if (!calendarError && calendarData?.timezone) {
+      console.log('[TIMEZONE] Using timezone from calendar integration:', calendarData.timezone)
+      return calendarData.timezone
     }
   } catch (_err) {
-    // Ignore missing column or table errors and fall through
+    // Ignore errors - table might not exist or column might not exist
   }
 
   try {
-    const { data, error } = await client
+    // Check user_settings preferences
+    const { data: settingsData, error: settingsError } = await client
       .from('user_settings')
-      .select('timezone')
+      .select('preferences')
       .eq('user_id', userId)
       .maybeSingle()
-    if (!error && data?.timezone) {
-      return data.timezone
+    
+    if (!settingsError && settingsData?.preferences?.timezone) {
+      const tz = settingsData.preferences.timezone
+      console.log('[TIMEZONE] Using timezone from user_settings:', tz)
+      return tz
     }
   } catch (_err) {
     // Ignore errors
   }
 
-  return fallback
+  try {
+    // Check profiles table (if exists)
+    const { data: profileData, error: profileError } = await client
+      .from('profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle()
+    
+    if (!profileError && profileData?.timezone) {
+      console.log('[TIMEZONE] Using timezone from profiles:', profileData.timezone)
+      return profileData.timezone
+    }
+  } catch (_err) {
+    // Ignore missing column or table errors
+  }
+
+  // Default to Europe/London (UK timezone - automatically handles daylight savings)
+  console.log('[TIMEZONE] Using default timezone: Europe/London')
+  return 'Europe/London'
 }
 
 interface AvailabilityRequestDetails {
@@ -6576,7 +7150,8 @@ interface AvailabilityRequestDetails {
 
 function inferAvailabilityRequestFromMessage(
   message: string | undefined,
-  timeZone: string
+  timeZone: string,
+  currentDate: Date = new Date()
 ): AvailabilityRequestDetails {
   const lower = (message || '').toLowerCase()
   const duration = extractDurationFromMessage(lower) ?? 60
@@ -6585,12 +7160,12 @@ function inferAvailabilityRequestFromMessage(
   const excludeWeekends = !(lower.includes('weekend') || lower.includes('weekends'))
 
   let description = 'over the next week'
-  let start = startOfZonedDay(new Date(), timeZone)
+  let start = startOfZonedDay(currentDate, timeZone)
   let end = endOfZonedDay(addDays(start, 6), timeZone)
 
   if (lower.includes('today')) {
-    start = startOfZonedDay(new Date(), timeZone)
-    end = endOfZonedDay(new Date(), timeZone)
+    start = startOfZonedDay(currentDate, timeZone)
+    end = endOfZonedDay(currentDate, timeZone)
     return {
       start,
       end,
@@ -6603,7 +7178,7 @@ function inferAvailabilityRequestFromMessage(
   }
 
   if (lower.includes('tomorrow')) {
-    const tomorrow = addDays(new Date(), 1)
+    const tomorrow = addDays(currentDate, 1)
     start = startOfZonedDay(tomorrow, timeZone)
     end = endOfZonedDay(tomorrow, timeZone)
     return {
@@ -6618,7 +7193,7 @@ function inferAvailabilityRequestFromMessage(
   }
 
   if (lower.includes('next week')) {
-    const nextWeekStart = startOfWeekZoned(addDays(new Date(), 7), timeZone)
+    const nextWeekStart = startOfWeekZoned(addDays(currentDate, 7), timeZone)
     start = nextWeekStart
     end = endOfWeekZoned(nextWeekStart, timeZone)
     return {
@@ -6633,7 +7208,7 @@ function inferAvailabilityRequestFromMessage(
   }
 
   if (lower.includes('this week')) {
-    start = startOfWeekZoned(new Date(), timeZone)
+    start = startOfWeekZoned(currentDate, timeZone)
     end = endOfWeekZoned(start, timeZone)
     return {
       start,
@@ -6658,8 +7233,8 @@ function inferAvailabilityRequestFromMessage(
 
   for (const day of dayMap) {
     if (lower.includes(day.key)) {
-      const preferNextWeek = lower.includes('next week') || lower.includes(`next ${day.key}`)
-      const dayDate = getNextWeekdayDate(day.index, preferNextWeek, timeZone)
+      const preferNextWeek = lower.includes('next week') || lower.includes(`next ${day.key}`) || lower.includes('this coming')
+      const dayDate = getNextWeekdayDate(day.index, preferNextWeek, timeZone, currentDate)
       start = startOfZonedDay(dayDate, timeZone)
       end = endOfZonedDay(dayDate, timeZone)
       return {
@@ -6717,8 +7292,8 @@ function endOfWeekZoned(startOfWeek: Date, timeZone: string): Date {
   return endOfZonedDay(addDays(startOfWeek, 6), timeZone)
 }
 
-function getNextWeekdayDate(targetDay: number, preferNextWeek: boolean, timeZone: string): Date {
-  const todayStart = startOfZonedDay(new Date(), timeZone)
+function getNextWeekdayDate(targetDay: number, preferNextWeek: boolean, timeZone: string, currentDate: Date = new Date()): Date {
+  const todayStart = startOfZonedDay(currentDate, timeZone)
   const { weekday } = getZonedDateParts(todayStart, timeZone)
   let daysAhead = (targetDay - weekday + 7) % 7
   if (daysAhead === 0 && !preferNextWeek) {
@@ -6730,9 +7305,9 @@ function getNextWeekdayDate(targetDay: number, preferNextWeek: boolean, timeZone
   return addDays(todayStart, daysAhead || 7)
 }
 
-function isSameZonedDay(date: Date, timeZone: string): boolean {
+function isSameZonedDay(date: Date, timeZone: string, currentDate: Date = new Date()): boolean {
   const partsA = getZonedDateParts(date, timeZone)
-  const partsB = getZonedDateParts(new Date(), timeZone)
+  const partsB = getZonedDateParts(currentDate, timeZone)
   return partsA.year === partsB.year && partsA.month === partsB.month && partsA.day === partsB.day
 }
 
@@ -6908,6 +7483,7 @@ async function structureActionSummaryResponse(
     let tasksCreated = 0
     let activitiesCreated = 0
     let contactsUpdated = 0
+    let calendarEventsUpdated = 0
     
     // Process each write operation
     for (const exec of writeOperations) {
@@ -6954,6 +7530,20 @@ async function structureActionSummaryResponse(
             details = `Created contact with company link`
           }
           contactsUpdated++
+        } else if (entity === 'calendar' && result.event) {
+          entityType = 'calendar_event'
+          entityId = result.event.id
+          entityName = result.event.title
+          // Format the event time
+          if (result.event.start_time) {
+            const startTime = new Date(result.event.start_time)
+            const timeStr = startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+            const dateStr = startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            details = `Scheduled for ${dateStr} at ${timeStr}`
+          } else {
+            details = 'Event created successfully'
+          }
+          calendarEventsUpdated++
         }
       } else if (operation === 'update') {
         if (entity === 'pipeline' && result.deal) {
@@ -6988,6 +7578,23 @@ async function structureActionSummaryResponse(
             details = 'Contact updated successfully'
           }
           contactsUpdated++
+        } else if (entity === 'calendar' && result.event) {
+          entityType = 'calendar_event'
+          entityId = result.event.id
+          entityName = result.event.title
+          // Try to detect what was updated
+          if (exec.args.start_time || exec.args.end_time) {
+            const startTime = exec.args.start_time ? new Date(exec.args.start_time) : null
+            if (startTime) {
+              const timeStr = startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+              details = `Rescheduled to ${timeStr}`
+            } else {
+              details = 'Event updated successfully'
+            }
+          } else {
+            details = 'Event updated successfully'
+          }
+          calendarEventsUpdated++
         }
       }
       
@@ -7010,6 +7617,7 @@ async function structureActionSummaryResponse(
     if (contactsUpdated > 0) actionCounts.push(`${contactsUpdated} contact${contactsUpdated > 1 ? 's' : ''}`)
     if (tasksCreated > 0) actionCounts.push(`${tasksCreated} task${tasksCreated > 1 ? 's' : ''}`)
     if (activitiesCreated > 0) actionCounts.push(`${activitiesCreated} activit${activitiesCreated > 1 ? 'ies' : 'y'}`)
+    if (calendarEventsUpdated > 0) actionCounts.push(`${calendarEventsUpdated} calendar event${calendarEventsUpdated > 1 ? 's' : ''}`)
     
     const summary = actionCounts.length > 0
       ? `I've successfully completed your request. Updated ${actionCounts.join(', ')}.`
@@ -7055,7 +7663,17 @@ async function structureActionSummaryResponse(
         callback: '/crm/tasks'
       })
     }
-    
+
+    if (calendarEventsUpdated > 0) {
+      actions.push({
+        id: 'view-calendar',
+        label: 'View Calendar',
+        type: 'secondary',
+        icon: 'calendar',
+        callback: '/calendar'
+      })
+    }
+
     return {
       type: 'action_summary',
       summary,
@@ -7067,7 +7685,8 @@ async function structureActionSummaryResponse(
           clientsUpdated,
           contactsUpdated,
           tasksCreated,
-          activitiesCreated
+          activitiesCreated,
+          calendarEventsUpdated
         }
       },
       actions,

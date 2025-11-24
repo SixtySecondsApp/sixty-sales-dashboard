@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { EnrichButton } from '@/components/crm/EnrichButton';
+import { EnrichButton } from '@/components/CRM/EnrichButton';
 import type { ContactCompanyGraph } from '@/lib/hooks/useContactCompanyGraph';
 import type { Company, Deal } from '@/lib/database/models';
 import { extractDomainFromCompany } from '@/lib/utils/domainUtils';

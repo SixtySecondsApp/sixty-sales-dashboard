@@ -118,13 +118,15 @@ const toolConfig: Record<ToolType, ToolConfig> = {
 
 function getStateLabel(state: ToolState): string {
   const labels: Record<ToolState, string> = {
+    pending: 'Pending...',
     initiating: 'Starting...',
     fetching: 'Retrieving data...',
     processing: 'Analyzing...',
     completing: 'Finalizing...',
-    complete: 'Complete'
+    complete: 'Complete',
+    active: 'Active...'
   };
-  return labels[state];
+  return labels[state] || 'Processing...';
 }
 
 function getProgress(toolCall: ToolCall): number {
@@ -135,13 +137,15 @@ function getProgress(toolCall: ToolCall): number {
 
   if (totalSteps === 0) {
     const stateProgress: Record<ToolState, number> = {
+      pending: 10,
       initiating: 20,
       fetching: 40,
       processing: 70,
       completing: 90,
-      complete: 100
+      complete: 100,
+      active: 50
     };
-    return stateProgress[toolCall.state];
+    return stateProgress[toolCall.state] || 0;
   }
 
   return (completedSteps / totalSteps) * 100;

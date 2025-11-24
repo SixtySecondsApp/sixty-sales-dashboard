@@ -1,181 +1,158 @@
-# Transcript Retry System - Deployment Summary
+# Deployment Summary - Email Sync & Health Score Automation
 
-## ✅ Deployment Complete
+## ✅ Edge Functions Deployed
 
-### Edge Function
-- **Status**: ✅ Deployed successfully
-- **Function Name**: `fathom-transcript-retry`
-- **Project**: `ewtuefzeogytgmsnkpmb`
-- **URL**: `https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/fathom-transcript-retry`
+Both new edge functions have been successfully deployed:
 
-### Database Migrations
-Three migration files created and ready to apply:
-1. `20250125000001_create_transcript_retry_jobs.sql` - Core retry queue system
-2. `20250125000002_setup_transcript_retry_cron.sql` - Cron job setup
-3. `20250125000003_create_transcript_retry_monitoring.sql` - Monitoring views
+1. **`scheduled-health-refresh`** ✅ DEPLOYED
+   - Refreshes health scores for active users (logged in last 7 days)
+   - Called daily via Vercel cron at 7:00 AM UTC
+   - URL: `https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/scheduled-health-refresh`
 
-### Code Changes
-- ✅ Created `fathom-transcript-retry` Edge Function
-- ✅ Created `_shared/fathomTranscript.ts` shared module
-- ✅ Updated `fathom-webhook` to enqueue retry jobs
-- ✅ Updated `fathom-sync` to enqueue retry jobs
-- ✅ Updated `backfill-transcripts` to clear retry jobs
-- ✅ Updated `fetch-transcript` to clear retry jobs
+2. **`scheduled-email-sync`** ✅ DEPLOYED
+   - Syncs emails for active users with Gmail integration
+   - Called daily via Vercel cron at 8:00 AM UTC
+   - URL: `https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/scheduled-email-sync`
 
-## 🔍 Verification Steps
+## 📋 Migrations Required
 
-### 1. Verify Database Migrations Applied
-Run in Supabase SQL Editor:
-```sql
--- Quick check - should return 1 row
-SELECT COUNT(*) FROM information_schema.tables 
-WHERE table_name = 'fathom_transcript_retry_jobs';
-```
+Run these **3 migrations** in order:
 
-Or run the full verification script:
-```sql
--- File: scripts/verify-transcript-retry-setup.sql
-```
+### 1. `20251123000001_enhance_communication_events.sql`
+**Purpose**: Adds email-specific fields and AI analysis columns to `communication_events` table
 
-### 2. Verify Cron Job Scheduled
-```sql
-SELECT jobname, schedule, active 
-FROM cron.job 
-WHERE jobname = 'fathom-transcript-retry';
-```
+**What it does**:
+- Adds columns: `email_thread_id`, `email_subject`, `email_body_preview`, `response_time_hours`
+- Adds AI analysis columns: `sentiment_score`, `ai_analyzed`, `ai_model`, `key_topics`, `action_items`, `urgency`, `response_required`
+- Adds `external_id` and `sync_source` for Gmail integration
+- Adds `communication_date` column (alias for `event_timestamp`)
+- Creates indexes for email lookups and deduplication
 
-Expected: Should show `schedule = '*/5 * * * *'` and `active = true`
-
-### 3. Verify Edge Function Accessible
-Check in Supabase Dashboard:
-- Navigate to: Functions → `fathom-transcript-retry`
-- Verify it shows as deployed
-- Check logs for any errors
-
-### 4. Test Retry Job Creation
-
-**Easy Method (Recommended):**
-```sql
--- Auto-enqueue retry jobs for meetings missing transcripts
-SELECT * FROM auto_enqueue_missing_transcript_retries(10);
-
--- Verify jobs created
-SELECT * FROM v_pending_transcript_retries
-ORDER BY created_at DESC
-LIMIT 10;
-```
-
-**Manual Method:**
-```sql
--- Find a meeting without transcript
-SELECT id, title, fathom_recording_id, owner_user_id
-FROM meetings 
-WHERE transcript_text IS NULL 
-  AND fathom_recording_id IS NOT NULL 
-LIMIT 1;
-
--- Enqueue retry job (replace with actual UUIDs from above)
-SELECT enqueue_transcript_retry(
-  'meeting-id-here'::UUID,
-  'user-id-here'::UUID,
-  'recording-id-here',
-  1
-);
-
--- Verify job created
-SELECT * FROM v_pending_transcript_retries 
-WHERE meeting_id = 'meeting-id-here'::UUID;
-```
-
-### 5. Test Retry Processor
-Manually trigger (requires service role key):
+**Run command**:
 ```bash
-curl -X POST 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/fathom-transcript-retry' \
-  -H 'Authorization: Bearer YOUR_SERVICE_ROLE_KEY' \
-  -H 'Content-Type: application/json' \
-  -d '{"batch_size": 10}'
+supabase db push
+# OR manually in Supabase Dashboard → SQL Editor
 ```
 
-Check response - should return JSON with `success: true` and job counts.
+### 2. `20251123000002_add_last_login_tracking.sql`
+**Purpose**: Tracks user last login for automated health refresh scheduling
 
-## 📊 Monitoring
+**What it does**:
+- Adds `last_login_at` column to `profiles` table
+- Creates trigger to auto-update `last_login_at` when user signs in
+- Backfills existing users with their `last_sign_in_at` from `auth.users`
+- Creates index for efficient queries
 
-### View Current Statistics
+**Run command**:
+```bash
+supabase db push
+# OR manually in Supabase Dashboard → SQL Editor
+```
+
+### 3. `20251123000003_health_score_performance_indexes.sql`
+**Purpose**: Creates performance indexes for fast health score queries
+
+**What it does**:
+- Creates indexes on `deal_health_scores` (user, status, last_calculated_at)
+- Creates indexes on `relationship_health_scores` (user, status, ghost_risk)
+- Creates indexes on `communication_events` (deal, contact, company, sentiment)
+- Creates indexes on `contacts`, `deals`, and `meetings` for health calculations
+
+**Run command**:
+```bash
+supabase db push
+# OR manually in Supabase Dashboard → SQL Editor
+```
+
+## 🚀 Quick Deploy Commands
+
+### Deploy All Migrations
+```bash
+cd /Users/andrewbryce/Documents/sixty-sales-dashboard
+supabase db push
+```
+
+### Verify Migrations Applied
 ```sql
-SELECT * FROM v_transcript_retry_stats;
+-- Check communication_events has new columns
+SELECT column_name 
+FROM information_schema.columns 
+WHERE table_name = 'communication_events' 
+  AND column_name IN ('ai_analyzed', 'sentiment_score', 'key_topics', 'email_thread_id');
+
+-- Check profiles has last_login_at
+SELECT column_name 
+FROM information_schema.columns 
+WHERE table_name = 'profiles' 
+  AND column_name = 'last_login_at';
+
+-- Check indexes exist
+SELECT indexname 
+FROM pg_indexes 
+WHERE tablename IN ('communication_events', 'deal_health_scores', 'relationship_health_scores')
+  AND indexname LIKE 'idx_%';
 ```
 
-### View Pending Jobs
-```sql
-SELECT * FROM v_pending_transcript_retries
-ORDER BY next_retry_at ASC;
+## 🔐 Environment Variables Needed
+
+Set these in **Supabase Dashboard** → **Project Settings** → **Edge Functions** → **Secrets**:
+
+### Required:
+- `CRON_SECRET` - Secure random string (generate with: `openssl rand -hex 32`)
+- `ANTHROPIC_API_KEY` - For email AI analysis (get from https://console.anthropic.com/)
+
+### Already Set (verify):
+- `SUPABASE_URL` - Your project URL
+- `SUPABASE_SERVICE_ROLE_KEY` - Service role key
+
+### Set via CLI:
+```bash
+supabase secrets set CRON_SECRET=your-generated-secret-here
+supabase secrets set ANTHROPIC_API_KEY=your-anthropic-api-key
 ```
 
-### View Failed Jobs
-```sql
-SELECT * FROM v_failed_transcript_retries
-ORDER BY updated_at DESC
-LIMIT 20;
+## ✅ Verification Checklist
+
+- [x] Edge function `scheduled-health-refresh` deployed
+- [x] Edge function `scheduled-email-sync` deployed
+- [ ] Migration `20251123000001_enhance_communication_events.sql` applied
+- [ ] Migration `20251123000002_add_last_login_tracking.sql` applied
+- [ ] Migration `20251123000003_health_score_performance_indexes.sql` applied
+- [ ] `CRON_SECRET` environment variable set
+- [ ] `ANTHROPIC_API_KEY` environment variable set (if using email AI)
+- [ ] Vercel cron jobs configured (see `VERCEL_CRON_SETUP.md`)
+
+## 🧪 Test Functions
+
+```bash
+# Test health refresh
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-cron-secret: YOUR_CRON_SECRET" \
+  "https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/scheduled-health-refresh"
+
+# Test email sync
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-cron-secret: YOUR_CRON_SECRET" \
+  "https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/scheduled-email-sync"
 ```
 
-## 🧪 End-to-End Test
+## 📊 Next Steps
 
-1. **Trigger a webhook** for a meeting that doesn't have a transcript yet
-2. **Check retry job created**:
-   ```sql
-   SELECT * FROM v_pending_transcript_retries 
-   ORDER BY created_at DESC LIMIT 1;
-   ```
-3. **Wait 5 minutes** (or manually trigger retry processor)
-4. **Check job processed**:
-   ```sql
-   SELECT * FROM fathom_transcript_retry_jobs 
-   WHERE meeting_id = 'your-meeting-id'::UUID 
-   ORDER BY updated_at DESC LIMIT 1;
-   ```
-5. **Verify transcript fetched** (if available):
-   ```sql
-   SELECT id, transcript_text IS NOT NULL as has_transcript 
-   FROM meetings 
-   WHERE id = 'your-meeting-id'::UUID;
-   ```
+1. **Run Migrations**: Execute the 3 SQL migration files in order
+2. **Set Environment Variables**: Add `CRON_SECRET` and `ANTHROPIC_API_KEY` to Supabase
+3. **Configure Vercel**: Set up cron jobs in Vercel (see `VERCEL_CRON_SETUP.md`)
+4. **Test**: Manually trigger functions to verify they work
+5. **Monitor**: Check logs after first scheduled run
 
-## 📝 Documentation
+## 📚 Documentation
 
-- **System Overview**: `TRANSCRIPT_RETRY_SYSTEM.md`
-- **Test Procedures**: `TRANSCRIPT_RETRY_TEST_RESULTS.md`
-- **Verification Script**: `scripts/verify-transcript-retry-setup.sql`
-- **Test Script**: `scripts/test-transcript-retry-system.sh`
+- [Deployment Guide](./DEPLOYMENT_GUIDE.md) - Detailed deployment instructions
+- [Vercel Cron Setup](./VERCEL_CRON_SETUP.md) - Vercel cron job configuration
+- [Email Sync Plan](./.cursor/plans/sentiment-785ab6fa.plan.md) - Original implementation plan
 
-## 🎯 Success Criteria
+---
 
-- ✅ Edge Function deployed and accessible
-- ⏳ Database migrations applied (verify in SQL Editor)
-- ⏳ Cron job scheduled and active (verify with SQL query)
-- ⏳ Retry jobs can be created (test with SQL)
-- ⏳ Retry processor can process jobs (test with curl or wait for cron)
-- ⏳ Webhook integration creates retry jobs automatically (test with real webhook)
-
-## 🚨 Common Issues
-
-### Migrations Not Applied
-- Check Supabase Dashboard → Database → Migrations
-- Manually run migration files if needed
-
-### Cron Job Not Running
-- Verify `pg_cron` extension is enabled
-- Check cron job exists: `SELECT * FROM cron.job WHERE jobname = 'fathom-transcript-retry';`
-- Check cron logs: `SELECT * FROM cron_job_logs ORDER BY created_at DESC LIMIT 10;`
-
-### Edge Function Errors
-- Check Edge Function logs in Supabase Dashboard
-- Verify service role key is configured in database settings
-- Check OAuth credentials for Fathom integration
-
-## ✨ Next Actions
-
-1. **Apply migrations** if not already applied (check Supabase Dashboard)
-2. **Verify cron job** is scheduled and active
-3. **Test with a real meeting** to see retry jobs being created
-4. **Monitor** using the provided views and queries
-5. **Check logs** regularly to ensure system is working correctly
+**Deployment Date**: November 23, 2025
+**Status**: Edge Functions Deployed ✅ | Migrations Pending ⏳

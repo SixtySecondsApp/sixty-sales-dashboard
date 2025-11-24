@@ -3,15 +3,25 @@ import { Database } from '../database.types';
 import logger from '@/lib/utils/logger';
 
 // Environment variables with validation
+// Supabase uses "Publishable key" (frontend-safe) and "Secret keys" (server-side only)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY; // Publishable key (safe for frontend)
+// SECURITY: Never use Secret keys (formerly service role keys) in frontend code!
+// Secret keys bypass RLS and should NEVER be exposed to the browser.
+// The supabaseAdmin client should only be used server-side (edge functions, API routes).
+const supabaseSecretKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
 // Validate required environment variables
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Missing required Supabase environment variables. Please check your .env.local file.'
-  );
+if (!supabaseUrl || !supabasePublishableKey) {
+  const isProduction = typeof window !== 'undefined' && 
+    (window.location.hostname.includes('vercel.app') || 
+     window.location.hostname.includes('sixtyseconds.video'));
+  
+  const errorMessage = isProduction
+    ? 'Missing required Supabase environment variables. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel Dashboard → Settings → Environment Variables, then redeploy.'
+    : 'Missing required Supabase environment variables. Please check your .env.local file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.';
+  
+  throw new Error(errorMessage);
 }
 
 // Typed Supabase client
@@ -37,7 +47,7 @@ function getSupabaseClient(): TypedSupabaseClient {
       }
     }
 
-    supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    supabaseInstance = createClient<Database>(supabaseUrl, supabasePublishableKey, {
       auth: {
         persistSession: true,
         // Removed custom storageKey to use default sb-[project-ref]-auth-token format
@@ -101,30 +111,37 @@ export const supabase: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient
 });
 
 /**
- * Get the admin Supabase client for service role operations
- * Uses lazy initialization to avoid vendor bundle issues
+ * Get the admin Supabase client for secret key operations
+ * 
+ * SECURITY WARNING: This should NOT be used in frontend code!
+ * Secret keys (formerly service role keys) bypass Row Level Security and should NEVER be exposed to the browser.
+ * 
+ * This client should only be used in:
+ * - Server-side code (Node.js scripts)
+ * - Edge functions (Supabase Edge Functions)
+ * - API routes (Vercel serverless functions)
+ * 
+ * For frontend operations, use the regular `supabase` client which uses the Publishable key and respects RLS.
  */
 function getSupabaseAdminClient(): TypedSupabaseClient {
-  if (!supabaseAdminInstance && supabaseServiceKey) {
-    supabaseAdminInstance = createClient<Database>(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        persistSession: false, // Don't persist admin sessions
-        autoRefreshToken: false, // Disable auto refresh for admin
-        storageKey: 'sb.auth.admin.v2', // Separate storage key
-        debug: false // Disable debug logging
-      },
-      global: {
-        headers: {
-          'X-Client-Info': 'sales-dashboard-admin-v2'
-        }
-      }
-    });
-  }
-  return supabaseAdminInstance || getSupabaseClient(); // Fallback to regular client if no service key
+  // SECURITY: Admin client should not be available in frontend
+  // If you need admin operations, use edge functions or API routes instead
+  console.warn(
+    '⚠️ SECURITY WARNING: supabaseAdmin should not be used in frontend code. ' +
+    'Secret keys bypass RLS and expose your database. ' +
+    'Use edge functions or API routes for admin operations instead.'
+  );
+  
+  // Return regular client instead of admin client
+  // This prevents accidental exposure of secret keys
+  return getSupabaseClient();
 }
 
 /**
- * Admin Supabase client for service role operations - Proxy wrapper for safe initialization
+ * Admin Supabase client for secret key operations - Proxy wrapper for safe initialization
+ * 
+ * NOTE: This client is disabled in frontend code for security.
+ * Use edge functions or API routes for operations requiring secret keys.
  */
 export const supabaseAdmin: TypedSupabaseClient = new Proxy({} as TypedSupabaseClient, {
   get(target, prop) {
@@ -204,6 +221,17 @@ export const authUtils = {
     
     if (status === 429) {
       return 'Too many requests. Please wait a moment and try again.';
+    }
+    
+    if (status === 500) {
+      // Log detailed error for debugging
+      console.error('Supabase 500 Error Details:', {
+        message,
+        status,
+        error: error
+      });
+      
+      return 'Server error occurred. Possible causes: 1) User account may not exist - check Supabase Dashboard → Authentication → Users, 2) Temporary Supabase service issue - try again in a moment, 3) Project configuration issue - verify Supabase project settings. Check browser console for details.';
     }
 
     // Common error message improvements

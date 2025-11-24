@@ -82,9 +82,12 @@ export class AIProviderService {
         .from('user_settings')
         .select('ai_provider_keys')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle() to handle missing records gracefully
 
-      if (error) {
+      // Handle case where record doesn't exist (PGRST116) or other errors
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 is "not found" which is fine, other errors should be logged
+        console.warn('[AIProvider] Error fetching user settings:', error.message);
         // Try to load from environment variables as fallback
         this.loadFromEnvironment();
         return;
@@ -100,6 +103,7 @@ export class AIProviderService {
       // Also check environment variables for any missing keys
       this.loadFromEnvironment();
     } catch (error) {
+      console.warn('[AIProvider] Error initializing:', error);
       this.loadFromEnvironment();
     }
   }
@@ -130,12 +134,15 @@ export class AIProviderService {
 
     const allKeys = Object.fromEntries(this.apiKeys);
     
+    // Use upsert with onConflict to handle existing records properly
     const { error } = await supabase
       .from('user_settings')
       .upsert({
         user_id: userId,
         ai_provider_keys: allKeys,
         updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id'
       });
 
     if (error) {
@@ -753,11 +760,176 @@ export class AIProviderService {
       const originalKey = this.apiKeys.get(provider);
       this.apiKeys.set(provider, apiKey);
 
+      // For Gemini, test directly with a simpler API call to avoid model deprecation issues
+      if (provider === 'gemini') {
+        try {
+          // Test with the models endpoint first (lightweight check)
+          const modelsResponse = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+          );
+          
+          if (!modelsResponse.ok) {
+            const errorData = await modelsResponse.json().catch(() => ({}));
+            const errorMessage = errorData.error?.message || modelsResponse.statusText;
+            console.error('[Gemini API Test] Models endpoint failed:', {
+              status: modelsResponse.status,
+              statusText: modelsResponse.statusText,
+              error: errorMessage,
+              details: errorData.error
+            });
+            
+            // Provide helpful error messages
+            if (modelsResponse.status === 400) {
+              console.error('[Gemini API Test] Invalid API key format or API not enabled. Ensure:');
+              console.error('  1. API key is correct (starts with AIza, 39 characters)');
+              console.error('  2. Generative AI API is enabled in Google Cloud Console');
+              console.error('  3. API key has no restrictions blocking this request');
+            } else if (modelsResponse.status === 403) {
+              console.error('[Gemini API Test] API key restricted or billing not enabled. Check:');
+              console.error('  1. API key restrictions in Google Cloud Console');
+              console.error('  2. Billing account is linked to the project');
+              console.error('  3. Generative AI API is enabled');
+            }
+            
+            return false;
+          }
+          
+          // Test with a simple completion using available Gemini models
+          // Try models in order: 2.5 Flash (stable), 3 Pro Preview, 2.5 Pro Preview, 1.5 Flash (fallback)
+          const modelsToTry = [
+            'gemini-2.5-flash',
+            'gemini-3-pro-preview',
+            'gemini-2.5-pro-preview-03-25',
+            'gemini-1.5-flash-latest',
+            'gemini-1.5-pro-latest'
+          ];
+          
+          let testResponse: Response | null = null;
+          let lastError: any = null;
+          
+          for (const model of modelsToTry) {
+            try {
+              console.log(`[Gemini API Test] Trying model: ${model}...`);
+              testResponse = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    contents: [
+                      {
+                        parts: [
+                          { text: 'Say OK' }
+                        ],
+                      },
+                    ],
+                    generationConfig: {
+                      temperature: 0.1,
+                      maxOutputTokens: 10, // Increased to ensure we get text content
+                    },
+                  }),
+                }
+              );
+              
+              if (testResponse.ok) {
+                console.log(`[Gemini API Test] Success with model: ${model}`);
+                break; // Success, exit loop
+              }
+              
+              // If 404, try next model
+              if (testResponse.status === 404) {
+                const errorData = await testResponse.json().catch(() => ({}));
+                lastError = errorData;
+                console.log(`[Gemini API Test] Model ${model} not available (404), trying next...`);
+                testResponse = null; // Reset to try next model
+                continue;
+              }
+              
+              // If 429 (rate limit), treat as valid key (key works, just rate limited)
+              if (testResponse.status === 429) {
+                console.log(`[Gemini API Test] Rate limited (429) - API key is valid but quota exceeded`);
+                // Restore original key if it existed
+                if (originalKey) {
+                  this.apiKeys.set(provider, originalKey);
+                } else {
+                  this.apiKeys.delete(provider);
+                }
+                return true; // Rate limit means the key is valid
+              }
+              
+              // For other errors, break and handle below
+              break;
+            } catch (error: any) {
+              console.warn(`[Gemini API Test] Error testing ${model}:`, error.message);
+              lastError = error;
+              testResponse = null;
+              continue; // Try next model
+            }
+          }
+          
+          if (!testResponse || !testResponse.ok) {
+            const errorData = lastError || (testResponse ? await testResponse.json().catch(() => ({})) : {});
+            const errorMessage = errorData.error?.message || (testResponse?.statusText || 'Unknown error');
+            console.error('[Gemini API Test] Completion test failed:', {
+              status: testResponse?.status || 'No response',
+              statusText: testResponse?.statusText || 'Request failed',
+              error: errorMessage,
+              details: errorData.error
+            });
+            
+            // Provide helpful error messages
+            if (testResponse?.status === 400) {
+              console.error('[Gemini API Test] Invalid request. Check model name and API key permissions.');
+            } else if (testResponse?.status === 403) {
+              console.error('[Gemini API Test] Access denied. Verify API key permissions and billing.');
+            } else if (testResponse?.status === 404) {
+              console.error('[Gemini API Test] No available models found. Check API key and enabled APIs.');
+            }
+            
+            // Restore original key if it existed
+            if (originalKey) {
+              this.apiKeys.set(provider, originalKey);
+            } else {
+              this.apiKeys.delete(provider);
+            }
+            
+            return false;
+          }
+          
+          const data = await testResponse.json();
+          // Check if we got a valid response with candidates
+          const hasValidResponse = data.candidates && data.candidates.length > 0;
+          // Check for text content (may be empty if maxOutputTokens was too low, but response structure is valid)
+          const content = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          // Restore original key if it existed
+          if (originalKey) {
+            this.apiKeys.set(provider, originalKey);
+          } else {
+            this.apiKeys.delete(provider);
+          }
+          
+          // Consider it valid if we got a response structure, even if text is empty (due to low maxOutputTokens)
+          return hasValidResponse;
+        } catch (error: any) {
+          console.warn('[Gemini API Test] Error:', error.message);
+          // Restore original key if it existed
+          if (originalKey) {
+            this.apiKeys.set(provider, originalKey);
+          } else {
+            this.apiKeys.delete(provider);
+          }
+          return false;
+        }
+      }
+
       const testConfig: AINodeConfig = {
         modelProvider: provider as any,
         model: provider === 'openai' ? 'gpt-3.5-turbo' : 
                provider === 'anthropic' ? 'claude-3-haiku-20240307' : 
-               provider === 'gemini' ? 'gemini-pro' :
+               provider === 'gemini' ? 'gemini-2.5-flash' :
                'openai/gpt-3.5-turbo',
         systemPrompt: 'You are a test assistant.',
         userPrompt: 'Say "API key is valid" if you can read this.',
@@ -775,7 +947,14 @@ export class AIProviderService {
       }
 
       return !response.error && response.content.length > 0;
-    } catch (error) {
+    } catch (error: any) {
+      console.warn(`[API Test] Error testing ${provider}:`, error.message);
+      // Restore original key if it existed
+      if (originalKey) {
+        this.apiKeys.set(provider, originalKey);
+      } else {
+        this.apiKeys.delete(provider);
+      }
       return false;
     }
   }
@@ -1038,9 +1217,12 @@ export class AIProviderService {
     const apiKey = this.apiKeys.get('gemini');
     if (!apiKey) {
       return [
-        { value: 'gemini-pro', label: 'Gemini Pro' },
-        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
+        { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+        { value: 'gemini-2.5-pro-preview-03-25', label: 'Gemini 2.5 Pro Preview' },
         { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+        { value: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
+        { value: 'gemini-pro', label: 'Gemini Pro (Legacy)' },
       ];
     }
 
@@ -1061,10 +1243,33 @@ export class AIProviderService {
           label: model.displayName || model.name.replace('models/', ''),
         }));
 
-      const result = models.length > 0 ? models : [
-        { value: 'gemini-pro', label: 'Gemini Pro' },
-        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+      // Sort models to prioritize Gemini 3 Pro Preview, then 2.5 Flash, then 2.5 Pro, then 1.5, then others
+      const sortedModels = models.sort((a, b) => {
+        const aIs3Pro = a.value.includes('gemini-3-pro') ? 5 : 0;
+        const bIs3Pro = b.value.includes('gemini-3-pro') ? 5 : 0;
+        const aIs25Flash = a.value.includes('gemini-2.5-flash') && !a.value.includes('preview') ? 4 : 0;
+        const bIs25Flash = b.value.includes('gemini-2.5-flash') && !b.value.includes('preview') ? 4 : 0;
+        const aIs25Pro = a.value.includes('gemini-2.5-pro') ? 3 : 0;
+        const bIs25Pro = b.value.includes('gemini-2.5-pro') ? 3 : 0;
+        const aIs15Pro = a.value.includes('gemini-1.5-pro') ? 2 : 0;
+        const bIs15Pro = b.value.includes('gemini-1.5-pro') ? 2 : 0;
+        const aIs15Flash = a.value.includes('gemini-1.5-flash') ? 1 : 0;
+        const bIs15Flash = b.value.includes('gemini-1.5-flash') ? 1 : 0;
+        
+        const aScore = aIs3Pro || aIs25Flash || aIs25Pro || aIs15Pro || aIs15Flash;
+        const bScore = bIs3Pro || bIs25Flash || bIs25Pro || bIs15Pro || bIs15Flash;
+        
+        if (aScore !== bScore) return bScore - aScore;
+        return a.value.localeCompare(b.value);
+      });
+
+      const result = sortedModels.length > 0 ? sortedModels : [
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
+        { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+        { value: 'gemini-2.5-pro-preview-03-25', label: 'Gemini 2.5 Pro Preview' },
         { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+        { value: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
+        { value: 'gemini-pro', label: 'Gemini Pro (Legacy)' },
       ];
 
       // Cache the results
@@ -1076,9 +1281,12 @@ export class AIProviderService {
       return result;
     } catch (error) {
       return [
-        { value: 'gemini-pro', label: 'Gemini Pro' },
-        { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
+        { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+        { value: 'gemini-2.5-pro-preview-03-25', label: 'Gemini 2.5 Pro Preview' },
         { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+        { value: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
+        { value: 'gemini-pro', label: 'Gemini Pro (Legacy)' },
       ];
     }
   }

@@ -29,8 +29,10 @@ export const WORKFLOW_AI_NODES = [
   { type: 'prospect_research', label: 'Prospect Research', description: 'AI-powered prospect research', iconName: 'Search', nodeType: 'prospectResearch' },
   { type: 'image_input', label: 'Image Input', description: 'Input image source', iconName: 'Image', nodeType: 'imageInput' },
   { type: 'freepik_image_gen', label: 'Image Generator', description: 'AI Image Creation (Multiple Models)', iconName: 'Sparkles', nodeType: 'freepikImageGen' },
+  { type: 'nanobanana_image_gen', label: 'Nano Banana Pro', description: 'Gemini 3 Pro Image Generation', iconName: 'Sparkles', nodeType: 'nanobananaImageGen' },
   { type: 'freepik_upscale', label: 'Upscaler', description: 'Image Upscaling (Magnific)', iconName: 'Maximize', nodeType: 'freepikUpscale' },
   { type: 'freepik_video_gen', label: 'Video Generator', description: 'AI Video Creation (Multiple Models)', iconName: 'Video', nodeType: 'freepikVideoGen' },
+  { type: 'veo3_video_gen', label: 'Veo 3', description: 'Google Veo 3 Text-to-Video', iconName: 'Video', nodeType: 'veo3VideoGen' },
   { type: 'freepik_lip_sync', label: 'Lip Sync', description: 'Sync audio to video', iconName: 'MessageSquare', nodeType: 'freepikLipSync' },
   { type: 'freepik_music', label: 'Music Generator', description: 'AI Music Creation', iconName: 'Music', nodeType: 'freepikMusic' }
 ];

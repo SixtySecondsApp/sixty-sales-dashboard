@@ -43,10 +43,10 @@ export function useNextActionSuggestions(activityId: string, activityType: strin
       if (fetchError) throw fetchError;
 
       // Map the task status to suggestions
-      const suggestionsWithTaskStatus = (data || []).map(suggestion => ({
-        ...suggestion,
+      const suggestionsWithTaskStatus = ((data || []) as any[]).map((suggestion: any) => ({
+        ...(suggestion as object),
         task_status: null
-      }));
+      })) as NextActionSuggestion[];
 
       setSuggestions(suggestionsWithTaskStatus);
     } catch (err) {

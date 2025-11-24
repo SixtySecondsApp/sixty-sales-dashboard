@@ -17,11 +17,13 @@ export type ToolType =
   | 'sales_coach';
 
 export type ToolState = 
+  | 'pending'
   | 'initiating'
   | 'fetching'
   | 'processing'
   | 'completing'
-  | 'complete';
+  | 'complete'
+  | 'active';
 
 export interface ToolStep {
   id: string;

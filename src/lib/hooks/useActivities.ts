@@ -16,6 +16,7 @@ export interface Activity {
   type: 'sale' | 'outbound' | 'meeting' | 'proposal';
   client_name: string;
   date: string;
+  created_at?: string;
   amount?: number;
   user_id: string;
   sales_rep: string;

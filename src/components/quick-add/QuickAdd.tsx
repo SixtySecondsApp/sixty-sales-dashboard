@@ -185,16 +185,14 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
       setSelectedContact(contact);
       businessState.setSelectedContact(contact);
       
-      // Auto-populate form data through event emission
-      emit('form:updated', {
-        formId: 'quick-add',
-        updates: {
-          contact_name: contact.full_name || contact.email,
-          contactIdentifier: contact.email,
-          contactIdentifierType: 'email',
-          client_name: contact.company || contact.companies?.name || ''
-        }
-      });
+      // Auto-populate form data directly
+      setFormData(prev => ({
+        ...prev,
+        contact_name: contact.full_name || contact.email,
+        contactIdentifier: contact.email,
+        contactIdentifierType: 'email',
+        client_name: contact.company || contact.companies?.name || ''
+      }));
     }
   });
 
@@ -385,7 +383,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
           title: sanitizedFormData.title,
           description: sanitizedFormData.description,
           type: sanitizedFormData.roadmap_type,
-          priority: sanitizedFormData.priority || 'medium'
+          priority: (sanitizedFormData.priority === 'urgent' ? 'critical' : sanitizedFormData.priority || 'medium') as 'low' | 'high' | 'medium' | 'critical'
         };
 
         await createSuggestion(roadmapData);
@@ -569,10 +567,10 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                   const monthly = parseFloat(formData.monthlyMrr || '0') || 0;
                   if (oneOff > 0 || monthly > 0) {
                     const newValue = (monthly * 3) + oneOff; // LTV calculation
-                    await supabase
-                      .from('deals')
+                    await ((supabase
+                      .from('deals') as any)
                       .update({ value: newValue })
-                      .eq('id', dealToProgress.id);
+                      .eq('id', dealToProgress.id));
                   }
                 }
                 
@@ -665,10 +663,10 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                 }
                 
                 if (dealValue > 0) {
-                  await supabase
-                    .from('deals')
+                  await ((supabase
+                    .from('deals') as any)
                     .update({ value: dealValue })
-                    .eq('id', dealToProgress.id);
+                    .eq('id', dealToProgress.id));
                 }
                 
                 toast.success(`🎉 Closed "${dealToProgress.name}" as won!`);
@@ -712,7 +710,11 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
               .eq('name', stageName)
               .single();
             
-            const stageId = stages?.id;
+            if (!stages) {
+              throw new Error(`Stage "${stageName}" not found`);
+            }
+            
+            const stageId = (stages as any)?.id;
 
             if (stageId && userData?.id) {
               // Determine company name - use provided name or extract from website
@@ -766,7 +768,7 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
               }
 
               // Create a new deal (only if we have a user ID)
-              const { data: newDeal, error: dealError } = await supabase
+              const { data: newDeal, error: dealError } = await (supabase
                 .from('deals')
                 .insert({
                   name: `${companyName} - ${formData.details || selectedAction}`,
@@ -781,15 +783,15 @@ function QuickAddComponent({ isOpen, onClose }: QuickAddProps) {
                   contact_email: formData.contactIdentifier,
                   contact_name: formData.contact_name || companyName,
                   // Entity resolution ensures these FKs are set when possible
-                  company_id: companyId,
-                  primary_contact_id: contactId
-                })
+                  company_id: companyId || null,
+                  primary_contact_id: contactId || null
+                } as any)
                 .select()
-                .single();
+                .single() as any);
 
               if (!dealError && newDeal) {
-                finalDealId = newDeal.id;  // Use the local variable
-                logger.log(`✅ Created deal ${newDeal.id} for ${selectedAction}${companyId ? ' with company FK' : ''}${contactId ? ' with contact FK' : ''}`);
+                finalDealId = (newDeal as any).id;  // Use the local variable
+                logger.log(`✅ Created deal ${(newDeal as any).id} for ${selectedAction}${companyId ? ' with company FK' : ''}${contactId ? ' with contact FK' : ''}`);
                 toast.success(`📊 Deal created and linked to ${selectedAction}`);
               } else {
                 logger.warn(`Failed to create deal for ${selectedAction}:`, dealError);

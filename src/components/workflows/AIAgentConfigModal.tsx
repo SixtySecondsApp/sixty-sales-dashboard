@@ -65,9 +65,13 @@ const DEFAULT_MODEL_OPTIONS = {
     { value: 'meta-llama/llama-3-70b', label: 'Llama 3 70B' },
   ],
   gemini: [
-    { value: 'gemini-pro', label: 'Gemini Pro' },
-    { value: 'gemini-pro-vision', label: 'Gemini Pro Vision' },
+    { value: 'gemini-3-flash', label: 'Gemini 3 Flash' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
+    { value: 'gemini-3-pro-preview', label: 'Gemini 3 Pro Preview' },
+    { value: 'gemini-2.5-pro-preview-03-25', label: 'Gemini 2.5 Pro Preview' },
     { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+    { value: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' },
+    { value: 'gemini-pro', label: 'Gemini Pro (Legacy)' },
   ],
 };
 
