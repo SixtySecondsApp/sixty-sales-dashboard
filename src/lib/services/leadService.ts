@@ -9,6 +9,8 @@ export type LeadWithPrep = LeadRecord & {
 };
 
 export async function fetchLeads(): Promise<LeadWithPrep[]> {
+  // Supabase default limit is 1000 - we need to fetch all leads
+  // Using a high limit to get all records (pagination happens client-side)
   const { data, error } = await supabase
     .from('leads')
     .select(`
@@ -18,7 +20,8 @@ export async function fetchLeads(): Promise<LeadWithPrep[]> {
       source:lead_sources!leads_source_id_fkey(id, name, source_key),
       contact:contacts!leads_contact_id_fkey(id, title, first_name, last_name, email)
     `)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(10000); // Override default 1000 limit
 
   if (error) throw error;
 

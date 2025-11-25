@@ -213,7 +213,13 @@ export default function LeadsInbox() {
   );
 
   // Auto-select first lead on page load or when current selection is not in filtered list
+  // Only auto-select in list view - in table view, user must explicitly click to open modal
   useEffect(() => {
+    // Skip auto-selection in table view to allow modal to close properly
+    if (viewMode === 'table') {
+      return;
+    }
+
     if (filteredAndSortedLeads.length === 0) {
       // No leads, clear selection
       if (selectedLeadId !== null) {
@@ -231,7 +237,7 @@ export default function LeadsInbox() {
     if (!selectedLeadId || !isSelectedInList) {
       setSelectedLeadId(filteredAndSortedLeads[0].id);
     }
-  }, [filteredAndSortedLeads, selectedLeadId]);
+  }, [filteredAndSortedLeads, selectedLeadId, viewMode]);
 
   const handleGeneratePrep = async () => {
     try {
