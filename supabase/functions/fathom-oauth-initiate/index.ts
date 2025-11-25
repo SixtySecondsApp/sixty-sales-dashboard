@@ -69,8 +69,8 @@ serve(async (req) => {
     }
 
     // Get OAuth configuration from environment
-    const clientId = Deno.env.get('VITE_FATHOM_CLIENT_ID')
-    const redirectUri = Deno.env.get('VITE_FATHOM_REDIRECT_URI')
+    const clientId = Deno.env.get('FATHOM_CLIENT_ID')
+    const redirectUri = Deno.env.get('FATHOM_REDIRECT_URI')
 
     if (!clientId || !redirectUri) {
       throw new Error('Missing Fathom OAuth configuration')

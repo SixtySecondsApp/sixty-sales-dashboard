@@ -50,6 +50,7 @@ export interface Contact {
   owner_id?: string;
   created_at: string;
   updated_at: string;
+  last_interaction_at?: string; // Date of last activity/meeting (not updated_at)
   
   // Joined relations
   company?: Company;

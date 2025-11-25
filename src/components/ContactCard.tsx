@@ -27,6 +27,7 @@ interface Contact {
   title?: string;
   created_at: string;
   updated_at: string;
+  last_interaction_at?: string | null; // Date of last activity/meeting (preferred over updated_at)
   is_primary?: boolean;
   company?: {
     id?: string;
@@ -108,13 +109,23 @@ const ContactCard: React.FC<ContactCardProps> = ({
     return colors[index];
   };
 
-  // Format last activity
+  // Format last activity - use last_interaction_at if available, fallback to created_at
   const getLastActivity = () => {
-    const daysSince = Math.floor((Date.now() - new Date(contact.updated_at).getTime()) / (1000 * 60 * 60 * 24));
+    // Prefer last_interaction_at (actual meeting/activity date) over updated_at (sync date)
+    const lastActivityDate = contact.last_interaction_at || null;
+
+    // If no interaction date, show "No activity" instead of updated_at
+    if (!lastActivityDate) {
+      return 'No activity';
+    }
+
+    const daysSince = Math.floor((Date.now() - new Date(lastActivityDate).getTime()) / (1000 * 60 * 60 * 24));
     if (daysSince === 0) return 'Today';
     if (daysSince === 1) return '1 day ago';
     if (daysSince < 7) return `${daysSince} days ago`;
-    return `${Math.floor(daysSince / 7)} weeks ago`;
+    if (daysSince < 30) return `${Math.floor(daysSince / 7)} weeks ago`;
+    if (daysSince < 365) return `${Math.floor(daysSince / 30)} months ago`;
+    return `${Math.floor(daysSince / 365)} years ago`;
   };
 
   // Check if contact is primary (mock for MVP)

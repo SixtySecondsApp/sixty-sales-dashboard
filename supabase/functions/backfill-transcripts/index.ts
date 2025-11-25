@@ -30,8 +30,8 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
     return integration.access_token
   }
   // Get OAuth configuration
-  const clientId = Deno.env.get('VITE_FATHOM_CLIENT_ID')
-  const clientSecret = Deno.env.get('VITE_FATHOM_CLIENT_SECRET')
+  const clientId = Deno.env.get('FATHOM_CLIENT_ID')
+  const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
 
   if (!clientId || !clientSecret) {
     throw new Error('Missing Fathom OAuth configuration for token refresh')

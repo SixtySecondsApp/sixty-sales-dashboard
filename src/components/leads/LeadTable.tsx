@@ -2,7 +2,8 @@ import type { LeadWithPrep } from '@/lib/services/leadService';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Calendar, Clock, RotateCw, Loader2 } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import { useState, useMemo, useEffect, type MouseEvent } from 'react';
+import { useCompanyLogo } from '@/lib/hooks/useCompanyLogo';
 
 interface LeadTableProps {
   leads: LeadWithPrep[];
@@ -133,90 +134,210 @@ export function LeadTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-          {leads.map((lead) => {
-            const bookedDate = lead.first_seen_at || lead.external_occured_at || lead.created_at;
-            const meetingDate = lead.meeting_start;
-            const isSelected = selectedLeadId === lead.id;
-            const isReprocessing = reprocessingLeadId === lead.id;
-
-            return (
-              <tr
-                key={lead.id}
-                onClick={() => onSelect(lead.id)}
-                className={cn(
-                  'cursor-pointer transition-colors',
-                  'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
-                  isSelected && 'bg-emerald-100/70 dark:bg-emerald-500/20'
-                )}
-              >
-                <td className="px-4 py-3">
-                  <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {lead.contact_name || lead.contact_email || 'Unnamed Lead'}
-                  </div>
-                  {lead.contact_email && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {lead.contact_email}
-                    </div>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="text-sm text-gray-900 dark:text-gray-100">
-                    {getCompanyName(lead)}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  {meetingDate ? (
-                    <div className="flex items-center gap-1.5 text-sm text-gray-900 dark:text-gray-100">
-                      <Calendar className="h-3.5 w-3.5 text-gray-400" />
-                      <span>{formatDateTime(meetingDate)}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">N/A</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {bookedDate ? (
-                    <div className="flex items-center gap-1.5 text-sm text-gray-900 dark:text-gray-100">
-                      <Clock className="h-3.5 w-3.5 text-gray-400" />
-                      <span>{formatDateTime(bookedDate)}</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">N/A</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  {getStatusBadge(lead)}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-2">
-                    {onReprocessLead && (
-                      <button
-                        type="button"
-                        onClick={(e) => handleReprocessClick(e, lead.id)}
-                        disabled={isReprocessing || (isReprocessing && reprocessingLeadId !== lead.id)}
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
-                          'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800',
-                          (isReprocessing || (isReprocessing && reprocessingLeadId !== lead.id)) && 'opacity-60 cursor-not-allowed'
-                        )}
-                        title="Reprocess lead prep"
-                      >
-                        {isReprocessing ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <RotateCw className="h-3 w-3" />
-                        )}
-                        <span>Reprocess</span>
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+          {leads.map((lead) => (
+            <LeadTableRow
+              key={lead.id}
+              lead={lead}
+              isSelected={selectedLeadId === lead.id}
+              onSelect={() => onSelect(lead.id)}
+              onReprocessLead={onReprocessLead}
+              isReprocessing={reprocessingLeadId === lead.id}
+              disableReprocess={Boolean(isReprocessing) && reprocessingLeadId !== lead.id}
+              getStatusBadge={getStatusBadge}
+              getCompanyName={getCompanyName}
+              formatDateTime={formatDateTime}
+              handleReprocessClick={handleReprocessClick}
+            />
+          ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface LeadTableRowProps {
+  lead: LeadWithPrep;
+  isSelected: boolean;
+  onSelect: () => void;
+  onReprocessLead?: (leadId: string) => Promise<void> | void;
+  isReprocessing: boolean;
+  disableReprocess: boolean;
+  getStatusBadge: (lead: LeadWithPrep) => JSX.Element;
+  getCompanyName: (lead: LeadWithPrep) => string;
+  formatDateTime: (dateString: string | null | undefined) => string;
+  handleReprocessClick: (e: MouseEvent<HTMLButtonElement>, leadId: string) => Promise<void>;
+}
+
+function LeadTableRow({
+  lead,
+  isSelected,
+  onSelect,
+  onReprocessLead,
+  isReprocessing,
+  disableReprocess,
+  getStatusBadge,
+  getCompanyName,
+  formatDateTime,
+  handleReprocessClick,
+}: LeadTableRowProps) {
+  const bookedDate = lead.first_seen_at || lead.external_occured_at || lead.created_at;
+  const meetingDate = lead.meeting_start;
+
+  // Extract domain from email if domain field is not available
+  const domainForLogo = useMemo(() => {
+    if (lead.domain) {
+      return lead.domain;
+    }
+
+    if (lead.contact_email) {
+      const emailDomain = lead.contact_email.split('@')[1];
+      if (emailDomain) {
+        const freeEmailProviders = [
+          'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+          'icloud.com', 'proton.me', 'aol.com', 'mail.com', 'live.com'
+        ];
+
+        const normalizedDomain = emailDomain.toLowerCase();
+        if (!freeEmailProviders.includes(normalizedDomain)) {
+          return normalizedDomain;
+        }
+      }
+    }
+    return null;
+  }, [lead.domain, lead.contact_email]);
+
+  const { logoUrl, isLoading } = useCompanyLogo(domainForLogo);
+  const [logoError, setLogoError] = useState(false);
+
+  // Reset error state when domain or logoUrl changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [domainForLogo, logoUrl]);
+
+  // Extract initials for fallback
+  const initials = useMemo(() => {
+    const contactName = lead.contact_name || '';
+    if (contactName && contactName.trim()) {
+      const nameParts = contactName.trim().split(/\s+/).filter(p => p.length > 0);
+      if (nameParts.length >= 2) {
+        return (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase();
+      } else if (nameParts.length === 1 && nameParts[0].length >= 2) {
+        return nameParts[0].substring(0, 2).toUpperCase();
+      }
+    }
+
+    if (domainForLogo) {
+      const domainParts = domainForLogo.split('.').filter(p => p.length > 0 && p !== 'www');
+      if (domainParts.length > 0 && domainParts[0].length >= 2) {
+        return domainParts[0].substring(0, 2).toUpperCase();
+      }
+    }
+
+    return '?';
+  }, [lead.contact_name, domainForLogo]);
+
+  return (
+    <tr
+      onClick={onSelect}
+      className={cn(
+        'cursor-pointer transition-colors',
+        'hover:bg-emerald-50 dark:hover:bg-emerald-500/10',
+        isSelected && 'bg-emerald-100/70 dark:bg-emerald-500/20'
+      )}
+    >
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3">
+          {/* Company Logo */}
+          <div className="flex-shrink-0">
+            {logoUrl && !logoError && !isLoading ? (
+              <img
+                src={logoUrl}
+                alt={domainForLogo || 'Company logo'}
+                className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                onError={() => setLogoError(true)}
+              />
+            ) : (
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center border font-semibold text-xs",
+                isLoading
+                  ? "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  : "bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-200 dark:border-emerald-500/30 text-white"
+              )}>
+                {isLoading ? (
+                  <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="select-none">{initials}</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Contact Info */}
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+              {lead.contact_name || lead.contact_email || 'Unnamed Lead'}
+            </div>
+            {lead.contact_email && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                {lead.contact_email}
+              </div>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        <div className="text-sm text-gray-900 dark:text-gray-100">
+          {getCompanyName(lead)}
+        </div>
+      </td>
+      <td className="px-4 py-3">
+        {meetingDate ? (
+          <div className="flex items-center gap-1.5 text-sm text-gray-900 dark:text-gray-100">
+            <Calendar className="h-3.5 w-3.5 text-gray-400" />
+            <span>{formatDateTime(meetingDate)}</span>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-400">N/A</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {bookedDate ? (
+          <div className="flex items-center gap-1.5 text-sm text-gray-900 dark:text-gray-100">
+            <Clock className="h-3.5 w-3.5 text-gray-400" />
+            <span>{formatDateTime(bookedDate)}</span>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-400">N/A</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        {getStatusBadge(lead)}
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex items-center justify-end gap-2">
+          {onReprocessLead && (
+            <button
+              type="button"
+              onClick={(e) => handleReprocessClick(e, lead.id)}
+              disabled={isReprocessing || disableReprocess}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800',
+                (isReprocessing || disableReprocess) && 'opacity-60 cursor-not-allowed'
+              )}
+              title="Reprocess lead prep"
+            >
+              {isReprocessing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RotateCw className="h-3 w-3" />
+              )}
+              <span>Reprocess</span>
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
 

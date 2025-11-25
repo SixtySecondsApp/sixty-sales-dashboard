@@ -635,6 +635,8 @@ STRUCTURE ADAPTATION:
                   try {
                     const parsed = JSON.parse(data)
                     
+                    let streamComplete = false
+
                     // OpenRouter uses OpenAI-compatible format
                     if (parsed.choices && parsed.choices[0]) {
                       const delta = parsed.choices[0].delta
@@ -644,7 +646,7 @@ STRUCTURE ADAPTATION:
                         // Send chunk to client
                         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'chunk', text: delta.content })}\n\n`))
                       }
-                      
+
                       // Check for finish reason (end of stream)
                       if (parsed.choices[0].finish_reason) {
                         // Stream complete
@@ -652,10 +654,10 @@ STRUCTURE ADAPTATION:
                           totalInputTokens = parsed.usage.prompt_tokens || 0
                           totalOutputTokens = parsed.usage.completion_tokens || 0
                         }
-                        break
+                        streamComplete = true
                       }
                     }
-                    
+
                     // Also handle Anthropic format for backward compatibility
                     if (parsed.type === 'message_start') {
                       // Message started
@@ -669,63 +671,47 @@ STRUCTURE ADAPTATION:
                       totalInputTokens = parsed.usage.input_tokens || 0
                       totalOutputTokens = parsed.usage.output_tokens || 0
                     } else if (parsed.type === 'message_stop') {
-                      // Message complete - finalize job
+                      streamComplete = true
+                    }
+
+                    // Process completion for both OpenAI and Anthropic formats
+                    if (streamComplete) {
                       let finalContent = accumulatedContent
-                      
+
                       if (action === 'generate_goals') {
-                        // Goals don't need special processing - they're already in the right format
-                        // Just ensure they're clean
+                        // Goals don't need special processing - just clean
                         finalContent = finalContent.trim()
-                      } else if (action === 'generate_proposal') {
-                        // Clean up HTML content - remove markdown artifacts
-                        finalContent = finalContent
-                          .replace(/^```html\n?/gi, '')
-                          .replace(/\n?```$/gi, '')
-                          .replace(/^```\n?/gi, '')
-                          .replace(/^html\s*/gi, '')
-                          .trim()
-                        
-                        // Ensure it starts with DOCTYPE
-                        if (!finalContent.startsWith('<!DOCTYPE') && !finalContent.startsWith('<html')) {
-                          // If content doesn't start properly, try to find where HTML actually begins
-                          const htmlStart = finalContent.search(/<!DOCTYPE|<html/i)
-                          if (htmlStart > 0) {
-                            finalContent = finalContent.substring(htmlStart)
-                          }
-                        }
                       } else if (action === 'generate_sow') {
-                        // For SOW, ensure it's pure markdown - strip any HTML that might have been generated
+                        // For SOW, ensure it's pure markdown - strip any HTML
                         finalContent = finalContent
-                        .replace(/<!DOCTYPE[^>]*>/gi, '')
-                        .replace(/<html[^>]*>/gi, '')
-                        .replace(/<\/html>/gi, '')
-                        .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
-                        .replace(/<body[^>]*>/gi, '')
-                        .replace(/<\/body>/gi, '')
-                        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-                        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-                        .replace(/<[^>]+>/g, '') // Remove any remaining HTML tags
-                        .trim()
-                        
-                        // Remove markdown code block markers if present
+                          .replace(/<!DOCTYPE[^>]*>/gi, '')
+                          .replace(/<html[^>]*>/gi, '')
+                          .replace(/<\/html>/gi, '')
+                          .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
+                          .replace(/<body[^>]*>/gi, '')
+                          .replace(/<\/body>/gi, '')
+                          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+                          .replace(/<[^>]+>/g, '')
+                          .trim()
+
+                        // Remove markdown code block markers
                         finalContent = finalContent.replace(/^```\s*markdown\s*\n?/i, '')
                         finalContent = finalContent.replace(/^```\s*md\s*\n?/i, '')
                         finalContent = finalContent.replace(/^```\s*\n?/g, '')
                         finalContent = finalContent.replace(/\n?```\s*$/g, '')
-                        
-                        // Ensure it starts with a markdown header, not HTML
+
+                        // Ensure it starts with a markdown header
                         if (!finalContent.startsWith('#')) {
-                          // Try to find the first markdown header
                           const headerMatch = finalContent.match(/^[^#]*(#+\s+.*)$/m)
                           if (headerMatch) {
                             finalContent = headerMatch[1] + '\n\n' + finalContent.substring(0, headerMatch.index).trim()
                           } else {
-                            // If no header found, add one
                             finalContent = '# Statement of Work\n\n' + finalContent
                           }
                         }
                       } else if (action === 'generate_proposal') {
-                        // For proposals, aggressively clean HTML: remove all markdown artifacts
+                        // For proposals, clean HTML: remove all markdown artifacts
                         finalContent = finalContent
                           .replace(/^'''\s*HTML\s*\n?/gi, '')
                           .replace(/^```\s*HTML\s*\n?/gi, '')
@@ -734,68 +720,30 @@ STRUCTURE ADAPTATION:
                           .replace(/^```\n?/gi, '')
                           .replace(/^html\s*/gi, '')
                           .trim()
-                        
-                        // Remove any leading "html" text that might appear before DOCTYPE
+
+                        // Remove any leading "html" text before DOCTYPE
                         if (finalContent.startsWith('html') && !finalContent.startsWith('html>')) {
                           finalContent = finalContent.replace(/^html\s*/i, '').trim()
                         }
-                        
+
                         // Find where actual HTML starts (DOCTYPE or <html)
                         const htmlStart = finalContent.search(/<!DOCTYPE|<html/i)
                         if (htmlStart > 0) {
                           finalContent = finalContent.substring(htmlStart)
                         }
-                        
+
                         // Ensure it starts with DOCTYPE
                         if (!finalContent.startsWith('<!DOCTYPE') && !finalContent.startsWith('<html')) {
-                          // Try to find HTML structure and extract it
                           const htmlMatch = finalContent.match(/<!DOCTYPE[\s\S]*<\/html>/i)
                           if (htmlMatch) {
                             finalContent = htmlMatch[0]
                           } else {
-                            // Fallback: wrap in DOCTYPE if needed
                             finalContent = '<!DOCTYPE html>\n' + finalContent
                           }
                         }
 
                         // Add CSS for page scrolling and centering
-                        if (finalContent.includes('<style>')) {
-                          finalContent = finalContent.replace(
-                            /(<style>)/i,
-                            `$1\n  /* Page scrolling and centering */
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow-x: hidden;
-  }
-  
-  body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    min-height: 100vh;
-  }
-  
-  /* Ensure content can scroll vertically */
-  .container, main, [class*="container"] {
-    max-width: 100%;
-    width: 100%;
-  }
-  
-  /* Page break support for printing */
-  @media print {
-    section, .slide {
-      page-break-after: always;
-    }
-  }`
-                          )
-                        } else if (finalContent.includes('</head>')) {
-                          finalContent = finalContent.replace(
-                            /(<\/head>)/i,
-                            `<style>
+                        const scrollCSS = `
   /* Page scrolling and centering */
   html, body {
     margin: 0;
@@ -804,7 +752,7 @@ STRUCTURE ADAPTATION:
     height: 100%;
     overflow-x: hidden;
   }
-  
+
   body {
     display: flex;
     flex-direction: column;
@@ -812,26 +760,31 @@ STRUCTURE ADAPTATION:
     justify-content: flex-start;
     min-height: 100vh;
   }
-  
-  /* Ensure content can scroll vertically */
+
   .container, main, [class*="container"] {
     max-width: 100%;
     width: 100%;
   }
-  
-  /* Page break support for printing */
+
   @media print {
     section, .slide {
       page-break-after: always;
     }
-  }
-</style>$1`
-                          )
+  }`
+
+                        if (finalContent.includes('<style>')) {
+                          finalContent = finalContent.replace(/(<style>)/i, `$1${scrollCSS}`)
+                        } else if (finalContent.includes('</head>')) {
+                          finalContent = finalContent.replace(/(<\/head>)/i, `<style>${scrollCSS}</style>$1`)
                         }
                       }
 
-                      // Update job with final content
-                      await supabase
+                      // Send completion event FIRST (don't block on job update)
+                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', content: finalContent })}\n\n`))
+                      controller.close()
+
+                      // Update job with final content (non-blocking, fire and forget)
+                      supabase
                         .from('proposal_jobs')
                         .update({
                           status: 'completed',
@@ -844,10 +797,9 @@ STRUCTURE ADAPTATION:
                           completed_at: new Date().toISOString(),
                         })
                         .eq('id', job.id)
+                        .then(() => console.log('Job updated successfully'))
+                        .catch((err: Error) => console.error('Job update failed:', err))
 
-                      // Send completion event
-                      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', content: finalContent })}\n\n`))
-                      controller.close()
                       return
                     }
                   } catch (e) {
@@ -1097,8 +1049,8 @@ serve(async (req) => {
     try {
       // Add timeout protection for auth call
       const authPromise = supabase.auth.getUser()
-      const authTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Authentication timeout')), 5000) // 5 second timeout
+      const authTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Authentication timeout')), 15000) // 15 second timeout for reliability
       )
       
       const { data: userData, error: userError } = await Promise.race([authPromise, authTimeoutPromise]) as any

@@ -126,6 +126,74 @@ ${output}
 
 type Step = 'select_meetings' | 'analyze_focus' | 'loading' | 'review_goals' | 'choose_format' | 'configure_document' | 'preview';
 
+// Steps that represent completed work (not transient states like 'loading')
+const COMPLETABLE_STEPS: Step[] = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
+
+// Saved wizard state for persistence
+interface SavedWizardState {
+  step: Step;
+  selectedMeetingIds: string[];
+  focusAreas: FocusArea[];
+  selectedFocusAreaIds: string[];
+  goals: string;
+  selectedFormat: 'sow' | 'proposal' | null;
+  documentConfig: {
+    length_target?: 'short' | 'medium' | 'long';
+    word_limit?: number;
+    page_target?: number;
+  };
+  finalContent: string;
+  savedAt: string;
+  contactName?: string;
+  companyName?: string;
+}
+
+// Generate storage key based on meeting IDs or contact
+const getStorageKey = (meetingIds?: string[], contactId?: string): string => {
+  if (meetingIds && meetingIds.length > 0) {
+    return `proposal_wizard_${meetingIds.sort().join('_')}`;
+  }
+  if (contactId) {
+    return `proposal_wizard_contact_${contactId}`;
+  }
+  return 'proposal_wizard_default';
+};
+
+// Save wizard state to localStorage
+const saveWizardState = (key: string, state: SavedWizardState) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(state));
+    console.log('[ProposalWizard] State saved:', key, state.step);
+  } catch (e) {
+    console.error('[ProposalWizard] Failed to save state:', e);
+  }
+};
+
+// Load wizard state from localStorage
+const loadWizardState = (key: string): SavedWizardState | null => {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const state = JSON.parse(stored) as SavedWizardState;
+      console.log('[ProposalWizard] State loaded:', key, state.step);
+      return state;
+    }
+  } catch (e) {
+    console.error('[ProposalWizard] Failed to load state:', e);
+  }
+  return null;
+};
+
+// Clear wizard state from localStorage
+const clearWizardState = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+    console.log('[ProposalWizard] State cleared:', key);
+  } catch (e) {
+    console.error('[ProposalWizard] Failed to clear state:', e);
+  }
+};
+
 interface MeetingContact {
   id: string;
   first_name: string | null;
@@ -187,6 +255,107 @@ export function ProposalWizard({
 
   const [iframeContent, setIframeContent] = useState<string>('');
 
+  // State persistence
+  const [savedState, setSavedState] = useState<SavedWizardState | null>(null);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
+  const storageKey = getStorageKey(initialMeetingIds, contactId);
+
+  // Get step label for display
+  const getStepLabel = (s: Step): string => {
+    switch (s) {
+      case 'select_meetings': return 'Select Meetings';
+      case 'analyze_focus': return 'Focus Areas';
+      case 'loading': return 'Loading';
+      case 'review_goals': return 'Review Goals';
+      case 'choose_format': return 'Choose Format';
+      case 'configure_document': return 'Configure';
+      case 'preview': return 'Preview';
+      default: return s;
+    }
+  };
+
+  // Save current state to localStorage
+  const saveCurrentState = (currentStep?: Step) => {
+    const stateToSave: SavedWizardState = {
+      step: currentStep || step,
+      selectedMeetingIds: Array.from(selectedMeetingIds),
+      focusAreas,
+      selectedFocusAreaIds: Array.from(selectedFocusAreaIds),
+      goals,
+      selectedFormat,
+      documentConfig,
+      finalContent,
+      savedAt: new Date().toISOString(),
+      contactName,
+      companyName,
+    };
+    saveWizardState(storageKey, stateToSave);
+  };
+
+  // Restore state from saved state
+  const restoreState = (state: SavedWizardState) => {
+    setSelectedMeetingIds(new Set(state.selectedMeetingIds));
+    setFocusAreas(state.focusAreas);
+    setSelectedFocusAreaIds(new Set(state.selectedFocusAreaIds));
+    setGoals(state.goals);
+    setSelectedFormat(state.selectedFormat);
+    setDocumentConfig(state.documentConfig);
+    setFinalContent(state.finalContent);
+    // Skip 'loading' step - go to the last completable step
+    const targetStep = state.step === 'loading' ? 'review_goals' : state.step;
+    setStep(targetStep);
+    setShowResumeDialog(false);
+    setSavedState(null);
+  };
+
+  // Start fresh - clear saved state
+  const startFresh = () => {
+    clearWizardState(storageKey);
+    setSavedState(null);
+    setShowResumeDialog(false);
+    // Reset all state
+    setStep('select_meetings');
+    setSelectedMeetingIds(new Set());
+    setFocusAreas([]);
+    setSelectedFocusAreaIds(new Set());
+    setGoals('');
+    setSelectedFormat(null);
+    setDocumentConfig({});
+    setFinalContent('');
+    setError(null);
+    setStatusMessage(null);
+  };
+
+  // Jump to a specific step (for reprocessing)
+  const jumpToStep = (targetStep: Step) => {
+    // Clear data for steps after the target
+    const stepOrder: Step[] = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
+    const targetIndex = stepOrder.indexOf(targetStep);
+
+    if (targetIndex >= 0) {
+      // Clear data for subsequent steps
+      if (targetIndex <= stepOrder.indexOf('analyze_focus')) {
+        setFocusAreas([]);
+        setSelectedFocusAreaIds(new Set());
+      }
+      if (targetIndex <= stepOrder.indexOf('review_goals')) {
+        setGoals('');
+      }
+      if (targetIndex <= stepOrder.indexOf('choose_format')) {
+        setSelectedFormat(null);
+      }
+      if (targetIndex <= stepOrder.indexOf('configure_document')) {
+        setDocumentConfig({});
+      }
+      if (targetIndex <= stepOrder.indexOf('preview')) {
+        setFinalContent('');
+      }
+    }
+
+    setStep(targetStep);
+    saveCurrentState(targetStep);
+  };
+
   useEffect(() => {
     if (selectedFormat !== 'proposal') {
       setIframeContent(finalContent);
@@ -217,9 +386,19 @@ export function ProposalWizard({
     }
   }, [loading, selectedFormat, finalContent]);
 
-  // Step 1: Load meetings when dialog opens
+  // Step 1: Load meetings when dialog opens - check for saved state first
   useEffect(() => {
     if (open) {
+      // Check for saved state
+      const saved = loadWizardState(storageKey);
+      if (saved && saved.step !== 'select_meetings') {
+        // We have a saved state with progress - show resume dialog
+        setSavedState(saved);
+        setShowResumeDialog(true);
+        return;
+      }
+
+      // No saved state or at first step - proceed normally
       if (initialMeetingIds && initialMeetingIds.length > 0) {
         // If specific meetings provided, load transcripts and show focus area selection
         setSelectedMeetingIds(new Set(initialMeetingIds));
@@ -230,7 +409,14 @@ export function ProposalWizard({
         loadMeetings();
       }
     }
-  }, [open, initialMeetingIds]);
+  }, [open, initialMeetingIds, storageKey]);
+
+  // Auto-save state when step changes (for completable steps)
+  useEffect(() => {
+    if (open && COMPLETABLE_STEPS.includes(step) && step !== 'select_meetings') {
+      saveCurrentState(step);
+    }
+  }, [step, goals, selectedFormat, finalContent]);
 
   const loadMeetings = async () => {
     setLoading(true);
@@ -876,37 +1062,91 @@ ${htmlContent}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center gap-2 mb-6 overflow-x-auto pb-2 pt-2">
-          {['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'].map((stepName, idx) => {
-            const stepNames = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
-            const stepLabels = ['Meetings', 'Focus', 'Goals', 'Format', 'Config', 'Preview'];
-            const currentStepIdx = stepNames.indexOf(step);
-            const isActive = idx <= currentStepIdx;
-            const isCurrent = step === stepName;
-            
-            return (
-              <div key={stepName} className="flex items-center">
-                <div className={`flex flex-col items-center ${
-                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
-                }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                    isCurrent ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : isActive ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'
-                  }`}>
-                    {isActive && !isCurrent ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
-                  </div>
-                  <span className="mt-1.5 text-xs font-medium whitespace-nowrap">{stepLabels[idx]}</span>
+        {/* Resume Dialog - shown when saved state exists */}
+        {showResumeDialog && savedState && (
+          <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
+            <div className="flex items-start gap-3">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100">Resume Previous Session?</h3>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                  You have a saved proposal session from {new Date(savedState.savedAt).toLocaleString()}.
+                </p>
+                <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
+                  <p><strong>Progress:</strong> {getStepLabel(savedState.step)}</p>
+                  {savedState.goals && <p><strong>Goals:</strong> {savedState.goals.length} characters</p>}
+                  {savedState.selectedFormat && <p><strong>Format:</strong> {savedState.selectedFormat.toUpperCase()}</p>}
+                  {savedState.finalContent && <p><strong>Document:</strong> {savedState.finalContent.length} characters</p>}
                 </div>
-                {idx < stepNames.length - 1 && (
-                  <ArrowRight className="w-4 h-4 text-gray-400 mx-1.5 flex-shrink-0" />
-                )}
               </div>
-            );
-          })}
-        </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={startFresh}>
+                Start Fresh
+              </Button>
+              <Button onClick={() => restoreState(savedState)} className="bg-blue-600 hover:bg-blue-700">
+                Resume Session
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step Indicator - clickable for completed steps */}
+        {!showResumeDialog && (
+          <div className="flex items-center justify-center gap-2 mb-6 overflow-x-auto pb-2 pt-2">
+            {['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'].map((stepName, idx) => {
+              const stepNames = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
+              const stepLabels = ['Meetings', 'Focus', 'Goals', 'Format', 'Config', 'Preview'];
+              const currentStepIdx = stepNames.indexOf(step);
+              const isCompleted = idx < currentStepIdx;
+              const isActive = idx <= currentStepIdx;
+              const isCurrent = step === stepName;
+              const canClick = isCompleted && !loading; // Can click on completed steps to go back
+
+              return (
+                <div key={stepName} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => canClick && jumpToStep(stepName as Step)}
+                    disabled={!canClick}
+                    className={`flex flex-col items-center ${
+                      isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
+                    } ${canClick ? 'cursor-pointer hover:opacity-80' : 'cursor-default'}`}
+                    title={canClick ? `Go back to ${stepLabels[idx]}` : undefined}
+                  >
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                      isCurrent ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500' : isActive ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'
+                    } ${canClick ? 'hover:ring-2 hover:ring-blue-300' : ''}`}>
+                      {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+                    </div>
+                    <span className="mt-1.5 text-xs font-medium whitespace-nowrap">{stepLabels[idx]}</span>
+                  </button>
+                  {idx < stepNames.length - 1 && (
+                    <ArrowRight className="w-4 h-4 text-gray-400 mx-1.5 flex-shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Start Fresh button - shown when not at first step and not loading */}
+        {!showResumeDialog && step !== 'select_meetings' && !loading && (
+          <div className="flex justify-end mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={startFresh}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Start Over
+            </Button>
+          </div>
+        )}
 
         {/* Step 0: Select Meetings */}
-        {step === 'select_meetings' && (
+        {!showResumeDialog && step === 'select_meetings' && (
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">Select Meetings to Include</h3>
@@ -1084,7 +1324,7 @@ ${htmlContent}
         )}
 
         {/* Step 1.5: Analyze Focus Areas */}
-        {step === 'analyze_focus' && (
+        {!showResumeDialog && step === 'analyze_focus' && (
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">Select Focus Areas</h3>
@@ -1176,19 +1416,41 @@ ${htmlContent}
           </div>
         )}
 
-        {/* Step 2: Loading/Analyzing */}
-        {step === 'loading' && (
+        {/* Step 2: Loading/Analyzing - Show streaming goals content */}
+        {!showResumeDialog && step === 'loading' && (
           <div className="space-y-4">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
-                <p className="text-gray-600 dark:text-gray-400 text-center">
-                  {statusMessage || 'Analyzing call transcripts and generating goals...'}
-                </p>
-                {statusMessage && statusMessage.includes('Processing') && (
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2 text-center">
-                    This may take a minute. Please wait...
-                  </p>
+              <div className="space-y-4">
+                {/* Spinner and status at top */}
+                <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
+                      {statusMessage || 'Analyzing call transcripts and generating goals...'}
+                    </p>
+                    {goals.length > 0 && (
+                      <p className="text-blue-600 dark:text-blue-400 text-xs mt-1">
+                        {goals.length} characters generated...
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Show goals textarea during streaming so users can see progress */}
+                {goals.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-2">Generating Goals...</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      Watch as the AI generates your goals document in real-time:
+                    </p>
+                    <Textarea
+                      value={goals}
+                      readOnly
+                      rows={15}
+                      className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
+                      placeholder="Goals content streaming..."
+                    />
+                  </div>
                 )}
               </div>
             ) : error ? (
@@ -1203,7 +1465,7 @@ ${htmlContent}
         )}
 
         {/* Step 3: Review Goals */}
-        {step === 'review_goals' && (
+        {!showResumeDialog && step === 'review_goals' && (
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">Review Generated Goals</h3>
@@ -1249,7 +1511,7 @@ ${htmlContent}
         )}
 
         {/* Step 4: Configure Document */}
-        {step === 'configure_document' && (
+        {!showResumeDialog && step === 'configure_document' && (
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}</h3>
@@ -1341,7 +1603,7 @@ ${htmlContent}
         )}
 
         {/* Step 4: Choose Format */}
-        {step === 'choose_format' && (
+        {!showResumeDialog && step === 'choose_format' && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold mb-2">Choose Document Format</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
@@ -1408,7 +1670,7 @@ ${htmlContent}
         )}
 
         {/* Step 5: Preview */}
-        {step === 'preview' && (
+        {!showResumeDialog && step === 'preview' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Preview Generated Document</h3>

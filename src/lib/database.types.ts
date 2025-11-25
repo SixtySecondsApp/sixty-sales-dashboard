@@ -461,6 +461,45 @@ export interface Database {
           }
         ]
       }
+      savvycal_link_mappings: {
+        Row: {
+          id: string
+          link_id: string
+          source_name: string
+          channel: string
+          medium: string | null
+          description: string | null
+          default_owner_email: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          link_id: string
+          source_name: string
+          channel?: string
+          medium?: string | null
+          description?: string | null
+          default_owner_email?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          link_id?: string
+          source_name?: string
+          channel?: string
+          medium?: string | null
+          description?: string | null
+          default_owner_email?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           id: string
@@ -1172,19 +1211,27 @@ export interface Database {
       }
       lead_source_summary: {
         Row: {
-          source_id: string | null
-          source_key: string | null
           source_name: string | null
           channel: string | null
-          medium: string | null
-          campaign: string | null
           owner_id: string | null
           total_leads: number | null
-          converted_leads: number | null
-          ready_leads: number | null
+          new_leads: number | null
           prepping_leads: number | null
+          ready_leads: number | null
+          converted_leads: number | null
+          cancelled_leads: number | null
+          sql_stage: number | null
+          opportunity_stage: number | null
+          verbal_stage: number | null
+          signed_stage: number | null
+          lost_stage: number | null
+          total_one_off_revenue: number | null
+          total_monthly_revenue: number | null
+          total_ltv: number | null
           first_lead_at: string | null
           last_lead_at: string | null
+          conversion_rate: number | null
+          win_rate: number | null
         }
       }
     }

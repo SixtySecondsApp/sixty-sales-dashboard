@@ -199,14 +199,21 @@ export async function generateGoals(
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('[generateGoals] Response not OK:', response.status, errorText);
       throw new Error(errorText || 'Failed to start streaming');
     }
 
     // Handle streaming response
-    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+    const contentType = response.headers.get('content-type');
+    console.log('[generateGoals] Response content-type:', contentType);
+
+    if (contentType?.includes('text/event-stream')) {
+      console.log('[generateGoals] Starting SSE streaming...');
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let chunkCount = 0;
+      let buffer = ''; // Buffer for incomplete lines
 
       if (!reader) {
         throw new Error('No response body');
@@ -214,40 +221,71 @@ export async function generateGoals(
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
+        // Process any remaining data in the buffer + current value before exiting
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
+        // Split on double newlines (SSE event separator)
+        const events = buffer.split('\n\n');
+        // Keep the last incomplete event in the buffer
+        buffer = events.pop() || '';
 
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'chunk' && parsed.text) {
-                accumulatedContent += parsed.text;
-                if (onChunk) {
-                  onChunk(parsed.text);
-                }
-              } else if (parsed.type === 'done' && parsed.content) {
-                return {
-                  success: true,
-                  content: parsed.content,
-                };
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') {
+                console.log('[generateGoals] Received [DONE] marker');
+                continue;
               }
-            } catch (e) {
-              // Skip invalid JSON
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  chunkCount++;
+                  accumulatedContent += parsed.text;
+                  if (chunkCount <= 3 || chunkCount % 50 === 0) {
+                    console.log(`[generateGoals] Chunk #${chunkCount}:`, parsed.text.substring(0, 50) + '...');
+                  }
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done') {
+                  console.log('[generateGoals] Received done event. Content length:', parsed.content?.length || accumulatedContent.length);
+                  return {
+                    success: true,
+                    content: parsed.content || accumulatedContent,
+                  };
+                } else if (parsed.type === 'error') {
+                  console.error('[generateGoals] Received error event:', parsed.error);
+                  throw new Error(parsed.error || 'Server error during streaming');
+                }
+              } catch (e) {
+                // Only log if it looks like it should be valid JSON
+                if (data.startsWith('{')) {
+                  console.log('[generateGoals] Invalid JSON in line:', data.substring(0, 100), e);
+                }
+              }
             }
           }
         }
+
+        if (done) {
+          console.log('[generateGoals] Stream done. Total chunks:', chunkCount, 'Total length:', accumulatedContent.length);
+          break;
+        }
       }
 
+      // If we got here without a 'done' event, return accumulated content
+      console.log('[generateGoals] Stream completed without done event. Returning accumulated content.');
       return {
         success: true,
         content: accumulatedContent,
       };
+    } else {
+      console.log('[generateGoals] Not SSE response, falling back to JSON parsing. Content-type:', contentType);
     }
 
     // Fallback to non-streaming
@@ -268,6 +306,7 @@ export async function generateGoals(
     };
   } catch (error) {
     logger.error('Exception generating goals:', error);
+    console.error('[generateGoals] Exception:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -329,11 +368,12 @@ export async function generateSOW(
       throw new Error(errorText || 'Failed to start streaming');
     }
 
-    // Handle streaming response
+    // Handle streaming response with buffer for partial SSE events
     if (response.headers.get('content-type')?.includes('text/event-stream')) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let buffer = ''; // Buffer for incomplete SSE events
 
       if (!reader) {
         throw new Error('No response body');
@@ -341,24 +381,57 @@ export async function generateSOW(
 
       while (true) {
         const { done, value } = await reader.read();
+
+        // Decode chunk and add to buffer
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        // Split on SSE event boundaries (double newline)
+        const events = buffer.split('\n\n');
+        // Keep the last potentially incomplete event in buffer
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                // Skip invalid JSON - may be partial data
+                logger.debug('Skipping invalid JSON in SOW SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
         if (done) break;
+      }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
+      // Process any remaining buffer content
+      if (buffer.trim()) {
+        const lines = buffer.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+            const data = line.slice(6).trim();
             if (data === '[DONE]') continue;
-
             try {
               const parsed = JSON.parse(data);
-              if (parsed.type === 'chunk' && parsed.text) {
-                accumulatedContent += parsed.text;
-                if (onChunk) {
-                  onChunk(parsed.text);
-                }
-              } else if (parsed.type === 'done' && parsed.content) {
+              if (parsed.type === 'done' && parsed.content) {
                 return {
                   success: true,
                   content: parsed.content,
@@ -454,11 +527,12 @@ export async function generateProposal(
       throw new Error(errorText || 'Failed to start streaming');
     }
 
-    // Handle streaming response
+    // Handle streaming response with buffer for partial SSE events
     if (response.headers.get('content-type')?.includes('text/event-stream')) {
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = '';
+      let buffer = ''; // Buffer for incomplete SSE events
 
       if (!reader) {
         throw new Error('No response body');
@@ -466,24 +540,57 @@ export async function generateProposal(
 
       while (true) {
         const { done, value } = await reader.read();
+
+        // Decode chunk and add to buffer
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        // Split on SSE event boundaries (double newline)
+        const events = buffer.split('\n\n');
+        // Keep the last potentially incomplete event in buffer
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                // Skip invalid JSON - may be partial data
+                logger.debug('Skipping invalid JSON in proposal SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
         if (done) break;
+      }
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
+      // Process any remaining buffer content
+      if (buffer.trim()) {
+        const lines = buffer.split('\n');
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = line.slice(6);
+            const data = line.slice(6).trim();
             if (data === '[DONE]') continue;
-
             try {
               const parsed = JSON.parse(data);
-              if (parsed.type === 'chunk' && parsed.text) {
-                accumulatedContent += parsed.text;
-                if (onChunk) {
-                  onChunk(parsed.text);
-                }
-              } else if (parsed.type === 'done' && parsed.content) {
+              if (parsed.type === 'done' && parsed.content) {
                 return {
                   success: true,
                   content: parsed.content,

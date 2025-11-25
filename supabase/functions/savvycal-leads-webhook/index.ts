@@ -382,7 +382,7 @@ async function processSavvyCalEvent(
 
   const ownerProfileId = await resolveLeadOwnerId(supabase, organizer?.email);
 
-  const sourceDetails = resolveLeadSource(event.payload);
+  const sourceDetails = await resolveLeadSource(supabase, event.payload);
   const leadSource = await ensureLeadSource(
     supabase,
     sourceDetails,
@@ -537,35 +537,52 @@ async function processSavvyCalEvent(
     // Trigger company enrichment if this is a new company
     if (isNewCompany && companyId) {
       const enrichUrl = `${SUPABASE_URL}/functions/v1/enrich-company`;
-      
+
       // Fire and forget - don't wait for enrichment to complete
       fetch(enrichUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "apikey": SUPABASE_SERVICE_ROLE_KEY,
         },
         body: JSON.stringify({ company_id: companyId }),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.error(`[enrich-company] Failed: ${res.status} - ${text}`);
+        } else {
+          console.log(`[enrich-company] Triggered for company ${companyId}`);
+        }
       }).catch((error) => {
-        // Non-blocking - enrichment failure shouldn't fail lead creation
+        console.error(`[enrich-company] Error:`, error);
       });
     }
 
-    // Auto-enrich new lead - trigger lead prep generation
+    // Auto-enrich new lead - trigger lead prep generation for this specific lead
     const prepUrl = `${SUPABASE_URL}/functions/v1/process-lead-prep`;
-    
+
     // Fire and forget - don't wait for prep generation to complete
     fetch(prepUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "apikey": SUPABASE_SERVICE_ROLE_KEY,
       },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ lead_id: leadData.id }),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        console.error(`[process-lead-prep] Failed: ${res.status} - ${text}`);
+      } else {
+        console.log(`[process-lead-prep] Triggered for lead ${leadData.id}`);
+      }
     }).catch((error) => {
-      // Non-blocking - prep failure shouldn't fail lead creation
+      console.error(`[process-lead-prep] Error:`, error);
     });
   } else {
+    console.log(`[savvycal-webhook] Skipping enrichment for cancelled lead`);
   }
 
   return {
@@ -626,29 +643,65 @@ async function resolveLeadOwnerId(
   return data?.id ?? null;
 }
 
-function resolveLeadSource(payload: SavvyCalEventPayload): LeadSourceDetails {
+async function resolveLeadSource(
+  supabase: SupabaseClient,
+  payload: SavvyCalEventPayload
+): Promise<LeadSourceDetails> {
   const privateName = payload.link?.private_name ?? "";
   const publicName = payload.link?.name ?? "";
   const scopeName = payload.scope?.name ?? "";
+  const linkId = payload.link?.id ?? "";
 
   const normalized = `${privateName} ${publicName} ${scopeName}`.toLowerCase();
   const utmSource = (payload.metadata?.utm_source as string)?.toLowerCase() ?? "";
   const utmMedium = (payload.metadata?.utm_medium as string)?.toLowerCase() ?? "";
 
-  // Check for Facebook Ads (via link name or UTM)
-  if (normalized.includes("facebook") || normalized.includes("facebook ads") || 
-      utmSource.includes("facebook") || utmMedium.includes("facebook")) {
+  // First, check UTM parameters for specific ad platforms
+  if (utmSource === "fb" || utmSource === "facebook" ||
+      utmSource === "ig" || utmSource === "instagram") {
     return {
-      sourceKey: "facebook_ads",
-      name: "Facebook Ads",
+      sourceKey: utmSource === "ig" || utmSource === "instagram" ? "instagram_ads" : "facebook_ads",
+      name: utmSource === "ig" || utmSource === "instagram" ? "Instagram Ads" : "Facebook Ads",
       channel: "paid_social",
-      medium: "facebook",
+      medium: "meta",
       campaign: payload.metadata?.utm_campaign as string ?? undefined,
     };
   }
 
-  if (normalized.includes("linkedin") || normalized.includes("linkedin ads") ||
-      utmSource.includes("linkedin")) {
+  if (utmSource === "linkedin") {
+    return {
+      sourceKey: "linkedin_ads",
+      name: "LinkedIn Ads",
+      channel: "paid_social",
+      medium: "linkedin",
+      campaign: payload.metadata?.utm_campaign as string ?? undefined,
+    };
+  }
+
+  if (utmSource === "google") {
+    const isPaid = utmMedium === "cpc" || utmMedium === "ppc" || utmMedium === "paid";
+    return {
+      sourceKey: isPaid ? "google_ads" : "google_organic",
+      name: isPaid ? "Google Ads" : "Google Organic",
+      channel: isPaid ? "paid_search" : "organic",
+      medium: "google",
+      campaign: payload.metadata?.utm_campaign as string ?? undefined,
+    };
+  }
+
+  // Check for Facebook Ads (via link name)
+  if (normalized.includes("facebook") || normalized.includes("facebook ads") ||
+      utmMedium.includes("facebook")) {
+    return {
+      sourceKey: "facebook_ads",
+      name: "Facebook Ads",
+      channel: "paid_social",
+      medium: "meta",
+      campaign: payload.metadata?.utm_campaign as string ?? undefined,
+    };
+  }
+
+  if (normalized.includes("linkedin") || normalized.includes("linkedin ads")) {
     return {
       sourceKey: "linkedin_ads",
       name: "LinkedIn Ads",
@@ -659,8 +712,8 @@ function resolveLeadSource(payload: SavvyCalEventPayload): LeadSourceDetails {
   }
 
   // Check for email outreach - check multiple variations
-  if (normalized.includes("email") || 
-      normalized.includes("outreach") || 
+  if (normalized.includes("email") ||
+      normalized.includes("outreach") ||
       normalized.includes("mail") ||
       normalized.includes("email outreach") ||
       utmMedium.includes("email") ||
@@ -683,6 +736,26 @@ function resolveLeadSource(payload: SavvyCalEventPayload): LeadSourceDetails {
       medium: "organic",
       campaign: payload.metadata?.utm_campaign as string ?? undefined,
     };
+  }
+
+  // Check link_id against savvycal_link_mappings table
+  if (linkId) {
+    const { data: linkMapping } = await supabase
+      .from("savvycal_link_mappings")
+      .select("source_name, channel, medium")
+      .eq("link_id", linkId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (linkMapping) {
+      return {
+        sourceKey: linkMapping.source_name.toLowerCase().replace(/\s+/g, "_"),
+        name: linkMapping.source_name,
+        channel: linkMapping.channel,
+        medium: linkMapping.medium ?? undefined,
+        campaign: payload.metadata?.utm_campaign as string ?? undefined,
+      };
+    }
   }
 
   if (normalized.includes("personal") || normalized.includes("direct")) {

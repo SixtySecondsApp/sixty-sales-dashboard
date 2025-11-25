@@ -86,8 +86,8 @@ async function refreshAccessToken(supabase: any, integration: any): Promise<stri
     return integration.access_token
   }
   // Get OAuth configuration
-  const clientId = Deno.env.get('VITE_FATHOM_CLIENT_ID')
-  const clientSecret = Deno.env.get('VITE_FATHOM_CLIENT_SECRET')
+  const clientId = Deno.env.get('FATHOM_CLIENT_ID')
+  const clientSecret = Deno.env.get('FATHOM_CLIENT_SECRET')
 
   if (!clientId || !clientSecret) {
     throw new Error('Missing Fathom OAuth configuration for token refresh')
@@ -365,7 +365,7 @@ serve(async (req) => {
 
       userId = user.id
     }
-    const { sync_type, start_date, end_date, call_id, limit, webhook_payload } = body
+    const { sync_type, start_date, end_date, call_id, limit, webhook_payload, skip_thumbnails } = body
 
     // Get active Fathom integration
     const { data: integration, error: integrationError } = await supabase
@@ -401,7 +401,7 @@ serve(async (req) => {
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
-        const result = await syncSingleCall(supabase, userId, integration, webhook_payload)
+        const result = await syncSingleCall(supabase, userId, integration, webhook_payload, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -412,7 +412,7 @@ serve(async (req) => {
         }
       } else if (call_id) {
         // Legacy: fetch single call by ID
-        const result = await syncSingleCall(supabase, userId, integration, call_id)
+        const result = await syncSingleCall(supabase, userId, integration, call_id, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -450,27 +450,32 @@ serve(async (req) => {
             break
         }
       }
-      // Fetch calls from Fathom API with pagination
-      let offset = 0
+      // Fetch calls from Fathom API with cursor-based pagination
+      let cursor: string | undefined = undefined
       const apiLimit = limit || 100 // Use provided limit or default to 100
       let hasMore = true
+      let pageCount = 0
+      const maxPages = 100 // Safety limit to prevent infinite loops
 
       // If user specified a limit, we only fetch one batch
       const isLimitedSync = !!limit
 
-      while (hasMore) {
-        const calls = await fetchFathomCalls(integration, {
+      while (hasMore && pageCount < maxPages) {
+        pageCount++
+        const response = await fetchFathomCalls(integration, {
           start_date: apiStartDate,
           end_date: apiEndDate,
           limit: apiLimit,
-          offset,
+          cursor,
         }, supabase)
 
+        const calls = response.items
         totalMeetingsFound += calls.length
+
         // Process each call
         for (const call of calls) {
           try {
-            const result = await syncSingleCall(supabase, userId, integration, call)
+            const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
 
             if (result.success) {
               meetingsSynced++
@@ -485,30 +490,26 @@ serve(async (req) => {
           }
         }
 
-        // Check if there are more results
+        // Check if there are more results using cursor-based pagination
         // If this is a limited sync (test mode), stop after first batch
         if (isLimitedSync) {
           hasMore = false
         } else {
-          hasMore = calls.length === apiLimit
-          offset += apiLimit
-
-          // Safety limit to prevent infinite loops
-          if (offset > 10000) {
-            break
-          }
+          // Use has_more from API response and cursor for next page
+          hasMore = response.has_more && !!response.cursor
+          cursor = response.cursor
         }
       }
       // Fallback: if nothing found in the selected window, retry once without date filters
       if (totalMeetingsFound === 0 && (apiStartDate || apiEndDate)) {
-        const retryCalls = await fetchFathomCalls(integration, { limit: apiLimit, offset: 0 }, supabase)
+        const retryResponse = await fetchFathomCalls(integration, { limit: apiLimit }, supabase)
+        const retryCalls = retryResponse.items
         totalMeetingsFound += retryCalls.length
 
-        if (retryCalls.length === 0) {
-        } else {
+        if (retryCalls.length > 0) {
           for (const call of retryCalls) {
             try {
-              const result = await syncSingleCall(supabase, userId, integration, call)
+              const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -616,10 +617,16 @@ async function retryWithBackoff<T>(
 }
 
 /**
- * Fetch calls from Fathom API with retry logic
- *
- * Note: Fathom API uses cursor-based pagination, not offset-based
- * We'll need to adapt this to use cursors properly
+ * Response type for paginated Fathom API calls
+ */
+interface FathomPaginatedResponse {
+  items: FathomCall[]
+  has_more: boolean
+  cursor?: string
+}
+
+/**
+ * Fetch calls from Fathom API with proper cursor-based pagination
  */
 async function fetchFathomCalls(
   integration: any,
@@ -627,21 +634,22 @@ async function fetchFathomCalls(
     start_date?: string
     end_date?: string
     limit?: number
-    offset?: number
+    cursor?: string  // Use cursor instead of offset for proper pagination
   },
   supabase?: any
-): Promise<FathomCall[]> {
+): Promise<FathomPaginatedResponse> {
   const queryParams = new URLSearchParams()
 
   // Fathom API uses created_after/created_before instead of start_date/end_date
   if (params.start_date) queryParams.set('created_after', params.start_date)
   if (params.end_date) queryParams.set('created_before', params.end_date)
-  // Explicitly request a reasonable page size; some APIs default to 0 without limit
-  queryParams.set('limit', String(params.limit ?? 50))
+  // Request larger page size (100) to get more meetings per request
+  queryParams.set('limit', String(params.limit ?? 100))
 
-  // Note: Fathom API uses cursor-based pagination, offset may not work
-  // For now, we'll implement basic pagination support
-  // TODO: Implement proper cursor-based pagination
+  // Use cursor for pagination (Fathom uses cursor-based pagination)
+  if (params.cursor) {
+    queryParams.set('cursor', params.cursor)
+  }
 
   // Correct API base URL
   const url = `https://api.fathom.ai/external/v1/meetings?${queryParams.toString()}`
@@ -682,30 +690,54 @@ async function fetchFathomCalls(
     }
 
     const data = await response.json()
+
+    // DEBUG: Log raw API response to understand pagination structure
+    console.log('[Fathom API] Raw response keys:', Object.keys(data))
+    console.log('[Fathom API] has_more:', data.has_more, 'hasMore:', data.hasMore)
+    console.log('[Fathom API] cursor:', data.cursor, 'next_cursor:', data.next_cursor)
+    console.log('[Fathom API] total_count:', data.total_count, 'total:', data.total)
+    if (data.items) console.log('[Fathom API] items count:', data.items.length)
+    if (data.meetings) console.log('[Fathom API] meetings count:', data.meetings.length)
+
     // Fathom API returns meetings array directly or in a data wrapper
     // Handle different possible response structures
-    let meetings = []
+    let meetings: FathomCall[] = []
+    let has_more = false
+    let cursor: string | undefined = undefined
 
     if (Array.isArray(data)) {
-      // Response is directly an array
+      // Response is directly an array (no pagination info)
       meetings = data
+      has_more = false
     } else if (data.items && Array.isArray(data.items)) {
       // Response has an items property that's an array (actual Fathom API structure)
       meetings = data.items
+      // Fathom API uses next_cursor for pagination - presence of next_cursor means more results
+      cursor = data.next_cursor || data.cursor || data.nextCursor || undefined
+      // If next_cursor exists, there are more results to fetch
+      has_more = !!cursor
     } else if (data.meetings && Array.isArray(data.meetings)) {
       // Response has a meetings property that's an array
       meetings = data.meetings
+      has_more = data.has_more === true || false
+      cursor = data.cursor || data.next_cursor || undefined
     } else if (data.data && Array.isArray(data.data)) {
       // Response has a data property that's an array
       meetings = data.data
+      has_more = data.has_more === true || false
+      cursor = data.cursor || data.next_cursor || undefined
     } else if (data.calls && Array.isArray(data.calls)) {
       // Response has a calls property that's an array
       meetings = data.calls
+      has_more = data.has_more === true || false
+      cursor = data.cursor || data.next_cursor || undefined
     } else {
-      // Unknown structure, log it and return empty array
+      // Unknown structure, return empty
       meetings = []
+      has_more = false
     }
-    return meetings
+
+    return { items: meetings, has_more, cursor }
   })
 }
 
@@ -979,7 +1011,8 @@ async function syncSingleCall(
   supabase: any,
   userId: string,
   integration: any,
-  call: any // Directly receive the call object from bulk API
+  call: any, // Directly receive the call object from bulk API
+  skipThumbnails: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Call object already contains all necessary data from bulk API
@@ -1043,8 +1076,8 @@ async function syncSingleCall(
     // Generate thumbnail using thumbnail service only
     let thumbnailUrl: string | null = null
 
-    // Generate video screenshot (if enabled and embed URL available)
-    if (embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
+    // Generate video screenshot (if enabled, not skipped, and embed URL available)
+    if (!skipThumbnails && embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
       thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
     }
 
@@ -1201,19 +1234,36 @@ async function syncSingleCall(
           // 2. Check for existing contact (email is unique globally, not per owner)
           const { data: existingContact } = await supabase
             .from('contacts')
-            .select('id, company_id, owner_id')
+            .select('id, company_id, owner_id, last_interaction_at')
             .eq('email', invitee.email)
             .single()
 
+          // Get the meeting date for last_interaction_at
+          const meetingDate = call.recording_start_time || call.scheduled_start_time
+
           if (existingContact) {
-            // Update existing contact with company if not set
+            // Build update object - always update last_interaction_at if meeting is newer
+            const updateData: Record<string, any> = {}
+
+            // Update company if not set
             if (!existingContact.company_id && company) {
+              updateData.company_id = company.id
+            }
+
+            // Update last_interaction_at only if this meeting is newer
+            if (meetingDate) {
+              const existingDate = existingContact.last_interaction_at ? new Date(existingContact.last_interaction_at) : null
+              const newDate = new Date(meetingDate)
+              if (!existingDate || newDate > existingDate) {
+                updateData.last_interaction_at = meetingDate
+              }
+            }
+
+            // Only update if there are changes
+            if (Object.keys(updateData).length > 0) {
               await supabase
                 .from('contacts')
-                .update({
-                  company_id: company.id,
-                  updated_at: new Date().toISOString()
-                })
+                .update(updateData)
                 .eq('id', existingContact.id)
             }
 
@@ -1234,7 +1284,8 @@ async function syncSingleCall(
                 email: invitee.email,
                 company_id: company?.id || null,
                 source: 'fathom_sync',
-                first_seen_at: new Date().toISOString()
+                first_seen_at: new Date().toISOString(),
+                last_interaction_at: meetingDate || null // Set to actual meeting date
               })
               .select('id')
               .single()

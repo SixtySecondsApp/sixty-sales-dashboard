@@ -104,7 +104,7 @@ serve(async (req) => {
           // Choose a representative timestamp: midpoint, clamped to >=5s
           const midpointSeconds = Math.max(5, Math.floor(((meeting as any).duration_minutes || 0) * 60 / 2))
           const thumbnailResponse = await fetch(
-            `${supabaseUrl}/functions/v1/generate-video-thumbnail`,
+            `${supabaseUrl}/functions/v1/generate-video-thumbnail-v2`,
             {
               method: 'POST',
               headers: {
