@@ -70,7 +70,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.multitenant
+      dockerfile: Dockerfile.multitenant.simple
     container_name: saas-app-dev
     restart: unless-stopped
 
@@ -148,7 +148,7 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.multitenant
+      dockerfile: Dockerfile.multitenant.simple
     container_name: saas-worker-dev
     restart: unless-stopped
 

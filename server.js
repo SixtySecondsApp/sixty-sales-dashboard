@@ -10,11 +10,15 @@
  * - Static file serving (frontend)
  */
 
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const fs = require('fs');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -333,4 +337,4 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-module.exports = app;
+export default app;

@@ -180,3 +180,4 @@ regenerateAllThumbnails()
     process.exit(1);
   });
 
+

@@ -37,7 +37,10 @@
       "Bash(while read file)",
       "Bash(do grep -c 'variant=' \"$file\")",
       "Bash(done)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(chmod:*)",
+      "Bash(docker build:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []

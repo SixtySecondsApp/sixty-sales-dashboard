@@ -54,18 +54,12 @@ CREATE TYPE workflow_status AS ENUM (
 -- Create auth schema for authentication context
 CREATE SCHEMA IF NOT EXISTS auth;
 
--- Function to get current authenticated user ID from JWT
-CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid AS $$
-  SELECT current_setting('request.jwt.claims', true)::jsonb->>'sub'::uuid;
-$$ LANGUAGE SQL STABLE;
+-- Function to get current authenticated user ID (will be set by application context)
+-- For multi-tenant isolation, the application sets 'app.current_user_id' via SET LOCAL
+-- Example in application: SET LOCAL app.current_user_id = 'user-uuid';
 
--- Function to get current user's organization
-CREATE OR REPLACE FUNCTION auth.current_user_id() RETURNS uuid AS $$
-  SELECT COALESCE(
-    (current_setting('request.jwt.claims', true)::jsonb->>'sub')::uuid,
-    current_user_id()
-  );
-$$ LANGUAGE SQL STABLE;
+-- Note: RLS policies use current_setting('app.current_user_id') to determine user context
+-- This is set by the Express backend middleware on each request
 
 -- ============================================================================
 -- PART 4: Core Tables
@@ -275,154 +269,154 @@ CREATE POLICY organizations_select ON organizations
     EXISTS (
       SELECT 1 FROM users
       WHERE users.org_id = organizations.id
-      AND users.id = auth.uid()
+      AND users.id = (current_setting('app.current_user_id', true)::uuid)
     )
   );
 
 -- Users: Users can only see users in their organization
 CREATE POLICY users_select ON users
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY users_insert ON users
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY users_update ON users
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- Contacts: Users can only see contacts in their organization
 CREATE POLICY contacts_select ON contacts
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY contacts_insert ON contacts
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY contacts_update ON contacts
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY contacts_delete ON contacts
   FOR DELETE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- Deals: Users can only see deals in their organization
 CREATE POLICY deals_select ON deals
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY deals_insert ON deals
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY deals_update ON deals
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY deals_delete ON deals
   FOR DELETE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
-    AND user_id = auth.uid()
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
+    AND user_id = (current_setting('app.current_user_id', true)::uuid)
   );
 
 -- Activities: Users can only see activities in their organization
 CREATE POLICY activities_select ON activities
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY activities_insert ON activities
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY activities_update ON activities
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- Tasks: Users can only see tasks in their organization
 CREATE POLICY tasks_select ON tasks
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY tasks_insert ON tasks
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY tasks_update ON tasks
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- Calendar Events: Users can only see their own events
 CREATE POLICY calendar_events_select ON calendar_events
   FOR SELECT USING (
-    user_id = auth.uid()
+    user_id = (current_setting('app.current_user_id', true)::uuid)
   );
 
 CREATE POLICY calendar_events_insert ON calendar_events
   FOR INSERT WITH CHECK (
-    user_id = auth.uid()
+    user_id = (current_setting('app.current_user_id', true)::uuid)
   );
 
 CREATE POLICY calendar_events_update ON calendar_events
   FOR UPDATE USING (
-    user_id = auth.uid()
+    user_id = (current_setting('app.current_user_id', true)::uuid)
   );
 
 CREATE POLICY calendar_events_delete ON calendar_events
   FOR DELETE USING (
-    user_id = auth.uid()
+    user_id = (current_setting('app.current_user_id', true)::uuid)
   );
 
 -- Smart Task Templates: Only admins can manage, but all can select
 CREATE POLICY smart_task_templates_select ON smart_task_templates
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY smart_task_templates_insert ON smart_task_templates
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (SELECT is_admin FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
+    AND (SELECT is_admin FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY smart_task_templates_update ON smart_task_templates
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
-    AND (SELECT is_admin FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
+    AND (SELECT is_admin FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- Workflows: Users can only see workflows in their organization
 CREATE POLICY workflows_select ON workflows
   FOR SELECT USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY workflows_insert ON workflows
   FOR INSERT WITH CHECK (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 CREATE POLICY workflows_update ON workflows
   FOR UPDATE USING (
-    org_id = (SELECT org_id FROM users WHERE id = auth.uid())
+    org_id = (SELECT org_id FROM users WHERE id = (current_setting('app.current_user_id', true)::uuid))
   );
 
 -- ============================================================================
