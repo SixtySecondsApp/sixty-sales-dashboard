@@ -18,6 +18,8 @@ import { useTasks } from '@/lib/hooks/useTasks';
 import { useEventEmitter } from '@/lib/communication/EventBus';
 import { toast } from 'sonner';
 import { ProposalWizard } from '@/components/proposals/ProposalWizard';
+import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart';
+import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights';
 
 interface Meeting {
   id: string;
@@ -41,6 +43,8 @@ interface Meeting {
   thumbnail_url?: string | null;
   company_id?: string | null;
   primary_contact_id?: string | null;
+  meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null;
+  classification_confidence?: number | null;
   contact?: any;
   company?: any;
 }
@@ -802,6 +806,19 @@ export function MeetingDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2 sm:flex-nowrap sm:flex-shrink-0">
+          {meeting.meeting_type && (
+            <Badge 
+              variant="outline" 
+              className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20"
+            >
+              {meeting.meeting_type.replace('_', ' ')}
+              {meeting.classification_confidence && (
+                <span className="ml-1 text-xs opacity-70">
+                  ({Math.round(meeting.classification_confidence * 100)}%)
+                </span>
+              )}
+            </Badge>
+          )}
           {meeting.sentiment_score !== null && (
             <Badge className={getSentimentColor(meeting.sentiment_score)}>
               {labelSentiment(meeting.sentiment_score)}
@@ -858,48 +875,23 @@ export function MeetingDetail() {
               </div>
             )}
 
-            {/* Talk Time Analysis Card */}
+            {/* Enhanced Talk Time Analytics */}
             {meeting.talk_time_rep_pct !== null && meeting.talk_time_customer_pct !== null && (
-              <div className="section-card">
-                <div className="font-semibold mb-3">Talk Time Analysis</div>
-
-                {/* Visual Bar Chart */}
-                <div className="mb-3 flex h-8 rounded-lg overflow-hidden border border-gray-200 dark:border-zinc-700">
-                  <div
-                    className="bg-blue-600 flex items-center justify-center text-xs font-medium text-white"
-                    style={{ width: `${meeting.talk_time_rep_pct}%` }}
-                  >
-                    {meeting.talk_time_rep_pct > 15 && `${meeting.talk_time_rep_pct.toFixed(0)}%`}
-                  </div>
-                  <div
-                    className="bg-emerald-600 flex items-center justify-center text-xs font-medium text-white"
-                    style={{ width: `${meeting.talk_time_customer_pct}%` }}
-                  >
-                    {meeting.talk_time_customer_pct > 15 && `${meeting.talk_time_customer_pct.toFixed(0)}%`}
-                  </div>
-                </div>
-
-                {/* Legend */}
-                <div className="flex gap-4 text-xs mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm bg-blue-600"></div>
-                    <span className="text-muted-foreground">Rep: {meeting.talk_time_rep_pct.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-sm bg-emerald-600"></div>
-                    <span className="text-muted-foreground">Customer: {meeting.talk_time_customer_pct.toFixed(1)}%</span>
-                  </div>
-                </div>
-
-                {/* AI Judgement */}
-                {meeting.talk_time_judgement && (
-                  <div className="glassmorphism-light p-3 rounded-lg">
-                    <div className="text-xs font-medium text-emerald-700 dark:text-emerald-400 mb-1">AI Assessment</div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {meeting.talk_time_judgement}
-                    </p>
-                  </div>
-                )}
+              <div className="space-y-4">
+                <TalkTimeChart 
+                  repPct={meeting.talk_time_rep_pct}
+                  customerPct={meeting.talk_time_customer_pct}
+                  meetingDate={meeting.meeting_start}
+                />
+                <CoachingInsights 
+                  metrics={{
+                    repPct: meeting.talk_time_rep_pct,
+                    customerPct: meeting.talk_time_customer_pct,
+                    sentimentScore: meeting.sentiment_score || undefined,
+                    meetingId: meeting.id,
+                    meetingDate: meeting.meeting_start,
+                  }}
+                />
               </div>
             )}
 

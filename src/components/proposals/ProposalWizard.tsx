@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users, Share2, Link, Lock, Copy, Check, Eye } from 'lucide-react';
+import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users, Share2, Link, Lock, Copy, Check, Eye, Mail } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -21,6 +21,8 @@ import {
   generateGoals,
   generateSOW,
   generateProposal,
+  generateEmailProposal,
+  generateMarkdownProposal,
   getMeetingTranscripts,
   getTranscriptsFromMeetings,
   saveProposal,
@@ -142,7 +144,7 @@ interface SavedWizardState {
   focusAreas: FocusArea[];
   selectedFocusAreaIds: string[];
   goals: string;
-  selectedFormat: 'sow' | 'proposal' | null;
+  selectedFormat: 'sow' | 'proposal' | 'email' | 'markdown' | null;
   documentConfig: {
     length_target?: 'short' | 'medium' | 'long';
     word_limit?: number;
@@ -243,7 +245,7 @@ export function ProposalWizard({
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
   const [selectedFocusAreaIds, setSelectedFocusAreaIds] = useState<Set<string>>(new Set());
   const [goals, setGoals] = useState<string>('');
-  const [selectedFormat, setSelectedFormat] = useState<'sow' | 'proposal' | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<'sow' | 'proposal' | 'email' | 'markdown' | null>(null);
   const [documentConfig, setDocumentConfig] = useState<{
     length_target?: 'short' | 'medium' | 'long';
     word_limit?: number;
@@ -279,7 +281,7 @@ export function ProposalWizard({
   const [savingShare, setSavingShare] = useState(false);
 
   // Phase 4.1: Quick Mode vs Advanced Mode
-  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('advanced');
+  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('quick');
   const [quickModeSummary, setQuickModeSummary] = useState<string>('');
   const [quickModeEmail, setQuickModeEmail] = useState<string>('');
 
@@ -431,9 +433,6 @@ export function ProposalWizard({
   // Step 1: Load meetings when dialog opens - check for saved state first
   useEffect(() => {
     if (open) {
-      // Reset proposal mode to advanced when dialog opens (user can change it)
-      setProposalMode('advanced');
-      
       // Check for saved state
       const saved = loadWizardState(storageKey);
       if (saved && saved.step !== 'select_meetings') {
@@ -879,7 +878,8 @@ Best regards`;
       iframeContentRef.current = baseHTML;
       lastIframeUpdateRef.current = Date.now();
     } else {
-      setFinalContent(''); // Clear for SOW
+      // Clear for SOW, email, and markdown formats
+      setFinalContent('');
       setIframeContent('');
       iframeContentRef.current = '';
     }
@@ -907,8 +907,38 @@ Best regards`;
             setFinalContent((prev) => prev + chunk);
           }
         );
+      } else if (selectedFormat === 'email') {
+        // Use streaming for email proposals
+        result = await generateEmailProposal(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive
+            setFinalContent((prev) => prev + chunk);
+          }
+        );
+      } else if (selectedFormat === 'markdown') {
+        // Use streaming for markdown proposals
+        result = await generateMarkdownProposal(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive
+            setFinalContent((prev) => prev + chunk);
+          }
+        );
       } else {
-        // Use streaming for proposals
+        // Use streaming for HTML proposals
         result = await generateProposal(
           {
             goals,
@@ -1035,7 +1065,7 @@ ${htmlContent}
         type: selectedFormat,
         status: 'generated',
         content: finalContent,
-        title: `${selectedFormat === 'sow' ? 'SOW' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
+        title: `${selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
       });
 
       if (saved) {
@@ -1164,23 +1194,21 @@ ${htmlContent}
         </DialogHeader>
 
         {/* Phase 4.1: Quick Mode vs Advanced Mode Toggle */}
-        {!showResumeDialog && step === 'select_meetings' && (
-          <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        {step === 'select_meetings' && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Label htmlFor="proposal-mode" className="text-sm font-medium">
-                    Proposal Mode
-                  </Label>
-                </div>
+                <h3 className="text-sm font-semibold mb-1 text-gray-900 dark:text-gray-100">
+                  Proposal Mode
+                </h3>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   {proposalMode === 'quick' 
                     ? 'Quick Mode: Generate a simple summary and follow-up email'
                     : 'Advanced Mode: Full Goals → SOW → HTML workflow'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs ${proposalMode === 'quick' ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-medium ${proposalMode === 'quick' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
                   Quick
                 </span>
                 <Switch
@@ -1195,7 +1223,7 @@ ${htmlContent}
                     }
                   }}
                 />
-                <span className={`text-xs ${proposalMode === 'advanced' ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>
+                <span className={`text-sm font-medium ${proposalMode === 'advanced' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
                   Advanced
                 </span>
               </div>
@@ -1655,9 +1683,9 @@ ${htmlContent}
         {!showResumeDialog && step === 'configure_document' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}</h3>
+              <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                Set the focus and length for your {selectedFormat === 'sow' ? 'Statement of Work' : 'proposal'}.
+                Set the focus and length for your {selectedFormat === 'sow' ? 'Statement of Work' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'}.
               </p>
             </div>
 
@@ -1736,7 +1764,7 @@ ${htmlContent}
                 Back
               </Button>
               <Button onClick={handleGenerateDocument} variant="default">
-                Generate {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}
+                Generate {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -1748,7 +1776,7 @@ ${htmlContent}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold mb-2">Choose Document Format</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Select whether you want to generate a Statement of Work (SOW) or an HTML Proposal presentation.
+              Select the format for your proposal document.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card
@@ -1797,6 +1825,56 @@ ${htmlContent}
                 <CardContent>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Beautiful, interactive proposal with slides, animations, and professional styling.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'email' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('email');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5" />
+                    Email Proposal
+                  </CardTitle>
+                  <CardDescription>
+                    A simple email proposal in Markdown format
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Professional email format ready to send directly to clients. Includes subject, overview, pricing, and next steps.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'markdown' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('markdown');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Markdown Proposal
+                  </CardTitle>
+                  <CardDescription>
+                    A simple Markdown document proposal
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Clean, simple proposal in Markdown format. Easy to edit and share. Perfect for quick proposals.
                   </p>
                 </CardContent>
               </Card>
@@ -1887,7 +1965,7 @@ ${htmlContent}
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
                 <p className="text-gray-600 dark:text-gray-400 text-center">
-                  {statusMessage || `Generating ${selectedFormat === 'sow' ? 'SOW' : 'proposal'}...`}
+                  {statusMessage || `Generating ${selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'}...`}
                 </p>
                 {statusMessage && statusMessage.includes('Generating') && (
                   <p className="text-sm text-gray-500 dark:text-gray-500 mt-2 text-center">
@@ -1959,8 +2037,21 @@ ${htmlContent}
                   </div>
                 </TabsContent>
               </Tabs>
-            ) : selectedFormat === 'sow' && finalContent ? (
+            ) : (selectedFormat === 'sow' || selectedFormat === 'email' || selectedFormat === 'markdown') && finalContent ? (
               <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50 max-h-[600px] overflow-y-auto relative">
+                <div className="flex justify-end mb-2">
+                  <Button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(finalContent);
+                      setStatusMessage('Copied to clipboard!');
+                      setTimeout(() => setStatusMessage(null), 2000);
+                    }} 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    Copy {selectedFormat === 'email' ? 'Email' : 'Markdown'}
+                  </Button>
+                </div>
                 <pre className="whitespace-pre-wrap font-mono text-sm">
                   {finalContent}
                 </pre>
@@ -2002,7 +2093,7 @@ ${htmlContent}
               <div>
                 <h3 className="font-semibold text-green-900 dark:text-green-100">Proposal Saved Successfully!</h3>
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  Your {selectedFormat === 'sow' ? 'Statement of Work' : 'proposal'} has been saved.
+                  Your {selectedFormat === 'sow' ? 'Statement of Work' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'} has been saved.
                 </p>
               </div>
             </div>

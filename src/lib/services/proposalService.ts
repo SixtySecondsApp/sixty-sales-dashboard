@@ -485,6 +485,266 @@ export async function generateSOW(
 }
 
 /**
+ * Generate Email Proposal from Goals (streaming)
+ */
+export async function generateEmailProposal(
+  params: GenerateProposalParams,
+  onChunk?: (chunk: string) => void
+): Promise<GenerateResponse> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'generate_email',
+          ...params,
+          async: true,
+          stream: true,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to start streaming');
+    }
+
+    // Handle streaming response
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      let buffer = '';
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                logger.debug('Skipping invalid JSON in email SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
+        if (done) break;
+      }
+
+      return {
+        success: true,
+        content: accumulatedContent,
+      };
+    }
+
+    // Fallback to non-streaming
+    const data = await response.json();
+    if (!data || !data.success) {
+      return {
+        success: false,
+        error: data?.error || 'Generation failed',
+      };
+    }
+
+    return {
+      success: true,
+      content: data.content,
+      usage: data.usage,
+    };
+  } catch (error) {
+    logger.error('Exception generating email proposal:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Generate Markdown Proposal from Goals (streaming)
+ */
+export async function generateMarkdownProposal(
+  params: GenerateProposalParams,
+  onChunk?: (chunk: string) => void
+): Promise<GenerateResponse> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'generate_markdown',
+          ...params,
+          async: true,
+          stream: true,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to start streaming');
+    }
+
+    // Handle streaming response
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      let buffer = '';
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                logger.debug('Skipping invalid JSON in markdown SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
+        if (done) break;
+      }
+
+      return {
+        success: true,
+        content: accumulatedContent,
+      };
+    }
+
+    // Fallback to non-streaming
+    const data = await response.json();
+    if (!data || !data.success) {
+      return {
+        success: false,
+        error: data?.error || 'Generation failed',
+      };
+    }
+
+    return {
+      success: true,
+      content: data.content,
+      usage: data.usage,
+    };
+  } catch (error) {
+    logger.error('Exception generating markdown proposal:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Generate HTML Proposal from Goals (streaming)
  */
 export async function generateProposal(

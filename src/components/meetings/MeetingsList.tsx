@@ -56,6 +56,8 @@ interface Meeting {
   talk_time_customer_pct: number | null
   talk_time_judgement: string | null
   next_actions_count: number | null
+  meeting_type?: 'discovery' | 'demo' | 'negotiation' | 'closing' | 'follow_up' | 'general' | null
+  classification_confidence?: number | null
   company?: {
     name: string
     domain: string
@@ -424,6 +426,7 @@ const MeetingsList: React.FC = () => {
                   <TableHead className="text-gray-600 dark:text-gray-400">Rep</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Date</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Duration</TableHead>
+                  <TableHead className="text-gray-600 dark:text-gray-400">Type</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Sentiment</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Coach</TableHead>
                   <TableHead className="text-gray-600 dark:text-gray-400">Tasks</TableHead>
@@ -462,6 +465,18 @@ const MeetingsList: React.FC = () => {
                           <Clock className="h-3 w-3" />
                           {meeting.duration_minutes || 0}m
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {meeting.meeting_type ? (
+                          <Badge
+                            variant="outline"
+                            className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 backdrop-blur-sm text-xs"
+                          >
+                            {meeting.meeting_type.replace('_', ' ')}
+                          </Badge>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-600 text-xs">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -563,6 +578,14 @@ const MeetingsList: React.FC = () => {
 
                     {/* Badges */}
                     <div className="flex flex-wrap gap-2">
+                      {meeting.meeting_type && (
+                        <Badge
+                          variant="outline"
+                          className="capitalize bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 border-blue-200 dark:border-blue-500/20 backdrop-blur-sm text-xs"
+                        >
+                          {meeting.meeting_type.replace('_', ' ')}
+                        </Badge>
+                      )}
                       <Badge
                         variant={sentimentTone(meeting.sentiment_score) as any}
                         className="backdrop-blur-sm text-xs"

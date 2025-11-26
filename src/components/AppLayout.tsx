@@ -45,6 +45,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
 import logger from '@/lib/utils/logger';
 import { useEventListener } from '@/lib/communication/EventBus';
 import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
@@ -59,7 +60,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { useTheme } from '@/hooks/useTheme';
-import { isUserAdmin } from '@/lib/utils/adminUtils';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -123,49 +123,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [location.pathname]);
 
-  // Keyboard shortcut for SmartSearch (⌘K)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsSmartSearchOpen(true);
-      }
-    };
+  // Keyboard shortcut for SmartSearch (⌘K) - Disabled
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+  //       e.preventDefault();
+  //       setIsSmartSearchOpen(true);
+  //     }
+  //   };
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  //   document.addEventListener('keydown', handleKeyDown);
+  //   return () => document.removeEventListener('keydown', handleKeyDown);
+  // }, []);
 
-  // MEETINGS FEATURE BRANCH: Navigation for Meetings feature V1
-  const { userData } = useUser();
-  const isAdmin = userData?.is_admin === true;
-  
+  // MEETINGS FEATURE BRANCH: Only show Dashboard (Sentiment) and Meetings
+  // This branch focuses exclusively on the Meetings feature V1 implementation
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
+    { icon: Activity, label: 'Dashboard', href: '/' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
-    { 
-      icon: UserPlus, 
-      label: 'Onboarding', 
-      href: '/onboarding',
-      subItems: undefined
-    },
-    { 
-      icon: Settings, 
-      label: 'Meetings/Settings', 
-      href: '/settings/ai',
-      subItems: undefined
-    },
+    { icon: UserPlus, label: 'Onboarding', href: '/onboarding' },
   ];
-
-  // Add admin settings if user is admin
-  if (isAdmin) {
-    menuItems.push({
-      icon: Shield,
-      label: 'Admin Settings',
-      href: '/admin/ai-settings',
-      subItems: undefined
-    });
-  }
 
   return (
     <div className="min-h-screen bg-\[#FCFCFC\] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
@@ -212,9 +189,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <EmailIcon />
-          <CalendarIcon />
-          <NotificationBell />
+          {/* <EmailIcon /> */}
+          {/* <CalendarIcon /> */}
+          {/* <NotificationBell /> */}
           <motion.button
             animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
             onClick={() => toggleMobileMenu()}
@@ -342,13 +319,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Fixed Footer with Settings and Logout */}
               <div className="flex-shrink-0 p-4 sm:p-6 border-t border-gray-200 dark:border-gray-800 space-y-2">
                 <Link
-                  to="/settings"
+                  to="/settings/ai"
                   onClick={() => toggleMobileMenu()}
-                  className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors active:scale-[0.98]"
+                  className={cn(
+                    "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
+                    location.pathname === '/settings/ai'
+                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                  )}
                 >
                   <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
-                  Settings
+                  Meetings Settings
                 </Link>
+                
+                {isUserAdmin(userData) && (
+                  <Link
+                    to="/admin/model-settings"
+                    onClick={() => toggleMobileMenu()}
+                    className={cn(
+                      "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
+                      location.pathname === '/admin/model-settings'
+                        ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                    )}
+                  >
+                    <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
+                    Admin Settings
+                  </Link>
+                )}
 
                 <button
                   onClick={handleLogout}
@@ -385,8 +383,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         'transition-all duration-300 ease-in-out',
         isImpersonating ? 'top-6' : 'top-0'
       )}>
-        {/* Search Button (cmdK) */}
-        <button
+        {/* Search Button (cmdK) - Hidden */}
+        {/* <button
           onClick={() => setIsSmartSearchOpen(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800/70 transition-colors text-sm text-gray-600 dark:text-gray-400"
         >
@@ -395,14 +393,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <kbd className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded">
             <span className="text-[10px]">⌘</span>K
           </kbd>
-        </button>
+        </button> */}
 
         {/* User Profile with Dropdown */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 ml-auto">
           <ThemeToggle />
-          <EmailIcon />
-          <CalendarIcon />
-          <NotificationBell />
+          {/* <EmailIcon /> */}
+          {/* <CalendarIcon /> */}
+          {/* <NotificationBell /> */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
@@ -435,10 +433,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <UserCog className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings')}>
+              <DropdownMenuItem onClick={() => navigate('/settings/ai')}>
                 <Settings className="w-4 h-4 mr-2" />
-                Settings
+                Meetings Settings
               </DropdownMenuItem>
+              {isUserAdmin(userData) && (
+                <DropdownMenuItem onClick={() => navigate('/admin/model-settings')}>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Admin Settings
+                </DropdownMenuItem>
+              )}
               <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
                 {isImpersonating ? (
@@ -586,10 +590,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Settings and Logout at bottom */}
           <div className="mt-auto pt-6 border-t border-gray-200 dark:border-gray-800/50">
             <Link
-              to="/settings"
+              to="/settings/ai"
               className={cn(
                 'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
-                location.pathname === '/settings'
+                location.pathname === '/settings/ai'
                   ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                   : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
               )}
@@ -603,11 +607,37 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     exit={{ opacity: 0, width: 0 }}
                     className="overflow-hidden whitespace-nowrap"
                   >
-                    Settings
+                    Meetings Settings
                   </motion.span>
                 )}
               </AnimatePresence>
             </Link>
+            
+            {isUserAdmin(userData) && (
+              <Link
+                to="/admin/model-settings"
+                className={cn(
+                  'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
+                  location.pathname === '/admin/model-settings'
+                    ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
+                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                )}
+              >
+                <Shield className="w-4 h-4 flex-shrink-0" />
+                <AnimatePresence>
+                  {!isCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="overflow-hidden whitespace-nowrap"
+                    >
+                      Admin Settings
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Link>
+            )}
             
             <button
               onClick={handleLogout}
@@ -663,7 +693,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
-        <SmartSearch
+        {/* SmartSearch - Hidden */}
+        {/* <SmartSearch
           isOpen={isSmartSearchOpen}
           onClose={() => setIsSmartSearchOpen(false)}
           onOpenCopilot={() => {
@@ -713,7 +744,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             navigate('/copilot');
             setIsSmartSearchOpen(false);
           }}
-        />
+        /> */}
       </main>
     </div>
     </div>

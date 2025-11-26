@@ -26,6 +26,7 @@ export interface UseOnboardingProgressReturn {
   error: string | null;
   completeStep: (step: OnboardingStep) => Promise<void>;
   skipOnboarding: () => Promise<void>;
+  resetOnboarding: () => Promise<void>;
   updateFeatureDiscovery: (feature: string, discovered: boolean) => Promise<void>;
   markFathomConnected: () => Promise<void>;
   markFirstMeetingSynced: () => Promise<void>;
@@ -179,6 +180,39 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     }
   }, [user]);
 
+  const resetOnboarding = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      setError(null);
+
+      const { data, error: updateError } = await supabase
+        .from('user_onboarding_progress')
+        .update({
+          onboarding_step: 'welcome',
+          onboarding_completed_at: null,
+          skipped_onboarding: false,
+          fathom_connected: false,
+          first_meeting_synced: false,
+          first_proposal_generated: false,
+          features_discovered: {},
+        })
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      setProgress(data);
+    } catch (err) {
+      console.error('Error resetting onboarding:', err);
+      setError(err instanceof Error ? err.message : 'Failed to reset onboarding');
+      throw err;
+    }
+  }, [user]);
+
   const updateFeatureDiscovery = useCallback(
     async (feature: string, discovered: boolean) => {
       if (!user || !progress) return;
@@ -307,6 +341,7 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     error,
     completeStep,
     skipOnboarding,
+    resetOnboarding,
     updateFeatureDiscovery,
     markFathomConnected,
     markFirstMeetingSynced,

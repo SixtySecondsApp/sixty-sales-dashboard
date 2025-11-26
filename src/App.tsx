@@ -78,6 +78,7 @@ const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
 const MeetingDetail = lazy(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
 const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
@@ -106,7 +107,7 @@ const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
-const AISettingsAdmin = lazyWithRetry(() => import('@/pages/admin/AISettingsAdmin'));
+const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
@@ -255,7 +256,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
-                <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
+                <Route path="/" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
                 <Route path="/copilot" element={<AppLayout><Copilot /></AppLayout>} />
                 <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
@@ -268,7 +269,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/audit" element={<AppLayout><AuditLogs /></AppLayout>} />
                 <Route path="/admin/smart-tasks" element={<AppLayout><SmartTasksAdmin /></AppLayout>} />
                 <Route path="/admin/pipeline-automation" element={<AppLayout><PipelineAutomationAdmin /></AppLayout>} />
-                <Route path="/admin/ai-settings" element={<AppLayout><AISettingsAdmin /></AppLayout>} />
+                <Route path="/admin/ai-settings" element={<AppLayout><AIProviderSettings /></AppLayout>} />
+                <Route path="/admin/model-settings" element={<AppLayout><AdminModelSettings /></AppLayout>} />
                 <Route path="/admin/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
                 <Route path="/admin/function-testing" element={<AppLayout><FunctionTesting /></AppLayout>} />
                 <Route path="/admin/workflows-test" element={<AppLayout><WorkflowsTestSuite /></AppLayout>} />
@@ -334,6 +336,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
                 <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/meetings/sentiment" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
                 <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />
                 <Route path="/test-notifications" element={<AppLayout><TestNotifications /></AppLayout>} />

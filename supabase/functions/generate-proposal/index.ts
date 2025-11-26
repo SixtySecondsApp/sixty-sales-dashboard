@@ -549,6 +549,151 @@ STRUCTURE ADAPTATION:
 - Use the example template for styling and interactivity patterns, but adapt the content structure to match what makes sense for this proposal
 
 BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
+
+    } else if (action === 'generate_email') {
+      // Generate Email Proposal from Goals
+      systemPrompt = `You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
+
+Your task is to transform a Goals & Objectives document into a professional email proposal that can be sent directly to clients.
+
+ABSOLUTE REQUIREMENTS - NO EXCEPTIONS:
+1. Output format MUST be PURE MARKDOWN (.md) - NO HTML WHATSOEVER
+2. Start with a subject line in the format: **Subject:** [Proposal Title]
+3. Use markdown syntax ONLY:
+   - **bold text** for emphasis
+   - - or * for bullet lists
+   - 1. 2. 3. for numbered lists
+   - --- for horizontal rules (section separators)
+4. NEVER use HTML tags
+5. Structure as a professional email with:
+   - Subject line
+   - Personal greeting
+   - Brief overview/introduction
+   - Key points/deliverables
+   - Pricing/investment (if relevant)
+   - Next steps
+   - Professional sign-off
+
+Key requirements:
+- Create a professional email proposal in MARKDOWN format
+- Keep it concise and scannable (use bullet points and short paragraphs)
+- Include all relevant information from the goals
+- Make it personal and conversational but professional
+- Use ONLY Markdown syntax - NO HTML`
+
+      const lengthGuidance = length_target === 'short' 
+        ? 'Keep the email concise: under 500 words, approximately 1 page.'
+        : length_target === 'long'
+        ? 'Create a comprehensive email: over 1000 words, approximately 2-3 pages. Include detailed sections.'
+        : length_target === 'medium'
+        ? 'Create a medium-length email: 500-1000 words, approximately 1-2 pages. Balance detail with conciseness.'
+        : word_limit
+        ? `Target approximately ${word_limit} words.`
+        : page_target
+        ? `Target approximately ${page_target} pages.`
+        : ''
+
+      const focusAreasText = focus_areas && focus_areas.length > 0
+        ? `\n\nFOCUS AREAS TO EMPHASIZE:\n${focus_areas.map((fa: string, idx: number) => `${idx + 1}. ${fa}`).join('\n')}\n\nEnsure these focus areas receive appropriate attention in the email.`
+        : ''
+
+      prompt = `Transform the following Goals & Objectives document into a professional email proposal.
+
+${contact_name ? `Client: ${contact_name}` : ''}
+${company_name ? `Company: ${company_name}` : ''}
+
+Goals & Objectives:
+${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
+
+CRITICAL: Create an email proposal in PURE MARKDOWN FORMAT. 
+
+DO NOT:
+- Use HTML tags (<html>, <head>, <body>, <div>, etc.)
+- Include CSS styles or JavaScript
+- Use HTML structure or formatting
+- Output anything that looks like HTML
+
+DO:
+- Start with **Subject:** line
+- Use markdown formatting (**bold**, *italic*, - lists)
+- Output plain markdown text that can be copied into an email
+- Translate the goals into a professional, scannable email format
+- Keep paragraphs short and use bullet points for lists
+
+Output ONLY markdown text starting with # header and **Subject:** line.`
+
+    } else if (action === 'generate_markdown') {
+      // Generate Markdown Proposal from Goals
+      systemPrompt = `You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
+
+Your task is to transform a Goals & Objectives document into a clean, simple markdown proposal document.
+
+ABSOLUTE REQUIREMENTS - NO EXCEPTIONS:
+1. Output format MUST be PURE MARKDOWN (.md) - NO HTML WHATSOEVER
+2. Start with markdown headers (# for main title, ## for sections)
+3. Use markdown syntax ONLY:
+   - # Header, ## Subheader, ### Sub-subheader
+   - **bold text** for emphasis
+   - - or * for bullet lists
+   - 1. 2. 3. for numbered lists
+   - [link text](url) for links
+   - --- for horizontal rules
+4. NEVER use HTML tags
+5. Structure as a clean proposal document with:
+   - Title
+   - Introduction/Overview
+   - Proposed Solution
+   - Deliverables/Scope
+   - Timeline (if relevant)
+   - Pricing/Investment (if relevant)
+   - Next Steps
+
+Key requirements:
+- Create a professional proposal document in MARKDOWN format
+- Keep it simple and easy to read
+- Include all relevant information from the goals
+- Use ONLY Markdown syntax - NO HTML`
+
+      const lengthGuidance = length_target === 'short' 
+        ? 'Keep the document concise: under 1000 words, approximately 2 pages.'
+        : length_target === 'long'
+        ? 'Create a comprehensive document: over 2500 words, approximately 6+ pages.'
+        : length_target === 'medium'
+        ? 'Create a medium-length document: 1000-2500 words, approximately 3-5 pages.'
+        : word_limit
+        ? `Target approximately ${word_limit} words.`
+        : page_target
+        ? `Target approximately ${page_target} pages.`
+        : ''
+
+      const focusAreasText = focus_areas && focus_areas.length > 0
+        ? `\n\nFOCUS AREAS TO EMPHASIZE:\n${focus_areas.map((fa: string, idx: number) => `${idx + 1}. ${fa}`).join('\n')}\n\nEnsure these focus areas receive appropriate attention in the proposal.`
+        : ''
+
+      prompt = `Transform the following Goals & Objectives document into a professional markdown proposal document.
+
+${contact_name ? `Client: ${contact_name}` : ''}
+${company_name ? `Company: ${company_name}` : ''}
+
+Goals & Objectives:
+${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
+
+CRITICAL: Create a proposal document in PURE MARKDOWN FORMAT. 
+
+DO NOT:
+- Use HTML tags (<html>, <head>, <body>, <div>, etc.)
+- Include CSS styles or JavaScript
+- Use HTML structure or formatting
+- Output anything that looks like HTML
+
+DO:
+- Use markdown headers (# ## ###)
+- Use markdown formatting (**bold**, *italic*, - lists)
+- Output plain markdown text that can be saved as a .md file
+- Translate the goals into a clear, professional proposal format
+
+Output ONLY markdown text starting with a # header.`
+
     }
 
     // Get OpenRouter API key (prefer user's personal key, modelSettings already retrieved above)
@@ -558,14 +703,15 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
     let model = modelSettings.goals_model
     if (action === 'generate_sow') model = modelSettings.sow_model
     else if (action === 'generate_proposal' || action === 'stream_proposal') model = modelSettings.proposal_model
+    else if (action === 'generate_email' || action === 'generate_markdown') model = modelSettings.sow_model // Use SOW model for email/markdown
     else if (action === 'generate_goals') model = modelSettings.goals_model
 
     // Use appropriate token limits based on action
     const maxTokens = action === 'generate_proposal' ? 16384 : action === 'generate_goals' ? 8192 : 8192
 
     // Determine if streaming should be used based on action
-    // Proposals, SOW, and goals all stream when async mode is enabled
-    const shouldStream = action === 'generate_proposal' || action === 'generate_sow' || action === 'stream_proposal' || action === 'generate_goals'
+    // Proposals, SOW, email, markdown, and goals all stream when async mode is enabled
+    const shouldStream = action === 'generate_proposal' || action === 'generate_sow' || action === 'stream_proposal' || action === 'generate_goals' || action === 'generate_email' || action === 'generate_markdown'
     
     // For streaming proposals and SOW, use SSE
     // Goals use streaming only if the job was created with stream: true (check input_data if needed)
@@ -692,8 +838,8 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
                       if (action === 'generate_goals') {
                         // Goals don't need special processing - just clean
                         finalContent = finalContent.trim()
-                      } else if (action === 'generate_sow') {
-                        // For SOW, ensure it's pure markdown - strip any HTML
+                      } else if (action === 'generate_sow' || action === 'generate_email' || action === 'generate_markdown') {
+                        // For SOW, email, and markdown, ensure it's pure markdown - strip any HTML
                         finalContent = finalContent
                           .replace(/<!DOCTYPE[^>]*>/gi, '')
                           .replace(/<html[^>]*>/gi, '')
@@ -712,13 +858,21 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
                         finalContent = finalContent.replace(/^```\s*\n?/g, '')
                         finalContent = finalContent.replace(/\n?```\s*$/g, '')
 
-                        // Ensure it starts with a markdown header
-                        if (!finalContent.startsWith('#')) {
+                        // Ensure it starts with a markdown header or subject line
+                        if (!finalContent.startsWith('#') && !finalContent.startsWith('**Subject:**')) {
                           const headerMatch = finalContent.match(/^[^#]*(#+\s+.*)$/m)
+                          const subjectMatch = finalContent.match(/^[^*]*(\*\*Subject:\*\*.*)$/m)
                           if (headerMatch) {
                             finalContent = headerMatch[1] + '\n\n' + finalContent.substring(0, headerMatch.index).trim()
+                          } else if (subjectMatch) {
+                            finalContent = subjectMatch[1] + '\n\n' + finalContent.substring(0, subjectMatch.index).trim()
                           } else {
-                            finalContent = '# Statement of Work\n\n' + finalContent
+                            const defaultHeader = action === 'generate_email' 
+                              ? '# Email Proposal\n\n**Subject:** Proposal - Ready for Review\n\n---\n\n'
+                              : action === 'generate_markdown'
+                              ? '# Proposal\n\n'
+                              : '# Statement of Work\n\n'
+                            finalContent = defaultHeader + finalContent
                           }
                         }
                       } else if (action === 'generate_proposal') {
@@ -895,8 +1049,8 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
     const wasTruncated = data.choices?.[0]?.finish_reason === 'length' || data.stop_reason === 'max_tokens'
     const outputTokens = data.usage?.completion_tokens || data.usage?.output_tokens || 0
     
-    // For SOW, ensure it's pure markdown - strip any HTML that might have been generated
-    if (action === 'generate_sow') {
+    // For SOW, email, and markdown, ensure it's pure markdown - strip any HTML that might have been generated
+    if (action === 'generate_sow' || action === 'generate_email' || action === 'generate_markdown') {
       // Remove HTML tags and structure if present
       generatedContent = generatedContent
         .replace(/<!DOCTYPE[^>]*>/gi, '')
@@ -910,15 +1064,23 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
         .replace(/<[^>]+>/g, '') // Remove any remaining HTML tags
         .trim()
       
-      // Ensure it starts with a markdown header, not HTML
-      if (!generatedContent.startsWith('#')) {
+      // Ensure it starts with a markdown header or subject line, not HTML
+      if (!generatedContent.startsWith('#') && !generatedContent.startsWith('**Subject:**')) {
         // Try to find the first markdown header
         const headerMatch = generatedContent.match(/^[^#]*(#+\s+.*)$/m)
+        const subjectMatch = generatedContent.match(/^[^*]*(\*\*Subject:\*\*.*)$/m)
         if (headerMatch) {
           generatedContent = headerMatch[1] + '\n\n' + generatedContent.substring(0, headerMatch.index).trim()
+        } else if (subjectMatch) {
+          generatedContent = subjectMatch[1] + '\n\n' + generatedContent.substring(0, subjectMatch.index).trim()
         } else {
-          // If no header found, add one
-          generatedContent = '# Statement of Work\n\n' + generatedContent
+          // If no header found, add one based on action type
+          const defaultHeader = action === 'generate_email' 
+            ? '# Email Proposal\n\n**Subject:** Proposal - Ready for Review\n\n---\n\n'
+            : action === 'generate_markdown'
+            ? '# Proposal\n\n'
+            : '# Statement of Work\n\n'
+          generatedContent = defaultHeader + generatedContent
         }
       }
     }
@@ -1652,15 +1814,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
     // For proposals, SOW, and goals, ALWAYS use async mode to avoid timeouts
     // Goals now use streaming by default when async is enabled
-    const useAsync = (action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow') || (action === 'generate_goals' && async !== false)
-    // Streaming: proposals, SOW, and goals default to streaming when async is enabled
-    const useStreaming = ((action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow') && stream !== false) || (action === 'generate_sow' && stream !== false) || (action === 'generate_goals' && (stream === true || (async === true && stream !== false)))
+    const useAsync = (action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow' || action === 'generate_email' || action === 'generate_markdown') || (action === 'generate_goals' && async !== false)
+    // Streaming: proposals, SOW, email, markdown, and goals default to streaming when async is enabled
+    const useStreaming = ((action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow' || action === 'generate_email' || action === 'generate_markdown') && stream !== false) || (action === 'generate_sow' && stream !== false) || (action === 'generate_goals' && (stream === true || (async === true && stream !== false)))
 
     if (useAsync) {
       // Create job and return immediately
       const inputData = {
         transcripts: action === 'generate_goals' ? transcripts : undefined,
-        goals: action === 'generate_sow' || action === 'generate_proposal' ? goals : undefined,
+        goals: action === 'generate_sow' || action === 'generate_proposal' || action === 'generate_email' || action === 'generate_markdown' ? goals : undefined,
         contact_name,
         company_name,
         focus_areas,
@@ -1960,12 +2122,224 @@ CRITICAL REQUIREMENTS:
 
 BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
 
+    } else if (action === 'generate_email') {
+      // Generate Email Proposal from Goals
+      systemPrompt = `You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
+
+Your task is to transform a Goals & Objectives document into a professional email proposal that can be sent directly to clients.
+
+ABSOLUTE REQUIREMENTS - NO EXCEPTIONS:
+1. Output format MUST be PURE MARKDOWN (.md) - NO HTML WHATSOEVER
+2. Start with a subject line in the format: **Subject:** [Proposal Title]
+3. Use markdown syntax ONLY:
+   - **bold text** for emphasis
+   - - or * for bullet lists
+   - 1. 2. 3. for numbered lists
+   - --- for horizontal rules (section separators)
+4. NEVER use HTML tags
+5. Structure as a professional email with:
+   - Subject line
+   - Personal greeting
+   - Brief overview/introduction
+   - Key points/deliverables
+   - Pricing/investment (if relevant)
+   - Next steps
+   - Professional sign-off
+
+Example email proposal structure:
+# Email Proposal - [Client Name]
+
+**Subject:** [Company Name] Partnership Proposal - Ready for Review
+
+---
+
+Hi [Client Name],
+
+[Personal opening paragraph connecting to recent conversations]
+
+**Quick Overview:**
+- [Key point 1]
+- [Key point 2]
+- [Key point 3]
+
+[Main content paragraphs]
+
+**Next Steps:**
+1. [Action item 1]
+2. [Action item 2]
+3. [Action item 3]
+
+[Closing paragraph]
+
+Best regards,
+
+[Your Name]
+[Title]
+[Contact info]
+
+---
+
+*P.S. - [Optional additional note]*
+
+Key requirements:
+- Create a professional email proposal in MARKDOWN format
+- Keep it concise and scannable (use bullet points and short paragraphs)
+- Include all relevant information from the goals
+- Make it personal and conversational but professional
+- Use ONLY Markdown syntax - NO HTML`
+
+      const lengthGuidance = length_target === 'short' 
+        ? 'Keep the email concise: under 500 words, approximately 1 page.'
+        : length_target === 'long'
+        ? 'Create a comprehensive email: over 1000 words, approximately 2-3 pages. Include detailed sections.'
+        : length_target === 'medium'
+        ? 'Create a medium-length email: 500-1000 words, approximately 1-2 pages. Balance detail with conciseness.'
+        : word_limit
+        ? `Target approximately ${word_limit} words.`
+        : page_target
+        ? `Target approximately ${page_target} pages.`
+        : ''
+
+      const focusAreasText = focus_areas && focus_areas.length > 0
+        ? `\n\nFOCUS AREAS TO EMPHASIZE:\n${focus_areas.map((fa: string, idx: number) => `${idx + 1}. ${fa}`).join('\n')}\n\nEnsure these focus areas receive appropriate attention in the email.`
+        : ''
+
+      prompt = `Transform the following Goals & Objectives document into a professional email proposal.
+
+${contact_name ? `Client: ${contact_name}` : ''}
+${company_name ? `Company: ${company_name}` : ''}
+
+Goals & Objectives:
+${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
+
+CRITICAL: Create an email proposal in PURE MARKDOWN FORMAT. 
+
+DO NOT:
+- Use HTML tags (<html>, <head>, <body>, <div>, etc.)
+- Include CSS styles or JavaScript
+- Use HTML structure or formatting
+- Output anything that looks like HTML
+
+DO:
+- Start with **Subject:** line
+- Use markdown formatting (**bold**, *italic*, - lists)
+- Output plain markdown text that can be copied into an email
+- Follow the structure and style of the example provided
+- Translate the goals into a professional, scannable email format
+- Keep paragraphs short and use bullet points for lists
+
+Output ONLY markdown text starting with # header and **Subject:** line.`
+
+    } else if (action === 'generate_markdown') {
+      // Generate Markdown Proposal from Goals
+      systemPrompt = `You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
+
+Your task is to transform a Goals & Objectives document into a clean, simple markdown proposal document.
+
+ABSOLUTE REQUIREMENTS - NO EXCEPTIONS:
+1. Output format MUST be PURE MARKDOWN (.md) - NO HTML WHATSOEVER
+2. Start with markdown headers (# for main title, ## for sections)
+3. Use markdown syntax ONLY:
+   - # Header, ## Subheader, ### Sub-subheader
+   - **bold text** for emphasis
+   - - or * for bullet lists
+   - 1. 2. 3. for numbered lists
+   - [link text](url) for links
+   - --- for horizontal rules
+4. NEVER use HTML tags
+5. Structure as a clean proposal document with:
+   - Title
+   - Introduction/Overview
+   - Proposed Solution
+   - Deliverables/Scope
+   - Timeline (if relevant)
+   - Pricing/Investment (if relevant)
+   - Next Steps
+
+Example markdown proposal structure:
+# Proposal: [Project Name]
+
+## Overview
+
+[Brief introduction]
+
+## Proposed Solution
+
+[Description of solution]
+
+## Deliverables
+
+- [Deliverable 1]
+- [Deliverable 2]
+- [Deliverable 3]
+
+## Timeline
+
+[Timeline information]
+
+## Investment
+
+[Pricing information]
+
+## Next Steps
+
+1. [Step 1]
+2. [Step 2]
+3. [Step 3]
+
+Key requirements:
+- Create a professional proposal document in MARKDOWN format
+- Keep it simple and easy to read
+- Include all relevant information from the goals
+- Use ONLY Markdown syntax - NO HTML`
+
+      const lengthGuidance = length_target === 'short' 
+        ? 'Keep the document concise: under 1000 words, approximately 2 pages.'
+        : length_target === 'long'
+        ? 'Create a comprehensive document: over 2500 words, approximately 6+ pages.'
+        : length_target === 'medium'
+        ? 'Create a medium-length document: 1000-2500 words, approximately 3-5 pages.'
+        : word_limit
+        ? `Target approximately ${word_limit} words.`
+        : page_target
+        ? `Target approximately ${page_target} pages.`
+        : ''
+
+      const focusAreasText = focus_areas && focus_areas.length > 0
+        ? `\n\nFOCUS AREAS TO EMPHASIZE:\n${focus_areas.map((fa: string, idx: number) => `${idx + 1}. ${fa}`).join('\n')}\n\nEnsure these focus areas receive appropriate attention in the proposal.`
+        : ''
+
+      prompt = `Transform the following Goals & Objectives document into a professional markdown proposal document.
+
+${contact_name ? `Client: ${contact_name}` : ''}
+${company_name ? `Company: ${company_name}` : ''}
+
+Goals & Objectives:
+${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
+
+CRITICAL: Create a proposal document in PURE MARKDOWN FORMAT. 
+
+DO NOT:
+- Use HTML tags (<html>, <head>, <body>, <div>, etc.)
+- Include CSS styles or JavaScript
+- Use HTML structure or formatting
+- Output anything that looks like HTML
+
+DO:
+- Use markdown headers (# ## ###)
+- Use markdown formatting (**bold**, *italic*, - lists)
+- Output plain markdown text that can be saved as a .md file
+- Follow the structure and style of the example provided
+- Translate the goals into a clear, professional proposal format
+
+Output ONLY markdown text starting with a # header.`
+
     } else {
       console.error(`Unknown action received: ${action}`)
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Unknown action: ${action}. Supported actions: analyze_focus_areas, generate_goals, generate_sow, generate_proposal, get_job_status, process_job`,
+          error: `Unknown action: ${action}. Supported actions: analyze_focus_areas, generate_goals, generate_sow, generate_proposal, generate_email, generate_markdown, get_job_status, process_job`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )

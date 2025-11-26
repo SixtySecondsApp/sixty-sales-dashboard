@@ -11,26 +11,21 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 export default function OnboardingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { needsOnboarding, currentStep, loading, skipOnboarding } = useOnboardingProgress();
+  const { needsOnboarding, currentStep, loading, skipOnboarding, resetOnboarding } = useOnboardingProgress();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isResetting, setIsResetting] = useState(false);
 
   const steps: OnboardingStep[] = ['welcome', 'fathom_connect', 'sync', 'complete'];
 
   useEffect(() => {
     if (!loading && user) {
-      // If user doesn't need onboarding, redirect to dashboard
-      if (!needsOnboarding) {
-        navigate('/');
-        return;
-      }
-
       // Set initial step based on progress
       const stepIndex = steps.indexOf(currentStep);
       if (stepIndex >= 0) {
         setCurrentStepIndex(stepIndex);
       }
     }
-  }, [loading, user, needsOnboarding, currentStep, navigate]);
+  }, [loading, user, currentStep]);
 
   const handleNext = () => {
     if (currentStepIndex < steps.length - 1) {
@@ -57,6 +52,21 @@ export default function OnboardingPage() {
     navigate('/meetings');
   };
 
+  const handleReset = async () => {
+    try {
+      setIsResetting(true);
+      await resetOnboarding();
+      setCurrentStepIndex(0);
+      // Small delay to show the reset happened
+      setTimeout(() => {
+        setIsResetting(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error resetting onboarding:', error);
+      setIsResetting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
@@ -65,15 +75,46 @@ export default function OnboardingPage() {
     );
   }
 
-  if (!needsOnboarding) {
-    return null; // Will redirect
-  }
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
       
       <div className="relative w-full max-w-4xl">
+        {/* Show completion message if onboarding is already done */}
+        {!needsOnboarding && !loading && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-blue-500/20 border border-blue-500/30 rounded-lg"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm text-blue-300 font-medium mb-1">
+                  Onboarding Complete
+                </p>
+                <p className="text-sm text-blue-400/80">
+                  You've already completed onboarding. You can review the steps below, restart the flow, or return to the dashboard.
+                </p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={handleReset}
+                  disabled={isResetting}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isResetting ? 'Resetting...' : 'Restart Onboarding'}
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="px-4 py-2 text-sm text-blue-400 hover:text-blue-300 border border-blue-500/30 hover:border-blue-500/50 rounded-lg transition-colors"
+                >
+                  Dashboard
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         {/* Progress indicator */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">

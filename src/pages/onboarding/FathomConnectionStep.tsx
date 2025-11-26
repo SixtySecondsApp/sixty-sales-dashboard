@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Video, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,9 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
   const { integration, connectFathom, loading: fathomLoading } = useFathomIntegration();
   const { markFathomConnected } = useOnboardingProgress();
   const [isConnecting, setIsConnecting] = useState(false);
+  
+  // Check if Fathom is already connected
+  const isConnected = integration?.is_active === true;
 
   const handleConnect = async () => {
     try {
@@ -35,7 +38,12 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
     }
   };
 
-  const isConnected = integration?.is_active === true;
+  // If already connected, mark it and allow proceeding
+  useEffect(() => {
+    if (isConnected && !isConnecting) {
+      markFathomConnected().catch(console.error);
+    }
+  }, [isConnected, isConnecting, markFathomConnected]);
 
   return (
     <motion.div
@@ -99,15 +107,27 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
 
       {isConnected ? (
         <div className="bg-green-900/20 border border-green-800/50 rounded-xl p-6 mb-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-6 h-6 text-green-400" />
-            <div>
-              <p className="text-green-400 font-medium">Fathom Connected</p>
-              <p className="text-sm text-gray-400">
-                {integration?.fathom_user_email || 'Your account is connected'}
-              </p>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-green-400" />
+              <div>
+                <p className="text-green-400 font-medium">Fathom Connected</p>
+                <p className="text-sm text-gray-400">
+                  {integration?.fathom_user_email || 'Your account is connected'}
+                </p>
+              </div>
             </div>
+            <button
+              onClick={handleConnect}
+              disabled={isConnecting || fathomLoading}
+              className="px-3 py-1.5 text-xs bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/30 rounded-lg transition-colors disabled:opacity-50"
+            >
+              {isConnecting || fathomLoading ? 'Reconnecting...' : 'Reconnect'}
+            </button>
           </div>
+          <p className="text-xs text-gray-500 mt-3">
+            💡 You can reconnect to test the integration or update your connection
+          </p>
         </div>
       ) : (
         <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-xl p-6 mb-6">
