@@ -28,9 +28,9 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     location.hash.includes('type=recovery');
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
 
-  // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
+  // TEMPORARY DEV: Allow roadmap and admin dashboard access in development
   const isDevModeBypass = process.env.NODE_ENV === 'development' &&
-    location.pathname.startsWith('/roadmap');
+    (location.pathname.startsWith('/roadmap') || location.pathname.startsWith('/admin'));
 
   useEffect(() => {
     // Don't redirect while loading

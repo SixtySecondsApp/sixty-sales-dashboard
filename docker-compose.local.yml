@@ -6,12 +6,49 @@ version: '3.9'
 
 services:
   # =========================================================================
-  # PostgreSQL Database
+  # Admin SaaS Control Plane Database
+  # =========================================================================
+  admin-db:
+    image: postgres:16-alpine
+    container_name: saas-admin-db-dev
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: admin_password
+      POSTGRES_DB: saas_admin
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+
+    ports:
+      - "5433:5432"
+
+    volumes:
+      # Persistent volume for admin data
+      - postgres-admin-data-dev:/var/lib/postgresql/data
+      # Initialize admin database with schema
+      - ./scripts/init-admin-db.sql:/docker-entrypoint-initdb.d/01-admin-init.sql:ro
+
+    networks:
+      - saas-local
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user -d saas_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # =========================================================================
+  # PostgreSQL Database (Customer Template)
   # =========================================================================
   db:
     image: postgres:16-alpine
     container_name: saas-db-dev
     restart: unless-stopped
+
+    depends_on:
+      admin-db:
+        condition: service_healthy
 
     environment:
       POSTGRES_USER: dev_user
@@ -75,6 +112,8 @@ services:
     restart: unless-stopped
 
     depends_on:
+      admin-db:
+        condition: service_healthy
       db:
         condition: service_healthy
       redis:
@@ -87,7 +126,15 @@ services:
       CUSTOMER_ID: dev-customer
       CUSTOMER_NAME: "Development Customer"
 
-      # Database Configuration
+      # Admin Database Configuration (SaaS Control Plane)
+      ADMIN_DATABASE_URL: postgresql://admin_user:admin_password@admin-db:5432/saas_admin
+      ADMIN_DB_HOST: admin-db
+      ADMIN_DB_PORT: 5432
+      ADMIN_DB_USER: admin_user
+      ADMIN_DB_PASSWORD: admin_password
+      ADMIN_DB_NAME: saas_admin
+
+      # Customer Database Configuration
       DATABASE_URL: postgresql://dev_user:dev_password@db:5432/saas_dev
       DB_HOST: db
       DB_PORT: 5432
@@ -153,6 +200,8 @@ services:
     restart: unless-stopped
 
     depends_on:
+      admin-db:
+        condition: service_healthy
       db:
         condition: service_healthy
       redis:
@@ -165,7 +214,15 @@ services:
       CUSTOMER_ID: dev-customer
       CUSTOMER_NAME: "Development Customer"
 
-      # Database Configuration
+      # Admin Database Configuration (SaaS Control Plane)
+      ADMIN_DATABASE_URL: postgresql://admin_user:admin_password@admin-db:5432/saas_admin
+      ADMIN_DB_HOST: admin-db
+      ADMIN_DB_PORT: 5432
+      ADMIN_DB_USER: admin_user
+      ADMIN_DB_PASSWORD: admin_password
+      ADMIN_DB_NAME: saas_admin
+
+      # Customer Database Configuration
       DATABASE_URL: postgresql://dev_user:dev_password@db:5432/saas_dev
       DB_HOST: db
       DB_PORT: 5432
@@ -203,6 +260,8 @@ services:
 # Volumes - Persistent Data Storage
 # ============================================================================
 volumes:
+  postgres-admin-data-dev:
+    driver: local
   postgres-data-dev:
     driver: local
   redis-data-dev:
