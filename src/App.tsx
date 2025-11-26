@@ -28,6 +28,7 @@ import Login from '@/pages/auth/login';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
+import PublicProposal from '@/pages/PublicProposal';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -65,6 +66,7 @@ const HealthMonitoring = lazyWithRetry(() => import('@/pages/HealthMonitoring'))
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
 const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
+const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
 
 // Large feature routes - lazy load with retry (most prone to cache issues)
 const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
@@ -235,6 +237,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
         <Route path="/browserless-test" element={<BrowserlessTest />} />
 
+        {/* Public proposal sharing - allows prospects to view shared proposals */}
+        <Route path="/share/:token" element={<PublicProposal />} />
+
         {/* Auth routes that should also be accessible without protection */}
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/signup" element={<Signup />} />
@@ -246,6 +251,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
           <ProtectedRoute>
             <Suspense fallback={<RouteLoader />}>
               <Routes>
+                <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
                 <Route path="/" element={<AppLayout><Dashboard /></AppLayout>} />
                 <Route path="/copilot" element={<AppLayout><Copilot /></AppLayout>} />

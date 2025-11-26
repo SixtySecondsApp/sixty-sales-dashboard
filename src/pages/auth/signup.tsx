@@ -45,7 +45,8 @@ export default function Signup() {
         toast.error(error.message);
       } else {
         toast.success('Account created successfully! Please check your email for verification.');
-        navigate('/auth/login');
+        // Redirect to onboarding flow for Meetings feature
+        navigate('/onboarding');
       }
     } catch (error: any) {
       toast.error('An unexpected error occurred. Please try again.');
