@@ -233,24 +233,35 @@ app.post('/api/tasks', (req, res) => {
 // STATIC FILE SERVING (Frontend)
 // ============================================================================
 
-const frontendPath = path.join(__dirname, 'frontend/dist');
+// Try both possible paths for frontend build
+let frontendPath = path.join(__dirname, 'frontend/dist');
+if (!fs.existsSync(frontendPath)) {
+  // Fallback to dist in root
+  frontendPath = path.join(__dirname, 'dist');
+}
+
 if (fs.existsSync(frontendPath)) {
   app.use(express.static(frontendPath));
-
-  // SPA fallback - serve index.html for all non-API routes
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendPath, 'index.html'));
-    } else {
-      res.status(404).json({
-        error: 'Endpoint not found',
-        path: req.path
-      });
-    }
-  });
+  console.log('[INFO] Serving frontend from:', frontendPath);
 } else {
   console.warn('[WARN] Frontend build not found at:', frontendPath);
 }
+
+// ============================================================================
+// SPA FALLBACK (Must be after all other routes)
+// ============================================================================
+
+// Serve index.html for all non-API routes (SPA mode)
+app.use((req, res, next) => {
+  // Only for non-API routes
+  if (!req.path.startsWith('/api')) {
+    const indexPath = path.join(frontendPath || __dirname, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
+    }
+  }
+  next();
+});
 
 // ============================================================================
 // ERROR HANDLING MIDDLEWARE
