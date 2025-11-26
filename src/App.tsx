@@ -106,6 +106,7 @@ const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
+const AISettingsAdmin = lazyWithRetry(() => import('@/pages/admin/AISettingsAdmin'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
@@ -267,7 +268,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/audit" element={<AppLayout><AuditLogs /></AppLayout>} />
                 <Route path="/admin/smart-tasks" element={<AppLayout><SmartTasksAdmin /></AppLayout>} />
                 <Route path="/admin/pipeline-automation" element={<AppLayout><PipelineAutomationAdmin /></AppLayout>} />
-                <Route path="/admin/ai-settings" element={<AppLayout><AIProviderSettings /></AppLayout>} />
+                <Route path="/admin/ai-settings" element={<AppLayout><AISettingsAdmin /></AppLayout>} />
                 <Route path="/admin/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
                 <Route path="/admin/function-testing" element={<AppLayout><FunctionTesting /></AppLayout>} />
                 <Route path="/admin/workflows-test" element={<AppLayout><WorkflowsTestSuite /></AppLayout>} />

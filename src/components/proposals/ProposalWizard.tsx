@@ -431,6 +431,9 @@ export function ProposalWizard({
   // Step 1: Load meetings when dialog opens - check for saved state first
   useEffect(() => {
     if (open) {
+      // Reset proposal mode to advanced when dialog opens (user can change it)
+      setProposalMode('advanced');
+      
       // Check for saved state
       const saved = loadWizardState(storageKey);
       if (saved && saved.step !== 'select_meetings') {

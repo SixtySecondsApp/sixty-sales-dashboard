@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { useTheme } from '@/hooks/useTheme';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -135,12 +136,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // MEETINGS FEATURE BRANCH: Only show Dashboard and Meetings
-  // This branch focuses exclusively on the Meetings feature V1 implementation
+  // MEETINGS FEATURE BRANCH: Navigation for Meetings feature V1
+  const { userData } = useUser();
+  const isAdmin = userData?.is_admin === true;
+  
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
+    { 
+      icon: UserPlus, 
+      label: 'Onboarding', 
+      href: '/onboarding',
+      subItems: undefined
+    },
+    { 
+      icon: Settings, 
+      label: 'Meetings/Settings', 
+      href: '/settings/ai',
+      subItems: undefined
+    },
   ];
+
+  // Add admin settings if user is admin
+  if (isAdmin) {
+    menuItems.push({
+      icon: Shield,
+      label: 'Admin Settings',
+      href: '/admin/ai-settings',
+      subItems: undefined
+    });
+  }
 
   return (
     <div className="min-h-screen bg-\[#FCFCFC\] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
