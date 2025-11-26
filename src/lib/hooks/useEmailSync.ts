@@ -16,14 +16,14 @@ export interface SyncProgress {
 }
 
 export function useEmailSync() {
-  const { user } = useUser();
+  const { userData } = useUser();
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<SyncProgress>({ analyzed: 0, total: 0 });
   const [syncStatus, setSyncStatus] = useState<SyncResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const performSync = useCallback(async (period: SyncPeriod) => {
-    if (!user?.id) {
+    if (!userData?.id) {
       setError('User not authenticated');
       return;
     }
@@ -34,7 +34,7 @@ export function useEmailSync() {
 
     try {
       // Perform email sync
-      const result = await performEmailSync(user.id, period);
+      const result = await performEmailSync(userData.id, period);
       setSyncStatus(result);
 
       // Update progress
@@ -46,10 +46,10 @@ export function useEmailSync() {
       // Refresh health scores after email sync
       if (result.emailsStored > 0) {
         // Refresh deal health scores
-        await calculateAllDealsHealth(user.id);
-        
+        await calculateAllDealsHealth(userData.id);
+
         // Refresh relationship health scores
-        await calculateAllContactsHealth(user.id);
+        await calculateAllContactsHealth(userData.id);
       }
 
       if (result.errors.length > 0) {
@@ -61,7 +61,7 @@ export function useEmailSync() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [userData?.id]);
 
   return {
     performSync,
@@ -71,6 +71,10 @@ export function useEmailSync() {
     error,
   };
 }
+
+
+
+
 
 
 

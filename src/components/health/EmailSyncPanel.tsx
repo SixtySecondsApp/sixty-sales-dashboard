@@ -1,21 +1,52 @@
 /**
  * Email Sync Panel Component
- * 
+ *
  * User interface for email sync in Settings or Admin.
  * Allows users to sync emails from Gmail for CRM contacts only.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useEmailSync, SyncProgress } from '@/lib/hooks/useEmailSync';
 import { SyncPeriod } from '@/lib/services/emailSyncService';
-import { Mail, RefreshCw, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useGoogleIntegration } from '@/lib/stores/integrationStore';
+import { toast } from 'sonner';
+import { Mail, RefreshCw, CheckCircle2, AlertCircle, Loader2, Link2, ExternalLink } from 'lucide-react';
 
 export function EmailSyncPanel() {
   const [selectedPeriod, setSelectedPeriod] = useState<SyncPeriod>('30days');
+  const [isConnecting, setIsConnecting] = useState(false);
   const { performSync, syncStatus, loading, progress, error } = useEmailSync();
+
+  // Google connection status - use the integration store
+  const {
+    isConnected: isGoogleConnected,
+    isLoading: googleLoading,
+    checkConnection,
+    connect
+  } = useGoogleIntegration();
+
+  useEffect(() => {
+    checkConnection();
+  }, [checkConnection]);
 
   const handleSync = () => {
     performSync(selectedPeriod);
+  };
+
+  const handleConnectGoogle = async () => {
+    setIsConnecting(true);
+    try {
+      const authUrl = await connect();
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        toast.error('Failed to get authentication URL');
+        setIsConnecting(false);
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to initiate Google authentication');
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -31,6 +62,58 @@ export function EmailSyncPanel() {
         Sync emails from Gmail for CRM contacts only. Emails are analyzed with AI to extract
         sentiment, topics, and action items for health score calculations.
       </p>
+
+      {/* Google Connection Status */}
+      <div className="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`w-3 h-3 rounded-full ${isGoogleConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Google Workspace
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {googleLoading ? 'Checking connection...' : isGoogleConnected ? 'Connected' : 'Not connected'}
+              </p>
+            </div>
+          </div>
+          {!googleLoading && !isGoogleConnected && (
+            <button
+              onClick={handleConnectGoogle}
+              disabled={isConnecting}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md transition-colors disabled:opacity-50"
+            >
+              {isConnecting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Link2 className="w-4 h-4" />
+              )}
+              {isConnecting ? 'Connecting...' : 'Connect'}
+            </button>
+          )}
+          {!googleLoading && isGoogleConnected && (
+            <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+              <CheckCircle2 className="w-4 h-4" />
+              Ready
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Show warning if not connected */}
+      {!googleLoading && !isGoogleConnected && (
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-md flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+              Google account required
+            </p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+              Connect your Google Workspace account to sync emails from Gmail.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Period Selector */}
       <div className="mb-4">
@@ -53,7 +136,7 @@ export function EmailSyncPanel() {
       {/* Sync Button */}
       <button
         onClick={handleSync}
-        disabled={loading}
+        disabled={loading || !isGoogleConnected}
         className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? (
@@ -148,6 +231,10 @@ export function EmailSyncPanel() {
     </div>
   );
 }
+
+
+
+
 
 
 

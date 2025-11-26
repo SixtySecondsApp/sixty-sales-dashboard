@@ -135,19 +135,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // MEETINGS FEATURE BRANCH: Only show Dashboard and Meetings
+  // This branch focuses exclusively on the Meetings feature V1 implementation
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-    { icon: Sparkles, label: 'AI Copilot', href: '/copilot' },
-    { icon: Kanban, label: 'Pipeline', href: '/pipeline' },
-    { icon: UserPlus, label: 'Leads', href: '/leads' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
-    { icon: CheckSquare, label: 'Tasks', href: '/tasks' },
-    { icon: Building2, label: 'CRM', href: '/crm' },
-    { icon: UsersIcon, label: 'Clients', href: '/clients' },
-    { icon: FileText, label: 'Activity', href: '/activity' },
-    { icon: LineChart, label: 'Insights', href: '/insights' },
-    { icon: Workflow, label: 'Workflows', href: '/workflows' },
-    { icon: Map, label: 'Roadmap', href: '/roadmap' },
   ];
 
   return (

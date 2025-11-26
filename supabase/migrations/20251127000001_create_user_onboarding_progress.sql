@@ -75,3 +75,4 @@ CREATE TRIGGER update_onboarding_progress_timestamp
 -- Add comment
 COMMENT ON TABLE user_onboarding_progress IS 'Tracks user onboarding progress through the Meetings feature setup flow';
 
+

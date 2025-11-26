@@ -45,16 +45,16 @@ SELECT
   COUNT(l.id) FILTER (WHERE l.status = 'cancelled') AS cancelled_leads,
 
   -- Deal stage counts (for converted leads)
-  COUNT(d.id) FILTER (WHERE d.stage = 'SQL') AS sql_stage,
-  COUNT(d.id) FILTER (WHERE d.stage = 'Opportunity') AS opportunity_stage,
-  COUNT(d.id) FILTER (WHERE d.stage = 'Verbal') AS verbal_stage,
-  COUNT(d.id) FILTER (WHERE d.stage = 'Signed') AS signed_stage,
-  COUNT(d.id) FILTER (WHERE d.stage = 'Lost') AS lost_stage,
+  COUNT(d.id) FILTER (WHERE ds.name = 'SQL') AS sql_stage,
+  COUNT(d.id) FILTER (WHERE ds.name = 'Opportunity') AS opportunity_stage,
+  COUNT(d.id) FILTER (WHERE ds.name = 'Verbal') AS verbal_stage,
+  COUNT(d.id) FILTER (WHERE ds.name = 'Signed') AS signed_stage,
+  COUNT(d.id) FILTER (WHERE ds.name = 'Lost') AS lost_stage,
 
   -- Revenue metrics (from converted deals)
-  COALESCE(SUM(d.one_off_value), 0) AS total_one_off_revenue,
-  COALESCE(SUM(d.monthly_value), 0) AS total_monthly_revenue,
-  COALESCE(SUM((d.monthly_value * 3) + d.one_off_value), 0) AS total_ltv,
+  COALESCE(SUM(d.one_off_revenue), 0) AS total_one_off_revenue,
+  COALESCE(SUM(d.monthly_mrr), 0) AS total_monthly_revenue,
+  COALESCE(SUM((d.monthly_mrr * 3) + d.one_off_revenue), 0) AS total_ltv,
 
   -- Date ranges
   MIN(l.created_at) AS first_lead_at,
@@ -73,7 +73,7 @@ SELECT
   -- Win rate (Signed / Total Converted)
   ROUND(
     COALESCE(
-      COUNT(d.id) FILTER (WHERE d.stage = 'Signed')::DECIMAL * 100.0 /
+      COUNT(d.id) FILTER (WHERE ds.name = 'Signed')::DECIMAL * 100.0 /
       NULLIF(COUNT(d.id), 0),
       0
     ),
@@ -83,7 +83,8 @@ SELECT
 FROM leads l
 LEFT JOIN lead_sources ls ON ls.id = l.source_id
 LEFT JOIN savvycal_link_mappings slm ON slm.link_id = l.booking_link_id
-LEFT JOIN deals d ON d.id = l.converted_deal_id AND d.deleted_at IS NULL
+LEFT JOIN deals d ON d.id = l.converted_deal_id
+LEFT JOIN deal_stages ds ON ds.id = d.stage_id
 WHERE l.deleted_at IS NULL
 GROUP BY
   COALESCE(

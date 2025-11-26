@@ -105,6 +105,7 @@ const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
 const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
+const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
@@ -327,6 +328,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
                 <Route path="/preferences" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />

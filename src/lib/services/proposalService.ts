@@ -29,6 +29,17 @@ export interface Proposal {
   created_at: string;
   updated_at: string;
   user_id: string;
+  // Sharing fields
+  share_token?: string;
+  password_hash?: string;
+  is_public?: boolean;
+  share_views?: number;
+  last_viewed_at?: string;
+}
+
+export interface ShareSettings {
+  is_public: boolean;
+  password?: string; // Plain text password (will be hashed)
 }
 
 export interface GenerateGoalsParams {
@@ -996,6 +1007,125 @@ export async function saveProposalModelSettings(
     return true;
   } catch (error) {
     logger.error('Exception saving model settings:', error);
+    return false;
+  }
+}
+
+// ==========================================
+// Proposal Sharing Functions
+// ==========================================
+
+/**
+ * Hash a password using SHA-256 (same as edge function)
+ */
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Update share settings for a proposal
+ */
+export async function updateProposalShareSettings(
+  proposalId: string,
+  settings: ShareSettings
+): Promise<{ success: boolean; share_token?: string; error?: string }> {
+  try {
+    let password_hash: string | null = null;
+
+    if (settings.password && settings.password.trim()) {
+      password_hash = await hashPassword(settings.password);
+    }
+
+    const { data, error } = await supabase
+      .from('proposals')
+      .update({
+        is_public: settings.is_public,
+        password_hash: password_hash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', proposalId)
+      .select('share_token')
+      .single();
+
+    if (error) {
+      logger.error('Error updating share settings:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, share_token: data?.share_token };
+  } catch (error) {
+    logger.error('Exception updating share settings:', error);
+    return { success: false, error: 'Failed to update share settings' };
+  }
+}
+
+/**
+ * Get share settings for a proposal
+ */
+export async function getProposalShareSettings(
+  proposalId: string
+): Promise<{ is_public: boolean; has_password: boolean; share_token: string; share_views: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('proposals')
+      .select('is_public, password_hash, share_token, share_views')
+      .eq('id', proposalId)
+      .single();
+
+    if (error || !data) {
+      logger.error('Error fetching share settings:', error);
+      return null;
+    }
+
+    return {
+      is_public: data.is_public || false,
+      has_password: !!data.password_hash,
+      share_token: data.share_token,
+      share_views: data.share_views || 0,
+    };
+  } catch (error) {
+    logger.error('Exception fetching share settings:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate a public share URL for a proposal
+ */
+export function getProposalShareUrl(shareToken: string): string {
+  // Use the current origin for the share URL
+  const baseUrl = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://app.sixtyseconds.video';
+  return `${baseUrl}/share/${shareToken}`;
+}
+
+/**
+ * Disable sharing for a proposal
+ */
+export async function disableProposalSharing(proposalId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('proposals')
+      .update({
+        is_public: false,
+        password_hash: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', proposalId);
+
+    if (error) {
+      logger.error('Error disabling sharing:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('Exception disabling sharing:', error);
     return false;
   }
 }

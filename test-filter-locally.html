@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test Lead Filtering Logic</title>
+</head>
+<body>
+  <h1>Lead Filtering Logic Test</h1>
+  <div id="output"></div>
+
+  <script>
+    // Simulate a lead
+    const testLead = {
+      id: '123',
+      contact_name: 'Test Contact',
+      utm_source: 'linkedin',
+      external_source: null,
+      booking_link_id: 'link_01JBH7K597B546RDY6VW39RFCK',
+      source: {
+        name: 'LinkedIn Ads'
+      },
+      converted_deal: {
+        id: 'deal-123',
+        name: 'Test Deal',
+        stage: {
+          id: 'stage-123',
+          name: 'SQL'
+        }
+      }
+    };
+
+    // Test source filter
+    const sourceFilter = 'LinkedIn Ads';
+
+    const matchesSource = (lead) => {
+      if (!sourceFilter) return true;
+
+      const source = lead.source;
+      const sourceName = source?.name ?? lead.utm_source ?? lead.external_source ?? 'Unknown';
+
+      console.log('Checking source:', {
+        sourceFilter,
+        sourceName,
+        matches: sourceName.toLowerCase().includes(sourceFilter.toLowerCase())
+      });
+
+      return sourceName.toLowerCase().includes(sourceFilter.toLowerCase());
+    };
+
+    // Test stage filter
+    const stageFilter = 'SQL';
+
+    const matchesStage = (lead) => {
+      if (!stageFilter) return true;
+
+      const deal = lead.converted_deal;
+
+      console.log('Checking stage:', {
+        stageFilter,
+        dealStage: deal?.stage?.name,
+        matches: deal?.stage?.name === stageFilter
+      });
+
+      return deal?.stage?.name === stageFilter;
+    };
+
+    // Run tests
+    const output = document.getElementById('output');
+    output.innerHTML = `
+      <h2>Test Results:</h2>
+      <p><strong>Source Filter Test:</strong> ${matchesSource(testLead) ? '✅ PASS' : '❌ FAIL'}</p>
+      <p><strong>Stage Filter Test:</strong> ${matchesStage(testLead) ? '✅ PASS' : '❌ FAIL'}</p>
+      <p><strong>Combined Filter Test:</strong> ${matchesSource(testLead) && matchesStage(testLead) ? '✅ PASS' : '❌ FAIL'}</p>
+
+      <h3>Check Console for Details</h3>
+    `;
+
+    console.log('Test Lead:', testLead);
+    console.log('Source Match:', matchesSource(testLead));
+    console.log('Stage Match:', matchesStage(testLead));
+  </script>
+</body>
+</html>

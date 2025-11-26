@@ -88,6 +88,7 @@ export interface RelationshipMetrics {
   responseRatePercent: number | null;
   emailOpenRatePercent: number | null;
   communicationCount30Days: number;
+  emailCount30Days: number;
 
   // Meeting metrics
   meetingCount30Days: number;
@@ -585,6 +586,11 @@ async function fetchRelationshipMetrics(
       baselineMeetingFrequencyDays = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length;
     }
 
+    // Calculate email count for 30 days
+    const emailCount30Days = recentComms.filter((c) =>
+      c.event_type === 'email_sent' || c.event_type === 'email_received'
+    ).length;
+
     return {
       relationshipId,
       relationshipType,
@@ -594,6 +600,7 @@ async function fetchRelationshipMetrics(
       responseRatePercent,
       emailOpenRatePercent,
       communicationCount30Days: recentComms.length,
+      emailCount30Days,
       meetingCount30Days,
       daysSinceLastMeeting,
       avgSentiment,
@@ -689,9 +696,7 @@ export async function calculateRelationshipHealth(
       response_rate_percent: metrics.responseRatePercent,
       email_open_rate_percent: metrics.emailOpenRatePercent,
       meeting_count_30_days: metrics.meetingCount30Days,
-      email_count_30_days: recentComms.filter((c) => 
-        c.event_type === 'email_sent' || c.event_type === 'email_received'
-      ).length,
+      email_count_30_days: metrics.emailCount30Days,
       total_interactions_30_days: metrics.communicationCount30Days,
 
       baseline_response_time_hours: metrics.baselineResponseTimeHours,

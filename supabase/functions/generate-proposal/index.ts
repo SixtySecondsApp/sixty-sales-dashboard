@@ -457,6 +457,13 @@ IMPORTANT DESIGN SYSTEM PRINCIPLES:
       systemPrompt = `You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
 Your task is to transform a Goals & Objectives document into a modern, professional HTML proposal presentation tailored to the specific needs and context of the client.
 
+CRITICAL INSTRUCTION: You must IMMEDIATELY output the complete HTML document. Do NOT:
+- Ask for confirmation or clarification
+- Ask "Would you like me to proceed?"
+- Provide explanations before the HTML
+- Output anything except the HTML document itself
+Start your response with <!DOCTYPE html> and output ONLY the complete HTML.
+
 Use the following HTML proposal example as a reference for structure, styling, and interactivity:
 ${proposalTemplate}
 
@@ -521,6 +528,8 @@ Goals & Objectives:
 ${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
 
 CRITICAL REQUIREMENTS:
+- OUTPUT ONLY HTML - no questions, no confirmations, no explanations
+- Start immediately with <!DOCTYPE html> - do not ask "Would you like me to proceed?"
 - Create a COMPLETE, standalone HTML file with ALL tags properly closed
 - The HTML must start with <!DOCTYPE html> and end with </html>
 - ALL opening tags must have corresponding closing tags
@@ -537,7 +546,9 @@ STRUCTURE ADAPTATION:
 - Only include sections that are relevant to the Goals & Objectives
 - Tailor all content to the specific client, company, and their stated goals
 - Do NOT copy generic content - every section should be customized based on the Goals & Objectives
-- Use the example template for styling and interactivity patterns, but adapt the content structure to match what makes sense for this proposal`
+- Use the example template for styling and interactivity patterns, but adapt the content structure to match what makes sense for this proposal
+
+BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
     }
 
     // Get OpenRouter API key (prefer user's personal key, modelSettings already retrieved above)
@@ -1407,6 +1418,13 @@ Focus on:
 - Risk factors or concerns raised
 - Success metrics or KPIs mentioned
 
+CRITICAL INSTRUCTIONS:
+- You MUST return ONLY valid JSON - no explanatory text, no apologies, no "I cannot find..."
+- If the transcript lacks clear focus areas, infer reasonable ones from any business discussion
+- If the transcript is minimal, create general focus areas like "Project Scope", "Timeline", "Budget"
+- NEVER return text explanations - ALWAYS return the JSON structure below
+- Start your response with { and end with }
+
 Return ONLY valid JSON (no markdown, no code blocks):
 {
   "focus_areas": [
@@ -1538,7 +1556,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
             } catch (parseError) {
               console.error('JSON parse error:', parseError)
               console.error('Failed to parse content:', jsonContent.substring(0, 500))
-              throw new Error(`Failed to parse JSON response: ${parseError instanceof Error ? parseError.message : String(parseError)}. Content preview: ${jsonContent.substring(0, 200)}`)
+              // If the AI returned text instead of JSON, provide a helpful error
+              if (jsonContent.toLowerCase().includes('unable to') ||
+                  jsonContent.toLowerCase().includes('cannot find') ||
+                  jsonContent.toLowerCase().includes('not enough')) {
+                throw new Error('The AI model could not analyze the transcript. Please try again - the transcript may need more context.')
+              }
+              throw new Error(`Failed to parse AI response. The model may have returned text instead of JSON. Please try again.`)
             }
             
             return new Response(
@@ -1872,6 +1896,13 @@ IMPORTANT DESIGN SYSTEM PRINCIPLES:
       systemPrompt = `You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
 Your task is to transform a Goals & Objectives document into a modern, professional HTML proposal presentation.
 
+CRITICAL INSTRUCTION: You must IMMEDIATELY output the complete HTML document. Do NOT:
+- Ask for confirmation or clarification
+- Ask "Would you like me to proceed?"
+- Provide explanations before the HTML
+- Output anything except the HTML document itself
+Start your response with <!DOCTYPE html> and output ONLY the complete HTML.
+
 Use the following HTML proposal example as a reference for structure, styling, and interactivity:
 ${proposalTemplate}
 
@@ -1889,7 +1920,7 @@ Key requirements:
 - Use Tailwind CSS via CDN for styling
 - Follow the design system's color tokens, typography, and component patterns`
 
-      const lengthGuidance = length_target === 'short' 
+      const lengthGuidance = length_target === 'short'
         ? 'Keep the proposal concise: under 1000 words, approximately 2 pages. Use fewer slides and more concise content.'
         : length_target === 'long'
         ? 'Create a comprehensive proposal: over 2500 words, approximately 6+ pages. Include detailed sections and multiple slides.'
@@ -1914,17 +1945,20 @@ Goals & Objectives:
 ${goals}${focusAreasText}${lengthGuidance ? `\n\nLENGTH REQUIREMENTS:\n${lengthGuidance}` : ''}
 
 CRITICAL REQUIREMENTS:
+- OUTPUT ONLY HTML - no questions, no confirmations, no explanations
+- Start immediately with <!DOCTYPE html> - do not ask "Would you like me to proceed?"
 - Create a COMPLETE, standalone HTML file with ALL tags properly closed
 - The HTML must start with <!DOCTYPE html> and end with </html>
 - ALL opening tags must have corresponding closing tags
-- Include ALL sections from the example template (cover, executive summary, strategic priorities, infrastructure, product development, timeline, risk assessment, next steps, etc.)
 - The HTML must be fully functional and renderable in a browser
 - Ensure the file is complete - do not truncate or leave sections incomplete
 - Include all CSS styles within <style> tags
 - Include all JavaScript within <script> tags
 - Follow the structure, styling, and interactivity of the example provided
 - Use the design system guidelines for consistent styling
-- The HTML should be a complete, standalone file that can be opened in a browser`
+- The HTML should be a complete, standalone file that can be opened in a browser
+
+BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
 
     } else {
       console.error(`Unknown action received: ${action}`)
