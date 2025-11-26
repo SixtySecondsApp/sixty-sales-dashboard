@@ -12,13 +12,17 @@
 
 const express = require('express');
 const cors = require('cors');
-const morgan = require('morgan');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
 
 // Load environment variables
 dotenv.config();
+
+// Simple logging function (morgan not required)
+const simpleLog = (msg) => {
+  console.log(`[${new Date().toISOString()}] ${msg}`);
+};
 
 // Constants
 const PORT = process.env.PORT || 3000;
@@ -36,24 +40,24 @@ const app = express();
 // MIDDLEWARE
 // ============================================================================
 
-// Logging
+// Create logs directory if it doesn't exist
 if (NODE_ENV === 'production') {
-  // Create logs directory if it doesn't exist
   const logsDir = path.join(__dirname, 'logs');
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir, { recursive: true });
   }
-
-  // Log to file
-  const accessLogStream = fs.createWriteStream(
-    path.join(logsDir, 'access.log'),
-    { flags: 'a' }
-  );
-  app.use(morgan('combined', { stream: accessLogStream }));
 }
 
-// Console logging
-app.use(morgan(NODE_ENV === 'production' ? 'combined' : 'dev'));
+// Simple HTTP request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const status = res.statusCode;
+    simpleLog(`${req.method} ${req.path} ${status} ${duration}ms`);
+  });
+  next();
+});
 
 // CORS - Allow requests from frontend
 app.use(cors({

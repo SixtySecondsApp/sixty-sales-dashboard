@@ -1,0 +1,219 @@
+# Local Development Docker Compose
+# Use this for local development and testing
+# Usage: docker-compose -f docker-compose.local.yml up -d
+
+version: '3.9'
+
+services:
+  # =========================================================================
+  # PostgreSQL Database
+  # =========================================================================
+  db:
+    image: postgres:16-alpine
+    container_name: saas-db-dev
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: saas_dev
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      # Persistent volume for data
+      - postgres-data-dev:/var/lib/postgresql/data
+      # Initialize database with schema and RLS policies
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
+    networks:
+      - saas-local
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev_user -d saas_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # =========================================================================
+  # Redis Cache & Job Queue
+  # =========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: saas-redis-dev
+    restart: unless-stopped
+
+    command: redis-server --requirepass dev_password --maxmemory 512mb --maxmemory-policy allkeys-lru
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redis-data-dev:/data
+
+    networks:
+      - saas-local
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # =========================================================================
+  # Express Application Server
+  # =========================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.multitenant
+    container_name: saas-app-dev
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    environment:
+      # Application Configuration
+      NODE_ENV: development
+      PORT: 3000
+      CUSTOMER_ID: dev-customer
+      CUSTOMER_NAME: "Development Customer"
+
+      # Database Configuration
+      DATABASE_URL: postgresql://dev_user:dev_password@db:5432/saas_dev
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dev_user
+      DB_PASSWORD: dev_password
+      DB_NAME: saas_dev
+
+      # Redis Configuration
+      REDIS_URL: redis://:dev_password@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password
+
+      # Security & Authentication
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRY: 7d
+
+      # API Keys (use development keys)
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+      VITE_OPENAI_API_KEY: ${VITE_OPENAI_API_KEY:-}
+      VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY:-}
+      VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY:-}
+
+      # Email Configuration
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL:-noreply@example.com}
+      SES_FROM_NAME: ${SES_FROM_NAME:-Sales Dashboard}
+      AWS_SES_REGION: ${AWS_SES_REGION:-us-east-1}
+
+      # Logging
+      LOG_LEVEL: debug
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      # Live code updates
+      - .:/app
+      # Node modules from image
+      - /app/node_modules
+      # Writable directories
+      - /app/logs
+      - /app/data
+
+    networks:
+      - saas-local
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # =========================================================================
+  # Bull Job Queue Worker
+  # =========================================================================
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.multitenant
+    container_name: saas-worker-dev
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    environment:
+      # Application Configuration
+      NODE_ENV: development
+      IS_WORKER: "true"
+      CUSTOMER_ID: dev-customer
+      CUSTOMER_NAME: "Development Customer"
+
+      # Database Configuration
+      DATABASE_URL: postgresql://dev_user:dev_password@db:5432/saas_dev
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: dev_user
+      DB_PASSWORD: dev_password
+      DB_NAME: saas_dev
+
+      # Redis Configuration (shared with app)
+      REDIS_URL: redis://:dev_password@redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: dev_password
+
+      # API Keys
+      VITE_OPENAI_API_KEY: ${VITE_OPENAI_API_KEY:-}
+      VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY:-}
+      VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY:-}
+
+      # Logging
+      LOG_LEVEL: debug
+
+    volumes:
+      # Live code updates
+      - .:/app
+      # Node modules from image
+      - /app/node_modules
+      # Writable directories
+      - /app/logs
+      - /app/data
+
+    networks:
+      - saas-local
+
+# ============================================================================
+# Volumes - Persistent Data Storage
+# ============================================================================
+volumes:
+  postgres-data-dev:
+    driver: local
+  redis-data-dev:
+    driver: local
+
+# ============================================================================
+# Networks - Local Development Network
+# ============================================================================
+networks:
+  saas-local:
+    driver: bridge
+    name: saas-local
+    driver_opts:
+      com.docker.network.bridge.name: br-saas-dev
