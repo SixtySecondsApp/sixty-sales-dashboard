@@ -6,6 +6,8 @@ import { useAuth } from '@/lib/contexts/AuthContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { MeetingsEmptyState } from './MeetingsEmptyState'
+import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration'
 import {
   Table,
   TableBody,
@@ -121,6 +123,7 @@ const StatCard: React.FC<{
 const MeetingsList: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { syncState } = useFathomIntegration()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
   const [scope, setScope] = useState<'me' | 'team'>('me')
@@ -599,16 +602,11 @@ const MeetingsList: React.FC = () => {
       </AnimatePresence>
 
       {/* Empty State */}
-      {meetings.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-12 border border-gray-200 dark:border-gray-700/50 text-center shadow-sm dark:shadow-none"
-        >
-          <Video className="h-12 w-12 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">No meetings found</h3>
-          <p className="text-gray-600 dark:text-gray-500">Meetings will appear here once they are synced from Fathom.</p>
-        </motion.div>
+      {meetings.length === 0 && !loading && (
+        <MeetingsEmptyState 
+          meetingCount={meetings.length}
+          isSyncing={syncState?.sync_status === 'syncing'}
+        />
       )}
     </div>
   )

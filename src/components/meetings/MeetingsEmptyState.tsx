@@ -1,0 +1,165 @@
+import { motion } from 'framer-motion';
+import { Video, Link2, RefreshCw, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
+import { useNavigate } from 'react-router-dom';
+
+interface MeetingsEmptyStateProps {
+  meetingCount?: number;
+  isSyncing?: boolean;
+}
+
+export function MeetingsEmptyState({ meetingCount = 0, isSyncing = false }: MeetingsEmptyStateProps) {
+  const { integration, connectFathom, triggerSync, loading: fathomLoading } = useFathomIntegration();
+  const navigate = useNavigate();
+
+  const isConnected = integration?.is_active === true;
+  const hasMeetings = meetingCount > 0;
+
+  const handleConnectFathom = async () => {
+    try {
+      await connectFathom();
+    } catch (error) {
+      console.error('Error connecting Fathom:', error);
+    }
+  };
+
+  const handleManualSync = async () => {
+    try {
+      await triggerSync();
+    } catch (error) {
+      console.error('Error triggering sync:', error);
+    }
+  };
+
+  // Fathom not connected state
+  if (!isConnected) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center py-16 px-4"
+      >
+        <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+          <Video className="w-12 h-12 text-gray-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2 text-center">
+          Connect Fathom to Get Started
+        </h2>
+        <p className="text-gray-400 mb-8 text-center max-w-md">
+          Connect your Fathom account to automatically sync your meeting recordings and transcripts.
+        </p>
+        <Button
+          onClick={handleConnectFathom}
+          disabled={fathomLoading}
+          className="bg-[#37bd7e] hover:bg-[#2da76c] text-white"
+        >
+          {fathomLoading ? (
+            <>
+              <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <Link2 className="mr-2 w-5 h-5" />
+              Connect Fathom
+            </>
+          )}
+        </Button>
+        <p className="text-sm text-gray-500 mt-4">
+          Or{' '}
+          <button
+            onClick={() => navigate('/onboarding')}
+            className="text-[#37bd7e] hover:text-[#2da76c] underline"
+          >
+            complete onboarding
+          </button>
+        </p>
+      </motion.div>
+    );
+  }
+
+  // Syncing state
+  if (isSyncing) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center py-16 px-4"
+      >
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6"
+        >
+          <Loader2 className="w-12 h-12 text-[#37bd7e]" />
+        </motion.div>
+        <h2 className="text-2xl font-bold text-white mb-2 text-center">
+          Syncing Your Meetings
+        </h2>
+        <p className="text-gray-400 mb-4 text-center max-w-md">
+          We're fetching your meeting recordings from Fathom. This may take a few moments.
+        </p>
+        <div className="text-sm text-gray-500">
+          Please wait while we sync your data...
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Fathom connected but no meetings
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col items-center justify-center py-16 px-4"
+    >
+      <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+        <Video className="w-12 h-12 text-gray-400" />
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-2 text-center">
+        No Meetings Yet
+      </h2>
+      <p className="text-gray-400 mb-8 text-center max-w-md">
+        Your Fathom account is connected! Sync your meetings to start analyzing your sales calls.
+      </p>
+      <div className="flex gap-4">
+        <Button
+          onClick={handleManualSync}
+          disabled={fathomLoading}
+          className="bg-[#37bd7e] hover:bg-[#2da76c] text-white"
+        >
+          {fathomLoading ? (
+            <>
+              <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+              Syncing...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 w-5 h-5" />
+              Sync Meetings Now
+            </>
+          )}
+        </Button>
+      </div>
+      <div className="mt-8 bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6 max-w-md">
+        <h3 className="text-sm font-semibold text-white mb-3">What happens next?</h3>
+        <ul className="space-y-2 text-sm text-gray-400">
+          <li className="flex items-start gap-2">
+            <span className="text-[#37bd7e] mt-1">•</span>
+            <span>Meetings will sync automatically when recorded in Fathom</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-[#37bd7e] mt-1">•</span>
+            <span>You can manually sync anytime using the button above</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="text-[#37bd7e] mt-1">•</span>
+            <span>Each meeting will be analyzed for insights and coaching</span>
+          </li>
+        </ul>
+      </div>
+    </motion.div>
+  );
+}
+
