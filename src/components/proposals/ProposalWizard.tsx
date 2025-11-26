@@ -29,6 +29,7 @@ import {
   analyzeFocusAreas,
   updateProposalShareSettings,
   getProposalShareUrl,
+  extractGoalsFromMeeting,
   type GenerateResponse,
   type JobStatus,
   type FocusArea,
@@ -276,6 +277,11 @@ export function ProposalWizard({
   const [isPublicEnabled, setIsPublicEnabled] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [savingShare, setSavingShare] = useState(false);
+
+  // Phase 4.1: Quick Mode vs Advanced Mode
+  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('advanced');
+  const [quickModeSummary, setQuickModeSummary] = useState<string>('');
+  const [quickModeEmail, setQuickModeEmail] = useState<string>('');
 
   // Auto-scroll HTML code textarea to bottom while generating
   useEffect(() => {
@@ -620,7 +626,7 @@ export function ProposalWizard({
     }
   };
 
-  const handleContinueFromSelection = () => {
+  const handleContinueFromSelection = async () => {
     if (selectedMeetingIds.size === 0) {
       setError('Please select at least one meeting');
       setStatusMessage('Please select at least one meeting');
@@ -628,8 +634,53 @@ export function ProposalWizard({
     }
     setError(null);
     setStatusMessage(null);
-    setStep('analyze_focus');
-    loadTranscripts();
+
+    // Phase 4.1: Quick Mode - skip to summary generation
+    if (proposalMode === 'quick') {
+      setStep('loading');
+      setLoading(true);
+      setStatusMessage('Generating quick summary...');
+      
+      try {
+        // Get the first selected meeting ID
+        const firstMeetingId = Array.from(selectedMeetingIds)[0];
+        
+        // Extract goals from meeting
+        const extracted = await extractGoalsFromMeeting(firstMeetingId);
+        
+        // Generate simple summary and follow-up email
+        const summary = extracted.goals || 'Meeting summary will be generated here.';
+        const email = `Hi ${contactName || 'there'},
+
+Thank you for taking the time to meet with me today. I wanted to follow up on our conversation.
+
+${summary}
+
+${extracted.painPoints.length > 0 ? `\nKey pain points discussed:\n${extracted.painPoints.map(p => `- ${p}`).join('\n')}` : ''}
+
+${extracted.proposedSolutions.length > 0 ? `\nProposed solutions:\n${extracted.proposedSolutions.map(s => `- ${s}`).join('\n')}` : ''}
+
+I look forward to continuing our conversation and helping you achieve your goals.
+
+Best regards`;
+
+        setQuickModeSummary(summary);
+        setQuickModeEmail(email);
+        setFinalContent(email); // Set final content for preview
+        setStep('preview'); // Show preview with summary and email
+        setLoading(false);
+        setStatusMessage(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to generate quick summary');
+        setStatusMessage(null);
+        setLoading(false);
+        setStep('select_meetings');
+      }
+    } else {
+      // Advanced Mode - proceed with normal flow
+      setStep('analyze_focus');
+      loadTranscripts();
+    }
   };
 
   const analyzeFocusAreasFromTranscripts = async (transcriptList?: string[]) => {
@@ -1108,6 +1159,46 @@ ${htmlContent}
             Create a proposal or SOW from call transcripts
           </DialogDescription>
         </DialogHeader>
+
+        {/* Phase 4.1: Quick Mode vs Advanced Mode Toggle */}
+        {!showResumeDialog && step === 'select_meetings' && (
+          <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Label htmlFor="proposal-mode" className="text-sm font-medium">
+                    Proposal Mode
+                  </Label>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {proposalMode === 'quick' 
+                    ? 'Quick Mode: Generate a simple summary and follow-up email'
+                    : 'Advanced Mode: Full Goals → SOW → HTML workflow'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${proposalMode === 'quick' ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>
+                  Quick
+                </span>
+                <Switch
+                  id="proposal-mode"
+                  checked={proposalMode === 'advanced'}
+                  onCheckedChange={(checked) => {
+                    setProposalMode(checked ? 'advanced' : 'quick');
+                    // Reset quick mode state when switching
+                    if (!checked) {
+                      setQuickModeSummary('');
+                      setQuickModeEmail('');
+                    }
+                  }}
+                />
+                <span className={`text-xs ${proposalMode === 'advanced' ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-500'}`}>
+                  Advanced
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Resume Dialog - shown when saved state exists */}
         {showResumeDialog && savedState && (
@@ -1720,8 +1811,10 @@ ${htmlContent}
         {!showResumeDialog && step === 'preview' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Preview Generated Document</h3>
-              {selectedFormat === 'proposal' && (
+              <h3 className="text-lg font-semibold">
+                {proposalMode === 'quick' ? 'Quick Summary & Follow-up Email' : 'Preview Generated Document'}
+              </h3>
+              {selectedFormat === 'proposal' && proposalMode === 'advanced' && (
                 <Button
                   onClick={() => {
                     const blob = new Blob([finalContent], { type: 'text/html' });
@@ -1734,6 +1827,59 @@ ${htmlContent}
                 </Button>
               )}
             </div>
+
+            {/* Quick Mode Preview */}
+            {proposalMode === 'quick' && quickModeSummary && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Meeting Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={quickModeSummary}
+                      onChange={(e) => setQuickModeSummary(e.target.value)}
+                      className="min-h-[200px] font-mono text-sm"
+                      placeholder="Meeting summary..."
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Follow-up Email</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={quickModeEmail}
+                      onChange={(e) => {
+                        setQuickModeEmail(e.target.value);
+                        setFinalContent(e.target.value);
+                      }}
+                      className="min-h-[300px] font-mono text-sm"
+                      placeholder="Follow-up email..."
+                    />
+                    <div className="mt-4 flex gap-2">
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(quickModeEmail);
+                          toast.success('Email copied to clipboard!');
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Email
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Advanced Mode Preview */}
+            {proposalMode === 'advanced' && (
+              <>
             {loading && !finalContent ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
@@ -1823,6 +1969,8 @@ ${htmlContent}
                 )}
               </div>
             ) : null}
+              </>
+            )}
             <div className="flex justify-between">
               <Button onClick={() => setStep('choose_format')} variant="secondary">
                 <ArrowLeft className="w-4 h-4 mr-2" />

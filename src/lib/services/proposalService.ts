@@ -915,6 +915,130 @@ export async function getTranscriptsFromMeetings(meetingIds: string[]): Promise<
 }
 
 /**
+ * Extract goals, pain points, and proposed solutions from a meeting transcript
+ * Used for Quick Mode proposal generation
+ */
+export async function extractGoalsFromMeeting(meetingId: string): Promise<{
+  goals: string;
+  painPoints: string[];
+  proposedSolutions: string[];
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    // Get meeting transcript
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('transcript_text, summary, contact_id, company_id')
+      .eq('id', meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      throw new Error('Meeting not found');
+    }
+
+    if (!meeting.transcript_text && !meeting.summary) {
+      return {
+        goals: '',
+        painPoints: [],
+        proposedSolutions: [],
+      };
+    }
+
+    // Get contact and company info
+    let contactName: string | undefined;
+    let companyName: string | undefined;
+
+    if (meeting.contact_id) {
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('first_name, last_name')
+        .eq('id', meeting.contact_id)
+        .single();
+      
+      if (contact) {
+        contactName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || undefined;
+      }
+    }
+
+    if (meeting.company_id) {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', meeting.company_id)
+        .single();
+      
+      if (company) {
+        companyName = company.name;
+      }
+    }
+
+    // Get Supabase URL
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    // Call edge function to extract goals
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'extract_goals',
+          transcript: meeting.transcript_text || meeting.summary,
+          contact_name: contactName,
+          company_name: companyName,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to extract goals');
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to extract goals');
+    }
+
+    return {
+      goals: data.goals || '',
+      painPoints: data.pain_points || [],
+      proposedSolutions: data.proposed_solutions || [],
+    };
+  } catch (error) {
+    logger.error('Exception extracting goals from meeting:', error);
+    return {
+      goals: '',
+      painPoints: [],
+      proposedSolutions: [],
+    };
+  }
+}
+
+/**
  * Get proposal model settings from system_config
  */
 export async function getProposalModelSettings(): Promise<ProposalModelSettings> {
