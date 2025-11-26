@@ -929,13 +929,18 @@ async function autoFetchTranscriptAndAnalyze(
       }
     }
 
-    // Run AI analysis on transcript
-    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(transcript, {
-      id: meeting.id,
-      title: meeting.title,
-      meeting_start: meeting.meeting_start,
-      owner_email: meeting.owner_email,
-    })
+    // Run AI analysis on transcript (with extraction rules integration - Phase 6.3)
+    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
+      transcript,
+      {
+        id: meeting.id,
+        title: meeting.title,
+        meeting_start: meeting.meeting_start,
+        owner_email: meeting.owner_email,
+      },
+      supabase,
+      meeting.owner_user_id || userId
+    )
 
     // Update meeting with AI metrics
     const { data: updateResult, error: updateError } = await supabase

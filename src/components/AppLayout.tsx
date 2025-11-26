@@ -41,7 +41,8 @@ import {
   Sparkles,
   UserPlus,
   Search,
-  ChevronDown
+  ChevronDown,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -141,6 +142,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const menuItems = [
     { icon: Activity, label: 'Dashboard', href: '/' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
+    { icon: Sparkles, label: 'Intelligence', href: '/meetings/intelligence' },
+    { icon: BarChart3, label: 'Team Analytics', href: '/insights/team' },
     { icon: UserPlus, label: 'Onboarding', href: '/onboarding' },
   ];
 
@@ -202,8 +205,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       
-      {/* Quick Add FAB - Hidden on Workflows page */}
-      {location.pathname !== '/workflows' && (
+      {/* Quick Add FAB - Hidden in this version */}
+      {/* {location.pathname !== '/workflows' && (
         <motion.button
           type="button"
           whileHover={{ scale: 1.05 }}
@@ -213,7 +216,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         >
           <Plus className="w-6 h-6 text-white" />
         </motion.button>
-      )}
+      )} */}
 
       {/* Mobile Menu - Full Page with Scrolling */}
       <AnimatePresence>

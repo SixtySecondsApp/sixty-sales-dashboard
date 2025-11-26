@@ -65,10 +65,10 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     )
 
-    // Load meeting with minimal fields we need
+    // Load meeting with minimal fields we need (including owner_user_id for extraction rules)
     const { data: meeting, error: meetingErr } = await supabaseClient
       .from('meetings')
-      .select('id, title, meeting_start, transcript_text, owner_email')
+      .select('id, title, meeting_start, transcript_text, owner_email, owner_user_id')
       .eq('id', meetingId)
       .single()
 
@@ -87,7 +87,7 @@ serve(async (req) => {
     // Re-fetch to get latest transcript_text after ensure step
     const { data: meeting2 } = await supabaseClient
       .from('meetings')
-      .select('id, title, meeting_start, transcript_text, owner_email')
+      .select('id, title, meeting_start, transcript_text, owner_email, owner_user_id')
       .eq('id', meetingId)
       .single()
 
@@ -100,13 +100,30 @@ serve(async (req) => {
       )
     }
 
-    // Analyze transcript for action items using existing analyzer
-    const analysis = await analyzeTranscriptWithClaude(transcriptText, {
-      id: meeting.id,
-      title: meeting.title,
-      meeting_start: meeting.meeting_start,
-      owner_email: meeting.owner_email,
-    })
+    // Analyze transcript for action items using existing analyzer (with extraction rules - Phase 6.3)
+    // Use service role client for extraction rules lookup (bypasses RLS)
+    const supabaseService = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    )
+    
+    const analysis = await analyzeTranscriptWithClaude(
+      transcriptText,
+      {
+        id: meeting.id,
+        title: meeting.title,
+        meeting_start: meeting.meeting_start,
+        owner_email: meeting.owner_email,
+      },
+      supabaseService,
+      meeting2?.owner_user_id || meeting.owner_user_id
+    )
 
     // Optional: also consider any existing Fathom action items to deduplicate
     // We don't have Fathom payload here, so dedupe against DB by title and timestamp

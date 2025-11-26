@@ -78,6 +78,7 @@ const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
 const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIntelligence'));
 const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
 const MeetingDetail = lazy(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
@@ -107,6 +108,8 @@ const Email = lazy(() => import('@/pages/Email'));
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
+const ExtractionRules = lazyWithRetry(() => import('@/pages/settings/ExtractionRules'));
+const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
@@ -332,10 +335,13 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/preferences" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
+                <Route path="/settings/extraction-rules" element={<AppLayout><ExtractionRules /></AppLayout>} />
+                <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
                 <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/meetings/intelligence" element={<AppLayout><MeetingIntelligence /></AppLayout>} />
                 <Route path="/meetings/sentiment" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
                 <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />
                 <Route path="/debug-meetings" element={<AppLayout><DebugMeetings /></AppLayout>} />

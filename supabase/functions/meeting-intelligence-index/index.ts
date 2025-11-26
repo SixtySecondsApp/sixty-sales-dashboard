@@ -1,0 +1,464 @@
+/**
+ * Meeting Intelligence Index Edge Function
+ *
+ * Indexes meeting content to Google File Search for semantic RAG queries.
+ * Creates/manages per-user File Search stores and uploads meeting documents.
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from 'https://deno.land/std@0.168.0/crypto/mod.ts'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+
+interface RequestBody {
+  meetingId?: string
+  meetingIds?: string[]
+  forceReindex?: boolean
+}
+
+interface MeetingDocument {
+  meeting_id: string
+  title: string
+  date: string
+  company_name: string | null
+  company_id: string | null
+  contact_name: string | null
+  contact_id: string | null
+  attendees: string[]
+  duration_minutes: number | null
+  sentiment_score: number | null
+  sentiment_label: string
+  sentiment_reasoning: string | null
+  transcript: string
+  summary: string | null
+  action_items: string[]
+  talk_time_rep_pct: number | null
+  talk_time_customer_pct: number | null
+}
+
+/**
+ * Get or create a File Search store for the user
+ */
+async function getOrCreateStore(
+  userId: string,
+  supabase: any,
+  geminiApiKey: string
+): Promise<{ storeName: string; isNew: boolean }> {
+  // Check if user already has a store
+  const { data: existingStore } = await supabase
+    .from('user_file_search_stores')
+    .select('store_name')
+    .eq('user_id', userId)
+    .single()
+
+  if (existingStore?.store_name) {
+    return { storeName: existingStore.store_name, isNew: false }
+  }
+
+  // Create new File Search store
+  const displayName = `meetings-${userId.substring(0, 8)}-${Date.now()}`
+
+  const response = await fetch(
+    `${GEMINI_API_BASE}/fileSearchStores?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        displayName: displayName
+      })
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to create File Search store: ${errorText}`)
+  }
+
+  const storeData = await response.json()
+  const storeName = storeData.name // e.g., "fileSearchStores/abc123"
+
+  // Save store reference to database
+  await supabase
+    .from('user_file_search_stores')
+    .insert({
+      user_id: userId,
+      store_name: storeName,
+      display_name: displayName,
+      status: 'active'
+    })
+
+  return { storeName, isNew: true }
+}
+
+/**
+ * Build a document from meeting data for indexing
+ */
+function buildMeetingDocument(meeting: any): MeetingDocument {
+  // Extract attendee names
+  const attendees: string[] = []
+  if (meeting.meeting_attendees) {
+    meeting.meeting_attendees.forEach((a: any) => {
+      if (a.attendee_name) attendees.push(a.attendee_name)
+      if (a.attendee_email && !a.attendee_name) attendees.push(a.attendee_email)
+    })
+  }
+
+  // Extract action items
+  const actionItems: string[] = []
+  if (meeting.meeting_action_items) {
+    meeting.meeting_action_items.forEach((item: any) => {
+      if (item.title) actionItems.push(item.title)
+    })
+  }
+
+  // Determine sentiment label
+  let sentimentLabel = 'neutral'
+  if (meeting.sentiment_score !== null) {
+    if (meeting.sentiment_score > 0.25) sentimentLabel = 'positive'
+    else if (meeting.sentiment_score < -0.25) sentimentLabel = 'negative'
+  }
+
+  return {
+    meeting_id: meeting.id,
+    title: meeting.title || 'Untitled Meeting',
+    date: meeting.meeting_start ? new Date(meeting.meeting_start).toISOString().split('T')[0] : '',
+    company_name: meeting.company?.name || null,
+    company_id: meeting.company_id || null,
+    contact_name: meeting.primary_contact?.name || meeting.primary_contact?.email || null,
+    contact_id: meeting.primary_contact_id || null,
+    attendees,
+    duration_minutes: meeting.duration_minutes,
+    sentiment_score: meeting.sentiment_score,
+    sentiment_label: sentimentLabel,
+    sentiment_reasoning: meeting.sentiment_reasoning,
+    transcript: meeting.transcript_text || '',
+    summary: meeting.summary,
+    action_items: actionItems,
+    talk_time_rep_pct: meeting.talk_time_rep_pct,
+    talk_time_customer_pct: meeting.talk_time_customer_pct
+  }
+}
+
+/**
+ * Calculate MD5 hash of content for change detection
+ */
+async function hashContent(content: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(content)
+  const hashBuffer = await crypto.subtle.digest('MD5', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Upload document to File Search store
+ */
+async function uploadToFileSearchStore(
+  storeName: string,
+  meetingId: string,
+  document: MeetingDocument,
+  geminiApiKey: string
+): Promise<string> {
+  const content = JSON.stringify(document, null, 2)
+  const contentBytes = new TextEncoder().encode(content)
+
+  // Build custom metadata for filtering
+  const customMetadata: Array<{ key: string; string_value?: string; numeric_value?: number }> = []
+
+  if (document.company_id) {
+    customMetadata.push({ key: 'company_id', string_value: document.company_id })
+  }
+  if (document.sentiment_label) {
+    customMetadata.push({ key: 'sentiment_label', string_value: document.sentiment_label })
+  }
+  if (document.date) {
+    customMetadata.push({ key: 'meeting_date', string_value: document.date })
+  }
+  customMetadata.push({
+    key: 'has_action_items',
+    string_value: document.action_items.length > 0 ? 'true' : 'false'
+  })
+
+  // Use the uploadToFileSearchStore endpoint
+  const uploadResponse = await fetch(
+    `${GEMINI_API_BASE}/${storeName}:uploadFile?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file: {
+          displayName: `meeting-${meetingId}`,
+          mimeType: 'application/json'
+        },
+        config: {
+          customMetadata: customMetadata
+        },
+        inlineData: {
+          mimeType: 'application/json',
+          data: btoa(String.fromCharCode(...contentBytes))
+        }
+      })
+    }
+  )
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text()
+    throw new Error(`Failed to upload to File Search: ${errorText}`)
+  }
+
+  const uploadData = await uploadResponse.json()
+  return uploadData.name || uploadData.file?.name || `${storeName}/files/${meetingId}`
+}
+
+/**
+ * Index a single meeting
+ */
+async function indexMeeting(
+  meeting: any,
+  userId: string,
+  storeName: string,
+  supabase: any,
+  geminiApiKey: string,
+  forceReindex: boolean
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Build document
+    const document = buildMeetingDocument(meeting)
+    const contentHash = await hashContent(JSON.stringify(document))
+
+    // Check if already indexed with same content
+    if (!forceReindex) {
+      const { data: existingIndex } = await supabase
+        .from('meeting_file_search_index')
+        .select('content_hash')
+        .eq('meeting_id', meeting.id)
+        .eq('user_id', userId)
+        .single()
+
+      if (existingIndex?.content_hash === contentHash) {
+        return { success: true, message: 'Already indexed with same content' }
+      }
+    }
+
+    // Update status to indexing
+    await supabase
+      .from('meeting_file_search_index')
+      .upsert({
+        meeting_id: meeting.id,
+        user_id: userId,
+        store_name: storeName,
+        status: 'indexing',
+        content_hash: contentHash
+      }, { onConflict: 'meeting_id,user_id' })
+
+    // Upload to File Search
+    const fileName = await uploadToFileSearchStore(
+      storeName,
+      meeting.id,
+      document,
+      geminiApiKey
+    )
+
+    // Update status to indexed
+    await supabase
+      .from('meeting_file_search_index')
+      .update({
+        file_name: fileName,
+        status: 'indexed',
+        indexed_at: new Date().toISOString(),
+        error_message: null
+      })
+      .eq('meeting_id', meeting.id)
+      .eq('user_id', userId)
+
+    // Update store file count
+    await supabase.rpc('increment_file_search_store_count', {
+      p_store_name: storeName
+    }).catch(() => {
+      // Ignore if RPC doesn't exist yet
+    })
+
+    // Remove from queue if present
+    await supabase
+      .from('meeting_index_queue')
+      .delete()
+      .eq('meeting_id', meeting.id)
+
+    return { success: true, message: 'Successfully indexed' }
+
+  } catch (error) {
+    // Update status to failed
+    await supabase
+      .from('meeting_file_search_index')
+      .upsert({
+        meeting_id: meeting.id,
+        user_id: userId,
+        store_name: storeName,
+        status: 'failed',
+        error_message: error.message
+      }, { onConflict: 'meeting_id,user_id' })
+
+    return { success: false, message: error.message }
+  }
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
+    if (!geminiApiKey) {
+      return new Response(
+        JSON.stringify({ error: 'GEMINI_API_KEY not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Parse request
+    const { meetingId, meetingIds, forceReindex = false }: RequestBody = await req.json()
+
+    // Get authorization
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Initialize Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    )
+
+    // Get current user
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Determine which meetings to index
+    const idsToIndex: string[] = []
+    if (meetingId) {
+      idsToIndex.push(meetingId)
+    } else if (meetingIds && meetingIds.length > 0) {
+      idsToIndex.push(...meetingIds)
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Missing meetingId or meetingIds' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get or create user's File Search store
+    const { storeName, isNew } = await getOrCreateStore(user.id, supabaseClient, geminiApiKey)
+
+    // Fetch meetings with related data
+    const { data: meetings, error: meetingsError } = await supabaseClient
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        meeting_start,
+        duration_minutes,
+        transcript_text,
+        summary,
+        sentiment_score,
+        sentiment_reasoning,
+        talk_time_rep_pct,
+        talk_time_customer_pct,
+        company_id,
+        primary_contact_id,
+        company:companies!company_id(id, name),
+        primary_contact:contacts!primary_contact_id(id, name, email),
+        meeting_attendees(attendee_name, attendee_email, is_internal),
+        meeting_action_items(id, title, completed)
+      `)
+      .in('id', idsToIndex)
+      .eq('owner_user_id', user.id)
+
+    if (meetingsError) {
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch meetings', details: meetingsError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!meetings || meetings.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No meetings found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Index each meeting
+    const results: Array<{ meetingId: string; success: boolean; message: string }> = []
+
+    for (const meeting of meetings) {
+      if (!meeting.transcript_text || meeting.transcript_text.length < 100) {
+        results.push({
+          meetingId: meeting.id,
+          success: false,
+          message: 'Meeting has no transcript or transcript too short'
+        })
+        continue
+      }
+
+      const result = await indexMeeting(
+        meeting,
+        user.id,
+        storeName,
+        supabaseClient,
+        geminiApiKey,
+        forceReindex
+      )
+
+      results.push({
+        meetingId: meeting.id,
+        ...result
+      })
+    }
+
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        storeName,
+        storeCreated: isNew,
+        indexed: successCount,
+        failed: failCount,
+        results
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('Error in meeting-intelligence-index:', error)
+    return new Response(
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})

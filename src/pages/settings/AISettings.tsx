@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,6 +61,7 @@ interface ProposalModelSettings {
 }
 
 export default function AISettings() {
+  const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [featureConfigs, setFeatureConfigs] = useState<Record<string, FeatureModelConfig>>({});
   const [availableModels, setAvailableModels] = useState<Record<string, ModelOption[]>>({});
@@ -582,10 +584,9 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
             <FileText className="w-4 h-4" />
             Proposal Generation
           </TabsTrigger>
-          <TabsTrigger value="extraction-rules" className="flex items-center gap-2" disabled>
+          <TabsTrigger value="extraction-rules" className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Extraction Rules
-            <span className="ml-1 text-xs text-gray-400">(Phase 3)</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1345,14 +1346,19 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
             <CardHeader>
               <CardTitle>Extraction Rules</CardTitle>
               <CardDescription>
-                Customize how the AI extracts tasks and information from meeting transcripts.
+                Customize how tasks are automatically extracted from meeting transcripts using trigger phrases and meeting type templates.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12 text-gray-500">
-                <Sparkles className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg font-medium mb-2">Coming in Phase 3</p>
-                <p className="text-sm">Extraction rule customization will be available soon.</p>
+              <div className="text-center py-12">
+                <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
+                <p className="text-lg font-medium mb-2">Manage Extraction Rules</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  Create custom rules that automatically extract tasks when specific phrases appear in meeting transcripts.
+                </p>
+                <Button onClick={() => navigate('/settings/extraction-rules')}>
+                  Go to Extraction Rules
+                </Button>
               </div>
             </CardContent>
           </Card>
