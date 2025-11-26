@@ -1,0 +1,302 @@
+# Per-Customer Docker Compose Template for Multi-Tenant SaaS
+# This file is used by the provisioning script to create customer-specific environments
+# Variables are substituted at provisioning time
+
+version: '3.9'
+
+services:
+  # =========================================================================
+  # PostgreSQL Database - Per Customer Isolated Instance
+  # =========================================================================
+  db-${CUSTOMER_ID}:
+    image: postgres:16-alpine
+    container_name: db-${CUSTOMER_ID}
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --lc-collate=C --lc-ctype=C"
+
+    ports:
+      # Port mapping: 5432 on host + customer ID offset
+      # Example: Customer 1 -> 5433, Customer 2 -> 5434
+      - "${DB_PORT}:5432"
+
+    volumes:
+      # Persistent volume for data
+      - postgres-data-${CUSTOMER_ID}:/var/lib/postgresql/data
+      # Initialize database with RLS policies and schema
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+
+    networks:
+      - network-${CUSTOMER_ID}
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+    # Resource limits for multi-tenancy
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # =========================================================================
+  # Redis Cache & Job Queue - Per Customer Isolated Instance
+  # =========================================================================
+  redis-${CUSTOMER_ID}:
+    image: redis:7-alpine
+    container_name: redis-${CUSTOMER_ID}
+    restart: unless-stopped
+
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+    ports:
+      # Port mapping: 6379 on host + customer ID offset
+      # Example: Customer 1 -> 6380, Customer 2 -> 6381
+      - "${REDIS_PORT}:6379"
+
+    volumes:
+      # Persistent volume for Redis data
+      - redis-data-${CUSTOMER_ID}:/data
+
+    networks:
+      - network-${CUSTOMER_ID}
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+  # =========================================================================
+  # Express Application Server - Per Customer Isolated Instance
+  # =========================================================================
+  app-${CUSTOMER_ID}:
+    build:
+      context: .
+      dockerfile: Dockerfile.multitenant
+    container_name: app-${CUSTOMER_ID}
+    restart: unless-stopped
+
+    depends_on:
+      db-${CUSTOMER_ID}:
+        condition: service_healthy
+      redis-${CUSTOMER_ID}:
+        condition: service_healthy
+
+    environment:
+      # Application Configuration
+      NODE_ENV: production
+      PORT: 3000
+      CUSTOMER_ID: ${CUSTOMER_ID}
+      CUSTOMER_NAME: ${CUSTOMER_NAME}
+
+      # Database Configuration
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db-${CUSTOMER_ID}:5432/${DB_NAME}
+      DB_HOST: db-${CUSTOMER_ID}
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
+      # Redis Configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis-${CUSTOMER_ID}:6379
+      REDIS_HOST: redis-${CUSTOMER_ID}
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # Security & Authentication
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRY: 7d
+
+      # API Keys (Shared with SaaS provider, not customer keys)
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+      VITE_OPENAI_API_KEY: ${VITE_OPENAI_API_KEY}
+      VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY}
+      VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY}
+      VITE_OPENROUTER_API_KEY: ${VITE_OPENROUTER_API_KEY}
+
+      # Email Configuration
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL}
+      SES_FROM_NAME: ${SES_FROM_NAME}
+      AWS_SES_REGION: ${AWS_SES_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+      # Logging
+      LOG_LEVEL: info
+
+    ports:
+      # Port mapping: 3000 on host + customer ID offset
+      # Example: Customer 1 -> 3001, Customer 2 -> 3002
+      - "${APP_PORT}:3000"
+
+    volumes:
+      # Application code (read-only)
+      - .:/app:ro
+      # Writable directories
+      - /app/node_modules
+      - /app/logs:/app/logs
+      - /app/data:/app/data
+
+    networks:
+      - network-${CUSTOMER_ID}
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # Resource limits for multi-tenancy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "customer=${CUSTOMER_ID}"
+
+  # =========================================================================
+  # Bull Job Queue Worker - Per Customer Isolated Instance
+  # =========================================================================
+  worker-${CUSTOMER_ID}:
+    build:
+      context: .
+      dockerfile: Dockerfile.multitenant
+    container_name: worker-${CUSTOMER_ID}
+    restart: unless-stopped
+
+    depends_on:
+      db-${CUSTOMER_ID}:
+        condition: service_healthy
+      redis-${CUSTOMER_ID}:
+        condition: service_healthy
+
+    environment:
+      # Application Configuration
+      NODE_ENV: production
+      IS_WORKER: "true"
+      CUSTOMER_ID: ${CUSTOMER_ID}
+      CUSTOMER_NAME: ${CUSTOMER_NAME}
+
+      # Database Configuration
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db-${CUSTOMER_ID}:5432/${DB_NAME}
+      DB_HOST: db-${CUSTOMER_ID}
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+
+      # Redis Configuration (shared with app)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis-${CUSTOMER_ID}:6379
+      REDIS_HOST: redis-${CUSTOMER_ID}
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+      # API Keys
+      VITE_OPENAI_API_KEY: ${VITE_OPENAI_API_KEY}
+      VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY}
+      VITE_ANTHROPIC_API_KEY: ${VITE_ANTHROPIC_API_KEY}
+
+      # Email Configuration
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL}
+      AWS_SES_REGION: ${AWS_SES_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+
+      # Logging
+      LOG_LEVEL: info
+
+    volumes:
+      # Application code (read-only)
+      - .:/app:ro
+      # Writable directories
+      - /app/node_modules
+      - /app/logs:/app/logs
+      - /app/data:/app/data
+
+    networks:
+      - network-${CUSTOMER_ID}
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "customer=${CUSTOMER_ID},service=worker"
+
+# ============================================================================
+# Volumes - Persistent Data Storage
+# ============================================================================
+volumes:
+  postgres-data-${CUSTOMER_ID}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres/${CUSTOMER_ID}
+
+  redis-data-${CUSTOMER_ID}:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis/${CUSTOMER_ID}
+
+# ============================================================================
+# Networks - Isolated Per Customer for Security
+# ============================================================================
+networks:
+  network-${CUSTOMER_ID}:
+    driver: bridge
+    name: network-${CUSTOMER_ID}
+    driver_opts:
+      # Disable inter-network communication for security
+      com.docker.network.bridge.name: br-${CUSTOMER_ID}
+    ipam:
+      config:
+        - subnet: 172.${CUSTOMER_SUBNET}.0.0/16
