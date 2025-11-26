@@ -34,6 +34,10 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ProposalWizard } from '@/components/proposals/ProposalWizard'
+import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart'
+import { TalkTimeTrend } from '@/components/meetings/analytics/TalkTimeTrend'
+import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights'
+import { analyzeTalkTime, type TalkTimeMetrics } from '@/lib/services/coachingService'
 
 interface Meeting {
   id: string
@@ -708,6 +712,43 @@ const MeetingDetail: React.FC = () => {
                 )}
               </div>
             </motion.div>
+
+            {/* Enhanced Analytics Section - Phase 3 */}
+            {meeting.talk_time_rep_pct !== null && meeting.talk_time_customer_pct !== null && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.5 }}
+                className="col-span-12 space-y-6"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart3 className="h-5 w-5 text-purple-500" />
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                    Analytics & Coaching
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Talk Time Chart */}
+                  <TalkTimeChart
+                    repPct={meeting.talk_time_rep_pct}
+                    customerPct={meeting.talk_time_customer_pct}
+                    meetingDate={meeting.meeting_start}
+                  />
+
+                  {/* Coaching Insights */}
+                  <CoachingInsights
+                    metrics={{
+                      repPct: meeting.talk_time_rep_pct,
+                      customerPct: meeting.talk_time_customer_pct,
+                      sentimentScore: meeting.sentiment_score || undefined,
+                      meetingId: meeting.id,
+                      meetingDate: meeting.meeting_start,
+                    }}
+                  />
+                </div>
+              </motion.div>
+            )}
           </div>
         </div>
 
