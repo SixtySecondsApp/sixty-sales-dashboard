@@ -26,31 +26,43 @@ export default function AuthCallback() {
         const type = searchParams.get('type');
         const next = searchParams.get('next') || '/dashboard';
 
-        // If there's a code, exchange it for a session
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.error('Error exchanging code for session:', error);
-            setError(error.message);
-            return;
-          }
-        }
+        // First check if we already have a session (user might already be logged in)
+        let { data: { session } } = await supabase.auth.getSession();
 
-        // If there's a token_hash (from email confirmation), verify it
-        if (tokenHash && type) {
-          const { error } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type: type as 'signup' | 'recovery' | 'email',
-          });
-          if (error) {
-            console.error('Error verifying OTP:', error);
-            setError(error.message);
-            return;
+        // If no session, try to get one from the URL params
+        if (!session) {
+          // If there's a code, exchange it for a session
+          if (code) {
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.error('Error exchanging code for session:', error);
+              setError(error.message);
+              return;
+            }
           }
-        }
 
-        // Check if we have a session now
-        const { data: { session } } = await supabase.auth.getSession();
+          // If there's a token_hash (from email confirmation), verify it
+          if (tokenHash && type) {
+            const { error } = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: type as 'signup' | 'recovery' | 'email',
+            });
+            if (error) {
+              console.error('Error verifying OTP:', error);
+              // If the link expired, suggest resending
+              if (error.message.includes('expired')) {
+                setError('This email link has expired. Please request a new one.');
+              } else {
+                setError(error.message);
+              }
+              return;
+            }
+          }
+
+          // Get the session again after verification
+          const result = await supabase.auth.getSession();
+          session = result.data.session;
+        }
 
         if (session) {
           // Check if user needs onboarding
