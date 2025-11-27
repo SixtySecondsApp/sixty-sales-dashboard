@@ -7,6 +7,7 @@ import { API_BASE_URL } from '@/lib/config';
 import PerformanceMonitor from '@/lib/utils/performanceMonitor';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
+import { OrgProvider } from '@/lib/contexts/OrgContext';
 import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
@@ -25,10 +26,13 @@ import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
+import AcceptInvitation from '@/pages/auth/AcceptInvitation';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
+import MeetingsLanding from '@/pages/MeetingsLanding';
+import LandingMeetings from '@/pages/LandingMeetings';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -109,6 +113,7 @@ const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
 const ExtractionRules = lazyWithRetry(() => import('@/pages/settings/ExtractionRules'));
+const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
@@ -218,13 +223,15 @@ function App() {
     >
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ViewModeProvider>
-            <CopilotProvider>
-              <StateProvider>
-                <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
-              </StateProvider>
-            </CopilotProvider>
-          </ViewModeProvider>
+          <OrgProvider>
+            <ViewModeProvider>
+              <CopilotProvider>
+                <StateProvider>
+                  <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
+                </StateProvider>
+              </CopilotProvider>
+            </ViewModeProvider>
+          </OrgProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
@@ -247,11 +254,20 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Public proposal sharing - allows prospects to view shared proposals */}
         <Route path="/share/:token" element={<PublicProposal />} />
 
+        {/* Public landing page for Meetings feature */}
+        <Route path="/product/meetings/opus-v1" element={<LandingMeetings />} />
+        <Route path="/product/meetings/opus-v2" element={<MeetingsLanding />} />
+        {/* Legacy redirect */}
+        <Route path="/features/meetings" element={<Navigate to="/product/meetings/opus-v2" replace />} />
+
         {/* Auth routes that should also be accessible without protection */}
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/signup" element={<Signup />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+        {/* Organization invitation acceptance (can be accessed logged in or out) */}
+        <Route path="/invite/:token" element={<AcceptInvitation />} />
 
         {/* All other routes wrapped in ProtectedRoute */}
         <Route path="/*" element={
@@ -335,6 +351,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
                 <Route path="/preferences" element={<Navigate to="/settings" replace />} />
                 <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<AppLayout><ExtractionRules /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />

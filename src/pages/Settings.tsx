@@ -1,13 +1,27 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Profile from '@/pages/Profile';
 import Preferences from '@/pages/Preferences';
 import ProposalSettings from '@/pages/settings/ProposalSettings';
 import AIPersonalizationSettings from '@/pages/settings/AIPersonalizationSettings';
 import { EmailSyncPanel } from '@/components/health/EmailSyncPanel';
+import { useOrg } from '@/lib/contexts/OrgContext';
+import { Users } from 'lucide-react';
 
 export default function Settings() {
   const [tab, setTab] = useState('account');
+  const navigate = useNavigate();
+  const { isMultiTenant, activeOrg, permissions } = useOrg();
+
+  // Handle team tab click - navigate to dedicated team settings page
+  const handleTabChange = (value: string) => {
+    if (value === 'team') {
+      navigate('/settings/team');
+    } else {
+      setTab(value);
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -20,9 +34,15 @@ export default function Settings() {
             </div>
           </div>
 
-          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+          <Tabs value={tab} onValueChange={handleTabChange} className="space-y-6">
             <TabsList className="bg-white border border-transparent shadow-sm dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50">
               <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Account</TabsTrigger>
+              {isMultiTenant && (
+                <TabsTrigger value="team" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">
+                  <Users className="w-4 h-4 mr-1.5" />
+                  Team
+                </TabsTrigger>
+              )}
               <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Appearance</TabsTrigger>
               <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Proposals</TabsTrigger>
               <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>

@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingProgress, OnboardingStep } from '@/lib/hooks/useOnboardingProgress';
 import { WelcomeStep } from './WelcomeStep';
+import { OrgSetupStep } from './OrgSetupStep';
+import { TeamInviteStep } from './TeamInviteStep';
 import { FathomConnectionStep } from './FathomConnectionStep';
 import { SyncProgressStep } from './SyncProgressStep';
 import { CompletionStep } from './CompletionStep';
@@ -15,7 +17,7 @@ export default function OnboardingPage() {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
-  const steps: OnboardingStep[] = ['welcome', 'fathom_connect', 'sync', 'complete'];
+  const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'sync', 'complete'];
 
   useEffect(() => {
     if (!loading && user) {
@@ -141,12 +143,18 @@ export default function OnboardingPage() {
             <WelcomeStep key="welcome" onNext={handleNext} onSkip={handleSkip} />
           )}
           {currentStepIndex === 1 && (
-            <FathomConnectionStep key="fathom" onNext={handleNext} onBack={handleBack} />
+            <OrgSetupStep key="org_setup" onNext={handleNext} onBack={handleBack} />
           )}
           {currentStepIndex === 2 && (
-            <SyncProgressStep key="sync" onNext={handleNext} onBack={handleBack} />
+            <TeamInviteStep key="team_invite" onNext={handleNext} onBack={handleBack} />
           )}
           {currentStepIndex === 3 && (
+            <FathomConnectionStep key="fathom" onNext={handleNext} onBack={handleBack} />
+          )}
+          {currentStepIndex === 4 && (
+            <SyncProgressStep key="sync" onNext={handleNext} onBack={handleBack} />
+          )}
+          {currentStepIndex === 5 && (
             <CompletionStep key="complete" onComplete={handleComplete} />
           )}
         </AnimatePresence>
