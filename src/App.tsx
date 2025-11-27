@@ -26,6 +26,7 @@ import { lazyWithRetry } from '@/lib/utils/dynamicImport';
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/auth/login';
+import AuthCallback from '@/pages/auth/AuthCallback';
 import AcceptInvitation from '@/pages/auth/AcceptInvitation';
 import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
@@ -262,6 +263,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
         {/* Auth routes that should also be accessible without protection */}
         <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth/signup" element={<Signup />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
