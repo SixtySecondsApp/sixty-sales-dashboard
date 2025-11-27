@@ -7,6 +7,7 @@ import { Trophy, Medal, Award, BarChart3 } from 'lucide-react';
 
 interface MeetingVolumeRankingsProps {
   userId: string;
+  orgId?: string | null;
 }
 
 const getRankIcon = (rank: number) => {
@@ -35,7 +36,7 @@ const getRankColor = (rank: number) => {
   }
 };
 
-export function MeetingVolumeRankings({ userId }: MeetingVolumeRankingsProps) {
+export function MeetingVolumeRankings({ userId, orgId }: MeetingVolumeRankingsProps) {
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +44,12 @@ export function MeetingVolumeRankings({ userId }: MeetingVolumeRankingsProps) {
     if (userId) {
       loadRankings();
     }
-  }, [userId]);
+  }, [userId, orgId]);
 
   const loadRankings = async () => {
     try {
       setLoading(true);
-      const data = await TeamAnalyticsService.getMeetingVolumeRankings(userId, 10);
+      const data = await TeamAnalyticsService.getMeetingVolumeRankings(userId, orgId, 10);
       setRankings(data);
     } catch (error) {
       console.error('Error loading meeting volume rankings:', error);

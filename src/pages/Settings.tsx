@@ -14,7 +14,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const { isMultiTenant, activeOrg, permissions } = useOrg();
 
-  // Handle team tab click - navigate to dedicated team settings page
+  // Handle tabs that navigate to dedicated pages
   const handleTabChange = (value: string) => {
     if (value === 'team') {
       navigate('/settings/team');

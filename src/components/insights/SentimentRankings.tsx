@@ -7,6 +7,7 @@ import { Trophy, Medal, Award, Smile, TrendingUp, TrendingDown } from 'lucide-re
 
 interface SentimentRankingsProps {
   userId: string;
+  orgId?: string | null;
 }
 
 const getRankIcon = (rank: number) => {
@@ -43,7 +44,7 @@ const getSentimentBadge = (score: number) => {
   return { label: 'Very Negative', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
 };
 
-export function SentimentRankings({ userId }: SentimentRankingsProps) {
+export function SentimentRankings({ userId, orgId }: SentimentRankingsProps) {
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,12 +52,12 @@ export function SentimentRankings({ userId }: SentimentRankingsProps) {
     if (userId) {
       loadRankings();
     }
-  }, [userId]);
+  }, [userId, orgId]);
 
   const loadRankings = async () => {
     try {
       setLoading(true);
-      const data = await TeamAnalyticsService.getSentimentRankings(userId, 10);
+      const data = await TeamAnalyticsService.getSentimentRankings(userId, orgId, 10);
       setRankings(data);
     } catch (error) {
       console.error('Error loading sentiment rankings:', error);

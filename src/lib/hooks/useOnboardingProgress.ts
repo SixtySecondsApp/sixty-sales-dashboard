@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/clientV2';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
-export type OnboardingStep = 'welcome' | 'fathom_connect' | 'sync' | 'complete';
+export type OnboardingStep = 'welcome' | 'org_setup' | 'team_invite' | 'fathom_connect' | 'sync' | 'complete';
 
 export interface OnboardingProgress {
   id: string;
@@ -51,38 +51,101 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
         setLoading(true);
         setError(null);
 
+        // Use maybeSingle() instead of single() to handle no rows gracefully
         const { data, error: fetchError } = await supabase
           .from('user_onboarding_progress')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (fetchError) {
-          // If no record exists, create one
-          if (fetchError.code === 'PGRST116') {
-            const { data: newProgress, error: createError } = await supabase
-              .from('user_onboarding_progress')
-              .insert({
-                user_id: user.id,
-                onboarding_step: 'welcome',
-              })
-              .select()
-              .single();
+          // Log but don't throw for RLS/permission errors - create a default progress object
+          console.warn('Error fetching onboarding progress:', fetchError);
 
-            if (createError) {
-              throw createError;
-            }
+          // Create a default progress object to allow user to proceed
+          const defaultProgress: OnboardingProgress = {
+            id: '',
+            user_id: user.id,
+            onboarding_step: 'welcome',
+            onboarding_completed_at: null,
+            skipped_onboarding: false,
+            fathom_connected: false,
+            first_meeting_synced: false,
+            first_proposal_generated: false,
+            features_discovered: {},
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
 
-            setProgress(newProgress);
+          // Try to create the record using upsert to handle conflicts
+          const { data: newProgress, error: createError } = await supabase
+            .from('user_onboarding_progress')
+            .upsert({
+              user_id: user.id,
+              onboarding_step: 'welcome',
+            }, {
+              onConflict: 'user_id',
+            })
+            .select()
+            .maybeSingle();
+
+          if (createError) {
+            console.warn('Could not create onboarding progress, using default:', createError);
+            setProgress(defaultProgress);
           } else {
-            throw fetchError;
+            setProgress(newProgress || defaultProgress);
+          }
+        } else if (!data) {
+          // No record exists, create one
+          const { data: newProgress, error: createError } = await supabase
+            .from('user_onboarding_progress')
+            .upsert({
+              user_id: user.id,
+              onboarding_step: 'welcome',
+            }, {
+              onConflict: 'user_id',
+            })
+            .select()
+            .maybeSingle();
+
+          if (createError) {
+            console.warn('Could not create onboarding progress:', createError);
+            // Still set a default to allow user to proceed
+            setProgress({
+              id: '',
+              user_id: user.id,
+              onboarding_step: 'welcome',
+              onboarding_completed_at: null,
+              skipped_onboarding: false,
+              fathom_connected: false,
+              first_meeting_synced: false,
+              first_proposal_generated: false,
+              features_discovered: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+          } else {
+            setProgress(newProgress);
           }
         } else {
           setProgress(data);
         }
       } catch (err) {
         console.error('Error fetching onboarding progress:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch onboarding progress');
+        // Don't set error - allow user to proceed with defaults
+        setProgress({
+          id: '',
+          user_id: user.id,
+          onboarding_step: 'welcome',
+          onboarding_completed_at: null,
+          skipped_onboarding: false,
+          fathom_connected: false,
+          first_meeting_synced: false,
+          first_proposal_generated: false,
+          features_discovered: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
       } finally {
         setLoading(false);
       }
@@ -116,12 +179,15 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
 
   const completeStep = useCallback(
     async (step: OnboardingStep) => {
-      if (!user || !progress) return;
+      if (!user) {
+        console.warn('completeStep called without user');
+        return;
+      }
 
       try {
         setError(null);
 
-        const updates: Partial<OnboardingProgress> = {
+        const updates: Partial<OnboardingProgress> & { user_id?: string } = {
           onboarding_step: step,
         };
 
@@ -130,10 +196,15 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
           updates.onboarding_completed_at = new Date().toISOString();
         }
 
+        // Use upsert to handle case where progress record might not exist
         const { data, error: updateError } = await supabase
           .from('user_onboarding_progress')
-          .update(updates)
-          .eq('user_id', user.id)
+          .upsert({
+            user_id: user.id,
+            ...updates,
+          }, {
+            onConflict: 'user_id',
+          })
           .select()
           .single();
 
@@ -145,10 +216,10 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
       } catch (err) {
         console.error('Error completing onboarding step:', err);
         setError(err instanceof Error ? err.message : 'Failed to complete step');
-        throw err;
+        // Don't re-throw - allow the user to continue even if progress tracking fails
       }
     },
-    [user, progress]
+    [user]
   );
 
   const skipOnboarding = useCallback(async () => {
@@ -157,19 +228,22 @@ export function useOnboardingProgress(): UseOnboardingProgressReturn {
     try {
       setError(null);
 
-      const { data, error: updateError } = await supabase
+      // Use upsert to handle case where record doesn't exist yet
+      const { data, error: upsertError } = await supabase
         .from('user_onboarding_progress')
-        .update({
+        .upsert({
+          user_id: user.id,
           skipped_onboarding: true,
           onboarding_completed_at: new Date().toISOString(),
           onboarding_step: 'complete',
+        }, {
+          onConflict: 'user_id',
         })
-        .eq('user_id', user.id)
         .select()
         .single();
 
-      if (updateError) {
-        throw updateError;
+      if (upsertError) {
+        throw upsertError;
       }
 
       setProgress(data);

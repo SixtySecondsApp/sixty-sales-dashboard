@@ -235,17 +235,17 @@ CREATE TABLE IF NOT EXISTS email_label_map (
 );
 
 -- Indexes for performance
-CREATE INDEX idx_emails_user_id ON emails(user_id);
-CREATE INDEX idx_emails_thread_id ON emails(thread_id);
-CREATE INDEX idx_emails_received_at ON emails(received_at DESC);
-CREATE INDEX idx_emails_is_read ON emails(is_read);
-CREATE INDEX idx_emails_ai_priority ON emails(ai_priority);
-CREATE INDEX idx_email_threads_user_id ON email_threads(user_id);
-CREATE INDEX idx_email_threads_last_message ON email_threads(last_message_at DESC);
-CREATE INDEX idx_calendar_events_user_id ON calendar_events(user_id);
-CREATE INDEX idx_calendar_events_start_time ON calendar_events(start_time);
-CREATE INDEX idx_calendar_events_calendar_id ON calendar_events(calendar_id);
-CREATE INDEX idx_mcp_connections_user_id ON mcp_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails(user_id);
+CREATE INDEX IF NOT EXISTS idx_emails_thread_id ON emails(thread_id);
+CREATE INDEX IF NOT EXISTS idx_emails_received_at ON emails(received_at DESC);
+CREATE INDEX IF NOT EXISTS idx_emails_is_read ON emails(is_read);
+CREATE INDEX IF NOT EXISTS idx_emails_ai_priority ON emails(ai_priority);
+CREATE INDEX IF NOT EXISTS idx_email_threads_user_id ON email_threads(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_threads_last_message ON email_threads(last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user_id ON calendar_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start_time ON calendar_events(start_time);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_calendar_id ON calendar_events(calendar_id);
+CREATE INDEX IF NOT EXISTS idx_mcp_connections_user_id ON mcp_connections(user_id);
 
 -- RLS Policies
 ALTER TABLE mcp_connections ENABLE ROW LEVEL SECURITY;
@@ -262,45 +262,57 @@ ALTER TABLE workflow_mcp_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_label_map ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for each table
+DROP POLICY IF EXISTS "Users can manage their own MCP connections" ON mcp_connections;
 CREATE POLICY "Users can manage their own MCP connections" ON mcp_connections
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their own email threads" ON email_threads;
 CREATE POLICY "Users can manage their own email threads" ON email_threads
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their own email labels" ON email_labels;
 CREATE POLICY "Users can manage their own email labels" ON email_labels
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their own emails" ON emails;
 CREATE POLICY "Users can manage their own emails" ON emails
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can view email attachments for their emails" ON email_attachments;
 CREATE POLICY "Users can view email attachments for their emails" ON email_attachments
     FOR ALL USING (EXISTS (
         SELECT 1 FROM emails WHERE emails.id = email_attachments.email_id AND emails.user_id = auth.uid()
     ));
 
+DROP POLICY IF EXISTS "Users can manage their own email templates" ON email_templates;
 CREATE POLICY "Users can manage their own email templates" ON email_templates
     FOR ALL USING (auth.uid() = user_id OR is_public = true);
 
+DROP POLICY IF EXISTS "Users can manage their own calendars" ON calendar_calendars;
 CREATE POLICY "Users can manage their own calendars" ON calendar_calendars
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their own calendar events" ON calendar_events;
 CREATE POLICY "Users can manage their own calendar events" ON calendar_events
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage attendees for their events" ON calendar_attendees;
 CREATE POLICY "Users can manage attendees for their events" ON calendar_attendees
     FOR ALL USING (EXISTS (
         SELECT 1 FROM calendar_events WHERE calendar_events.id = calendar_attendees.event_id AND calendar_events.user_id = auth.uid()
     ));
 
+DROP POLICY IF EXISTS "Users can manage reminders for their events" ON calendar_reminders;
 CREATE POLICY "Users can manage reminders for their events" ON calendar_reminders
     FOR ALL USING (EXISTS (
         SELECT 1 FROM calendar_events WHERE calendar_events.id = calendar_reminders.event_id AND calendar_events.user_id = auth.uid()
     ));
 
+DROP POLICY IF EXISTS "Users can view their own workflow logs" ON workflow_mcp_logs;
 CREATE POLICY "Users can view their own workflow logs" ON workflow_mcp_logs
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can manage their email labels mapping" ON email_label_map;
 CREATE POLICY "Users can manage their email labels mapping" ON email_label_map
     FOR ALL USING (EXISTS (
         SELECT 1 FROM emails WHERE emails.id = email_label_map.email_id AND emails.user_id = auth.uid()
@@ -318,21 +330,27 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Apply update trigger to all tables with updated_at
+DROP TRIGGER IF EXISTS update_mcp_connections_updated_at ON mcp_connections;
 CREATE TRIGGER update_mcp_connections_updated_at BEFORE UPDATE ON mcp_connections
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_email_threads_updated_at ON email_threads;
 CREATE TRIGGER update_email_threads_updated_at BEFORE UPDATE ON email_threads
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_emails_updated_at ON emails;
 CREATE TRIGGER update_emails_updated_at BEFORE UPDATE ON emails
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_email_templates_updated_at ON email_templates;
 CREATE TRIGGER update_email_templates_updated_at BEFORE UPDATE ON email_templates
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_calendar_calendars_updated_at ON calendar_calendars;
 CREATE TRIGGER update_calendar_calendars_updated_at BEFORE UPDATE ON calendar_calendars
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_calendar_events_updated_at ON calendar_events;
 CREATE TRIGGER update_calendar_events_updated_at BEFORE UPDATE ON calendar_events
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -350,6 +368,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_thread_on_email_insert ON emails;
 CREATE TRIGGER update_thread_on_email_insert AFTER INSERT ON emails
     FOR EACH ROW WHEN (NEW.thread_id IS NOT NULL)
     EXECUTE FUNCTION update_thread_metadata();

@@ -1,14 +1,16 @@
 import { motion } from 'framer-motion';
-import { HeroSection } from '@/components/landing/HeroSection';
-import { SocialProofBanner } from '@/components/landing/SocialProofBanner';
-import { ProblemSection } from '@/components/landing/ProblemSection';
-import { HowItWorks } from '@/components/landing/HowItWorks';
-import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
-import { IntegrationSection } from '@/components/landing/IntegrationSection';
-import { TestimonialSection } from '@/components/landing/TestimonialSection';
-import { FinalCTA } from '@/components/landing/FinalCTA';
-import { FAQSection } from '@/components/landing/FAQSection';
-import { Footer } from '@/components/landing/Footer';
+import {
+  HeroSection,
+  SocialProofBanner,
+  ProblemSection,
+  HowItWorks,
+  FeatureShowcase,
+  IntegrationSection,
+  TestimonialSection,
+  FAQSection,
+  FinalCTA,
+  LandingFooter,
+} from './components';
 
 /**
  * MeetingsLanding - Public landing page for the Meetings feature
@@ -80,7 +82,7 @@ export default function MeetingsLanding() {
         <FinalCTA />
       </main>
 
-      <Footer />
+      <LandingFooter />
     </div>
   );
 }

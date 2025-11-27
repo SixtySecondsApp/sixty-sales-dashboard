@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Video, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 
 interface FathomConnectionStepProps {
@@ -12,25 +14,84 @@ interface FathomConnectionStepProps {
 }
 
 export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepProps) {
+  const { user } = useAuth();
   const { integration, connectFathom, loading: fathomLoading } = useFathomIntegration();
   const { markFathomConnected } = useOnboardingProgress();
   const [isConnecting, setIsConnecting] = useState(false);
-  
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollCountRef = useRef(0);
+
   // Check if Fathom is already connected
   const isConnected = integration?.is_active === true;
+
+  // Poll for connection status after OAuth popup
+  const pollForConnection = useCallback(async () => {
+    if (!user) return false;
+
+    const { data } = await supabase
+      .from('fathom_integrations')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    return data !== null;
+  }, [user]);
+
+  const startPolling = useCallback(() => {
+    setIsPolling(true);
+    pollCountRef.current = 0;
+
+    // Poll every 1 second for up to 30 seconds
+    pollingRef.current = setInterval(async () => {
+      pollCountRef.current += 1;
+
+      const connected = await pollForConnection();
+
+      if (connected) {
+        // Connection found!
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        setIsPolling(false);
+        setIsConnecting(false);
+        await markFathomConnected();
+        toast.success('Fathom connected successfully!');
+        onNext();
+        return;
+      }
+
+      // Stop polling after 30 seconds
+      if (pollCountRef.current >= 30) {
+        if (pollingRef.current) {
+          clearInterval(pollingRef.current);
+          pollingRef.current = null;
+        }
+        setIsPolling(false);
+        setIsConnecting(false);
+        // Don't show error - user can still try again or check manually
+      }
+    }, 1000);
+  }, [pollForConnection, markFathomConnected, onNext]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
 
   const handleConnect = async () => {
     try {
       setIsConnecting(true);
       await connectFathom();
-      
-      // Wait a moment for the integration to be saved
-      setTimeout(async () => {
-        await markFathomConnected();
-        toast.success('Fathom connected successfully!');
-        setIsConnecting(false);
-        onNext();
-      }, 2000);
+
+      // Start polling for connection status
+      startPolling();
     } catch (error) {
       console.error('Error connecting Fathom:', error);
       toast.error('Failed to connect Fathom. Please try again.');
@@ -40,10 +101,10 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
 
   // If already connected, mark it and allow proceeding
   useEffect(() => {
-    if (isConnected && !isConnecting) {
+    if (isConnected && !isConnecting && !isPolling) {
       markFathomConnected().catch(console.error);
     }
-  }, [isConnected, isConnecting, markFathomConnected]);
+  }, [isConnected, isConnecting, isPolling, markFathomConnected]);
 
   return (
     <motion.div
@@ -154,10 +215,15 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
         {!isConnected && (
           <Button
             onClick={handleConnect}
-            disabled={isConnecting || fathomLoading}
+            disabled={isConnecting || fathomLoading || isPolling}
             className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg"
           >
-            {isConnecting || fathomLoading ? (
+            {isPolling ? (
+              <>
+                <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+                Waiting for connection...
+              </>
+            ) : isConnecting || fathomLoading ? (
               <>
                 <Loader2 className="mr-2 w-5 h-5 animate-spin" />
                 Connecting...

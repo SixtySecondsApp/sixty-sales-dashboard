@@ -1,9 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { supabase } from '@/lib/supabase/clientV2';
 
 interface CompletionStepProps {
   onComplete: () => void;
@@ -11,16 +13,75 @@ interface CompletionStepProps {
 
 export function CompletionStep({ onComplete }: CompletionStepProps) {
   const navigate = useNavigate();
+  const { user, isAuthenticated, session } = useAuth();
   const { completeStep } = useOnboardingProgress();
+  const [isCompleting, setIsCompleting] = useState(false);
+  const completionAttemptedRef = useRef(false);
 
   useEffect(() => {
-    // Mark onboarding as complete
-    completeStep('complete');
-  }, [completeStep]);
+    // Mark onboarding as complete (only once per mount)
+    if (!completionAttemptedRef.current && user) {
+      completionAttemptedRef.current = true;
+      completeStep('complete').catch((err) => {
+        console.error('Error completing onboarding step:', err);
+        // Don't block the user - they can still proceed
+      });
+    }
+  }, [completeStep, user]);
 
-  const handleGetStarted = () => {
-    onComplete();
-    navigate('/meetings');
+  // Verify session is valid before navigation
+  const verifySessionAndNavigate = useCallback(async () => {
+    try {
+      // Double-check session directly with Supabase
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('Session verification error:', error);
+        return false;
+      }
+
+      if (!currentSession?.user) {
+        console.error('No valid session found');
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Error verifying session:', err);
+      return false;
+    }
+  }, []);
+
+  const handleGetStarted = async () => {
+    // Prevent double-click
+    if (isCompleting) return;
+
+    setIsCompleting(true);
+
+    // Verify user is still authenticated before navigating
+    if (!isAuthenticated || !user || !session) {
+      console.error('User not authenticated in context, verifying session...');
+
+      // Double-check with Supabase directly
+      const isValid = await verifySessionAndNavigate();
+      if (!isValid) {
+        console.error('Session verification failed, redirecting to login');
+        navigate('/auth/login', { replace: true });
+        return;
+      }
+    }
+
+    try {
+      // Small delay to ensure any pending auth state updates complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Navigate directly to meetings using replace to prevent back navigation to onboarding
+      navigate('/meetings', { replace: true });
+    } catch (error) {
+      console.error('Error navigating to meetings:', error);
+      // Force navigation even on error
+      window.location.href = '/meetings';
+    }
   };
 
   return (
@@ -68,8 +129,8 @@ export function CompletionStep({ onComplete }: CompletionStepProps) {
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-[#37bd7e] mt-0.5 flex-shrink-0" />
               <div>
-                <p className="text-white font-medium">View Your Meetings</p>
-                <p className="text-sm text-gray-400">See all your synced meetings and their analytics</p>
+                <p className="text-white font-medium">Your Meetings Are Syncing</p>
+                <p className="text-sm text-gray-400">We're importing your recent Fathom recordings in the background</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -91,10 +152,20 @@ export function CompletionStep({ onComplete }: CompletionStepProps) {
 
         <Button
           onClick={handleGetStarted}
-          className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg"
+          disabled={isCompleting}
+          className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg disabled:opacity-70"
         >
-          Go to Meetings Dashboard
-          <ArrowRight className="ml-2 w-5 h-5" />
+          {isCompleting ? (
+            <>
+              <Loader2 className="mr-2 w-5 h-5 animate-spin" />
+              Loading...
+            </>
+          ) : (
+            <>
+              Go to Meetings Dashboard
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </>
+          )}
         </Button>
       </motion.div>
     </motion.div>

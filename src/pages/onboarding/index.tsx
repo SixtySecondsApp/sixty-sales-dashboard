@@ -6,23 +6,26 @@ import { WelcomeStep } from './WelcomeStep';
 import { OrgSetupStep } from './OrgSetupStep';
 import { TeamInviteStep } from './TeamInviteStep';
 import { FathomConnectionStep } from './FathomConnectionStep';
-import { SyncProgressStep } from './SyncProgressStep';
 import { CompletionStep } from './CompletionStep';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { needsOnboarding, currentStep, loading, skipOnboarding, resetOnboarding } = useOnboardingProgress();
+  const { needsOnboarding, currentStep, loading, resetOnboarding } = useOnboardingProgress();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
 
-  const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'sync', 'complete'];
+  // Removed 'sync' step - meetings will sync in the background after reaching dashboard
+  const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'complete'];
 
   useEffect(() => {
     if (!loading && user) {
+      // Handle legacy 'sync' step - map to 'complete' since we removed sync step
+      const mappedStep = currentStep === 'sync' ? 'complete' : currentStep;
+
       // Set initial step based on progress
-      const stepIndex = steps.indexOf(currentStep);
+      const stepIndex = steps.indexOf(mappedStep);
       if (stepIndex >= 0) {
         setCurrentStepIndex(stepIndex);
       }
@@ -38,15 +41,6 @@ export default function OnboardingPage() {
   const handleBack = () => {
     if (currentStepIndex > 0) {
       setCurrentStepIndex(currentStepIndex - 1);
-    }
-  };
-
-  const handleSkip = async () => {
-    try {
-      await skipOnboarding();
-      navigate('/');
-    } catch (error) {
-      console.error('Error skipping onboarding:', error);
     }
   };
 
@@ -140,7 +134,7 @@ export default function OnboardingPage() {
         {/* Step content */}
         <AnimatePresence mode="wait">
           {currentStepIndex === 0 && (
-            <WelcomeStep key="welcome" onNext={handleNext} onSkip={handleSkip} />
+            <WelcomeStep key="welcome" onNext={handleNext} />
           )}
           {currentStepIndex === 1 && (
             <OrgSetupStep key="org_setup" onNext={handleNext} onBack={handleBack} />
@@ -152,9 +146,6 @@ export default function OnboardingPage() {
             <FathomConnectionStep key="fathom" onNext={handleNext} onBack={handleBack} />
           )}
           {currentStepIndex === 4 && (
-            <SyncProgressStep key="sync" onNext={handleNext} onBack={handleBack} />
-          )}
-          {currentStepIndex === 5 && (
             <CompletionStep key="complete" onComplete={handleComplete} />
           )}
         </AnimatePresence>

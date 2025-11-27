@@ -5,8 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TeamAnalyticsService, type TeamAggregates, type LeaderboardEntry } from '@/lib/services/teamAnalyticsService';
 import { useUser } from '@/lib/hooks/useUser';
-import { 
-  Users, TrendingUp, TrendingDown, BarChart3, Trophy, 
+import { useOrg } from '@/lib/contexts/OrgContext';
+import {
+  Users, TrendingUp, TrendingDown, BarChart3, Trophy,
   Smile, Frown, Clock, Activity, Award, Target
 } from 'lucide-react';
 import { TalkTimeLeaderboard } from '@/components/insights/TalkTimeLeaderboard';
@@ -15,6 +16,7 @@ import { MeetingVolumeRankings } from '@/components/insights/MeetingVolumeRankin
 
 export default function TeamAnalytics() {
   const { userData: user } = useUser();
+  const { activeOrgId } = useOrg();
   const [loading, setLoading] = useState(true);
   const [aggregates, setAggregates] = useState<TeamAggregates | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export default function TeamAnalytics() {
     if (user) {
       loadTeamData();
     }
-  }, [user]);
+  }, [user, activeOrgId]);
 
   const loadTeamData = async () => {
     if (!user) return;
@@ -31,7 +33,8 @@ export default function TeamAnalytics() {
     try {
       setLoading(true);
       setError(null);
-      const data = await TeamAnalyticsService.getTeamAggregates(user.id);
+      // Pass activeOrgId to filter by organization
+      const data = await TeamAnalyticsService.getTeamAggregates(user.id, activeOrgId);
       setAggregates(data);
     } catch (err) {
       console.error('Error loading team data:', err);
@@ -183,15 +186,15 @@ export default function TeamAnalytics() {
             </TabsList>
 
             <TabsContent value="talk-time" className="space-y-0">
-              <TalkTimeLeaderboard userId={user?.id || ''} />
+              <TalkTimeLeaderboard userId={user?.id || ''} orgId={activeOrgId} />
             </TabsContent>
 
             <TabsContent value="sentiment" className="space-y-0">
-              <SentimentRankings userId={user?.id || ''} />
+              <SentimentRankings userId={user?.id || ''} orgId={activeOrgId} />
             </TabsContent>
 
             <TabsContent value="volume" className="space-y-0">
-              <MeetingVolumeRankings userId={user?.id || ''} />
+              <MeetingVolumeRankings userId={user?.id || ''} orgId={activeOrgId} />
             </TabsContent>
           </Tabs>
         </motion.div>

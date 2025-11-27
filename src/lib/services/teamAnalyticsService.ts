@@ -39,15 +39,55 @@ export interface LeaderboardEntry {
 
 export class TeamAnalyticsService {
   /**
-   * Get team metrics for all team members
+   * Get team metrics for organization members
+   * Filters by organization membership when orgId is provided
    */
-  static async getTeamMetrics(userId: string): Promise<TeamMemberMetrics[]> {
+  static async getTeamMetrics(userId: string, orgId?: string | null): Promise<TeamMemberMetrics[]> {
     try {
-      // For now, get all users in the organization
-      // In the future, this should filter by team/organization
+      // If we have an org ID, filter by organization members
+      if (orgId) {
+        // Get org members first
+        const { data: memberships, error: membershipError } = await supabase
+          .from('organization_memberships')
+          .select('user_id')
+          .eq('org_id', orgId);
+
+        if (membershipError) {
+          console.error('Error fetching org members:', membershipError);
+          // Fall back to showing only current user's data
+          const { data, error } = await supabase
+            .from('team_meeting_analytics')
+            .select('*')
+            .eq('user_id', userId)
+            .order('total_meetings', { ascending: false });
+
+          if (error) throw error;
+          return (data || []) as TeamMemberMetrics[];
+        }
+
+        const memberUserIds = (memberships as { user_id: string }[])?.map(m => m.user_id) || [];
+
+        if (memberUserIds.length === 0) {
+          return [];
+        }
+
+        // Get analytics only for org members
+        const { data, error } = await supabase
+          .from('team_meeting_analytics')
+          .select('*')
+          .in('user_id', memberUserIds)
+          .order('total_meetings', { ascending: false });
+
+        if (error) throw error;
+        return (data || []) as TeamMemberMetrics[];
+      }
+
+      // No org ID - fall back to showing only current user's data for safety
+      // This prevents showing data from other organizations
       const { data, error } = await supabase
         .from('team_meeting_analytics')
         .select('*')
+        .eq('user_id', userId)
         .order('total_meetings', { ascending: false });
 
       if (error) throw error;
@@ -61,9 +101,9 @@ export class TeamAnalyticsService {
   /**
    * Get aggregate team statistics
    */
-  static async getTeamAggregates(userId: string): Promise<TeamAggregates> {
+  static async getTeamAggregates(userId: string, orgId?: string | null): Promise<TeamAggregates> {
     try {
-      const metrics = await this.getTeamMetrics(userId);
+      const metrics = await this.getTeamMetrics(userId, orgId);
       
       const totalMeetings = metrics.reduce((sum, m) => sum + m.total_meetings, 0);
       const membersWithSentiment = metrics.filter(m => m.avg_sentiment !== null);
@@ -101,9 +141,9 @@ export class TeamAnalyticsService {
   /**
    * Get talk time leaderboard
    */
-  static async getTalkTimeLeaderboard(userId: string, limit: number = 10): Promise<LeaderboardEntry[]> {
+  static async getTalkTimeLeaderboard(userId: string, orgId?: string | null, limit: number = 10): Promise<LeaderboardEntry[]> {
     try {
-      const metrics = await this.getTeamMetrics(userId);
+      const metrics = await this.getTeamMetrics(userId, orgId);
       
       const withTalkTime = metrics
         .filter(m => m.avg_talk_time !== null && m.total_meetings > 0)
@@ -127,9 +167,9 @@ export class TeamAnalyticsService {
   /**
    * Get sentiment rankings
    */
-  static async getSentimentRankings(userId: string, limit: number = 10): Promise<LeaderboardEntry[]> {
+  static async getSentimentRankings(userId: string, orgId?: string | null, limit: number = 10): Promise<LeaderboardEntry[]> {
     try {
-      const metrics = await this.getTeamMetrics(userId);
+      const metrics = await this.getTeamMetrics(userId, orgId);
       
       const withSentiment = metrics
         .filter(m => m.avg_sentiment !== null && m.total_meetings > 0)
@@ -153,9 +193,9 @@ export class TeamAnalyticsService {
   /**
    * Get meeting volume rankings
    */
-  static async getMeetingVolumeRankings(userId: string, limit: number = 10): Promise<LeaderboardEntry[]> {
+  static async getMeetingVolumeRankings(userId: string, orgId?: string | null, limit: number = 10): Promise<LeaderboardEntry[]> {
     try {
-      const metrics = await this.getTeamMetrics(userId);
+      const metrics = await this.getTeamMetrics(userId, orgId);
       
       const rankings = metrics
         .filter(m => m.total_meetings > 0)
@@ -179,7 +219,7 @@ export class TeamAnalyticsService {
   /**
    * Get individual rep metrics vs team average
    */
-  static async getRepComparison(userId: string, repUserId: string): Promise<{
+  static async getRepComparison(userId: string, repUserId: string, orgId?: string | null): Promise<{
     rep: TeamMemberMetrics | null;
     teamAverage: {
       avgSentiment: number;
@@ -189,8 +229,8 @@ export class TeamAnalyticsService {
     };
   }> {
     try {
-      const metrics = await this.getTeamMetrics(userId);
-      const aggregates = await this.getTeamAggregates(userId);
+      const metrics = await this.getTeamMetrics(userId, orgId);
+      const aggregates = await this.getTeamAggregates(userId, orgId);
       
       const rep = metrics.find(m => m.user_id === repUserId) || null;
 

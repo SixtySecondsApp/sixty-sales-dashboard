@@ -4,10 +4,9 @@ import { Button } from '@/components/ui/button';
 
 interface WelcomeStepProps {
   onNext: () => void;
-  onSkip: () => void;
 }
 
-export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
+export function WelcomeStep({ onNext }: WelcomeStepProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -85,20 +84,13 @@ export function WelcomeStep({ onNext, onSkip }: WelcomeStepProps) {
         </motion.div>
       </div>
 
-      <div className="flex gap-4 justify-center">
+      <div className="flex justify-center">
         <Button
           onClick={onNext}
           className="bg-[#37bd7e] hover:bg-[#2da76c] text-white px-8 py-6 text-lg"
         >
           Get Started
           <ArrowRight className="ml-2 w-5 h-5" />
-        </Button>
-        <Button
-          onClick={onSkip}
-          variant="ghost"
-          className="text-gray-400 hover:text-white"
-        >
-          Skip for now
         </Button>
       </div>
     </motion.div>

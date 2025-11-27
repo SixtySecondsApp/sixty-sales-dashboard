@@ -33,10 +33,12 @@ BEGIN
   FROM auth.users
   WHERE id = NEW.id;
 
-  -- Generate org name from email domain or full_name from profile
-  IF NEW.full_name IS NOT NULL AND LENGTH(TRIM(NEW.full_name)) > 0 THEN
-    -- Use user's name for org: "Sarah's Organization"
-    v_org_name := TRIM(NEW.full_name) || '''s Organization';
+  -- Generate org name from email domain or first/last name from profile
+  -- Note: profiles table has first_name and last_name columns, NOT full_name
+  IF (NEW.first_name IS NOT NULL AND LENGTH(TRIM(NEW.first_name)) > 0) OR
+     (NEW.last_name IS NOT NULL AND LENGTH(TRIM(NEW.last_name)) > 0) THEN
+    -- Use user's name for org: "Sarah Johnson's Organization"
+    v_org_name := TRIM(COALESCE(NEW.first_name, '') || ' ' || COALESCE(NEW.last_name, '')) || '''s Organization';
   ELSIF v_user_email IS NOT NULL AND v_user_email LIKE '%@%' THEN
     -- Extract domain and capitalize: "acme.com" -> "Acme"
     v_org_name := INITCAP(SPLIT_PART(SPLIT_PART(v_user_email, '@', 2), '.', 1));

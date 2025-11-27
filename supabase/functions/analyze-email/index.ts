@@ -1,17 +1,24 @@
 /**
  * Edge Function: Analyze Email with AI
  *
- * Uses Claude Haiku 4.5 to analyze sales emails for CRM health tracking.
+ * Uses Claude Haiku to analyze sales emails for CRM health tracking.
  * Extracts sentiment, topics, action items, urgency, and response requirements.
+ *
+ * NOW USES DYNAMIC PROMPTS: Prompts can be customized via Settings > AI Prompts
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { loadPrompt, interpolateVariables } from '../_shared/promptLoader.ts';
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface EmailAnalysisRequest {
   subject: string;
   body: string;
+  user_id?: string; // Optional: for loading user-specific prompts
 }
 
 interface EmailAnalysisResponse {
@@ -26,31 +33,6 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-function buildAnalysisPrompt(subject: string, body: string): string {
-  return `Analyze this sales email for CRM health tracking.
-
-SUBJECT: ${subject}
-
-BODY:
-${body}
-
-Provide a JSON response with:
-1. sentiment_score: Number from -1 (very negative) to 1 (very positive)
-2. key_topics: Array of 2-5 main topics discussed (e.g., ["pricing", "timeline", "product features"])
-3. action_items: Array of any action items mentioned (e.g., ["Schedule follow-up call", "Send proposal"])
-4. urgency: "low", "medium", or "high" based on time-sensitive language
-5. response_required: Boolean indicating if sender expects a response
-
-RESPOND ONLY WITH VALID JSON in this exact format:
-{
-  "sentiment_score": 0.5,
-  "key_topics": ["topic1", "topic2"],
-  "action_items": ["action1"],
-  "urgency": "medium",
-  "response_required": true
-}`;
-}
 
 function parseClaudeResponse(content: string): EmailAnalysisResponse {
   // Try to extract JSON from the response
@@ -71,40 +53,94 @@ function parseClaudeResponse(content: string): EmailAnalysisResponse {
   };
 }
 
-async function analyzeEmailWithAI(request: EmailAnalysisRequest): Promise<EmailAnalysisResponse> {
+async function analyzeEmailWithAI(
+  request: EmailAnalysisRequest,
+  supabase: ReturnType<typeof createClient>
+): Promise<EmailAnalysisResponse> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured');
   }
 
-  const prompt = buildAnalysisPrompt(request.subject, request.body);
+  // Load prompt dynamically (checks DB first, falls back to defaults)
+  const promptConfig = await loadPrompt(supabase, 'email_analysis', request.user_id);
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20250514',
-      max_tokens: 1024,
-      temperature: 0.3,
+  // Interpolate variables into the prompt templates
+  const variables = {
+    subject: request.subject,
+    body: request.body,
+  };
+
+  const systemPrompt = interpolateVariables(promptConfig.systemPrompt, variables);
+  const userPrompt = interpolateVariables(promptConfig.userPrompt, variables);
+
+  console.log(`[analyze-email] Using prompt source: ${promptConfig.source}`);
+  console.log(`[analyze-email] Model: ${promptConfig.model}, Temp: ${promptConfig.temperature}`);
+
+  // Determine if this is an OpenRouter model
+  const isOpenRouter = promptConfig.model.includes('/');
+  const apiUrl = isOpenRouter
+    ? 'https://openrouter.ai/api/v1/chat/completions'
+    : 'https://api.anthropic.com/v1/messages';
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  let body: string;
+
+  if (isOpenRouter) {
+    // OpenRouter format
+    const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY not configured');
+    }
+    headers['Authorization'] = `Bearer ${OPENROUTER_API_KEY}`;
+
+    body = JSON.stringify({
+      model: promptConfig.model,
+      max_tokens: promptConfig.maxTokens,
+      temperature: promptConfig.temperature,
+      messages: [
+        ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+        { role: 'user', content: userPrompt },
+      ],
+    });
+  } else {
+    // Anthropic format
+    headers['x-api-key'] = ANTHROPIC_API_KEY;
+    headers['anthropic-version'] = '2023-06-01';
+
+    body = JSON.stringify({
+      model: promptConfig.model,
+      max_tokens: promptConfig.maxTokens,
+      temperature: promptConfig.temperature,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
       messages: [
         {
           role: 'user',
-          content: prompt,
+          content: userPrompt,
         },
       ],
-    }),
+    });
+  }
+
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers,
+    body,
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+    throw new Error(`AI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
-  const content = data.content[0].text;
+
+  // Extract content based on API format
+  const content = isOpenRouter
+    ? data.choices[0].message.content
+    : data.content[0].text;
 
   return parseClaudeResponse(content);
 }
@@ -116,7 +152,10 @@ serve(async (req) => {
   }
 
   try {
-    const { subject, body } = await req.json();
+    // Create Supabase client for dynamic prompt loading
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    const { subject, body, user_id } = await req.json();
 
     if (!subject && !body) {
       return new Response(
@@ -125,10 +164,14 @@ serve(async (req) => {
       );
     }
 
-    const analysis = await analyzeEmailWithAI({
-      subject: subject || '',
-      body: body || '',
-    });
+    const analysis = await analyzeEmailWithAI(
+      {
+        subject: subject || '',
+        body: body || '',
+        user_id,
+      },
+      supabase
+    );
 
     return new Response(
       JSON.stringify(analysis),

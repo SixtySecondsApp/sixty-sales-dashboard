@@ -39,7 +39,6 @@ import {
   Workflow,
   ExternalLink as LinkIcon,
   Sparkles,
-  UserPlus,
   Search,
   ChevronDown,
   BarChart3,
@@ -146,7 +145,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: Sparkles, label: 'Intelligence', href: '/meetings/intelligence' },
     { icon: Layers, label: 'Content Topics', href: '/insights/content-topics' },
     { icon: BarChart3, label: 'Team Analytics', href: '/insights/team' },
-    { icon: UserPlus, label: 'Onboarding', href: '/onboarding' },
   ];
 
   return (

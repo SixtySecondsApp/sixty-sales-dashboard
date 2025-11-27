@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/clientV2'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { MeetingsEmptyState } from './MeetingsEmptyState'
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration'
+import { toast } from 'sonner'
 import {
   Table,
   TableBody,
@@ -125,7 +126,7 @@ const StatCard: React.FC<{
 const MeetingsList: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { syncState } = useFathomIntegration()
+  const { syncState, isConnected, isSyncing, triggerSync } = useFathomIntegration()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
   const [scope, setScope] = useState<'me' | 'team'>('me')
@@ -138,10 +139,50 @@ const MeetingsList: React.FC = () => {
     avgCoachRating: 0
   })
   const [thumbnailsEnsured, setThumbnailsEnsured] = useState(false)
+  const autoSyncAttemptedRef = useRef(false)
 
   useEffect(() => {
     fetchMeetings()
   }, [scope, user])
+
+  // Auto-sync when user arrives with Fathom connected but no meetings
+  // This handles users coming from onboarding who skipped the sync step
+  // Only runs ONCE per page load - uses ref to prevent re-triggering
+  useEffect(() => {
+    // Skip if we've already attempted auto-sync this session
+    if (autoSyncAttemptedRef.current) return
+
+    const shouldAutoSync =
+      !loading &&
+      isConnected &&
+      !isSyncing &&
+      meetings.length === 0
+
+    if (shouldAutoSync) {
+      // Mark as attempted BEFORE starting sync to prevent re-triggers
+      autoSyncAttemptedRef.current = true
+
+      toast.info('Syncing your meetings...', {
+        description: 'We\'re importing your recent Fathom recordings in the background.'
+      })
+
+      // Trigger initial sync with limit of 10 meetings for quick feedback
+      triggerSync({ sync_type: 'initial', limit: 10 })
+        .then(() => {
+          toast.success('Initial sync complete!', {
+            description: 'Your most recent meetings are now available.'
+          })
+          // Refresh meetings list after sync
+          fetchMeetings()
+        })
+        .catch((err) => {
+          console.error('Auto-sync failed:', err)
+          toast.error('Sync encountered an issue', {
+            description: 'You can try syncing again from Settings.'
+          })
+        })
+    }
+  }, [loading, isConnected, isSyncing, meetings.length, triggerSync])
 
   // Ensure thumbnails exist for any listed meeting with a video
   useEffect(() => {
@@ -232,14 +273,15 @@ const MeetingsList: React.FC = () => {
         `)
         .order('meeting_start', { ascending: false })
 
+      // RLS already filters by organization, so we get all meetings the user can access
+      // "My" scope filters to meetings where user is the owner
+      // "Team" scope shows all meetings in the organization
       if (scope === 'me') {
-        // Show only meetings conducted by the current user
-        // Use email as the primary lookup to align with authentication model
-        query = query.eq('owner_email', user.email)
-      } else {
-        // Get team meetings - for now just show all meetings the user can see
-        // In production, you'd filter by team_name or organization
+        // Show only meetings owned by the current user
+        // Use owner_user_id as primary filter, owner_email as fallback
+        query = query.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
       }
+      // For 'team' scope, no additional filter needed - RLS handles org isolation
 
       const { data, error } = await query
 

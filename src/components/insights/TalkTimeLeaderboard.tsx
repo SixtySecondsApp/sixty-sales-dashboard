@@ -7,6 +7,7 @@ import { Trophy, Medal, Award, Clock, TrendingUp, TrendingDown, Minus } from 'lu
 
 interface TalkTimeLeaderboardProps {
   userId: string;
+  orgId?: string | null;
 }
 
 const getRankIcon = (rank: number) => {
@@ -35,7 +36,7 @@ const getRankColor = (rank: number) => {
   }
 };
 
-export function TalkTimeLeaderboard({ userId }: TalkTimeLeaderboardProps) {
+export function TalkTimeLeaderboard({ userId, orgId }: TalkTimeLeaderboardProps) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,12 +44,12 @@ export function TalkTimeLeaderboard({ userId }: TalkTimeLeaderboardProps) {
     if (userId) {
       loadLeaderboard();
     }
-  }, [userId]);
+  }, [userId, orgId]);
 
   const loadLeaderboard = async () => {
     try {
       setLoading(true);
-      const data = await TeamAnalyticsService.getTalkTimeLeaderboard(userId, 10);
+      const data = await TeamAnalyticsService.getTalkTimeLeaderboard(userId, orgId, 10);
       setLeaderboard(data);
     } catch (error) {
       console.error('Error loading talk time leaderboard:', error);

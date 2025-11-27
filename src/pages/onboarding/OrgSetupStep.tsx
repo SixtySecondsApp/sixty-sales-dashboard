@@ -1,8 +1,9 @@
 /**
  * OrgSetupStep - Organization Setup Onboarding Step
  *
- * Allows users to confirm/update their organization name and
- * handles the org_id setup for multi-tenant support.
+ * Creates or updates the user's organization during onboarding.
+ * If no organization exists, creates one with the provided name.
+ * If an organization exists, allows renaming it.
  */
 
 import { useState, useEffect } from 'react';
@@ -10,6 +11,7 @@ import { motion } from 'framer-motion';
 import { Building2, Check, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 
@@ -19,21 +21,78 @@ interface OrgSetupStepProps {
 }
 
 export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
-  const { activeOrg, refreshOrgs, isLoading: orgLoading } = useOrg();
+  const { user } = useAuth();
+  const { activeOrg, refreshOrgs, createOrg, isLoading: orgLoading } = useOrg();
   const [orgName, setOrgName] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 
-  // Initialize org name from active org or sessionStorage
+  // Check if user has an organization and set initial name
   useEffect(() => {
-    const pendingOrgName = sessionStorage.getItem('pending_org_name');
-    if (pendingOrgName) {
-      setOrgName(pendingOrgName);
-      sessionStorage.removeItem('pending_org_name');
-    } else if (activeOrg?.name) {
-      setOrgName(activeOrg.name);
+    const initializeOrgName = async () => {
+      // Wait for org loading to complete
+      if (orgLoading) return;
+
+      setHasCheckedOrg(true);
+
+      if (activeOrg?.name) {
+        // User already has an org, use its name
+        setOrgName(activeOrg.name);
+      } else if (user) {
+        // No org exists, suggest a default name based on user info
+        const firstName = user.user_metadata?.first_name || '';
+        const lastName = user.user_metadata?.last_name || '';
+        const fullName = user.user_metadata?.full_name || `${firstName} ${lastName}`.trim();
+
+        if (fullName) {
+          setOrgName(`${fullName}'s Organization`);
+        } else if (user.email) {
+          // Extract company name from email domain
+          const domain = user.email.split('@')[1];
+          if (domain) {
+            const companyName = domain.split('.')[0];
+            setOrgName(companyName.charAt(0).toUpperCase() + companyName.slice(1));
+          }
+        }
+      }
+    };
+
+    initializeOrgName();
+  }, [activeOrg?.name, orgLoading, user]);
+
+  const handleCreateOrg = async () => {
+    if (!orgName.trim()) {
+      setError('Organization name is required');
+      return;
     }
-  }, [activeOrg?.name]);
+
+    if (orgName.trim().length > 100) {
+      setError('Organization name must be 100 characters or less');
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+
+    try {
+      // Create new organization
+      const newOrg = await createOrg(orgName.trim());
+
+      if (!newOrg) {
+        throw new Error('Failed to create organization');
+      }
+
+      toast.success('Organization created!');
+      onNext();
+    } catch (err: any) {
+      console.error('Error creating organization:', err);
+      setError(err.message || 'Failed to create organization');
+      toast.error('Failed to create organization');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleUpdateOrgName = async () => {
     if (!orgName.trim()) {
@@ -50,26 +109,34 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     setError(null);
 
     try {
-      // Call the rename function
-      // Note: rename_user_organization is defined in our migrations but not in generated types
-      // Use type assertion on the whole result to work around missing types
+      // Try the RPC function first
       const response = await (supabase.rpc as any)('rename_user_organization', {
         p_new_name: orgName.trim(),
       }) as { data: Array<{ success: boolean; error_message?: string }> | null; error: any };
 
       if (response.error) {
-        throw response.error;
-      }
+        // If RPC fails (function doesn't exist), try direct update
+        if (response.error.code === '42883' || response.error.message?.includes('does not exist')) {
+          // Direct update as fallback
+          if (activeOrg?.id) {
+            const { error: updateError } = await supabase
+              .from('organizations')
+              .update({ name: orgName.trim(), updated_at: new Date().toISOString() })
+              .eq('id', activeOrg.id);
 
-      // Check if the function returned an error
-      if (response.data && response.data.length > 0 && !response.data[0].success) {
+            if (updateError) throw updateError;
+          }
+        } else {
+          throw response.error;
+        }
+      } else if (response.data && response.data.length > 0 && !response.data[0].success) {
         throw new Error(response.data[0].error_message || 'Failed to update organization');
       }
 
       // Refresh organizations to get updated name
       await refreshOrgs();
 
-      toast.success('Organization name updated!');
+      toast.success('Organization updated!');
       onNext();
     } catch (err: any) {
       console.error('Error updating organization:', err);
@@ -80,16 +147,21 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
     }
   };
 
-  const handleContinue = () => {
-    // If the name hasn't changed, just continue
-    if (activeOrg?.name === orgName.trim()) {
+  const handleContinue = async () => {
+    if (!activeOrg) {
+      // No organization exists, create one
+      await handleCreateOrg();
+    } else if (activeOrg.name === orgName.trim()) {
+      // Name hasn't changed, just continue
       onNext();
     } else {
-      handleUpdateOrgName();
+      // Name changed, update it
+      await handleUpdateOrgName();
     }
   };
 
-  if (orgLoading) {
+  // Show loading while checking for existing org
+  if (orgLoading || !hasCheckedOrg) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -100,6 +172,8 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
       </motion.div>
     );
   }
+
+  const isCreatingNew = !activeOrg;
 
   return (
     <motion.div
@@ -117,9 +191,14 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
         >
           <Building2 className="w-10 h-10 text-white" />
         </motion.div>
-        <h1 className="text-3xl font-bold mb-4 text-white">Set Up Your Organization</h1>
+        <h1 className="text-3xl font-bold mb-4 text-white">
+          {isCreatingNew ? 'Create Your Organization' : 'Set Up Your Organization'}
+        </h1>
         <p className="text-lg text-gray-400">
-          Your workspace where your team collaborates and shares data
+          {isCreatingNew
+            ? 'Name your workspace where your team will collaborate'
+            : 'Your workspace where your team collaborates and shares data'
+          }
         </p>
       </div>
 
@@ -139,10 +218,11 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
               placeholder="Acme Inc."
               maxLength={100}
               disabled={isUpdating}
+              autoFocus
               className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all disabled:opacity-50"
             />
             <p className="mt-2 text-xs text-gray-500">
-              This will be visible to all team members
+              This will be visible to all team members you invite
             </p>
           </div>
 
@@ -203,10 +283,10 @@ export function OrgSetupStep({ onNext, onBack }: OrgSetupStepProps) {
           {isUpdating ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving...
+              {isCreatingNew ? 'Creating...' : 'Saving...'}
             </>
           ) : (
-            'Continue'
+            isCreatingNew ? 'Create Organization' : 'Continue'
           )}
         </Button>
       </div>

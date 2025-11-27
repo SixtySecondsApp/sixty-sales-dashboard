@@ -381,6 +381,18 @@ serve(async (req) => {
         : `Fathom integration error: ${integrationError?.message || 'Unknown error'}`
       throw new Error(errorMessage)
     }
+
+    // Get user's primary organization ID for RLS compliance
+    const { data: membership } = await supabase
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single()
+
+    const userOrgId: string | null = membership?.org_id || null
+    console.log(`[fathom-sync] User ${userId} org_id: ${userOrgId}`)
+
     // Update sync state to 'syncing'
     await supabase
       .from('fathom_sync_state')
@@ -401,7 +413,7 @@ serve(async (req) => {
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
-        const result = await syncSingleCall(supabase, userId, integration, webhook_payload, skip_thumbnails)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, webhook_payload, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -412,7 +424,7 @@ serve(async (req) => {
         }
       } else if (call_id) {
         // Legacy: fetch single call by ID
-        const result = await syncSingleCall(supabase, userId, integration, call_id, skip_thumbnails)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, call_id, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -475,7 +487,7 @@ serve(async (req) => {
         // Process each call
         for (const call of calls) {
           try {
-            const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
+            const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
 
             if (result.success) {
               meetingsSynced++
@@ -509,7 +521,7 @@ serve(async (req) => {
         if (retryCalls.length > 0) {
           for (const call of retryCalls) {
             try {
-              const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
+              const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -1015,6 +1027,7 @@ async function autoFetchTranscriptAndAnalyze(
 async function syncSingleCall(
   supabase: any,
   userId: string,
+  orgId: string | null,
   integration: any,
   call: any, // Directly receive the call object from bulk API
   skipThumbnails: boolean = false
@@ -1096,6 +1109,7 @@ async function syncSingleCall(
     let summaryText: string | null = call.default_summary || call.summary || null
     // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
+      org_id: orgId, // Required for RLS compliance
       owner_user_id: ownerUserId,
       fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
       fathom_user_id: integration.fathom_user_id,

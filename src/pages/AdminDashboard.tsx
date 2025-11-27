@@ -93,6 +93,15 @@ export default function AdminDashboard() {
       color: 'from-pink-500 to-pink-600',
       category: 'AI & Intelligence'
     },
+    {
+      id: 'ai-prompts',
+      title: 'AI Prompts',
+      description: 'Customize AI prompt templates for email analysis, proposals, and more',
+      icon: <FileText className="w-6 h-6" />,
+      path: '/admin/prompts',
+      color: 'from-fuchsia-500 to-fuchsia-600',
+      category: 'AI & Intelligence'
+    },
 
     // Testing & Development
     {

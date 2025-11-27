@@ -32,8 +32,7 @@ import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
-import MeetingsLanding from '@/pages/MeetingsLanding';
-import LandingMeetings from '@/pages/LandingMeetings';
+import MeetingsLanding from '@/product-pages/meetings/MeetingsLanding';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -69,6 +68,7 @@ const HealthMonitoring = lazyWithRetry(() => import('@/pages/HealthMonitoring'))
 
 // Auth routes - lazy load with retry except login
 const Signup = lazyWithRetry(() => import('@/pages/auth/signup'));
+const VerifyEmail = lazyWithRetry(() => import('@/pages/auth/VerifyEmail'));
 const ForgotPassword = lazyWithRetry(() => import('@/pages/auth/forgot-password'));
 const ResetPassword = lazyWithRetry(() => import('@/pages/auth/reset-password'));
 const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
@@ -118,6 +118,7 @@ const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings')
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
+const AdminPromptSettings = lazyWithRetry(() => import('@/pages/admin/PromptSettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
@@ -256,7 +257,6 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/share/:token" element={<PublicProposal />} />
 
         {/* Public landing page for Meetings feature */}
-        <Route path="/product/meetings/opus-v1" element={<LandingMeetings />} />
         <Route path="/product/meetings/opus-v2" element={<MeetingsLanding />} />
         {/* Legacy redirect */}
         <Route path="/features/meetings" element={<Navigate to="/product/meetings/opus-v2" replace />} />
@@ -265,6 +265,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth/signup" element={<Signup />} />
+        <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
 
@@ -293,6 +294,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/pipeline-automation" element={<AppLayout><PipelineAutomationAdmin /></AppLayout>} />
                 <Route path="/admin/ai-settings" element={<AppLayout><AIProviderSettings /></AppLayout>} />
                 <Route path="/admin/model-settings" element={<AppLayout><AdminModelSettings /></AppLayout>} />
+                <Route path="/admin/prompts" element={<AppLayout><AdminPromptSettings /></AppLayout>} />
                 <Route path="/admin/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
                 <Route path="/admin/function-testing" element={<AppLayout><FunctionTesting /></AppLayout>} />
                 <Route path="/admin/workflows-test" element={<AppLayout><WorkflowsTestSuite /></AppLayout>} />

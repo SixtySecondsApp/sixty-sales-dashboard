@@ -9,12 +9,14 @@ interface MeetingsEmptyStateProps {
   isSyncing?: boolean;
 }
 
-export function MeetingsEmptyState({ meetingCount = 0, isSyncing = false }: MeetingsEmptyStateProps) {
-  const { integration, connectFathom, triggerSync, loading: fathomLoading } = useFathomIntegration();
+export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing = false }: MeetingsEmptyStateProps) {
+  const { integration, connectFathom, triggerSync, loading: fathomLoading, isSyncing: hookIsSyncing } = useFathomIntegration();
   const navigate = useNavigate();
 
   const isConnected = integration?.is_active === true;
   const hasMeetings = meetingCount > 0;
+  // Use hook's isSyncing for actual sync state, propIsSyncing for parent-passed state
+  const isSyncingNow = hookIsSyncing || propIsSyncing;
 
   const handleConnectFathom = async () => {
     try {
@@ -80,7 +82,7 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing = false }: Meet
   }
 
   // Syncing state
-  if (isSyncing) {
+  if (isSyncingNow) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -126,10 +128,10 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing = false }: Meet
       <div className="flex gap-4">
         <Button
           onClick={handleManualSync}
-          disabled={fathomLoading}
+          disabled={isSyncingNow}
           className="bg-[#37bd7e] hover:bg-[#2da76c] text-white"
         >
-          {fathomLoading ? (
+          {isSyncingNow ? (
             <>
               <Loader2 className="mr-2 w-5 h-5 animate-spin" />
               Syncing...

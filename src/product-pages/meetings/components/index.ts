@@ -1,3 +1,4 @@
+// Meetings landing page components barrel export
 export { HeroSection } from './HeroSection';
 export { SocialProofBanner } from './SocialProofBanner';
 export { ProblemSection } from './ProblemSection';
@@ -7,5 +8,4 @@ export { IntegrationSection } from './IntegrationSection';
 export { TestimonialSection } from './TestimonialSection';
 export { FAQSection } from './FAQSection';
 export { FinalCTA } from './FinalCTA';
-export { Footer } from './Footer';
-
+export { Footer as LandingFooter } from './LandingFooter';
