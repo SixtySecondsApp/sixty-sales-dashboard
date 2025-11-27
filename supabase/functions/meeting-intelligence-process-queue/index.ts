@@ -103,7 +103,8 @@ async function getOrCreateStore(
 
   if (!response.ok) {
     const errorText = await response.text()
-    throw new Error(`Failed to create File Search store: ${errorText}`)
+    console.error(`File Search store creation failed - Status: ${response.status}, Body: ${errorText}`)
+    throw new Error(`Failed to create File Search store (${response.status}): ${errorText || 'No error details'}`)
   }
 
   const storeData = await response.json()
@@ -129,8 +130,8 @@ function buildMeetingDocument(meeting: any): MeetingDocument {
   const attendees: string[] = []
   if (meeting.meeting_attendees) {
     meeting.meeting_attendees.forEach((a: any) => {
-      if (a.attendee_name) attendees.push(a.attendee_name)
-      else if (a.attendee_email) attendees.push(a.attendee_email)
+      if (a.name) attendees.push(a.name)
+      else if (a.email) attendees.push(a.email)
     })
   }
 
@@ -219,7 +220,8 @@ async function uploadToFileSearch(
 
   if (!uploadResponse.ok) {
     const errorText = await uploadResponse.text()
-    throw new Error(`Failed to upload to File Search: ${errorText}`)
+    console.error(`File Search upload failed - Status: ${uploadResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to upload to File Search (${uploadResponse.status}): ${errorText || 'No error details'}`)
   }
 
   const uploadData = await uploadResponse.json()
@@ -247,7 +249,7 @@ async function processQueueItem(
     // Get or create store for user
     const storeName = await getOrCreateStore(item.user_id, supabase, geminiApiKey)
 
-    // Fetch meeting with related data
+    // Fetch meeting data (without ambiguous FK joins)
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .select(`
@@ -263,9 +265,7 @@ async function processQueueItem(
         talk_time_customer_pct,
         company_id,
         primary_contact_id,
-        company:companies!company_id(id, name),
-        primary_contact:contacts!primary_contact_id(id, name, email),
-        meeting_attendees(attendee_name, attendee_email, is_internal),
+        meeting_attendees(name, email, is_external),
         meeting_action_items(id, title, completed)
       `)
       .eq('id', item.meeting_id)
@@ -273,6 +273,35 @@ async function processQueueItem(
 
     if (meetingError || !meeting) {
       throw new Error(`Meeting not found: ${meetingError?.message || 'Unknown error'}`)
+    }
+
+    // Fetch company separately to avoid FK ambiguity
+    let company: { id: string; name: string } | null = null
+    if (meeting.company_id) {
+      const { data: companyData } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('id', meeting.company_id)
+        .single()
+      company = companyData
+    }
+
+    // Fetch contact separately
+    let primaryContact: { id: string; name: string; email: string } | null = null
+    if (meeting.primary_contact_id) {
+      const { data: contactData } = await supabase
+        .from('contacts')
+        .select('id, name, email')
+        .eq('id', meeting.primary_contact_id)
+        .single()
+      primaryContact = contactData
+    }
+
+    // Attach to meeting object for buildMeetingDocument
+    const meetingWithRelations = {
+      ...meeting,
+      company,
+      primary_contact: primaryContact,
     }
 
     // Validate transcript
@@ -291,7 +320,7 @@ async function processQueueItem(
     }
 
     // Build document
-    const document = buildMeetingDocument(meeting)
+    const document = buildMeetingDocument(meetingWithRelations)
 
     // Calculate content hash
     const contentStr = JSON.stringify(document)

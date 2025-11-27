@@ -278,6 +278,7 @@ async function enrichResultsWithMetadata(
   const effectiveOwnerUserId = ownerUserId === undefined ? currentUserId : ownerUserId
 
   // Build query - include owner info for team-wide searches
+  // Note: Fetch company separately to avoid FK ambiguity error
   let query = supabase
     .from('meetings')
     .select(`
@@ -285,7 +286,7 @@ async function enrichResultsWithMetadata(
       title,
       meeting_start,
       owner_user_id,
-      company:companies!company_id(name)
+      company_id
     `)
     .in('id', Array.from(meetingIds))
 
@@ -307,6 +308,20 @@ async function enrichResultsWithMetadata(
   if (error || !meetings) {
     console.error('Failed to fetch meeting metadata:', error)
     return []
+  }
+
+  // Fetch company names separately to avoid FK ambiguity
+  const companyIds = [...new Set(meetings.map((m: any) => m.company_id).filter(Boolean))]
+  let companyNames: Map<string, string> = new Map()
+  if (companyIds.length > 0) {
+    const { data: companies } = await supabase
+      .from('companies')
+      .select('id, name')
+      .in('id', companyIds)
+
+    if (companies) {
+      companies.forEach((c: any) => companyNames.set(c.id, c.name))
+    }
   }
 
   // If team-wide search, we need owner names
@@ -334,7 +349,7 @@ async function enrichResultsWithMetadata(
     meeting_id: m.id,
     title: m.title || 'Untitled Meeting',
     date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
-    company_name: m.company?.name || null,
+    company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
     owner_name: effectiveOwnerUserId === null
       ? (ownerNames.get(m.owner_user_id) || 'Team Member')
       : null,
@@ -362,6 +377,7 @@ async function fallbackSearch(
   const effectiveOwnerUserId = ownerUserId === undefined ? currentUserId : ownerUserId
 
   // Build query with filters - include owner_user_id for team searches
+  // Note: Fetch company separately to avoid FK ambiguity error
   let dbQuery = supabase
     .from('meetings')
     .select(`
@@ -372,8 +388,8 @@ async function fallbackSearch(
       transcript_text,
       sentiment_score,
       owner_user_id,
-      company:companies!company_id(id, name),
-      primary_contact:contacts!primary_contact_id(id, name)
+      company_id,
+      primary_contact_id
     `)
     .not('transcript_text', 'is', null)
     .limit(20)
@@ -422,6 +438,20 @@ async function fallbackSearch(
     return queryTerms.some(term => text.includes(term))
   }) || []
 
+  // Fetch company names separately to avoid FK ambiguity
+  const companyIds = [...new Set(relevantMeetings.map((m: any) => m.company_id).filter(Boolean))]
+  let companyNames: Map<string, string> = new Map()
+  if (companyIds.length > 0) {
+    const { data: companies } = await supabase
+      .from('companies')
+      .select('id, name')
+      .in('id', companyIds)
+
+    if (companies) {
+      companies.forEach((c: any) => companyNames.set(c.id, c.name))
+    }
+  }
+
   // Get owner names for team-wide searches
   let ownerNames: Map<string, string> = new Map()
   if (effectiveOwnerUserId === null && relevantMeetings.length > 0) {
@@ -445,7 +475,7 @@ async function fallbackSearch(
     meeting_id: m.id,
     title: m.title || 'Untitled Meeting',
     date: m.meeting_start ? new Date(m.meeting_start).toISOString().split('T')[0] : '',
-    company_name: m.company?.name || null,
+    company_name: m.company_id ? (companyNames.get(m.company_id) || null) : null,
     owner_name: effectiveOwnerUserId === null
       ? (ownerNames.get(m.owner_user_id) || 'Team Member')
       : null,

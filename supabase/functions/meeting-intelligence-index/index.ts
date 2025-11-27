@@ -104,8 +104,8 @@ function buildMeetingDocument(meeting: any): MeetingDocument {
   const attendees: string[] = []
   if (meeting.meeting_attendees) {
     meeting.meeting_attendees.forEach((a: any) => {
-      if (a.attendee_name) attendees.push(a.attendee_name)
-      if (a.attendee_email && !a.attendee_name) attendees.push(a.attendee_email)
+      if (a.name) attendees.push(a.name)
+      else if (a.email) attendees.push(a.email)
     })
   }
 
@@ -373,7 +373,7 @@ serve(async (req) => {
     // Get or create user's File Search store
     const { storeName, isNew } = await getOrCreateStore(user.id, supabaseClient, geminiApiKey)
 
-    // Fetch meetings with related data
+    // Fetch meetings with related data (without ambiguous FK joins)
     const { data: meetings, error: meetingsError } = await supabaseClient
       .from('meetings')
       .select(`
@@ -389,9 +389,7 @@ serve(async (req) => {
         talk_time_customer_pct,
         company_id,
         primary_contact_id,
-        company:companies!company_id(id, name),
-        primary_contact:contacts!primary_contact_id(id, name, email),
-        meeting_attendees(attendee_name, attendee_email, is_internal),
+        meeting_attendees(name, email, is_external),
         meeting_action_items(id, title, completed)
       `)
       .in('id', idsToIndex)
@@ -411,10 +409,42 @@ serve(async (req) => {
       )
     }
 
+    // Fetch company data separately to avoid FK ambiguity
+    const companyIds = [...new Set(meetings.map((m: any) => m.company_id).filter(Boolean))]
+    const companyMap = new Map<string, { id: string; name: string }>()
+    if (companyIds.length > 0) {
+      const { data: companies } = await supabaseClient
+        .from('companies')
+        .select('id, name')
+        .in('id', companyIds)
+      if (companies) {
+        companies.forEach((c: any) => companyMap.set(c.id, c))
+      }
+    }
+
+    // Fetch contact data separately
+    const contactIds = [...new Set(meetings.map((m: any) => m.primary_contact_id).filter(Boolean))]
+    const contactMap = new Map<string, { id: string; name: string; email: string }>()
+    if (contactIds.length > 0) {
+      const { data: contacts } = await supabaseClient
+        .from('contacts')
+        .select('id, name, email')
+        .in('id', contactIds)
+      if (contacts) {
+        contacts.forEach((c: any) => contactMap.set(c.id, c))
+      }
+    }
+
     // Index each meeting
     const results: Array<{ meetingId: string; success: boolean; message: string }> = []
 
     for (const meeting of meetings) {
+      // Attach company and contact data for buildMeetingDocument
+      const meetingWithRelations = {
+        ...meeting,
+        company: meeting.company_id ? companyMap.get(meeting.company_id) : null,
+        primary_contact: meeting.primary_contact_id ? contactMap.get(meeting.primary_contact_id) : null,
+      }
       if (!meeting.transcript_text || meeting.transcript_text.length < 100) {
         results.push({
           meetingId: meeting.id,
@@ -425,7 +455,7 @@ serve(async (req) => {
       }
 
       const result = await indexMeeting(
-        meeting,
+        meetingWithRelations,
         user.id,
         storeName,
         supabaseClient,

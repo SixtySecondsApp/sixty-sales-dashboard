@@ -110,6 +110,7 @@ const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
 const ExtractionRules = lazyWithRetry(() => import('@/pages/settings/ExtractionRules'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
+const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
@@ -337,6 +338,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<AppLayout><ExtractionRules /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
+                <Route path="/insights/content-topics" element={<AppLayout><ContentTopics /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />

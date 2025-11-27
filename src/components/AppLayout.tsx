@@ -42,7 +42,8 @@ import {
   UserPlus,
   Search,
   ChevronDown,
-  BarChart3
+  BarChart3,
+  Layers
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
@@ -143,6 +144,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     { icon: Activity, label: 'Dashboard', href: '/' },
     { icon: Video, label: 'Meetings', href: '/meetings' },
     { icon: Sparkles, label: 'Intelligence', href: '/meetings/intelligence' },
+    { icon: Layers, label: 'Content Topics', href: '/insights/content-topics' },
     { icon: BarChart3, label: 'Team Analytics', href: '/insights/team' },
     { icon: UserPlus, label: 'Onboarding', href: '/onboarding' },
   ];
