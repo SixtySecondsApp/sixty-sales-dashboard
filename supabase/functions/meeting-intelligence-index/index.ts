@@ -15,6 +15,7 @@ const corsHeaders = {
 }
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
+const GEMINI_UPLOAD_BASE = 'https://generativelanguage.googleapis.com/upload/v1beta'
 
 interface RequestBody {
   meetingId?: string
@@ -43,26 +44,43 @@ interface MeetingDocument {
 }
 
 /**
- * Get or create a File Search store for the user
+ * Get user's organization ID
  */
-async function getOrCreateStore(
-  userId: string,
+async function getUserOrgId(userId: string, supabase: any): Promise<string | null> {
+  const { data } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single()
+
+  return data?.org_id || null
+}
+
+/**
+ * Get or create a File Search store for the organization
+ */
+async function getOrCreateOrgStore(
+  orgId: string,
   supabase: any,
   geminiApiKey: string
 ): Promise<{ storeName: string; isNew: boolean }> {
-  // Check if user already has a store
+  // Check if org already has a store
   const { data: existingStore } = await supabase
-    .from('user_file_search_stores')
+    .from('org_file_search_stores')
     .select('store_name')
-    .eq('user_id', userId)
+    .eq('org_id', orgId)
     .single()
 
   if (existingStore?.store_name) {
     return { storeName: existingStore.store_name, isNew: false }
   }
 
-  // Create new File Search store
-  const displayName = `meetings-${userId.substring(0, 8)}-${Date.now()}`
+  // Create new File Search store for the organization
+  const displayName = `org-${orgId.substring(0, 8)}-meetings-${Date.now()}`
+
+  console.log(`Creating new File Search store: ${displayName}`)
 
   const response = await fetch(
     `${GEMINI_API_BASE}/fileSearchStores?key=${geminiApiKey}`,
@@ -83,11 +101,13 @@ async function getOrCreateStore(
   const storeData = await response.json()
   const storeName = storeData.name // e.g., "fileSearchStores/abc123"
 
+  console.log(`Store created: ${storeName}`)
+
   // Save store reference to database
   await supabase
-    .from('user_file_search_stores')
+    .from('org_file_search_stores')
     .insert({
-      user_id: userId,
+      org_id: orgId,
       store_name: storeName,
       display_name: displayName,
       status: 'active'
@@ -157,18 +177,82 @@ async function hashContent(content: string): Promise<string> {
 }
 
 /**
- * Upload document to File Search store
+ * Upload document to File Search store using two-step process:
+ * 1. Upload file to Files API
+ * 2. Import file to File Search Store
  */
 async function uploadToFileSearchStore(
   storeName: string,
   meetingId: string,
   document: MeetingDocument,
+  orgId: string,
   geminiApiKey: string
 ): Promise<string> {
   const content = JSON.stringify(document, null, 2)
-  const contentBytes = new TextEncoder().encode(content)
+  const displayName = `meeting-${meetingId}.json`
 
-  // Build custom metadata for filtering
+  console.log(`Uploading file: ${displayName}, content length: ${content.length}`)
+
+  // Step 1: Start resumable upload to get upload URI
+  const startResponse = await fetch(
+    `${GEMINI_UPLOAD_BASE}/files?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start',
+        'X-Goog-Upload-Header-Content-Length': String(new TextEncoder().encode(content).length),
+        'X-Goog-Upload-Header-Content-Type': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        file: {
+          displayName: displayName
+        }
+      })
+    }
+  )
+
+  if (!startResponse.ok) {
+    const errorText = await startResponse.text()
+    console.error(`Start upload failed - Status: ${startResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to start upload (${startResponse.status}): ${errorText}`)
+  }
+
+  const uploadUrl = startResponse.headers.get('X-Goog-Upload-URL')
+  if (!uploadUrl) {
+    throw new Error('No upload URL returned from start request')
+  }
+
+  console.log(`Got upload URL, uploading content...`)
+
+  // Step 2: Upload the actual file content
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Command': 'upload, finalize',
+      'X-Goog-Upload-Offset': '0',
+      'Content-Type': 'application/json'
+    },
+    body: content
+  })
+
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text()
+    console.error(`Files API upload failed - Status: ${uploadResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to upload file (${uploadResponse.status}): ${errorText || 'No error details'}`)
+  }
+
+  const fileData = await uploadResponse.json()
+  const fileName = fileData.file?.name || fileData.name
+
+  if (!fileName) {
+    throw new Error('No file name returned from Files API')
+  }
+
+  console.log(`File uploaded successfully: ${fileName}`)
+
+  // Step 2: Import file to File Search Store with metadata
   const customMetadata: Array<{ key: string; string_value?: string; numeric_value?: number }> = []
 
   if (document.company_id) {
@@ -184,38 +268,37 @@ async function uploadToFileSearchStore(
     key: 'has_action_items',
     string_value: document.action_items.length > 0 ? 'true' : 'false'
   })
+  customMetadata.push({
+    key: 'meeting_id',
+    string_value: meetingId
+  })
+  customMetadata.push({
+    key: 'org_id',
+    string_value: orgId
+  })
 
-  // Use the uploadToFileSearchStore endpoint
-  const uploadResponse = await fetch(
-    `${GEMINI_API_BASE}/${storeName}:uploadFile?key=${geminiApiKey}`,
+  const importResponse = await fetch(
+    `${GEMINI_API_BASE}/${storeName}:importFile?key=${geminiApiKey}`,
     {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        file: {
-          displayName: `meeting-${meetingId}`,
-          mimeType: 'application/json'
-        },
-        config: {
-          customMetadata: customMetadata
-        },
-        inlineData: {
-          mimeType: 'application/json',
-          data: btoa(String.fromCharCode(...contentBytes))
-        }
+        fileName: fileName,
+        customMetadata: customMetadata
       })
     }
   )
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text()
-    throw new Error(`Failed to upload to File Search: ${errorText}`)
+  if (!importResponse.ok) {
+    const errorText = await importResponse.text()
+    console.error(`File Search import failed - Status: ${importResponse.status}, Body: ${errorText}`)
+    throw new Error(`Failed to import to File Search (${importResponse.status}): ${errorText || 'No error details'}`)
   }
 
-  const uploadData = await uploadResponse.json()
-  return uploadData.name || uploadData.file?.name || `${storeName}/files/${meetingId}`
+  const importData = await importResponse.json()
+  console.log(`File imported to store successfully: ${JSON.stringify(importData)}`)
+
+  return fileName
 }
 
 /**
@@ -224,6 +307,7 @@ async function uploadToFileSearchStore(
 async function indexMeeting(
   meeting: any,
   userId: string,
+  orgId: string,
   storeName: string,
   supabase: any,
   geminiApiKey: string,
@@ -254,6 +338,7 @@ async function indexMeeting(
       .upsert({
         meeting_id: meeting.id,
         user_id: userId,
+        org_id: orgId,
         store_name: storeName,
         status: 'indexing',
         content_hash: contentHash
@@ -264,6 +349,7 @@ async function indexMeeting(
       storeName,
       meeting.id,
       document,
+      orgId,
       geminiApiKey
     )
 
@@ -279,12 +365,21 @@ async function indexMeeting(
       .eq('meeting_id', meeting.id)
       .eq('user_id', userId)
 
-    // Update store file count
-    await supabase.rpc('increment_file_search_store_count', {
-      p_store_name: storeName
-    }).catch(() => {
-      // Ignore if RPC doesn't exist yet
-    })
+    // Update org store file count
+    const { count: indexCount } = await supabase
+      .from('meeting_file_search_index')
+      .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
+      .eq('status', 'indexed')
+
+    await supabase
+      .from('org_file_search_stores')
+      .update({
+        total_files: indexCount || 0,
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('org_id', orgId)
 
     // Remove from queue if present
     await supabase
@@ -370,8 +465,17 @@ serve(async (req) => {
       )
     }
 
-    // Get or create user's File Search store
-    const { storeName, isNew } = await getOrCreateStore(user.id, supabaseClient, geminiApiKey)
+    // Get user's organization
+    const orgId = await getUserOrgId(user.id, supabaseClient)
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ error: 'User is not a member of any organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get or create organization's File Search store
+    const { storeName, isNew } = await getOrCreateOrgStore(orgId, supabaseClient, geminiApiKey)
 
     // Fetch meetings with related data (without ambiguous FK joins)
     const { data: meetings, error: meetingsError } = await supabaseClient
@@ -457,6 +561,7 @@ serve(async (req) => {
       const result = await indexMeeting(
         meetingWithRelations,
         user.id,
+        orgId,
         storeName,
         supabaseClient,
         geminiApiKey,

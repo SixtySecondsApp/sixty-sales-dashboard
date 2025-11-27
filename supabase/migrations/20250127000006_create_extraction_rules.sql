@@ -98,3 +98,5 @@ CREATE TRIGGER update_meeting_type_templates_updated_at
 COMMENT ON TABLE task_extraction_rules IS 'Custom rules for extracting tasks from meeting transcripts based on trigger phrases';
 COMMENT ON TABLE meeting_type_templates IS 'Templates for extraction and content generation based on meeting type';
 
+
+

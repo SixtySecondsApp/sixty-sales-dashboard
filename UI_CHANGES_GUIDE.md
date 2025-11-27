@@ -252,3 +252,5 @@
 - **Meetings List:** http://localhost:5173/meetings
 - **Meeting Detail:** http://localhost:5173/meetings/{meeting-id}
 
+
+

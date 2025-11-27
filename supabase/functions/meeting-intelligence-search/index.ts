@@ -12,6 +12,21 @@ import { corsHeaders } from '../_shared/cors.ts'
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1'
 
+/**
+ * Get user's organization ID
+ */
+async function getUserOrgId(userId: string, supabase: any): Promise<string | null> {
+  const { data } = await supabase
+    .from('organization_memberships')
+    .select('org_id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single()
+
+  return data?.org_id || null
+}
+
 interface SearchRequest {
   query: string
   filters?: {
@@ -599,11 +614,20 @@ serve(async (req) => {
       }
     }
 
-    // Check if user has a File Search store
+    // Get user's organization
+    const orgId = await getUserOrgId(user.id, supabaseClient)
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ error: 'User is not a member of any organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Check if organization has a File Search store
     const { data: storeData } = await supabaseClient
-      .from('user_file_search_stores')
+      .from('org_file_search_stores')
       .select('store_name, status, total_files')
-      .eq('user_id', user.id)
+      .eq('org_id', orgId)
       .single()
 
     // If no store or no files indexed, use fallback search
@@ -667,10 +691,11 @@ serve(async (req) => {
     let meetingCountQuery = supabaseClient
       .from('meeting_file_search_index')
       .select('id', { count: 'exact', head: true })
+      .eq('org_id', orgId)
       .eq('status', 'indexed')
 
     if (effectiveOwnerUserId !== null) {
-      meetingCountQuery = meetingCountQuery.eq('meeting_owner_id', effectiveOwnerUserId)
+      meetingCountQuery = meetingCountQuery.eq('user_id', effectiveOwnerUserId)
     }
 
     const { count: totalMeetings } = await meetingCountQuery

@@ -52,3 +52,5 @@ GRANT EXECUTE ON FUNCTION admin_set_system_config TO authenticated;
 -- Add comment
 COMMENT ON FUNCTION admin_set_system_config IS 'Admin-only function to update system configuration. Checks admin status before allowing updates.';
 
+
+

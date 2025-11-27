@@ -4,9 +4,9 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { toast } from 'sonner';
 
 // Types for tables not yet in generated types
-interface UserFileSearchStore {
+interface OrgFileSearchStore {
   id: string;
-  user_id: string;
+  org_id: string;
   store_name: string;
   display_name: string | null;
   status: 'active' | 'syncing' | 'error';
@@ -240,95 +240,106 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
 
       const targetUserId = getTargetUserId();
 
-      // Get store info for current user
-      const { data: storeData } = await untypedSupabase
-        .from('user_file_search_stores')
-        .select('status, total_files, last_sync_at')
+      // First get user's organization ID
+      const { data: orgMembership } = await untypedSupabase
+        .from('organization_memberships')
+        .select('org_id')
         .eq('user_id', user.id)
-        .maybeSingle() as { data: Partial<UserFileSearchStore> | null };
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle() as { data: { org_id: string } | null };
 
-      // Try the v2 RPC function first (supports team queries)
+      const orgId = orgMembership?.org_id;
+
+      // Get store info for user's organization
+      let storeData: Partial<OrgFileSearchStore> | null = null;
+      if (orgId) {
+        const { data } = await untypedSupabase
+          .from('org_file_search_stores')
+          .select('status, total_files, last_sync_at')
+          .eq('org_id', orgId)
+          .maybeSingle() as { data: Partial<OrgFileSearchStore> | null };
+        storeData = data;
+      }
+
+      // Try org-based RPC function first
       let statusData: MeetingIndexStatus | null = null;
-      const { data: statusV2Data, error: statusV2Error } = await untypedSupabase
-        .rpc('get_meeting_index_status_v2', {
-          p_requesting_user_id: user.id,
-          p_target_user_id: targetUserId, // null = all team
-        }) as {
-          data: MeetingIndexStatus[] | MeetingIndexStatus | null;
-          error: Error | null;
-        };
 
-      if (statusV2Error) {
-        // Fall back to v1 function (only supports single user)
-        console.warn('RPC get_meeting_index_status_v2 not available, trying v1:', statusV2Error);
-
-        const { data: statusV1Data, error: statusV1Error } = await untypedSupabase
-          .rpc('get_meeting_index_status', { p_user_id: targetUserId || user.id }) as {
+      if (orgId) {
+        const { data: statusOrgData, error: statusOrgError } = await untypedSupabase
+          .rpc('get_org_meeting_index_status', {
+            p_org_id: orgId,
+            p_target_user_id: targetUserId, // null = all team
+          }) as {
             data: MeetingIndexStatus[] | MeetingIndexStatus | null;
             error: Error | null;
           };
 
-        if (statusV1Error) {
-          // Fall back to direct queries
-          console.warn('RPC get_meeting_index_status not available, using fallback query:', statusV1Error);
-
-          // Build the base query
-          let meetingsQuery = supabase
-            .from('meetings')
-            .select('id', { count: 'exact', head: true })
-            .not('transcript_text', 'is', null)
-            .neq('transcript_text', '');
-
-          if (targetUserId) {
-            meetingsQuery = meetingsQuery.eq('owner_user_id', targetUserId);
-          }
-
-          const { count: totalMeetings } = await meetingsQuery;
-
-          let indexedQuery = untypedSupabase
-            .from('meeting_file_search_index')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'indexed');
-
-          if (targetUserId) {
-            indexedQuery = indexedQuery.eq('meeting_owner_id', targetUserId);
-          }
-
-          const { count: indexedCount } = await indexedQuery;
-
-          let pendingQuery = untypedSupabase
-            .from('meeting_index_queue')
-            .select('id', { count: 'exact', head: true });
-
-          if (targetUserId) {
-            pendingQuery = pendingQuery.eq('user_id', targetUserId);
-          }
-
-          const { count: pendingCount } = await pendingQuery;
-
-          let failedQuery = untypedSupabase
-            .from('meeting_file_search_index')
-            .select('id', { count: 'exact', head: true })
-            .eq('status', 'failed');
-
-          if (targetUserId) {
-            failedQuery = failedQuery.eq('meeting_owner_id', targetUserId);
-          }
-
-          const { count: failedCount } = await failedQuery;
-
-          statusData = {
-            indexed_count: indexedCount || 0,
-            total_meetings: totalMeetings || 0,
-            pending_count: pendingCount || 0,
-            failed_count: failedCount || 0,
-            last_indexed_at: null,
-          };
-        } else {
-          statusData = Array.isArray(statusV1Data) ? statusV1Data[0] : statusV1Data;
+        if (!statusOrgError && statusOrgData) {
+          statusData = Array.isArray(statusOrgData) ? statusOrgData[0] : statusOrgData;
         }
-      } else {
-        statusData = Array.isArray(statusV2Data) ? statusV2Data[0] : statusV2Data;
+      }
+
+      // Fall back to direct queries if RPC not available
+      if (!statusData) {
+        // Build the base query
+        let meetingsQuery = supabase
+          .from('meetings')
+          .select('id', { count: 'exact', head: true })
+          .not('transcript_text', 'is', null)
+          .neq('transcript_text', '');
+
+        if (targetUserId) {
+          meetingsQuery = meetingsQuery.eq('owner_user_id', targetUserId);
+        }
+
+        const { count: totalMeetings } = await meetingsQuery;
+
+        let indexedQuery = untypedSupabase
+          .from('meeting_file_search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'indexed');
+
+        if (orgId) {
+          indexedQuery = indexedQuery.eq('org_id', orgId);
+        }
+        if (targetUserId) {
+          indexedQuery = indexedQuery.eq('user_id', targetUserId);
+        }
+
+        const { count: indexedCount } = await indexedQuery;
+
+        let pendingQuery = untypedSupabase
+          .from('meeting_index_queue')
+          .select('id', { count: 'exact', head: true });
+
+        if (targetUserId) {
+          pendingQuery = pendingQuery.eq('user_id', targetUserId);
+        }
+
+        const { count: pendingCount } = await pendingQuery;
+
+        let failedQuery = untypedSupabase
+          .from('meeting_file_search_index')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'failed');
+
+        if (orgId) {
+          failedQuery = failedQuery.eq('org_id', orgId);
+        }
+        if (targetUserId) {
+          failedQuery = failedQuery.eq('user_id', targetUserId);
+        }
+
+        const { count: failedCount } = await failedQuery;
+
+        statusData = {
+          indexed_count: indexedCount || 0,
+          total_meetings: totalMeetings || 0,
+          pending_count: pendingCount || 0,
+          failed_count: failedCount || 0,
+          last_indexed_at: null,
+        };
       }
 
       setIndexStatus({
@@ -381,16 +392,15 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       )
       .subscribe();
 
-    // Subscribe to store updates
+    // Subscribe to org store updates
     const storeSubscription = supabase
-      .channel('user_file_search_stores_changes')
+      .channel('org_file_search_stores_changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'user_file_search_stores',
-          filter: `user_id=eq.${user.id}`,
+          table: 'org_file_search_stores',
         },
         () => {
           fetchIndexStatus();
@@ -473,11 +483,29 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
     }
 
     try {
-      // Update store status to syncing
+      // First get user's organization ID
+      const { data: orgMembership } = await untypedSupabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle() as { data: { org_id: string } | null };
+
+      const orgId = orgMembership?.org_id;
+
+      if (!orgId) {
+        toast.error('Organization not found', {
+          description: 'You must be a member of an organization to use AI search.',
+        });
+        return;
+      }
+
+      // Update org store status to syncing
       await untypedSupabase
-        .from('user_file_search_stores')
+        .from('org_file_search_stores')
         .update({ status: 'syncing' })
-        .eq('user_id', user.id);
+        .eq('org_id', orgId);
 
       setIndexStatus(prev => ({ ...prev, status: 'syncing' }));
 
@@ -498,9 +526,9 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
         });
 
         await untypedSupabase
-          .from('user_file_search_stores')
-          .update({ status: 'idle' })
-          .eq('user_id', user.id);
+          .from('org_file_search_stores')
+          .update({ status: 'active' })
+          .eq('org_id', orgId);
 
         setIndexStatus(prev => ({ ...prev, status: 'idle' }));
         return;
@@ -538,11 +566,11 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
 
       const result = response.data;
 
-      // Update store status
+      // Update org store status
       await untypedSupabase
-        .from('user_file_search_stores')
+        .from('org_file_search_stores')
         .update({ status: 'active' })
-        .eq('user_id', user.id);
+        .eq('org_id', orgId);
 
       toast.success('Indexing complete', {
         description: `Indexed ${result.succeeded || 0} meetings. ${result.failed || 0} failed.`,
@@ -556,10 +584,25 @@ export function useMeetingIntelligence(): UseMeetingIntelligenceReturn {
       const message = error instanceof Error ? error.message : 'Indexing failed';
       toast.error('Indexing Failed', { description: message });
 
-      await untypedSupabase
-        .from('user_file_search_stores')
-        .update({ status: 'error' })
-        .eq('user_id', user.id);
+      // Try to update org store status to error
+      try {
+        const { data: orgMembership } = await untypedSupabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle() as { data: { org_id: string } | null };
+
+        if (orgMembership?.org_id) {
+          await untypedSupabase
+            .from('org_file_search_stores')
+            .update({ status: 'error' })
+            .eq('org_id', orgMembership.org_id);
+        }
+      } catch {
+        // Ignore error handling errors
+      }
 
       setIndexStatus(prev => ({ ...prev, status: 'error' }));
     }
