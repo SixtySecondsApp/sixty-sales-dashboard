@@ -66,14 +66,14 @@ export default function AuthCallback() {
 
         if (session) {
           // Check if user needs onboarding
-          const { data: progress } = await supabase
+          const { data: progress, error: progressError } = await supabase
             .from('user_onboarding_progress')
             .select('onboarding_completed_at, skipped_onboarding')
             .eq('user_id', session.user.id)
-            .single();
+            .maybeSingle(); // Use maybeSingle to handle no rows gracefully
 
-          // If onboarding not completed and not skipped, go to onboarding
-          if (progress && !progress.onboarding_completed_at && !progress.skipped_onboarding) {
+          // If no progress record exists or onboarding not completed, go to onboarding
+          if (!progress || (!progress.onboarding_completed_at && !progress.skipped_onboarding)) {
             navigate('/onboarding', { replace: true });
           } else {
             navigate(next, { replace: true });
