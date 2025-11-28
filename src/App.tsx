@@ -8,10 +8,12 @@ import PerformanceMonitor from '@/lib/utils/performanceMonitor';
 import { AppLayout } from '@/components/AppLayout';
 import { AuthProvider } from '@/lib/contexts/AuthContext';
 import { OrgProvider } from '@/lib/contexts/OrgContext';
+import { UserPermissionsProvider } from '@/contexts/UserPermissionsContext';
 import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { InternalRouteGuard, AdminRouteGuard } from '@/components/RouteGuard';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -60,6 +62,7 @@ const Database = lazyWithRetry(() => import('@/pages/admin/Database'));
 const Reports = lazyWithRetry(() => import('@/pages/admin/Reports'));
 const Documentation = lazyWithRetry(() => import('@/pages/admin/Documentation'));
 const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
+const LogoSettings = lazyWithRetry(() => import('@/pages/settings/LogoSettings'));
 
 // Health Monitoring routes
 const DealHealthDashboard = lazyWithRetry(() => import('@/components/DealHealthDashboard').then(m => ({ default: m.DealHealthDashboard })));
@@ -120,6 +123,8 @@ const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
 const AdminPromptSettings = lazyWithRetry(() => import('@/pages/admin/PromptSettings'));
 const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
+const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
+const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/InternalDomainsSettings'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
@@ -226,13 +231,15 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <OrgProvider>
-            <ViewModeProvider>
-              <CopilotProvider>
-                <StateProvider>
-                  <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
-                </StateProvider>
-              </CopilotProvider>
-            </ViewModeProvider>
+            <UserPermissionsProvider>
+              <ViewModeProvider>
+                <CopilotProvider>
+                  <StateProvider>
+                    <AppContent performanceMetrics={performanceMetrics} measurePerformance={measurePerformance} />
+                  </StateProvider>
+                </CopilotProvider>
+              </ViewModeProvider>
+            </UserPermissionsProvider>
           </OrgProvider>
         </AuthProvider>
       </QueryClientProvider>
@@ -279,47 +286,58 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
+                {/* Home route - shows MeetingSentimentAnalytics (works for both internal and external) */}
                 <Route path="/" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
-                <Route path="/copilot" element={<AppLayout><Copilot /></AppLayout>} />
-                <Route path="/activity" element={<AppLayout><ActivityLog /></AppLayout>} />
+                {/* Original CRM Dashboard - Internal users only */}
+                <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                {/* Internal-only routes - CRM and tools */}
+                <Route path="/copilot" element={<InternalRouteGuard><AppLayout><Copilot /></AppLayout></InternalRouteGuard>} />
+                <Route path="/activity" element={<InternalRouteGuard><AppLayout><ActivityLog /></AppLayout></InternalRouteGuard>} />
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
-                <Route path="/crm" element={<AppLayout><ElegantCRM /></AppLayout>} />
+                <Route path="/crm" element={<InternalRouteGuard><AppLayout><ElegantCRM /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/elegant" element={<Navigate to="/crm" replace />} />
-                {/* Admin Dashboard and Sections */}
-                <Route path="/admin" element={<AppLayout><AdminDashboard /></AppLayout>} />
-                <Route path="/admin/users" element={<AppLayout><Users /></AppLayout>} />
-                <Route path="/admin/pipeline" element={<AppLayout><PipelineSettings /></AppLayout>} />
-                <Route path="/admin/audit" element={<AppLayout><AuditLogs /></AppLayout>} />
-                <Route path="/admin/smart-tasks" element={<AppLayout><SmartTasksAdmin /></AppLayout>} />
-                <Route path="/admin/pipeline-automation" element={<AppLayout><PipelineAutomationAdmin /></AppLayout>} />
-                <Route path="/admin/ai-settings" element={<AppLayout><AIProviderSettings /></AppLayout>} />
-                <Route path="/admin/model-settings" element={<AppLayout><AdminModelSettings /></AppLayout>} />
-                <Route path="/admin/prompts" element={<AppLayout><AdminPromptSettings /></AppLayout>} />
-                <Route path="/admin/api-testing" element={<AppLayout><ApiTesting /></AppLayout>} />
-                <Route path="/admin/function-testing" element={<AppLayout><FunctionTesting /></AppLayout>} />
-                <Route path="/admin/workflows-test" element={<AppLayout><WorkflowsTestSuite /></AppLayout>} />
-                <Route path="/admin/workflows-e2e" element={<AppLayout><WorkflowsE2ETestSuite /></AppLayout>} />
-                <Route path="/admin/google-integration" element={<AppLayout><GoogleIntegrationTests /></AppLayout>} />
-                <Route path="/admin/savvycal-settings" element={<AppLayout><SettingsSavvyCal /></AppLayout>} />
-                <Route path="/admin/booking-sources" element={<AppLayout><SettingsBookingSources /></AppLayout>} />
-                <Route path="/admin/system-health" element={<AppLayout><SystemHealth /></AppLayout>} />
-                <Route path="/admin/database" element={<AppLayout><Database /></AppLayout>} />
-                <Route path="/admin/reports" element={<AppLayout><Reports /></AppLayout>} />
-                <Route path="/admin/documentation" element={<AppLayout><Documentation /></AppLayout>} />
-                <Route path="/admin/health-rules" element={<AppLayout><HealthRules /></AppLayout>} />
-                <Route path="/admin/old" element={<AppLayout><Admin /></AppLayout>} /> {/* Keep old admin for reference */}
-                <Route path="/workflows" element={<AppLayout><Workflows /></AppLayout>} />
-                <Route path="/integrations" element={<AppLayout><Integrations /></AppLayout>} />
-                <Route path="/email" element={<AppLayout><Email /></AppLayout>} />
+                {/* Admin Dashboard and Sections - Admin only */}
+                <Route path="/admin" element={<AdminRouteGuard><AppLayout><AdminDashboard /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/users" element={<AdminRouteGuard><AppLayout><Users /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/pipeline" element={<AdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/audit" element={<AdminRouteGuard><AppLayout><AuditLogs /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/smart-tasks" element={<AdminRouteGuard><AppLayout><SmartTasksAdmin /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/pipeline-automation" element={<AdminRouteGuard><AppLayout><PipelineAutomationAdmin /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/ai-settings" element={<AdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/model-settings" element={<AdminRouteGuard><AppLayout><AdminModelSettings /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/prompts" element={<AdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/api-testing" element={<AdminRouteGuard><AppLayout><ApiTesting /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/function-testing" element={<AdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/workflows-test" element={<AdminRouteGuard><AppLayout><WorkflowsTestSuite /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/workflows-e2e" element={<AdminRouteGuard><AppLayout><WorkflowsE2ETestSuite /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/google-integration" element={<AdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/savvycal-settings" element={<AdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/booking-sources" element={<AdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/system-health" element={<AdminRouteGuard><AppLayout><SystemHealth /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/database" element={<AdminRouteGuard><AppLayout><Database /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/reports" element={<AdminRouteGuard><AppLayout><Reports /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/documentation" element={<AdminRouteGuard><AppLayout><Documentation /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/health-rules" element={<AdminRouteGuard><AppLayout><HealthRules /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/branding" element={<AdminRouteGuard><AppLayout><LogoSettings /></AppLayout></AdminRouteGuard>} />
+                <Route path="/admin/old" element={<AdminRouteGuard><AppLayout><Admin /></AppLayout></AdminRouteGuard>} /> {/* Keep old admin for reference */}
+                {/* SaaS Admin Dashboard - Manage external customers, subscriptions, and feature flags */}
+                <Route path="/saas-admin" element={<AdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></AdminRouteGuard>} />
+                {/* Internal Domains Settings - Configure which email domains are internal */}
+                <Route path="/admin/internal-domains" element={<AdminRouteGuard><AppLayout><InternalDomainsSettings /></AppLayout></AdminRouteGuard>} />
+                {/* Internal-only tools */}
+                <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />
+                <Route path="/integrations" element={<InternalRouteGuard><AppLayout><Integrations /></AppLayout></InternalRouteGuard>} />
+                <Route path="/email" element={<InternalRouteGuard><AppLayout><Email /></AppLayout></InternalRouteGuard>} />
                 <Route path="/auth/google/callback" element={<GoogleCallback />} />
                 <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
-                <Route path="/pipeline" element={<AppLayout><PipelinePage /></AppLayout>} />
-                <Route path="/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
-                <Route path="/crm/tasks" element={<AppLayout><TasksPage /></AppLayout>} />
-                <Route path="/tasks/settings" element={<AppLayout><GoogleTasksSettings /></AppLayout>} />
-                <Route path="/calendar" element={<AppLayout><Calendar /></AppLayout>} />
-                <Route path="/events" element={<AppLayout><Events /></AppLayout>} />
-                <Route path="/leads" element={<AppLayout><LeadsInbox /></AppLayout>} />
+                {/* Internal-only: Pipeline, Tasks, Calendar */}
+                <Route path="/pipeline" element={<InternalRouteGuard><AppLayout><PipelinePage /></AppLayout></InternalRouteGuard>} />
+                <Route path="/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
+                <Route path="/crm/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
+                <Route path="/tasks/settings" element={<InternalRouteGuard><AppLayout><GoogleTasksSettings /></AppLayout></InternalRouteGuard>} />
+                <Route path="/calendar" element={<InternalRouteGuard><AppLayout><Calendar /></AppLayout></InternalRouteGuard>} />
+                <Route path="/events" element={<InternalRouteGuard><AppLayout><Events /></AppLayout></InternalRouteGuard>} />
+                <Route path="/leads" element={<InternalRouteGuard><AppLayout><LeadsInbox /></AppLayout></InternalRouteGuard>} />
                 
                 {/* Form Display Routes */}
                 <Route path="/form/:formId" element={<Suspense fallback={<IntelligentPreloader />}><FormDisplay /></Suspense>} />
@@ -340,17 +358,17 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
                 <Route path="/crm/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
                 
-                {/* Individual record routes */}
-                <Route path="/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-                <Route path="/crm/companies/:companyId" element={<AppLayout><CompanyProfile /></AppLayout>} />
-                <Route path="/crm/contacts/:id" element={<AppLayout><ContactRecord /></AppLayout>} />
-                <Route path="/crm/deals/:id" element={<AppLayout><DealRecord /></AppLayout>} />
-                <Route path="/crm/health" element={<AppLayout><HealthMonitoring /></AppLayout>} />
+                {/* Individual record routes - Internal only */}
+                <Route path="/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />
+                <Route path="/crm/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />
+                <Route path="/crm/contacts/:id" element={<InternalRouteGuard><AppLayout><ContactRecord /></AppLayout></InternalRouteGuard>} />
+                <Route path="/crm/deals/:id" element={<InternalRouteGuard><AppLayout><DealRecord /></AppLayout></InternalRouteGuard>} />
+                <Route path="/crm/health" element={<InternalRouteGuard><AppLayout><HealthMonitoring /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/relationship-health" element={<Navigate to="/crm/health?tab=relationships" replace />} />
 
-                {/* Other routes */}
+                {/* Other internal-only routes */}
                 <Route path="/payments" element={<Navigate to="/clients" replace />} />
-                <Route path="/clients" element={<AppLayout><Clients /></AppLayout>} />
+                <Route path="/clients" element={<InternalRouteGuard><AppLayout><Clients /></AppLayout></InternalRouteGuard>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
                 <Route path="/preferences" element={<Navigate to="/settings" replace />} />

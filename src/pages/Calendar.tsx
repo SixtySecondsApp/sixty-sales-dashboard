@@ -629,7 +629,7 @@ const Calendar: React.FC = () => {
       
       {/* Sync Status Indicator - Simplified */}
       {integration && isCalendarEnabled && syncStatus && (
-        <div className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700/50 px-6 py-2 flex-shrink-0">
+        <div className="bg-slate-50 dark:bg-gray-800/50 border-b border-[#E2E8F0] dark:border-gray-700/50 px-6 py-2 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {isSyncing ? (
@@ -639,8 +639,8 @@ const Calendar: React.FC = () => {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-gray-700 dark:text-gray-300" />
-                  <span className="text-xs text-gray-700 dark:text-gray-300">
+                  <RefreshCw className="w-4 h-4 text-[#64748B] dark:text-gray-300" />
+                  <span className="text-xs text-[#64748B] dark:text-gray-300">
                     {syncStatus?.lastSyncedAt
                       ? `Last synced ${formatDistanceToNow(syncStatus.lastSyncedAt, { addSuffix: true })}`
                       : 'Not synced yet - click below to start'}
@@ -669,7 +669,7 @@ const Calendar: React.FC = () => {
 
             {/* Sync feedback if present */}
             {syncFeedback && (
-              <div className="text-sm text-gray-700 dark:text-gray-300">
+              <div className="text-sm text-[#64748B] dark:text-gray-300">
                 {syncFeedback}
               </div>
             )}
@@ -680,7 +680,7 @@ const Calendar: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Fixed Sidebar Container - Hidden on mobile */}
         <div
-          className="hidden lg:block relative bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-gray-200 dark:border-gray-800/50 z-10 flex-shrink-0 overflow-hidden"
+          className="hidden lg:block relative bg-white dark:bg-gray-900/50 backdrop-blur-xl border-r border-[#E2E8F0] dark:border-gray-800/50 z-10 flex-shrink-0 overflow-hidden"
           style={{
             width: sidebarCollapsed ? '60px' : '320px',
             minWidth: sidebarCollapsed ? '60px' : '320px',
@@ -704,14 +704,14 @@ const Calendar: React.FC = () => {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
         <Card className="m-2 sm:m-4 mb-0 flex-shrink-0">
-          <div className="p-3 sm:p-4 border-b border-gray-200 dark:border-gray-800/50">
+          <div className="p-3 sm:p-4 border-b border-[#E2E8F0] dark:border-gray-800/50">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
                   <CalendarIcon className="w-6 h-6 text-emerald-500 dark:text-emerald-400" />
-                  <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Calendar</h1>
+                  <h1 className="text-xl font-semibold text-[#1E293B] dark:text-gray-100">Calendar</h1>
                   {dbEventsLoading && (
-                    <Loader2 className="w-4 h-4 text-gray-600 dark:text-gray-400 animate-spin" />
+                    <Loader2 className="w-4 h-4 text-[#64748B] dark:text-gray-400 animate-spin" />
                   )}
                   
                   {/* Debug button */}
@@ -746,7 +746,7 @@ const Calendar: React.FC = () => {
                 
                 {/* View Selector */}
                 <div
-                  className="flex items-center space-x-1 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-1"
+                  className="flex items-center space-x-1 bg-slate-100 dark:bg-gray-800/50 rounded-lg p-1"
                   role="group"
                   aria-label="Calendar view selector"
                 >
@@ -776,7 +776,7 @@ const Calendar: React.FC = () => {
                   <label htmlFor="calendar-search" className="sr-only">
                     Search events
                   </label>
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-600 dark:text-gray-400" aria-hidden="true" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748B] dark:text-gray-400" aria-hidden="true" />
                   <Input
                     id="calendar-search"
                     placeholder="Search events..."
@@ -787,7 +787,7 @@ const Calendar: React.FC = () => {
                         announce(`Searching for ${e.target.value}`, 'polite');
                       }
                     }}
-                    className="pl-10 pr-10 w-64 bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-400"
+                    className="pl-10 pr-10 w-64 bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700/50 text-[#1E293B] dark:text-gray-200 placeholder-[#94A3B8] dark:placeholder-gray-400"
                     aria-label="Search calendar events"
                     aria-describedby="search-status"
                   />
@@ -860,7 +860,7 @@ const Calendar: React.FC = () => {
           </div>
 
           {/* Quick Add */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800/50">
+          <div className="p-4 border-b border-[#E2E8F0] dark:border-gray-800/50">
             <div className="flex items-center gap-2">
               <CalendarQuickAdd onEventCreate={handleQuickAdd} />
 
@@ -896,12 +896,12 @@ const Calendar: React.FC = () => {
             {/* Show sync prompt if no events and no database events */}
             {events.length === 0 && !dbEventsLoading && (!dbEvents || dbEvents.length === 0) && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
-                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 max-w-md shadow-lg">
+                <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg border border-[#E2E8F0] dark:border-gray-700 max-w-md shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-lg">
                   <CalendarIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  <h3 className="text-xl font-semibold text-[#1E293B] dark:text-gray-100 mb-2">
                     {!syncStatus?.lastSyncedAt ? 'Welcome to Calendar' : 'No Events to Display'}
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  <p className="text-[#64748B] dark:text-gray-400 mb-6">
                     {!syncStatus?.lastSyncedAt
                       ? "Let's first test the connection by syncing last week's events from your Google Calendar."
                       : "Your calendar is empty. Try syncing a different time period."}
@@ -970,7 +970,7 @@ const Calendar: React.FC = () => {
                       <>
                         <div className="space-y-2">
                           <p className="text-xs text-emerald-600 dark:text-emerald-500 mb-2">✓ Connection verified!</p>
-                          <p className="text-sm text-gray-600 dark:text-gray-500 mb-3">Now sync more events:</p>
+                          <p className="text-sm text-[#64748B] dark:text-gray-500 mb-3">Now sync more events:</p>
                           
                           {/* Primary action: Current month */}
                           <Button

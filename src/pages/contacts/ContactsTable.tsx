@@ -522,13 +522,13 @@ export default function ContactsTable() {
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-gray-900/50 rounded-xl p-8">
+        <div className="bg-white dark:bg-gray-900/50 rounded-xl p-8 border border-[#E2E8F0] dark:border-gray-800 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-800 rounded w-1/4"></div>
-            <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+            <div className="h-8 bg-slate-200 dark:bg-gray-800 rounded w-1/4"></div>
+            <div className="h-4 bg-slate-200 dark:bg-gray-800 rounded w-1/2"></div>
             <div className="space-y-3 mt-6">
               {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="h-16 bg-gray-800/50 rounded-lg"></div>
+                <div key={i} className="h-16 bg-slate-100 dark:bg-gray-800/50 rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -558,24 +558,24 @@ export default function ContactsTable() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Users className="w-8 h-8 text-green-400" />
-            <h1 className="text-3xl font-bold text-white">Contacts</h1>
+            <h1 className="text-3xl font-bold text-[#1E293B] dark:text-white">Contacts</h1>
           </div>
-          <p className="text-gray-400">
+          <p className="text-[#64748B] dark:text-gray-400">
             Manage your contact database • {filteredAndSortedContacts.length} of {contacts.length} contacts • Click any row to view details
           </p>
         </div>
 
       {/* Search and Filters */}
-      <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-800">
+      <div className="bg-white dark:bg-gray-900/50 rounded-xl p-6 mb-6 border border-[#E2E8F0] dark:border-gray-800 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748B] dark:text-gray-400 w-4 h-4" />
             <Input
               placeholder="Search contacts by name, email, or title..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400"
+              className="pl-10 bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white placeholder-[#94A3B8] dark:placeholder-gray-400"
             />
             {isSearching && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -587,10 +587,10 @@ export default function ContactsTable() {
           {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-full sm:w-[200px] bg-gray-800/50 border-gray-700 text-white">
+              <SelectTrigger className="w-full sm:w-[200px] bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white">
                 <SelectValue placeholder="All Companies" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectContent className="bg-white dark:bg-gray-800 border-[#E2E8F0] dark:border-gray-700">
                 <SelectItem value="all">All Companies</SelectItem>
                 {uniqueCompanies.map(company => (
                   <SelectItem key={company} value={company}>{company}</SelectItem>
@@ -599,10 +599,10 @@ export default function ContactsTable() {
             </Select>
 
             <Select value={primaryFilter} onValueChange={setPrimaryFilter}>
-              <SelectTrigger className="w-full sm:w-[150px] bg-gray-800/50 border-gray-700 text-white">
+              <SelectTrigger className="w-full sm:w-[150px] bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white">
                 <SelectValue placeholder="All Contacts" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-800 border-gray-700">
+              <SelectContent className="bg-white dark:bg-gray-800 border-[#E2E8F0] dark:border-gray-700">
                 <SelectItem value="all">All Contacts</SelectItem>
                 <SelectItem value="primary">Primary Only</SelectItem>
                 <SelectItem value="secondary">Secondary Only</SelectItem>
@@ -658,7 +658,7 @@ export default function ContactsTable() {
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 border border-violet-500/30">
                   <CheckSquare className="w-4 h-4 text-violet-400" />
                 </div>
-                <span className="text-sm font-medium text-white">
+                <span className="text-sm font-medium text-[#1E293B] dark:text-white">
                   {selectedContacts.size} selected
                 </span>
               </div>
@@ -689,13 +689,13 @@ export default function ContactsTable() {
       </AnimatePresence>
 
       {/* Table */}
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-[#E2E8F0] dark:border-gray-800 overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-800 hover:bg-gray-800/50">
+            <TableRow className="border-[#E2E8F0] dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50">
               {/* Select All Checkbox - Only show when in select mode */}
               {isSelectModeActive && (
-                <TableHead className="w-12 text-gray-300">
+                <TableHead className="w-12 text-[#64748B] dark:text-gray-300">
                   <input
                     type="checkbox"
                     checked={isSelectAllChecked}
@@ -705,7 +705,7 @@ export default function ContactsTable() {
                 </TableHead>
               )}
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('full_name')}
               >
                 <div className="flex items-center gap-2">
@@ -713,16 +713,16 @@ export default function ContactsTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('email')}
               >
                 <div className="flex items-center gap-2">
                   Email {getSortIcon('email')}
                 </div>
               </TableHead>
-              <TableHead className="text-gray-300">Phone</TableHead>
+              <TableHead className="text-[#64748B] dark:text-gray-300">Phone</TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('title')}
               >
                 <div className="flex items-center gap-2">
@@ -730,7 +730,7 @@ export default function ContactsTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('company_name')}
               >
                 <div className="flex items-center gap-2">
@@ -738,21 +738,21 @@ export default function ContactsTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white text-center"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white text-center"
                 onClick={() => handleSort('is_primary')}
               >
                 <div className="flex items-center justify-center gap-2">
                   Primary {getSortIcon('is_primary')}
                 </div>
               </TableHead>
-              <TableHead className="text-gray-300 text-center">Actions</TableHead>
+              <TableHead className="text-[#64748B] dark:text-gray-300 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredAndSortedContacts.map((contact) => (
-              <TableRow 
-                key={contact.id} 
-                className={`border-gray-800 hover:bg-gray-800/50 cursor-pointer ${
+              <TableRow
+                key={contact.id}
+                className={`border-[#E2E8F0] dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50 cursor-pointer ${
                   selectedContacts.has(contact.id) && isSelectModeActive
                     ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
                     : ''
@@ -785,7 +785,7 @@ export default function ContactsTable() {
                       <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
                     )}
                     <div className="flex flex-col">
-                      <div className="font-medium text-white">{formatName(contact)}</div>
+                      <div className="font-medium text-[#1E293B] dark:text-white">{formatName(contact)}</div>
                       {contact.linkedin_url && (
                         <a
                           href={contact.linkedin_url}
@@ -803,7 +803,7 @@ export default function ContactsTable() {
                 <TableCell>
                   {contact.email && (
                     <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-gray-400" />
+                      <Mail className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
                       <a
                         href={`mailto:${contact.email}`}
                         className="text-blue-400 hover:text-blue-300"
@@ -817,10 +817,10 @@ export default function ContactsTable() {
                 <TableCell>
                   {contact.phone && (
                     <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-gray-400" />
+                      <Phone className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
                       <a
                         href={`tel:${contact.phone}`}
-                        className="text-gray-300 hover:text-white"
+                        className="text-[#64748B] dark:text-gray-300 hover:text-[#1E293B] dark:hover:text-white"
                         onClick={(e) => e.stopPropagation()}
                       >
                         {contact.phone}
@@ -838,8 +838,8 @@ export default function ContactsTable() {
                 <TableCell>
                   {contact.company && (
                     <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-300">{contact.company.name}</span>
+                      <Building2 className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
+                      <span className="text-[#64748B] dark:text-gray-300">{contact.company.name}</span>
                       {contact.company.website && (
                         <a
                           href={contact.company.website}
@@ -893,8 +893,8 @@ export default function ContactsTable() {
         {filteredAndSortedContacts.length === 0 && (
           <div className="text-center py-12">
             <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400 mb-2">No contacts found</h3>
-            <p className="text-gray-500 text-sm">
+            <h3 className="text-lg font-medium text-[#64748B] dark:text-gray-400 mb-2">No contacts found</h3>
+            <p className="text-[#94A3B8] dark:text-gray-500 text-sm">
               {searchTerm || companyFilter !== 'all' || primaryFilter !== 'all' 
                 ? 'Try adjusting your search criteria or filters'
                 : 'Get started by adding your first contact'

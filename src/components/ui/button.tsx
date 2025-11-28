@@ -13,17 +13,17 @@ const buttonVariants = cva(
         destructive:
           'bg-red-600 dark:bg-red-600/10 text-white dark:text-red-400 border border-red-600 dark:border-red-600/20 hover:bg-red-700 dark:hover:bg-red-600/20 hover:border-red-700 dark:hover:border-red-600/30 shadow-sm dark:shadow-none focus-visible:ring-red-500',
         outline:
-          'bg-white dark:bg-gray-700/10 text-gray-900 dark:text-gray-300 border border-gray-300 dark:border-gray-600/20 hover:bg-gray-50 dark:hover:bg-gray-700/20 hover:border-gray-400 dark:hover:border-gray-500/30 shadow-sm dark:shadow-none focus-visible:ring-gray-500',
+          'bg-white dark:bg-gray-700/10 text-[#1E293B] dark:text-gray-300 border border-[#E2E8F0] dark:border-gray-600/20 hover:bg-slate-50 dark:hover:bg-gray-700/20 hover:border-slate-300 dark:hover:border-gray-500/30 shadow-sm dark:shadow-none focus-visible:ring-gray-500',
         secondary:
-          'bg-white dark:bg-gray-600/10 text-gray-900 dark:text-gray-400 border border-gray-300 dark:border-gray-500/20 hover:bg-gray-50 dark:hover:bg-gray-600/20 hover:border-gray-400 dark:hover:border-gray-500/30 shadow-sm dark:shadow-none focus-visible:ring-gray-500',
+          'bg-white dark:bg-gray-600/10 text-[#1E293B] dark:text-gray-400 border border-[#E2E8F0] dark:border-gray-500/20 hover:bg-slate-50 dark:hover:bg-gray-600/20 hover:border-slate-300 dark:hover:border-gray-500/30 shadow-sm dark:shadow-none focus-visible:ring-gray-500',
         tertiary:
-          'bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50 focus-visible:ring-gray-500',
+          'bg-slate-50 dark:bg-gray-800/50 text-[#64748B] dark:text-gray-400 border border-[#E2E8F0] dark:border-gray-700/50 hover:bg-slate-100 dark:hover:bg-gray-700/50 hover:border-slate-300 dark:hover:border-gray-600/50 focus-visible:ring-gray-500',
         success:
           'bg-emerald-600 dark:bg-emerald-500/10 text-white dark:text-emerald-400 border border-emerald-600 dark:border-emerald-500/20 hover:bg-emerald-700 dark:hover:bg-emerald-500/20 hover:border-emerald-700 dark:hover:border-emerald-500/30 shadow-sm dark:shadow-none focus-visible:ring-emerald-500',
         danger:
           'bg-red-600 dark:bg-red-500/10 text-white dark:text-red-400 border border-red-600 dark:border-red-500/20 hover:bg-red-700 dark:hover:bg-red-500/20 hover:border-red-700 dark:hover:border-red-500/30 shadow-sm dark:shadow-none focus-visible:ring-red-500',
         ghost:
-          'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/30 hover:text-gray-900 dark:hover:text-white focus-visible:ring-gray-500',
+          'bg-transparent text-[#64748B] dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800/30 hover:text-[#1E293B] dark:hover:text-white focus-visible:ring-gray-500',
         link: 'text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline underline-offset-4',
       },
       size: {

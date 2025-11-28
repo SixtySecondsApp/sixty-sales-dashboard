@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TeamAnalyticsService, type LeaderboardEntry } from '@/lib/services/teamAnalyticsService';
 import { Trophy, Medal, Award, BarChart3 } from 'lucide-react';
@@ -26,13 +25,13 @@ const getRankIcon = (rank: number) => {
 const getRankColor = (rank: number) => {
   switch (rank) {
     case 1:
-      return 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-800';
+      return 'bg-white dark:from-gray-800/60 dark:to-gray-800/40 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-yellow-500/30 shadow-[0_4px_6px_-1px_rgba(234,179,8,0.1)] dark:shadow-black/10 ring-1 ring-yellow-200/50 dark:ring-0';
     case 2:
-      return 'bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border-gray-200 dark:border-gray-800';
+      return 'bg-white dark:from-gray-800/50 dark:to-gray-800/30 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-gray-600/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-black/10';
     case 3:
-      return 'bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border-amber-200 dark:border-amber-800';
+      return 'bg-white dark:from-gray-800/50 dark:to-gray-800/30 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-amber-500/30 shadow-[0_4px_6px_-1px_rgba(217,119,6,0.08)] dark:shadow-black/10 ring-1 ring-amber-200/50 dark:ring-0';
     default:
-      return 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+      return 'bg-white dark:bg-gray-800/40 border-[#E2E8F0] dark:border-gray-700/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]';
   }
 };
 
@@ -60,99 +59,115 @@ export function MeetingVolumeRankings({ userId, orgId }: MeetingVolumeRankingsPr
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
-            Meeting Volume Rankings
-          </CardTitle>
-          <CardDescription>
-            Top performers by total number of meetings
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      <div className="bg-white dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-[#E2E8F0] dark:border-gray-700/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-lg dark:shadow-black/10 overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E2E8F0] dark:border-gray-700/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-50 dark:from-blue-900/40 dark:to-blue-900/20 dark:bg-gradient-to-br border border-blue-200/50 dark:border-blue-500/20">
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#1E293B] dark:text-white">Meeting Volume Rankings</h3>
+              <p className="text-sm text-[#64748B] dark:text-gray-400">Top performers by total number of meetings</p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="p-5">
+          <div className="h-64 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 rounded-full border-2 border-blue-200 dark:border-blue-500/30 border-t-blue-500 animate-spin" />
+              <p className="text-sm text-[#64748B] dark:text-gray-400">Loading rankings...</p>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
   if (rankings.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />
-            Meeting Volume Rankings
-          </CardTitle>
-          <CardDescription>
-            Top performers by total number of meetings
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-            <div className="text-center">
-              <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No team data available yet</p>
+      <div className="bg-white dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-[#E2E8F0] dark:border-gray-700/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-lg dark:shadow-black/10 overflow-hidden">
+        <div className="px-5 py-4 border-b border-[#E2E8F0] dark:border-gray-700/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-50 dark:from-blue-900/40 dark:to-blue-900/20 dark:bg-gradient-to-br border border-blue-200/50 dark:border-blue-500/20">
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#1E293B] dark:text-white">Meeting Volume Rankings</h3>
+              <p className="text-sm text-[#64748B] dark:text-gray-400">Top performers by total number of meetings</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="p-5">
+          <div className="h-64 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-gray-800/50 border border-blue-200/30 dark:border-gray-700/30 flex items-center justify-center mx-auto mb-3">
+                <BarChart3 className="w-8 h-8 text-blue-400" />
+              </div>
+              <p className="text-[#1E293B] dark:text-gray-300 font-medium">No team data available</p>
+              <p className="text-sm text-[#64748B] dark:text-gray-400 mt-1">Complete some meetings to see rankings</p>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="w-5 h-5 text-blue-500" />
-          Meeting Volume Rankings
-        </CardTitle>
-        <CardDescription>
-          Top performers by total number of meetings (last 30 days)
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
+    <div className="bg-white dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-[#E2E8F0] dark:border-gray-700/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-lg dark:shadow-black/10 overflow-hidden">
+      <div className="px-5 py-4 border-b border-[#E2E8F0] dark:border-gray-700/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-50 dark:from-blue-900/40 dark:to-blue-900/20 dark:bg-gradient-to-br border border-blue-200/50 dark:border-blue-500/20">
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-[#1E293B] dark:text-white">Meeting Volume Rankings</h3>
+              <p className="text-sm text-[#64748B] dark:text-gray-400">Last 30 days</p>
+            </div>
+          </div>
+          <Badge className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/20">
+            {rankings.length} members
+          </Badge>
+        </div>
+      </div>
+      <div className="p-4">
+        <div className="space-y-2">
           {rankings.map((entry, index) => (
             <motion.div
               key={entry.userId}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`p-4 rounded-lg border ${getRankColor(entry.rank)} transition-all hover:shadow-md`}
+              className={`p-4 rounded-xl border ${getRankColor(entry.rank)} transition-all duration-300 hover:scale-[1.01] hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.08),0_4px_6px_-2px_rgba(0,0,0,0.04)] dark:hover:shadow-black/20`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-1">
-                  <div className="flex items-center justify-center w-10">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-gray-800/50 border border-[#E2E8F0] dark:border-gray-700/30">
                     {getRankIcon(entry.rank)}
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-gray-900 dark:text-gray-100">{entry.name}</p>
+                    <p className="font-semibold text-[#1E293B] dark:text-white">{entry.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
+                      <span className="text-sm text-[#64748B] dark:text-gray-400">
                         {entry.value} meeting{entry.value !== 1 ? 's' : ''}
-                      </Badge>
+                      </span>
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                      {entry.value}
-                    </span>
-                  </div>
+                <div className="flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 dark:from-blue-900/40 dark:to-blue-900/20 dark:bg-gradient-to-br border border-blue-200/50 dark:border-blue-500/20">
+                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                    {entry.value}
+                  </span>
                 </div>
               </div>
             </motion.div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
+
 
 
 

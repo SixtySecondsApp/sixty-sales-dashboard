@@ -11,7 +11,7 @@ const badgeVariants = cva(
         default:
           "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-500/20",
         secondary:
-          "bg-gray-100 dark:bg-gray-500/10 text-gray-700 dark:text-gray-400 border-gray-200 dark:border-gray-500/20",
+          "bg-slate-100 dark:bg-gray-500/10 text-[#64748B] dark:text-gray-400 border-slate-200 dark:border-gray-500/20",
         destructive:
           "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20",
         success:
@@ -19,7 +19,7 @@ const badgeVariants = cva(
         warning:
           "bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-500/20",
         outline:
-          "bg-transparent border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300",
+          "bg-transparent border-[#E2E8F0] dark:border-gray-600 text-[#64748B] dark:text-gray-300",
       },
     },
     defaultVariants: {

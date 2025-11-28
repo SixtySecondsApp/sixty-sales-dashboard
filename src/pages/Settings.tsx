@@ -5,14 +5,24 @@ import Profile from '@/pages/Profile';
 import Preferences from '@/pages/Preferences';
 import ProposalSettings from '@/pages/settings/ProposalSettings';
 import AIPersonalizationSettings from '@/pages/settings/AIPersonalizationSettings';
+import ViewModeSettings from '@/pages/settings/ViewModeSettings';
+import LogoSettings from '@/pages/settings/LogoSettings';
 import { EmailSyncPanel } from '@/components/health/EmailSyncPanel';
 import { useOrg } from '@/lib/contexts/OrgContext';
-import { Users } from 'lucide-react';
+import { useUserPermissions } from '@/contexts/UserPermissionsContext';
+import { useUser } from '@/lib/hooks/useUser';
+import { isUserAdmin } from '@/lib/utils/adminUtils';
+import { Users, Eye, Image } from 'lucide-react';
 
 export default function Settings() {
   const [tab, setTab] = useState('account');
   const navigate = useNavigate();
   const { isMultiTenant, activeOrg, permissions } = useOrg();
+  const { isInternal } = useUserPermissions();
+  const { userData } = useUser();
+
+  // Show branding tab if user is org admin OR global admin
+  const canManageBranding = permissions.canManageSettings || isUserAdmin(userData);
 
   // Handle tabs that navigate to dedicated pages
   const handleTabChange = (value: string) => {
@@ -29,24 +39,36 @@ export default function Settings() {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage your account and appearance</p>
+              <h1 className="text-2xl font-bold text-[#1E293B] dark:text-gray-100">Settings</h1>
+              <p className="text-sm text-[#64748B] dark:text-gray-400 mt-1">Manage your account and appearance</p>
             </div>
           </div>
 
           <Tabs value={tab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="bg-white border border-transparent shadow-sm dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50">
-              <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Account</TabsTrigger>
+            <TabsList className="bg-[#E2E8F0] dark:bg-gray-900/50 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none dark:backdrop-blur-xl">
+              <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Account</TabsTrigger>
               {isMultiTenant && (
-                <TabsTrigger value="team" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">
+                <TabsTrigger value="team" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">
                   <Users className="w-4 h-4 mr-1.5" />
                   Team
                 </TabsTrigger>
               )}
-              <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Appearance</TabsTrigger>
-              <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Proposals</TabsTrigger>
-              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
-              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
+              <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Appearance</TabsTrigger>
+              <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Proposals</TabsTrigger>
+              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
+              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
+              {canManageBranding && (
+                <TabsTrigger value="branding" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">
+                  <Image className="w-4 h-4 mr-1.5" />
+                  Branding
+                </TabsTrigger>
+              )}
+              {isInternal && (
+                <TabsTrigger value="view-mode" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">
+                  <Eye className="w-4 h-4 mr-1.5" />
+                  View Mode
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="account" className="space-y-0">
@@ -70,6 +92,18 @@ export default function Settings() {
             <TabsContent value="email-sync" className="space-y-6">
               <EmailSyncPanel />
             </TabsContent>
+
+            {canManageBranding && (
+              <TabsContent value="branding" className="space-y-0">
+                <LogoSettings />
+              </TabsContent>
+            )}
+
+            {isInternal && (
+              <TabsContent value="view-mode" className="space-y-0">
+                <ViewModeSettings />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </div>

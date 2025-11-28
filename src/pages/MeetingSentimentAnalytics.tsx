@@ -49,23 +49,26 @@ const SENTIMENT_COLORS = {
 
 
 export default function MeetingSentimentAnalytics() {
-  console.log('[MeetingSentimentAnalytics] Component rendering');
-  const { userData: user } = useUser();
+  const { userData: user, isLoading: userLoading } = useUser();
   const navigate = useNavigate();
 
-  console.log('[MeetingSentimentAnalytics] User:', user?.id);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<'7' | '30' | '90' | '365'>('30');
 
   useEffect(() => {
+    // Wait for user loading to complete before deciding what to do
+    if (userLoading) {
+      return;
+    }
+
     if (user) {
       loadMeetings();
     } else {
       setLoading(false);
     }
-  }, [user, timeRange]);
+  }, [user, userLoading, timeRange]);
 
   const loadMeetings = async () => {
     if (!user) {
@@ -238,23 +241,154 @@ export default function MeetingSentimentAnalytics() {
     return null;
   };
 
+  // Skeleton components
+  const StatCardSkeleton = () => (
+    <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 p-5">
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <div className="h-3 w-20 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+          <div className="h-8 w-16 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+        </div>
+        <div className="p-3 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+          <div className="w-6 h-6 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+        </div>
+      </div>
+    </div>
+  );
+
+  const ChartCardSkeleton = ({ tall = false }: { tall?: boolean }) => (
+    <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 h-full">
+      <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/30">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+            <div className="w-5 h-5 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+          </div>
+          <div className="h-5 w-32 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+        </div>
+        <div className="h-4 w-48 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse mt-2" />
+      </div>
+      <div className="p-6">
+        <div className={`${tall ? 'h-[300px]' : 'h-[200px]'} bg-gray-100/50 dark:bg-gray-800/30 rounded-xl animate-pulse`} />
+      </div>
+    </div>
+  );
+
+  const MeetingItemSkeleton = () => (
+    <div className="p-3 rounded-xl border border-gray-200/50 dark:border-gray-700/30 bg-gray-50/50 dark:bg-gray-800/30">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 flex-1">
+          <div className="w-5 h-5 bg-gray-200/80 dark:bg-gray-700/50 rounded-full animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-3/4 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+            <div className="h-3 w-1/2 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="h-5 w-16 bg-gray-200/80 dark:bg-gray-700/50 rounded-full animate-pulse" />
+      </div>
+    </div>
+  );
+
+  const HighlightSkeleton = () => (
+    <div className="p-4 rounded-xl border border-gray-200/50 dark:border-gray-700/30 bg-gray-50/50 dark:bg-gray-800/30">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+          <div className="w-4 h-4 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+        </div>
+        <div className="h-3 w-20 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+      </div>
+      <div className="h-5 w-3/4 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse mb-3" />
+      <div className="flex items-center justify-between">
+        <div className="h-3 w-24 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+        <div className="h-5 w-12 bg-gray-200/80 dark:bg-gray-700/50 rounded-full animate-pulse" />
+      </div>
+    </div>
+  );
+
+  const DashboardSkeleton = () => (
+    <div className="min-h-screen text-gray-900 dark:text-gray-100">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
+        {/* Header Skeleton */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="h-8 w-64 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+              <div className="h-4 w-48 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+            </div>
+            <div className="h-10 w-36 bg-gray-200/80 dark:bg-gray-700/50 rounded-lg animate-pulse" />
+          </div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
+
+        {/* Charts Row Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <ChartCardSkeleton tall />
+          </div>
+          <ChartCardSkeleton />
+        </div>
+
+        {/* Second Row Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          {/* Recent Meetings Skeleton */}
+          <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+            <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/30">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+                  <div className="w-5 h-5 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-32 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+              </div>
+              <div className="h-4 w-48 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse mt-2" />
+            </div>
+            <div className="p-4 space-y-3">
+              <MeetingItemSkeleton />
+              <MeetingItemSkeleton />
+              <MeetingItemSkeleton />
+              <MeetingItemSkeleton />
+              <MeetingItemSkeleton />
+            </div>
+          </div>
+
+          {/* Highlights Skeleton */}
+          <div className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+            <div className="p-6 border-b border-gray-200/50 dark:border-gray-700/30">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30">
+                  <div className="w-5 h-5 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+                </div>
+                <div className="h-5 w-32 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse" />
+              </div>
+              <div className="h-4 w-48 bg-gray-200/80 dark:bg-gray-700/50 rounded animate-pulse mt-2" />
+            </div>
+            <div className="p-4 space-y-4">
+              <HighlightSkeleton />
+              <HighlightSkeleton />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (userLoading || loading) {
+    return <DashboardSkeleton />;
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading user data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading sentiment analytics...</p>
+          <AlertCircle className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">Authentication Required</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-4">Please sign in to view sentiment analytics.</p>
+          <Button onClick={() => navigate('/login')}>Sign In</Button>
         </div>
       </div>
     );
@@ -309,21 +443,21 @@ export default function MeetingSentimentAnalytics() {
         </motion.div>
 
         {/* Stats Cards */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
         >
           {/* Total Meetings */}
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-800">
-            <CardContent className="p-4">
+          <Card className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-blue-200/50 dark:border-blue-500/20 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-blue-300/50 dark:hover:border-blue-400/30 transition-all duration-300 group">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">Total Analyzed</p>
                   <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-1">{stats.total}</p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <div className="p-3 rounded-xl bg-blue-100/80 dark:bg-blue-500/20 border border-blue-200/50 dark:border-blue-500/30 group-hover:border-blue-300 dark:group-hover:border-blue-400/40 transition-all duration-300">
                   <Video className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
               </div>
@@ -331,8 +465,8 @@ export default function MeetingSentimentAnalytics() {
           </Card>
 
           {/* Avg Sentiment */}
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 border-emerald-200 dark:border-emerald-800">
-            <CardContent className="p-4">
+          <Card className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-emerald-200/50 dark:border-emerald-500/20 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-emerald-300/50 dark:hover:border-emerald-400/30 transition-all duration-300 group">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Avg Sentiment</p>
@@ -340,7 +474,7 @@ export default function MeetingSentimentAnalytics() {
                     {stats.avgScore > 0 ? '+' : ''}{stats.avgScore.toFixed(2)}
                   </p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                <div className="p-3 rounded-xl bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30 group-hover:border-emerald-300 dark:group-hover:border-emerald-400/40 transition-all duration-300">
                   {getSentimentIcon(stats.avgScore)}
                 </div>
               </div>
@@ -348,8 +482,8 @@ export default function MeetingSentimentAnalytics() {
           </Card>
 
           {/* Positive Rate */}
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800">
-            <CardContent className="p-4">
+          <Card className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-green-200/50 dark:border-green-500/20 shadow-sm dark:shadow-lg dark:shadow-black/10 hover:border-green-300/50 dark:hover:border-green-400/30 transition-all duration-300 group">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">Positive Rate</p>
@@ -357,7 +491,7 @@ export default function MeetingSentimentAnalytics() {
                     {stats.total > 0 ? Math.round((stats.positive / stats.total) * 100) : 0}%
                   </p>
                 </div>
-                <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                <div className="p-3 rounded-xl bg-green-100/80 dark:bg-green-500/20 border border-green-200/50 dark:border-green-500/30 group-hover:border-green-300 dark:group-hover:border-green-400/40 transition-all duration-300">
                   <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
               </div>
@@ -365,14 +499,14 @@ export default function MeetingSentimentAnalytics() {
           </Card>
 
           {/* Trend */}
-          <Card className={`bg-gradient-to-br ${
-            stats.trend === 'improving' 
-              ? 'from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border-emerald-200 dark:border-emerald-800'
+          <Card className={`bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl shadow-sm dark:shadow-lg dark:shadow-black/10 transition-all duration-300 group ${
+            stats.trend === 'improving'
+              ? 'border border-emerald-200/50 dark:border-emerald-500/20 hover:border-emerald-300/50 dark:hover:border-emerald-400/30'
               : stats.trend === 'declining'
-              ? 'from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-red-200 dark:border-red-800'
-              : 'from-gray-50 to-slate-50 dark:from-gray-900/20 dark:to-slate-900/20 border-gray-200 dark:border-gray-800'
+              ? 'border border-red-200/50 dark:border-red-500/20 hover:border-red-300/50 dark:hover:border-red-400/30'
+              : 'border border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40'
           }`}>
-            <CardContent className="p-4">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className={`text-xs font-medium uppercase tracking-wide ${
@@ -388,10 +522,12 @@ export default function MeetingSentimentAnalytics() {
                     }`}>{stats.trend}</p>
                   </div>
                 </div>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  stats.trend === 'improving' ? 'bg-emerald-500/20'
-                  : stats.trend === 'declining' ? 'bg-red-500/20'
-                  : 'bg-gray-500/20'
+                <div className={`p-3 rounded-xl border transition-all duration-300 ${
+                  stats.trend === 'improving'
+                    ? 'bg-emerald-100/80 dark:bg-emerald-500/20 border-emerald-200/50 dark:border-emerald-500/30 group-hover:border-emerald-300 dark:group-hover:border-emerald-400/40'
+                    : stats.trend === 'declining'
+                    ? 'bg-red-100/80 dark:bg-red-500/20 border-red-200/50 dark:border-red-500/30 group-hover:border-red-300 dark:group-hover:border-red-400/40'
+                    : 'bg-gray-100/80 dark:bg-gray-800/50 border-gray-200/50 dark:border-gray-700/30 group-hover:border-gray-300 dark:group-hover:border-gray-600/40'
                 }`}>
                   {stats.trend === 'improving' ? (
                     <TrendingUp className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
@@ -415,17 +551,19 @@ export default function MeetingSentimentAnalytics() {
             transition={{ delay: 0.2 }}
             className="lg:col-span-2"
           >
-            <Card className="h-full">
-              <CardHeader>
+            <Card className="h-full bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+              <CardHeader className="border-b border-gray-200/50 dark:border-gray-700/30">
                 <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-emerald-500" />
+                  <div className="p-1.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30">
+                    <Activity className="w-5 h-5 text-emerald-500" />
+                  </div>
                   Sentiment Over Time
                 </CardTitle>
                 <CardDescription>
                   Track how meeting sentiment changes over the selected period
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {trendData.length > 0 ? (
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -451,10 +589,12 @@ export default function MeetingSentimentAnalytics() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
+                  <div className="h-[300px] flex items-center justify-center">
                     <div className="text-center">
-                      <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                      <p>No sentiment data available for this period</p>
+                      <div className="inline-flex p-3 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 mb-3">
+                        <BarChart3 className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">No sentiment data available for this period</p>
                     </div>
                   </div>
                 )}
@@ -468,17 +608,19 @@ export default function MeetingSentimentAnalytics() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <Card className="h-full">
-              <CardHeader>
+            <Card className="h-full bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+              <CardHeader className="border-b border-gray-200/50 dark:border-gray-700/30">
                 <CardTitle className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-emerald-500" />
+                  <div className="p-1.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30">
+                    <Target className="w-5 h-5 text-emerald-500" />
+                  </div>
                   Sentiment Distribution
                 </CardTitle>
                 <CardDescription>
                   Breakdown of positive, neutral, and negative meetings
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 {distributionData.length > 0 ? (
                   <>
                     <div className="h-[200px]">
@@ -501,9 +643,9 @@ export default function MeetingSentimentAnalytics() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="space-y-3 mt-4">
+                    <div className="space-y-3 mt-4 pt-4 border-t border-gray-200/50 dark:border-gray-700/30">
                       {distributionData.map((item) => (
-                        <div key={item.name} className="flex items-center justify-between">
+                        <div key={item.name} className="flex items-center justify-between px-3 py-2 rounded-lg bg-gray-50/80 dark:bg-gray-800/30 border border-gray-200/30 dark:border-gray-700/20">
                           <div className="flex items-center gap-2">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                             <span className="text-sm text-gray-600 dark:text-gray-400">{item.name}</span>
@@ -514,8 +656,13 @@ export default function MeetingSentimentAnalytics() {
                     </div>
                   </>
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                    No data available
+                  <div className="h-[300px] flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="inline-flex p-3 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 mb-3">
+                        <Target className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">No data available</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -531,24 +678,26 @@ export default function MeetingSentimentAnalytics() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <Card>
-              <CardHeader>
+            <Card className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+              <CardHeader className="border-b border-gray-200/50 dark:border-gray-700/30">
                 <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-emerald-500" />
+                  <div className="p-1.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30">
+                    <Clock className="w-5 h-5 text-emerald-500" />
+                  </div>
                   Recent Meetings
                 </CardTitle>
                 <CardDescription>
                   Latest meetings with sentiment analysis
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-4">
                 {recentMeetings.length > 0 ? (
                   <div className="space-y-3">
                     {recentMeetings.map((meeting) => (
                       <motion.div
                         key={meeting.id}
                         whileHover={{ scale: 1.01 }}
-                        className="p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors"
+                        className="p-3 rounded-xl border border-gray-200/50 dark:border-gray-700/30 bg-gray-50/50 dark:bg-gray-800/30 hover:bg-white/80 dark:hover:bg-gray-800/50 hover:border-gray-300/50 dark:hover:border-gray-600/40 cursor-pointer transition-all duration-300"
                         onClick={() => navigate(`/meetings/${meeting.id}`)}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -570,9 +719,9 @@ export default function MeetingSentimentAnalytics() {
                         </div>
                       </motion.div>
                     ))}
-                    <Button 
-                      variant="ghost" 
-                      className="w-full mt-2"
+                    <Button
+                      variant="ghost"
+                      className="w-full mt-2 rounded-xl hover:bg-gray-100/80 dark:hover:bg-gray-800/50 transition-all duration-300"
                       onClick={() => navigate('/meetings')}
                     >
                       View all meetings
@@ -580,8 +729,13 @@ export default function MeetingSentimentAnalytics() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="h-[200px] flex items-center justify-center text-gray-500 dark:text-gray-400">
-                    No meetings with sentiment data
+                  <div className="h-[200px] flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="inline-flex p-3 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 mb-3">
+                        <Clock className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">No meetings with sentiment data</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -594,26 +748,29 @@ export default function MeetingSentimentAnalytics() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
           >
-            <Card>
-              <CardHeader>
+            <Card className="bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10">
+              <CardHeader className="border-b border-gray-200/50 dark:border-gray-700/30">
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-emerald-500" />
+                  <div className="p-1.5 rounded-lg bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30">
+                    <Sparkles className="w-5 h-5 text-emerald-500" />
+                  </div>
                   Meeting Highlights
                 </CardTitle>
                 <CardDescription>
                   Best and worst performing meetings
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-4 space-y-4">
                 {/* Best Meeting */}
                 {bestMeeting && (
-                  <div 
-                    className="p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20 border border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow"
+                  <motion.div
+                    whileHover={{ scale: 1.01 }}
+                    className="p-4 rounded-xl bg-white/60 dark:bg-emerald-900/20 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-500/30 cursor-pointer hover:border-emerald-300/60 dark:hover:border-emerald-400/40 hover:shadow-md transition-all duration-300"
                     onClick={() => navigate(`/meetings/${bestMeeting.id}`)}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                        <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                      <div className="p-2 rounded-lg bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30">
+                        <ArrowUpRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       </div>
                       <div>
                         <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 uppercase">Best Meeting</p>
@@ -624,22 +781,23 @@ export default function MeetingSentimentAnalytics() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {format(new Date(bestMeeting.meeting_start), 'MMM d, yyyy')}
                       </p>
-                      <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <Badge className="bg-emerald-100/80 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/30">
                         +{(bestMeeting.sentiment_score ?? 0).toFixed(2)}
                       </Badge>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Worst Meeting */}
                 {worstMeeting && worstMeeting.id !== bestMeeting?.id && (
-                  <div 
-                    className="p-4 rounded-lg bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border border-red-200 dark:border-red-800 cursor-pointer hover:shadow-md transition-shadow"
+                  <motion.div
+                    whileHover={{ scale: 1.01 }}
+                    className="p-4 rounded-xl bg-white/60 dark:bg-red-900/20 backdrop-blur-sm border border-red-200/50 dark:border-red-500/30 cursor-pointer hover:border-red-300/60 dark:hover:border-red-400/40 hover:shadow-md transition-all duration-300"
                     onClick={() => navigate(`/meetings/${worstMeeting.id}`)}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center">
-                        <ArrowDownRight className="w-4 h-4 text-red-600" />
+                      <div className="p-2 rounded-lg bg-red-100/80 dark:bg-red-500/20 border border-red-200/50 dark:border-red-500/30">
+                        <ArrowDownRight className="w-4 h-4 text-red-600 dark:text-red-400" />
                       </div>
                       <div>
                         <p className="text-xs font-medium text-red-600 dark:text-red-400 uppercase">Needs Attention</p>
@@ -650,13 +808,24 @@ export default function MeetingSentimentAnalytics() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {format(new Date(worstMeeting.meeting_start), 'MMM d, yyyy')}
                       </p>
-                      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                      <Badge className="bg-red-100/80 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200/50 dark:border-red-500/30">
                         {(worstMeeting.sentiment_score ?? 0).toFixed(2)}
                       </Badge>
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
+                {/* Empty state if no highlights */}
+                {!bestMeeting && !worstMeeting && (
+                  <div className="h-[200px] flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="inline-flex p-3 rounded-xl bg-gray-100/80 dark:bg-gray-800/50 border border-gray-200/50 dark:border-gray-700/30 mb-3">
+                        <Sparkles className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-500 dark:text-gray-400">No meeting highlights yet</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -669,19 +838,24 @@ export default function MeetingSentimentAnalytics() {
             animate={{ opacity: 1 }}
             className="text-center py-16"
           >
-            <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-10 h-10 text-emerald-500" />
+            <div className="bg-white/60 dark:bg-gray-900/30 backdrop-blur-xl rounded-2xl p-8 border border-gray-200/50 dark:border-gray-700/30 shadow-sm dark:shadow-lg dark:shadow-black/10 max-w-lg mx-auto">
+              <div className="inline-flex p-4 rounded-2xl bg-emerald-100/80 dark:bg-emerald-500/20 border border-emerald-200/50 dark:border-emerald-500/30 mb-5">
+                <BarChart3 className="w-10 h-10 text-emerald-500" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                No Meeting Data Yet
+              </h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
+                Sync your meetings from Fathom to see sentiment analytics. We'll analyze each meeting and show you insights about the emotional tone of your conversations.
+              </p>
+              <Button
+                onClick={() => navigate('/meetings')}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 transition-all duration-300 px-6"
+              >
+                Go to Meetings
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              No Meeting Data Yet
-            </h3>
-            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
-              Sync your meetings from Fathom to see sentiment analytics. We'll analyze each meeting and show you insights about the emotional tone of your conversations.
-            </p>
-            <Button onClick={() => navigate('/meetings')}>
-              Go to Meetings
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
           </motion.div>
         )}
       </div>

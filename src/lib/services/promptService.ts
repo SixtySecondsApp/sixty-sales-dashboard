@@ -13,7 +13,7 @@
  * @see /PROMPTS.md for documentation
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/clientV2';
 import {
   PromptTemplate,
   ModelConfig,

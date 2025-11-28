@@ -24,13 +24,13 @@ export default function CRM() {
   }, []);
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-[#1E293B] dark:text-gray-100">
       <div className="container mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
         <div className="space-y-4 sm:space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Customer Relationship Management</h1>
-              <p className="text-xs sm:text-sm text-gray-400 mt-1">
+              <h1 className="text-xl sm:text-2xl font-bold text-[#1E293B] dark:text-white">Customer Relationship Management</h1>
+              <p className="text-xs sm:text-sm text-[#64748B] dark:text-gray-400 mt-1">
                 Manage your companies, contacts, deals, and meetings
               </p>
             </div>
@@ -43,7 +43,7 @@ export default function CRM() {
             url.searchParams.set('tab', tab);
             window.history.replaceState({}, '', url.toString());
           }} className="space-y-6">
-            <TabsList className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50">
+            <TabsList className="bg-[#E2E8F0] dark:bg-gray-900/50 backdrop-blur-xl border border-[#E2E8F0] dark:border-gray-800/50">
               <TabsTrigger 
                 value="companies" 
                 className="flex items-center gap-2 data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-white"

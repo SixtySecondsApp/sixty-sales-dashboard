@@ -106,6 +106,9 @@ export function useTheme() {
     const resolved = resolveTheme(mode)
     setResolvedTheme(resolved)
     applyTheme(resolved)
+
+    // Dispatch custom event so other components using useTheme can sync
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode, resolved } }))
   }
 
   // Initialize theme on mount
@@ -113,6 +116,17 @@ export function useTheme() {
     const resolved = resolveTheme(themeMode)
     setResolvedTheme(resolved)
     applyTheme(resolved)
+  }, [])
+
+  // Listen for theme changes from other components
+  useEffect(() => {
+    const handleThemeChange = (event: CustomEvent<{ mode: ThemeMode; resolved: ResolvedTheme }>) => {
+      setThemeModeState(event.detail.mode)
+      setResolvedTheme(event.detail.resolved)
+    }
+
+    window.addEventListener('theme-changed', handleThemeChange as EventListener)
+    return () => window.removeEventListener('theme-changed', handleThemeChange as EventListener)
   }, [])
 
   // Listen for system theme changes when in system mode

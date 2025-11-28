@@ -20,7 +20,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("bg-gray-50 dark:bg-gray-800/50", className)} {...props} />
+  <thead ref={ref} className={cn("bg-slate-50 dark:bg-gray-800/50", className)} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -42,7 +42,7 @@ const TableFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tfoot
     ref={ref}
-    className={cn("border-t border-gray-200 dark:border-gray-800/50 font-medium", className)}
+    className={cn("border-t border-[#E2E8F0] dark:border-gray-800/50 font-medium", className)}
     {...props}
   />
 ))
@@ -55,7 +55,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "border-b border-gray-200 dark:border-gray-800 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/30",
+      "border-b border-[#E2E8F0] dark:border-gray-800 transition-colors hover:bg-slate-50 dark:hover:bg-gray-800/30",
       className
     )}
     {...props}
@@ -70,7 +70,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-10 px-4 text-left align-middle text-xs font-semibold uppercase text-gray-700 dark:text-gray-300",
+      "h-10 px-4 text-left align-middle text-xs font-semibold uppercase text-[#64748B] dark:text-gray-300",
       className
     )}
     {...props}
@@ -96,7 +96,7 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn("mt-4 text-sm text-gray-600 dark:text-gray-400", className)}
+    className={cn("mt-4 text-sm text-[#64748B] dark:text-gray-400", className)}
     {...props}
   />
 ))

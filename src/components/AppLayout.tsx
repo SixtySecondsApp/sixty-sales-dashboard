@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence, useCycle } from 'framer-motion';
 import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
+import { ExternalViewBanner, ExternalViewBannerSpacer } from '@/components/ExternalViewBanner';
+import { ExternalViewToggle } from '@/components/ExternalViewToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { EmailIcon } from '@/components/EmailIcon';
 import { CalendarIcon } from '@/components/CalendarIcon';
@@ -42,11 +44,18 @@ import {
   Search,
   ChevronDown,
   BarChart3,
-  Layers
+  Layers,
+  Eye,
+  EyeOff,
+  Calendar,
+  Mail,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
+import { useUserPermissions } from '@/contexts/UserPermissionsContext';
+import { getNavigationItems } from '@/lib/routes/routeConfig';
 import logger from '@/lib/utils/logger';
 import { useEventListener } from '@/lib/communication/EventBus';
 import { useTaskNotifications } from '@/lib/hooks/useTaskNotifications';
@@ -75,6 +84,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { openCopilot } = useCopilot();
   const { settings: brandingSettings } = useBrandingSettings();
   const { resolvedTheme } = useTheme();
+
+  // User permissions for dynamic navigation
+  const { effectiveUserType, isAdmin, isInternal } = useUserPermissions();
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
@@ -137,20 +149,43 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   //   return () => document.removeEventListener('keydown', handleKeyDown);
   // }, []);
 
-  // MEETINGS FEATURE BRANCH: Only show Dashboard (Sentiment) and Meetings
-  // This branch focuses exclusively on the Meetings feature V1 implementation
-  const menuItems = [
-    { icon: Activity, label: 'Dashboard', href: '/' },
-    { icon: Video, label: 'Meetings', href: '/meetings' },
-    { icon: Sparkles, label: 'Intelligence', href: '/meetings/intelligence' },
-    { icon: Layers, label: 'Content Topics', href: '/insights/content-topics' },
-    { icon: BarChart3, label: 'Team Analytics', href: '/insights/team' },
-  ];
+  // Dynamic navigation based on user type (internal vs external)
+  // Uses centralized route config with access levels
+  const menuItems = useMemo(() => {
+    // Get main section navigation items
+    const mainItems = getNavigationItems(effectiveUserType, isAdmin, 'main');
+    // Get tools section for internal users
+    const toolsItems = getNavigationItems(effectiveUserType, isAdmin, 'tools');
+
+    // Type for menu items (compatible with existing template)
+    type MenuItem = {
+      icon: typeof Activity;
+      label: string;
+      href: string;
+      badge?: string;
+      subItems?: Array<{ icon: typeof Activity; label: string; href: string }>;
+    };
+
+    // Map route configs to menu item format
+    const mapToMenuItem = (config: ReturnType<typeof getNavigationItems>[number]): MenuItem => ({
+      icon: config.icon || Activity,
+      label: config.label || '',
+      href: config.path,
+      badge: config.badge,
+      subItems: undefined, // Route config doesn't have subItems, they can be added if needed
+    });
+
+    // Combine main and tools items for the menu
+    return [...mainItems.map(mapToMenuItem), ...toolsItems.map(mapToMenuItem)];
+  }, [effectiveUserType, isAdmin]);
 
   return (
-    <div className="min-h-screen bg-\[#FCFCFC\] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-[#1E293B] dark:text-gray-100 transition-colors duration-200">
       {/* View Mode Banner at the top */}
       <ViewModeBanner />
+
+      {/* External View Banner - shown when internal user is viewing as external */}
+      <ExternalViewBanner />
       
       {/* Main app content */}
       <div className="flex">
@@ -164,7 +199,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         )}
       
       <div className={cn(
-      "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800/50 lg:hidden transition-colors duration-200",
+      "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 lg:hidden transition-colors duration-200",
       isImpersonating ? "mt-6" : ""
     )}>
         <div className="flex items-center gap-3">
@@ -192,15 +227,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          {/* <EmailIcon /> */}
-          {/* <CalendarIcon /> */}
-          {/* <NotificationBell /> */}
+          {effectiveUserType !== 'external' && (
+            <>
+              <EmailIcon />
+              <CalendarIcon />
+              <NotificationBell />
+            </>
+          )}
           <motion.button
             animate={isMobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
             onClick={() => toggleMobileMenu()}
-            className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/70 transition-colors lg:hidden"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-gray-800/50 hover:bg-slate-50 dark:hover:bg-gray-800/70 transition-colors lg:hidden"
           >
-            <MenuIcon className="w-6 h-6 text-gray-700 dark:text-gray-400" />
+            <MenuIcon className="w-6 h-6 text-[#64748B] dark:text-gray-400" />
           </motion.button>
         </div>
       </div>
@@ -237,7 +276,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               className="fixed inset-0 w-full bg-white dark:bg-gray-900/95 backdrop-blur-xl z-50 lg:hidden transition-colors duration-200 flex flex-col"
             >
               {/* Fixed Header */}
-              <div className="flex-shrink-0 p-4 sm:p-6 border-b border-gray-200 dark:border-gray-800">
+              <div className="flex-shrink-0 p-4 sm:p-6 border-b border-[#E2E8F0] dark:border-gray-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg overflow-hidden">
@@ -256,15 +295,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       )}
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-base sm:text-lg font-semibold text-gray-900 dark:text-gray-100">
+                      <span className="text-base sm:text-lg font-semibold text-[#1E293B] dark:text-gray-100">
                         {userData?.first_name} {userData?.last_name}
                       </span>
-                      <span className="text-xs sm:text-sm text-gray-700 dark:text-gray-300">{userData?.stage}</span>
+                      <span className="text-xs sm:text-sm text-[#64748B] dark:text-gray-300">{userData?.stage}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => toggleMobileMenu()}
-                    className="p-2 sm:p-3 min-h-[44px] min-w-[44px] hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors flex items-center justify-center"
+                    className="p-2 sm:p-3 min-h-[44px] min-w-[44px] hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors flex items-center justify-center"
                   >
                     <X className="w-6 h-6 text-gray-400" />
                   </button>
@@ -282,14 +321,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         className={cn(
                           'w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] sm:min-h-[64px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                            : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                         )}
                       >
                         <item.icon className={cn(
                           'w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0',
                           location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                            ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
+                            ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
                         )} />
                         <span>{item.label}</span>
                       </Link>
@@ -304,8 +343,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                               className={cn(
                                 'w-full flex items-center gap-3 px-4 py-3 min-h-[48px] rounded-xl text-sm font-medium transition-colors',
                                 location.pathname === subItem.href
-                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                                  : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                               )}
                             >
                               <subItem.icon className="w-5 h-5" />
@@ -320,21 +359,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
 
               {/* Fixed Footer with Settings and Logout */}
-              <div className="flex-shrink-0 p-4 sm:p-6 border-t border-gray-200 dark:border-gray-800 space-y-2">
+              <div className="flex-shrink-0 p-4 sm:p-6 border-t border-[#E2E8F0] dark:border-gray-800 space-y-2">
                 <Link
                   to="/settings/ai"
                   onClick={() => toggleMobileMenu()}
                   className={cn(
                     "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
                     location.pathname === '/settings/ai'
-                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                      : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
                   )}
                 >
                   <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
                   Meetings Settings
                 </Link>
-                
+
                 {isUserAdmin(userData) && (
                   <Link
                     to="/admin/model-settings"
@@ -343,12 +382,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
                       location.pathname === '/admin/model-settings'
                         ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50'
+                        : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
                     )}
                   >
                     <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
                     Admin Settings
                   </Link>
+                )}
+
+                {isUserAdmin(userData) && (
+                  <Link
+                    to="/saas-admin"
+                    onClick={() => toggleMobileMenu()}
+                    className={cn(
+                      "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
+                      location.pathname === '/saas-admin'
+                        ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
+                        : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
+                    )}
+                  >
+                    <CreditCard className="w-6 h-6 sm:w-7 sm:h-7" />
+                    SaaS Admin
+                  </Link>
+                )}
+
+                {/* External View Toggle for internal users on mobile */}
+                {isInternal && (
+                  <div className="px-4 sm:px-5 py-2">
+                    <ExternalViewToggle showLabel={true} variant="ghost" className="w-full justify-start text-base sm:text-lg min-h-[48px]" />
+                  </div>
                 )}
 
                 <button
@@ -380,7 +442,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Desktop Top Bar */}
       <div className={cn(
-        'fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800/50 z-[90]',
+        'fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 z-[90]',
         'hidden lg:flex items-center justify-between px-6',
         isCollapsed ? 'lg:left-[80px]' : 'lg:left-[256px]',
         'transition-all duration-300 ease-in-out',
@@ -401,12 +463,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* User Profile with Dropdown */}
         <div className="flex items-center gap-3 ml-auto">
           <ThemeToggle />
-          {/* <EmailIcon /> */}
-          {/* <CalendarIcon /> */}
-          {/* <NotificationBell /> */}
+          {effectiveUserType !== 'external' && (
+            <>
+              <EmailIcon />
+              <CalendarIcon />
+              <NotificationBell />
+            </>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors">
+              <button className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-800/50 transition-colors">
                 <div className="w-8 h-8 rounded-lg overflow-hidden">
                   {userData?.avatar_url ? (
                     <img
@@ -423,10 +489,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 </div>
                 <div className="hidden xl:flex flex-col items-start">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <span className="text-sm font-semibold text-[#1E293B] dark:text-gray-100">
                     {userData?.first_name} {userData?.last_name}
                   </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{userData?.stage}</span>
+                  <span className="text-xs text-[#64748B] dark:text-gray-400">{userData?.stage}</span>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400 hidden xl:block" />
               </button>
@@ -445,6 +511,21 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <Shield className="w-4 h-4 mr-2" />
                   Admin Settings
                 </DropdownMenuItem>
+              )}
+              {isUserAdmin(userData) && (
+                <DropdownMenuItem onClick={() => navigate('/saas-admin')}>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  SaaS Admin
+                </DropdownMenuItem>
+              )}
+              {/* External View Toggle - only for internal users */}
+              {isInternal && (
+                <>
+                  <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+                  <div className="px-2 py-1.5">
+                    <ExternalViewToggle variant="menu" />
+                  </div>
+                </>
               )}
               <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
@@ -471,6 +552,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         animate={!hasMounted ? { opacity: 1, x: 0 } : false}
         className={cn(
           'fixed left-0 bottom-0 h-screen bg-white dark:bg-gray-900/50 backdrop-blur-xl p-6',
+          'border-r border-[#E2E8F0] dark:border-gray-800/50 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.04)] dark:shadow-none',
           'transition-all duration-300 ease-in-out flex-shrink-0',
           isCollapsed ? 'w-[80px]' : 'w-[256px]',
           'hidden lg:block z-[100]',
@@ -481,7 +563,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            'absolute right-0 top-0 w-[2px] h-16 bg-gray-300 dark:bg-gray-700 cursor-pointer hover:bg-gray-400 dark:hover:bg-gray-600 transition-all z-[101]',
+            'absolute right-0 top-0 w-[2px] h-16 bg-slate-300 dark:bg-gray-700 cursor-pointer hover:bg-slate-400 dark:hover:bg-gray-600 transition-all z-[101]',
             'hover:w-[3px]'
           )}
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -503,6 +585,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   const iconUrl = brandingSettings?.icon_url || 'https://www.sixtyseconds.ai/images/logo.png';
                   return (
                     <img
+                      key={`icon-${resolvedTheme}`}
                       src={iconUrl}
                       alt="Logo"
                       className="w-10 h-10 object-contain"
@@ -511,12 +594,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 }
                 
                 // When expanded, show theme-appropriate logo
-                const logoUrl = resolvedTheme === 'dark' 
-                  ? (brandingSettings?.logo_dark_url || brandingSettings?.logo_light_url || 'https://www.sixtyseconds.ai/images/logo.png')
-                  : (brandingSettings?.logo_light_url || brandingSettings?.logo_dark_url || 'https://www.sixtyseconds.ai/images/logo.png');
-                
+                const darkLogo = brandingSettings?.logo_dark_url;
+                const lightLogo = brandingSettings?.logo_light_url;
+                const fallbackLogo = 'https://www.sixtyseconds.ai/images/logo.png';
+
+                const logoUrl = resolvedTheme === 'dark'
+                  ? (darkLogo || lightLogo || fallbackLogo)
+                  : (lightLogo || darkLogo || fallbackLogo);
+
                 return (
                   <img
+                    key={`logo-${resolvedTheme}-${logoUrl}`}
                     src={logoUrl}
                     alt="Logo"
                     className="w-full h-12 object-contain"
@@ -535,8 +623,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     className={cn(
                       'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors',
                       location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                        ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                        : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                        ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                        : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                     )}
                   >
                     <motion.div
@@ -547,7 +635,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       className={cn(
                         'relative z-10 min-w-[20px] flex items-center justify-center',
                         location.pathname === item.href || (item.subItems && item.subItems.some(sub => location.pathname === sub.href))
-                          ? 'text-emerald-600 dark:text-white' : 'text-gray-700 dark:text-gray-400/80'
+                          ? 'text-indigo-700 dark:text-white' : 'text-[#64748B] dark:text-gray-400/80'
                       )}
                     >
                       <item.icon className="w-4 h-4" />
@@ -575,8 +663,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                           className={cn(
                             'w-full flex items-center gap-3 px-2 py-2 rounded-xl text-xs font-medium transition-colors',
                             location.pathname === subItem.href
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                              : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                              : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                           )}
                         >
                           <subItem.icon className="w-3.5 h-3.5" />
@@ -591,14 +679,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           
           {/* Settings and Logout at bottom */}
-          <div className="mt-auto pt-6 border-t border-gray-200 dark:border-gray-800/50">
+          <div className="mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50">
             <Link
               to="/settings/ai"
               className={cn(
                 'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
                 location.pathname === '/settings/ai'
-                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
-                  : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
+                  : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
               )}
             >
               <Settings className="w-4 h-4 flex-shrink-0" />
@@ -623,7 +711,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
                   location.pathname === '/admin/model-settings'
                     ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
-                    : 'text-gray-700 hover:bg-gray-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                    : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                 )}
               >
                 <Shield className="w-4 h-4 flex-shrink-0" />

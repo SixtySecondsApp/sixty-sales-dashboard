@@ -1,9 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { 
-  UsersIcon, 
-  PanelLeft, 
-  Shield, 
-  Zap, 
+import {
+  UsersIcon,
+  PanelLeft,
+  Shield,
+  Zap,
   Code2,
   Target,
   Workflow,
@@ -17,7 +17,8 @@ import {
   FileText,
   BarChart3,
   Calendar,
-  Tag
+  Tag,
+  Image
 } from 'lucide-react';
 
 interface AdminCard {
@@ -43,6 +44,17 @@ export default function AdminDashboard() {
       path: '/admin/users',
       color: 'from-blue-500 to-blue-600',
       category: 'User Management'
+    },
+
+    // Branding
+    {
+      id: 'branding',
+      title: 'Branding',
+      description: 'Customize logos, favicon, and brand assets for your organization',
+      icon: <Image className="w-6 h-6" />,
+      path: '/admin/branding',
+      color: 'from-rose-500 to-rose-600',
+      category: 'Appearance'
     },
     {
       id: 'audit',
@@ -218,6 +230,7 @@ export default function AdminDashboard() {
 
   const categoryOrder = [
     'User Management',
+    'Appearance',
     'Security',
     'CRM Configuration',
     'Automation',
