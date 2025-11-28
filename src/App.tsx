@@ -13,7 +13,7 @@ import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { InternalRouteGuard, AdminRouteGuard } from '@/components/RouteGuard';
+import { InternalRouteGuard, AdminRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -51,16 +51,12 @@ const SmartTasksAdmin = lazyWithRetry(() => import('@/pages/SmartTasksAdmin'));
 const PipelineAutomationAdmin = lazyWithRetry(() => import('@/pages/PipelineAutomationAdmin'));
 // ApiTesting already imported below
 const FunctionTesting = lazyWithRetry(() => import('@/pages/admin/FunctionTesting'));
-const WorkflowsTestSuite = lazyWithRetry(() => import('@/components/admin/WorkflowsTestSuite'));
-const WorkflowsE2ETestSuite = lazyWithRetry(() => import('@/components/admin/WorkflowsE2ETestSuite'));
+// WorkflowsTestSuite and WorkflowsE2ETestSuite - REMOVED (specialized test pages, keeping only API + Function testing)
 const AIProviderSettings = lazyWithRetry(() => import('@/components/settings/AIProviderSettings'));
 const GoogleIntegrationTests = lazyWithRetry(() => import('@/components/admin/GoogleIntegrationTests').then(m => ({ default: m.GoogleIntegrationTests })));
 const SettingsSavvyCal = lazyWithRetry(() => import('@/pages/admin/SettingsSavvyCal'));
 const SettingsBookingSources = lazyWithRetry(() => import('@/pages/admin/SettingsBookingSources'));
-const SystemHealth = lazyWithRetry(() => import('@/pages/admin/SystemHealth'));
-const Database = lazyWithRetry(() => import('@/pages/admin/Database'));
-const Reports = lazyWithRetry(() => import('@/pages/admin/Reports'));
-const Documentation = lazyWithRetry(() => import('@/pages/admin/Documentation'));
+// SystemHealth, Database, Reports, Documentation - REMOVED (scaffolded only, not functional)
 const HealthRules = lazyWithRetry(() => import('@/pages/admin/HealthRules'));
 const LogoSettings = lazyWithRetry(() => import('@/pages/settings/LogoSettings'));
 
@@ -126,6 +122,12 @@ const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
 const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/InternalDomainsSettings'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
+
+// New 3-tier architecture routes
+const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
+const OrgDashboard = lazyWithRetry(() => import('@/pages/org/OrgDashboard'));
+const TeamManagement = lazyWithRetry(() => import('@/pages/org/TeamManagement'));
+const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -308,22 +310,53 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/prompts" element={<AdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/api-testing" element={<AdminRouteGuard><AppLayout><ApiTesting /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/function-testing" element={<AdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/workflows-test" element={<AdminRouteGuard><AppLayout><WorkflowsTestSuite /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/workflows-e2e" element={<AdminRouteGuard><AppLayout><WorkflowsE2ETestSuite /></AppLayout></AdminRouteGuard>} />
+                {/* WorkflowsTestSuite and WorkflowsE2ETestSuite routes - REMOVED (keeping only API + Function testing) */}
                 <Route path="/admin/google-integration" element={<AdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/savvycal-settings" element={<AdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/booking-sources" element={<AdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/system-health" element={<AdminRouteGuard><AppLayout><SystemHealth /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/database" element={<AdminRouteGuard><AppLayout><Database /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/reports" element={<AdminRouteGuard><AppLayout><Reports /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/documentation" element={<AdminRouteGuard><AppLayout><Documentation /></AppLayout></AdminRouteGuard>} />
+                {/* SystemHealth, Database, Reports, Documentation routes - REMOVED (scaffolded only, not functional) */}
                 <Route path="/admin/health-rules" element={<AdminRouteGuard><AppLayout><HealthRules /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/branding" element={<AdminRouteGuard><AppLayout><LogoSettings /></AppLayout></AdminRouteGuard>} />
                 <Route path="/admin/old" element={<AdminRouteGuard><AppLayout><Admin /></AppLayout></AdminRouteGuard>} /> {/* Keep old admin for reference */}
-                {/* SaaS Admin Dashboard - Manage external customers, subscriptions, and feature flags */}
-                <Route path="/saas-admin" element={<AdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></AdminRouteGuard>} />
+                {/* SaaS Admin Dashboard - Legacy, now redirects to /platform */}
+                {/* Note: Route moved below as redirect to /platform */}
                 {/* Internal Domains Settings - Configure which email domains are internal */}
                 <Route path="/admin/internal-domains" element={<AdminRouteGuard><AppLayout><InternalDomainsSettings /></AppLayout></AdminRouteGuard>} />
+
+                {/* ========================================= */}
+                {/* NEW 3-TIER ARCHITECTURE ROUTES           */}
+                {/* ========================================= */}
+
+                {/* Tier 2: Organization Admin Routes (Org owners/admins + Platform admins) */}
+                <Route path="/org" element={<OrgAdminRouteGuard><AppLayout><OrgDashboard /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/org/team" element={<OrgAdminRouteGuard><AppLayout><TeamManagement /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/org/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
+
+                {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
+                <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Customer Management */}
+                <Route path="/platform/customers" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/plans" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/users" element={<PlatformAdminRouteGuard><AppLayout><Users /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - CRM Configuration */}
+                <Route path="/platform/crm/pipeline" element={<PlatformAdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/crm/smart-tasks" element={<PlatformAdminRouteGuard><AppLayout><SmartTasksAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/crm/automation" element={<PlatformAdminRouteGuard><AppLayout><PipelineAutomationAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - AI Configuration */}
+                <Route path="/platform/ai/settings" element={<PlatformAdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/ai/prompts" element={<PlatformAdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/features" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Integrations */}
+                <Route path="/platform/integrations/google" element={<PlatformAdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/savvycal" element={<PlatformAdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/integrations/booking-sources" element={<PlatformAdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Security & Audit */}
+                <Route path="/platform/audit" element={<PlatformAdminRouteGuard><AppLayout><AuditLogs /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/usage" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Development Tools (API + Function testing only) */}
+                <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
+
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />
                 <Route path="/integrations" element={<InternalRouteGuard><AppLayout><Integrations /></AppLayout></InternalRouteGuard>} />
@@ -357,6 +390,10 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/audit-logs" element={<Navigate to="/admin/audit" replace />} />
                 <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
                 <Route path="/crm/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
+
+                {/* Legacy redirects for 3-tier migration (keep for 3-6 months) */}
+                <Route path="/saas-admin" element={<Navigate to="/platform" replace />} />
+                <Route path="/settings/team" element={<Navigate to="/org/team" replace />} />
                 
                 {/* Individual record routes - Internal only */}
                 <Route path="/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />

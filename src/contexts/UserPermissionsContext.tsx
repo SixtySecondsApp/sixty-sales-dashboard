@@ -6,8 +6,12 @@
  *
  * Features:
  * - Email domain-based user type detection (internal = @sixtyseconds.video)
+ * - 3-Tier Permission System:
+ *   - Tier 1: User (all authenticated users) - personal preferences
+ *   - Tier 2: Org Admin (org owners/admins) - team/org management
+ *   - Tier 3: Platform Admin (internal + is_admin) - system configuration
  * - Feature access flags based on user type
- * - "View as External" toggle for internal users to preview customer experience
+ * - "View as External" toggle for platform admins to preview customer experience
  * - Route access control helpers
  */
 
@@ -35,6 +39,18 @@ import {
   loadInternalDomains,
 } from '@/lib/utils/userTypeUtils';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
+import {
+  type PermissionTier,
+  type TierPermissions,
+} from '@/lib/types/permissionTypes';
+import {
+  isPlatformAdmin as checkIsPlatformAdmin,
+  isOrgAdmin as checkIsOrgAdmin,
+  isOrgOwner as checkIsOrgOwner,
+  getPermissionTier,
+  hasMinimumTier,
+  buildTierPermissions,
+} from '@/lib/utils/permissionUtils';
 
 // =====================================================
 // Types
@@ -54,11 +70,18 @@ interface UserPermissionsContextType {
   // Feature access
   featureAccess: FeatureAccess;
 
-  // Admin status
+  // Admin status (legacy)
   isAdmin: boolean;
 
   // Org role
   orgRole: OrgRole | null;
+
+  // 3-Tier Permission System
+  permissionTier: PermissionTier;
+  tierPermissions: TierPermissions;
+  isPlatformAdmin: boolean;
+  isOrgAdmin: boolean;
+  isOrgOwner: boolean;
 
   // Actions
   toggleExternalView: () => void;
@@ -68,6 +91,7 @@ interface UserPermissionsContextType {
   canAccessRoute: (pathname: string) => boolean;
   canAccessFeature: (feature: keyof FeatureAccess) => boolean;
   getRedirectForUnauthorized: () => string;
+  hasMinimumTier: (requiredTier: PermissionTier) => boolean;
 }
 
 // =====================================================
@@ -157,17 +181,60 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
     return isUserAdmin(userData);
   }, [userData]);
 
+  // =====================================================
+  // 3-Tier Permission System
+  // =====================================================
+
+  // Calculate if user is internal
+  const isInternalUser = actualUserType === 'internal';
+
+  // Calculate permission tier flags
+  const _isPlatformAdmin = useMemo(() => {
+    return checkIsPlatformAdmin(isInternalUser, isAdmin);
+  }, [isInternalUser, isAdmin]);
+
+  const _isOrgAdmin = useMemo(() => {
+    return checkIsOrgAdmin(userRole);
+  }, [userRole]);
+
+  const _isOrgOwner = useMemo(() => {
+    return checkIsOrgOwner(userRole);
+  }, [userRole]);
+
+  // Calculate permission tier
+  const permissionTier = useMemo(() => {
+    return getPermissionTier(isInternalUser, isAdmin, userRole);
+  }, [isInternalUser, isAdmin, userRole]);
+
+  // Build tier permissions object
+  const tierPermissions = useMemo(() => {
+    return buildTierPermissions(isInternalUser, isAdmin, userRole);
+  }, [isInternalUser, isAdmin, userRole]);
+
+  // Helper to check minimum tier
+  const checkHasMinimumTier = useCallback(
+    (requiredTier: PermissionTier) => {
+      return hasMinimumTier(permissionTier, requiredTier);
+    },
+    [permissionTier]
+  );
+
+  // =====================================================
+  // End 3-Tier Permission System
+  // =====================================================
+
   // Calculate feature access
   const featureAccess = useMemo(() => {
     return getFeatureAccess(actualUserType, viewMode, isAdmin);
   }, [actualUserType, viewMode, isAdmin]);
 
-  // Toggle external view mode (only for internal users)
+  // Toggle external view mode (only for platform admins)
   const toggleExternalView = useCallback(() => {
-    if (actualUserType === 'internal') {
+    // Only Platform Admins can use "view as external"
+    if (_isPlatformAdmin) {
       setIsExternalViewActive((prev) => !prev);
     }
-  }, [actualUserType]);
+  }, [_isPlatformAdmin]);
 
   // Exit external view mode
   const exitExternalView = useCallback(() => {
@@ -211,11 +278,18 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
       // Feature access
       featureAccess,
 
-      // Admin status
+      // Admin status (legacy)
       isAdmin,
 
       // Org role
       orgRole: userRole,
+
+      // 3-Tier Permission System
+      permissionTier,
+      tierPermissions,
+      isPlatformAdmin: _isPlatformAdmin,
+      isOrgAdmin: _isOrgAdmin,
+      isOrgOwner: _isOrgOwner,
 
       // Actions
       toggleExternalView,
@@ -225,6 +299,7 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
       canAccessRoute,
       canAccessFeature,
       getRedirectForUnauthorized,
+      hasMinimumTier: checkHasMinimumTier,
     }),
     [
       actualUserType,
@@ -233,11 +308,17 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
       featureAccess,
       isAdmin,
       userRole,
+      permissionTier,
+      tierPermissions,
+      _isPlatformAdmin,
+      _isOrgAdmin,
+      _isOrgOwner,
       toggleExternalView,
       exitExternalView,
       canAccessRoute,
       canAccessFeature,
       getRedirectForUnauthorized,
+      checkHasMinimumTier,
     ]
   );
 
@@ -324,4 +405,86 @@ export function useToggleExternalView(): () => void {
  */
 export function useCanAccessRoute(pathname: string): boolean {
   return useUserPermissions().canAccessRoute(pathname);
+}
+
+// =====================================================
+// 3-Tier Permission Hooks
+// =====================================================
+
+/**
+ * Get the user's permission tier (user, orgAdmin, or platformAdmin)
+ */
+export function usePermissionTier(): PermissionTier {
+  return useUserPermissions().permissionTier;
+}
+
+/**
+ * Get the full tier permissions object
+ */
+export function useTierPermissions(): TierPermissions {
+  return useUserPermissions().tierPermissions;
+}
+
+/**
+ * Check if user is a Platform Admin (internal + is_admin)
+ * Platform Admins have access to all system configuration
+ */
+export function useIsPlatformAdmin(): boolean {
+  return useUserPermissions().isPlatformAdmin;
+}
+
+/**
+ * Check if user is an Org Admin (owner or admin role in their org)
+ * Org Admins can manage their team and org settings
+ */
+export function useIsOrgAdmin(): boolean {
+  return useUserPermissions().isOrgAdmin;
+}
+
+/**
+ * Check if user is the Org Owner
+ * Owners have additional privileges like billing management
+ */
+export function useIsOrgOwner(): boolean {
+  return useUserPermissions().isOrgOwner;
+}
+
+/**
+ * Check if user has at least the required permission tier
+ *
+ * @example
+ * const canAccess = useHasMinimumTier('orgAdmin');
+ * // Returns true for orgAdmin and platformAdmin users
+ */
+export function useHasMinimumTier(requiredTier: PermissionTier): boolean {
+  return useUserPermissions().hasMinimumTier(requiredTier);
+}
+
+/**
+ * Check if user can access platform admin features
+ * Alias for useIsPlatformAdmin for semantic clarity
+ */
+export function useCanAccessPlatformAdmin(): boolean {
+  return useUserPermissions().tierPermissions.canAccessPlatformAdmin;
+}
+
+/**
+ * Check if user can manage their organization's team
+ */
+export function useCanManageTeam(): boolean {
+  return useUserPermissions().tierPermissions.canManageTeam;
+}
+
+/**
+ * Check if user can manage organization branding
+ */
+export function useCanManageOrgBranding(): boolean {
+  return useUserPermissions().tierPermissions.canManageOrgBranding;
+}
+
+/**
+ * Check if user can view as external (preview customer experience)
+ */
+export function useCanViewAsExternal(): boolean {
+  return useUserPermissions().tierPermissions.canViewAsExternal;
 }

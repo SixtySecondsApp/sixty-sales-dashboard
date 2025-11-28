@@ -86,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { resolvedTheme } = useTheme();
 
   // User permissions for dynamic navigation
-  const { effectiveUserType, isAdmin, isInternal } = useUserPermissions();
+  const { effectiveUserType, isAdmin, isInternal, isPlatformAdmin, isOrgAdmin } = useUserPermissions();
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
@@ -153,9 +153,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // Uses centralized route config with access levels
   const menuItems = useMemo(() => {
     // Get main section navigation items
-    const mainItems = getNavigationItems(effectiveUserType, isAdmin, 'main');
+    const mainItems = getNavigationItems(effectiveUserType, isAdmin, isOrgAdmin, 'main');
     // Get tools section for internal users
-    const toolsItems = getNavigationItems(effectiveUserType, isAdmin, 'tools');
+    const toolsItems = getNavigationItems(effectiveUserType, isAdmin, isOrgAdmin, 'tools');
 
     // Type for menu items (compatible with existing template)
     type MenuItem = {
@@ -177,7 +177,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
     // Combine main and tools items for the menu
     return [...mainItems.map(mapToMenuItem), ...toolsItems.map(mapToMenuItem)];
-  }, [effectiveUserType, isAdmin]);
+  }, [effectiveUserType, isAdmin, isOrgAdmin]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-[#1E293B] dark:text-gray-100 transition-colors duration-200">
@@ -374,35 +374,37 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   Meetings Settings
                 </Link>
 
-                {isUserAdmin(userData) && (
+                {/* Org Admin - for org owners/admins */}
+                {isOrgAdmin && (
                   <Link
-                    to="/admin/model-settings"
+                    to="/org"
                     onClick={() => toggleMobileMenu()}
                     className={cn(
                       "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
-                      location.pathname === '/admin/model-settings'
+                      location.pathname.startsWith('/org')
+                        ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
+                        : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
+                    )}
+                  >
+                    <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
+                    Organization
+                  </Link>
+                )}
+
+                {/* Platform Admin - internal admins only */}
+                {isPlatformAdmin && (
+                  <Link
+                    to="/platform"
+                    onClick={() => toggleMobileMenu()}
+                    className={cn(
+                      "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
+                      location.pathname.startsWith('/platform')
                         ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
                         : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
                     )}
                   >
                     <Shield className="w-6 h-6 sm:w-7 sm:h-7" />
-                    Admin Settings
-                  </Link>
-                )}
-
-                {isUserAdmin(userData) && (
-                  <Link
-                    to="/saas-admin"
-                    onClick={() => toggleMobileMenu()}
-                    className={cn(
-                      "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
-                      location.pathname === '/saas-admin'
-                        ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
-                        : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
-                    )}
-                  >
-                    <CreditCard className="w-6 h-6 sm:w-7 sm:h-7" />
-                    SaaS Admin
+                    Platform Admin
                   </Link>
                 )}
 
@@ -506,16 +508,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Settings className="w-4 h-4 mr-2" />
                 Meetings Settings
               </DropdownMenuItem>
-              {isUserAdmin(userData) && (
-                <DropdownMenuItem onClick={() => navigate('/admin/model-settings')}>
-                  <Shield className="w-4 h-4 mr-2" />
-                  Admin Settings
+              {/* Org Admin - for org owners/admins */}
+              {isOrgAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/org')}>
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Organization
                 </DropdownMenuItem>
               )}
-              {isUserAdmin(userData) && (
-                <DropdownMenuItem onClick={() => navigate('/saas-admin')}>
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  SaaS Admin
+              {/* Platform Admin - internal admins only */}
+              {isPlatformAdmin && (
+                <DropdownMenuItem onClick={() => navigate('/platform')}>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Platform Admin
                 </DropdownMenuItem>
               )}
               {/* External View Toggle - only for internal users */}
@@ -704,12 +708,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </AnimatePresence>
             </Link>
             
-            {isUserAdmin(userData) && (
+            {/* Org Admin link - for org owners/admins */}
+            {isOrgAdmin && (
               <Link
-                to="/admin/model-settings"
+                to="/org"
                 className={cn(
                   'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
-                  location.pathname === '/admin/model-settings'
+                  location.pathname.startsWith('/org')
+                    ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
+                    : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
+                )}
+              >
+                <Building2 className="w-4 h-4 flex-shrink-0" />
+                <AnimatePresence>
+                  {!isCollapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="overflow-hidden whitespace-nowrap"
+                    >
+                      Organization
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Link>
+            )}
+
+            {/* Platform Admin link - internal admins only */}
+            {isPlatformAdmin && (
+              <Link
+                to="/platform"
+                className={cn(
+                  'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
+                  location.pathname.startsWith('/platform')
                     ? 'bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-900/20 dark:text-white dark:border-purple-800/20'
                     : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                 )}
@@ -723,7 +755,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       exit={{ opacity: 0, width: 0 }}
                       className="overflow-hidden whitespace-nowrap"
                     >
-                      Admin Settings
+                      Platform Admin
                     </motion.span>
                   )}
                 </AnimatePresence>
