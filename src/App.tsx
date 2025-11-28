@@ -288,9 +288,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
-                {/* Home route - shows MeetingSentimentAnalytics (works for both internal and external) */}
-                <Route path="/" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
-                {/* Original CRM Dashboard - Internal users only */}
+                {/* Home route - shows Activity Dashboard for internal users, Meeting Analytics for external */}
+                <Route path="/" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
+                {/* Dashboard alias for backwards compatibility */}
                 <Route path="/dashboard" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
                 {/* Internal-only routes - CRM and tools */}
                 <Route path="/copilot" element={<InternalRouteGuard><AppLayout><Copilot /></AppLayout></InternalRouteGuard>} />

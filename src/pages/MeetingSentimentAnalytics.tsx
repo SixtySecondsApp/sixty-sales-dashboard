@@ -53,7 +53,8 @@ export default function MeetingSentimentAnalytics() {
   const navigate = useNavigate();
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<'7' | '30' | '90' | '365'>('30');
 
@@ -65,14 +66,11 @@ export default function MeetingSentimentAnalytics() {
 
     if (user) {
       loadMeetings();
-    } else {
-      setLoading(false);
     }
   }, [user, userLoading, timeRange]);
 
   const loadMeetings = async () => {
     if (!user) {
-      setLoading(false);
       return;
     }
 
@@ -110,6 +108,7 @@ export default function MeetingSentimentAnalytics() {
       setError(err instanceof Error ? err.message : 'Failed to load meetings');
     } finally {
       setLoading(false);
+      setHasFetched(true);
     }
   };
 
@@ -377,7 +376,8 @@ export default function MeetingSentimentAnalytics() {
     </div>
   );
 
-  if (userLoading || loading) {
+  // Show skeleton while user is loading OR while fetching meetings (but only if we haven't fetched yet)
+  if (userLoading || (loading && !hasFetched)) {
     return <DashboardSkeleton />;
   }
 

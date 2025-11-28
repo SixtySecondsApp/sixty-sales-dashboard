@@ -541,6 +541,37 @@ serve(async (req) => {
         last_sync_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
       })
       .eq('user_id', userId)
+
+    // AUTO-INDEX: Trigger queue processor to index newly synced meetings
+    // This runs asynchronously in the background after sync completes
+    if (meetingsSynced > 0) {
+      console.log(`🔍 Triggering AI search indexing for ${meetingsSynced} synced meetings`)
+      try {
+        // Fire-and-forget: Don't await to avoid blocking the sync response
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/meeting-intelligence-process-queue`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            limit: Math.min(meetingsSynced, 50), // Process up to 50 meetings per batch
+          }),
+        }).then(response => {
+          if (response.ok) {
+            console.log(`✅ AI search indexing triggered successfully`)
+          } else {
+            console.warn(`⚠️  AI search indexing trigger returned status ${response.status}`)
+          }
+        }).catch(err => {
+          console.error(`⚠️  Failed to trigger AI search indexing:`, err)
+        })
+      } catch (triggerError) {
+        // Non-fatal - log but don't fail the sync response
+        console.error(`⚠️  Error triggering AI search indexing:`, triggerError)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -925,6 +956,23 @@ async function autoFetchTranscriptAndAnalyze(
         })
         .eq('id', meeting.id)
 
+      // AUTO-INDEX: Queue meeting for AI search indexing after transcript is saved
+      // This ensures all meetings with transcripts are automatically searchable
+      console.log(`🔍 Queueing meeting ${meeting.id} for AI search indexing`)
+      try {
+        await supabase
+          .from('meeting_index_queue')
+          .upsert({
+            meeting_id: meeting.id,
+            user_id: meeting.owner_user_id || userId,
+            priority: 0, // Normal priority for auto-indexed meetings
+          }, { onConflict: 'meeting_id' })
+        console.log(`✅ Meeting ${meeting.id} queued for indexing`)
+      } catch (indexQueueError) {
+        // Non-fatal - log but don't fail the sync
+        console.error(`⚠️  Failed to queue meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
+      }
+
       // Condense summary if we have a new one (non-blocking)
       const finalSummary = summaryData?.summary || meeting.summary
       if (finalSummary && finalSummary.length > 0) {
@@ -933,6 +981,22 @@ async function autoFetchTranscriptAndAnalyze(
           .catch(err => undefined)
       }
     } else {
+      // Meeting already has transcript - ensure it's queued for indexing
+      // This handles cases where transcript exists but wasn't indexed yet
+      console.log(`🔍 Queueing existing transcript meeting ${meeting.id} for AI search indexing`)
+      try {
+        await supabase
+          .from('meeting_index_queue')
+          .upsert({
+            meeting_id: meeting.id,
+            user_id: meeting.owner_user_id || userId,
+            priority: 0,
+          }, { onConflict: 'meeting_id' })
+      } catch (indexQueueError) {
+        // Non-fatal - continue with sync
+        console.warn(`⚠️  Failed to queue existing meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
+      }
+
       // Condense existing summary if not already done (non-blocking)
       if (meeting.summary && !meeting.summary_oneliner) {
         // Fire-and-forget - don't block sync on AI summarization

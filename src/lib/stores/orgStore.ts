@@ -32,6 +32,7 @@ export interface OrganizationMembership {
 interface OrgStore {
   // State
   activeOrgId: string | null;
+  activeOrgRole: 'owner' | 'admin' | 'member' | 'readonly' | null; // Persisted role for quick access
   organizations: Organization[];
   memberships: OrganizationMembership[];
   isLoading: boolean;
@@ -44,6 +45,7 @@ interface OrgStore {
   createOrganization: (name: string) => Promise<Organization | null>;
   getActiveOrg: () => Organization | null;
   getUserRole: (orgId: string) => 'owner' | 'admin' | 'member' | 'readonly' | null;
+  getActiveOrgRole: () => 'owner' | 'admin' | 'member' | 'readonly' | null;
   isOrgMember: (orgId: string) => boolean;
   clear: () => void;
 }
@@ -53,6 +55,7 @@ export const useOrgStore = create<OrgStore>()(
     (set, get) => ({
       // Initial state
       activeOrgId: null,
+      activeOrgRole: null,
       organizations: [],
       memberships: [],
       isLoading: false,
@@ -63,7 +66,11 @@ export const useOrgStore = create<OrgStore>()(
        */
       setActiveOrg: (orgId: string | null) => {
         logger.log('[OrgStore] Setting active org:', orgId);
-        set({ activeOrgId: orgId });
+        // Also update the cached role for this org
+        const { memberships } = get();
+        const membership = memberships.find((m) => m.org_id === orgId);
+        const role = membership?.role || null;
+        set({ activeOrgId: orgId, activeOrgRole: role });
       },
 
       /**
@@ -84,6 +91,7 @@ export const useOrgStore = create<OrgStore>()(
               logger.log('[OrgStore] Multi-tenant disabled, using default org ID:', defaultOrgId);
               set({
                 activeOrgId: defaultOrgId,
+                activeOrgRole: null, // No role in single-tenant mode
                 organizations: [],
                 memberships: [],
                 isLoading: false,
@@ -97,6 +105,7 @@ export const useOrgStore = create<OrgStore>()(
             logger.log('[OrgStore] Multi-tenant disabled, no default org configured - using null orgId');
             set({
               activeOrgId: null,
+              activeOrgRole: null,
               organizations: [],
               memberships: [],
               isLoading: false,
@@ -143,8 +152,13 @@ export const useOrgStore = create<OrgStore>()(
             activeOrgId = orgs.length > 0 ? orgs[0].id : null;
           }
 
+          // Get role for active org
+          const activeMembership = orgMemberships.find((m) => m.org_id === activeOrgId);
+          const activeOrgRole = activeMembership?.role || null;
+
           set({
             activeOrgId,
+            activeOrgRole,
             organizations: orgs,
             memberships: orgMemberships,
             isLoading: false,
@@ -239,6 +253,21 @@ export const useOrgStore = create<OrgStore>()(
       },
 
       /**
+       * Get user's role in the active organization (uses cached value for fast access)
+       */
+      getActiveOrgRole: (): 'owner' | 'admin' | 'member' | 'readonly' | null => {
+        const { activeOrgRole, activeOrgId, memberships } = get();
+        // First try to use cached role (persisted)
+        if (activeOrgRole) return activeOrgRole;
+        // Fallback to looking up from memberships if loaded
+        if (activeOrgId && memberships.length > 0) {
+          const membership = memberships.find((m) => m.org_id === activeOrgId);
+          return membership?.role || null;
+        }
+        return null;
+      },
+
+      /**
        * Check if user is a member of an organization
        */
       isOrgMember: (orgId: string): boolean => {
@@ -251,6 +280,7 @@ export const useOrgStore = create<OrgStore>()(
       clear: () => {
         set({
           activeOrgId: null,
+          activeOrgRole: null,
           organizations: [],
           memberships: [],
           isLoading: false,
@@ -261,7 +291,8 @@ export const useOrgStore = create<OrgStore>()(
     {
       name: 'org-store', // localStorage key
       partialize: (state) => ({
-        activeOrgId: state.activeOrgId, // Only persist activeOrgId
+        activeOrgId: state.activeOrgId,
+        activeOrgRole: state.activeOrgRole, // Also persist role for quick access
       }),
     }
   )
@@ -292,6 +323,13 @@ export function useActiveOrgId(): string | null {
  */
 export function useActiveOrg(): Organization | null {
   return useOrgStore((state) => state.getActiveOrg());
+}
+
+/**
+ * Hook to get the active organization role (persisted for fast access)
+ */
+export function useActiveOrgRole(): 'owner' | 'admin' | 'member' | 'readonly' | null {
+  return useOrgStore((state) => state.getActiveOrgRole());
 }
 
 /**

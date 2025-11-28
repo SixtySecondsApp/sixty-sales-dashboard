@@ -33,6 +33,14 @@ Enterprise-grade sales CRM and analytics platform featuring a streamlined 4-stag
 - **Contact Management**: Integrated contact system with fuzzy matching and normalization
 - **Task Management**: Automated task creation with smart follow-up scheduling
 
+### 🤖 Meeting Intelligence (AI Search)
+- **Automatic Indexing**: Meetings are automatically queued for AI search indexing when transcripts are synced from Fathom
+- **Semantic Search**: Search across all meeting transcripts, summaries, and action items using natural language
+- **Google File Search Integration**: Meetings are indexed to Google's File Search API for RAG queries
+- **Background Processing**: Queue-based indexing with retry logic and exponential backoff
+- **Org-Level Stores**: Each organization has its own File Search store for data isolation
+- **Real-time Status**: Track indexing progress (e.g., "295/334 indexed") on the Meeting Intelligence page
+
 ### 📅 Google Calendar Integration
 - **Manual Sync Control**: User-initiated calendar synchronization (no automatic syncing)
 - **Smart Event Import**: Sync last 7 days of calendar events for testing

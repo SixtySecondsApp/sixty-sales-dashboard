@@ -53,10 +53,10 @@ const roleLabels: Record<string, string> = {
 };
 
 const roleColors: Record<string, string> = {
-  owner: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-  admin: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  member: 'bg-green-500/20 text-green-400 border-green-500/30',
-  readonly: 'bg-gray-500/20 text-gray-400 border-gray-500/30',
+  owner: 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-500/30',
+  admin: 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-500/30',
+  member: 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 border-green-300 dark:border-green-500/30',
+  readonly: 'bg-gray-100 dark:bg-gray-500/20 text-gray-700 dark:text-gray-400 border-gray-300 dark:border-gray-500/30',
 };
 
 export default function TeamSettings() {
@@ -267,11 +267,11 @@ export default function TeamSettings() {
     <div className="max-w-4xl mx-auto space-y-8 py-8">
       {/* Organization Details */}
       <section>
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <Building2 className="w-5 h-5 text-[#37bd7e]" />
           Organization Details
         </h2>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6">
+        <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 p-6 shadow-sm dark:shadow-none">
           <div className="flex items-center justify-between">
             {isEditingName ? (
               <div className="flex items-center gap-3 flex-1">
@@ -279,7 +279,7 @@ export default function TeamSettings() {
                   type="text"
                   value={editedOrgName}
                   onChange={(e) => setEditedOrgName(e.target.value)}
-                  className="flex-1 bg-gray-700/50 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                  className="flex-1 bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
                   maxLength={100}
                 />
                 <Button
@@ -304,8 +304,8 @@ export default function TeamSettings() {
             ) : (
               <>
                 <div>
-                  <h3 className="text-lg font-medium text-white">{activeOrg?.name}</h3>
-                  <p className="text-sm text-gray-400">{members.length} members</p>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">{activeOrg?.name}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{members.length} members</p>
                 </div>
                 {permissions.canManageSettings && (
                   <Button
@@ -328,36 +328,36 @@ export default function TeamSettings() {
 
       {/* Team Members */}
       <section>
-        <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#37bd7e]" />
           Team Members
         </h2>
-        <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
+        <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 overflow-hidden shadow-sm dark:shadow-none">
           {isLoadingMembers ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
             </div>
           ) : (
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y divide-gray-200 dark:divide-gray-800">
               {members.map((member) => (
                 <div
                   key={member.user_id}
-                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-800/30 transition-colors"
+                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
-                      <span className="text-white font-medium">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <span className="text-gray-900 dark:text-white font-medium">
                         {member.user?.full_name?.[0] || member.user?.email?.[0] || '?'}
                       </span>
                     </div>
                     <div>
-                      <p className="text-white font-medium">
+                      <p className="text-gray-900 dark:text-white font-medium">
                         {member.user?.full_name || 'Unknown User'}
                         {member.user_id === user?.id && (
-                          <span className="text-gray-400 text-sm ml-2">(you)</span>
+                          <span className="text-gray-500 dark:text-gray-400 text-sm ml-2">(you)</span>
                         )}
                       </p>
-                      <p className="text-sm text-gray-400">{member.user?.email}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{member.user?.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -367,7 +367,7 @@ export default function TeamSettings() {
                         onChange={(e) =>
                           handleChangeRole(member.user_id, e.target.value as 'admin' | 'member' | 'readonly')
                         }
-                        className="bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-1.5 text-sm text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
+                        className="bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent"
                       >
                         <option value="admin">Admin</option>
                         <option value="member">Member</option>
@@ -383,7 +383,7 @@ export default function TeamSettings() {
                     {permissions.canManageTeam && member.role !== 'owner' && member.user_id !== user?.id && (
                       <button
                         onClick={() => handleRemoveMember(member.user_id)}
-                        className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -399,14 +399,14 @@ export default function TeamSettings() {
       {/* Invite New Members */}
       {permissions.canManageTeam && (
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <UserPlus className="w-5 h-5 text-[#37bd7e]" />
             Invite Team Members
           </h2>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6">
+          <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 p-6 shadow-sm dark:shadow-none">
             <form onSubmit={handleSendInvite} className="flex gap-3">
               <div className="flex-1 relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 dark:text-gray-400" />
                 <input
                   type="email"
                   value={newInviteEmail}
@@ -414,14 +414,14 @@ export default function TeamSettings() {
                   placeholder="colleague@company.com"
                   required
                   disabled={isSendingInvite}
-                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent disabled:opacity-50"
+                  className="w-full bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg pl-10 pr-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent disabled:opacity-50"
                 />
               </div>
               <select
                 value={newInviteRole}
                 onChange={(e) => setNewInviteRole(e.target.value as 'admin' | 'member')}
                 disabled={isSendingInvite}
-                className="bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2.5 text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent disabled:opacity-50"
+                className="bg-gray-100 dark:bg-gray-700/50 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2.5 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent disabled:opacity-50"
               >
                 <option value="admin">Admin</option>
                 <option value="member">Member</option>
@@ -445,24 +445,24 @@ export default function TeamSettings() {
       {/* Pending Invitations */}
       {permissions.canManageTeam && invitations.length > 0 && (
         <section>
-          <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Mail className="w-5 h-5 text-[#37bd7e]" />
             Pending Invitations
           </h2>
-          <div className="bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 overflow-hidden">
-            <div className="divide-y divide-gray-800">
+          <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 overflow-hidden shadow-sm dark:shadow-none">
+            <div className="divide-y divide-gray-200 dark:divide-gray-800">
               {invitations.map((invite) => (
                 <div
                   key={invite.id}
-                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-800/30 transition-colors"
+                  className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-gray-700/50 flex items-center justify-center">
-                      <Mail className="w-5 h-5 text-gray-400" />
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700/50 flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     </div>
                     <div>
-                      <p className="text-white">{invite.email}</p>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-gray-900 dark:text-white">{invite.email}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
                         Expires {new Date(invite.expires_at).toLocaleDateString()}
                       </p>
                     </div>
@@ -475,14 +475,14 @@ export default function TeamSettings() {
                     </span>
                     <button
                       onClick={() => handleResendInvite(invite.id)}
-                      className="p-2 text-gray-400 hover:text-[#37bd7e] transition-colors"
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-[#37bd7e] transition-colors"
                       title="Resend invitation"
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleRevokeInvite(invite.id)}
-                      className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                      className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                       title="Revoke invitation"
                     >
                       <X className="w-4 h-4" />

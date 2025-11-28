@@ -737,10 +737,10 @@ export default function SettingsSavvyCal() {
           </CardHeader>
           <CardContent>
             {isEditing && (
-              <div className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900/50">
+              <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Link ID</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Link ID</label>
                     <div className="flex gap-2">
                       <Input
                         value={editingMapping.link_id}
@@ -764,7 +764,7 @@ export default function SettingsSavvyCal() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Source</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Source</label>
                     <div className="space-y-2">
                       <Select
                         value={editingMapping.isCustomSource ? 'custom' : editingMapping.source_id || ''}
@@ -819,7 +819,7 @@ export default function SettingsSavvyCal() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Meeting Link</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Meeting Link</label>
                     <Input
                       value={editingMapping.meeting_link}
                       onChange={(e) =>
@@ -833,7 +833,7 @@ export default function SettingsSavvyCal() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Private Link</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Private Link</label>
                     <Input
                       value={editingMapping.private_link}
                       onChange={(e) =>
@@ -847,7 +847,7 @@ export default function SettingsSavvyCal() {
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes (Optional)</label>
                     <Textarea
                       value={editingMapping.notes}
                       onChange={(e) =>

@@ -54,7 +54,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/hooks/useUser';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
-import { useUserPermissions } from '@/contexts/UserPermissionsContext';
+import { useUserPermissions, useIsViewingAsExternal } from '@/contexts/UserPermissionsContext';
 import { getNavigationItems } from '@/lib/routes/routeConfig';
 import logger from '@/lib/utils/logger';
 import { useEventListener } from '@/lib/communication/EventBus';
@@ -87,6 +87,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   // User permissions for dynamic navigation
   const { effectiveUserType, isAdmin, isInternal, isPlatformAdmin, isOrgAdmin } = useUserPermissions();
+  const isViewingAsExternal = useIsViewingAsExternal();
 
   // Initialize task notifications - this will show toasts for auto-created tasks
   useTaskNotifications();
@@ -244,8 +245,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       
-      {/* Quick Add FAB - Hidden in this version */}
-      {/* {location.pathname !== '/workflows' && (
+      {/* Quick Add FAB - Only shown in internal view */}
+      {location.pathname !== '/workflows' && !isViewingAsExternal && (
         <motion.button
           type="button"
           whileHover={{ scale: 1.05 }}
@@ -255,7 +256,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         >
           <Plus className="w-6 h-6 text-white" />
         </motion.button>
-      )} */}
+      )}
 
       {/* Mobile Menu - Full Page with Scrolling */}
       <AnimatePresence>
@@ -371,7 +372,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
-                  Meetings Settings
+                  User Settings
                 </Link>
 
                 {/* Org Admin - for org owners/admins */}
@@ -702,7 +703,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     exit={{ opacity: 0, width: 0 }}
                     className="overflow-hidden whitespace-nowrap"
                   >
-                    Meetings Settings
+                    User Settings
                   </motion.span>
                 )}
               </AnimatePresence>

@@ -42,13 +42,13 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing 
         animate={{ opacity: 1, y: 0 }}
         className="flex flex-col items-center justify-center py-16 px-4"
       >
-        <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+        <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center mb-6">
           <Video className="w-12 h-12 text-gray-400" />
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
           Connect Fathom to Get Started
         </h2>
-        <p className="text-gray-400 mb-8 text-center max-w-md">
+        <p className="text-gray-600 dark:text-gray-400 mb-8 text-center max-w-md">
           Connect your Fathom account to automatically sync your meeting recordings and transcripts.
         </p>
         <Button
@@ -92,14 +92,14 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing 
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6"
+          className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center mb-6"
         >
           <Loader2 className="w-12 h-12 text-[#37bd7e]" />
         </motion.div>
-        <h2 className="text-2xl font-bold text-white mb-2 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
           Syncing Your Meetings
         </h2>
-        <p className="text-gray-400 mb-4 text-center max-w-md">
+        <p className="text-gray-600 dark:text-gray-400 mb-4 text-center max-w-md">
           We're fetching your meeting recordings from Fathom. This may take a few moments.
         </p>
         <div className="text-sm text-gray-500">
@@ -116,13 +116,13 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing 
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col items-center justify-center py-16 px-4"
     >
-      <div className="w-24 h-24 rounded-full bg-gray-800/50 flex items-center justify-center mb-6">
+      <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center mb-6">
         <Video className="w-12 h-12 text-gray-400" />
       </div>
-      <h2 className="text-2xl font-bold text-white mb-2 text-center">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
         No Meetings Yet
       </h2>
-      <p className="text-gray-400 mb-8 text-center max-w-md">
+      <p className="text-gray-600 dark:text-gray-400 mb-8 text-center max-w-md">
         Your Fathom account is connected! Sync your meetings to start analyzing your sales calls.
       </p>
       <div className="flex gap-4">
@@ -144,9 +144,9 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing 
           )}
         </Button>
       </div>
-      <div className="mt-8 bg-gray-900/50 backdrop-blur-xl rounded-xl border border-gray-800/50 p-6 max-w-md">
-        <h3 className="text-sm font-semibold text-white mb-3">What happens next?</h3>
-        <ul className="space-y-2 text-sm text-gray-400">
+      <div className="mt-8 bg-gray-50 dark:bg-gray-900/50 dark:backdrop-blur-xl rounded-xl border border-gray-200 dark:border-gray-800/50 p-6 max-w-md">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">What happens next?</h3>
+        <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <li className="flex items-start gap-2">
             <span className="text-[#37bd7e] mt-1">•</span>
             <span>Meetings will sync automatically when recorded in Fathom</span>

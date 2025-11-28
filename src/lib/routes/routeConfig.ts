@@ -74,11 +74,10 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   // ========== Main Section (External + Internal) ==========
   {
     path: '/',
-    access: 'any',
+    access: 'internal',
     label: 'Dashboard',
-    icon: HeartPulse,
-    showInNav: true,
-    showInNavFor: 'external', // Only show in navigation for external users
+    icon: LayoutDashboard,
+    showInNav: false, // Dashboard is shown separately for internal users
     navSection: 'main',
     order: 1,
   },
@@ -112,7 +111,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   },
   {
     path: '/insights/content-topics',
-    access: 'any',
+    access: 'internal', // Hidden from external users - feature not ready
     label: 'Content Topics',
     icon: Layers,
     showInNav: true,

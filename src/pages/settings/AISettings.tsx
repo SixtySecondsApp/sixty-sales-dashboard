@@ -885,7 +885,7 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
                   <div className="flex gap-3">
                     <Info className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
                     <div className="space-y-2">
-                      <h3 className="font-medium text-purple-900 dark:text-purple-100">Quick Start Guide</h3>
+                      <h3 className="font-medium text-purple-800 dark:text-purple-100">Quick Start Guide</h3>
                       <p className="text-sm text-purple-700 dark:text-purple-300">
                         New to templates? Here's the easiest way to get started:
                       </p>

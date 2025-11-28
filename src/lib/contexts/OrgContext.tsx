@@ -19,6 +19,7 @@ import {
   useOrgStore,
   useActiveOrgId,
   useActiveOrg,
+  useActiveOrgRole,
   useHasOrgRole,
   type Organization,
   type OrganizationMembership
@@ -133,15 +134,20 @@ export function OrgProvider({ children }: OrgProviderProps) {
   // Use hooks for reactive values
   const activeOrgId = useActiveOrgId();
   const activeOrg = useActiveOrg();
+  const persistedOrgRole = useActiveOrgRole();
 
   // Check if multi-tenant is enabled
   const isMultiTenant = isMultiTenantEnabled();
 
   // Get user's role in active org
+  // Uses persisted role for immediate access, falls back to computed role when memberships are loaded
   const userRole = useMemo(() => {
+    // First try persisted role (for fast initial render)
+    if (persistedOrgRole) return persistedOrgRole;
+    // Fall back to computed role from memberships
     if (!activeOrgId) return null;
     return getUserRole(activeOrgId);
-  }, [activeOrgId, getUserRole]);
+  }, [activeOrgId, getUserRole, persistedOrgRole]);
 
   // Calculate permissions based on role
   const permissions = useMemo((): OrgPermissions => {

@@ -280,33 +280,41 @@ function App() {
 ### Light Mode Colors
 
 ```css
-/* Backgrounds */
---bg-primary: #FFFFFF           /* Pure white - rgb(255 255 255) */
---bg-secondary: #FCFCFC         /* Off-white - rgb(252 252 252) */
---bg-tertiary: #F3F4F6          /* Gray-100 - rgb(243 244 246) */
---bg-elevated: #FFFFFF          /* White for elevated surfaces */
+/* Backgrounds - Cleaner, more professional greys */
+--bg-primary: 255 255 255;           /* Pure white (#FFFFFF) */
+--bg-secondary: 250 250 250;         /* Clean off-white (#FAFAFA) */
+--bg-tertiary: 249 250 251;          /* Cleaner gray-50 (#F9FAFB) */
+--bg-elevated: 255 255 255;          /* White */
 
 /* Surfaces (Glassmorphism) */
---surface-glass: rgba(255, 255, 255, 0.85)  /* White glass base */
---surface-opacity: 0.85                      /* Glass opacity for light mode */
+--surface-glass: 255 255 255;        /* White base for glass */
+--surface-opacity: 0.85;             /* Glass opacity for light mode */
 
-/* Borders */
---border-primary: #E5E7EB       /* Gray-200 - rgb(229 231 235) */
---border-secondary: #D1D5DB     /* Gray-300 - rgb(209 213 219) */
+/* Borders - Cleaner, lighter borders */
+--border-primary: 229 231 235;       /* Gray-200 (#E5E7EB) */
+--border-secondary: 243 244 246;     /* Lighter Gray-100 for subtle borders */
 
 /* Text */
---text-primary: #111827         /* Gray-900 - rgb(17 24 39) */
---text-secondary: #374151       /* Gray-700 - rgb(55 65 81) */
---text-tertiary: #6B7280        /* Gray-500 - rgb(107 114 128) */
---text-muted: #9CA3AF           /* Gray-400 - rgb(156 163 175) */
+--text-primary: 17 24 39;            /* Gray-900 (#111827) */
+--text-secondary: 55 65 81;          /* Gray-700 (#374151) */
+--text-tertiary: 107 114 128;        /* Gray-500 (#6B7280) */
+--text-muted: 156 163 175;           /* Gray-400 (#9CA3AF) */
 
 /* Semantic Colors */
---color-primary: #2563EB        /* Blue-600 - Primary actions */
---color-accent-green: #059669   /* Emerald-600 - Success */
---color-accent-red: #DC2626     /* Red-600 - Destructive */
---color-accent-yellow: #D97706  /* Amber-600 - Warning */
---color-accent-purple: #7C3AED  /* Violet-600 - Info */
---color-accent-orange: #EA580C  /* Orange-600 - Alert */
+--color-primary: #2563eb;            /* Blue-600 - Primary actions */
+--color-primary-hover: #1d4ed8;      /* Blue-700 - Primary hover */
+--color-bg-dark: #ffffff;            /* White background */
+--color-bg-secondary: #fcfcfc;       /* Off-white secondary */
+--color-card-bg: rgba(255, 255, 255, 0.85);  /* Card background */
+--color-border: rgba(229, 231, 235, 1);      /* Border color */
+--color-text-white: #111827;         /* Primary text (dark on light) */
+--color-text-light: #374151;         /* Secondary text */
+--color-text-muted: #6b7280;         /* Muted text */
+--color-accent-green: #059669;       /* Emerald-600 - Success */
+--color-accent-red: #dc2626;         /* Red-600 - Destructive */
+--color-accent-yellow: #d97706;      /* Amber-600 - Warning */
+--color-accent-purple: #7c3aed;      /* Violet-600 - Info */
+--color-accent-orange: #ea580c;      /* Orange-600 - Alert */
 ```
 
 ### Dark Mode Colors (Glassmorphism)
@@ -575,6 +583,45 @@ import { Plus, Trash2, Download } from 'lucide-react'
   <!-- Automatically applies glassmorphism in dark mode -->
   <!-- Clean white background in light mode -->
 </div>
+
+// Dashboard Card with Gradient Overlays (Advanced)
+<div className="relative backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 md:p-8
+                border border-gray-800/50
+                hover:border-[#37bd7e]/50 transition-all duration-300 group
+                hover:shadow-2xl hover:shadow-[#37bd7e]/20 overflow-hidden cursor-pointer">
+  {/* Background gradient layers */}
+  <div className="absolute inset-0 bg-gradient-to-br from-gray-900/95 via-gray-900/75 to-gray-900/40 rounded-3xl" />
+  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] rounded-3xl" />
+  {/* Glow effect on hover */}
+  <div className="absolute -right-20 -top-20 w-40 h-40 blur-3xl rounded-full transition-all duration-500
+                  bg-emerald-500/10 group-hover:bg-emerald-500/20" />
+  {/* Content */}
+</div>
+
+// Contact/Deal Card with Selection State
+<div className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4
+                 border transition-all duration-300 group
+                 shadow-sm dark:shadow-none cursor-pointer ${
+  isSelected
+    ? 'border-emerald-500 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
+    : 'border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30'
+}`}>
+  <!-- Card content -->
+</div>
+
+// Rank Card with Position-Based Colors
+const getRankColor = (rank: number) => {
+  switch (rank) {
+    case 1: // Gold
+      return 'bg-white dark:from-gray-800/60 dark:to-gray-800/40 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-yellow-500/30 shadow-[0_4px_6px_-1px_rgba(234,179,8,0.1)] ring-1 ring-yellow-200/50 dark:ring-0';
+    case 2: // Silver
+      return 'bg-white dark:from-gray-800/50 dark:to-gray-800/30 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-gray-600/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]';
+    case 3: // Bronze
+      return 'bg-white dark:from-gray-800/50 dark:to-gray-800/30 dark:bg-gradient-to-br border-[#E2E8F0] dark:border-amber-500/30 shadow-[0_4px_6px_-1px_rgba(217,119,6,0.08)] ring-1 ring-amber-200/50 dark:ring-0';
+    default:
+      return 'bg-white dark:bg-gray-800/40 border-[#E2E8F0] dark:border-gray-700/30 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)]';
+  }
+};
 ```
 
 ### Glassmorphism CSS Classes
@@ -621,6 +668,76 @@ import { Plus, Trash2, Download } from 'lucide-react'
   box-shadow:
     0 12px 40px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Tailwind-based glassmorphism utility classes */
+.section-card {
+  @apply bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-800/30
+         backdrop-blur-xl rounded-xl p-6 border border-gray-200 dark:border-gray-800/50
+         transition-all duration-300 hover:shadow-lg hover:shadow-black/20;
+}
+
+.glassmorphism {
+  @apply bg-white dark:bg-gray-900/50 backdrop-blur-xl border border-gray-200 dark:border-gray-800/50;
+}
+
+.glassmorphism-light {
+  @apply bg-white dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700/30;
+}
+
+.glassmorphism-card {
+  @apply bg-white dark:bg-gray-900/60 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700/30 shadow-lg;
+}
+
+.lead-owner-card {
+  @apply bg-gradient-to-br from-blue-900/20 to-blue-800/10 backdrop-blur-xl rounded-xl p-6 border border-blue-500/20;
+}
+
+.activity-metric {
+  @apply bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-sm rounded-lg p-4 border border-blue-500/20;
+}
+
+.ai-insights-card {
+  @apply bg-gradient-to-br from-blue-900/20 to-purple-900/20 backdrop-blur-xl rounded-xl border border-blue-500/20;
+}
+
+/* Strong backdrop blur effect */
+.backdrop-blur-strong {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Floating action button with glass effect */
+.floating-action-button {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary) 0%, #2563eb 100%);
+  color: white;
+  box-shadow:
+    0 8px 32px rgba(61, 168, 244, 0.4),
+    0 4px 16px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: none;
+  cursor: pointer;
+}
+
+/* Activity metric card with gradient */
+.activity-metric {
+  background: linear-gradient(135deg, rgba(61, 168, 244, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(61, 168, 244, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem;
 }
 ```
 
@@ -849,21 +966,21 @@ import { Plus, Trash2, Download } from 'lucide-react'
 ### Navigation Sidebar
 
 ```tsx
-<aside className="w-64 h-full 
-                  bg-white dark:bg-gray-900 
+<aside className="w-64 h-full
+                  bg-white dark:bg-gray-900
                   border-r border-gray-200 dark:border-gray-800">
-  
+
   {/* Navigation item - INACTIVE */}
-  <button className="w-full flex items-center gap-3 px-4 py-2.5 
+  <button className="w-full flex items-center gap-3 px-4 py-2.5
                      text-gray-700 dark:text-gray-400
                      hover:bg-gray-50 dark:hover:bg-gray-800/50
                      transition-colors rounded-lg">
     <Icon className="w-5 h-5" />
     <span className="text-sm font-medium">Dashboard</span>
   </button>
-  
+
   {/* Navigation item - ACTIVE */}
-  <button className="w-full flex items-center gap-3 px-4 py-2.5 
+  <button className="w-full flex items-center gap-3 px-4 py-2.5
                      bg-blue-50 dark:bg-blue-500/10
                      text-blue-600 dark:text-blue-400
                      border border-blue-200 dark:border-blue-500/20
@@ -872,6 +989,111 @@ import { Plus, Trash2, Download } from 'lucide-react'
     <span className="text-sm font-semibold">Activity</span>
   </button>
 </aside>
+```
+
+### Skeleton Loaders
+
+```tsx
+// Base Skeleton Component
+function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={cn('animate-pulse rounded-md bg-muted', className)}
+      {...props}
+    />
+  );
+}
+
+// Theme-Aware Skeleton Card
+const SkeletonCard = ({ isDark }: { isDark: boolean }) => {
+  const skeletonColors = {
+    bg: isDark ? 'bg-gray-900/80' : 'bg-white',
+    border: isDark ? 'border-gray-700/50' : 'border-gray-200',
+    element: isDark ? 'bg-gray-800' : 'bg-gray-200',
+  };
+
+  return (
+    <div className={`backdrop-blur-sm rounded-xl p-6 border animate-pulse
+                     shadow-sm ${isDark ? 'shadow-none' : ''}
+                     ${skeletonColors.bg} ${skeletonColors.border}`}>
+      <div className="flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-lg ${skeletonColors.element}`} />
+        <div className="flex-1">
+          <div className={`h-4 w-20 rounded-lg mb-2 ${skeletonColors.element}`} />
+          <div className={`h-6 w-16 rounded-lg mb-1 ${skeletonColors.element}`} />
+          <div className={`h-3 w-12 rounded-lg ${skeletonColors.element}`} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Skeleton Grid for Stats
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+  {[1, 2, 3, 4].map((i) => (
+    <SkeletonCard key={i} isDark={isDark} />
+  ))}
+</div>
+```
+
+### Shimmer Animation
+
+```css
+/* Add to tailwind.config.js keyframes */
+keyframes: {
+  shimmer: {
+    '0%': { backgroundPosition: '-200% 0' },
+    '100%': { backgroundPosition: '200% 0' }
+  }
+}
+
+animation: {
+  'shimmer': 'shimmer 2s infinite linear'
+}
+```
+
+```tsx
+// Progress bar with shimmer effect
+<div className="h-2 bg-gray-100 dark:bg-gray-800/50 rounded-full overflow-hidden">
+  <div
+    className="h-full rounded-full transition-all duration-700 relative overflow-hidden
+               bg-gradient-to-r from-[#37bd7e] to-[#2da76c]
+               after:absolute after:inset-0
+               after:bg-gradient-to-r after:from-transparent after:via-white/30 after:to-transparent
+               after:animate-shimmer"
+    style={{ width: `${progress}%` }}
+  />
+</div>
+```
+
+### Theme Transition Effects
+
+```css
+/* Smooth theme switching - add to globals.css */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 300ms ease-in-out,
+              border-color 300ms ease-in-out,
+              color 300ms ease-in-out,
+              fill 300ms ease-in-out,
+              stroke 300ms ease-in-out !important;
+}
+```
+
+```tsx
+// Theme toggle with transition class
+<button
+  onClick={toggleTheme}
+  className={cn(
+    "relative p-2 rounded-lg transition-all duration-300",
+    "hover:bg-gray-50 dark:hover:bg-gray-800/30 hover:scale-110",
+    "theme-transition"
+  )}
+>
+  {/* icon */}
+</button>
 ```
 
 ---
@@ -1081,19 +1303,24 @@ className="bg-blue-50 dark:bg-blue-500/10
 
 - [ ] Tailwind CSS installed and configured
 - [ ] Global CSS file created with theme styles
-- [ ] Theme toggle component added
+- [ ] Theme toggle component added with `.theme-transition` class
 - [ ] Button component created with all variants
-- [ ] Root layout has proper background colors
+- [ ] Root layout has proper background colors (`#FFFFFF` / `#030712`)
 - [ ] All text uses theme-aware color classes
 - [ ] Forms have proper styling in both themes
 - [ ] Tables have proper styling in both themes
 - [ ] Navigation active states are visible
-- [ ] Modals/dialogs are styled correctly
+- [ ] Modals/dialogs are styled correctly with glassmorphism
 - [ ] Theme persistence works (localStorage)
 - [ ] System preference detection works
 - [ ] No hydration mismatches (SSR apps)
 - [ ] Tested in both light and dark mode
 - [ ] All interactive states work (hover, focus, disabled)
+- [ ] Skeleton loaders use theme-aware colors
+- [ ] Shimmer animation configured in tailwind.config.js
+- [ ] Cards have proper selection state styles
+- [ ] Dashboard cards use gradient overlay patterns
+- [ ] Theme transitions are smooth (300ms)
 
 ---
 
@@ -1106,7 +1333,7 @@ className="bg-blue-50 dark:bg-blue-500/10
 "bg-white dark:bg-gray-950"
 
 /* Secondary page background */
-"bg-[#FCFCFC] dark:bg-gray-900"
+"bg-[#FAFAFA] dark:bg-gray-900"
 
 /* Standard Glassmorphic Card */
 "bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none transition-all duration-300"
@@ -1117,8 +1344,29 @@ className="bg-blue-50 dark:bg-blue-500/10
 /* Interactive Clickable Card */
 "bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl p-6 shadow-sm dark:shadow-none transition-all duration-300 hover:scale-[1.02] hover:shadow-lg dark:hover:shadow-black/20 cursor-pointer"
 
+/* Dashboard Card with Gradient Overlay */
+"relative backdrop-blur-xl bg-gray-900/40 rounded-3xl p-6 md:p-8 border border-gray-800/50 hover:border-[#37bd7e]/50 transition-all duration-300 group hover:shadow-2xl hover:shadow-[#37bd7e]/20 overflow-hidden cursor-pointer"
+
+/* Contact/Deal Card with Selection State */
+"bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-300 group shadow-sm dark:shadow-none cursor-pointer border-gray-200 dark:border-gray-700/50 hover:border-emerald-500 dark:hover:border-emerald-500/30"
+
+/* Selected Card State */
+"border-emerald-500 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5"
+
 /* Section Card (uses custom class) */
 "section-card"
+
+/* Theme-Aware Skeleton Card */
+"backdrop-blur-sm rounded-xl p-6 border animate-pulse shadow-sm dark:shadow-none bg-white dark:bg-gray-900/80 border-gray-200 dark:border-gray-700/50"
+
+/* Skeleton Element (Light) */
+"bg-gray-200 rounded-lg"
+
+/* Skeleton Element (Dark) */
+"bg-gray-800 rounded-lg"
+
+/* Shimmer Progress Bar */
+"h-full rounded-full transition-all duration-700 relative overflow-hidden bg-gradient-to-r from-[#37bd7e] to-[#2da76c] after:absolute after:inset-0 after:bg-gradient-to-r after:from-transparent after:via-white/30 after:to-transparent after:animate-shimmer"
 
 /* Primary text */
 "text-gray-900 dark:text-gray-100"
@@ -1190,10 +1438,13 @@ className="bg-blue-50 dark:bg-blue-500/10
 | Element | Light Mode | Dark Mode (Glassmorphism) |
 |---------|-----------|---------------------------|
 | **Page BG** | `#FFFFFF` | `#030712` (gray-950) |
-| **Secondary BG** | `#FCFCFC` | `#111827` (gray-900) |
+| **Secondary BG** | `#FAFAFA` (cleaner gray) | `#111827` (gray-900) |
+| **Tertiary BG** | `#F9FAFB` (gray-50) | `#1F2937` (gray-800) |
 | **Card BG** | `white` + `shadow-sm` | `gray-900/80` + `backdrop-blur-sm` |
 | **Premium Card** | `white` + `shadow-sm` | `rgba(20, 28, 36, 0.6)` + `blur(16px)` |
+| **Dashboard Card** | `white` + gradient overlay | `gray-900/40` + `backdrop-blur-xl` + gradient layers |
 | **Border** | `gray-200` (#E5E7EB) | `gray-700/50` opacity |
+| **Border Secondary** | `gray-100` (#F3F4F6) | `gray-800/50` opacity |
 | **Text Primary** | `gray-900` (#111827) | `gray-100` (#F3F4F6) |
 | **Text Secondary** | `gray-700` (#374151) | `gray-300` (#D1D5DB) |
 | **Text Tertiary** | `gray-500` (#6B7280) | `gray-400` (#9CA3AF) |
@@ -1201,6 +1452,38 @@ className="bg-blue-50 dark:bg-blue-500/10
 | **Modal Content** | `white/95` + `blur` | `gray-900/95` + `backdrop-blur-sm` |
 | **Popover** | `white/95` + `shadow-md` | `gray-900/95` + `backdrop-blur-sm` |
 | **Select Dropdown** | `white/95` + `blur` | `gray-900/95` + `backdrop-blur-sm` |
+| **Skeleton BG** | `gray-200` | `gray-800` |
+| **Selected State** | `emerald-50` + border | `emerald-500/5` + border |
+
+## 🔄 Skeleton Loader Specifications
+
+| Element | Light Mode | Dark Mode |
+|---------|-----------|-----------|
+| **Container BG** | `bg-white` | `bg-gray-900/80` |
+| **Container Border** | `border-gray-200` | `border-gray-700/50` |
+| **Element Color** | `bg-gray-200` | `bg-gray-800` |
+| **Animation** | `animate-pulse` | `animate-pulse` |
+| **Shadow** | `shadow-sm` | `shadow-none` |
+
+## ✨ Shimmer Animation
+
+| Property | Value |
+|----------|-------|
+| **Animation Name** | `shimmer` |
+| **Duration** | `2s` |
+| **Timing** | `linear` |
+| **Iteration** | `infinite` |
+| **Keyframes** | `backgroundPosition: -200% 0 → 200% 0` |
+| **Gradient** | `from-transparent via-white/30 to-transparent` |
+
+## 🎭 Theme Transition
+
+| Property | Value |
+|----------|-------|
+| **Duration** | `300ms` |
+| **Easing** | `ease-in-out` |
+| **Properties** | `background-color, border-color, color, fill, stroke` |
+| **Class** | `.theme-transition` |
 
 ## 🌟 Glassmorphism Specifications
 
@@ -1303,6 +1586,18 @@ This design system is free to use in any project, commercial or personal.
 
 ## 🔄 Version History
 
+**v5.0.0** - 2025-11-28
+- Enhanced light mode styling with cleaner professional grays
+- Improved skeleton loader system with theme-aware colors
+- New shimmer animation for loading states
+- Dashboard card glassmorphism with gradient overlays
+- Contact and Deal card light/dark mode patterns
+- Theme transition effects with smooth 300ms animations
+- Updated CSS custom properties for light mode
+- New utility classes: theme-bg-*, theme-text-*, theme-border
+- Subscription stats skeleton with adaptive colors
+- Rank color system for sentiment rankings
+
 **v4.0.0** - 2025-01-03
 - Complete audit of Sixty Sales Dashboard implementation
 - Exact glassmorphism specifications and opacity levels
@@ -1335,7 +1630,7 @@ This design system is free to use in any project, commercial or personal.
 
 ---
 
-**Last Updated:** 2025-01-03
-**Version:** 4.0.0
+**Last Updated:** 2025-11-28
+**Version:** 5.0.0
 **Status:** Production Ready ✅
 **Source:** Sixty Sales Dashboard - Complete Implementation Audit

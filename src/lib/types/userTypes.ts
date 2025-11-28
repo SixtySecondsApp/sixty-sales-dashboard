@@ -65,7 +65,7 @@ export const EXTERNAL_FEATURE_ACCESS: FeatureAccess = {
   meetings: true,
   meetingAnalytics: true,
   teamInsights: true,
-  contentTopics: true,
+  contentTopics: false, // Disabled - feature not ready for external users
 
   // CRM features - NO
   crm: false,

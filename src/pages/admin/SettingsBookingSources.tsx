@@ -290,10 +290,10 @@ export default function SettingsBookingSources() {
         </CardHeader>
         <CardContent>
           {isEditing && (
-            <div className="mb-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900/50">
+            <div className="mb-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
                   <Input
                     value={editingSource.name}
                     onChange={(e) => {
@@ -311,8 +311,8 @@ export default function SettingsBookingSources() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">
-                    API Name * 
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    API Name *
                     <span className="text-xs text-gray-500 ml-2">(for programmatic access)</span>
                   </label>
                   <Input
@@ -328,7 +328,7 @@ export default function SettingsBookingSources() {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                   <Textarea
                     value={editingSource.description}
                     onChange={(e) =>
@@ -340,7 +340,7 @@ export default function SettingsBookingSources() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Category</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                     <Select
                       value={editingSource.category}
                       onValueChange={(value) =>
@@ -360,7 +360,7 @@ export default function SettingsBookingSources() {
                     </Select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Sort Order</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sort Order</label>
                     <Input
                       type="number"
                       value={editingSource.sort_order}
@@ -373,7 +373,7 @@ export default function SettingsBookingSources() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Icon (Emoji)</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Icon (Emoji)</label>
                     <Input
                       value={editingSource.icon}
                       onChange={(e) =>
@@ -383,7 +383,7 @@ export default function SettingsBookingSources() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Color (Hex)</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Color (Hex)</label>
                     <Input
                       value={editingSource.color}
                       onChange={(e) =>
@@ -404,7 +404,7 @@ export default function SettingsBookingSources() {
                     }
                     className="rounded"
                   />
-                  <label htmlFor="is_active" className="text-sm font-medium">
+                  <label htmlFor="is_active" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     Active (visible in dropdown)
                   </label>
                 </div>

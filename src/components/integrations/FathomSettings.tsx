@@ -82,11 +82,11 @@ export function FathomSettings() {
 
   return (
     <>
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className="bg-white dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="bg-[#1a1a1a] px-3 py-2 rounded-lg flex items-center space-x-2">
+              <div className="bg-gray-900 dark:bg-[#1a1a1a] px-3 py-2 rounded-lg flex items-center space-x-2 shadow-sm">
                 <span className="text-white font-bold text-lg tracking-wide">FATHOM</span>
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
                   <path d="M4 16C4 14 4 12 6 10C8 8 10 8 12 6C14 4 16 4 18 6C20 8 20 10 20 12" stroke="#00BEFF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -94,8 +94,8 @@ export function FathomSettings() {
                 </svg>
               </div>
               <div>
-                <CardTitle className="text-white">Fathom Integration</CardTitle>
-                <CardDescription className="text-gray-400">
+                <CardTitle className="text-gray-900 dark:text-white">Fathom Integration</CardTitle>
+                <CardDescription className="text-gray-600 dark:text-gray-400">
                   Connect your Fathom account to automatically sync meeting recordings and insights
                 </CardDescription>
               </div>
@@ -118,9 +118,9 @@ export function FathomSettings() {
           )}
 
           {!isConnected ? (
-            <div className="rounded-lg border border-dashed border-slate-600 p-6 text-center">
-              <h3 className="font-semibold mb-2 text-white">No Fathom Account Connected</h3>
-              <p className="text-sm text-gray-400 mb-4">
+            <div className="rounded-lg border border-dashed border-gray-300 dark:border-slate-600 p-6 text-center">
+              <h3 className="font-semibold mb-2 text-gray-900 dark:text-white">No Fathom Account Connected</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                 Connect your Fathom account to enable automatic meeting sync, transcription access, and AI-generated insights.
               </p>
               <Button onClick={connectFathom} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
@@ -131,13 +131,13 @@ export function FathomSettings() {
           ) : (
             <div className="space-y-4">
               {/* Integration Details */}
-              <div className="grid grid-cols-2 gap-4 rounded-lg bg-emerald-950/20 border border-emerald-800 p-4">
+              <div className="grid grid-cols-2 gap-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 p-4">
                 <div>
-                  <div className="text-sm text-gray-400">Connected As</div>
-                  <div className="font-medium text-white">{integration.fathom_user_email || 'Unknown'}</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Connected As</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{integration.fathom_user_email || 'Unknown'}</div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Permissions</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Permissions</div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {integration.scopes.map((scope) => (
                       <Badge key={scope} variant="secondary" className="text-xs">
@@ -147,14 +147,14 @@ export function FathomSettings() {
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Connected On</div>
-                  <div className="font-medium text-white">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Connected On</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
                     {new Date(integration.created_at).toLocaleDateString()}
                   </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-400">Token Expires</div>
-                  <div className="font-medium text-white">
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Token Expires</div>
+                  <div className="font-medium text-gray-900 dark:text-white">
                     {new Date(integration.token_expires_at).toLocaleDateString()}
                   </div>
                 </div>
@@ -162,9 +162,9 @@ export function FathomSettings() {
 
               {/* Sync Status */}
               {syncState && (
-                <div className="rounded-lg border border-slate-700 p-4 space-y-3">
+                <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-sm text-gray-300">Sync Status</h4>
+                    <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Sync Status</h4>
                     <Badge
                       variant={
                         syncState.sync_status === 'syncing'
@@ -181,21 +181,21 @@ export function FathomSettings() {
 
                   <div className="grid grid-cols-3 gap-3 text-sm">
                     <div>
-                      <div className="text-gray-400">Meetings Synced</div>
-                      <div className="font-medium text-lg text-white">{syncState.meetings_synced}</div>
+                      <div className="text-gray-600 dark:text-gray-400">Meetings Synced</div>
+                      <div className="font-medium text-lg text-gray-900 dark:text-white">{syncState.meetings_synced}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Total Found</div>
-                      <div className="font-medium text-lg text-white">{syncState.total_meetings_found}</div>
+                      <div className="text-gray-600 dark:text-gray-400">Total Found</div>
+                      <div className="font-medium text-lg text-gray-900 dark:text-white">{syncState.total_meetings_found}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Lifetime Meetings</div>
-                      <div className="font-medium text-lg text-white">{lifetimeMeetingsCount}</div>
+                      <div className="text-gray-600 dark:text-gray-400">Lifetime Meetings</div>
+                      <div className="font-medium text-lg text-gray-900 dark:text-white">{lifetimeMeetingsCount}</div>
                     </div>
                   </div>
 
                   {syncState.last_sync_completed_at && (
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       Last synced: {new Date(syncState.last_sync_completed_at).toLocaleString()}
                     </div>
                   )}
@@ -209,8 +209,8 @@ export function FathomSettings() {
               )}
 
               {/* Token Test */}
-              <div className="rounded-lg border border-slate-700 p-4 space-y-3">
-                <h4 className="font-semibold text-sm text-gray-300">Connection Diagnostics</h4>
+              <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-3">
+                <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Connection Diagnostics</h4>
                 <FathomTokenTest />
               </div>
 
@@ -250,7 +250,7 @@ export function FathomSettings() {
                   disabled={isSyncing || syncing}
                   variant="outline"
                   size="sm"
-                  className="gap-2 text-white hover:text-black"
+                  className="gap-2"
                 >
                   <Calendar className="h-4 w-4" />
                   Custom Sync Range
@@ -261,7 +261,7 @@ export function FathomSettings() {
         </CardContent>
 
         {isConnected && (
-          <CardFooter className="border-t border-slate-700 pt-4">
+          <CardFooter className="border-t border-gray-200 dark:border-slate-700 pt-4">
             <Button variant="destructive" onClick={disconnectFathom} size="sm">
               Disconnect Fathom
             </Button>
@@ -334,7 +334,6 @@ export function FathomSettings() {
               variant="outline"
               onClick={() => setShowSyncModal(false)}
               disabled={syncing}
-              className="text-white hover:text-black border-slate-600"
             >
               Cancel
             </Button>
