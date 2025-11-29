@@ -33,7 +33,7 @@ export function TestimonialSection() {
   ];
 
   return (
-    <section className="relative py-24 lg:py-32 bg-[#0a0d14] overflow-hidden">
+    <section id="testimonials" className="relative py-24 lg:py-32 bg-[#0a0d14] overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 opacity-30">
         <div className="absolute top-1/4 left-0 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl" />

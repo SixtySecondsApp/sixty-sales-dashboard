@@ -28,6 +28,8 @@ import {
   LayoutDashboard,
   HeartPulse,
   Building,
+  Bot,
+  Inbox,
   type LucideIcon,
 } from 'lucide-react';
 import { type UserType } from '@/lib/types/userTypes';
@@ -130,6 +132,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
 
   // ========== Internal-Only Main Routes ==========
   {
+    path: '/leads',
+    access: 'internal',
+    label: 'Leads',
+    icon: Inbox,
+    showInNav: true,
+    navSection: 'main',
+    order: 9, // Before CRM - natural sales flow: Leads → CRM → Pipeline
+  },
+  {
     path: '/crm',
     access: 'internal',
     label: 'CRM',
@@ -176,24 +187,8 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'tools',
     order: 1,
   },
-  {
-    path: '/calendar',
-    access: 'internal',
-    label: 'Calendar',
-    icon: Calendar,
-    showInNav: true,
-    navSection: 'tools',
-    order: 2,
-  },
-  {
-    path: '/email',
-    access: 'internal',
-    label: 'Email',
-    icon: Mail,
-    showInNav: true,
-    navSection: 'tools',
-    order: 3,
-  },
+  // Calendar and Email routes removed from navigation - users should use Google Calendar/Gmail directly
+  // Routes still exist but redirect to Google services in App.tsx
   {
     path: '/workflows',
     access: 'internal',
@@ -201,7 +196,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Workflow,
     showInNav: true,
     navSection: 'tools',
-    order: 4,
+    order: 2,
   },
   {
     path: '/integrations',
@@ -210,7 +205,16 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Plug,
     showInNav: true,
     navSection: 'tools',
-    order: 5,
+    order: 3,
+  },
+  {
+    path: '/copilot',
+    access: 'internal',
+    label: 'AI Copilot',
+    icon: Bot,
+    showInNav: true,
+    navSection: 'tools',
+    order: 6,
   },
 
   // ========== Settings Section (Tier 1: All Users) ==========
@@ -245,7 +249,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
   {
     path: '/org',
     access: 'orgAdmin',
-    label: 'Organization',
+    label: 'Team',
     icon: Building,
     showInNav: true,
     navSection: 'org',
@@ -438,25 +442,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 51,
   },
 
-  // ========== Legacy Admin Routes (redirected) ==========
-  // These are kept for backward compatibility but redirect to /platform
-  {
-    path: '/admin',
-    access: 'platformAdmin',
-    label: 'Admin',
-    icon: Shield,
-    showInNav: false, // Hidden - use /platform instead
-    navSection: 'platform',
-    order: 100,
-  },
-  {
-    path: '/saas-admin',
-    access: 'platformAdmin',
-    label: 'SaaS Admin',
-    showInNav: false, // Hidden - use /platform instead
-    navSection: 'platform',
-    order: 101,
-  },
+  // Legacy admin routes removed - now redirect to /platform in App.tsx
 ];
 
 // =====================================================

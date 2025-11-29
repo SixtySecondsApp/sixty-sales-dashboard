@@ -21,6 +21,8 @@ import {
   interpolatePrompt,
   // Import all default templates
   suggestNextActionsTemplate,
+  generateActionsTemplate,
+  actionItemAnalysisTemplate,
   transcriptAnalysisTemplate,
   emailAnalysisTemplate,
   writingStyleTemplate,
@@ -94,6 +96,8 @@ export interface PromptExecutionConfig {
 const DEFAULT_TEMPLATES: Record<string, PromptTemplate> = {
   // Activity & Meeting Analysis
   suggest_next_actions: suggestNextActionsTemplate,
+  generate_actions: generateActionsTemplate,
+  action_item_analysis: actionItemAnalysisTemplate,
   transcript_analysis: transcriptAnalysisTemplate,
 
   // Email Analysis

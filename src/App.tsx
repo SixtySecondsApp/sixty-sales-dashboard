@@ -13,7 +13,7 @@ import { ViewModeProvider } from '@/contexts/ViewModeContext';
 import { CopilotProvider } from '@/lib/contexts/CopilotContext';
 import { useInitializeAuditSession } from '@/lib/hooks/useAuditSession';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { InternalRouteGuard, AdminRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
+import { InternalRouteGuard, OrgAdminRouteGuard, PlatformAdminRouteGuard } from '@/components/RouteGuard';
 import { usePerformanceOptimization } from '@/lib/hooks/usePerformanceOptimization';
 import { IntelligentPreloader } from '@/components/LazyComponents';
 import { webVitalsOptimizer } from '@/lib/utils/webVitals';
@@ -35,13 +35,16 @@ import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
 import MeetingsLanding from '@/product-pages/meetings/MeetingsLanding';
+import MeetingsLandingV2 from '@/product-pages/meetings/MeetingsLandingV2';
+import MeetingsLandingV3 from '@/product-pages/meetings/MeetingsLandingV3';
+import { MeetingsLandingV4 } from '@/product-pages/meetings/MeetingsLandingV4';
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
 const Heatmap = lazyWithRetry(() => import('@/pages/Heatmap'));
 const SalesFunnel = lazyWithRetry(() => import('@/pages/SalesFunnel'));
 const Profile = lazyWithRetry(() => import('@/pages/Profile'));
-const Calendar = lazyWithRetry(() => import('@/pages/Calendar'));
+// Calendar page removed - users now redirected to Google Calendar directly
 
 // Admin routes - lazy load with retry (infrequently accessed, more prone to cache issues)
 const Users = lazyWithRetry(() => import('@/pages/admin/Users'));
@@ -95,8 +98,7 @@ const Events = lazy(() => import('@/pages/Events'));
 // CRM routes - heavy components, lazy load
 const CRM = lazy(() => import('@/pages/CRM'));
 const ElegantCRM = lazy(() => import('@/pages/ElegantCRM'));
-const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
-const Admin = lazy(() => import('@/pages/Admin')); // Keep for individual admin pages
+// Admin pages removed - now using /platform routes instead
 const Insights = lazy(() => import('@/pages/Insights'));
 const Workflows = lazyWithRetry(() => import('@/pages/Workflows'));
 const Integrations = lazy(() => import('@/pages/Integrations'));
@@ -108,7 +110,7 @@ const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
 const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
 const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
 const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
-const Email = lazy(() => import('@/pages/Email'));
+// Email page removed - users now redirected to Gmail directly
 const Preferences = lazy(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
@@ -128,6 +130,7 @@ const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformD
 const OrgDashboard = lazyWithRetry(() => import('@/pages/org/OrgDashboard'));
 const TeamManagement = lazyWithRetry(() => import('@/pages/org/TeamManagement'));
 const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
+const OrgBilling = lazyWithRetry(() => import('@/pages/OrgBilling'));
 
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
@@ -137,6 +140,20 @@ const RouteLoader = () => (
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
   </div>
 );
+
+// External redirect component for Google services
+const ExternalRedirect: React.FC<{ url: string }> = ({ url }) => {
+  useEffect(() => {
+    window.location.href = url;
+  }, [url]);
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+      <p className="text-gray-500">Redirecting to Google...</p>
+    </div>
+  );
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -266,9 +283,23 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/share/:token" element={<PublicProposal />} />
 
         {/* Public landing page for Meetings feature */}
-        <Route path="/product/meetings/opus-v2" element={<MeetingsLanding />} />
-        {/* Legacy redirect */}
-        <Route path="/features/meetings" element={<Navigate to="/product/meetings/opus-v2" replace />} />
+        <Route path="/product/meetings" element={<MeetingsLandingV4 />} />
+        <Route path="/product/meetings-v1" element={<MeetingsLanding />} />
+        <Route path="/product/meetings-v2" element={<MeetingsLandingV2 />} />
+        <Route path="/product/meetings-v3" element={<MeetingsLandingV3 />} />
+        <Route path="/product/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
+        <Route path="/features/meetings-v3" element={<Navigate to="/product/meetings-v3" replace />} />
+        <Route path="/features/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
+        {/* Legacy redirects */}
+        <Route path="/product/meetings/opus-v2" element={<Navigate to="/product/meetings-v1" replace />} />
+        <Route path="/features/meetings" element={<Navigate to="/product/meetings" replace />} />
+        <Route path="/features/meetings-v1" element={<Navigate to="/product/meetings-v1" replace />} />
+        <Route path="/features/meetings-v2" element={<Navigate to="/product/meetings-v2" replace />} />
+
+        {/* Public pricing page - redirected to landing page */}
+        <Route path="/product/meetings/pricing" element={<Navigate to="/product/meetings" replace />} />
+        {/* Legacy pricing redirect */}
+        <Route path="/pricing" element={<Navigate to="/product/meetings/pricing" replace />} />
 
         {/* Auth routes that should also be accessible without protection */}
         <Route path="/auth/login" element={<Login />} />
@@ -298,30 +329,25 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/insights" element={<AppLayout><Insights /></AppLayout>} />
                 <Route path="/crm" element={<InternalRouteGuard><AppLayout><ElegantCRM /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/elegant" element={<Navigate to="/crm" replace />} />
-                {/* Admin Dashboard and Sections - Admin only */}
-                <Route path="/admin" element={<AdminRouteGuard><AppLayout><AdminDashboard /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/users" element={<AdminRouteGuard><AppLayout><Users /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/pipeline" element={<AdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/audit" element={<AdminRouteGuard><AppLayout><AuditLogs /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/smart-tasks" element={<AdminRouteGuard><AppLayout><SmartTasksAdmin /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/pipeline-automation" element={<AdminRouteGuard><AppLayout><PipelineAutomationAdmin /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/ai-settings" element={<AdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/model-settings" element={<AdminRouteGuard><AppLayout><AdminModelSettings /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/prompts" element={<AdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/api-testing" element={<AdminRouteGuard><AppLayout><ApiTesting /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/function-testing" element={<AdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></AdminRouteGuard>} />
-                {/* WorkflowsTestSuite and WorkflowsE2ETestSuite routes - REMOVED (keeping only API + Function testing) */}
-                <Route path="/admin/google-integration" element={<AdminRouteGuard><AppLayout><GoogleIntegrationTests /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/savvycal-settings" element={<AdminRouteGuard><AppLayout><SettingsSavvyCal /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/booking-sources" element={<AdminRouteGuard><AppLayout><SettingsBookingSources /></AppLayout></AdminRouteGuard>} />
-                {/* SystemHealth, Database, Reports, Documentation routes - REMOVED (scaffolded only, not functional) */}
-                <Route path="/admin/health-rules" element={<AdminRouteGuard><AppLayout><HealthRules /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/branding" element={<AdminRouteGuard><AppLayout><LogoSettings /></AppLayout></AdminRouteGuard>} />
-                <Route path="/admin/old" element={<AdminRouteGuard><AppLayout><Admin /></AppLayout></AdminRouteGuard>} /> {/* Keep old admin for reference */}
-                {/* SaaS Admin Dashboard - Legacy, now redirects to /platform */}
-                {/* Note: Route moved below as redirect to /platform */}
-                {/* Internal Domains Settings - Configure which email domains are internal */}
-                <Route path="/admin/internal-domains" element={<AdminRouteGuard><AppLayout><InternalDomainsSettings /></AppLayout></AdminRouteGuard>} />
+                {/* Legacy /admin routes - redirect to /platform (replaced by 3-tier architecture) */}
+                <Route path="/admin" element={<Navigate to="/platform" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/platform/users" replace />} />
+                <Route path="/admin/pipeline" element={<Navigate to="/platform/crm/pipeline" replace />} />
+                <Route path="/admin/audit" element={<Navigate to="/platform/audit" replace />} />
+                <Route path="/admin/smart-tasks" element={<Navigate to="/platform/crm/smart-tasks" replace />} />
+                <Route path="/admin/pipeline-automation" element={<Navigate to="/platform/crm/automation" replace />} />
+                <Route path="/admin/ai-settings" element={<Navigate to="/platform/ai/settings" replace />} />
+                <Route path="/admin/model-settings" element={<Navigate to="/platform/ai/settings" replace />} />
+                <Route path="/admin/prompts" element={<Navigate to="/platform/ai/prompts" replace />} />
+                <Route path="/admin/api-testing" element={<Navigate to="/platform/dev/api-testing" replace />} />
+                <Route path="/admin/function-testing" element={<Navigate to="/platform/dev/function-testing" replace />} />
+                <Route path="/admin/google-integration" element={<Navigate to="/platform/integrations/google" replace />} />
+                <Route path="/admin/savvycal-settings" element={<Navigate to="/platform/integrations/savvycal" replace />} />
+                <Route path="/admin/booking-sources" element={<Navigate to="/platform/integrations/booking-sources" replace />} />
+                <Route path="/admin/health-rules" element={<Navigate to="/platform/crm/health-rules" replace />} />
+                <Route path="/admin/branding" element={<Navigate to="/org/branding" replace />} />
+                <Route path="/admin/internal-domains" element={<Navigate to="/platform/integrations/domains" replace />} />
+                <Route path="/admin/*" element={<Navigate to="/platform" replace />} /> {/* Catch-all for any remaining /admin routes */}
 
                 {/* ========================================= */}
                 {/* NEW 3-TIER ARCHITECTURE ROUTES           */}
@@ -331,6 +357,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/org" element={<OrgAdminRouteGuard><AppLayout><OrgDashboard /></AppLayout></OrgAdminRouteGuard>} />
                 <Route path="/org/team" element={<OrgAdminRouteGuard><AppLayout><TeamManagement /></AppLayout></OrgAdminRouteGuard>} />
                 <Route path="/org/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/org/billing" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/org/billing/success" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/org/billing/cancel" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
 
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
@@ -360,15 +389,16 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />
                 <Route path="/integrations" element={<InternalRouteGuard><AppLayout><Integrations /></AppLayout></InternalRouteGuard>} />
-                <Route path="/email" element={<InternalRouteGuard><AppLayout><Email /></AppLayout></InternalRouteGuard>} />
+                {/* Email and Calendar routes redirect to Google services */}
+                <Route path="/email" element={<ExternalRedirect url="https://mail.google.com" />} />
                 <Route path="/auth/google/callback" element={<GoogleCallback />} />
                 <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
-                {/* Internal-only: Pipeline, Tasks, Calendar */}
+                {/* Internal-only: Pipeline, Tasks */}
                 <Route path="/pipeline" element={<InternalRouteGuard><AppLayout><PipelinePage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks/settings" element={<InternalRouteGuard><AppLayout><GoogleTasksSettings /></AppLayout></InternalRouteGuard>} />
-                <Route path="/calendar" element={<InternalRouteGuard><AppLayout><Calendar /></AppLayout></InternalRouteGuard>} />
+                <Route path="/calendar" element={<ExternalRedirect url="https://calendar.google.com" />} />
                 <Route path="/events" element={<InternalRouteGuard><AppLayout><Events /></AppLayout></InternalRouteGuard>} />
                 <Route path="/leads" element={<InternalRouteGuard><AppLayout><LeadsInbox /></AppLayout></InternalRouteGuard>} />
                 
@@ -385,9 +415,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/funnel" element={<Navigate to="/insights" replace />} />
                 <Route path="/activity-processing" element={<Navigate to="/activity" replace />} />
                 {/* Legacy redirects */}
-                <Route path="/api-testing" element={<Navigate to="/admin/api-testing" replace />} />
-                <Route path="/admin/pipeline-settings" element={<Navigate to="/admin/pipeline" replace />} />
-                <Route path="/admin/audit-logs" element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/api-testing" element={<Navigate to="/platform/dev/api-testing" replace />} />
                 <Route path="/crm/companies" element={<Navigate to="/crm" replace />} />
                 <Route path="/crm/contacts" element={<Navigate to="/crm?tab=contacts" replace />} />
 

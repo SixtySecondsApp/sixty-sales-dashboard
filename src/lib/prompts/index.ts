@@ -52,6 +52,16 @@ export const FEATURE_MODEL_DEFAULTS: Record<string, ModelConfig> = {
     temperature: 0.7,
     maxTokens: 2048,
   },
+  generate_actions: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  action_item_analysis: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 500,
+  },
   transcript_analysis: {
     model: DEFAULT_MODELS.HAIKU,
     temperature: 0.5,

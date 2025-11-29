@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import {
   loadPrompt,
   saveUserPrompt,

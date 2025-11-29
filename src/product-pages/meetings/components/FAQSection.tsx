@@ -84,7 +84,7 @@ export function FAQSection() {
   ];
 
   return (
-    <section className="relative py-24 lg:py-32 bg-gradient-to-b from-[#0d1117] to-[#0a0d14] overflow-hidden">
+    <section id="faq" className="relative py-24 lg:py-32 bg-gradient-to-b from-[#0d1117] to-[#0a0d14] overflow-hidden">
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div

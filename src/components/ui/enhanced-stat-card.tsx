@@ -104,7 +104,7 @@ export function EnhancedStatCard({
     <motion.div
       whileHover={{ y: -2 }}
       className={cn(
-        'bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-5 border border-gray-200 dark:border-gray-700/50 transition-all duration-300 shadow-sm dark:shadow-none',
+        'bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 dark:backdrop-blur-xl rounded-xl p-5 border border-gray-200 dark:border-gray-800/50 transition-all duration-300 shadow-sm dark:shadow-none',
         colorClass.hover,
         onClick && 'cursor-pointer',
         className

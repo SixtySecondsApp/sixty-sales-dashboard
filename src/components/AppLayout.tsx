@@ -70,6 +70,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { useTheme } from '@/hooks/useTheme';
+import { TrialBanner } from '@/components/subscription/TrialBanner';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
@@ -187,7 +188,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* External View Banner - shown when internal user is viewing as external */}
       <ExternalViewBanner />
-      
+
+      {/* Trial Banner - shown when organization is in trial period */}
+      <TrialBanner />
+
       {/* Main app content */}
       <div className="flex">
         {/* Legacy Impersonation Banner (will be removed once View As is fully working) */}
@@ -388,7 +392,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     )}
                   >
                     <Building2 className="w-6 h-6 sm:w-7 sm:h-7" />
-                    Organization
+                    Team
                   </Link>
                 )}
 
@@ -513,7 +517,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {isOrgAdmin && (
                 <DropdownMenuItem onClick={() => navigate('/org')}>
                   <Building2 className="w-4 h-4 mr-2" />
-                  Organization
+                  Team
                 </DropdownMenuItem>
               )}
               {/* Platform Admin - internal admins only */}
@@ -532,6 +536,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </div>
                 </>
               )}
+
+              {/* Product Pages Links */}
+              <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+              <DropdownMenuItem onClick={() => window.open('/product/meetings', '_blank')}>
+                <Eye className="w-4 h-4 mr-2" />
+                View Sales Page
+                <LinkIcon className="w-3 h-3 ml-auto text-gray-400" />
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.open('/product/meetings/pricing', '_blank')}>
+                <DollarSign className="w-4 h-4 mr-2" />
+                View Pricing
+                <LinkIcon className="w-3 h-3 ml-auto text-gray-400" />
+              </DropdownMenuItem>
+
               <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
               <DropdownMenuItem onClick={handleLogout} className="text-red-400 hover:text-red-500 hover:bg-red-500/10">
                 {isImpersonating ? (
@@ -729,7 +747,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       exit={{ opacity: 0, width: 0 }}
                       className="overflow-hidden whitespace-nowrap"
                     >
-                      Organization
+                      Team
                     </motion.span>
                   )}
                 </AnimatePresence>

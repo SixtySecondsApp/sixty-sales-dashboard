@@ -135,24 +135,6 @@ export function InternalRouteGuard({
 }
 
 /**
- * Route guard specifically for admin-only routes (legacy - use PlatformAdminRouteGuard)
- * @deprecated Use PlatformAdminRouteGuard instead
- */
-export function AdminRouteGuard({
-  children,
-  fallbackRoute,
-}: {
-  children: React.ReactNode;
-  fallbackRoute?: string;
-}) {
-  return (
-    <RouteGuard requiredAccess="platformAdmin" fallbackRoute={fallbackRoute}>
-      {children}
-    </RouteGuard>
-  );
-}
-
-/**
  * Route guard for Org Admin routes (Tier 2)
  * Allows org owners/admins and platform admins
  *

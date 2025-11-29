@@ -102,12 +102,12 @@ export function HeroSection() {
             >
               <span className="text-white">Stop Spending </span>
               <span className="bg-gradient-to-r from-blue-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-                30 Minutes
+                60 Minutes
               </span>
               <br />
               <span className="text-white">on What AI Does in </span>
               <span className="bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                30 Seconds
+                60 Seconds
               </span>
             </motion.h1>
 
@@ -132,9 +132,9 @@ export function HeroSection() {
                 size="lg"
                 className="group relative px-8 py-6 text-lg font-semibold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300"
               >
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-white">
                   Start Free 14-Day Trial
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform text-white" />
                 </span>
               </Button>
               <Button

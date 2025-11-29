@@ -38,7 +38,7 @@ export function HowItWorks() {
   ];
 
   return (
-    <section className="relative py-24 lg:py-32 bg-gradient-to-b from-[#0a0d14] to-[#0d1117] overflow-hidden">
+    <section id="how-it-works" className="relative py-24 lg:py-32 bg-gradient-to-b from-[#0a0d14] to-[#0d1117] overflow-hidden">
       {/* Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div

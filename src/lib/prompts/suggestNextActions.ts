@@ -378,3 +378,173 @@ export function buildExistingContextSection(existingContext?: {
 
   return section;
 }
+
+// ============================================================================
+// Generate Actions Template
+// ============================================================================
+
+export const GENERATE_ACTIONS_SYSTEM_PROMPT = `You are a sales action generator. Create specific, actionable follow-up tasks based on meeting transcripts and sales context.
+
+Your goal is to identify opportunities for follow-up actions that will help move deals forward and maintain momentum.
+
+Guidelines:
+- Focus on actions that are specific and measurable
+- Prioritize actions based on urgency and business impact
+- Avoid duplicating tasks that already exist
+- Consider the sales stage and relationship context`;
+
+export const GENERATE_ACTIONS_USER_PROMPT = `Generate \${maxActions} additional action items from this meeting.
+
+MEETING: \${meetingTitle}
+COMPANY: \${companyName}
+CONTACT: \${contactName}
+
+ALREADY TRACKED:
+\${existingTasksContext}
+
+TRANSCRIPT:
+\${transcript}
+
+Return a JSON array with each action item containing:
+- task_type: "call", "email", "meeting", "follow_up", "proposal", "demo", or "general"
+- title: Clear, actionable title (what to do)
+- description: Detailed description of the action
+- priority: "low", "medium", or "high"
+- estimated_days_to_complete: Number of days to complete this task
+- timestamp_seconds: Optional - seconds from start of meeting when this was discussed
+
+Return ONLY valid JSON array with no additional text.`;
+
+export const GENERATE_ACTIONS_VARIABLES: PromptVariable[] = [
+  {
+    name: 'maxActions',
+    description: 'Maximum number of action items to generate',
+    type: 'number',
+    required: true,
+    example: '5',
+    source: 'request',
+  },
+  {
+    name: 'meetingTitle',
+    description: 'Title of the meeting',
+    type: 'string',
+    required: true,
+    example: 'Q4 Strategy Review',
+    source: 'meetings',
+  },
+  {
+    name: 'companyName',
+    description: 'Name of the company',
+    type: 'string',
+    required: false,
+    example: 'Acme Corp',
+    source: 'companies',
+  },
+  {
+    name: 'contactName',
+    description: 'Name of the primary contact',
+    type: 'string',
+    required: false,
+    example: 'John Smith',
+    source: 'contacts',
+  },
+  {
+    name: 'existingTasksContext',
+    description: 'Context about existing tasks to avoid duplicates',
+    type: 'string',
+    required: false,
+    example: '1. [email] Send proposal - pending',
+    source: 'tasks',
+  },
+  {
+    name: 'transcript',
+    description: 'Full meeting transcript',
+    type: 'string',
+    required: true,
+    example: '[Meeting transcript content...]',
+    source: 'meetings',
+  },
+];
+
+export const generateActionsTemplate: PromptTemplate = {
+  id: 'generate-actions',
+  name: 'Generate Action Items',
+  description: 'Generates specific, actionable follow-up tasks from meeting transcripts.',
+  featureKey: 'generate_actions',
+  systemPrompt: GENERATE_ACTIONS_SYSTEM_PROMPT,
+  userPrompt: GENERATE_ACTIONS_USER_PROMPT,
+  variables: GENERATE_ACTIONS_VARIABLES,
+  responseFormat: 'json',
+};
+
+// ============================================================================
+// Action Item Analysis Template
+// ============================================================================
+
+export const ACTION_ITEM_ANALYSIS_SYSTEM_PROMPT = `You are an expert at categorizing action items and determining ideal deadlines based on context and urgency.
+
+Your role is to analyze an action item from a meeting and provide:
+1. Appropriate categorization
+2. Realistic deadline based on the context
+3. Confidence score for your recommendation`;
+
+export const ACTION_ITEM_ANALYSIS_USER_PROMPT = `Analyze this action item from the meeting.
+
+MEETING: \${meetingTitle}
+SUMMARY: \${meetingSummary}
+ACTION ITEM: \${actionItem}
+CURRENT DATE: \${today}
+
+Return a JSON object with:
+- task_type: "call", "email", "meeting", "follow_up", "proposal", "demo", or "general"
+- ideal_deadline: ISO 8601 date string (YYYY-MM-DD) for when this should be completed
+- confidence_score: Number from 0.0 to 1.0 indicating confidence in recommendation
+- reasoning: Brief explanation of why this deadline and category
+
+Return ONLY valid JSON with no additional text.`;
+
+export const ACTION_ITEM_ANALYSIS_VARIABLES: PromptVariable[] = [
+  {
+    name: 'meetingTitle',
+    description: 'Title of the meeting',
+    type: 'string',
+    required: true,
+    example: 'Product Demo',
+    source: 'meetings',
+  },
+  {
+    name: 'meetingSummary',
+    description: 'Summary of the meeting',
+    type: 'string',
+    required: false,
+    example: 'Discussed product features and pricing...',
+    source: 'meetings',
+  },
+  {
+    name: 'actionItem',
+    description: 'The action item to analyze',
+    type: 'string',
+    required: true,
+    example: 'Send ROI calculator to client',
+    source: 'request',
+  },
+  {
+    name: 'today',
+    description: 'Current date for deadline calculation',
+    type: 'string',
+    required: true,
+    example: '2025-11-28',
+    source: 'computed',
+  },
+];
+
+export const actionItemAnalysisTemplate: PromptTemplate = {
+  id: 'action-item-analysis',
+  name: 'Action Item Analysis',
+  description: 'Analyzes individual action items to determine categorization, deadlines, and priority.',
+  featureKey: 'action_item_analysis',
+  systemPrompt: ACTION_ITEM_ANALYSIS_SYSTEM_PROMPT,
+  userPrompt: ACTION_ITEM_ANALYSIS_USER_PROMPT,
+  variables: ACTION_ITEM_ANALYSIS_VARIABLES,
+  responseFormat: 'json',
+};

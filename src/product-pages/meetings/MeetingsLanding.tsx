@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   HeroSection,
@@ -10,6 +11,7 @@ import {
   FAQSection,
   FinalCTA,
   LandingFooter,
+  PricingSection,
 } from './components';
 
 /**
@@ -21,6 +23,35 @@ import {
  * Route: /features/meetings (public, no auth required)
  */
 export default function MeetingsLanding() {
+  // Handle smooth scrolling for anchor links
+  useEffect(() => {
+    const handleAnchorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a[href^="#"]');
+      
+      if (anchor) {
+        const href = anchor.getAttribute('href');
+        if (href && href.startsWith('#')) {
+          e.preventDefault();
+          const targetId = href.substring(1);
+          const targetElement = document.getElementById(targetId);
+          
+          if (targetElement) {
+            const navHeight = 64; // Height of fixed nav
+            const targetPosition = targetElement.offsetTop - navHeight;
+            
+            window.scrollTo({
+              top: targetPosition,
+              behavior: 'smooth',
+            });
+          }
+        }
+      }
+    };
+
+    document.addEventListener('click', handleAnchorClick);
+    return () => document.removeEventListener('click', handleAnchorClick);
+  }, []);
   return (
     <div className="min-h-screen bg-[#0f1419] text-gray-100 overflow-x-hidden">
       {/* Gradient background overlay */}
@@ -33,19 +64,21 @@ export default function MeetingsLanding() {
           <div className="flex items-center justify-between h-16">
             <motion.a
               href="/"
-              className="flex items-center gap-2"
+              className="flex items-center gap-3"
               whileHover={{ scale: 1.02 }}
             >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">S</span>
-              </div>
-              <span className="text-xl font-semibold text-white">Sixty</span>
+              <img
+                src="https://www.sixtyseconds.ai/images/logo.png"
+                alt="Sixty Seconds"
+                className="h-10 w-auto"
+              />
             </motion.a>
 
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-gray-400 hover:text-white transition-colors">Features</a>
               <a href="#how-it-works" className="text-gray-400 hover:text-white transition-colors">How It Works</a>
               <a href="#testimonials" className="text-gray-400 hover:text-white transition-colors">Testimonials</a>
+              <a href="#pricing" className="text-gray-400 hover:text-white transition-colors">Pricing</a>
               <a href="#faq" className="text-gray-400 hover:text-white transition-colors">FAQ</a>
             </div>
 
@@ -78,6 +111,7 @@ export default function MeetingsLanding() {
         <FeatureShowcase />
         <IntegrationSection />
         <TestimonialSection />
+        <PricingSection />
         <FAQSection />
         <FinalCTA />
       </main>

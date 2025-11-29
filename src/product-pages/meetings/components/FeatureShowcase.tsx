@@ -288,7 +288,7 @@ function ProposalMockup() {
           <div className="border-t border-white/10 pt-4">
             <div className="text-sm text-gray-400 mb-2">Extracted Requirements</div>
             <div className="space-y-2">
-              {['CRM Integration', 'Team of 25 users', 'Priority Support', 'Custom Onboarding'].map((req, idx) => (
+              {['CRM Integration', 'Priority Support', 'Custom Onboarding'].map((req, idx) => (
                 <motion.div
                   key={idx}
                   initial={{ opacity: 0, x: -10 }}
@@ -393,7 +393,7 @@ export function FeatureShowcase() {
   ];
 
   return (
-    <section className="relative py-24 lg:py-32 bg-[#0a0d14] overflow-hidden">
+    <section id="features" className="relative py-24 lg:py-32 bg-[#0a0d14] overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0">
         <div 

@@ -40,10 +40,11 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">60</span>
-              </div>
-              <span className="text-xl font-bold text-white">Sixty</span>
+              <img
+                src="https://www.sixtyseconds.ai/images/logo.png"
+                alt="Sixty Seconds"
+                className="h-10 w-auto"
+              />
             </div>
             <p className="text-gray-500 text-sm mb-6 max-w-xs">
               AI-powered meeting intelligence for sales teams that want to close more deals, faster.
@@ -99,7 +100,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} Sixty AI, Inc. All rights reserved.
+            © {new Date().getFullYear()} Sixty Seconds Ltd. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 text-sm text-gray-500">
