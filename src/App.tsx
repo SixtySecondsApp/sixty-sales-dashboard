@@ -38,6 +38,8 @@ import MeetingsLanding from '@/product-pages/meetings/MeetingsLanding';
 import MeetingsLandingV2 from '@/product-pages/meetings/MeetingsLandingV2';
 import MeetingsLandingV3 from '@/product-pages/meetings/MeetingsLandingV3';
 import { MeetingsLandingV4 } from '@/product-pages/meetings/MeetingsLandingV4';
+const WaitlistLanding = lazy(() => import('@/product-pages/meetings/WaitlistLanding'));
+const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -288,6 +290,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/product/meetings-v2" element={<MeetingsLandingV2 />} />
         <Route path="/product/meetings-v3" element={<MeetingsLandingV3 />} />
         <Route path="/product/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
+
+        {/* Public waitlist page (no auth required) */}
+        <Route path="/product/meetings/waitlist" element={<WaitlistLanding />} />
         <Route path="/features/meetings-v3" element={<Navigate to="/product/meetings-v3" replace />} />
         <Route path="/features/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
         {/* Legacy redirects */}
@@ -371,6 +376,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/crm/pipeline" element={<PlatformAdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/crm/smart-tasks" element={<PlatformAdminRouteGuard><AppLayout><SmartTasksAdmin /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/crm/automation" element={<PlatformAdminRouteGuard><AppLayout><PipelineAutomationAdmin /></AppLayout></PlatformAdminRouteGuard>} />
+                {/* Platform Admin - Meetings Waitlist */}
+                <Route path="/platform/meetings-waitlist" element={<PlatformAdminRouteGuard><AppLayout><MeetingsWaitlist /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - AI Configuration */}
                 <Route path="/platform/ai/settings" element={<PlatformAdminRouteGuard><AppLayout><AIProviderSettings /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/ai/prompts" element={<PlatformAdminRouteGuard><AppLayout><AdminPromptSettings /></AppLayout></PlatformAdminRouteGuard>} />
