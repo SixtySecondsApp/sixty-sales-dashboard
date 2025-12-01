@@ -325,21 +325,23 @@ export default function OnboardingSimulator() {
             />
           </div>
 
-          {/* Right Column - Email Preview (1/3 width) */}
+          {/* Right Column - Email Preview (1/3 width) - Sticky on desktop */}
           <div className="flex-1 min-w-0 xl:w-1/3 xl:max-w-md xl:flex-shrink-0 overflow-x-hidden">
-            {isLoadingEmail ? (
-              <Card className="h-full">
-                <CardContent className="flex items-center justify-center h-64">
-                  <div className="text-gray-500 dark:text-gray-400">Loading email template...</div>
-                </CardContent>
-              </Card>
-            ) : (
-              <EmailPreview
-                template={selectedEmailTemplate}
-                variables={emailVariables}
-                day={currentDay}
-              />
-            )}
+            <div className="xl:sticky xl:top-20">
+              {isLoadingEmail ? (
+                <Card className="h-full">
+                  <CardContent className="flex items-center justify-center h-64">
+                    <div className="text-gray-500 dark:text-gray-400">Loading email template...</div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <EmailPreview
+                  template={selectedEmailTemplate}
+                  variables={emailVariables}
+                  day={currentDay}
+                />
+              )}
+            </div>
           </div>
         </div>
 

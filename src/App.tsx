@@ -24,6 +24,7 @@ import { StateProvider } from '@/lib/communication/StateManagement';
 import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
 import { VersionManager } from '@/components/VersionManager';
 import { lazyWithRetry } from '@/lib/utils/dynamicImport';
+import { DebugPermissions } from '@/components/DebugPermissions';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -273,10 +274,11 @@ function App() {
 function AppContent({ performanceMetrics, measurePerformance }: any) {
   // Initialize audit session tracking - now inside AuthProvider
   useInitializeAuditSession();
-  
+
   return (
     <>
       <IntelligentPreloader />
+      <DebugPermissions />
       <Routes>
         {/* Public pages for screenshot automation - MUST be outside ProtectedRoute */}
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
