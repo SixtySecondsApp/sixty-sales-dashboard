@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { AppLayout } from '@/components/AppLayout';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useWaitlistAdmin } from '@/lib/hooks/useWaitlistAdmin';
 import { useWaitlistBulkActions } from '@/lib/hooks/useWaitlistBulkActions';
@@ -77,54 +76,52 @@ export default function MeetingsWaitlist() {
   };
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Meetings Waitlist</h1>
-          <p className="text-gray-400">
-            Manage waitlist signups, grant bulk access, and track onboarding progress
-          </p>
-        </div>
-
-        {/* Stats */}
-        <WaitlistStatsComponent stats={stats} isLoading={isLoading} />
-
-        {/* Bulk Action Toolbar */}
-        <BulkActionToolbar
-          selectedCount={bulkActions.selectedCount}
-          onGrantAccess={handleGrantAccess}
-          onExport={handleExportSelected}
-          onClearSelection={bulkActions.clearSelection}
-          isProcessing={bulkActions.isProcessing}
-        />
-
-        {/* Enhanced Table */}
-        <EnhancedWaitlistTable
-          entries={entries}
-          isLoading={isLoading}
-          selectedIds={bulkActions.selectedIds}
-          onToggleSelect={bulkActions.toggleEntry}
-          onSelectAll={() => bulkActions.selectAll(entries)}
-          canSelect={bulkActions.canSelect}
-          isSelected={bulkActions.isSelected}
-          onRelease={releaseUser}
-          onResendMagicLink={handleResendMagicLink}
-          onDelete={deleteEntry}
-          onExport={exportData}
-        />
-
-        {/* Bulk Grant Access Modal */}
-        {showGrantAccessModal && (
-          <BulkGrantAccessModal
-            isOpen={showGrantAccessModal}
-            onClose={() => setShowGrantAccessModal(false)}
-            selectedEntries={bulkActions.selectedEntries}
-            onGrantAccess={handleBulkGrantAccess}
-            adminName={user?.email || 'Admin'}
-          />
-        )}
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-white mb-2">Meetings Waitlist</h1>
+        <p className="text-gray-400">
+          Manage waitlist signups, grant bulk access, and track onboarding progress
+        </p>
       </div>
-    </AppLayout>
+
+      {/* Stats */}
+      <WaitlistStatsComponent stats={stats} isLoading={isLoading} />
+
+      {/* Bulk Action Toolbar */}
+      <BulkActionToolbar
+        selectedCount={bulkActions.selectedCount}
+        onGrantAccess={handleGrantAccess}
+        onExport={handleExportSelected}
+        onClearSelection={bulkActions.clearSelection}
+        isProcessing={bulkActions.isProcessing}
+      />
+
+      {/* Enhanced Table */}
+      <EnhancedWaitlistTable
+        entries={entries}
+        isLoading={isLoading}
+        selectedIds={bulkActions.selectedIds}
+        onToggleSelect={bulkActions.toggleEntry}
+        onSelectAll={() => bulkActions.selectAll(entries)}
+        canSelect={bulkActions.canSelect}
+        isSelected={bulkActions.isSelected}
+        onRelease={releaseUser}
+        onResendMagicLink={handleResendMagicLink}
+        onDelete={deleteEntry}
+        onExport={exportData}
+      />
+
+      {/* Bulk Grant Access Modal */}
+      {showGrantAccessModal && (
+        <BulkGrantAccessModal
+          isOpen={showGrantAccessModal}
+          onClose={() => setShowGrantAccessModal(false)}
+          selectedEntries={bulkActions.selectedEntries}
+          onGrantAccess={handleBulkGrantAccess}
+          adminName={user?.email || 'Admin'}
+        />
+      )}
+    </div>
   );
 }

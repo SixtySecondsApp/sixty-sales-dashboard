@@ -40,6 +40,7 @@ import MeetingsLandingV3 from '@/product-pages/meetings/MeetingsLandingV3';
 import { MeetingsLandingV4 } from '@/product-pages/meetings/MeetingsLandingV4';
 const WaitlistLanding = lazy(() => import('@/product-pages/meetings/WaitlistLanding'));
 const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
+const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -392,6 +393,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Platform Admin - Development Tools (API + Function testing only) */}
                 <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/onboarding-simulator" element={<InternalRouteGuard><AppLayout><OnboardingSimulator /></AppLayout></InternalRouteGuard>} />
 
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />

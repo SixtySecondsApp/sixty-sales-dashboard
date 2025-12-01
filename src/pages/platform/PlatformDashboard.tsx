@@ -195,6 +195,14 @@ const platformSections: Record<string, PlatformSection[]> = {
       href: '/platform/dev/function-testing',
       color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30',
     },
+    {
+      id: 'onboarding-simulator',
+      title: 'Onboarding Simulator',
+      description: 'Simulate and visualize the free trial journey',
+      icon: Calendar,
+      href: '/platform/onboarding-simulator',
+      color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
+    },
   ],
 };
 

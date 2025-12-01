@@ -459,6 +459,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 51,
   },
+  {
+    path: '/platform/onboarding-simulator',
+    access: 'internal',
+    label: 'Onboarding Simulator',
+    showInNav: false,
+    navSection: 'platform',
+    order: 52,
+  },
 
   // Legacy admin routes removed - now redirect to /platform in App.tsx
 ];
