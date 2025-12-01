@@ -101,7 +101,7 @@ serve(async (req) => {
     const siteUrl = getSiteUrl();
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: return_url || `${siteUrl}/org/billing`,
+      return_url: return_url || `${siteUrl}/team/billing`,
     });
 
     const response: PortalResponse = {

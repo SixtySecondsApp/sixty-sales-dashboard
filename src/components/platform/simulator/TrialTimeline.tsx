@@ -3,8 +3,7 @@
  * Visual timeline showing the complete trial journey with expandable day cards
  */
 
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useRef, useEffect } from 'react';
 import { DayCard } from './DayCard';
 import type { TrialTimelineData } from './types';
 
@@ -16,6 +15,36 @@ interface TrialTimelineProps {
 
 export function TrialTimeline({ timelineData, currentDay, onDaySelect }: TrialTimelineProps) {
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set([0, currentDay]));
+  const dayRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Auto-expand current day and scroll to it within the timeline container
+  useEffect(() => {
+    // Auto-expand the current day
+    setExpandedDays((prev) => {
+      const next = new Set(prev);
+      next.add(currentDay);
+      return next;
+    });
+
+    // Scroll to current day within the timeline container
+    const currentDayElement = dayRefs.current[currentDay];
+    const container = containerRef.current;
+
+    if (currentDayElement && container) {
+      // Calculate the position to scroll to within the container
+      const containerTop = container.getBoundingClientRect().top;
+      const elementTop = currentDayElement.getBoundingClientRect().top;
+      const relativeTop = elementTop - containerTop;
+      const currentScrollTop = container.scrollTop;
+
+      // Scroll within the container to bring the element to the top
+      container.scrollTo({
+        top: currentScrollTop + relativeTop,
+        behavior: 'smooth',
+      });
+    }
+  }, [currentDay]);
 
   const toggleDay = (day: number) => {
     setExpandedDays((prev) => {
@@ -49,10 +78,18 @@ export function TrialTimeline({ timelineData, currentDay, onDaySelect }: TrialTi
         </div>
       </div>
 
-      {/* Timeline Visual */}
-      <div className="relative mb-8 w-full overflow-x-hidden">
+      {/* Timeline Visual - Scrollable Container */}
+      <div
+        ref={containerRef}
+        className="relative w-full overflow-x-hidden overflow-y-auto max-h-[600px] pr-2"
+        style={{
+          scrollbarGutter: 'stable',
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgb(156 163 175) rgb(229 231 235)',
+        }}
+      >
         <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-blue-500 via-purple-500 to-red-500" />
-        <div className="space-y-6 w-full overflow-x-hidden">
+        <div className="space-y-6 w-full overflow-x-hidden pb-8">
           {days.map((day, index) => {
             const data = timelineData[day];
             const isExpanded = expandedDays.has(day);
@@ -60,11 +97,9 @@ export function TrialTimeline({ timelineData, currentDay, onDaySelect }: TrialTi
             const isCurrent = day === currentDay;
 
             return (
-              <motion.div
+              <div
                 key={day}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
+                ref={(el) => (dayRefs.current[day] = el)}
                 className="relative pl-16"
               >
                 {/* Timeline Dot */}
@@ -89,7 +124,7 @@ export function TrialTimeline({ timelineData, currentDay, onDaySelect }: TrialTi
                   onToggle={() => toggleDay(day)}
                   currentDay={currentDay}
                 />
-              </motion.div>
+              </div>
             );
           })}
         </div>

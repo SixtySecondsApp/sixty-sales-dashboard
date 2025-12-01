@@ -12,15 +12,15 @@ import TeamSettings from '@/pages/settings/TeamSettings';
 export default function TeamManagement() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 lg:pt-24">
         {/* Back Navigation */}
-        <div className="pt-6 pb-2">
+        <div className="pt-6 pb-4">
           <Link
-            to="/org"
+            to="/team"
             className="inline-flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to Organization
+            Back to Team
           </Link>
         </div>
 

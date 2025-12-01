@@ -89,22 +89,46 @@ export async function getPlanBySlug(slug: string): Promise<SubscriptionPlan | nu
  * Get subscription for an organization with plan details
  */
 export async function getOrgSubscription(orgId: string): Promise<SubscriptionWithPlan | null> {
-  const { data, error } = await supabase
+  // First get the subscription
+  const { data: subscription, error: subError } = await supabase
     .from('organization_subscriptions')
-    .select(`
-      *,
-      plan:subscription_plans(*)
-    `)
+    .select('*')
     .eq('org_id', orgId)
-    .single();
+    .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors when no row exists
 
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    console.error('Error fetching subscription:', error);
-    throw new Error('Failed to fetch subscription');
+  if (subError) {
+    // 406 errors typically indicate RLS policy blocking access
+    if (subError.code === 'PGRST116' || subError.status === 406) {
+      console.warn('Subscription not found or access denied:', subError.message);
+      return null;
+    }
+    console.error('Error fetching subscription:', subError);
+    throw new Error(`Failed to fetch subscription: ${subError.message}`);
   }
 
-  return data as SubscriptionWithPlan;
+  if (!subscription) return null;
+
+  // Then get the plan separately
+  const { data: plan, error: planError } = await supabase
+    .from('subscription_plans')
+    .select('*')
+    .eq('id', subscription.plan_id)
+    .maybeSingle();
+
+  if (planError) {
+    console.error('Error fetching plan:', planError);
+    throw new Error(`Failed to fetch subscription plan: ${planError.message}`);
+  }
+
+  if (!plan) {
+    console.warn('Plan not found for subscription:', subscription.plan_id);
+    return null;
+  }
+
+  return {
+    ...subscription,
+    plan: plan,
+  } as SubscriptionWithPlan;
 }
 
 /**

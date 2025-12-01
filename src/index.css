@@ -4,6 +4,13 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /* Scroll offset for fixed navigation on product landing pages */
+  section[id] {
+    scroll-margin-top: 5rem; /* 80px - accounts for 64px nav + 16px buffer */
+  }
+}
+
 @layer base {
   /* Theme System - Light and Dark Mode Variables */
   :root {
@@ -163,6 +170,8 @@
     @apply bg-background text-foreground;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     font-display: swap;
+    max-width: none !important;
+    width: 100% !important;
   }
 }
 

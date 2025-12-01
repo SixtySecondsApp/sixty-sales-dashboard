@@ -156,8 +156,8 @@ serve(async (req) => {
           quantity: 1,
         },
       ],
-      success_url: success_url || `${siteUrl}/org/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: cancel_url || `${siteUrl}/org/billing/cancel`,
+      success_url: success_url || `${siteUrl}/team/billing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: cancel_url || `${siteUrl}/team/billing/cancel`,
       subscription_data: {
         trial_period_days: plan.trial_days ?? 14,
         metadata: {

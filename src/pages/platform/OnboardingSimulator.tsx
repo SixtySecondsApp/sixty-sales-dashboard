@@ -7,11 +7,13 @@ import React, { useState, useEffect } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrialTimeline } from '@/components/platform/simulator/TrialTimeline';
 import { EmailPreview } from '@/components/platform/simulator/EmailPreview';
+import { LivePreview } from '@/components/platform/simulator/LivePreview';
 import { getDefaultTemplate, type EmailTemplate } from '@/lib/services/emailTemplateService';
 import type { TrialTimelineData, TrialStatus } from '@/components/platform/simulator/types';
-import { RotateCcw, Calendar } from 'lucide-react';
+import { RotateCcw, Calendar, Mail, Eye } from 'lucide-react';
 
 // Sample subscription data for simulation
 const TRIAL_DAYS = 14;
@@ -140,7 +142,7 @@ function generateTimelineData(): TrialTimelineData {
         components: ['TrialBanner', 'TrialBadge'],
       },
       {
-        route: '/org/billing',
+        route: '/team/billing',
         description: 'User can add payment method',
         components: ['PaymentForm'],
       },
@@ -162,7 +164,7 @@ function generateTimelineData(): TrialTimelineData {
     ],
     screens: [
       {
-        route: '/org/billing',
+        route: '/team/billing',
         description: 'User redirected to billing page',
         components: ['UpgradePrompt', 'PaymentForm'],
       },
@@ -178,7 +180,7 @@ function generateTimelineData(): TrialTimelineData {
     emails: [],
     screens: [
       {
-        route: '/org/billing',
+        route: '/team/billing',
         description: 'Upgrade prompts throughout the app',
         components: ['UpgradeModal', 'FeatureRestrictionBanner'],
       },
@@ -255,8 +257,9 @@ export default function OnboardingSimulator() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 overflow-x-hidden">
-      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-8 overflow-x-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
+      {/* Wrapper with max-width to prevent layout shift */}
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -314,10 +317,10 @@ export default function OnboardingSimulator() {
           </Card>
         </div>
 
-        {/* Main Content - Two Column Layout */}
-        <div className="flex flex-col xl:flex-row gap-6 mb-8 w-full overflow-x-hidden">
+        {/* Main Content - Two-column layout on desktop - Use lg: breakpoint for better desktop experience */}
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6 mb-8 w-full min-w-0">
           {/* Left Column - Timeline (2/3 width) */}
-          <div className="flex-1 min-w-0 xl:w-2/3 xl:flex-shrink-0 overflow-x-hidden">
+          <div className="min-w-0 w-full">
             <TrialTimeline
               timelineData={timelineData}
               currentDay={currentDay}
@@ -325,22 +328,44 @@ export default function OnboardingSimulator() {
             />
           </div>
 
-          {/* Right Column - Email Preview (1/3 width) - Sticky on desktop */}
-          <div className="flex-1 min-w-0 xl:w-1/3 xl:max-w-md xl:flex-shrink-0 overflow-x-hidden">
-            <div className="xl:sticky xl:top-20">
-              {isLoadingEmail ? (
-                <Card className="h-full">
-                  <CardContent className="flex items-center justify-center h-64">
-                    <div className="text-gray-500 dark:text-gray-400">Loading email template...</div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <EmailPreview
-                  template={selectedEmailTemplate}
-                  variables={emailVariables}
-                  day={currentDay}
-                />
-              )}
+          {/* Right Column - Preview Tabs (1/3 width) - Sticky on desktop */}
+          <div className="min-w-0 w-full">
+            <div className="lg:sticky lg:top-20 w-full">
+              <Tabs defaultValue="preview" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="preview" className="flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    Live Preview
+                  </TabsTrigger>
+                  <TabsTrigger value="email" className="flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
+                    Email
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="preview" className="mt-0">
+                  <LivePreview
+                    trialStatus={currentTrialStatus}
+                    day={currentDay}
+                  />
+                </TabsContent>
+
+                <TabsContent value="email" className="mt-0">
+                  {isLoadingEmail ? (
+                    <Card className="h-full">
+                      <CardContent className="flex items-center justify-center h-64">
+                        <div className="text-gray-500 dark:text-gray-400">Loading email template...</div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <EmailPreview
+                      template={selectedEmailTemplate}
+                      variables={emailVariables}
+                      day={currentDay}
+                    />
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           </div>
         </div>

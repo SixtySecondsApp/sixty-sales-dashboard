@@ -38,7 +38,7 @@ export function EmailPreview({ template, variables, day }: EmailPreviewProps) {
   const processedBody = processTemplate(template.email_body, variables);
 
   return (
-    <Card className="h-full flex flex-col min-h-0">
+    <Card className="h-full flex flex-col min-h-0 w-full max-w-full">
       <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center gap-2">
           <Mail className="w-5 h-5" />

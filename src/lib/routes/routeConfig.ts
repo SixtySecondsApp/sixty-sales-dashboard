@@ -247,7 +247,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
 
   // ========== Org Admin Section (Tier 2: Org Admins) ==========
   {
-    path: '/org',
+    path: '/team',
     access: 'orgAdmin',
     label: 'Team',
     icon: Building,
@@ -256,7 +256,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 1,
   },
   {
-    path: '/org/team',
+    path: '/team/team',
     access: 'orgAdmin',
     label: 'Team',
     icon: Users,
@@ -265,12 +265,20 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 2,
   },
   {
-    path: '/org/branding',
+    path: '/team/branding',
     access: 'orgAdmin',
     label: 'Branding',
     showInNav: false,
     navSection: 'org',
     order: 3,
+  },
+  {
+    path: '/team/billing',
+    access: 'orgAdmin',
+    label: 'Billing',
+    showInNav: false,
+    navSection: 'org',
+    order: 4,
   },
 
   // ========== Platform Admin Section (Tier 3: Platform Admins Only) ==========
@@ -622,15 +630,20 @@ export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
   '/admin/savvycal-settings': '/platform/integrations/savvycal',
   '/admin/booking-sources': '/platform/integrations/booking',
   '/admin/internal-domains': '/platform/integrations/domains',
-  '/admin/branding': '/org/branding',
+  '/admin/branding': '/team/branding',
   // SaaS Admin routes -> Platform
   '/saas-admin': '/platform',
   '/saas-admin/customers': '/platform/customers',
   '/saas-admin/plans': '/platform/plans',
   '/saas-admin/usage': '/platform/usage',
   '/saas-admin/features': '/platform/features',
-  // Settings routes -> Org
-  '/settings/team': '/org/team',
+  // Settings routes -> Team
+  '/settings/team': '/team/team',
+  // Legacy org routes -> team routes
+  '/org': '/team',
+  '/org/team': '/team/team',
+  '/org/branding': '/team/branding',
+  '/org/billing': '/team/billing',
 };
 
 /**

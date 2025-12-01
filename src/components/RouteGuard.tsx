@@ -44,7 +44,7 @@ interface RouteGuardProps {
  * } />
  *
  * // Org Admin route (team management)
- * <Route path="/org/team" element={
+ * <Route path="/team/team" element={
  *   <RouteGuard requiredAccess="orgAdmin">
  *     <TeamManagement />
  *   </RouteGuard>

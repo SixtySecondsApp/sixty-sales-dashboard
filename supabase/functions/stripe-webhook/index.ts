@@ -327,7 +327,7 @@ async function handleSubscriptionDeleted(
     type: "subscription_updated",
     title: "Subscription Cancelled",
     message: "Your subscription has been cancelled. You will lose access to premium features at the end of your billing period.",
-    action_url: "/org/billing",
+    action_url: "/team/billing",
     action_text: "View Billing",
   });
 }
@@ -364,7 +364,7 @@ async function handleTrialWillEnd(
     type: "trial_ending",
     title: "Trial Ending Soon",
     message: `Your free trial ends in ${daysRemaining} days. Add a payment method to continue using premium features.`,
-    action_url: "/org/billing",
+    action_url: "/team/billing",
     action_text: "Upgrade Now",
   });
 }
@@ -487,7 +487,7 @@ async function handleInvoicePaymentFailed(
     type: "payment_failed",
     title: "Payment Failed",
     message: "We couldn't process your payment. Please update your payment method to avoid service interruption.",
-    action_url: "/org/billing",
+    action_url: "/team/billing",
     action_text: "Update Payment",
   });
 }

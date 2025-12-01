@@ -71,11 +71,34 @@ import {
 import { useBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 import { useTheme } from '@/hooks/useTheme';
 import { TrialBanner } from '@/components/subscription/TrialBanner';
+import { useTrialStatus } from '@/lib/hooks/useSubscription';
+import { useOrg } from '@/lib/contexts/OrgContext';
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { userData, isImpersonating, stopImpersonating } = useUser();
   const { signOut } = useAuth();
+  const { activeOrgId } = useOrg();
+  const trialStatus = useTrialStatus(activeOrgId);
   const location = useLocation();
+
+  // Check if trial banner should be showing (same logic as TrialBanner component)
+  const isTrialBannerVisible = useMemo(() => {
+    // Check for simulation data
+    try {
+      const data = sessionStorage.getItem('trial_simulation');
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          return true; // Show banner in preview mode
+        }
+      }
+    } catch {
+      // Ignore errors
+    }
+
+    // Check real trial status
+    return trialStatus.isTrialing && !trialStatus.isLoading;
+  }, [trialStatus.isTrialing, trialStatus.isLoading]);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, toggleMobileMenu] = useCycle(false, true);
   const [hasMounted, setHasMounted] = useState(false);
@@ -382,11 +405,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Org Admin - for org owners/admins */}
                 {isOrgAdmin && (
                   <Link
-                    to="/org"
+                    to="/team"
                     onClick={() => toggleMobileMenu()}
                     className={cn(
                       "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
-                      location.pathname.startsWith('/org')
+                      location.pathname.startsWith('/team')
                         ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
                         : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
                     )}
@@ -515,7 +538,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </DropdownMenuItem>
               {/* Org Admin - for org owners/admins */}
               {isOrgAdmin && (
-                <DropdownMenuItem onClick={() => navigate('/org')}>
+                <DropdownMenuItem onClick={() => navigate('/team')}>
                   <Building2 className="w-4 h-4 mr-2" />
                   Team
                 </DropdownMenuItem>
@@ -730,10 +753,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Org Admin link - for org owners/admins */}
             {isOrgAdmin && (
               <Link
-                to="/org"
+                to="/team"
                 className={cn(
                   'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
-                  location.pathname.startsWith('/org')
+                  location.pathname.startsWith('/team')
                     ? 'bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-white dark:border-blue-800/20'
                     : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
                 )}
@@ -831,7 +854,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         'flex-1 transition-[margin] duration-300 ease-in-out',
         isCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[256px]',
         'ml-0',
-        isImpersonating ? 'pt-22 lg:pt-22' : 'pt-16 lg:pt-16'
+        // Conditionally add extra padding when trial banner is visible
+        isTrialBannerVisible
+          ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
+          : (isImpersonating ? 'pt-22 lg:pt-22' : 'pt-16 lg:pt-16')
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />

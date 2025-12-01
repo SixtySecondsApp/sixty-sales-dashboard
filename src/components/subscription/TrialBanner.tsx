@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Clock, AlertTriangle, CreditCard, ArrowRight } from 'lucide-react';
+import { X, Clock, AlertTriangle, CreditCard, ArrowRight, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTrialStatus, useCreatePortalSession } from '../../lib/hooks/useSubscription';
 import { useOrg } from '@/lib/contexts/OrgContext';
@@ -18,12 +18,32 @@ export function TrialBanner({
   storageKey = 'trial-banner-dismissed',
 }: TrialBannerProps) {
   const { activeOrgId: organizationId } = useOrg();
-  const trialStatus = useTrialStatus(organizationId);
+  const realTrialStatus = useTrialStatus(organizationId);
   const createPortalSession = useCreatePortalSession();
 
-  // Check if banner was dismissed
+  // Check for simulation data
+  const simulationData = React.useMemo(() => {
+    try {
+      const data = sessionStorage.getItem('trial_simulation');
+      if (data) {
+        const parsed = JSON.parse(data);
+        // Only use if less than 5 minutes old
+        if (Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore errors
+    }
+    return null;
+  }, []);
+
+  // Use simulation data if available, otherwise use real data
+  const trialStatus = simulationData?.trialStatus || realTrialStatus;
+
+  // Check if banner was dismissed (but ignore dismissal in preview mode)
   const [isDismissed, setIsDismissed] = useState(() => {
-    if (!dismissible) return false;
+    if (!dismissible || simulationData) return false; // Never dismissed in preview mode
     try {
       const dismissed = localStorage.getItem(storageKey);
       if (!dismissed) return false;
@@ -37,10 +57,13 @@ export function TrialBanner({
 
   const handleDismiss = () => {
     setIsDismissed(true);
-    try {
-      localStorage.setItem(storageKey, Date.now().toString());
-    } catch {
-      // Ignore storage errors
+    // Don't persist dismissal in preview mode
+    if (!simulationData) {
+      try {
+        localStorage.setItem(storageKey, Date.now().toString());
+      } catch {
+        // Ignore storage errors
+      }
     }
   };
 
@@ -64,54 +87,56 @@ export function TrialBanner({
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ height: 0, opacity: 0 }}
-        animate={{ height: 'auto', opacity: 1 }}
-        exit={{ height: 0, opacity: 0 }}
-        transition={{ duration: 0.2 }}
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: -100, opacity: 0 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
         className={`
-          relative overflow-hidden
+          fixed top-[65px] left-0 right-0 z-30
+          lg:top-[65px] lg:left-[256px]
           ${isUrgent
-            ? 'bg-gradient-to-r from-red-500/20 to-red-600/20 border-b border-red-500/30'
+            ? 'bg-red-500/10 border-b border-red-500/20'
             : isExpiringSoon
-              ? 'bg-gradient-to-r from-amber-500/20 to-amber-600/20 border-b border-amber-500/30'
-              : 'bg-gradient-to-r from-blue-500/20 to-blue-600/20 border-b border-blue-500/30'
+              ? 'bg-amber-500/10 border-b border-amber-500/20'
+              : 'bg-blue-500/10 border-b border-blue-500/20'
           }
+          backdrop-blur-sm
         `}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 flex-1">
-              {isUrgent ? (
-                <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${isUrgent ? 'text-red-400' : 'text-amber-400'}`} />
-              ) : (
-                <Clock className="w-5 h-5 flex-shrink-0 text-blue-400" />
+        <div className="px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 pb-3">
+          <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+            {/* Left: Status info */}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {simulationData && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 flex-shrink-0">
+                  <Eye className="w-3 h-3" />
+                  <span className="hidden sm:inline">Preview</span>
+                  <span className="font-medium">Day {simulationData.day}</span>
+                </span>
               )}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${
-                  isUrgent ? 'text-red-300' : isExpiringSoon ? 'text-amber-300' : 'text-blue-300'
-                }`}>
-                  {isUrgent ? (
-                    <>
-                      Your trial ends in {trialStatus.daysRemaining} day{trialStatus.daysRemaining !== 1 ? 's' : ''}!
-                      {needsPayment && ' Add a payment method to continue using Sixty.'}
-                    </>
-                  ) : (
-                    <>
-                      You have {trialStatus.daysRemaining} days left in your free trial.
-                      {needsPayment && ' Add a payment method to ensure uninterrupted access.'}
-                    </>
-                  )}
-                </p>
-              </div>
+
+              {isUrgent ? (
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 text-red-400" />
+              ) : (
+                <Clock className="w-4 h-4 flex-shrink-0 text-blue-400" />
+              )}
+
+              <span className={`truncate ${
+                isUrgent ? 'text-red-300' : isExpiringSoon ? 'text-amber-300' : 'text-blue-300'
+              }`}>
+                <span className="font-medium">{trialStatus.daysRemaining} days</span>
+                <span className="hidden sm:inline"> left in trial</span>
+              </span>
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Right: Actions */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               {needsPayment && (
                 <button
                   onClick={handleAddPayment}
                   disabled={createPortalSession.isPending}
                   className={`
-                    inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
+                    inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium
                     transition-colors
                     ${isUrgent
                       ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -122,15 +147,15 @@ export function TrialBanner({
                     disabled:opacity-50
                   `}
                 >
-                  <CreditCard className="w-4 h-4" />
-                  Add Payment
+                  <CreditCard className="w-3 h-3" />
+                  <span className="hidden sm:inline">Add Payment</span>
                 </button>
               )}
 
               <Link
-                to="/org/billing"
+                to="/team/billing"
                 className={`
-                  inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium
+                  inline-flex items-center gap-0.5 px-2 py-1 rounded text-xs font-medium
                   transition-colors
                   ${isUrgent
                     ? 'text-red-300 hover:text-red-200 hover:bg-red-500/20'
@@ -140,15 +165,15 @@ export function TrialBanner({
                   }
                 `}
               >
-                View Plans
-                <ArrowRight className="w-4 h-4" />
+                <span className="hidden sm:inline">Plans</span>
+                <ArrowRight className="w-3 h-3" />
               </Link>
 
               {dismissible && (
                 <button
                   onClick={handleDismiss}
                   className={`
-                    p-1 rounded-lg transition-colors
+                    p-1 rounded transition-colors
                     ${isUrgent
                       ? 'text-red-400 hover:text-red-300 hover:bg-red-500/20'
                       : isExpiringSoon
@@ -158,7 +183,7 @@ export function TrialBanner({
                   `}
                   aria-label="Dismiss"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>

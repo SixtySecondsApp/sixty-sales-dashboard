@@ -24,7 +24,6 @@ import { StateProvider } from '@/lib/communication/StateManagement';
 import { serviceWorkerManager, detectAndResolveCacheConflicts } from '@/lib/utils/serviceWorkerUtils';
 import { VersionManager } from '@/components/VersionManager';
 import { lazyWithRetry } from '@/lib/utils/dynamicImport';
-import { DebugPermissions } from '@/components/DebugPermissions';
 
 // Use regular dashboard - optimization had issues
 import Dashboard from '@/pages/Dashboard';
@@ -278,7 +277,6 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
   return (
     <>
       <IntelligentPreloader />
-      <DebugPermissions />
       <Routes>
         {/* Public pages for screenshot automation - MUST be outside ProtectedRoute */}
         <Route path="/meetings/thumbnail/:meetingId" element={<MeetingThumbnail />} />
@@ -353,7 +351,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/admin/savvycal-settings" element={<Navigate to="/platform/integrations/savvycal" replace />} />
                 <Route path="/admin/booking-sources" element={<Navigate to="/platform/integrations/booking-sources" replace />} />
                 <Route path="/admin/health-rules" element={<Navigate to="/platform/crm/health-rules" replace />} />
-                <Route path="/admin/branding" element={<Navigate to="/org/branding" replace />} />
+                <Route path="/admin/branding" element={<Navigate to="/team/branding" replace />} />
                 <Route path="/admin/internal-domains" element={<Navigate to="/platform/integrations/domains" replace />} />
                 <Route path="/admin/*" element={<Navigate to="/platform" replace />} /> {/* Catch-all for any remaining /admin routes */}
 
@@ -362,12 +360,20 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* ========================================= */}
 
                 {/* Tier 2: Organization Admin Routes (Org owners/admins + Platform admins) */}
-                <Route path="/org" element={<OrgAdminRouteGuard><AppLayout><OrgDashboard /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/org/team" element={<OrgAdminRouteGuard><AppLayout><TeamManagement /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/org/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/org/billing" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/org/billing/success" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
-                <Route path="/org/billing/cancel" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team" element={<OrgAdminRouteGuard><AppLayout><OrgDashboard /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team/team" element={<OrgAdminRouteGuard><AppLayout><TeamManagement /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team/branding" element={<OrgAdminRouteGuard><AppLayout><OrgBranding /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team/billing" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team/billing/success" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                <Route path="/team/billing/cancel" element={<OrgAdminRouteGuard><AppLayout><OrgBilling /></AppLayout></OrgAdminRouteGuard>} />
+                
+                {/* Legacy /org routes redirect to /team */}
+                <Route path="/org" element={<Navigate to="/team" replace />} />
+                <Route path="/org/team" element={<Navigate to="/team/team" replace />} />
+                <Route path="/org/branding" element={<Navigate to="/team/branding" replace />} />
+                <Route path="/org/billing" element={<Navigate to="/team/billing" replace />} />
+                <Route path="/org/billing/success" element={<Navigate to="/team/billing/success" replace />} />
+                <Route path="/org/billing/cancel" element={<Navigate to="/team/billing/cancel" replace />} />
 
                 {/* Tier 3: Platform Admin Routes (Internal + is_admin only) */}
                 <Route path="/platform" element={<PlatformAdminRouteGuard><AppLayout><PlatformDashboard /></AppLayout></PlatformAdminRouteGuard>} />
@@ -432,7 +438,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
 
                 {/* Legacy redirects for 3-tier migration (keep for 3-6 months) */}
                 <Route path="/saas-admin" element={<Navigate to="/platform" replace />} />
-                <Route path="/settings/team" element={<Navigate to="/org/team" replace />} />
+                <Route path="/settings/team" element={<Navigate to="/team/team" replace />} />
                 
                 {/* Individual record routes - Internal only */}
                 <Route path="/companies/:companyId" element={<InternalRouteGuard><AppLayout><CompanyProfile /></AppLayout></InternalRouteGuard>} />

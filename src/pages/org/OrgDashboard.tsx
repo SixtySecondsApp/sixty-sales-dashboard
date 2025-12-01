@@ -16,6 +16,7 @@ import {
   Crown,
   Shield,
   UserCheck,
+  CreditCard,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -56,34 +57,42 @@ export default function OrgDashboard() {
   const adminCards = [
     {
       title: 'Team Management',
-      description: 'Invite members, manage roles, and remove users from your organization',
+      description: 'Invite members, manage roles, and remove users from your team',
       icon: Users,
-      href: '/org/team',
+      href: '/team/team',
       stats: members ? `${members.length} member${members.length !== 1 ? 's' : ''}` : null,
       color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30',
     },
     {
-      title: 'Organization Branding',
-      description: 'Customize your organization\'s logo and visual identity',
+      title: 'Team Branding',
+      description: 'Customize your team\'s logo and visual identity',
       icon: Palette,
-      href: '/org/branding',
+      href: '/team/branding',
       stats: null,
       color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30',
+    },
+    {
+      title: 'Billing & Subscription',
+      description: 'Manage your subscription, payment methods, and billing history',
+      icon: CreditCard,
+      href: '/team/billing',
+      stats: null,
+      color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
     },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 lg:pt-24 pb-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
               <Building className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Organization Settings
+                Team Settings
               </h1>
               {currentOrg && (
                 <p className="text-gray-600 dark:text-gray-400">
@@ -96,12 +105,12 @@ export default function OrgDashboard() {
             </div>
           </div>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Manage your organization's team and branding settings.
+            Manage your team, branding, and billing settings.
           </p>
         </div>
 
         {/* Admin Cards */}
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {adminCards.map((card) => (
             <Link key={card.href} to={card.href} className="group">
               <Card className="h-full transition-all duration-200 hover:shadow-lg hover:border-indigo-200 dark:hover:border-indigo-800">

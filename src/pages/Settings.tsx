@@ -9,7 +9,7 @@
  * - AI Personalization
  * - Email Sync
  *
- * Org-level settings (Team, Branding) moved to /org/*
+ * Org-level settings (Team, Branding) moved to /team/*
  * Platform-level settings (View Mode) moved to /platform/*
  */
 

@@ -50,7 +50,7 @@ export function TrialBadge({ showUpgradeLink = true, className = '' }: TrialBadg
 
   if (showUpgradeLink) {
     return (
-      <Link to="/org/billing" className="hover:opacity-80 transition-opacity">
+      <Link to="/team/billing" className="hover:opacity-80 transition-opacity">
         {badge}
       </Link>
     );

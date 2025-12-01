@@ -3,8 +3,7 @@
  * Displays information about a specific day in the trial timeline
  */
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -84,15 +83,8 @@ export function DayCard({ day, data, isExpanded, onToggle, currentDay }: DayCard
         </div>
       </CardHeader>
 
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <CardContent className="space-y-4 pt-0 overflow-hidden">
+      {isExpanded && (
+        <CardContent className="space-y-4 pt-0 overflow-hidden">
               {/* Trial Status */}
               <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 space-y-2">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -224,9 +216,7 @@ export function DayCard({ day, data, isExpanded, onToggle, currentDay }: DayCard
                 </div>
               )}
             </CardContent>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      )}
     </Card>
   );
 }
