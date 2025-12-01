@@ -5,7 +5,7 @@
  * using Claude Haiku 4.5
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 interface PendingActionItem {
   action_item_id: string;

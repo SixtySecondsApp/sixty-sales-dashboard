@@ -2,7 +2,7 @@
  * Utility functions for cleaning up duplicate Google Tasks
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 interface DuplicateTask {
   google_task_id: string;

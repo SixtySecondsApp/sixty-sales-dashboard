@@ -90,12 +90,12 @@ export function MeetingsLandingV4() {
                 Log In
               </a>
               <motion.a
-                href="/auth/signup"
+                href="/product/meetings/waitlist"
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium hover:from-blue-500 hover:to-blue-400 transition-all shadow-lg shadow-blue-500/25"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Start Free Trial
+                Sign Up
               </motion.a>
             </div>
           </div>

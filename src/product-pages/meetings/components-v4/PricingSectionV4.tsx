@@ -74,8 +74,8 @@ export function PricingSectionV4() {
       // Navigate to contact/sales page
       navigate('/contact');
     } else {
-      // Navigate to signup with selected plan
-      navigate('/auth/signup', { state: { selectedPlan: planName.toLowerCase() } });
+      // Navigate to waitlist page
+      navigate('/product/meetings/waitlist');
     }
   };
 

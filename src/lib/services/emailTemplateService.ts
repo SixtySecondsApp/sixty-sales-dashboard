@@ -4,7 +4,7 @@
  * Table: waitlist_email_templates (renamed to avoid conflict with MCP email_templates)
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 export type TemplateType = 'access_grant' | 'reminder' | 'welcome';
 

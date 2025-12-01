@@ -58,28 +58,28 @@ export function FAQSection() {
 
   const faqs = [
     {
-      question: 'Does this work with my existing Fathom account?',
-      answer: 'Yes! One-click integration syncs all past and future recordings. Your existing Fathom workflow stays exactly the same—we just make it 10x more powerful with AI analysis, semantic search, and automated action items.',
+      question: 'How does the waitlist work?',
+      answer: 'Sign up with your email, company, and the tools you use (dialer, meeting recorder, CRM). You\'ll get a unique referral link to share. For every person who joins using your link, you move up 5 spots in line. The higher your position, the sooner you get early access.',
     },
     {
-      question: 'How accurate is the AI sentiment analysis?',
-      answer: 'Our AI analyzes tone, keywords, and context to score sentiment from -1 (negative) to 1 (positive). You get a score plus reasoning like "Customer expressed urgency about Q1 launch"—so you always understand the why behind the number. Accuracy improves with each conversation.',
+      question: 'What do I get as an early access member?',
+      answer: 'Priority onboarding with a dedicated success manager, exclusive product updates before public release, direct input on features and integrations we build, and a permanent 50% lifetime discount locked in as our thank you for being an early supporter.',
     },
     {
-      question: 'Can I turn meeting insights into tasks automatically?',
-      answer: 'Absolutely. AI extracts action items with priority, category, and video timestamps. Click once to convert any item into a task that links back to the exact moment in the recording. Tasks sync to your existing workflow tools.',
+      question: 'Do you really integrate with all those tools?',
+      answer: 'Yes! We already integrate with 100+ dialers (JustCall, CloudTalk, Aircall, etc.), meeting recorders (Fathom, Fireflies, Otter.ai, etc.), and CRMs (Salesforce, HubSpot, Pipedrive, etc.). If you use something else, just select "Other" and let us know—we\'ll prioritize it based on demand.',
     },
     {
-      question: 'What if I need to search old meetings for deal context?',
-      answer: 'Use semantic search to ask natural questions like "What technical objections came up with enterprise customers?" or "Show me pricing discussions from Q4." You\'ll get video clips and transcripts instantly—no digging through notes.',
+      question: 'How long will I be on the waitlist?',
+      answer: 'Your position determines when you get access. We\'re releasing in batches to ensure quality onboarding for every team. The more you refer, the faster you move up. Most waitlist members with 3+ referrals get access within 2-4 weeks.',
     },
     {
-      question: 'How does proposal generation work?',
-      answer: 'AI analyzes meeting transcripts, pulls customer requirements, pricing discussions, and next steps—then generates a structured proposal draft. Add your branding, tweak as needed, and send. What used to take 30+ minutes now takes 5.',
+      question: 'Will this actually save me 10+ hours per week?',
+      answer: 'Yes. Our beta users report spending 90+ minutes per day on manual CRM updates, meeting notes, and follow-up tasks. With Meeting Intelligence, that drops to under 10 minutes. The AI handles summaries, CRM syncing, action items, and follow-up reminders automatically.',
     },
     {
-      question: 'What about data security and compliance?',
-      answer: 'We\'re SOC 2 compliant and GDPR ready. All data is encrypted at rest and in transit. Your recordings never leave our secure infrastructure, and you maintain full control over your data with easy export and deletion options.',
+      question: 'What happens to my data and privacy?',
+      answer: 'Your data is encrypted at rest and in transit, stored securely in SOC 2 compliant infrastructure, and never shared with third parties. You maintain full control with easy export and deletion options. We\'re GDPR ready and take security seriously.',
     },
   ];
 

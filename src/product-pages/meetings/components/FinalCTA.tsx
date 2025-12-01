@@ -109,18 +109,18 @@ export function FinalCTA() {
               transition={{ delay: 0.5 }}
               className="flex flex-col sm:flex-row gap-4 justify-center mb-10"
             >
-              <button className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
+              <a href="/product/meetings/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
                 <span className="flex items-center justify-center gap-2">
                   Start Free 14-Day Trial
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
-              </button>
-              <button className="group px-8 py-4 rounded-xl bg-white/10 border border-white/20 text-white font-semibold text-lg hover:bg-white/15 transition-all duration-300">
+              </a>
+              <a href="/product/meetings/waitlist" className="group px-8 py-4 rounded-xl bg-white/10 border border-white/20 text-white font-semibold text-lg hover:bg-white/15 transition-all duration-300">
                 <span className="flex items-center justify-center gap-2">
                   <Play className="w-5 h-5" />
                   Schedule Demo
                 </span>
-              </button>
+              </a>
             </motion.div>
 
             {/* Trust Elements */}

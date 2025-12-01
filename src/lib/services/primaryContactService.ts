@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 /**
  * Primary Contact Selection Service

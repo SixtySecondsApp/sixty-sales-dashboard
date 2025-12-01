@@ -366,6 +366,24 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 23,
   },
+  // Meetings Waitlist
+  {
+    path: '/platform/meetings-waitlist',
+    access: 'platformAdmin',
+    label: 'Meetings Waitlist',
+    icon: Users,
+    showInNav: true,
+    navSection: 'platform',
+    order: 15,
+    badge: 'New',
+  },
+  // Public waitlist page (no auth required)
+  {
+    path: '/product/meetings/waitlist',
+    access: 'any',
+    label: 'Meetings Waitlist',
+    showInNav: false,
+  },
   // AI Configuration
   {
     path: '/platform/ai/providers',

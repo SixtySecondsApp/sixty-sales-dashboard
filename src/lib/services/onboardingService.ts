@@ -4,7 +4,7 @@
  * Table: waitlist_onboarding_progress (renamed to avoid conflict with general onboarding table)
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 export type OnboardingStep =
   | 'account_created'

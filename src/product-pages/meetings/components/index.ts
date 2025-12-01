@@ -10,3 +10,4 @@ export { FAQSection } from './FAQSection';
 export { FinalCTA } from './FinalCTA';
 export { Footer as LandingFooter } from './LandingFooter';
 export { PricingSection } from './PricingSection';
+export { WaitlistTestimonials } from './WaitlistTestimonials';

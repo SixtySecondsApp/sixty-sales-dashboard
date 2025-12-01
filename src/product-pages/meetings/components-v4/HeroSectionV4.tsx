@@ -131,10 +131,13 @@ export function HeroSectionV4() {
             >
               <Button
                 size="lg"
+                asChild
                 className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold px-8 py-6 rounded-xl shadow-xl shadow-blue-500/25 transition-all hover:shadow-2xl hover:shadow-blue-500/40 group"
               >
-                <span className="text-lg text-white">Sign Up for Free</span>
-                <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform text-white" />
+                <a href="/product/meetings/waitlist">
+                  <span className="text-lg text-white">Sign Up for Free</span>
+                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform text-white" />
+                </a>
               </Button>
             </motion.div>
 
