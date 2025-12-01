@@ -1,16 +1,17 @@
 -- Check Platform Admin Status
 -- Run this query to see why you're being redirected
 
--- 1. Check your profile and admin status
+-- 1. Check your profile and admin status (simple query without full_name)
 SELECT
-  p.id,
-  p.email,
-  p.full_name,
-  p.is_admin,
-  p.role,
-  p.created_at
-FROM profiles p
-WHERE p.email = 'andrew.bryce@sixtyseconds.video'
+  id,
+  email,
+  first_name,
+  last_name,
+  is_admin,
+  role,
+  created_at
+FROM profiles
+WHERE email = 'andrew.bryce@sixtyseconds.video'
 LIMIT 1;
 
 -- 2. Check internal domains configuration
