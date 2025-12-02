@@ -14,71 +14,234 @@
  * Platform-level settings (View Mode) moved to /platform/*
  */
 
-import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Profile from '@/pages/Profile';
-import Preferences from '@/pages/Preferences';
-import ProposalSettings from '@/pages/settings/ProposalSettings';
-import AIPersonalizationSettings from '@/pages/settings/AIPersonalizationSettings';
-import { EmailSyncPanel } from '@/components/health/EmailSyncPanel';
-import TaskSyncSettings from '@/pages/settings/TaskSyncSettings';
-import CoachingPreferences from '@/pages/settings/CoachingPreferences';
+import { useNavigate } from 'react-router-dom';
+import { useOrg } from '@/lib/contexts/OrgContext';
+import { useUserPermissions } from '@/contexts/UserPermissionsContext';
+import { useMemo } from 'react';
+import {
+  User,
+  Palette,
+  FileText,
+  Sparkles,
+  MessageSquare,
+  Mail,
+  CheckSquare,
+  Key,
+  ChevronRight,
+  Users,
+  Building2,
+  Video,
+} from 'lucide-react';
+
+interface SettingsSection {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  path: string;
+  requiresOrgAdmin?: boolean;
+}
 
 export default function Settings() {
-  const [tab, setTab] = useState('account');
+  const navigate = useNavigate();
+  const { permissions } = useOrg();
+  const { isPlatformAdmin } = useUserPermissions();
+
+  const allSettingsSections: SettingsSection[] = [
+    {
+      id: 'account',
+      label: 'Account',
+      icon: User,
+      description: 'Manage your profile and account settings',
+      path: '/settings/account',
+    },
+    {
+      id: 'appearance',
+      label: 'Appearance',
+      icon: Palette,
+      description: 'Customize theme and display preferences',
+      path: '/settings/appearance',
+    },
+    {
+      id: 'ai-personalization',
+      label: 'AI Personalization',
+      icon: Sparkles,
+      description: 'Customize AI behavior and preferences',
+      path: '/settings/ai-personalization',
+    },
+    {
+      id: 'sales-coaching',
+      label: 'Sales Coaching',
+      icon: MessageSquare,
+      description: 'Configure AI coaching preferences and reference meetings',
+      path: '/settings/sales-coaching',
+    },
+    {
+      id: 'api-keys',
+      label: 'API Keys',
+      icon: Key,
+      description: 'Manage AI provider API keys (encrypted and secure)',
+      path: '/settings/api-keys',
+    },
+    {
+      id: 'proposals',
+      label: 'Proposals',
+      icon: FileText,
+      description: 'AI-powered proposal generation templates and settings',
+      path: '/settings/proposals',
+    },
+    {
+      id: 'task-sync',
+      label: 'Task Auto-Sync',
+      icon: CheckSquare,
+      description: 'AI-powered automatic task creation from action items',
+      path: '/settings/task-sync',
+    },
+    {
+      id: 'meeting-sync',
+      label: 'Meeting Sync',
+      icon: Video,
+      description: 'Auto-log meetings from Fathom, Fireflies, and other integrations',
+      path: '/settings/meeting-sync',
+    },
+    {
+      id: 'email-sync',
+      label: 'Email Sync',
+      icon: Mail,
+      description: 'Sync and analyze email communications',
+      path: '/settings/email-sync',
+    },
+    {
+      id: 'team-members',
+      label: 'Team Members',
+      icon: Users,
+      description: 'Manage team members and invitations',
+      path: '/settings/team-members',
+      requiresOrgAdmin: true,
+    },
+    {
+      id: 'organization',
+      label: 'Organization',
+      icon: Building2,
+      description: 'Manage organization name and details',
+      path: '/settings/organization',
+      requiresOrgAdmin: true,
+    },
+  ];
+
+  // Filter sections based on permissions
+  const settingsSections = useMemo(() => {
+    return allSettingsSections.filter(section => {
+      if (section.requiresOrgAdmin) {
+        // Allow org admins AND platform admins to see team settings
+        return permissions.canManageTeam || permissions.canManageSettings || isPlatformAdmin;
+      }
+      return true;
+    });
+  }, [allSettingsSections, permissions, isPlatformAdmin]);
+
+  const categories = useMemo(() => {
+    const personalSections = settingsSections.filter(s =>
+      ['account', 'appearance'].includes(s.id)
+    );
+    const aiSections = settingsSections.filter(s =>
+      ['ai-personalization', 'sales-coaching', 'api-keys', 'proposals', 'task-sync', 'meeting-sync'].includes(s.id)
+    );
+    const integrationSections = settingsSections.filter(s =>
+      ['email-sync'].includes(s.id)
+    );
+    const teamSections = settingsSections.filter(s =>
+      ['team-members', 'organization'].includes(s.id)
+    );
+
+    const cats = [
+      {
+        id: 'personal',
+        label: 'Personal',
+        sections: personalSections,
+      },
+      {
+        id: 'ai',
+        label: 'AI & Intelligence',
+        sections: aiSections,
+      },
+      {
+        id: 'integrations',
+        label: 'Integrations',
+        sections: integrationSections,
+      },
+    ];
+
+    // Only show Team category if user has team management permissions
+    if (teamSections.length > 0) {
+      cats.push({
+        id: 'team',
+        label: 'Team',
+        sections: teamSections,
+      });
+    }
+
+    return cats.filter(cat => cat.sections.length > 0);
+  }, [settingsSections]);
 
   return (
     <div className="min-h-screen">
       <div className="p-4 sm:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-[#1E293B] dark:text-gray-100">Settings</h1>
-              <p className="text-sm text-[#64748B] dark:text-gray-400 mt-1">Manage your account and preferences</p>
-            </div>
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* Page Header */}
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-[#1E293B] dark:text-white">
+              Settings
+            </h1>
+            <p className="text-[#64748B] dark:text-gray-400 mt-2">
+              Manage your account, preferences, and integrations
+            </p>
           </div>
 
-          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-            <TabsList className="bg-[#E2E8F0] dark:bg-gray-900/50 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none dark:backdrop-blur-xl">
-              <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Account</TabsTrigger>
-              <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Appearance</TabsTrigger>
-              <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Proposals</TabsTrigger>
-              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
-              <TabsTrigger value="sales-coaching" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Sales Coaching</TabsTrigger>
-              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
-              <TabsTrigger value="task-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Task Auto-Sync</TabsTrigger>
-            </TabsList>
+          {/* Settings Categories */}
+          {categories.map((category) => (
+            <div key={category.id} className="space-y-4">
+              {/* Category Header */}
+              <div className="flex items-center gap-2">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-800 to-transparent" />
+                <h2 className="text-xs font-semibold text-[#64748B] dark:text-gray-500 uppercase tracking-wider px-3">
+                  {category.label}
+                </h2>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-800 to-transparent" />
+              </div>
 
-            <TabsContent value="account" className="space-y-0">
-              {/* Profile page contains its own layout and sections; we render it directly */}
-              <Profile />
-            </TabsContent>
-
-            <TabsContent value="appearance" className="space-y-0">
-              {/* Preferences page contains theme controls; we render it directly */}
-              <Preferences />
-            </TabsContent>
-
-            <TabsContent value="proposals" className="space-y-0">
-              <ProposalSettings />
-            </TabsContent>
-
-            <TabsContent value="ai-personalization" className="space-y-0">
-              <AIPersonalizationSettings />
-            </TabsContent>
-
-            <TabsContent value="sales-coaching" className="space-y-0">
-              <CoachingPreferences />
-            </TabsContent>
-
-            <TabsContent value="email-sync" className="space-y-6">
-              <EmailSyncPanel />
-            </TabsContent>
-
-            <TabsContent value="task-sync" className="space-y-0">
-              <TaskSyncSettings />
-            </TabsContent>
-          </Tabs>
+              {/* Setting Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {category.sections.map((section) => {
+                  const Icon = section.icon;
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => navigate(section.path)}
+                      className="group bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800/50 rounded-xl p-5 backdrop-blur-xl transition-all hover:border-[#37bd7e]/50 dark:hover:border-[#37bd7e]/50 hover:shadow-lg hover:shadow-[#37bd7e]/10 text-left"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="p-3 bg-[#37bd7e]/10 dark:bg-[#37bd7e]/20 rounded-xl group-hover:bg-[#37bd7e]/20 dark:group-hover:bg-[#37bd7e]/30 transition-colors">
+                            <Icon className="w-6 h-6 text-[#37bd7e]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-[#1E293B] dark:text-white text-base mb-1">
+                              {section.label}
+                            </h3>
+                            <p className="text-sm text-[#64748B] dark:text-gray-400 line-clamp-2">
+                              {section.description}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-[#64748B] dark:text-gray-400 group-hover:text-[#37bd7e] transition-colors flex-shrink-0 mt-1" />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

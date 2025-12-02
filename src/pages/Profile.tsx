@@ -6,7 +6,6 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/clientV2';
 import { Camera, Save, Lock, UserCog, Link2, History, ChevronRight } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
 
@@ -26,8 +25,6 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const queryClient = useQueryClient();
-  const [autoFathomEnabled, setAutoFathomEnabled] = useState(false);
-  const [autoFathomFromDate, setAutoFathomFromDate] = useState<string>('');
 
   // Debug logging
   useEffect(() => {
@@ -55,27 +52,6 @@ export default function Profile() {
     }
   }, [userData, userProfile]);
 
-  // Load existing auto Fathom preference
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from('user_settings')
-          .select('preferences')
-          .eq('user_id', user.id)
-          .single();
-        const pref = (data?.preferences || {}) as any;
-        const auto = pref.auto_fathom_activity || {};
-        setAutoFathomEnabled(!!auto.enabled);
-        setAutoFathomFromDate(typeof auto.from_date === 'string' ? auto.from_date : '');
-      } catch (e) {
-        // ignore
-      }
-    })();
-  }, []);
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -96,26 +72,6 @@ export default function Profile() {
 
       // Update profile record if we have a user ID
       if (user?.id) {
-        // Upsert user_settings.preferences for auto Fathom activity
-        const { data: existingSettings } = await supabase
-          .from('user_settings')
-          .select('preferences')
-          .eq('user_id', user.id)
-          .single();
-        const existingPrefs = (existingSettings?.preferences || {}) as any;
-        const nextPrefs = {
-          ...existingPrefs,
-          auto_fathom_activity: {
-            enabled: autoFathomEnabled,
-            from_date: autoFathomEnabled
-              ? (autoFathomFromDate || new Date().toISOString().slice(0, 10))
-              : null
-          }
-        };
-        await supabase
-          .from('user_settings')
-          .upsert({ user_id: user.id, preferences: nextPrefs }, { onConflict: 'user_id' });
-
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
@@ -333,33 +289,6 @@ export default function Profile() {
               </button>
             </div>
 
-            {/* Preferences */}
-            <div className="pt-6 border-t border-gray-200 dark:border-gray-800/50 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">Auto-log new Fathom meetings as activities</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">Only meetings from the day you enable onward</div>
-                </div>
-                <Switch
-                  checked={autoFathomEnabled}
-                  onCheckedChange={setAutoFathomEnabled}
-                />
-              </div>
-              {autoFathomEnabled && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Start date</label>
-                    <input
-                      type="date"
-                      value={autoFathomFromDate || ''}
-                      onChange={(e) => setAutoFathomFromDate(e.target.value)}
-                      className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-xl px-4 py-2.5 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-[#37bd7e] focus:border-transparent transition-all duration-200"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* Save Button */}
             <div className="flex justify-end">
               <button
@@ -372,61 +301,6 @@ export default function Profile() {
               </button>
             </div>
           </form>
-        </div>
-
-        {/* Quick Links Section */}
-        <div className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 rounded-xl shadow-sm dark:shadow-none overflow-hidden">
-          <div className="p-6">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Links</h2>
-            <div className="space-y-2">
-              {/* Admin Section - Only show if user is admin */}
-              {userData?.is_admin && (
-                <button
-                  onClick={() => navigate('/admin')}
-                  className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
-                >
-                  <div className="flex items-center gap-3">
-                    <UserCog className="w-5 h-5 text-[#37bd7e]" />
-                    <div className="text-left">
-                      <p className="font-medium text-gray-900 dark:text-white">Admin Dashboard</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Manage users, permissions, and system settings</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-                </button>
-              )}
-
-              {/* Integrations */}
-              <button
-                onClick={() => navigate('/integrations')}
-                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-3">
-                  <Link2 className="w-5 h-5 text-[#37bd7e]" />
-                  <div className="text-left">
-                    <p className="font-medium text-gray-900 dark:text-white">Integrations</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Connect with Google, Fathom, and other services</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-              </button>
-
-              {/* Releases */}
-              <button
-                onClick={() => navigate('/releases')}
-                className="w-full flex items-center justify-between p-4 rounded-xl bg-gray-100/50 dark:bg-gray-800/30 hover:bg-gray-200/50 dark:hover:bg-gray-800/50 transition-all duration-300 group"
-              >
-                <div className="flex items-center gap-3">
-                  <History className="w-5 h-5 text-[#37bd7e]" />
-                  <div className="text-left">
-                    <p className="font-medium text-gray-900 dark:text-white">Release Notes</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">See what's new and upcoming features</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Password Change Modal */}

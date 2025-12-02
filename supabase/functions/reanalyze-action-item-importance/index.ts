@@ -79,7 +79,8 @@ Importance Level Definitions:
 
 Action Items:
 ${actionItems.map((item, i) => `
-${i + 1}. Title: ${item.title}
+${i + 1}. ID: ${item.id}
+   Title: ${item.title}
    Category: ${item.category || 'N/A'}
    Priority: ${item.priority || 'N/A'}
    Deadline: ${item.deadline_at ? new Date(item.deadline_at).toLocaleDateString() : 'N/A'}
@@ -87,9 +88,11 @@ ${i + 1}. Title: ${item.title}
 
 Return a JSON array with the format:
 [
-  { "id": "action-item-id", "importance": "critical|high|medium|low" },
+  { "id": "actual-uuid-from-above", "importance": "critical|high|medium|low" },
   ...
 ]
+
+IMPORTANT: Use the exact UUID from the "ID:" field above for each action item.
 
 Only return the JSON array, no additional text.`
 
@@ -132,8 +135,19 @@ Only return the JSON array, no additional text.`
     console.log('OpenRouter response:', JSON.stringify(openaiData, null, 2))
 
     console.log('Extracting analysis text from response...')
-    const analysisText = openaiData.choices[0].message.content
+    let analysisText = openaiData.choices[0].message.content
     console.log('Raw analysis text:', analysisText)
+
+    // Strip markdown code block markers if present (Claude often wraps JSON in ```json ... ```)
+    if (analysisText.startsWith('```')) {
+      console.log('Detected markdown code block, stripping markers...')
+      // Remove ```json or ``` at the start and ``` at the end
+      analysisText = analysisText
+        .replace(/^```(?:json)?\s*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim()
+      console.log('Cleaned analysis text:', analysisText)
+    }
 
     let analysis
     try {

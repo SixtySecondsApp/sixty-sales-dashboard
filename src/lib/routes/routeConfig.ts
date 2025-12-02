@@ -219,7 +219,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
 
   // ========== Settings Section (Tier 1: All Users) ==========
   {
-    path: '/settings/user',
+    path: '/settings',
     access: 'any',
     label: 'Settings',
     icon: Settings,
@@ -645,7 +645,6 @@ export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
   '/saas-admin/usage': '/platform/usage',
   '/saas-admin/features': '/platform/features',
   // Settings routes
-  '/settings': '/settings/user',
   '/settings/team': '/team/team',
   // Legacy org routes -> team routes
   '/org': '/team',

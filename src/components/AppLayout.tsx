@@ -5,6 +5,7 @@ import { QuickAdd } from '@/components/QuickAdd';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { ViewModeBanner } from '@/components/ViewModeBanner';
 import { ExternalViewBanner, ExternalViewBannerSpacer } from '@/components/ExternalViewBanner';
+import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { ExternalViewToggle } from '@/components/ExternalViewToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { EmailIcon } from '@/components/EmailIcon';
@@ -206,6 +207,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-gradient-to-br dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 text-[#1E293B] dark:text-gray-100 transition-colors duration-200">
+      {/* Impersonation Banner at the top - highest priority */}
+      <ImpersonationBanner />
+
       {/* View Mode Banner at the top */}
       <ViewModeBanner />
 
@@ -217,18 +221,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main app content */}
       <div className="flex">
-        {/* Legacy Impersonation Banner (will be removed once View As is fully working) */}
-        {isImpersonating && (
-          <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500/10 backdrop-blur-sm text-center py-1 px-2 text-amber-400 text-xs font-medium border-b border-amber-500/20">
-            <span className="flex items-center justify-center gap-1">
-              <UserX className="w-3 h-3" /> You are impersonating {userData?.first_name} {userData?.last_name}
-            </span>
-          </div>
-        )}
       
       <div className={cn(
-      "fixed top-0 left-0 right-0 flex items-center justify-between z-50 p-4 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 lg:hidden transition-colors duration-200",
-      isImpersonating ? "mt-6" : ""
+      "fixed left-0 right-0 flex items-center justify-between z-[90] p-4 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 lg:hidden transition-all duration-200",
+      isImpersonating ? "top-[44px]" : "top-0"
     )}>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg overflow-hidden">
@@ -389,7 +385,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Fixed Footer with Settings and Logout */}
               <div className="flex-shrink-0 p-4 sm:p-6 border-t border-[#E2E8F0] dark:border-gray-800 space-y-2">
                 <Link
-                  to="/settings/user"
+                  to="/settings"
                   onClick={() => toggleMobileMenu()}
                   className={cn(
                     "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
@@ -399,7 +395,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   )}
                 >
                   <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
-                  User Settings
+                  Settings
                 </Link>
 
                 {/* Org Admin - for org owners/admins */}
@@ -472,11 +468,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Desktop Top Bar */}
       <div className={cn(
-        'fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 z-[90]',
+        'fixed left-0 right-0 h-16 bg-white/80 dark:bg-gray-950/50 backdrop-blur-sm border-b border-[#E2E8F0] dark:border-gray-800/50 z-[90]',
         'hidden lg:flex items-center justify-between px-6',
         isCollapsed ? 'lg:left-[80px]' : 'lg:left-[256px]',
         'transition-all duration-300 ease-in-out',
-        isImpersonating ? 'top-6' : 'top-0'
+        isImpersonating ? 'top-[44px]' : 'top-0'
       )}>
         {/* Search Button (cmdK) - Hidden */}
         {/* <button
@@ -532,9 +528,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <UserCog className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings/user')}>
+              <DropdownMenuItem onClick={() => navigate('/settings')}>
                 <Settings className="w-4 h-4 mr-2" />
-                User Settings
+                Settings
               </DropdownMenuItem>
               {/* Org Admin - for org owners/admins */}
               {isOrgAdmin && (
@@ -597,12 +593,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         initial={!hasMounted ? { opacity: 0, x: -20 } : false}
         animate={!hasMounted ? { opacity: 1, x: 0 } : false}
         className={cn(
-          'fixed left-0 bottom-0 h-screen bg-white dark:bg-gray-900/50 backdrop-blur-xl p-6',
+          'fixed left-0 bottom-0 bg-white dark:bg-gray-900/50 backdrop-blur-xl p-6',
           'border-r border-[#E2E8F0] dark:border-gray-800/50 shadow-[2px_0_8px_-2px_rgba(0,0,0,0.04)] dark:shadow-none',
           'transition-all duration-300 ease-in-out flex-shrink-0',
           isCollapsed ? 'w-[80px]' : 'w-[256px]',
           'hidden lg:block z-[100]',
-          isImpersonating ? 'top-6' : 'top-0'
+          isImpersonating ? 'top-[44px] h-[calc(100vh-44px)]' : 'top-0 h-screen'
         )}
       >
         {/* Clickable border to minimize sidebar - only height of top bar, slightly thicker */}
@@ -727,7 +723,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Settings and Logout at bottom */}
           <div className="mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50">
             <Link
-              to="/settings/user"
+              to="/settings"
               className={cn(
                 'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
                 location.pathname.startsWith('/settings')
@@ -744,7 +740,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     exit={{ opacity: 0, width: 0 }}
                     className="overflow-hidden whitespace-nowrap"
                   >
-                    User Settings
+                    Settings
                   </motion.span>
                 )}
               </AnimatePresence>
@@ -855,9 +851,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         isCollapsed ? 'lg:ml-[80px]' : 'lg:ml-[256px]',
         'ml-0',
         // Conditionally add extra padding when trial banner is visible
+        // Account for impersonation banner (44px) + top bar (64px) = 108px
+        // When trial banner is visible, add ~17px more
         isTrialBannerVisible
           ? (isImpersonating ? 'pt-[132px] lg:pt-[132px]' : 'pt-[115px] lg:pt-[115px]')
-          : (isImpersonating ? 'pt-22 lg:pt-22' : 'pt-16 lg:pt-16')
+          : (isImpersonating ? 'pt-[108px] lg:pt-[108px]' : 'pt-16 lg:pt-16')
       )}>
         {children}
         <QuickAdd isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />

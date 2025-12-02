@@ -156,7 +156,6 @@ const EXTERNAL_ALLOWED_ROUTES = [
   '/insights/content-topics',
   '/profile',
   '/settings',
-  '/settings/user',
   '/onboarding',
 ];
 

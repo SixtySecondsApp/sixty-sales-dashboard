@@ -116,6 +116,17 @@ const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
 const TaskSyncSettings = lazyWithRetry(() => import('@/pages/settings/TaskSyncSettings'));
 const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings'));
 const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/CoachingPreferences'));
+const AccountSettings = lazyWithRetry(() => import('@/pages/settings/AccountSettings'));
+const AppearanceSettings = lazyWithRetry(() => import('@/pages/settings/AppearanceSettings'));
+const ProposalsPage = lazyWithRetry(() => import('@/pages/settings/ProposalsPage'));
+const AIPersonalizationPage = lazyWithRetry(() => import('@/pages/settings/AIPersonalizationPage'));
+const SalesCoachingPage = lazyWithRetry(() => import('@/pages/settings/SalesCoachingPage'));
+const APIKeysPage = lazyWithRetry(() => import('@/pages/settings/APIKeysPage'));
+const EmailSyncPage = lazyWithRetry(() => import('@/pages/settings/EmailSyncPage'));
+const TaskSyncPage = lazyWithRetry(() => import('@/pages/settings/TaskSyncPage'));
+const MeetingSyncPage = lazyWithRetry(() => import('@/pages/settings/MeetingSyncPage'));
+const TeamMembersPage = lazyWithRetry(() => import('@/pages/settings/TeamMembersPage'));
+const OrganizationSettingsPage = lazyWithRetry(() => import('@/pages/settings/OrganizationSettingsPage'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
@@ -450,9 +461,19 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/clients" element={<InternalRouteGuard><AppLayout><Clients /></AppLayout></InternalRouteGuard>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-                <Route path="/preferences" element={<Navigate to="/settings/user" replace />} />
-                <Route path="/settings" element={<Navigate to="/settings/user" replace />} />
-                <Route path="/settings/user" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/preferences" element={<Navigate to="/settings" replace />} />
+                <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/settings/account" element={<AppLayout><AccountSettings /></AppLayout>} />
+                <Route path="/settings/appearance" element={<AppLayout><AppearanceSettings /></AppLayout>} />
+                <Route path="/settings/proposals" element={<AppLayout><ProposalsPage /></AppLayout>} />
+                <Route path="/settings/ai-personalization" element={<AppLayout><AIPersonalizationPage /></AppLayout>} />
+                <Route path="/settings/sales-coaching" element={<AppLayout><SalesCoachingPage /></AppLayout>} />
+                <Route path="/settings/api-keys" element={<AppLayout><APIKeysPage /></AppLayout>} />
+                <Route path="/settings/email-sync" element={<AppLayout><EmailSyncPage /></AppLayout>} />
+                <Route path="/settings/task-sync" element={<AppLayout><TaskSyncPage /></AppLayout>} />
+                <Route path="/settings/meeting-sync" element={<AppLayout><MeetingSyncPage /></AppLayout>} />
+                <Route path="/settings/team-members" element={<AppLayout><TeamMembersPage /></AppLayout>} />
+                <Route path="/settings/organization" element={<AppLayout><OrganizationSettingsPage /></AppLayout>} />
                 <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
