@@ -17,7 +17,8 @@ export interface DealWithRelationships {
   company_id?: string;
   primary_contact_id?: string;
   contact_email?: string;
-  
+  company_website?: string;
+
   // Revenue model fields
   one_off_revenue?: number;
   monthly_mrr?: number;

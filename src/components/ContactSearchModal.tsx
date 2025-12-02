@@ -355,10 +355,10 @@ export function ContactSearchModal({
         // Trigger background enrichment
         const fullName = `${contactData.first_name} ${contactData.last_name || ''}`.trim();
         LinkedInEnrichmentService.enrichContactProfile(
-          newContact.id, 
-          fullName, 
-          contactData.email, 
-          contactData.company_name
+          newContact.id,
+          fullName,
+          contactData.email,
+          company?.name || newContactForm.company_name
         ).then(success => {
           if (success) toast.success('Contact profile enriched with LinkedIn data');
         });

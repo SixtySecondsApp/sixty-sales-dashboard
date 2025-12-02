@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useLocalization } from '@/lib/hooks/useLocalization';
+import { useLocalization } from '../../lib/hooks/useLocalization';
 import { LocaleSelector } from '../LocaleSelector';
 
 export function PricingSectionV4() {

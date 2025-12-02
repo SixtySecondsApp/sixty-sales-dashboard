@@ -5,7 +5,16 @@
 --          and reset action items to allow fresh auto-sync with new system
 -- ============================================================================
 
--- Step 1: Preview what will be deleted
+-- Step 1: Check what columns exist in meeting_action_items
+SELECT
+  column_name,
+  data_type
+FROM information_schema.columns
+WHERE table_name = 'meeting_action_items'
+  AND column_name IN ('task_id', 'linked_task_id', 'synced_to_task', 'sync_status')
+ORDER BY column_name;
+
+-- Step 2: Preview what will be deleted
 SELECT
   'Tasks to be deleted' as category,
   COUNT(*) as count,
@@ -16,51 +25,36 @@ FROM tasks
 WHERE source = 'ai_suggestion'
 GROUP BY source;
 
--- Step 2: Preview affected action items that will be reset
+-- Step 3: Preview affected action items that will be reset (using task_id)
 SELECT
   'Action items to reset' as category,
   COUNT(*) as count
 FROM meeting_action_items
-WHERE synced_to_task = true
-  AND linked_task_id IN (
+WHERE task_id IN (
     SELECT id FROM tasks WHERE source = 'ai_suggestion'
   );
 
--- Step 3: Preview affected suggestions that will be reset
-SELECT
-  'Suggestions to reset' as category,
-  COUNT(*) as count
-FROM next_action_suggestions
-WHERE synced_to_task = true
-  AND linked_task_id IN (
-    SELECT id FROM tasks WHERE source = 'ai_suggestion'
-  );
+-- Step 4: Preview affected suggestions (if table exists)
+-- Note: Uncomment if next_action_suggestions table exists
+-- SELECT
+--   'Suggestions to reset' as category,
+--   COUNT(*) as count
+-- FROM next_action_suggestions
+-- WHERE task_id IN (
+--     SELECT id FROM tasks WHERE source = 'ai_suggestion'
+--   );
 
 -- ============================================================================
 -- POINT OF NO RETURN - Uncomment the following to execute cleanup
 -- ============================================================================
 
--- Step 4: Reset meeting_action_items (unlink from deleted tasks)
+-- Step 5: Reset meeting_action_items (unlink from deleted tasks)
+-- SIMPLE VERSION (using only task_id column)
 -- UPDATE meeting_action_items
 -- SET
---   synced_to_task = false,
---   linked_task_id = null,
---   sync_status = null,
+--   task_id = null,
 --   updated_at = NOW()
--- WHERE synced_to_task = true
---   AND linked_task_id IN (
---     SELECT id FROM tasks WHERE source = 'ai_suggestion'
---   );
-
--- Step 5: Reset next_action_suggestions (unlink from deleted tasks)
--- UPDATE next_action_suggestions
--- SET
---   synced_to_task = false,
---   linked_task_id = null,
---   sync_status = null,
---   updated_at = NOW()
--- WHERE synced_to_task = true
---   AND linked_task_id IN (
+-- WHERE task_id IN (
 --     SELECT id FROM tasks WHERE source = 'ai_suggestion'
 --   );
 
@@ -82,18 +76,10 @@ WHERE source = 'ai_suggestion';
 -- Verify action items reset
 SELECT
   'Reset action items' as check_type,
-  COUNT(*) as reset_count,
-  COUNT(*) FILTER (WHERE synced_to_task = false) as ready_for_sync
-FROM meeting_action_items
-WHERE importance IS NOT NULL;
-
--- Verify suggestions reset
-SELECT
-  'Reset suggestions' as check_type,
-  COUNT(*) as reset_count,
-  COUNT(*) FILTER (WHERE synced_to_task = false) as ready_for_sync
-FROM next_action_suggestions
-WHERE importance IS NOT NULL;
+  COUNT(*) as total_items,
+  COUNT(*) FILTER (WHERE task_id IS NULL) as unlinked,
+  COUNT(*) FILTER (WHERE importance IS NOT NULL) as has_importance
+FROM meeting_action_items;
 
 -- ============================================================================
 -- Summary of what remains

@@ -336,7 +336,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
     try {
       const { error } = await supabase
         .from('api_keys')
-        .update({ is_active: false })
+        .update({ is_active: false } as any)
         .eq('id', keyId)
         .eq('user_id', user?.id);
 
@@ -588,7 +588,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="bg-gray-900/90 backdrop-blur-xl border-gray-700/50">
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={() => revokeApiKey(apiKey.id)}
                         className="text-red-400 hover:bg-red-500/10"
                         disabled={!apiKey.is_active}

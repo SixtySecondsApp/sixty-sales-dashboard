@@ -103,7 +103,7 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
                   .select('name, color')
                   .eq('id', deal.stage_id)
                   .single();
-                
+
                 if (stageData) {
                   deal.deal_stages = stageData;
                 }
@@ -114,8 +114,8 @@ export function CompanyDealsModal({ isOpen, onClose, companyId, companyName }: C
             return deal;
           })
         );
-        
-        data = dealsWithStages;
+
+        data = dealsWithStages as any;
       }
 
       logger.log(`✅ Found ${data?.length || 0} deals for company`);
