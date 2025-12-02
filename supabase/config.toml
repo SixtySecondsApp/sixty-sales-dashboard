@@ -1,3 +1,16 @@
+# Supabase Project Configuration
+# This file is used by Supabase CLI for local development and branching
+
+[project]
+# Project reference ID - set via: supabase link --project-ref <id>
+# project_id = "your-project-ref-id"
+
+# Database Configuration
+[db]
+# Connection pooler settings for branching
+# Development branch uses connection pooler for better performance
+pooler = { enabled = true, port = 6543, pool_mode = "transaction" }
+
 [functions.process-single-activity]
 enabled = true
 verify_jwt = true

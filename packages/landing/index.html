@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- Cache Control - Prevent HTML caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- Performance Optimizations -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Resource hints for performance -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Preload Inter font for better performance -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"></noscript>
+    
+    <!-- Favicon optimizations -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon_0_32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon_0_16x16.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="/favicon_0_128x128.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Meta tags for PWA -->
+    <meta name="theme-color" content="#10b981">
+    <meta name="description" content="Modern sales dashboard for tracking performance and managing pipeline">
+    <meta name="keywords" content="sales, dashboard, CRM, pipeline, performance, analytics">
+    
+    <!-- Theme Initialization Script - MUST run before body renders -->
+    <script>
+      (function() {
+        // Get theme from localStorage or system preference
+        const savedTheme = localStorage.getItem('theme');
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const theme = savedTheme || systemTheme;
+
+        // Apply theme immediately to prevent flash
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
+    <!-- Critical CSS will be inlined here by build process -->
+    <style id="critical-css">
+      /* Critical above-the-fold styles - theme-aware */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-display: swap;
+      }
+
+      /* Light mode defaults */
+      html, body {
+        background-color: #FCFCFC;
+        color: #111827;
+      }
+
+      /* Dark mode overrides */
+      html[data-theme="dark"], html.dark {
+        background-color: #030712;
+        color: #f3f4f6;
+      }
+      html[data-theme="dark"] body, html.dark body {
+        background-color: #030712;
+        color: #f3f4f6;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      /* Theme-aware skeleton loader */
+      .skeleton {
+        background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      html[data-theme="dark"] .skeleton, html.dark .skeleton {
+        background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+      }
+
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+    </style>
+
+    <title>Sixty Sales Dashboard</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      // Only register service worker in production
+      const isDevelopment = window.location.hostname === 'localhost' &&
+                           ['5173', '5174', '5175', '5176'].includes(window.location.port);
+
+      // Skip service worker for thumbnail pages (used by Browserless for screenshots)
+      const isThumbnailPage = window.location.pathname.startsWith('/meetings/thumbnail/');
+
+      if ('serviceWorker' in navigator && !isDevelopment && !isThumbnailPage) {
+        window.addEventListener('load', () => {
+          // Force update check on every page load
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+            .then((registration) => {
+              console.log('SW registered: ', registration);
+
+              // Force immediate update check
+              registration.update();
+
+              // Store registration for cache management
+              window.swRegistration = registration;
+              
+              // Handle service worker updates
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed') {
+                    if (navigator.serviceWorker.controller) {
+                      // New update available - clear caches to prevent conflicts
+                      console.log('New version available, clearing caches and refreshing');
+                      if (window.swRegistration && window.swRegistration.active) {
+                        const messageChannel = new MessageChannel();
+                        window.swRegistration.active.postMessage(
+                          { type: 'CLEAR_CACHE' }, 
+                          [messageChannel.port2]
+                        );
+                        setTimeout(() => window.location.reload(), 1000);
+                      }
+                    } else {
+                      // Content is cached for offline use
+                      console.log('Content is cached for offline use');
+                    }
+                  }
+                });
+              });
+              
+              // Detect and resolve cache conflicts on load
+              setTimeout(() => {
+                if (window.detectAndResolveCacheConflicts) {
+                  window.detectAndResolveCacheConflicts();
+                }
+              }, 2000);
+            })
+            .catch((registrationError) => {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+        
+        // Add global cache management functions for debugging
+        window.clearSWCache = () => {
+          if (window.swRegistration && window.swRegistration.active) {
+            const messageChannel = new MessageChannel();
+            window.swRegistration.active.postMessage(
+              { type: 'CLEAR_CACHE' }, 
+              [messageChannel.port2]
+            );
+          }
+        };
+        
+        window.clearApiCache = () => {
+          if (window.swRegistration && window.swRegistration.active) {
+            const messageChannel = new MessageChannel();
+            window.swRegistration.active.postMessage(
+              { type: 'CLEAR_API_CACHE' }, 
+              [messageChannel.port2]
+            );
+          }
+        };
+      }
+    </script>
+    
+    <!-- Performance monitoring -->
+    <script>
+      // Mark the start of app initialization
+      performance.mark('app-init-start');
+      
+      // Track when React renders
+      window.addEventListener('DOMContentLoaded', () => {
+        const observer = new MutationObserver(() => {
+          const rootElement = document.getElementById('root');
+          if (rootElement && rootElement.children.length > 0) {
+            performance.mark('app-init-complete');
+            performance.measure('app-init-time', 'app-init-start', 'app-init-complete');
+            observer.disconnect();
+          }
+        });
+        
+        if (document.getElementById('root')) {
+          observer.observe(document.getElementById('root'), {
+            childList: true,
+            subtree: true
+          });
+        }
+      });
+    </script>
+    
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

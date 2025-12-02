@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Login - Bypass App</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .login-form {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 8px;
+        }
+        h1 { color: #4ade80; }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #fff;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #4ade80;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        button:hover { background: #22d369; }
+        .error { color: #f87171; margin: 10px 0; }
+        .success { color: #4ade80; margin: 10px 0; }
+        .info { color: #60a5fa; margin: 10px 0; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="login-form">
+        <h1>Direct Login</h1>
+        <p class="info">This bypasses the React app completely</p>
+        
+        <div id="status"></div>
+        
+        <input type="email" id="email" placeholder="Email" value="andrew.bryce@sixtyseconds.video">
+        <input type="password" id="password" placeholder="Password">
+        
+        <button onclick="login()">Login</button>
+        <button onclick="checkSession()">Check Current Session</button>
+        <button onclick="clearAndReload()">Clear Everything & Reload</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // CORRECT Supabase credentials from your .env
+        const SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Check session on load
+        window.onload = () => {
+            checkSession();
+        };
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const resultDiv = document.getElementById('result');
+            const statusDiv = document.getElementById('status');
+            
+            if (!email || !password) {
+                resultDiv.innerHTML = '<p class="error">Please enter email and password</p>';
+                return;
+            }
+            
+            statusDiv.innerHTML = '<p class="info">Logging in...</p>';
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                if (error) {
+                    resultDiv.innerHTML = `<p class="error">Login failed: ${error.message}</p>`;
+                    statusDiv.innerHTML = '';
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Login successful!</p>
+                        <p class="info">User: ${data.user.email}</p>
+                        <p class="info">Session stored in localStorage</p>
+                        <p class="success">Now try going to the main app:</p>
+                        <a href="http://localhost:5173/" style="color: #4ade80;">Go to App →</a>
+                    `;
+                    statusDiv.innerHTML = '<p class="success">Success! You can now access the app.</p>';
+                    
+                    // Store session in the correct key
+                    const authKey = `sb-${SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`;
+                    console.log('Stored session in:', authKey);
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+                statusDiv.innerHTML = '';
+            }
+        }
+        
+        async function checkSession() {
+            const resultDiv = document.getElementById('result');
+            try {
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    resultDiv.innerHTML = `<p class="error">Session check error: ${error.message}</p>`;
+                } else if (session) {
+                    resultDiv.innerHTML = `
+                        <p class="success">✓ Active session found!</p>
+                        <p class="info">User: ${session.user.email}</p>
+                        <p class="info">Expires: ${new Date(session.expires_at * 1000).toLocaleString()}</p>
+                        <a href="http://localhost:5173/" style="color: #4ade80;">Go to App →</a>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p class="info">No active session. Please log in.</p>`;
+                }
+                
+                // Also check localStorage
+                const keys = Object.keys(localStorage).filter(k => k.includes('sb-') || k.includes('supabase'));
+                if (keys.length > 0) {
+                    resultDiv.innerHTML += `<p class="info">Found auth keys in localStorage: ${keys.join(', ')}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Error: ${err.message}</p>`;
+            }
+        }
+        
+        function clearAndReload() {
+            // Clear all auth-related localStorage
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.includes('sb-') || key.includes('supabase') || key.includes('auth')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            // Clear all cookies
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            
+            alert('All auth data cleared! Reloading...');
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

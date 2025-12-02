@@ -219,7 +219,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
 
   // ========== Settings Section (Tier 1: All Users) ==========
   {
-    path: '/settings',
+    path: '/settings/user',
     access: 'any',
     label: 'Settings',
     icon: Settings,
@@ -243,6 +243,14 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     showInNav: false,
     navSection: 'settings',
     order: 3,
+  },
+  {
+    path: '/settings/task-sync',
+    access: 'any',
+    label: 'Task Auto-Sync',
+    showInNav: false,
+    navSection: 'settings',
+    order: 4,
   },
 
   // ========== Org Admin Section (Tier 2: Org Admins) ==========
@@ -374,16 +382,15 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 23,
   },
-  // Meetings Waitlist
+  // Meetings Waitlist (now embedded in Platform Settings)
   {
     path: '/platform/meetings-waitlist',
     access: 'platformAdmin',
     label: 'Meetings Waitlist',
     icon: Users,
-    showInNav: true,
+    showInNav: false,
     navSection: 'platform',
     order: 15,
-    badge: 'New',
   },
   // Public waitlist page (no auth required)
   {
@@ -637,7 +644,8 @@ export const LEGACY_ROUTE_REDIRECTS: Record<string, string> = {
   '/saas-admin/plans': '/platform/plans',
   '/saas-admin/usage': '/platform/usage',
   '/saas-admin/features': '/platform/features',
-  // Settings routes -> Team
+  // Settings routes
+  '/settings': '/settings/user',
   '/settings/team': '/team/team',
   // Legacy org routes -> team routes
   '/org': '/team',

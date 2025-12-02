@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users, Share2, Link, Lock, Copy, Check, Eye, Mail } from 'lucide-react';
+import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users, Share2, Link, Lock, Copy, Check, Eye, Mail, AlertCircle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -37,6 +37,7 @@ import {
   type FocusArea,
 } from '@/lib/services/proposalService';
 import { supabase } from '@/lib/supabase/clientV2';
+import { toast } from 'sonner';
 
 const DESIGN_SYSTEM_SNIPPET = `<!-- DESIGN_SYSTEM_READY -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -267,6 +268,7 @@ export function ProposalWizard({
   const [savedState, setSavedState] = useState<SavedWizardState | null>(null);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const storageKey = getStorageKey(initialMeetingIds, contactId);
+  const hasCheckedSavedStateRef = useRef(false); // Track if we've already checked for saved state this session
 
   // Tab state for preview - show HTML code while generating, switch to preview when done
   const [previewTab, setPreviewTab] = useState<'html' | 'preview'>('html');
@@ -281,7 +283,7 @@ export function ProposalWizard({
   const [savingShare, setSavingShare] = useState(false);
 
   // Phase 4.1: Quick Mode vs Advanced Mode
-  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('quick');
+  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('advanced');
   const [quickModeSummary, setQuickModeSummary] = useState<string>('');
   const [quickModeEmail, setQuickModeEmail] = useState<string>('');
 
@@ -433,16 +435,22 @@ export function ProposalWizard({
   // Step 1: Load meetings when dialog opens - check for saved state first
   useEffect(() => {
     if (open) {
-      // Check for saved state
-      const saved = loadWizardState(storageKey);
-      if (saved && saved.step !== 'select_meetings') {
-        // We have a saved state with progress - show resume dialog
-        setSavedState(saved);
-        setShowResumeDialog(true);
-        return;
+      // Only check for saved state once per session (when first opening the wizard)
+      if (!hasCheckedSavedStateRef.current) {
+        hasCheckedSavedStateRef.current = true;
+
+        // Check for saved state
+        const saved = loadWizardState(storageKey);
+        if (saved && saved.step !== 'select_meetings') {
+          // We have a saved state with progress - show resume dialog
+          console.log('[ProposalWizard] Found saved state:', saved.step, 'showing resume dialog');
+          setSavedState(saved);
+          setShowResumeDialog(true);
+          return;
+        }
       }
 
-      // No saved state or at first step - proceed normally
+      // No saved state or already checked - proceed normally
       if (initialMeetingIds && initialMeetingIds.length > 0) {
         // If specific meetings provided, load transcripts and show focus area selection
         setSelectedMeetingIds(new Set(initialMeetingIds));
@@ -452,15 +460,19 @@ export function ProposalWizard({
         // Otherwise, show meeting selection
         loadMeetings();
       }
+    } else {
+      // Reset the flag when dialog closes so we check again next time it opens
+      hasCheckedSavedStateRef.current = false;
     }
   }, [open, initialMeetingIds, storageKey]);
 
   // Auto-save state when step changes (for completable steps)
+  // Only save when step actually changes, not on every state update
   useEffect(() => {
     if (open && COMPLETABLE_STEPS.includes(step) && step !== 'select_meetings') {
       saveCurrentState(step);
     }
-  }, [step, goals, selectedFormat, finalContent]);
+  }, [step, open]);
 
   const loadMeetings = async () => {
     setLoading(true);
@@ -838,10 +850,12 @@ Best regards`;
 
 
   const handleGenerateDocument = async () => {
+    console.log('[ProposalWizard] Starting document generation', { selectedFormat, goalsLength: goals.length });
     setStep('preview');
     setLoading(true);
     setError(null);
-    setPreviewTab('html'); // Show HTML code tab while generating
+    // Show visual preview for HTML proposals so users can watch it build, HTML code for others
+    setPreviewTab(selectedFormat === 'proposal' ? 'preview' : 'html');
 
     // Initialize with base HTML structure for proposals to prevent flashing
     if (selectedFormat === 'proposal') {
@@ -873,12 +887,14 @@ Best regards`;
   <div class="loading">Generating proposal...</div>
 </body>
 </html>`;
+      console.log('[ProposalWizard] Set initial base HTML for proposal');
       setFinalContent(baseHTML);
       setIframeContent(baseHTML);
       iframeContentRef.current = baseHTML;
       lastIframeUpdateRef.current = Date.now();
     } else {
       // Clear for SOW, email, and markdown formats
+      console.log('[ProposalWizard] Cleared content for non-proposal format');
       setFinalContent('');
       setIframeContent('');
       iframeContentRef.current = '';
@@ -890,10 +906,13 @@ Best regards`;
         return fa?.title || '';
       }).filter(Boolean);
 
+      console.log('[ProposalWizard] Prepared focus areas:', selectedFocusAreas);
       let result: GenerateResponse;
+      let chunkCount = 0;
       
       if (selectedFormat === 'sow') {
         // Use streaming for SOW
+        console.log('[ProposalWizard] Calling generateSOW with streaming');
         result = await generateSOW(
           {
             goals,
@@ -904,9 +923,20 @@ Best regards`;
           },
           (chunk: string) => {
             // Update content as chunks arrive
-            setFinalContent((prev) => prev + chunk);
+            chunkCount++;
+            if (chunkCount <= 3 || chunkCount % 20 === 0) {
+              console.log(`[ProposalWizard] SOW chunk #${chunkCount}, length: ${chunk.length}`);
+            }
+            setFinalContent((prev) => {
+              const newContent = prev + chunk;
+              if (chunkCount === 1 || chunkCount % 50 === 0) {
+                console.log(`[ProposalWizard] SOW content length: ${newContent.length}`);
+              }
+              return newContent;
+            });
           }
         );
+        console.log('[ProposalWizard] generateSOW completed', { success: result.success, contentLength: result.content?.length, chunkCount });
       } else if (selectedFormat === 'email') {
         // Use streaming for email proposals
         result = await generateEmailProposal(
@@ -939,6 +969,7 @@ Best regards`;
         );
       } else {
         // Use streaming for HTML proposals
+        console.log('[ProposalWizard] Calling generateProposal with streaming');
         result = await generateProposal(
           {
             goals,
@@ -949,6 +980,10 @@ Best regards`;
           },
           (chunk: string) => {
             // Update content as chunks arrive - replace loading div with actual content
+            chunkCount++;
+            if (chunkCount <= 3 || chunkCount % 20 === 0) {
+              console.log(`[ProposalWizard] HTML chunk #${chunkCount}, length: ${chunk.length}`);
+            }
             setFinalContent((prev) => {
               // Remove markdown code block markers from chunk
               let cleanChunk = chunk
@@ -958,44 +993,77 @@ Best regards`;
                 .replace(/^html\n?/gi, '')
                 .trim();
               
+              let newContent: string;
+              
               // If chunk contains complete HTML structure, use it directly
               if (cleanChunk.includes('<!DOCTYPE') || (cleanChunk.includes('<html') && cleanChunk.includes('</html>'))) {
                 const normalized = cleanChunk.replace(/^html\s*/i, '').trim();
-                return ensureDesignSystemApplied(normalized);
+                newContent = ensureDesignSystemApplied(normalized);
               }
-              
               // If we have base HTML with loading message, start replacing it
-              if (prev.includes('Generating proposal...')) {
+              else if (prev.includes('Generating proposal...')) {
                 // If chunk starts with HTML structure, replace entire body
                 if (cleanChunk.includes('<!DOCTYPE') || cleanChunk.includes('<html')) {
-                  return ensureDesignSystemApplied(cleanChunk);
+                  newContent = ensureDesignSystemApplied(cleanChunk);
                 }
-                
                 // Otherwise, replace loading div and append content
-                const bodyStart = prev.indexOf('<body>');
-                const bodyEnd = prev.indexOf('</body>');
-                if (bodyStart !== -1 && bodyEnd !== -1) {
-                  const beforeBody = prev.substring(0, bodyStart + 6);
-                  const afterBody = prev.substring(bodyEnd);
-                  return beforeBody + cleanChunk + afterBody;
+                else {
+                  const bodyStart = prev.indexOf('<body>');
+                  const bodyEnd = prev.indexOf('</body>');
+                  if (bodyStart !== -1 && bodyEnd !== -1) {
+                    const beforeBody = prev.substring(0, bodyStart + 6);
+                    const afterBody = prev.substring(bodyEnd);
+                    newContent = beforeBody + cleanChunk + afterBody;
+                  } else {
+                    // Fallback: just replace loading div
+                    newContent = prev.replace(/<div class="loading">Generating proposal\.\.\.<\/div>/, '') + cleanChunk;
+                  }
+                  // Apply design system if we have HTML structure
+                  if (newContent.includes('<!DOCTYPE') || newContent.includes('<html')) {
+                    newContent = ensureDesignSystemApplied(newContent);
+                  }
                 }
-                
-                // Fallback: just replace loading div
-                return prev.replace(/<div class="loading">Generating proposal\.\.\.<\/div>/, '') + cleanChunk;
+              }
+              // Otherwise, append chunk to existing content
+              else {
+                newContent = prev + cleanChunk;
+                // Apply design system if we have HTML structure
+                if (newContent.includes('<!DOCTYPE') || newContent.includes('<html')) {
+                  newContent = ensureDesignSystemApplied(newContent);
+                }
               }
               
-              // Otherwise, append chunk to existing content
-              return prev + cleanChunk;
+              // Update iframe content for real-time preview (throttled to avoid performance issues)
+              if (Date.now() - lastIframeUpdateRef.current > 200) {
+                setIframeContent(newContent);
+                iframeContentRef.current = newContent;
+                lastIframeUpdateRef.current = Date.now();
+              }
+
+              if (chunkCount === 1 || chunkCount % 50 === 0) {
+                console.log(`[ProposalWizard] HTML content length: ${newContent.length}`);
+              }
+              return newContent;
             });
           }
         );
+        console.log('[ProposalWizard] generateProposal completed', { success: result.success, contentLength: result.content?.length, chunkCount });
       }
 
+      console.log('[ProposalWizard] Generation result:', {
+        success: result.success,
+        hasContent: !!result.content,
+        contentLength: result.content?.length,
+        error: result.error
+      });
+
       if (!result.success) {
+        console.error('[ProposalWizard] Generation failed:', result.error);
         throw new Error(result.error || 'Failed to generate document');
       }
 
       if (result.content) {
+        console.log('[ProposalWizard] Processing final content, length:', result.content.length);
         // Final content received - ensure it's complete HTML for proposals
         if (selectedFormat === 'proposal') {
           // Ensure we have a complete HTML document
@@ -1043,14 +1111,35 @@ ${htmlContent}
         setError(null);
         // Switch to preview tab now that generation is complete
         setPreviewTab('preview');
+        console.log('[ProposalWizard] Successfully processed final content');
       } else {
-        throw new Error('No content received');
+        // No result.content, but check if we accumulated content via streaming
+        console.warn('[ProposalWizard] No result.content received, checking current finalContent state');
+        // We'll check finalContent in a setTimeout to allow React state updates to complete
+        setTimeout(() => {
+          setFinalContent((current) => {
+            console.log('[ProposalWizard] Current finalContent length after generation:', current.length);
+            if (!current || current.length === 0 || (selectedFormat === 'proposal' && current.includes('Generating proposal...'))) {
+              console.error('[ProposalWizard] No content available after generation');
+              setError('No content was generated. Please try again.');
+              setStatusMessage('Error: No content generated');
+            } else {
+              console.log('[ProposalWizard] Content was accumulated via streaming, proceeding with preview');
+              setStatusMessage(null);
+              setError(null);
+              setPreviewTab('preview');
+            }
+            return current;
+          });
+        }, 100);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to generate document';
+      console.error('[ProposalWizard] Exception during generation:', err);
       setError(errorMsg);
       setStatusMessage(`Error: ${errorMsg}`);
     } finally {
+      console.log('[ProposalWizard] Generation complete, setting loading=false');
       setLoading(false);
     }
   };
@@ -1154,7 +1243,7 @@ ${htmlContent}
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent 
-        className="max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="max-w-4xl max-h-[90vh] flex flex-col p-0"
         onInteractOutside={(e) => {
           // Prevent closing when clicking on any interactive element inside
           const target = e.target as HTMLElement;
@@ -1186,12 +1275,15 @@ ${htmlContent}
           }
         }}
       >
-        <DialogHeader className="pb-4">
+        <DialogHeader className="pb-4 px-6 pt-6 flex-shrink-0">
           <DialogTitle>Generate Proposal</DialogTitle>
           <DialogDescription>
             Create a proposal or SOW from call transcripts
           </DialogDescription>
         </DialogHeader>
+
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto px-6 pb-4">
 
         {/* Phase 4.1: Quick Mode vs Advanced Mode Toggle */}
         {step === 'select_meetings' && (
@@ -1237,24 +1329,33 @@ ${htmlContent}
             <div className="flex items-start gap-3">
               <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-semibold text-blue-900 dark:text-blue-100">Resume Previous Session?</h3>
+                <h3 className="font-semibold text-blue-900 dark:text-blue-100">Saved Draft Found</h3>
                 <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                  You have a saved proposal session from {new Date(savedState.savedAt).toLocaleString()}.
+                  You have an unfinished proposal from {new Date(savedState.savedAt).toLocaleString()}.
                 </p>
-                <div className="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                  <p><strong>Progress:</strong> {getStepLabel(savedState.step)}</p>
-                  {savedState.goals && <p><strong>Goals:</strong> {savedState.goals.length} characters</p>}
+                <div className="mt-2 text-sm text-blue-600 dark:text-blue-400 space-y-1">
+                  <p><strong>Last Step:</strong> {getStepLabel(savedState.step)}</p>
                   {savedState.selectedFormat && <p><strong>Format:</strong> {savedState.selectedFormat.toUpperCase()}</p>}
-                  {savedState.finalContent && <p><strong>Document:</strong> {savedState.finalContent.length} characters</p>}
+                  {savedState.goals && <p><strong>Content:</strong> {savedState.goals.length} chars of goals</p>}
+                  {savedState.finalContent && <p><strong>Document:</strong> Generated ({savedState.finalContent.length} chars)</p>}
                 </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-3 font-medium">
+                  Choose an option below:
+                </p>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={startFresh}>
-                Start Fresh
+              <Button
+                variant="outline"
+                onClick={startFresh}
+                className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Delete Draft & Start Fresh
               </Button>
               <Button onClick={() => restoreState(savedState)} className="bg-blue-600 hover:bg-blue-700">
-                Resume Session
+                <CheckCircle2 className="w-4 h-4 mr-1" />
+                Resume from "{getStepLabel(savedState.step)}"
               </Button>
             </div>
           </div>
@@ -1477,16 +1578,6 @@ ${htmlContent}
                     </div>
                   ))}
                 </div>
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleContinueFromSelection}
-                    variant="default"
-                    disabled={selectedMeetingIds.size === 0}
-                  >
-                    Continue with {selectedMeetingIds.size} Meeting{selectedMeetingIds.size !== 1 ? 's' : ''}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
               </>
             )}
           </div>
@@ -1521,9 +1612,6 @@ ${htmlContent}
                 <p className="text-yellow-800 dark:text-yellow-200">
                   No focus areas found. Proceeding with all content.
                 </p>
-                <Button onClick={handleContinueFromFocusAreas} className="mt-4" variant="default">
-                  Continue
-                </Button>
               </div>
             ) : (
               <>
@@ -1565,20 +1653,6 @@ ${htmlContent}
                       </div>
                     </div>
                   ))}
-                </div>
-                <div className="flex justify-between">
-                  <Button onClick={() => setStep('select_meetings')} variant="secondary">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleContinueFromFocusAreas}
-                    variant="default"
-                    disabled={selectedFocusAreaIds.size === 0}
-                  >
-                    Continue with {selectedFocusAreaIds.size} Focus Area{selectedFocusAreaIds.size !== 1 ? 's' : ''}
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
                 </div>
               </>
             )}
@@ -1660,22 +1734,6 @@ ${htmlContent}
                 }}
               />
             </div>
-            <div className="flex justify-between">
-              <Button onClick={handleRegenerateGoals} variant="secondary" disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Regenerate Goals
-              </Button>
-              <div className="flex gap-2">
-                <Button onClick={() => setStep('loading')} variant="secondary">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-                <Button onClick={handleApproveGoals} variant="default">
-                  Approve & Continue
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -1756,17 +1814,6 @@ ${htmlContent}
                   Target number of pages for the document
                 </p>
               </div>
-            </div>
-
-            <div className="flex justify-between">
-              <Button onClick={() => setStep('choose_format')} variant="secondary">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button onClick={handleGenerateDocument} variant="default">
-                Generate {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
             </div>
           </div>
         )}
@@ -1879,12 +1926,6 @@ ${htmlContent}
                 </CardContent>
               </Card>
             </div>
-            <div className="flex justify-end">
-              <Button onClick={() => setStep('review_goals')} variant="secondary">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            </div>
           </div>
         )}
 
@@ -1961,7 +2002,8 @@ ${htmlContent}
             {/* Advanced Mode Preview */}
             {proposalMode === 'advanced' && (
               <>
-            {loading && !finalContent ? (
+            {loading && !finalContent && selectedFormat !== 'proposal' ? (
+              // Only show pure loader for non-proposal formats when no content yet
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
                 <p className="text-gray-600 dark:text-gray-400 text-center">
@@ -1990,18 +2032,26 @@ ${htmlContent}
                   </TabsTrigger>
                 </TabsList>
                 <TabsContent value="preview" className="mt-4">
+                  {loading && (
+                    <div className="mb-3 text-center">
+                      <p className="text-sm text-blue-600 dark:text-blue-400 flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="font-medium">Watch your proposal build section by section...</span>
+                      </p>
+                    </div>
+                  )}
                   <div className="border rounded-lg overflow-hidden relative">
                     <iframe
                       ref={iframeRef}
                       srcDoc={iframeContent || finalContent}
-                      className="w-full h-[600px] border-0"
+                      className="w-full h-[600px] border-0 transition-opacity duration-300"
                       title="Proposal Preview"
                       sandbox="allow-same-origin allow-scripts"
                     />
                     {loading && (
-                      <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 z-10">
+                      <div className="absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 z-10 shadow-lg">
                         <Loader2 className="w-3 h-3 animate-spin" />
-                        Generating...
+                        Building...
                       </div>
                     )}
                   </div>
@@ -2062,26 +2112,34 @@ ${htmlContent}
                   </div>
                 )}
               </div>
+            ) : !loading && !error ? (
+              // Fallback: Content is missing but no error shown
+              <div className="border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6 text-center">
+                <AlertCircle className="w-12 h-12 text-yellow-600 dark:text-yellow-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
+                  No Content Generated
+                </h3>
+                <p className="text-yellow-700 dark:text-yellow-300 mb-4">
+                  The generation completed but no content was produced. This could be due to:
+                </p>
+                <ul className="text-left text-sm text-yellow-700 dark:text-yellow-300 mb-4 max-w-md mx-auto">
+                  <li className="mb-2">• Network interruption during streaming</li>
+                  <li className="mb-2">• AI model timeout or rate limiting</li>
+                  <li className="mb-2">• Configuration issue with the generation service</li>
+                </ul>
+                <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-4">
+                  Please check the browser console for detailed logs.
+                </p>
+                <Button onClick={() => {
+                  console.log('[ProposalWizard] User clicked retry from fallback UI');
+                  handleGenerateDocument();
+                }} variant="default">
+                  Try Again
+                </Button>
+              </div>
             ) : null}
               </>
             )}
-            <div className="flex justify-between">
-              <Button onClick={() => setStep('choose_format')} variant="secondary">
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <div className="flex gap-2">
-                <Button onClick={() => {
-                  setShouldClose(true);
-                  handleClose();
-                }} variant="secondary">
-                  Cancel
-                </Button>
-                <Button onClick={handleSave} variant="default" disabled={!finalContent || loading}>
-                  Save & Share
-                </Button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -2237,11 +2295,118 @@ ${htmlContent}
                 <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
               </div>
             )}
-
-            <div className="flex justify-end pt-4 border-t">
+          </div>
+        )}
+        </div>
+        {/* Fixed button footer - always visible */}
+        <div className="flex-shrink-0 border-t bg-background px-6 py-4">
+          {step === 'select_meetings' && !showResumeDialog && (
+            <div className="flex justify-end">
+              {meetings.length > 0 && selectedMeetingIds.size > 0 && (
+                <Button
+                  onClick={handleContinueFromSelection}
+                  variant="default"
+                  disabled={selectedMeetingIds.size === 0}
+                >
+                  Continue with {selectedMeetingIds.size} Meeting{selectedMeetingIds.size !== 1 ? 's' : ''}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
+            </div>
+          )}
+          {step === 'analyze_focus' && !showResumeDialog && (
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('select_meetings')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button
+                onClick={handleContinueFromFocusAreas}
+                variant="default"
+                disabled={focusAreas.length > 0 && selectedFocusAreaIds.size === 0}
+              >
+                {focusAreas.length === 0 
+                  ? 'Continue' 
+                  : `Continue with ${selectedFocusAreaIds.size} Focus Area${selectedFocusAreaIds.size !== 1 ? 's' : ''}`}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {step === 'loading' && !showResumeDialog && (
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('analyze_focus')} variant="secondary" disabled={loading}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              {goals && goals.length > 0 && !loading && (
+                <Button onClick={() => setStep('review_goals')} variant="default">
+                  Continue to Review
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              )}
+            </div>
+          )}
+          {step === 'review_goals' && !showResumeDialog && (
+            <div className="flex justify-between">
+              <Button onClick={handleRegenerateGoals} variant="secondary" disabled={loading}>
+                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Regenerate Goals
+              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => setStep('loading')} variant="secondary">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button onClick={handleApproveGoals} variant="default">
+                  Approve & Continue
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          )}
+          {step === 'choose_format' && !showResumeDialog && (
+            <div className="flex justify-end">
+              <Button onClick={() => setStep('review_goals')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            </div>
+          )}
+          {step === 'configure_document' && !showResumeDialog && (
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('choose_format')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button onClick={handleGenerateDocument} variant="default">
+                Generate {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          )}
+          {step === 'preview' && !showResumeDialog && (
+            <div className="flex justify-between">
+              <Button onClick={() => setStep('choose_format')} variant="secondary">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <div className="flex gap-2">
+                <Button onClick={() => {
+                  setShouldClose(true);
+                  handleClose();
+                }} variant="secondary">
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} variant="default" disabled={!finalContent || loading}>
+                  Save & Share
+                </Button>
+              </div>
+            </div>
+          )}
+          {step === 'share' && !showResumeDialog && (
+            <div className="flex justify-end">
               <Button
                 onClick={() => {
-                  // Clear saved state and close
                   clearWizardState(storageKey);
                   setShouldClose(true);
                   handleClose();
@@ -2251,8 +2416,8 @@ ${htmlContent}
                 Done
               </Button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

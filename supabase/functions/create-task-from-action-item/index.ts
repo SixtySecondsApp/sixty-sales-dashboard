@@ -7,10 +7,13 @@ const corsHeaders = {
 }
 
 /**
- * Manual Task Creation from Action Item
+ * DEPRECATED: Manual Task Creation from Action Item
+ *
+ * This function is deprecated and now redirects to create-task-unified.
+ * Use create-task-unified directly for all new implementations.
  *
  * Purpose: Creates a task from a meeting action item when user clicks "Create Task" button
- * This replaces the automatic trigger with manual user control
+ * Migration: All logic moved to create-task-unified for consistency
  */
 serve(async (req) => {
   // Handle CORS preflight
@@ -19,6 +22,8 @@ serve(async (req) => {
   }
 
   try {
+    console.warn('[create-task-from-action-item] DEPRECATED: This function redirects to create-task-unified. Use create-task-unified directly.')
+
     // Get authenticated user
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -49,138 +54,62 @@ serve(async (req) => {
     if (!action_item_id) {
       throw new Error('action_item_id is required')
     }
-    // Get the action item
-    const { data: actionItem, error: fetchError } = await supabase
-      .from('meeting_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          company_id,
-          primary_contact_id,
-          owner_user_id
-        )
-      `)
-      .eq('id', action_item_id)
-      .single()
 
-    if (fetchError || !actionItem) {
-      throw new Error(`Action item not found: ${fetchError?.message}`)
+    // Call unified function in manual mode
+    console.log(`[create-task-from-action-item] Redirecting to create-task-unified for action item ${action_item_id}`)
+
+    const { data: result, error: invokeError } = await supabase.functions.invoke(
+      'create-task-unified',
+      {
+        body: {
+          mode: 'manual',
+          action_item_ids: [action_item_id],
+          source: 'action_item'
+        },
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    )
+
+    if (invokeError) {
+      throw new Error(`Unified function error: ${invokeError.message}`)
     }
 
-    // Check if task already exists
-    if (actionItem.task_id) {
+    // Check if task was created
+    if (result?.success && result.tasks_created > 0 && result.tasks?.length > 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          task: result.tasks[0],
+          message: 'Task created successfully',
+          note: 'This endpoint is deprecated. Use create-task-unified directly.'
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    } else if (result?.errors?.length > 0) {
+      // Return the first error
+      const error = result.errors[0]
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Task already exists for this action item',
-          task_id: actionItem.task_id
+          error: error.error,
+          action_item_id: error.action_item_id
         }),
         {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       )
-    }
-
-    // Determine assignee
-    let assignedTo = user.id // Default to current user
-
-    if (actionItem.assignee_email) {
-      // Try to find user by email
-      const { data: assigneeUser } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', actionItem.assignee_email)
-        .single()
-
-      if (assigneeUser) {
-        assignedTo = assigneeUser.id
-      }
-    }
-
-    // Calculate due date
-    let dueDate = null
-    if (actionItem.due_date) {
-      dueDate = actionItem.due_date
     } else {
-      // Default to 3 days from now
-      const threeDays = new Date()
-      threeDays.setDate(threeDays.getDate() + 3)
-      dueDate = threeDays.toISOString()
+      throw new Error('Unexpected response from unified function')
     }
-
-    // Map category to task_type
-    const taskTypeMapping: Record<string, string> = {
-      'follow_up': 'follow_up',
-      'follow-up': 'follow_up',
-      'proposal': 'proposal',
-      'demo': 'demo',
-      'meeting': 'meeting',
-      'research': 'research',
-      'internal': 'internal'
-    }
-    const taskType = taskTypeMapping[actionItem.category?.toLowerCase() || ''] || 'follow_up'
-
-    // Create the task
-    // IMPORTANT: tasks table uses 'created_by' NOT 'user_id'
-    const { data: newTask, error: taskError } = await supabase
-      .from('tasks')
-      .insert({
-        title: actionItem.title || actionItem.description,
-        description: `Action item from meeting: ${actionItem.meeting?.title}\n\n${actionItem.description || ''}`,
-        due_date: dueDate,
-        priority: actionItem.priority || 'medium',
-        status: actionItem.completed ? 'completed' : 'pending',
-        task_type: taskType,
-        assigned_to: assignedTo,
-        created_by: user.id,  // CORRECT: tasks table uses 'created_by' not 'user_id'
-        company_id: actionItem.meeting?.company_id,
-        contact_id: actionItem.meeting?.primary_contact_id,
-        meeting_id: actionItem.meeting_id,
-        source: 'fathom_action_item',
-        metadata: {
-          action_item_id: actionItem.id,
-          fathom_meeting_id: actionItem.meeting_id,
-          recording_timestamp: actionItem.recording_timestamp,
-          recording_playback_url: actionItem.recording_playback_url
-        }
-      })
-      .select()
-      .single()
-
-    if (taskError) {
-      throw new Error(`Failed to create task: ${taskError.message}`)
-    }
-    // Update action item with task_id and sync status
-    const { error: updateError } = await supabase
-      .from('meeting_action_items')
-      .update({
-        task_id: newTask.id,
-        synced_to_task: true,
-        sync_status: 'synced',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', action_item_id)
-
-    if (updateError) {
-      // Don't fail the request - task was created successfully
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        task: newTask,
-        message: 'Task created successfully'
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    )
 
   } catch (error) {
+    console.error('[create-task-from-action-item] Error:', error)
     return new Response(
       JSON.stringify({
         success: false,

@@ -26,10 +26,23 @@ interface SentimentAnalysis {
   keyMoments: string[]
 }
 
+interface CoachingInsights {
+  rating: number // 1-10 scale
+  summary: string // Overall assessment with specific feedback
+  strengths: string[] // What the rep did well
+  improvements: string[] // Areas for improvement with actionable suggestions
+  evaluationBreakdown: {
+    area: string
+    score: number // 1-10
+    feedback: string
+  }[]
+}
+
 export interface TranscriptAnalysis {
   actionItems: ActionItem[]
   talkTime: TalkTimeAnalysis
   sentiment: SentimentAnalysis
+  coaching: CoachingInsights
 }
 
 interface Meeting {
@@ -54,8 +67,50 @@ export async function analyzeTranscriptWithClaude(
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
 
+  // Fetch user coaching preferences if available
+  let coachingPreferences: any = null
+  let referenceMeetings: any = null
+  if (userId && supabaseClient) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('user_coaching_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single()
+
+      if (!error && data) {
+        coachingPreferences = data
+
+        // Fetch reference meetings if user has selected them
+        if ((data.good_example_meeting_ids?.length > 0) || (data.bad_example_meeting_ids?.length > 0)) {
+          try {
+            const { data: refMeetingsData, error: refError } = await supabaseClient.rpc(
+              'get_coaching_reference_meetings',
+              {
+                p_user_id: userId,
+                p_good_meeting_ids: data.good_example_meeting_ids || [],
+                p_bad_meeting_ids: data.bad_example_meeting_ids || []
+              }
+            )
+
+            if (!refError && refMeetingsData) {
+              referenceMeetings = refMeetingsData
+            }
+          } catch (refError) {
+            // Non-fatal - continue without reference meetings
+            console.warn('Failed to fetch reference meetings:', refError instanceof Error ? refError.message : String(refError))
+          }
+        }
+      }
+    } catch (error) {
+      // Non-fatal - continue with default coaching criteria
+      console.warn('Failed to fetch coaching preferences:', error instanceof Error ? error.message : String(error))
+    }
+  }
+
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
-  const prompt = buildAnalysisPrompt(transcript, meeting)
+  const prompt = buildAnalysisPrompt(transcript, meeting, coachingPreferences, referenceMeetings)
 
   // Apply custom extraction rules first if userId and supabase client provided
   let ruleBasedActionItems: ActionItem[] = []
@@ -112,14 +167,77 @@ export async function analyzeTranscriptWithClaude(
 /**
  * Build the analysis prompt for Claude
  */
-function buildAnalysisPrompt(transcript: string, meeting: Meeting): string {
+function buildAnalysisPrompt(transcript: string, meeting: Meeting, coachingPreferences?: any, referenceMeetings?: any): string {
   const meetingDate = new Date(meeting.meeting_start).toISOString().split('T')[0]
+  const currentDate = new Date().toISOString().split('T')[0]  // Current date for deadline calculations
+
+  // Build coaching section based on user preferences or defaults
+  const coachingFramework = coachingPreferences?.coaching_framework ||
+    'Evaluate the sales representative\'s performance across key areas: discovery, objection handling, value articulation, closing technique, and relationship building.'
+
+  const evaluationCriteria = coachingPreferences?.evaluation_criteria || [
+    {area: 'Discovery', weight: 20, description: 'How well did the rep uncover customer needs and pain points?'},
+    {area: 'Listening', weight: 20, description: 'Did the rep actively listen and respond appropriately?'},
+    {area: 'Value Articulation', weight: 20, description: 'How clearly did the rep communicate value and differentiation?'},
+    {area: 'Objection Handling', weight: 20, description: 'How effectively did the rep address concerns and objections?'},
+    {area: 'Next Steps', weight: 20, description: 'Did the rep secure clear next steps and commitment?'}
+  ]
+
+  const goodExamples = coachingPreferences?.good_examples ||
+    'GOOD EXAMPLES:\n- "Tell me more about your current process..." (open-ended discovery)\n- "Based on what you shared, here\'s how we can help..." (value alignment)\n- "That\'s a great concern. Here\'s how we address that..." (confident objection handling)\n- "Let\'s get that demo scheduled for next Tuesday - does 2pm work?" (clear next step)'
+
+  const badExamples = coachingPreferences?.bad_examples ||
+    'BAD EXAMPLES:\n- Talking more than 70% of the time (poor listening)\n- Pitching features before understanding needs (premature presentation)\n- Avoiding or dismissing objections (defensive behavior)\n- Ending without clear next steps or commitment (weak closing)'
+
+  // Build reference meetings context if available
+  let referenceMeetingsContext = ''
+  if (referenceMeetings) {
+    if (referenceMeetings.good_examples?.length > 0) {
+      referenceMeetingsContext += '\n\n📞 REFERENCE: EXCELLENT CALLS TO EMULATE\n'
+      referenceMeetingsContext += 'The user has marked these actual recorded calls as excellent examples to benchmark against:\n'
+      referenceMeetings.good_examples.forEach((meeting: any, i: number) => {
+        const meetingDate = new Date(meeting.meeting_start).toLocaleDateString()
+        const rating = meeting.coach_rating ? `${meeting.coach_rating}/10` : 'Unrated'
+        const sentiment = meeting.sentiment_score ? `${(meeting.sentiment_score * 100).toFixed(0)}% positive` : 'N/A'
+        referenceMeetingsContext += `\n${i + 1}. "${meeting.title}" (${meetingDate})\n`
+        referenceMeetingsContext += `   Rating: ${rating} | Sentiment: ${sentiment}\n`
+        referenceMeetingsContext += `   Transcript excerpt: "${meeting.transcript_preview}..."\n`
+      })
+      referenceMeetingsContext += '\nWhen coaching, compare this call to the excellent examples above. What did those calls do well that this call could emulate?\n'
+    }
+
+    if (referenceMeetings.bad_examples?.length > 0) {
+      referenceMeetingsContext += '\n\n⚠️ REFERENCE: CALLS WITH ISSUES TO AVOID\n'
+      referenceMeetingsContext += 'The user has marked these actual recorded calls as examples of techniques to avoid:\n'
+      referenceMeetings.bad_examples.forEach((meeting: any, i: number) => {
+        const meetingDate = new Date(meeting.meeting_start).toLocaleDateString()
+        const rating = meeting.coach_rating ? `${meeting.coach_rating}/10` : 'Unrated'
+        const sentiment = meeting.sentiment_score ? `${(meeting.sentiment_score * 100).toFixed(0)}% positive` : 'N/A'
+        referenceMeetingsContext += `\n${i + 1}. "${meeting.title}" (${meetingDate})\n`
+        referenceMeetingsContext += `   Rating: ${rating} | Sentiment: ${sentiment}\n`
+        referenceMeetingsContext += `   Transcript excerpt: "${meeting.transcript_preview}..."\n`
+      })
+      referenceMeetingsContext += '\nWhen coaching, identify if this call exhibits any of the problematic patterns from the examples above.\n'
+    }
+  }
+
+  const ratingScale = coachingPreferences?.rating_scale || {
+    '1-3': 'Poor - Significant improvement needed. Multiple areas performed below standard.',
+    '4-5': 'Below Average - Some good moments but key areas need work.',
+    '6-7': 'Good - Solid performance with a few areas to improve.',
+    '8-9': 'Excellent - Strong performance across most areas.',
+    '10': 'Outstanding - Exceptional performance, best-in-class execution.'
+  }
+
+  const customInstructions = coachingPreferences?.custom_instructions ||
+    'Focus on actionable feedback. Be specific about what was done well and what could be improved. Provide 2-3 concrete improvement suggestions.'
 
   return `Analyze this sales call transcript and extract structured information.
 
 MEETING CONTEXT:
 - Title: ${meeting.title}
-- Date: ${meetingDate}
+- Meeting Date: ${meetingDate}
+- Today's Date: ${currentDate}
 - Host: ${meeting.owner_email || 'Unknown'}
 
 TRANSCRIPT:
@@ -152,15 +270,20 @@ Please analyze the transcript and provide:
    - Title: Clear, specific description of what needs to be done
    - Assigned to: Person's name who should do it (sales rep name, customer name, or role like "Sales Team" or "Customer")
    - Assigned to email: Email address if mentioned, otherwise null
-   - Deadline: Date when it's due (relative to ${meetingDate}). Parse phrases like:
-     * "tomorrow" = 1 day from meeting date
-     * "next week" = 7 days from meeting date
-     * "end of week" = nearest Friday from meeting date
-     * "by Friday" = nearest Friday from meeting date
-     * "in 2 days" = 2 days from meeting date
-     * If no deadline mentioned, use null
+   - Deadline: Date when it's due. CRITICAL - Calculate relative to TODAY's date (${currentDate}), NOT the meeting date! Parse phrases like:
+     * "tomorrow" = ${currentDate} + 1 day
+     * "next week" = ${currentDate} + 7 days
+     * "end of week" = nearest Friday from ${currentDate}
+     * "by Friday" = nearest Friday from ${currentDate}
+     * "in 2 days" = ${currentDate} + 2 days
+     * EXCEPTION: If explicitly mentioned relative to the call (e.g., "right after this call", "same day as meeting"), use meeting date: ${meetingDate}
+     * If no deadline mentioned or vague ("soon", "later"), use null
    - Category: Map to ONE of: call, email, meeting, follow_up, proposal, demo, general (use general for anything else)
    - Priority: Assess as high (urgent/time-sensitive), medium (important but flexible), or low (nice to have)
+   - Importance: Classify as high, medium, or low based on business impact and urgency
+     * high = Must be done, explicit commitment, deadline <7 days, critical for deal progression
+     * medium = Should be done, standard follow-up, deadline 7-30 days, important for relationship
+     * low = Nice to have, optional task, vague commitment, exploratory, no immediate deadline
    - Confidence: How confident are you this is a real action item (0.0 to 1.0)
      * 0.9-1.0: Explicit commitment ("I will...")
      * 0.7-0.9: Strong indication ("We should...")
@@ -179,6 +302,29 @@ Please analyze the transcript and provide:
    - Reasoning: Brief explanation of why you gave this score
    - Key moments: List 2-3 significant positive or negative moments
 
+4. SALES COACHING INSIGHTS:
+   ${coachingFramework}
+
+   EVALUATION CRITERIA (rate each area 1-10):
+${evaluationCriteria.map((c: any) => `   - ${c.area} (${c.weight}% weight): ${c.description}`).join('\n')}
+
+   ${goodExamples}
+
+   ${badExamples}
+${referenceMeetingsContext}
+
+   RATING SCALE:
+${Object.entries(ratingScale).map(([range, desc]) => `   ${range}: ${desc}`).join('\n')}
+
+   ${customInstructions}
+
+   Provide:
+   - Overall rating (1-10): Holistic assessment of the sales rep's performance
+   - Summary: 2-3 sentence overall assessment highlighting key strengths and areas for improvement
+   - Strengths: List 2-3 specific things the rep did well with examples from the call
+   - Improvements: List 2-3 actionable suggestions with specific examples of what could be done better
+   - Evaluation breakdown: Score (1-10) and brief feedback for each criterion above
+
 Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most important action items that meet the criteria:
 {
   "actionItems": [
@@ -189,6 +335,7 @@ Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most imp
       "deadline": "2025-11-05",
       "category": "proposal",
       "priority": "high",
+      "importance": "high",
       "confidence": 0.95
     },
     {
@@ -198,6 +345,7 @@ Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most imp
       "deadline": "2025-11-08",
       "category": "demo",
       "priority": "high",
+      "importance": "high",
       "confidence": 0.9
     },
     {
@@ -207,6 +355,7 @@ Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most imp
       "deadline": "2025-11-10",
       "category": "follow_up",
       "priority": "medium",
+      "importance": "medium",
       "confidence": 0.85
     },
     {
@@ -216,6 +365,7 @@ Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most imp
       "deadline": null,
       "category": "general",
       "priority": "high",
+      "importance": "medium",
       "confidence": 0.8
     }
   ],
@@ -231,6 +381,47 @@ Return ONLY valid JSON in this exact format and include ONLY 3-8 of the most imp
       "Customer expressed enthusiasm about the product",
       "Pricing concerns were addressed satisfactorily",
       "Clear next steps established"
+    ]
+  },
+  "coaching": {
+    "rating": 8,
+    "summary": "Strong performance overall with excellent discovery and value articulation. The rep demonstrated active listening and built good rapport. Key improvement area is objection handling - could be more confident and provide specific examples.",
+    "strengths": [
+      "Excellent discovery questions that uncovered the customer's pain points around manual processes",
+      "Strong value articulation linking features directly to their needs",
+      "Built genuine rapport and engaged the customer effectively"
+    ],
+    "improvements": [
+      "When addressing pricing concerns, provide specific ROI examples rather than generic statements",
+      "Ask more probing questions when customer raises objections to understand the root concern",
+      "Secure more specific next steps with exact dates rather than 'early next week'"
+    ],
+    "evaluationBreakdown": [
+      {
+        "area": "Discovery",
+        "score": 9,
+        "feedback": "Excellent open-ended questions. Uncovered multiple pain points and decision criteria."
+      },
+      {
+        "area": "Listening",
+        "score": 8,
+        "feedback": "Good listening with appropriate follow-up questions. Could pause more to let customer elaborate."
+      },
+      {
+        "area": "Value Articulation",
+        "score": 8,
+        "feedback": "Clearly connected features to customer needs. Strong differentiation messaging."
+      },
+      {
+        "area": "Objection Handling",
+        "score": 7,
+        "feedback": "Addressed concerns but could be more confident. Provide specific data/examples."
+      },
+      {
+        "area": "Next Steps",
+        "score": 7,
+        "feedback": "Secured follow-up meeting but could be more specific with dates and agenda."
+      }
     ]
   }
 }
@@ -300,10 +491,34 @@ function parseClaudeResponse(content: string): TranscriptAnalysis {
         : [],
     }
 
+    // Validate and normalize coaching insights
+    if (!parsed.coaching || typeof parsed.coaching !== 'object') {
+      throw new Error('Missing or invalid coaching object')
+    }
+
+    const coaching: CoachingInsights = {
+      rating: Math.min(Math.max(Number(parsed.coaching.rating || 5), 1), 10),
+      summary: String(parsed.coaching.summary || 'No assessment provided'),
+      strengths: Array.isArray(parsed.coaching.strengths)
+        ? parsed.coaching.strengths.map(String).slice(0, 5)
+        : [],
+      improvements: Array.isArray(parsed.coaching.improvements)
+        ? parsed.coaching.improvements.map(String).slice(0, 5)
+        : [],
+      evaluationBreakdown: Array.isArray(parsed.coaching.evaluationBreakdown)
+        ? parsed.coaching.evaluationBreakdown.map((item: any) => ({
+            area: String(item.area || 'Unknown'),
+            score: Math.min(Math.max(Number(item.score || 5), 1), 10),
+            feedback: String(item.feedback || 'No feedback provided'),
+          }))
+        : [],
+    }
+
     return {
       actionItems,
       talkTime,
       sentiment,
+      coaching,
     }
   } catch (error) {
     throw new Error(`Failed to parse Claude response: ${error.message}`)

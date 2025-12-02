@@ -109,10 +109,12 @@ export async function validateReferralCode(code: string): Promise<boolean> {
 export async function getWaitlistEntries(
   filters?: WaitlistFilters
 ): Promise<WaitlistEntry[]> {
+  // Try to use the waitlist_with_rank view first (with display_rank for proper tie-breaking)
+  // If it doesn't exist (migrations not run yet), fall back to meetings_waitlist table
   let query = supabase
-    .from('meetings_waitlist')
+    .from('waitlist_with_rank')
     .select('*')
-    .order('effective_position', { ascending: true });
+    .order('display_rank', { ascending: true });
 
   // Apply filters
   if (filters) {
@@ -148,6 +150,59 @@ export async function getWaitlistEntries(
   }
 
   const { data, error } = await query;
+
+  // If the view doesn't exist (42P01 error code), fall back to the raw table
+  if (error && error.code === '42P01') {
+    console.warn('waitlist_with_rank view not found, falling back to meetings_waitlist table. Run migrations to fix position ties.');
+
+    // Fallback query using the raw table
+    let fallbackQuery = supabase
+      .from('meetings_waitlist')
+      .select('*')
+      .order('effective_position', { ascending: true });
+
+    // Reapply the same filters
+    if (filters) {
+      if (filters.status && filters.status !== 'all') {
+        fallbackQuery = fallbackQuery.eq('status', filters.status);
+      }
+
+      if (filters.dialer_tool) {
+        fallbackQuery = fallbackQuery.eq('dialer_tool', filters.dialer_tool);
+      }
+
+      if (filters.meeting_recorder_tool) {
+        fallbackQuery = fallbackQuery.eq('meeting_recorder_tool', filters.meeting_recorder_tool);
+      }
+
+      if (filters.crm_tool) {
+        fallbackQuery = fallbackQuery.eq('crm_tool', filters.crm_tool);
+      }
+
+      if (filters.date_from) {
+        fallbackQuery = fallbackQuery.gte('created_at', filters.date_from);
+      }
+
+      if (filters.date_to) {
+        fallbackQuery = fallbackQuery.lte('created_at', filters.date_to);
+      }
+
+      if (filters.search) {
+        fallbackQuery = fallbackQuery.or(
+          `email.ilike.%${filters.search}%,full_name.ilike.%${filters.search}%,company_name.ilike.%${filters.search}%`
+        );
+      }
+    }
+
+    const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+
+    if (fallbackError) {
+      console.error('Error getting waitlist entries:', fallbackError);
+      throw new Error('Failed to get waitlist entries');
+    }
+
+    return fallbackData || [];
+  }
 
   if (error) {
     console.error('Error getting waitlist entries:', error);

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Auth State</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .data-row {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        .key { color: #f59e0b; font-weight: bold; }
+        .value { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Auth State</h1>
+    
+    <div class="section">
+        <h2>Actions</h2>
+        <button onclick="checkAuthState()">Check Auth State</button>
+        <button onclick="checkProfile()">Check Profile</button>
+        <button onclick="testDataFetch()">Test Data Fetch</button>
+        <button onclick="forceRefresh()">Force Refresh Session</button>
+    </div>
+
+    <div class="section">
+        <h2>Current Session</h2>
+        <div id="session-info"></div>
+    </div>
+
+    <div class="section">
+        <h2>Profile Data</h2>
+        <div id="profile-info"></div>
+    </div>
+
+    <div class="section">
+        <h2>Data Access Test</h2>
+        <div id="data-test"></div>
+    </div>
+
+    <div class="section">
+        <h2>Debug Log</h2>
+        <pre id="debug-log"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            console.log(`[${type.toUpperCase()}]`, message);
+        }
+        
+        window.checkAuthState = async function() {
+            log('Checking authentication state...');
+            
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                log(`Error getting session: ${error.message}`, 'error');
+                return;
+            }
+            
+            const sessionDiv = document.getElementById('session-info');
+            
+            if (session) {
+                log('✅ Session found', 'success');
+                
+                // Check if session is valid
+                const isAuthenticated = !!session.user && !!session.access_token;
+                
+                sessionDiv.innerHTML = `
+                    <div class="success">✅ Active Session</div>
+                    <div class="data-row">
+                        <span class="key">User ID:</span> <span class="value">${session.user.id}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Email:</span> <span class="value">${session.user.email}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Has Access Token:</span> <span class="value">${!!session.access_token}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Has Refresh Token:</span> <span class="value">${!!session.refresh_token}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Is Authenticated (per authUtils):</span> <span class="value ${isAuthenticated ? 'success' : 'error'}">${isAuthenticated}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Expires At:</span> <span class="value">${new Date(session.expires_at * 1000).toLocaleString()}</span>
+                    </div>
+                `;
+            } else {
+                log('❌ No session found', 'error');
+                sessionDiv.innerHTML = '<div class="error">❌ No Active Session</div>';
+            }
+        }
+        
+        window.checkProfile = async function() {
+            log('Checking profile data...');
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (!session) {
+                log('No session to check profile', 'error');
+                return;
+            }
+            
+            const profileDiv = document.getElementById('profile-info');
+            
+            // Try to fetch profile by email
+            const { data: profileByEmail, error: emailError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('email', session.user.email)
+                .maybeSingle();
+                
+            if (profileByEmail) {
+                log('✅ Profile found by email', 'success');
+                profileDiv.innerHTML = `
+                    <div class="success">✅ Profile Found (by email)</div>
+                    <div class="data-row">
+                        <span class="key">Name:</span> <span class="value">${profileByEmail.first_name} ${profileByEmail.last_name}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Email:</span> <span class="value">${profileByEmail.email}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Stage:</span> <span class="value">${profileByEmail.stage}</span>
+                    </div>
+                    <div class="data-row">
+                        <span class="key">Is Admin:</span> <span class="value ${profileByEmail.is_admin ? 'success' : ''}">${profileByEmail.is_admin}</span>
+                    </div>
+                `;
+            } else {
+                log('Email lookup failed, trying ID...', 'warning');
+                
+                // Try by ID
+                const { data: profileById, error: idError } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+                    
+                if (profileById) {
+                    log('✅ Profile found by ID', 'success');
+                    profileDiv.innerHTML = `
+                        <div class="success">✅ Profile Found (by ID)</div>
+                        <div class="data-row">
+                            <span class="key">Name:</span> <span class="value">${profileById.first_name} ${profileById.last_name}</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="key">Email:</span> <span class="value">${profileById.email}</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="key">Stage:</span> <span class="value">${profileById.stage}</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="key">Is Admin:</span> <span class="value ${profileById.is_admin ? 'success' : ''}">${profileById.is_admin}</span>
+                        </div>
+                    `;
+                } else {
+                    log('❌ No profile found', 'error');
+                    profileDiv.innerHTML = '<div class="error">❌ No Profile Found</div>';
+                }
+            }
+        }
+        
+        window.testDataFetch = async function() {
+            log('Testing data fetch capabilities...');
+            
+            const dataDiv = document.getElementById('data-test');
+            let html = '';
+            
+            // Test fetching deals
+            const { data: deals, error: dealsError } = await supabase
+                .from('deals')
+                .select('*')
+                .limit(5);
+                
+            if (deals) {
+                log(`✅ Can fetch deals (found ${deals.length})`, 'success');
+                html += `<div class="success">✅ Deals: ${deals.length} records accessible</div>`;
+            } else {
+                log(`❌ Cannot fetch deals: ${dealsError?.message}`, 'error');
+                html += `<div class="error">❌ Deals: ${dealsError?.message}</div>`;
+            }
+            
+            // Test fetching activities
+            const { data: activities, error: activitiesError } = await supabase
+                .from('activities')
+                .select('*')
+                .limit(5);
+                
+            if (activities) {
+                log(`✅ Can fetch activities (found ${activities.length})`, 'success');
+                html += `<div class="success">✅ Activities: ${activities.length} records accessible</div>`;
+            } else {
+                log(`❌ Cannot fetch activities: ${activitiesError?.message}`, 'error');
+                html += `<div class="error">❌ Activities: ${activitiesError?.message}</div>`;
+            }
+            
+            // Test fetching tasks
+            const { data: tasks, error: tasksError } = await supabase
+                .from('tasks')
+                .select('*')
+                .limit(5);
+                
+            if (tasks) {
+                log(`✅ Can fetch tasks (found ${tasks.length})`, 'success');
+                html += `<div class="success">✅ Tasks: ${tasks.length} records accessible</div>`;
+            } else {
+                log(`❌ Cannot fetch tasks: ${tasksError?.message}`, 'error');
+                html += `<div class="error">❌ Tasks: ${tasksError?.message}</div>`;
+            }
+            
+            dataDiv.innerHTML = html;
+        }
+        
+        window.forceRefresh = async function() {
+            log('Forcing session refresh...');
+            
+            const { data, error } = await supabase.auth.refreshSession();
+            
+            if (error) {
+                log(`Refresh failed: ${error.message}`, 'error');
+            } else if (data.session) {
+                log('✅ Session refreshed successfully!', 'success');
+                checkAuthState();
+            } else {
+                log('No session to refresh', 'warning');
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            checkAuthState();
+        });
+    </script>
+</body>
+</html>

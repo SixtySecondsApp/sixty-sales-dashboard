@@ -450,8 +450,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/clients" element={<InternalRouteGuard><AppLayout><Clients /></AppLayout></InternalRouteGuard>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-                <Route path="/preferences" element={<Navigate to="/settings" replace />} />
-                <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/preferences" element={<Navigate to="/settings/user" replace />} />
+                <Route path="/settings" element={<Navigate to="/settings/user" replace />} />
+                <Route path="/settings/user" element={<AppLayout><SettingsPage /></AppLayout>} />
                 <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />

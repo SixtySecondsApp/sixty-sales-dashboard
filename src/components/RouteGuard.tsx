@@ -74,31 +74,46 @@ export function RouteGuard({
 
   // Determine if user has access based on 3-tier model
   const hasAccess = React.useMemo(() => {
-    switch (requiredAccess) {
-      case 'any':
-        return true;
+    const access = (() => {
+      switch (requiredAccess) {
+        case 'any':
+          return true;
 
-      case 'internal':
-        // Internal users only (legacy support)
-        return effectiveUserType === 'internal';
+        case 'internal':
+          // Internal users only (legacy support)
+          return effectiveUserType === 'internal';
 
-      case 'external':
-        // External users only
-        return effectiveUserType === 'external';
+        case 'external':
+          // External users only
+          return effectiveUserType === 'external';
 
-      case 'admin':
-      case 'platformAdmin':
-        // Tier 3: Platform Admin (internal + is_admin)
-        return isPlatformAdmin;
+        case 'admin':
+        case 'platformAdmin':
+          // Tier 3: Platform Admin (internal + is_admin)
+          return isPlatformAdmin;
 
-      case 'orgAdmin':
-        // Tier 2: Org Admin (org role owner/admin) OR Platform Admin
-        return isOrgAdmin || isPlatformAdmin;
+        case 'orgAdmin':
+          // Tier 2: Org Admin (org role owner/admin) OR Platform Admin
+          return isOrgAdmin || isPlatformAdmin;
 
-      default:
-        return true;
+        default:
+          return true;
+      }
+    })();
+
+    // Debug logging
+    if (requiredAccess === 'platformAdmin') {
+      console.log('[RouteGuard] Platform Admin Check:', {
+        requiredAccess,
+        isPlatformAdmin,
+        effectiveUserType,
+        isAdmin,
+        hasAccess: access,
+      });
     }
-  }, [requiredAccess, effectiveUserType, isPlatformAdmin, isOrgAdmin]);
+
+    return access;
+  }, [requiredAccess, effectiveUserType, isPlatformAdmin, isOrgAdmin, isAdmin]);
 
   // Redirect if no access
   useEffect(() => {

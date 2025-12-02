@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Debug Google Integration</title>
+  <style>
+    body {
+      font-family: 'Monaco', 'Menlo', monospace;
+      background: #1a1a1a;
+      color: #00ff00;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00ff00;
+      border-bottom: 2px solid #00ff00;
+      padding-bottom: 10px;
+    }
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #0a0a0a;
+      border: 1px solid #00ff00;
+      border-radius: 5px;
+    }
+    .success {
+      color: #00ff00;
+    }
+    .error {
+      color: #ff0000;
+    }
+    .warning {
+      color: #ffaa00;
+    }
+    .info {
+      color: #00aaff;
+    }
+    pre {
+      background: #000;
+      padding: 10px;
+      border-radius: 3px;
+      overflow-x: auto;
+    }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 10px 5px;
+      border-radius: 3px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #333;
+    }
+    .log-entry.success {
+      border-left-color: #00ff00;
+    }
+    .log-entry.error {
+      border-left-color: #ff0000;
+    }
+    .log-entry.warning {
+      border-left-color: #ffaa00;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Google OAuth Integration Debugger</h1>
+    
+    <div class="section">
+      <h2>Controls</h2>
+      <button onclick="runAllTests()">Run All Tests</button>
+      <button onclick="clearOutput()">Clear Output</button>
+      <button onclick="checkAuth()">Check Auth</button>
+      <button onclick="checkIntegration()">Check Integration</button>
+      <button onclick="testRPCFunctions()">Test RPC Functions</button>
+      <button onclick="queryDirectly()">Query Directly</button>
+    </div>
+
+    <div class="section">
+      <h2>Output</h2>
+      <div id="output"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    
+    // Get environment variables from parent window
+    const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+    
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.innerHTML = `<span class="${type}">${new Date().toLocaleTimeString()}</span> - ${message}`;
+      output.appendChild(entry);
+      output.scrollTop = output.scrollHeight;
+    }
+    
+    function clearOutput() {
+      document.getElementById('output').innerHTML = '';
+      log('Output cleared', 'info');
+    }
+    
+    async function checkAuth() {
+      log('Checking authentication...', 'info');
+      
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        
+        if (error) {
+          log(`Auth error: ${error.message}`, 'error');
+          return null;
+        }
+        
+        if (!user) {
+          log('No authenticated user found', 'warning');
+          return null;
+        }
+        
+        log(`✅ Authenticated as: ${user.email} (ID: ${user.id})`, 'success');
+        return user;
+      } catch (err) {
+        log(`Exception: ${err.message}`, 'error');
+        return null;
+      }
+    }
+    
+    async function checkIntegration() {
+      log('Checking Google integration status...', 'info');
+      
+      const user = await checkAuth();
+      if (!user) return;
+      
+      try {
+        // Test the RPC function
+        const { data, error } = await supabase.rpc('get_my_google_integration');
+        
+        if (error) {
+          log(`RPC error: ${error.message}`, 'error');
+          return;
+        }
+        
+        if (data) {
+          log(`✅ Integration found:`, 'success');
+          log(`<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+        } else {
+          log('❌ No integration found via RPC', 'warning');
+        }
+      } catch (err) {
+        log(`Exception: ${err.message}`, 'error');
+      }
+    }
+    
+    async function testRPCFunctions() {
+      log('Testing all RPC functions...', 'info');
+      
+      const user = await checkAuth();
+      if (!user) return;
+      
+      // Test 1: get_my_google_integration
+      try {
+        log('Testing get_my_google_integration...', 'info');
+        const { data, error } = await supabase.rpc('get_my_google_integration');
+        
+        if (error) {
+          log(`❌ get_my_google_integration error: ${error.message}`, 'error');
+        } else {
+          log(`✅ get_my_google_integration: ${data ? 'Found' : 'Not found'}`, data ? 'success' : 'warning');
+        }
+      } catch (err) {
+        log(`Exception in get_my_google_integration: ${err.message}`, 'error');
+      }
+      
+      // Test 2: check_google_integration_exists
+      try {
+        log('Testing check_google_integration_exists...', 'info');
+        const { data, error } = await supabase.rpc('check_google_integration_exists');
+        
+        if (error) {
+          log(`❌ check_google_integration_exists error: ${error.message}`, 'error');
+        } else {
+          log(`✅ check_google_integration_exists: ${data}`, data ? 'success' : 'warning');
+        }
+      } catch (err) {
+        log(`Exception in check_google_integration_exists: ${err.message}`, 'error');
+      }
+      
+      // Test 3: get_google_integration_by_user with user_id
+      try {
+        log('Testing get_google_integration_by_user...', 'info');
+        const { data, error } = await supabase.rpc('get_google_integration_by_user', {
+          p_user_id: user.id
+        });
+        
+        if (error) {
+          log(`❌ get_google_integration_by_user error: ${error.message}`, 'error');
+        } else {
+          log(`✅ get_google_integration_by_user: ${data ? 'Found' : 'Not found'}`, data ? 'success' : 'warning');
+        }
+      } catch (err) {
+        log(`Exception in get_google_integration_by_user: ${err.message}`, 'error');
+      }
+    }
+    
+    async function queryDirectly() {
+      log('Attempting direct table query (expect 406 error)...', 'info');
+      
+      const user = await checkAuth();
+      if (!user) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('google_integrations')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (error) {
+          if (error.message.includes('406') || error.code === '406') {
+            log(`⚠️ Expected 406 error: ${error.message}`, 'warning');
+          } else {
+            log(`❌ Unexpected error: ${error.message}`, 'error');
+          }
+        } else {
+          log(`✅ Direct query succeeded (unexpected): ${data?.length || 0} records`, 'success');
+          if (data && data.length > 0) {
+            log(`<pre>${JSON.stringify(data, null, 2)}</pre>`, 'info');
+          }
+        }
+      } catch (err) {
+        log(`Exception: ${err.message}`, 'error');
+      }
+    }
+    
+    async function runAllTests() {
+      clearOutput();
+      log('🚀 Starting comprehensive debug tests...', 'info');
+      
+      const user = await checkAuth();
+      if (!user) {
+        log('Please login first to run tests', 'error');
+        return;
+      }
+      
+      await checkIntegration();
+      await testRPCFunctions();
+      await queryDirectly();
+      
+      log('✨ All tests completed', 'success');
+    }
+    
+    // Make functions available globally
+    window.runAllTests = runAllTests;
+    window.clearOutput = clearOutput;
+    window.checkAuth = checkAuth;
+    window.checkIntegration = checkIntegration;
+    window.testRPCFunctions = testRPCFunctions;
+    window.queryDirectly = queryDirectly;
+    
+    // Auto-run on load
+    window.addEventListener('load', () => {
+      log('Debug console ready. Click "Run All Tests" to begin.', 'info');
+    });
+  </script>
+</body>
+</html>

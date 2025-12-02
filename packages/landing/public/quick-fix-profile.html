@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Fix Profile</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Quick Profile Fix</h1>
+    
+    <div class="section">
+        <h2>Quick Actions</h2>
+        <button onclick="quickCheck()">Quick Check</button>
+        <button onclick="forceCreateProfile()">Force Create Profile</button>
+        <button onclick="clearAndLogin()">Clear Everything & Re-login</button>
+    </div>
+
+    <div class="section">
+        <h2>Status</h2>
+        <div id="status"></div>
+    </div>
+
+    <div class="section">
+        <h2>Results</h2>
+        <pre id="results"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        
+        function setStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="${type}">${message}</div>`;
+            console.log(message);
+        }
+        
+        function setResults(data) {
+            document.getElementById('results').innerHTML = JSON.stringify(data, null, 2);
+        }
+        
+        // Add timeout wrapper for queries
+        async function withTimeout(promise, timeoutMs = 5000) {
+            const timeout = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Query timeout')), timeoutMs)
+            );
+            return Promise.race([promise, timeout]);
+        }
+        
+        window.quickCheck = async function() {
+            setStatus('Checking...', 'info');
+            
+            try {
+                // Get session with timeout
+                const sessionPromise = supabase.auth.getSession();
+                const { data: { session } } = await withTimeout(sessionPromise, 3000);
+                
+                if (!session) {
+                    setStatus('No session found', 'error');
+                    return;
+                }
+                
+                setStatus(`Session OK: ${session.user.email}`, 'success');
+                
+                // Try a simple profile query with timeout
+                const profilePromise = supabase
+                    .from('profiles')
+                    .select('id, email, first_name, last_name, stage, is_admin')
+                    .eq('id', session.user.id)
+                    .single();
+                
+                try {
+                    const { data, error } = await withTimeout(profilePromise, 3000);
+                    
+                    if (error) {
+                        setStatus(`Profile error: ${error.message}`, 'error');
+                        setResults({ error: error });
+                    } else if (data) {
+                        setStatus('Profile found!', 'success');
+                        setResults({ profile: data });
+                    } else {
+                        setStatus('No profile found', 'warning');
+                        setResults({ profile: null });
+                    }
+                } catch (timeoutError) {
+                    setStatus('Profile query timed out - database might be slow', 'error');
+                    setResults({ error: 'Timeout' });
+                }
+                
+            } catch (error) {
+                setStatus(`Error: ${error.message}`, 'error');
+                setResults({ error: error.message });
+            }
+        }
+        
+        window.forceCreateProfile = async function() {
+            setStatus('Creating profile...', 'info');
+            
+            try {
+                const { data: { session } } = await withTimeout(supabase.auth.getSession(), 3000);
+                
+                if (!session) {
+                    setStatus('No session - please login first', 'error');
+                    return;
+                }
+                
+                const profileData = {
+                    id: session.user.id,
+                    email: session.user.email || 'andrew.bryce@sixtyseconds.video',
+                    first_name: 'Andrew',
+                    last_name: 'Bryce',
+                    stage: 'Director',
+                    is_admin: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                
+                setStatus('Attempting direct SQL insert...', 'info');
+                
+                // Try using RPC function if available
+                const { data: rpcResult, error: rpcError } = await supabase.rpc('create_or_update_profile', {
+                    p_id: profileData.id,
+                    p_email: profileData.email,
+                    p_first_name: profileData.first_name,
+                    p_last_name: profileData.last_name,
+                    p_stage: profileData.stage,
+                    p_is_admin: profileData.is_admin
+                });
+                
+                if (rpcResult) {
+                    setStatus('✅ Profile created via RPC!', 'success');
+                    setResults({ created: rpcResult });
+                    return;
+                }
+                
+                // Fallback to upsert
+                setStatus('RPC not available, trying upsert...', 'warning');
+                
+                const { data, error } = await withTimeout(
+                    supabase
+                        .from('profiles')
+                        .upsert(profileData, { 
+                            onConflict: 'id',
+                            ignoreDuplicates: false 
+                        })
+                        .select()
+                        .single(),
+                    5000
+                );
+                
+                if (data) {
+                    setStatus('✅ Profile created/updated!', 'success');
+                    setResults({ profile: data });
+                    
+                    // Reload the page after success
+                    setTimeout(() => {
+                        setStatus('Reloading app...', 'info');
+                        window.location.href = '/';
+                    }, 2000);
+                } else if (error) {
+                    setStatus(`Failed: ${error.message}`, 'error');
+                    setResults({ error });
+                }
+                
+            } catch (error) {
+                setStatus(`Error: ${error.message}`, 'error');
+                setResults({ error: error.message });
+            }
+        }
+        
+        window.clearAndLogin = function() {
+            setStatus('Clearing all data...', 'warning');
+            
+            // Clear all auth-related storage
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('supabase') || key.includes('auth') || key.includes('sb-'))) {
+                    keysToRemove.push(key);
+                }
+            }
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            setStatus('✅ Cleared! Redirecting to login...', 'success');
+            
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 1000);
+        }
+        
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            quickCheck();
+        });
+    </script>
+</body>
+</html>

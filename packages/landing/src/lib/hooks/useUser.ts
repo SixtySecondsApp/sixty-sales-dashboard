@@ -1,0 +1,513 @@
+import { useState, useEffect, useContext } from 'react';
+import { supabase } from '@/lib/supabase/clientV2';
+import { toast } from 'sonner';
+import type { Database } from '@/lib/database.types';
+import { setAuditContext, clearAuditContext } from '@/lib/utils/auditContext';
+import { getSiteUrl } from '@/lib/utils/siteUrl';
+import logger from '@/lib/utils/logger';
+import { ViewModeContext } from '@/contexts/ViewModeContext';
+
+type UserProfile = Database['public']['Tables']['profiles']['Row'];
+
+export const USER_STAGES = [
+  'Trainee',
+  'Junior',
+  'Senior',
+  'Manager',
+  'Director'
+];
+
+// Helper functions for managing impersonation state
+export const setImpersonationData = (adminId: string, adminEmail: string) => {
+  sessionStorage.setItem('originalUserId', adminId);
+  sessionStorage.setItem('originalUserEmail', adminEmail);
+  sessionStorage.setItem('isImpersonating', 'true');
+};
+
+export const clearImpersonationData = () => {
+  sessionStorage.removeItem('originalUserId');
+  sessionStorage.removeItem('originalUserEmail');
+  sessionStorage.removeItem('isImpersonating');
+};
+
+export const getImpersonationData = () => {
+  return {
+    originalUserId: sessionStorage.getItem('originalUserId'),
+    originalUserEmail: sessionStorage.getItem('originalUserEmail'),
+    isImpersonating: sessionStorage.getItem('isImpersonating') === 'true'
+  };
+};
+
+export const stopImpersonating = async () => {
+  try {
+    const { originalUserId, originalUserEmail } = getImpersonationData();
+    
+    if (!originalUserId || !originalUserEmail) {
+      throw new Error('No impersonation session found');
+    }
+
+    // Call the restore-user edge function to get a magic link
+    const { data, error } = await supabase.functions.invoke('restore-user', {
+      body: { 
+        userId: originalUserId,
+        email: originalUserEmail,
+        redirectTo: getSiteUrl() 
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    // Check if we got the old response format (email/password)
+    if (data?.email && data?.password) {
+      logger.warn('Edge Function is returning old format. Using fallback password-based restoration.');
+      
+      // Clear impersonation data
+      clearImpersonationData();
+      
+      // Sign in with the temporary password (old method)
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
+      });
+
+      if (signInError) {
+        throw signInError;
+      }
+
+      toast.success('Session restored (legacy mode)');
+      window.location.reload();
+      return;
+    }
+
+    if (data?.session) {
+      // New session-based restoration
+      clearImpersonationData();
+      clearAuditContext();
+      
+      // Set the new session directly
+      const { error: setSessionError } = await supabase.auth.setSession(data.session);
+      
+      if (setSessionError) {
+        throw setSessionError;
+      }
+      
+      toast.success('Admin session restored successfully!');
+      
+      // Reload to refresh the app with the new session
+      window.location.reload();
+    } else if (data?.magicLink) {
+      // Fallback to magic link restoration
+      clearImpersonationData();
+      clearAuditContext();
+      
+      if (data.requiresPasswordReset) {
+        toast.warning('Restoring session. You may need to reset your password.');
+      } else {
+        toast.success('Restoring your admin session...');
+      }
+      
+      // Redirect to the magic link
+      window.location.href = data.magicLink;
+    } else {
+      throw new Error('Failed to restore session. Response: ' + JSON.stringify(data));
+    }
+  } catch (error: any) {
+    logger.error('Stop impersonation error:', error);
+    // Clear sessionStorage and audit context even if there's an error to prevent user from being stuck
+    clearImpersonationData();
+    clearAuditContext();
+    toast.error('Failed to stop impersonation: ' + (error.message || 'Unknown error'));
+    throw error;
+  }
+};
+
+export const impersonateUser = async (userId: string) => {
+  try {
+    // Store current user info before impersonation
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+
+    // Call the impersonate-user edge function to get a magic link
+    const { data, error } = await supabase.functions.invoke('impersonate-user', {
+      body: { 
+        userId,
+        adminId: currentUser.id,
+        adminEmail: currentUser.email,
+        redirectTo: getSiteUrl()
+      }
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    if (data?.session) {
+      // New session-based impersonation
+      // Store original user info for restoration
+      setImpersonationData(currentUser.id, currentUser.email!);
+      
+      // Set the new session directly
+      const { error: setSessionError } = await supabase.auth.setSession(data.session);
+      
+      if (setSessionError) {
+        throw setSessionError;
+      }
+      
+      toast.success('Impersonation started successfully!');
+      
+      // Reload to refresh the app with the new session
+      window.location.reload();
+    } else if (data?.magicLink) {
+      // Fallback to magic link impersonation
+      setImpersonationData(currentUser.id, currentUser.email!);
+      
+      toast.success('Starting impersonation...');
+      
+      // Redirect to the magic link
+      window.location.href = data.magicLink;
+    } else {
+      throw new Error('Failed to start impersonation. Response: ' + JSON.stringify(data));
+    }
+  } catch (error: any) {
+    logger.error('Impersonation error:', error);
+    toast.error('Failed to impersonate user: ' + (error.message || 'Unknown error'));
+    throw error;
+  }
+};
+
+export function useUser() {
+  const [userData, setUserData] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [originalUserData, setOriginalUserData] = useState<UserProfile | null>(null);
+  
+  // Try to get View Mode context - but make it optional
+  let viewModeContext = null;
+  try {
+    viewModeContext = useContext(ViewModeContext);
+  } catch (e) {
+    // Context not available, that's ok
+  }
+
+  useEffect(() => {
+    logger.log('⚙️ useUser useEffect running...');
+
+    // Check if we're in an impersonation session
+    const { isImpersonating: isImpersonated, originalUserId } = getImpersonationData();
+    setIsImpersonating(isImpersonated && !!originalUserId);
+
+    // Set audit context if impersonating
+    if (isImpersonated && originalUserId) {
+      setAuditContext();
+    } else {
+      clearAuditContext();
+    }
+
+    let isUserFetching = false;
+    
+    async function fetchUser() {
+      // Prevent concurrent fetches
+      if (isUserFetching) {
+        logger.log('⏭️ Skipping concurrent user fetch');
+        return;
+      }
+
+      isUserFetching = true;
+      logger.log('🚀 Starting user fetch...');
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Get the current user session from Supabase with timeout
+        logger.log('📡 Fetching session from Supabase...');
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout')), 30000) // Increased to 30 seconds for slow connections
+        );
+
+        const { data: { session }, error: sessionError } = await Promise.race([
+          sessionPromise,
+          timeoutPromise
+        ]).catch(err => ({ data: { session: null }, error: err }));
+        
+        if (sessionError) {
+          logger.warn('Session error (will use fallback):', sessionError.message);
+          throw sessionError;
+        }
+
+        if (session?.user) {
+          // User is authenticated
+          const user = session.user;
+          logger.log('✅ Authenticated user found:', { id: user.id, email: user.email });
+          
+          // Get or create user profile - USE EMAIL AS PRIMARY LOOKUP (see AUTHENTICATION_FIX_DOCUMENTATION.md)
+          logger.log('🔍 Fetching profile by email:', user.email);
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', user.email)
+            .maybeSingle();
+
+          if (profileError) {
+            logger.warn('Profile fetch error:', profileError);
+            // Don't throw error, we'll handle it below
+          }
+
+          if (profile) {
+            logger.log('✅ Profile fetched successfully:', {
+              name: `${profile.first_name} ${profile.last_name}`,
+              email: profile.email,
+              stage: profile.stage,
+              isAdmin: profile.is_admin
+            });
+          }
+
+          // If no profile exists, create a default one
+          if (!profile) {
+            logger.log('📝 No profile found, creating new one for:', user.email);
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: user.id,
+                email: user.email,
+                first_name: user.user_metadata?.first_name || 'User',
+                last_name: user.user_metadata?.last_name || '',
+                avatar_url: user.user_metadata?.avatar_url,
+                role: 'Junior',
+                department: 'Sales'
+              })
+              .select()
+              .single();
+
+            if (createError) {
+              logger.warn('Could not create profile, using basic user data:', createError);
+              // Fall back to basic user data
+              setUserData({
+                id: user.id,
+                email: user.email || null,
+                first_name: user.user_metadata?.first_name || 'User',
+                last_name: user.user_metadata?.last_name || '',
+                full_name: null,
+                avatar_url: user.user_metadata?.avatar_url || null,
+                role: 'Junior',
+                department: 'Sales',
+                stage: null,
+                is_admin: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                username: null,
+                website: null
+              } as UserProfile);
+            } else {
+              setUserData(newProfile);
+            }
+          } else {
+            setUserData(profile);
+          }
+
+          // If we're impersonating, also get the original user data
+          if (originalUserId && originalUserId !== user.id) {
+            try {
+              const { data: originalProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', originalUserId)
+                .single();
+              setOriginalUserData(originalProfile);
+            } catch (error) {
+              logger.warn('Could not fetch original user data:', error);
+            }
+          }
+        } else {
+          // No user session - check if we should use mock user
+          const isDevelopment = import.meta.env.MODE === 'development';
+          const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+          
+          // Only use mock user if explicitly allowed, not just because we're in development
+          if (allowMockUser) {
+            logger.log('⚠️ No authenticated user found. Mock user is enabled.');
+            logger.log('Session details:', { session, sessionError });
+            
+            const mockUserData = {
+              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459', // Andrew's actual ID for development
+              email: 'andrew.bryce@sixtyseconds.video',
+              first_name: 'Andrew',
+              last_name: 'Bryce',
+              full_name: 'Andrew Bryce',
+              avatar_url: null,
+              role: 'Senior',
+              department: 'Sales',
+              stage: 'Senior',
+              is_admin: true, // Set to true for development access to admin features
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              username: null,
+              website: null
+            } as UserProfile;
+            
+            setUserData(mockUserData);
+            
+            // Store mock user in localStorage for AuthContext compatibility
+            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+          } else {
+            logger.warn('❌ No authenticated user and mock user is disabled.');
+            setUserData(null);
+          }
+        }
+      } catch (err: any) {
+        // Check if this is a timeout error
+        const isTimeout = err.message && err.message.includes('timeout');
+
+        if (isTimeout) {
+          // For timeout errors, treat as not authenticated rather than fatal error
+          logger.warn('⚠️ Session fetch timeout - treating as not authenticated');
+          logger.warn('If you have a slow internet connection, this is expected. Please try logging in again.');
+          setError(null); // Clear error state so app doesn't get stuck
+          setUserData(null); // Set as not authenticated
+        } else {
+          // For other errors, log and set error state
+          // Only log once, not repeatedly
+          if (!error) {
+            logger.error('❌ Error fetching user:', err);
+            logger.error('Error details:', {
+              message: err.message,
+              stack: err.stack,
+              code: err.code
+            });
+          }
+          setError(err);
+
+          // Only use mock user if explicitly allowed
+          const allowMockUser = import.meta.env.VITE_ALLOW_MOCK_USER === 'true';
+
+          if (allowMockUser) {
+            logger.log('⚠️ Falling back to mock user due to authentication error');
+            const mockUserData = {
+              id: 'ac4efca2-1fe1-49b3-9d5e-6ac3d8bf3459',
+              email: 'andrew.bryce@sixtyseconds.video',
+              first_name: 'Andrew',
+              last_name: 'Bryce',
+              full_name: 'Andrew Bryce',
+              avatar_url: null,
+              role: 'Senior',
+              department: 'Sales',
+              stage: 'Senior',
+              is_admin: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              username: null,
+              website: null
+            } as UserProfile;
+
+            setUserData(mockUserData);
+            localStorage.setItem('sixty_mock_users', JSON.stringify([mockUserData]));
+          } else {
+            setUserData(null);
+          }
+        }
+      } finally {
+        setIsLoading(false);
+        isUserFetching = false;
+      }
+    }
+
+    logger.log('📞 Calling fetchUser()...');
+    fetchUser();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        // Skip initial session event to prevent duplicate fetch
+        if (event === 'INITIAL_SESSION') {
+          return;
+        }
+        
+        if (event === 'SIGNED_IN' && session && !userData) {
+          // User signed in and we don't have user data yet
+          fetchUser();
+        } else if (event === 'SIGNED_OUT') {
+          // User signed out
+          setUserData(null);
+          setOriginalUserData(null);
+          setIsImpersonating(false);
+          // Clear all impersonation data
+          clearImpersonationData();
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUserData(null);
+      setOriginalUserData(null);
+      setIsImpersonating(false);
+      // Clear all impersonation data
+      clearImpersonationData();
+      // Clear audit context
+      clearAuditContext();
+    } catch (error) {
+      logger.error('Error signing out:', error);
+      // Force clear user data even if signOut fails
+      setUserData(null);
+      setOriginalUserData(null);
+      setIsImpersonating(false);
+      clearImpersonationData();
+      clearAuditContext();
+    }
+  };
+
+  const handleStopImpersonation = async () => {
+    try {
+      await stopImpersonating();
+    } catch (error) {
+      logger.error('Error stopping impersonation:', error);
+    }
+  };
+
+  // If we're in view mode, we need to fetch and return the viewed user's data instead
+  const [viewedUserData, setViewedUserData] = useState<UserProfile | null>(null);
+  
+  useEffect(() => {
+    if (viewModeContext?.isViewMode && viewModeContext?.viewedUser) {
+      // Fetch the viewed user's full profile data
+      const fetchViewedUser = async () => {
+        const { data, error } = await (supabase as any)
+          .from('profiles')
+          .select('*')
+          .eq('id', viewModeContext.viewedUser.id)
+          .single();
+        
+        if (data && !error) {
+          setViewedUserData(data);
+        }
+      };
+      
+      fetchViewedUser();
+    } else {
+      setViewedUserData(null);
+    }
+  }, [viewModeContext?.isViewMode, viewModeContext?.viewedUser?.id]);
+
+  return {
+    userData: viewModeContext?.isViewMode && viewedUserData ? viewedUserData : userData,
+    originalUserData,
+    isLoading,
+    error,
+    signOut,
+    isAuthenticated: !!userData,
+    isImpersonating,
+    stopImpersonating: handleStopImpersonation,
+    isViewMode: viewModeContext?.isViewMode || false,
+    actualUser: userData // Always the actual logged-in user
+  };
+}

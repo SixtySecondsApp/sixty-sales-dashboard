@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Storage</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            text-align: center;
+        }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        .log {
+            margin-top: 20px;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+            text-align: left;
+            font-family: monospace;
+            max-width: 600px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Clear Storage & Force Fresh Session</h1>
+    <p>This will clear all local storage and force a fresh profile fetch</p>
+    
+    <button onclick="clearAll()">Clear All Storage</button>
+    <button onclick="window.location.href='/'">Go to App</button>
+    
+    <div class="log" id="log"></div>
+    
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += message + '<br>';
+        }
+        
+        function clearAll() {
+            log('🧹 Starting cleanup...');
+            
+            // Clear localStorage
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                keysToRemove.push(localStorage.key(i));
+            }
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                log(`  ✅ Removed localStorage: ${key}`);
+            });
+            
+            // Clear sessionStorage
+            sessionStorage.clear();
+            log('  ✅ Cleared sessionStorage');
+            
+            // Clear cookies (limited to what JavaScript can access)
+            document.cookie.split(";").forEach(function(c) { 
+                document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+            });
+            log('  ✅ Cleared accessible cookies');
+            
+            log('');
+            log('✨ Storage cleared successfully!');
+            log('');
+            log('Click "Go to App" to sign in fresh');
+        }
+        
+        // Show current storage status
+        log('📊 Current Storage Status:');
+        log(`  localStorage items: ${localStorage.length}`);
+        log(`  sessionStorage items: ${sessionStorage.length}`);
+        log('');
+        
+        // List Supabase-related items
+        let supabaseItems = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.includes('sb-') || key.includes('supabase') || key.includes('sixty')) {
+                supabaseItems.push(key);
+            }
+        }
+        
+        if (supabaseItems.length > 0) {
+            log('🔐 Found Supabase/App items:');
+            supabaseItems.forEach(key => {
+                log(`  - ${key}`);
+            });
+        }
+    </script>
+</body>
+</html>

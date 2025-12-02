@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hard Refresh Session Test</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .timeline {
+            margin: 20px 0;
+        }
+        .timeline-entry {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-left: 3px solid #37bd7e;
+            border-radius: 4px;
+        }
+        .timestamp { color: #6b7280; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🔄 Hard Refresh Session Test</h1>
+    
+    <div class="section">
+        <h2>Test Controls</h2>
+        <button onclick="testInitialLoad()">Test Initial Load</button>
+        <button onclick="simulateHardRefresh()">Simulate Hard Refresh</button>
+        <button onclick="checkSessionTiming()">Check Session Timing</button>
+        <button onclick="clearTimeline()">Clear Timeline</button>
+        <button onclick="forceLogin()">Force Login</button>
+    </div>
+
+    <div class="section">
+        <h2>Session Status</h2>
+        <div id="session-status"></div>
+    </div>
+
+    <div class="section">
+        <h2>Session Timeline</h2>
+        <div id="timeline" class="timeline"></div>
+    </div>
+
+    <div class="section">
+        <h2>LocalStorage Analysis</h2>
+        <div id="storage-analysis"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        let timeline = [];
+        
+        function addToTimeline(message, type = 'info') {
+            const now = new Date();
+            const entry = {
+                timestamp: now.toISOString(),
+                time: now.toLocaleTimeString() + '.' + now.getMilliseconds().toString().padStart(3, '0'),
+                message,
+                type,
+                elapsed: timeline.length > 0 ? now - new Date(timeline[0].timestamp) : 0
+            };
+            timeline.push(entry);
+            renderTimeline();
+        }
+        
+        function renderTimeline() {
+            const timelineDiv = document.getElementById('timeline');
+            timelineDiv.innerHTML = timeline.map(entry => `
+                <div class="timeline-entry">
+                    <span class="timestamp">${entry.time} (+${entry.elapsed}ms)</span>
+                    <div class="${entry.type}">${entry.message}</div>
+                </div>
+            `).join('');
+        }
+        
+        window.clearTimeline = function() {
+            timeline = [];
+            renderTimeline();
+        }
+        
+        window.testInitialLoad = async function() {
+            clearTimeline();
+            addToTimeline('Starting initial load test...');
+            
+            // Check localStorage first
+            const projectRef = 'ewtuefzeogytgmsnkpmb';
+            const sessionKey = `sb-${projectRef}-auth-token`;
+            const storedSession = localStorage.getItem(sessionKey);
+            
+            if (storedSession) {
+                addToTimeline('Found session in localStorage', 'success');
+                try {
+                    const parsed = JSON.parse(storedSession);
+                    addToTimeline(`Session expires at: ${new Date(parsed.expires_at * 1000).toLocaleString()}`, 'info');
+                } catch (e) {
+                    addToTimeline('Could not parse stored session', 'warning');
+                }
+            } else {
+                addToTimeline('No session in localStorage', 'warning');
+            }
+            
+            // Test session restoration with delays (mimicking AuthContext)
+            addToTimeline('Waiting 250ms for session restoration...');
+            await new Promise(resolve => setTimeout(resolve, 250));
+            
+            const supabase = createClient(supabaseUrl, supabaseAnonKey);
+            
+            addToTimeline('Getting session from Supabase...');
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                addToTimeline(`Error: ${error.message}`, 'error');
+            } else if (session) {
+                addToTimeline('Session restored successfully!', 'success');
+                updateSessionStatus(session);
+            } else {
+                addToTimeline('No session found, attempting retries...', 'warning');
+                
+                // Retry logic
+                for (let i = 1; i <= 3; i++) {
+                    const delay = Math.min(300 * Math.pow(1.5, i - 1), 1000);
+                    addToTimeline(`Retry ${i}/3 - waiting ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    
+                    const { data: { session: retrySession } } = await supabase.auth.getSession();
+                    if (retrySession) {
+                        addToTimeline(`Session found on retry ${i}!`, 'success');
+                        updateSessionStatus(retrySession);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        window.simulateHardRefresh = function() {
+            addToTimeline('Simulating hard refresh - reloading page...', 'warning');
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 500);
+        }
+        
+        window.checkSessionTiming = async function() {
+            clearTimeline();
+            addToTimeline('Testing session restoration timing...');
+            
+            const delays = [0, 50, 100, 250, 500, 1000];
+            
+            for (const delay of delays) {
+                addToTimeline(`Testing with ${delay}ms delay...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                
+                const supabase = createClient(supabaseUrl, supabaseAnonKey);
+                const { data: { session } } = await supabase.auth.getSession();
+                
+                if (session) {
+                    addToTimeline(`✅ Session found with ${delay}ms delay`, 'success');
+                    updateSessionStatus(session);
+                    break;
+                } else {
+                    addToTimeline(`❌ No session with ${delay}ms delay`, 'error');
+                }
+            }
+        }
+        
+        window.forceLogin = function() {
+            window.location.href = '/auth/login';
+        }
+        
+        function updateSessionStatus(session) {
+            const statusDiv = document.getElementById('session-status');
+            if (session) {
+                const expiresAt = new Date(session.expires_at * 1000);
+                const now = new Date();
+                const minutesLeft = Math.floor((expiresAt - now) / 1000 / 60);
+                
+                statusDiv.innerHTML = `
+                    <div class="success">✅ Active Session</div>
+                    <div><strong>User:</strong> ${session.user.email}</div>
+                    <div><strong>User ID:</strong> ${session.user.id}</div>
+                    <div><strong>Expires:</strong> ${expiresAt.toLocaleString()}</div>
+                    <div><strong>Time Left:</strong> ${minutesLeft} minutes</div>
+                `;
+            } else {
+                statusDiv.innerHTML = '<div class="error">❌ No Active Session</div>';
+            }
+        }
+        
+        function analyzeStorage() {
+            const analysisDiv = document.getElementById('storage-analysis');
+            const projectRef = 'ewtuefzeogytgmsnkpmb';
+            const sessionKey = `sb-${projectRef}-auth-token`;
+            
+            let html = '<h3>LocalStorage Keys:</h3>';
+            const supabaseKeys = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('supabase') || key.includes('auth') || key.includes('sb-')) {
+                    supabaseKeys.push(key);
+                }
+            }
+            
+            if (supabaseKeys.length > 0) {
+                html += '<ul>';
+                supabaseKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    const size = value ? value.length : 0;
+                    html += `<li><span class="info">${key}</span> (${size} bytes)</li>`;
+                });
+                html += '</ul>';
+                
+                // Check session token specifically
+                const token = localStorage.getItem(sessionKey);
+                if (token) {
+                    try {
+                        const parsed = JSON.parse(token);
+                        html += '<div class="success">✅ Valid session token found</div>';
+                        html += `<div>Expires: ${new Date(parsed.expires_at * 1000).toLocaleString()}</div>`;
+                    } catch {
+                        html += '<div class="warning">⚠️ Session token exists but cannot be parsed</div>';
+                    }
+                } else {
+                    html += '<div class="error">❌ No session token in localStorage</div>';
+                }
+            } else {
+                html += '<div class="warning">No Supabase-related keys in localStorage</div>';
+            }
+            
+            analysisDiv.innerHTML = html;
+        }
+        
+        // Run tests on page load
+        window.addEventListener('load', () => {
+            analyzeStorage();
+            testInitialLoad();
+        });
+        
+        // Update storage analysis every second
+        setInterval(analyzeStorage, 1000);
+    </script>
+</body>
+</html>

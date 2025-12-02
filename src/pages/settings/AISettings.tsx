@@ -584,9 +584,9 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
             <FileText className="w-4 h-4" />
             Proposal Generation
           </TabsTrigger>
-          <TabsTrigger value="extraction-rules" className="flex items-center gap-2">
+          <TabsTrigger value="task-sync" className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
-            Extraction Rules
+            Task Auto-Sync
           </TabsTrigger>
         </TabsList>
 
@@ -1341,23 +1341,23 @@ This Statement of Work outlines the scope, deliverables, and terms for [Project 
           </Card>
         </TabsContent>
 
-        <TabsContent value="extraction-rules" className="space-y-4">
+        <TabsContent value="task-sync" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Extraction Rules</CardTitle>
+              <CardTitle>Task Auto-Sync</CardTitle>
               <CardDescription>
-                Customize how tasks are automatically extracted from meeting transcripts using trigger phrases and meeting type templates.
+                Configure automatic task creation from action items based on importance levels and confidence thresholds.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="text-center py-12">
                 <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-500" />
-                <p className="text-lg font-medium mb-2">Manage Extraction Rules</p>
+                <p className="text-lg font-medium mb-2">Manage Task Auto-Sync Settings</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                  Create custom rules that automatically extract tasks when specific phrases appear in meeting transcripts.
+                  Control which action items automatically create tasks based on importance classification (Critical, High, Medium, Low).
                 </p>
-                <Button onClick={() => navigate('/settings/extraction-rules')}>
-                  Go to Extraction Rules
+                <Button onClick={() => navigate('/settings/task-sync')}>
+                  Go to Task Auto-Sync Settings
                 </Button>
               </div>
             </CardContent>

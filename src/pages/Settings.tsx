@@ -8,6 +8,7 @@
  * - Proposals
  * - AI Personalization
  * - Email Sync
+ * - Task Auto-Sync
  *
  * Org-level settings (Team, Branding) moved to /team/*
  * Platform-level settings (View Mode) moved to /platform/*
@@ -20,6 +21,8 @@ import Preferences from '@/pages/Preferences';
 import ProposalSettings from '@/pages/settings/ProposalSettings';
 import AIPersonalizationSettings from '@/pages/settings/AIPersonalizationSettings';
 import { EmailSyncPanel } from '@/components/health/EmailSyncPanel';
+import TaskSyncSettings from '@/pages/settings/TaskSyncSettings';
+import CoachingPreferences from '@/pages/settings/CoachingPreferences';
 
 export default function Settings() {
   const [tab, setTab] = useState('account');
@@ -41,7 +44,9 @@ export default function Settings() {
               <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Appearance</TabsTrigger>
               <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Proposals</TabsTrigger>
               <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
+              <TabsTrigger value="sales-coaching" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Sales Coaching</TabsTrigger>
               <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
+              <TabsTrigger value="task-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Task Auto-Sync</TabsTrigger>
             </TabsList>
 
             <TabsContent value="account" className="space-y-0">
@@ -62,8 +67,16 @@ export default function Settings() {
               <AIPersonalizationSettings />
             </TabsContent>
 
+            <TabsContent value="sales-coaching" className="space-y-0">
+              <CoachingPreferences />
+            </TabsContent>
+
             <TabsContent value="email-sync" className="space-y-6">
               <EmailSyncPanel />
+            </TabsContent>
+
+            <TabsContent value="task-sync" className="space-y-0">
+              <TaskSyncSettings />
             </TabsContent>
           </Tabs>
         </div>

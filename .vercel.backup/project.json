@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_beP0vQlpW7wX15H2CqYQf9W6HGin",
+  "orgId": "team_KtZ9lwnVgww8ibhhOIJKYDcp",
+  "projectName": "sixty-sales-dashboard",
+  "settings": {
+    "createdAt": 1744899125812,
+    "framework": "vite",
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "22.x"
+  }
+}

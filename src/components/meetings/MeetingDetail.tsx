@@ -38,6 +38,7 @@ import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart'
 import { TalkTimeTrend } from '@/components/meetings/analytics/TalkTimeTrend'
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights'
 import { analyzeTalkTime, type TalkTimeMetrics } from '@/lib/services/coachingService'
+import { ActionItemsList } from '@/components/meetings/ActionItemsList'
 
 interface Meeting {
   id: string
@@ -404,24 +405,6 @@ const MeetingDetail: React.FC = () => {
     )
   }
 
-  // Use the is_sales_rep_task field if available, otherwise fall back to email detection
-  const salesRepActionItems = actionItems.filter(item => 
-    item.is_sales_rep_task === true || 
-    (item.is_sales_rep_task === null && (
-      item.category === 'Sales' || 
-      !item.assignee_email?.includes('@') || 
-      item.assignee_email?.endsWith('@sixtyseconds.video')
-    ))
-  )
-  
-  const prospectActionItems = actionItems.filter(item => 
-    item.is_sales_rep_task === false || 
-    (item.is_sales_rep_task === null && (
-      item.category === 'Customer' || 
-      (item.assignee_email?.includes('@') && !item.assignee_email?.endsWith('@sixtyseconds.video'))
-    ))
-  )
-
   const talkTimeIdeal = meeting.summary?.toLowerCase().includes('demo') 
     ? { min: 60, max: 70 } 
     : { min: 45, max: 55 }
@@ -754,7 +737,7 @@ const MeetingDetail: React.FC = () => {
 
         {/* Right Sidebar */}
         <div className="col-span-12 lg:col-span-4 space-y-4">
-          {/* Action Items */}
+          {/* Action Items - New Unified System */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -769,153 +752,22 @@ const MeetingDetail: React.FC = () => {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Action Items</h3>
               </div>
 
-              <Tabs defaultValue="rep" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50">
-                  <TabsTrigger
-                    value="rep"
-                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
-                  >
-                    <User className="h-4 w-4 mr-1.5" />
-                    Rep ({salesRepActionItems.length})
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="prospect"
-                    className="data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700/50 data-[state=active]:backdrop-blur-sm"
-                  >
-                    <Users className="h-4 w-4 mr-1.5" />
-                    Prospect ({prospectActionItems.length})
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="rep" className="space-y-3 mt-4">
-                  {salesRepActionItems.map((item, index) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className="p-4 bg-gray-50 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-all duration-200 group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => toggleActionItemComplete(item.id, item.completed)}
-                          className="mt-0.5 transition-transform hover:scale-110"
-                        >
-                          {item.completed ? (
-                            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                          )}
-                        </button>
-                        <div className="flex-1 space-y-2">
-                          <div className={cn(
-                            "font-medium text-sm transition-colors",
-                            item.completed ? 'line-through text-gray-500' : 'text-gray-900 dark:text-gray-200'
-                          )}>
-                            {item.title}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-600 dark:text-gray-400">{item.assignee_name}</span>
-                            {item.priority && (
-                              <Badge className={cn("text-xs backdrop-blur-sm", getPriorityColor(item.priority))}>
-                                {item.priority}
-                              </Badge>
-                            )}
-                            {item.deadline_at && (
-                              <span className="text-gray-500">
-                                Due {format(new Date(item.deadline_at), 'dd MMM')}
-                              </span>
-                            )}
-                          </div>
-                          {item.timestamp_seconds !== null && (
-                            <div className="flex gap-2 mt-2">
-                              <Button
-                                size="sm"
-                                variant="tertiary"
-                                onClick={() => seekToTimestamp(item.timestamp_seconds!)}
-                                className="h-7 text-xs"
-                              >
-                                <Play className="h-3 w-3 mr-1" />
-                                {formatTimestamp(item.timestamp_seconds)}
-                              </Button>
-                              {item.playback_url && (
-                                <Button
-                                  size="sm"
-                                  variant="tertiary"
-                                  asChild
-                                  className="h-7 text-xs"
-                                >
-                                  <a href={item.playback_url} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                  {salesRepActionItems.length === 0 && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">No action items for sales rep</p>
-                  )}
-                </TabsContent>
+              <ActionItemsList
+                actionItems={actionItems}
+                meetingId={meeting?.id || ''}
+                onTasksCreated={async () => {
+                  // Reload action items to show updated sync status
+                  const { data } = await supabase
+                    .from('meeting_action_items')
+                    .select('*')
+                    .eq('meeting_id', meeting?.id)
+                    .order('deadline_at', { ascending: true })
 
-                <TabsContent value="prospect" className="space-y-3 mt-4">
-                  {prospectActionItems.map((item, index) => (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                      className="p-4 bg-gray-50 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/40 transition-all duration-200 group"
-                    >
-                      <div className="flex items-start gap-3">
-                        <button
-                          onClick={() => toggleActionItemComplete(item.id, item.completed)}
-                          className="mt-0.5 transition-transform hover:scale-110"
-                        >
-                          {item.completed ? (
-                            <CheckCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                          ) : (
-                            <Circle className="h-5 w-5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" />
-                          )}
-                        </button>
-                        <div className="flex-1 space-y-2">
-                          <div className={cn(
-                            "font-medium text-sm transition-colors",
-                            item.completed ? 'line-through text-gray-500' : 'text-gray-900 dark:text-gray-200'
-                          )}>
-                            {item.title}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-600 dark:text-gray-400">{item.assignee_name}</span>
-                            {item.deadline_at && (
-                              <span className="text-gray-500">
-                                Due {format(new Date(item.deadline_at), 'dd MMM')}
-                              </span>
-                            )}
-                          </div>
-                          {item.timestamp_seconds !== null && (
-                            <Button
-                              size="sm"
-                              variant="tertiary"
-                              onClick={() => seekToTimestamp(item.timestamp_seconds!)}
-                              className="h-7 text-xs mt-2"
-                            >
-                              <Play className="h-3 w-3 mr-1" />
-                              {formatTimestamp(item.timestamp_seconds)}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                  {prospectActionItems.length === 0 && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 text-center py-4">No action items for prospect</p>
-                  )}
-                </TabsContent>
-              </Tabs>
+                  if (data) {
+                    setActionItems(data)
+                  }
+                }}
+              />
             </div>
           </motion.div>
 

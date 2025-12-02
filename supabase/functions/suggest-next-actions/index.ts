@@ -697,64 +697,47 @@ async function autoCreateTasksFromSuggestions(
 
   for (const suggestion of suggestions) {
     try {
-      // Map urgency to priority
-      const priorityMap = {
-        'critical': 'urgent',
-        'high': 'high',
-        'medium': 'medium',
-        'low': 'low'
-      }
-      const priority = priorityMap[suggestion.urgency] || 'medium'
+      // NEW LOGIC: Call unified function in auto mode
+      // The unified function will check user preferences and importance levels
+      console.log(`[suggest-next-actions] Calling create-task-unified for suggestion ${suggestion.id}`)
 
-      const { dueDate, originalDeadline } = computeSafeDueDate(suggestion)
-
-      const taskData = {
-        title: suggestion.title,
-        description: suggestion.reasoning,
-        task_type: suggestion.action_type,
-        priority: priority,
-        due_date: dueDate,
-        status: 'pending',
-        assigned_to: ownerId,
-        created_by: ownerId,
-        meeting_id: context.type === 'meeting' ? context.id : null,
-        company_id: suggestion.company_id,
-        contact_id: suggestion.contact_id,
-        source: 'ai_suggestion',
-        metadata: {
-          suggestion_id: suggestion.id,
-          confidence_score: suggestion.confidence_score,
-          timestamp_seconds: suggestion.timestamp_seconds,
-          urgency: suggestion.urgency,
-          ai_model: suggestion.ai_model,
-          auto_created: true,
-          created_at: new Date().toISOString(),
-          ...(originalDeadline
-            ? { original_recommended_deadline: originalDeadline }
-            : {})
+      const { data: autoSyncResult, error: autoSyncError } = await supabase.functions.invoke(
+        'create-task-unified',
+        {
+          body: {
+            mode: 'auto',
+            action_item_ids: [suggestion.id],
+            source: 'ai_suggestion'
+          },
+          headers: {
+            // Pass through authorization from original request
+            Authorization: authHeader || `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+          }
         }
-      }
+      )
 
-      const { data: task, error: taskError } = await supabase
-        .from('tasks')
-        .insert(taskData)
-        .select()
-        .single()
-
-      if (taskError) {
+      if (autoSyncError) {
+        console.error(`[suggest-next-actions] Auto-sync failed for suggestion ${suggestion.id}:`, autoSyncError)
+        // Don't fail the entire sync - continue processing other suggestions
         continue
       }
 
-      // Mark suggestion as accepted (auto-converted to task)
-      await supabase
-        .from('next_action_suggestions')
-        .update({ status: 'accepted' })
-        .eq('id', suggestion.id)
+      // Check if task was created (unified function may skip based on user preferences)
+      if (autoSyncResult?.tasks_created > 0 && autoSyncResult.tasks?.length > 0) {
+        console.log(`[suggest-next-actions] Successfully created task for suggestion ${suggestion.id}`)
+        createdTasks.push(...autoSyncResult.tasks)
 
-      if (task) {
-        createdTasks.push(task as any)
+        // Mark suggestion as accepted (auto-converted to task)
+        await supabase
+          .from('next_action_suggestions')
+          .update({ status: 'accepted' })
+          .eq('id', suggestion.id)
+      } else {
+        console.log(`[suggest-next-actions] Suggestion ${suggestion.id} skipped by auto-sync (importance/preference mismatch)`)
+        // Don't mark as accepted - user may manually convert later
       }
     } catch (error) {
+      console.error(`[suggest-next-actions] Error processing suggestion ${suggestion.id}:`, error)
     }
   }
 

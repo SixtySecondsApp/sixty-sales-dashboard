@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Check, X, Download, Trash2, RotateCw } from 'lucide-react';
+import { Check, X, Download, Trash2, RotateCw, Filter } from 'lucide-react';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
 import { OnboardingProgressWidget } from './OnboardingProgressWidget';
 import { useWaitlistOnboardingProgress } from '@/lib/hooks/useWaitlistOnboarding';
@@ -21,6 +21,8 @@ export interface EnhancedWaitlistTableProps {
   onResendMagicLink?: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onExport: () => Promise<void>;
+  hideSeeded?: boolean;
+  onHideSeededChange?: (hideSeeded: boolean) => void;
 }
 
 export function EnhancedWaitlistTable({
@@ -35,16 +37,24 @@ export function EnhancedWaitlistTable({
   onResendMagicLink,
   onDelete,
   onExport,
+  hideSeeded = true,
+  onHideSeededChange,
 }: EnhancedWaitlistTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filter entries based on search
-  const filteredEntries = entries.filter(
-    (entry) =>
+  // Filter entries based on search and seeded status
+  const filteredEntries = entries.filter((entry) => {
+    // Search filter
+    const matchesSearch =
       entry.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       entry.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (entry.company_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      (entry.company_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Seeded filter
+    const matchesSeeded = hideSeeded ? !entry.is_seeded : true;
+
+    return matchesSearch && matchesSeeded;
+  });
 
   // Calculate select all state
   const selectableEntries = filteredEntries.filter(canSelect);
@@ -69,7 +79,7 @@ export function EnhancedWaitlistTable({
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 mb-3">
           <input
             type="text"
             placeholder="Search by name, email, or company..."
@@ -101,6 +111,30 @@ export function EnhancedWaitlistTable({
             <Download className="w-4 h-4" />
             Export CSV
           </button>
+        </div>
+
+        {/* Filter Controls */}
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideSeeded}
+              onChange={(e) => onHideSeededChange?.(e.target.checked)}
+              className="
+                w-4 h-4
+                text-blue-600
+                bg-white dark:bg-gray-700
+                border-gray-300 dark:border-gray-600
+                rounded
+                focus:ring-2 focus:ring-blue-500
+              "
+            />
+            <span>Hide seeded users</span>
+            <span className="text-xs text-gray-500 dark:text-gray-500">
+              ({entries.filter(e => e.is_seeded).length} seeded)
+            </span>
+          </label>
         </div>
       </div>
 
@@ -140,7 +174,19 @@ export function EnhancedWaitlistTable({
                 Company
               </th>
               <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Dialer
+              </th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Meeting Recorder
+              </th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                CRM
+              </th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Referrals
+              </th>
+              <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
+                Points
               </th>
               <th className="px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                 Status
@@ -157,7 +203,7 @@ export function EnhancedWaitlistTable({
             {filteredEntries.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={13}
                   className="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
                 >
                   No entries found
@@ -239,7 +285,27 @@ function WaitlistTableRow({
       </td>
 
       {/* Name */}
-      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{entry.full_name}</td>
+      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+        <div className="flex items-center gap-2">
+          <span>{entry.full_name}</span>
+          {entry.is_seeded && (
+            <span
+              className="
+                inline-flex items-center
+                px-2 py-0.5
+                rounded
+                text-xs font-medium
+                bg-purple-100 dark:bg-purple-900/20
+                text-purple-800 dark:text-purple-400
+                border border-purple-200 dark:border-purple-800
+              "
+              title="Seeded user for social proof"
+            >
+              Seeded
+            </span>
+          )}
+        </div>
+      </td>
 
       {/* Email */}
       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{entry.email}</td>
@@ -249,9 +315,35 @@ function WaitlistTableRow({
         {entry.company_name || '-'}
       </td>
 
+      {/* Dialer */}
+      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+        {entry.dialer_tool === 'Other' && entry.dialer_other
+          ? entry.dialer_other
+          : entry.dialer_tool || '-'}
+      </td>
+
+      {/* Meeting Recorder */}
+      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+        {entry.meeting_recorder_tool === 'Other' && entry.meeting_recorder_other
+          ? entry.meeting_recorder_other
+          : entry.meeting_recorder_tool || '-'}
+      </td>
+
+      {/* CRM */}
+      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+        {entry.crm_tool === 'Other' && entry.crm_other
+          ? entry.crm_other
+          : entry.crm_tool || '-'}
+      </td>
+
       {/* Referrals */}
       <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
         {entry.referral_count}
+      </td>
+
+      {/* Points */}
+      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+        {entry.total_points || 0}
       </td>
 
       {/* Status */}

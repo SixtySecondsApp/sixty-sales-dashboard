@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session Debug</title>
+    <style>
+        body {
+            background: #111;
+            color: #fff;
+            font-family: system-ui;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #222;
+            border-radius: 8px;
+        }
+        h2 { color: #37bd7e; }
+        .success { color: #22c55e; }
+        .error { color: #ef4444; }
+        .warning { color: #f59e0b; }
+        .info { color: #3b82f6; }
+        button {
+            background: #37bd7e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+        }
+        button:hover {
+            background: #2da76c;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .storage-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        .key { color: #f59e0b; }
+        .value { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Session Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Quick Actions</h2>
+        <button onclick="checkSession()">Check Session</button>
+        <button onclick="checkLocalStorage()">Check LocalStorage</button>
+        <button onclick="refreshToken()">Refresh Token</button>
+        <button onclick="clearSession()">Clear Session</button>
+        <button onclick="testPersistence()">Test Persistence</button>
+    </div>
+
+    <div class="section">
+        <h2>Session Status</h2>
+        <div id="session-status"></div>
+    </div>
+
+    <div class="section">
+        <h2>LocalStorage Contents</h2>
+        <div id="storage-contents"></div>
+    </div>
+
+    <div class="section">
+        <h2>Debug Log</h2>
+        <pre id="debug-log"></pre>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+        
+        const supabaseUrl = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+        
+        const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info';
+            logDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+        }
+        
+        window.checkSession = async function() {
+            log('Checking session...');
+            
+            const { data: { session }, error } = await supabase.auth.getSession();
+            
+            if (error) {
+                log(`Error: ${error.message}`, 'error');
+                return;
+            }
+            
+            const statusDiv = document.getElementById('session-status');
+            
+            if (session) {
+                const expiresAt = new Date(session.expires_at * 1000);
+                const now = new Date();
+                const minutesLeft = Math.floor((expiresAt - now) / 1000 / 60);
+                
+                statusDiv.innerHTML = `
+                    <div class="success">✅ Active Session</div>
+                    <div><strong>User:</strong> ${session.user.email}</div>
+                    <div><strong>User ID:</strong> ${session.user.id}</div>
+                    <div><strong>Access Token:</strong> ${session.access_token.substring(0, 20)}...</div>
+                    <div><strong>Refresh Token:</strong> ${session.refresh_token ? session.refresh_token.substring(0, 20) + '...' : 'None'}</div>
+                    <div><strong>Expires At:</strong> ${expiresAt.toLocaleString()}</div>
+                    <div><strong>Time Left:</strong> ${minutesLeft} minutes</div>
+                    <div><strong>Token Type:</strong> ${session.token_type}</div>
+                `;
+                
+                log(`Session found for ${session.user.email}, expires in ${minutesLeft} minutes`, 'success');
+                
+                // Check if token needs refresh
+                if (minutesLeft < 10) {
+                    log('Token expires soon, should refresh!', 'warning');
+                }
+            } else {
+                statusDiv.innerHTML = '<div class="error">❌ No Active Session</div>';
+                log('No session found', 'error');
+            }
+        }
+        
+        window.checkLocalStorage = function() {
+            log('Checking localStorage...');
+            
+            const storageDiv = document.getElementById('storage-contents');
+            storageDiv.innerHTML = '';
+            
+            const supabaseKeys = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('supabase') || key.includes('auth')) {
+                    supabaseKeys.push(key);
+                    const value = localStorage.getItem(key);
+                    
+                    let displayValue = value;
+                    try {
+                        const parsed = JSON.parse(value);
+                        displayValue = JSON.stringify(parsed, null, 2);
+                    } catch {
+                        // Not JSON, show as is
+                    }
+                    
+                    // Truncate long values
+                    if (displayValue.length > 200) {
+                        displayValue = displayValue.substring(0, 200) + '...';
+                    }
+                    
+                    storageDiv.innerHTML += `
+                        <div class="storage-item">
+                            <div class="key">${key}:</div>
+                            <div class="value">${displayValue}</div>
+                        </div>
+                    `;
+                }
+            }
+            
+            if (supabaseKeys.length === 0) {
+                storageDiv.innerHTML = '<div class="warning">No Supabase keys found in localStorage</div>';
+                log('No Supabase keys in localStorage!', 'warning');
+            } else {
+                log(`Found ${supabaseKeys.length} Supabase keys in localStorage`, 'success');
+            }
+        }
+        
+        window.refreshToken = async function() {
+            log('Attempting to refresh token...');
+            
+            const { data, error } = await supabase.auth.refreshSession();
+            
+            if (error) {
+                log(`Refresh failed: ${error.message}`, 'error');
+            } else if (data.session) {
+                log('Token refreshed successfully!', 'success');
+                checkSession();
+            } else {
+                log('No session to refresh', 'warning');
+            }
+        }
+        
+        window.clearSession = async function() {
+            if (!confirm('This will log you out. Continue?')) return;
+            
+            log('Clearing session...');
+            
+            const { error } = await supabase.auth.signOut();
+            
+            if (error) {
+                log(`Error signing out: ${error.message}`, 'error');
+            } else {
+                log('Session cleared', 'success');
+                checkSession();
+                checkLocalStorage();
+            }
+        }
+        
+        window.testPersistence = async function() {
+            log('Testing session persistence...');
+            
+            // Check current session
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            
+            if (!currentSession) {
+                log('No session to test', 'error');
+                return;
+            }
+            
+            log('Current session valid', 'success');
+            
+            // Create new client instance to simulate page reload
+            log('Creating new Supabase client (simulating page reload)...');
+            
+            const newClient = createClient(supabaseUrl, supabaseAnonKey, {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true
+                }
+            });
+            
+            // Check if new client can get session
+            const { data: { session: newSession }, error } = await newClient.auth.getSession();
+            
+            if (error) {
+                log(`New client error: ${error.message}`, 'error');
+            } else if (newSession) {
+                log('✅ Session persisted correctly! New client can access it.', 'success');
+            } else {
+                log('❌ Session NOT persisted! New client cannot access it.', 'error');
+            }
+        }
+        
+        // Auto-check on load
+        window.addEventListener('load', () => {
+            checkSession();
+            checkLocalStorage();
+        });
+        
+        // Listen for auth state changes
+        supabase.auth.onAuthStateChange((event, session) => {
+            log(`Auth state changed: ${event}`, 'warning');
+            if (session) {
+                log(`Session active for: ${session.user.email}`, 'success');
+            } else {
+                log('Session ended', 'warning');
+            }
+        });
+    </script>
+</body>
+</html>

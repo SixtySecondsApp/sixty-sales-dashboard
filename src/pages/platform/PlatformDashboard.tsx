@@ -32,11 +32,13 @@ import {
   Activity,
   Layers,
   Globe,
+  LayoutDashboard,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUserPermissions } from '@/contexts/UserPermissionsContext';
 import {
   getAdminDashboardStats,
@@ -44,6 +46,7 @@ import {
 } from '@/lib/services/saasAdminService';
 import type { AdminDashboardStats, CustomerWithDetails } from '@/lib/types/saasAdmin';
 import { toast } from 'sonner';
+import MeetingsWaitlist from './MeetingsWaitlist';
 
 interface PlatformSection {
   id: string;
@@ -307,8 +310,30 @@ export default function PlatformDashboard() {
           </Button>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* Tabs */}
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm">
+            <TabsTrigger
+              value="dashboard"
+              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
+            >
+              <LayoutDashboard className="w-4 h-4 mr-2" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger
+              value="waitlist"
+              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
+            >
+              <Users className="w-4 h-4 mr-2" />
+              Waitlist Admin
+              <Badge variant="outline" className="ml-2 text-xs">New</Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Dashboard Tab */}
+          <TabsContent value="dashboard" className="space-y-8 mt-0">
+            {/* Stats Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -339,8 +364,8 @@ export default function PlatformDashboard() {
           ))}
         </div>
 
-        {/* Section Cards */}
-        <div className="space-y-8">
+            {/* Section Cards */}
+            <div className="space-y-8">
           {Object.entries(platformSections).map(([sectionTitle, items], sectionIndex) => (
             <motion.div
               key={sectionTitle}
@@ -373,50 +398,57 @@ export default function PlatformDashboard() {
               </div>
             </motion.div>
           ))}
-        </div>
+            </div>
 
-        {/* Recent Customers Preview */}
-        {customers.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.5 }}
-            className="mt-8"
-          >
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Recent Customers</CardTitle>
-                  <CardDescription>Latest organizations on the platform</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => navigate('/platform/customers')}>
-                  View All
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {customers.slice(0, 5).map((customer) => (
-                    <div
-                      key={customer.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">{customer.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {customer.plan?.name || 'No plan'} • {customer.member_count} members
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {customer.subscription_status || 'Unknown'}
-                      </Badge>
+            {/* Recent Customers Preview */}
+            {customers.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.5 }}
+                className="mt-8"
+              >
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Recent Customers</CardTitle>
+                      <CardDescription>Latest organizations on the platform</CardDescription>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
+                    <Button variant="outline" size="sm" onClick={() => navigate('/platform/customers')}>
+                      View All
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {customers.slice(0, 5).map((customer) => (
+                        <div
+                          key={customer.id}
+                          className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
+                        >
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{customer.name}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {customer.plan?.name || 'No plan'} • {customer.member_count} members
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {customer.subscription_status || 'Unknown'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </TabsContent>
+
+          {/* Waitlist Admin Tab */}
+          <TabsContent value="waitlist" className="mt-0">
+            <MeetingsWaitlist />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
