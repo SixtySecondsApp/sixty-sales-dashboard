@@ -95,13 +95,16 @@ jobs:
 
       - name: Export Production Data
         run: |
-          echo "📦 Exporting production data using Supabase CLI..."
+          echo "📦 Exporting production data via Supavisor Session Mode (IPv4)..."
 
-          # Use Supabase CLI to dump the database (handles auth and networking)
-          supabase db dump \
-            --db-url "${{ secrets.PRODUCTION_DB_URL }}" \
-            --file production_dump.sql \
-            --data-only
+          # Use pg_dump with Supavisor Session Mode (port 5432) for IPv4 compatibility
+          # This is required because GitHub Actions runners don't support IPv6
+          pg_dump "$PRODUCTION_DB_URL" \
+            --no-owner \
+            --no-privileges \
+            --schema=public \
+            -Fc \
+            -f production_dump.sql
 
           echo "✅ Production data exported"
 
@@ -109,17 +112,31 @@ jobs:
           DUMP_SIZE=$(du -h production_dump.sql | cut -f1)
           echo "✅ Production data size: $DUMP_SIZE"
           echo "dump_size=$DUMP_SIZE" >> $GITHUB_OUTPUT
+        env:
+          # Supavisor Session Mode (port 5432) provides IPv4 compatibility
+          # Format: postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
+          PRODUCTION_DB_URL: "postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 
       - name: Restore Data to Development Branch
         run: |
-          echo "🔄 Restoring data to development branch using Supabase CLI..."
+          echo "🔄 Restoring data to development branch via Supavisor..."
 
-          # Use Supabase CLI to push the data to development branch
-          supabase db push \
-            --db-url "${{ steps.get-dev-connection.outputs.db_url }}" \
-            --file production_dump.sql
+          # Get development branch database host
+          DEV_BRANCH_HOST=$(echo "${{ steps.get-dev-connection.outputs.db_url }}" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+
+          # Use pg_restore with Supavisor Session Mode
+          pg_restore \
+            --dbname="$DEVELOPMENT_DB_URL" \
+            --no-owner \
+            --no-privileges \
+            --clean \
+            --if-exists \
+            production_dump.sql
 
           echo "✅ Data restored to development branch"
+        env:
+          # Development branch also uses Supavisor for IPv4 compatibility
+          DEVELOPMENT_DB_URL: "postgres://postgres.${{ secrets.DEVELOPMENT_BRANCH_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 
       - name: Verify Data Sync
         run: |

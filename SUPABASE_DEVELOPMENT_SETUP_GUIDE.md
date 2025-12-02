@@ -139,11 +139,16 @@ Add these secrets at: https://github.com/SixtySecondsApp/sixty-sales-dashboard/s
 
 #### PRODUCTION_DB_URL Format
 
+**Use Supavisor Session Mode for IPv4 compatibility:**
+
 ```
-postgresql://postgres:[PASSWORD]@db.ewtuefzeogytgmsnkpmb.supabase.co:5432/postgres
+postgres://postgres.ewtuefzeogytgmsnkpmb:PASSWORD@aws-0-us-west-1.pooler.supabase.com:5432/postgres
 ```
 
-**Important**: Use the **direct connection** format (port 5432), NOT the pooler connection.
+**Important**:
+- ✅ Use **Supavisor pooler** (aws-0-REGION.pooler.supabase.com)
+- ✅ Port **5432** (session mode) for pg_dump/pg_restore
+- ❌ Do NOT use direct connection (db.PROJECT.supabase.co) - IPv6 only
 
 ### Workflow Files
 
@@ -157,38 +162,53 @@ Three workflows are configured in `.github/workflows/`:
 
 ## Known Issues & Limitations
 
-### 🚨 Critical: IPv6 Connectivity Required
+### ✅ SOLVED: IPv6 Connectivity Issue
 
-**Issue**: Supabase development branches only provide IPv6 addresses.
+**Issue**: Since January 15, 2024, Supabase stopped assigning IPv4 addresses to projects. Direct database connections (`db.projectref.supabase.co`) now resolve to IPv6 only, which GitHub Actions runners cannot handle.
 
-**Impact**:
-- ❌ GitHub Actions runners do not support IPv6
-- ❌ Many local networks lack IPv6 connectivity
-- ❌ Automated data sync workflows will fail with "Network is unreachable"
+**Solution**: Use **Supavisor Session Mode** (Port 5432) instead of direct connections.
 
-**Error Messages You'll See**:
+#### Supavisor Session Mode Connection Format
+
 ```
-connection to server at "db.yjdzlbivjddcumtevggd.supabase.co"
-(2600:1f1c:f9:4d12:...) failed: Network is unreachable
+postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
 ```
 
-### Solutions
+**Key Points**:
+- ✅ Port **5432** (session mode) - provides IPv4 compatibility
+- ✅ Port **6543** (transaction mode) - use for connection pooling only
+- ✅ Works with `pg_dump`, `pg_restore`, and `psql`
+- ✅ Compatible with GitHub Actions runners
+- ✅ Requires Supabase CLI >= 1.136.3
 
-#### Option 1: Purchase IPv4 Add-on (Recommended)
-- **Cost**: $10/month
-- **Benefit**: Enables IPv4 connectivity for development branches
-- **Result**: Makes all automated workflows functional
-- **How**: Contact Supabase support or check dashboard for IPv4 add-on
+#### Updated Connection Strings
 
-#### Option 2: Develop Against Production
-- ⚠️ **Not Recommended**: Risk of accidental data changes
-- Configure `.env` to use production URLs
-- Use with extreme caution
+**Production (via Supavisor)**:
+```env
+PRODUCTION_DB_URL=postgres://postgres.ewtuefzeogytgmsnkpmb:PASSWORD@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+```
 
-#### Option 3: Manual Migration Testing
-- Test migrations locally against local Supabase instance
-- Deploy directly to production after thorough testing
-- Skip development branch data sync
+**Development Branch (via Supavisor)**:
+```env
+DEVELOPMENT_DB_URL=postgres://postgres.BRANCH_ID:PASSWORD@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+```
+
+#### Regional Pooler Hosts
+
+Find your pooler host from Supabase Dashboard → Connect → Session mode:
+- **US East**: `aws-0-us-east-1.pooler.supabase.com`
+- **US West**: `aws-0-us-west-1.pooler.supabase.com`
+- **EU West**: `aws-0-eu-west-2.pooler.supabase.com`
+- **AP Southeast**: `aws-0-ap-southeast-1.pooler.supabase.com`
+
+#### Network Restrictions
+
+If you have network restrictions enabled, add this CIDR range for branching:
+```
+2600:1f18:2b7d:f600::/56
+```
+
+Go to: Project Settings → Database → Network Restrictions
 
 ---
 
