@@ -130,12 +130,10 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/((?!api|.*\\.\\w+).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
-  "trailingSlash": false,
-  "cleanUrls": true,
   "crons": [
     {
       "path": "/api/cron/health-refresh",
