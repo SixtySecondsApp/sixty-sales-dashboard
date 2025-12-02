@@ -4,8 +4,8 @@ Use this checklist to ensure all setup steps are completed correctly.
 
 ## Prerequisites
 
-- [ ] Supabase Pro plan or higher (required for branching)
-- [ ] Supabase CLI installed: `npm install -g supabase`
+- [Tick ] Supabase Pro plan or higher (required for branching)
+- [TICK ] Supabase CLI installed: `npm install -g supabase`
 - [ ] PostgreSQL client tools installed (`pg_dump`, `pg_restore`)
 - [ ] GitHub repository with Actions enabled
 - [ ] Admin access to Supabase Dashboard
