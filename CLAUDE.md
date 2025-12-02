@@ -78,6 +78,12 @@ Enterprise-grade sales CRM and analytics platform featuring a streamlined 4-stag
 - **Edge Functions** for serverless API endpoints
 - **Real-time subscriptions** for live data updates
 
+**⚠️ Development Setup**: See [SUPABASE_DEVELOPMENT_SETUP_GUIDE.md](./SUPABASE_DEVELOPMENT_SETUP_GUIDE.md) for complete Supabase branching setup, including:
+- Development branch configuration
+- GitHub Actions workflows
+- Known IPv6 connectivity limitations
+- Troubleshooting common issues
+
 ### Performance Optimizations
 - **Memory Usage Reduction**: 64.1% reduction in memory consumption
 - **Component Re-renders**: Reduced by 80% through React.memo optimization
