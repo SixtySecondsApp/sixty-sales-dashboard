@@ -53,7 +53,7 @@ export function LiveWaitlistCount() {
       if (profileError) throw profileError;
 
       // Get 4 unique profile images
-      const uniqueProfiles = [...new Set(profiles?.map(p => p.profile_image_url).filter(Boolean) || [])];
+      const uniqueProfiles = [...new Set(profiles?.map((p: any) => p.profile_image_url).filter(Boolean) || [])];
       setRecentProfiles(uniqueProfiles.slice(0, 4));
     } catch (err) {
       console.error('Failed to load waitlist count:', err);

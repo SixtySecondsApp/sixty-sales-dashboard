@@ -10,7 +10,7 @@ import { LocaleSelector } from '../LocaleSelector';
 export function PricingSectionV4() {
   const navigate = useNavigate();
   const { t } = useTranslation('pricing');
-  const { locale, setLocale, availableLocales, isLocaleLoading, formatPrice, symbol } = useLocalization();
+  const { locale, setLocale, availableLocales, isLocaleLoading, formatPrice, symbol, convertPrice } = useLocalization();
   const [reps, setReps] = useState(5);
 
   // V3 ROI calculation

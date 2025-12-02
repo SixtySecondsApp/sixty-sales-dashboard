@@ -62,7 +62,7 @@ export function Leaderboard({ currentUserId }: LeaderboardProps) {
       setLeaders(topData || []);
 
       // Check if current user is in top 10
-      const userInTop10 = topData?.some(entry => entry.id === currentUserId);
+      const userInTop10 = topData?.some((entry: any) => entry.id === currentUserId);
 
       // If not in top 10, fetch current user's data
       if (!userInTop10 && currentUserId) {

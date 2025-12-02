@@ -59,9 +59,9 @@ export function RecentLinkedInShares() {
         return;
       }
 
-      const shares = data?.map(share => ({
-        full_name: (share as any).meetings_waitlist.full_name,
-        company_name: (share as any).meetings_waitlist.company_name,
+      const shares = data?.map((share: any) => ({
+        full_name: share.meetings_waitlist.full_name,
+        company_name: share.meetings_waitlist.company_name,
         shared_at: share.shared_at
       })) || [];
 

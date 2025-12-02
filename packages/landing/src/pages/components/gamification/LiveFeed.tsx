@@ -65,7 +65,7 @@ export function LiveFeed() {
       if (error) throw error;
 
       // Convert to feed items
-      const items: FeedItem[] = (data || []).map(entry => ({
+      const items: FeedItem[] = (data || []).map((entry: any) => ({
         id: entry.id,
         type: 'signup',
         name: anonymizeName(entry.full_name),
