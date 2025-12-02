@@ -1,3 +1,18 @@
+/**
+ * Settings - User Settings Page (Tier 1)
+ *
+ * Simplified settings page for all authenticated users.
+ * Contains only user-specific settings:
+ * - Account (profile)
+ * - Appearance (theme)
+ * - Proposals
+ * - AI Personalization
+ * - Email Sync
+ *
+ * Org-level settings (Team, Branding) moved to /team/*
+ * Platform-level settings (View Mode) moved to /platform/*
+ */
+
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Profile from '@/pages/Profile';
@@ -15,18 +30,18 @@ export default function Settings() {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Manage your account and appearance</p>
+              <h1 className="text-2xl font-bold text-[#1E293B] dark:text-gray-100">Settings</h1>
+              <p className="text-sm text-[#64748B] dark:text-gray-400 mt-1">Manage your account and preferences</p>
             </div>
           </div>
 
           <Tabs value={tab} onValueChange={setTab} className="space-y-6">
-            <TabsList className="bg-white border border-transparent shadow-sm dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50">
-              <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Account</TabsTrigger>
-              <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Appearance</TabsTrigger>
-              <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Proposals</TabsTrigger>
-              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
-              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-gray-900 dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
+            <TabsList className="bg-[#E2E8F0] dark:bg-gray-900/50 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none dark:backdrop-blur-xl">
+              <TabsTrigger value="account" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Account</TabsTrigger>
+              <TabsTrigger value="appearance" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Appearance</TabsTrigger>
+              <TabsTrigger value="proposals" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Proposals</TabsTrigger>
+              <TabsTrigger value="ai-personalization" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">AI Personalization</TabsTrigger>
+              <TabsTrigger value="email-sync" className="data-[state=active]:bg-[#37bd7e]/10 data-[state=active]:text-[#1E293B] dark:data-[state=active]:text-white">Email Sync</TabsTrigger>
             </TabsList>
 
             <TabsContent value="account" className="space-y-0">
@@ -56,14 +71,3 @@ export default function Settings() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-

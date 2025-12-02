@@ -44,6 +44,14 @@ export interface AIResponse {
   }>;
 }
 
+export interface ModelConfig {
+  provider: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  isEnabled: boolean;
+}
+
 export interface AIProviderConfig {
   apiKey: string;
   baseUrl?: string;
@@ -1352,6 +1360,110 @@ export class AIProviderService {
 
     if (error) {
     }
+  }
+
+  /**
+   * Resolve model configuration for a specific feature
+   * Resolution order: 1. User settings → 2. System config → 3. Hardcoded defaults
+   */
+  public async resolveModelForFeature(
+    userId: string,
+    featureKey: string
+  ): Promise<ModelConfig> {
+    try {
+      // 1. Check user_ai_feature_settings table
+      const { data: userSettings, error: userError } = await supabase
+        .rpc('get_user_feature_model_config', {
+          p_user_id: userId,
+          p_feature_key: featureKey,
+        });
+
+      if (!userError && userSettings && userSettings.length > 0) {
+        const setting = userSettings[0];
+        return {
+          provider: setting.provider,
+          model: setting.model,
+          temperature: setting.temperature,
+          maxTokens: setting.max_tokens,
+          isEnabled: setting.is_enabled,
+        };
+      }
+
+      // 2. Fall back to system_config
+      const systemConfigKey = `ai_${featureKey}_model`;
+      const { data: systemConfig, error: systemError } = await supabase
+        .from('system_config')
+        .select('value')
+        .eq('key', systemConfigKey)
+        .maybeSingle();
+
+      if (!systemError && systemConfig?.value) {
+        // Parse provider/model from system config value (format: "provider/model")
+        const [provider, ...modelParts] = systemConfig.value.split('/');
+        const model = modelParts.join('/');
+
+        if (provider && model) {
+          return {
+            provider: provider as any,
+            model: model,
+            temperature: 0.7,
+            maxTokens: 2048,
+            isEnabled: true,
+          };
+        }
+      }
+
+      // 3. Fall back to hardcoded defaults
+      return this.getHardcodedDefault(featureKey);
+    } catch (error) {
+      console.error(`Error resolving model for feature ${featureKey}:`, error);
+      // Return hardcoded default on error
+      return this.getHardcodedDefault(featureKey);
+    }
+  }
+
+  /**
+   * Get hardcoded default model configuration for a feature
+   */
+  private getHardcodedDefault(featureKey: string): ModelConfig {
+    const defaults: Record<string, ModelConfig> = {
+      meeting_task_extraction: {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20250514',
+        temperature: 0.3,
+        maxTokens: 500,
+        isEnabled: true,
+      },
+      meeting_sentiment: {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20250514',
+        temperature: 0.3,
+        maxTokens: 500,
+        isEnabled: true,
+      },
+      proposal_generation: {
+        provider: 'anthropic',
+        model: 'claude-3-5-sonnet-20241022',
+        temperature: 0.7,
+        maxTokens: 4096,
+        isEnabled: true,
+      },
+      meeting_summary: {
+        provider: 'anthropic',
+        model: 'claude-haiku-4-5-20250514',
+        temperature: 0.5,
+        maxTokens: 2048,
+        isEnabled: true,
+      },
+    };
+
+    return defaults[featureKey] || {
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5-20250514',
+      temperature: 0.7,
+      maxTokens: 2048,
+      isEnabled: true,
+    };
   }
 
   /**

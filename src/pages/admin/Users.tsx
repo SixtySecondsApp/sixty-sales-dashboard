@@ -257,7 +257,7 @@ export default function Users() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setShowFilters(!showFilters)}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 text-gray-300 hover:bg-[#37bd7e]/20 hover:text-white transition-all duration-300 text-sm border border-transparent hover:border-[#37bd7e]/30"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-[#37bd7e]/20 hover:text-[#37bd7e] dark:hover:text-white transition-all duration-300 text-sm border border-gray-200 dark:border-transparent hover:border-[#37bd7e]/30"
                 >
                   <Filter className="w-4 h-4" />
                   Filters
@@ -460,51 +460,51 @@ export default function Users() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">Outbound Target</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Outbound Target</label>
                         <input
                           type="number"
                           placeholder="e.g., 100"
                           value={target.outbound_target ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'outbound_target', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">Meetings Target</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Meetings Target</label>
                         <input
                           type="number"
                           placeholder="e.g., 20"
                           value={target.meetings_target ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'meetings_target', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">Proposal Target</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Proposal Target</label>
                         <input
                           type="number"
                           placeholder="e.g., 15"
                           value={target.proposal_target ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'proposal_target', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">Start Date</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Start Date</label>
                         <input
                           type="date"
                           value={target.start_date ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'start_date', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-400">End Date</label>
+                        <label className="text-xs font-medium text-gray-700 dark:text-gray-300">End Date</label>
                         <input
                           type="date"
                           value={target.end_date ?? ''}
                           onChange={(e) => handleModalTargetChange(index, 'end_date', e.target.value)}
-                          className="w-full bg-gray-800/50 border border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-white"
+                          className="w-full bg-white dark:bg-gray-800/50 border border-gray-300 dark:border-gray-700/50 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white"
                         />
                       </div>
                     </div>
@@ -514,7 +514,7 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={addTargetSet}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-700/50 text-gray-400 hover:border-[#37bd7e]/50 hover:text-[#37bd7e] transition-colors duration-200"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700/50 text-gray-500 dark:text-gray-400 hover:border-[#37bd7e]/50 hover:text-[#37bd7e] transition-colors duration-200"
                 >
                   <PlusCircle className="w-4 h-4" />
                   Add New Target Set
@@ -524,7 +524,7 @@ export default function Users() {
                   <button
                     type="button"
                     onClick={() => { setEditingUser(null); setModalTargets([]); }}
-                    className="px-4 py-2 rounded-xl bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-800 transition-colors"
                   >
                     Cancel
                   </button>
@@ -554,39 +554,39 @@ export default function Users() {
                 }
               }} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">First Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">First Name</label>
                   <input
                     type="text"
                     name="first_name"
                     defaultValue={(editingUser as User)?.first_name || ''}
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white"
+                    className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">Last Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Last Name</label>
                   <input
                     type="text"
                     name="last_name"
                     defaultValue={(editingUser as User)?.last_name || ''}
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white"
+                    className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">Email</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Email</label>
                   <input
                     type="email"
                     name="email"
                     defaultValue={(editingUser as User)?.email || ''}
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white"
+                    className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                     readOnly={!editingUser.isNew}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-400">Stage</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-400">Stage</label>
                   <select
                     name="stage"
                     defaultValue={(editingUser as User)?.stage || USER_STAGES[0]}
-                    className="w-full bg-gray-800/30 border border-gray-700/30 rounded-xl px-4 py-2 text-white"
+                    className="w-full bg-gray-100 dark:bg-gray-800/30 border border-gray-300 dark:border-gray-700/30 rounded-xl px-4 py-2 text-gray-900 dark:text-white"
                   >
                     {USER_STAGES.map(stage => (
                       <option key={stage} value={stage}>{stage}</option>
@@ -597,7 +597,7 @@ export default function Users() {
                   <button
                     type="button"
                     onClick={() => setEditingUser(null)}
-                    className="px-4 py-2 rounded-xl bg-gray-800/50 text-gray-300 hover:bg-gray-800 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-800 transition-colors"
                   >
                     Cancel
                   </button>

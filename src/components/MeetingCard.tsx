@@ -225,10 +225,10 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: 4 }}
-        className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-xl p-4 border transition-all duration-200 group cursor-pointer ${
+        className={`bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-xl p-4 border transition-all duration-300 group cursor-pointer shadow-sm dark:shadow-lg dark:shadow-black/10 ${
           isSelected && isSelectMode
-            ? 'border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
-            : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50'
+            ? 'border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10'
+            : 'border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40'
         }`}
         onClick={() => onNavigate?.(meeting)}
       >
@@ -376,10 +376,10 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
       whileHover={{ y: -4, transition: { duration: 0.2 } }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-200 overflow-hidden group cursor-pointer ${
+      className={`bg-white/80 dark:bg-gray-900/40 backdrop-blur-xl rounded-2xl p-6 border transition-all duration-300 overflow-hidden group cursor-pointer shadow-sm dark:shadow-lg dark:shadow-black/10 ${
         isSelected && isSelectMode
-          ? 'border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/5'
-          : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600/50'
+          ? 'border-emerald-500/30 bg-emerald-50/80 dark:bg-emerald-500/10'
+          : 'border-gray-200/50 dark:border-gray-700/30 hover:border-gray-300/50 dark:hover:border-gray-600/40'
       }`}
       onClick={() => onNavigate?.(meeting)}
     >
@@ -497,7 +497,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
 
       {/* Summary Preview - Use condensed summaries if available */}
       {(meeting.summary_oneliner || meeting.next_steps_oneliner || meeting.summary) && (
-        <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg space-y-2">
+        <div className="mb-4 p-3 bg-gray-50/80 dark:bg-gray-800/30 rounded-lg space-y-2 border border-gray-200/30 dark:border-gray-700/20">
           {meeting.summary_oneliner && (
             <div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">💬 Discussion</div>
@@ -526,7 +526,7 @@ const MeetingCard: React.FC<MeetingCardProps> = ({
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700/50">
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200/50 dark:border-gray-700/30">
         <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Clock className="w-3 h-3" />
           <span>{getDaysSince() === 0 ? 'Today' : `${getDaysSince()} days ago`}</span>

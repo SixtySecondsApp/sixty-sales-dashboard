@@ -34,6 +34,10 @@ export default function LeadsInbox() {
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = 20;
 
+  // URL-based filters
+  const sourceFilter = searchParams.get('source');
+  const stageFilter = searchParams.get('stage');
+
   // Lazy loading state for list view
   const [visibleCount, setVisibleCount] = useState(20);
   const BATCH_SIZE = 20;
@@ -90,7 +94,40 @@ export default function LeadsInbox() {
       return values.some((value) => typeof value === 'string' && value.toLowerCase().includes(normalizedQuery));
     };
 
-    const filtered = normalizedQuery ? leads.filter(matchesQuery) : [...leads];
+    const matchesSource = (lead: LeadWithPrep) => {
+      if (!sourceFilter) return true;
+
+      const source = lead.source as { name: string | null } | null;
+      const sourceName = source?.name ?? lead.utm_source ?? lead.external_source ?? 'Unknown';
+
+      return sourceName.toLowerCase().includes(sourceFilter.toLowerCase());
+    };
+
+    const matchesStage = (lead: LeadWithPrep) => {
+      if (!stageFilter) return true;
+
+      // Get the deal stage from the converted deal
+      const deal = lead.converted_deal as {
+        id: string;
+        name: string;
+        stage: { id: string; name: string } | null
+      } | null;
+
+      return deal?.stage?.name === stageFilter;
+    };
+
+    let filtered = [...leads];
+
+    // Apply all filters
+    if (normalizedQuery) {
+      filtered = filtered.filter(matchesQuery);
+    }
+    if (sourceFilter) {
+      filtered = filtered.filter(matchesSource);
+    }
+    if (stageFilter) {
+      filtered = filtered.filter(matchesStage);
+    }
 
     const getBookedDate = (lead: LeadWithPrep) =>
       lead.first_seen_at || lead.external_occured_at || lead.created_at || null;
@@ -117,7 +154,7 @@ export default function LeadsInbox() {
       const bDate = getBookedDate(b) ? new Date(getBookedDate(b) as string).getTime() : 0;
       return bDate - aDate;
     });
-  }, [leads, filterType, searchQuery]);
+  }, [leads, filterType, searchQuery, sourceFilter, stageFilter]);
 
   // Ensure organizations are loaded when user is available but orgId is not
   useEffect(() => {
@@ -235,7 +272,10 @@ export default function LeadsInbox() {
     // 1. No lead is selected, OR
     // 2. Selected lead is not in the current filtered list
     if (!selectedLeadId || !isSelectedInList) {
-      setSelectedLeadId(filteredAndSortedLeads[0].id);
+      // Only select if there are leads available
+      if (filteredAndSortedLeads.length > 0) {
+        setSelectedLeadId(filteredAndSortedLeads[0].id);
+      }
     }
   }, [filteredAndSortedLeads, selectedLeadId, viewMode]);
 
@@ -285,7 +325,35 @@ export default function LeadsInbox() {
             viewMode={viewMode}
             onViewModeChange={handleViewModeChange}
           />
-        {viewMode === 'table' ? (
+        {/* Empty state when filters return no results */}
+        {(sourceFilter || stageFilter) && filteredAndSortedLeads.length === 0 && !isLoading && (
+          <div className="flex-1 flex items-center justify-center p-8">
+            <div className="text-center max-w-md">
+              <div className="mb-4 text-4xl">🔍</div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                No leads found
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                No leads match the current filters:
+                {sourceFilter && <span className="block mt-1">Source: <strong>{sourceFilter}</strong></span>}
+                {stageFilter && <span className="block mt-1">Stage: <strong>{stageFilter}</strong></span>}
+              </p>
+              <button
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('source');
+                  newParams.delete('stage');
+                  setSearchParams(newParams);
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Clear all filters
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!((sourceFilter || stageFilter) && filteredAndSortedLeads.length === 0 && !isLoading) && viewMode === 'table' ? (
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* Filter/Search Toolbar for Table View */}
             <div className="flex flex-wrap items-center gap-3 px-4 sm:px-5 py-2.5 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/30">
@@ -343,6 +411,57 @@ export default function LeadsInbox() {
                   </button>
                 </div>
               </div>
+
+              {/* Active filters indicator */}
+              {(sourceFilter || stageFilter) && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Filters:</span>
+                  {sourceFilter && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200">
+                      Source: {sourceFilter}
+                      <button
+                        onClick={() => {
+                          const newParams = new URLSearchParams(searchParams);
+                          newParams.delete('source');
+                          setSearchParams(newParams);
+                        }}
+                        className="ml-1 hover:text-blue-900 dark:hover:text-blue-100"
+                        aria-label="Clear source filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {stageFilter && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-200">
+                      Stage: {stageFilter}
+                      <button
+                        onClick={() => {
+                          const newParams = new URLSearchParams(searchParams);
+                          newParams.delete('stage');
+                          setSearchParams(newParams);
+                        }}
+                        className="ml-1 hover:text-purple-900 dark:hover:text-purple-100"
+                        aria-label="Clear stage filter"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      const newParams = new URLSearchParams(searchParams);
+                      newParams.delete('source');
+                      newParams.delete('stage');
+                      setSearchParams(newParams);
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 underline"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+
               <div className="ml-auto flex items-center">
                 <div
                   className={cn(

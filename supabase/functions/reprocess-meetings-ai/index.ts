@@ -121,7 +121,7 @@ serve(async (req) => {
           }
         }
 
-        // Analyze transcript with Claude
+        // Analyze transcript with Claude (with extraction rules - Phase 6.3)
         const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
           meeting.transcript_text,
           {
@@ -129,7 +129,9 @@ serve(async (req) => {
             title: meeting.title,
             meeting_start: meeting.meeting_start,
             owner_email: null, // Not needed for analysis
-          }
+          },
+          supabase,
+          meeting.owner_user_id
         )
         // Update meeting with AI metrics
         const { error: updateError } = await supabase

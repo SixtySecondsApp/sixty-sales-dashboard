@@ -12,7 +12,7 @@
  * - Notification system for new tasks and deadlines
  */
 
-import { supabase } from '../supabase';
+import { supabase } from '../supabase/clientV2';
 
 export interface MeetingActionItem {
   id: string;

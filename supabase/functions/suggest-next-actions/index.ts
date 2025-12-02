@@ -75,11 +75,13 @@ interface NextActionSuggestion {
   urgency: 'low' | 'medium' | 'high'
   recommended_deadline: string
   confidence_score: number
-  quick_actions: {
+  quick_actions?: {
     create_task: boolean
     schedule_meeting: boolean
     send_email: boolean
   }
+  source?: 'custom_rule' | 'ai_analysis'
+  matchedRuleId?: string
 }
 
 serve(async (req) => {
@@ -144,8 +146,27 @@ serve(async (req) => {
       )
     }
 
-    // Generate suggestions using Claude Haiku 4.5
-    const suggestions = await generateSuggestionsWithClaude(context, existingContext)
+    // Get user ID for extraction rules (from meeting owner or context)
+    let userId: string | null = null
+    if (context.type === 'meeting') {
+      const { data: meeting } = await supabaseClient
+        .from('meetings')
+        .select('owner_user_id')
+        .eq('id', context.id)
+        .single()
+      userId = meeting?.owner_user_id || null
+    }
+
+    // Apply custom extraction rules first (Phase 6.3)
+    const ruleBasedSuggestions = userId && context.transcript
+      ? await applyExtractionRules(supabaseClient, userId, context.transcript, context)
+      : []
+
+    // Generate AI suggestions using Claude Haiku 4.5
+    const aiSuggestions = await generateSuggestionsWithClaude(context, existingContext)
+
+    // Merge rule-based suggestions with AI suggestions (prioritize custom rules)
+    const suggestions = mergeSuggestions(ruleBasedSuggestions, aiSuggestions)
 
     if (!suggestions || suggestions.length === 0) {
       return new Response(
@@ -738,4 +759,115 @@ async function autoCreateTasksFromSuggestions(
   }
 
   return createdTasks
+}
+
+/**
+ * Apply custom extraction rules to transcript (Phase 6.3)
+ * Returns suggestions based on user-defined trigger phrases
+ */
+async function applyExtractionRules(
+  supabase: any,
+  userId: string,
+  transcript: string,
+  context: ActivityContext
+): Promise<NextActionSuggestion[]> {
+  try {
+    // Fetch active extraction rules for user
+    const { data: rules, error } = await supabase
+      .from('task_extraction_rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+
+    if (error || !rules || rules.length === 0) {
+      return []
+    }
+
+    const lowerTranscript = transcript.toLowerCase()
+    const suggestions: NextActionSuggestion[] = []
+
+    // Check each rule against transcript
+    for (const rule of rules) {
+      // Check if any trigger phrase matches
+      const matchingPhrase = rule.trigger_phrases.find((phrase: string) =>
+        lowerTranscript.includes(phrase.toLowerCase())
+      )
+
+      if (matchingPhrase) {
+        // Find the sentence containing the trigger phrase
+        const sentences = transcript.split(/[.!?]\s+/)
+        const matchingSentence = sentences.find((sentence: string) =>
+          sentence.toLowerCase().includes(matchingPhrase.toLowerCase())
+        )
+
+        // Create task title from sentence or phrase
+        const taskTitle = matchingSentence?.trim() || `Follow up on: ${matchingPhrase}`
+
+        // Calculate deadline based on rule's default_deadline_days
+        const deadline = rule.default_deadline_days
+          ? new Date(Date.now() + rule.default_deadline_days * 24 * 60 * 60 * 1000).toISOString()
+          : getRecommendedDeadline(3) // Default to 3 days if not specified
+
+        // Map priority to urgency
+        const urgencyMap: Record<string, 'low' | 'medium' | 'high'> = {
+          'low': 'low',
+          'medium': 'medium',
+          'high': 'high',
+          'urgent': 'high'
+        }
+
+        suggestions.push({
+          action_type: rule.task_category || 'general',
+          title: taskTitle,
+          reasoning: `Automatically extracted based on custom rule: "${rule.name}". Trigger phrase: "${matchingPhrase}"`,
+          urgency: urgencyMap[rule.default_priority] || 'medium',
+          recommended_deadline: deadline,
+          confidence_score: 0.95, // High confidence for rule-based extraction
+          source: 'custom_rule',
+          matchedRuleId: rule.id
+        })
+      }
+    }
+
+    return suggestions
+  } catch (error) {
+    console.error('Error applying extraction rules:', error)
+    return []
+  }
+}
+
+/**
+ * Merge rule-based suggestions with AI suggestions
+ * Prioritizes custom rules over AI analysis
+ */
+function mergeSuggestions(
+  ruleSuggestions: NextActionSuggestion[],
+  aiSuggestions: NextActionSuggestion[]
+): NextActionSuggestion[] {
+  const merged: NextActionSuggestion[] = []
+  const seenTitles = new Set<string>()
+
+  // Add rule-based suggestions first (higher priority)
+  for (const suggestion of ruleSuggestions) {
+    const key = suggestion.title.toLowerCase().trim()
+    if (!seenTitles.has(key)) {
+      merged.push(suggestion)
+      seenTitles.add(key)
+    }
+  }
+
+  // Add AI suggestions that don't conflict
+  for (const suggestion of aiSuggestions) {
+    const key = suggestion.title.toLowerCase().trim()
+    if (!seenTitles.has(key)) {
+      // Ensure source is set
+      if (!suggestion.source) {
+        suggestion.source = 'ai_analysis'
+      }
+      merged.push(suggestion)
+      seenTitles.add(key)
+    }
+  }
+
+  return merged
 }

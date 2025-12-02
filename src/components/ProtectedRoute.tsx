@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -18,19 +18,41 @@ const publicRoutes = [
   '/oauth/fathom/callback'
 ];
 
+// Routes that require auth but should show loading instead of redirecting immediately
+const authRequiredRoutes = [
+  '/onboarding',
+  '/meetings',
+  '/dashboard',
+  '/'
+];
+
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isPublicRoute = publicRoutes.includes(location.pathname);
   const isPasswordRecovery = location.pathname === '/auth/reset-password' &&
     location.hash.includes('type=recovery');
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
+  const isAuthRequiredRoute = authRequiredRoutes.some(route =>
+    location.pathname === route || location.pathname.startsWith(route + '/')
+  );
 
   // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
   const isDevModeBypass = process.env.NODE_ENV === 'development' &&
     location.pathname.startsWith('/roadmap');
+
+  useEffect(() => {
+    // Clean up timeout on unmount
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     // Don't redirect while loading
@@ -45,20 +67,38 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     // If user is not authenticated and trying to access protected route, redirect to login
     // TEMPORARY DEV: Skip redirect for roadmap in development
     if (!isAuthenticated && !isPublicRoute && !isPasswordRecovery && !isDevModeBypass) {
+      // For auth-required routes, add a small delay to allow for race conditions
+      // This helps when navigating from onboarding where auth state might momentarily be stale
+      if (isAuthRequiredRoute && !isRedirecting) {
+        setIsRedirecting(true);
+        redirectTimeoutRef.current = setTimeout(() => {
+          // Re-check auth state after delay
+          if (!isAuthenticated) {
+            const intendedPath = location.pathname + location.search;
+            navigate(redirectTo, {
+              state: { from: intendedPath },
+              replace: true
+            });
+          }
+          setIsRedirecting(false);
+        }, 500); // Small delay to allow auth state to settle
+        return;
+      }
+
       // Store the intended destination for after login
       const intendedPath = location.pathname + location.search;
-      navigate(redirectTo, { 
+      navigate(redirectTo, {
         state: { from: intendedPath },
-        replace: true 
+        replace: true
       });
       return;
     }
-  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, isDevModeBypass, navigate, redirectTo, location]);
+  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, navigate, redirectTo, location, isRedirecting]);
 
-  // Show loading spinner while checking authentication
-  if (loading) {
+  // Show loading spinner while checking authentication or during redirect delay
+  if (loading || isRedirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
         <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
       </div>
@@ -81,6 +121,12 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
     return <>{children}</>;
   }
 
-  // This should not happen due to useEffect redirect, but just in case
-  return null;
+  // Show loading instead of null to prevent flash
+  // The useEffect will handle the redirect
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
+      <Loader2 className="w-8 h-8 text-[#37bd7e] animate-spin" />
+    </div>
+  );
 } 

@@ -29,6 +29,17 @@ export interface Proposal {
   created_at: string;
   updated_at: string;
   user_id: string;
+  // Sharing fields
+  share_token?: string;
+  password_hash?: string;
+  is_public?: boolean;
+  share_views?: number;
+  last_viewed_at?: string;
+}
+
+export interface ShareSettings {
+  is_public: boolean;
+  password?: string; // Plain text password (will be hashed)
 }
 
 export interface GenerateGoalsParams {
@@ -474,6 +485,266 @@ export async function generateSOW(
 }
 
 /**
+ * Generate Email Proposal from Goals (streaming)
+ */
+export async function generateEmailProposal(
+  params: GenerateProposalParams,
+  onChunk?: (chunk: string) => void
+): Promise<GenerateResponse> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'generate_email',
+          ...params,
+          async: true,
+          stream: true,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to start streaming');
+    }
+
+    // Handle streaming response
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      let buffer = '';
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                logger.debug('Skipping invalid JSON in email SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
+        if (done) break;
+      }
+
+      return {
+        success: true,
+        content: accumulatedContent,
+      };
+    }
+
+    // Fallback to non-streaming
+    const data = await response.json();
+    if (!data || !data.success) {
+      return {
+        success: false,
+        error: data?.error || 'Generation failed',
+      };
+    }
+
+    return {
+      success: true,
+      content: data.content,
+      usage: data.usage,
+    };
+  } catch (error) {
+    logger.error('Exception generating email proposal:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
+ * Generate Markdown Proposal from Goals (streaming)
+ */
+export async function generateMarkdownProposal(
+  params: GenerateProposalParams,
+  onChunk?: (chunk: string) => void
+): Promise<GenerateResponse> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured. Please check your environment variables.');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'generate_markdown',
+          ...params,
+          async: true,
+          stream: true,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to start streaming');
+    }
+
+    // Handle streaming response
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = '';
+      let buffer = '';
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        const chunk = value ? decoder.decode(value, { stream: !done }) : '';
+        buffer += chunk;
+
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || '';
+
+        for (const event of events) {
+          const lines = event.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim();
+              if (data === '[DONE]') continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.type === 'chunk' && parsed.text) {
+                  accumulatedContent += parsed.text;
+                  if (onChunk) {
+                    onChunk(parsed.text);
+                  }
+                } else if (parsed.type === 'done' && parsed.content) {
+                  return {
+                    success: true,
+                    content: parsed.content,
+                  };
+                }
+              } catch (e) {
+                logger.debug('Skipping invalid JSON in markdown SSE:', data.substring(0, 100));
+              }
+            }
+          }
+        }
+
+        if (done) break;
+      }
+
+      return {
+        success: true,
+        content: accumulatedContent,
+      };
+    }
+
+    // Fallback to non-streaming
+    const data = await response.json();
+    if (!data || !data.success) {
+      return {
+        success: false,
+        error: data?.error || 'Generation failed',
+      };
+    }
+
+    return {
+      success: true,
+      content: data.content,
+      usage: data.usage,
+    };
+  } catch (error) {
+    logger.error('Exception generating markdown proposal:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Generate HTML Proposal from Goals (streaming)
  */
 export async function generateProposal(
@@ -904,6 +1175,130 @@ export async function getTranscriptsFromMeetings(meetingIds: string[]): Promise<
 }
 
 /**
+ * Extract goals, pain points, and proposed solutions from a meeting transcript
+ * Used for Quick Mode proposal generation
+ */
+export async function extractGoalsFromMeeting(meetingId: string): Promise<{
+  goals: string;
+  painPoints: string[];
+  proposedSolutions: string[];
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    // Get meeting transcript
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('transcript_text, summary, contact_id, company_id')
+      .eq('id', meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      throw new Error('Meeting not found');
+    }
+
+    if (!meeting.transcript_text && !meeting.summary) {
+      return {
+        goals: '',
+        painPoints: [],
+        proposedSolutions: [],
+      };
+    }
+
+    // Get contact and company info
+    let contactName: string | undefined;
+    let companyName: string | undefined;
+
+    if (meeting.contact_id) {
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('first_name, last_name')
+        .eq('id', meeting.contact_id)
+        .single();
+      
+      if (contact) {
+        contactName = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || undefined;
+      }
+    }
+
+    if (meeting.company_id) {
+      const { data: company } = await supabase
+        .from('companies')
+        .select('name')
+        .eq('id', meeting.company_id)
+        .single();
+      
+      if (company) {
+        companyName = company.name;
+      }
+    }
+
+    // Get Supabase URL
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL is not configured');
+    }
+
+    const functionsUrlEnv = (import.meta.env as any).VITE_SUPABASE_FUNCTIONS_URL;
+    let functionsUrl = functionsUrlEnv;
+    if (!functionsUrl && supabaseUrl.includes('.supabase.co')) {
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0];
+      if (projectRef) {
+        functionsUrl = `https://${projectRef}.functions.supabase.co`;
+      }
+    }
+    if (!functionsUrl) {
+      functionsUrl = `${supabaseUrl}/functions/v1`;
+    }
+
+    // Call edge function to extract goals
+    const response = await fetch(
+      `${functionsUrl}/generate-proposal`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: 'extract_goals',
+          transcript: meeting.transcript_text || meeting.summary,
+          contact_name: contactName,
+          company_name: companyName,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to extract goals');
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to extract goals');
+    }
+
+    return {
+      goals: data.goals || '',
+      painPoints: data.pain_points || [],
+      proposedSolutions: data.proposed_solutions || [],
+    };
+  } catch (error) {
+    logger.error('Exception extracting goals from meeting:', error);
+    return {
+      goals: '',
+      painPoints: [],
+      proposedSolutions: [],
+    };
+  }
+}
+
+/**
  * Get proposal model settings from system_config
  */
 export async function getProposalModelSettings(): Promise<ProposalModelSettings> {
@@ -996,6 +1391,125 @@ export async function saveProposalModelSettings(
     return true;
   } catch (error) {
     logger.error('Exception saving model settings:', error);
+    return false;
+  }
+}
+
+// ==========================================
+// Proposal Sharing Functions
+// ==========================================
+
+/**
+ * Hash a password using SHA-256 (same as edge function)
+ */
+async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Update share settings for a proposal
+ */
+export async function updateProposalShareSettings(
+  proposalId: string,
+  settings: ShareSettings
+): Promise<{ success: boolean; share_token?: string; error?: string }> {
+  try {
+    let password_hash: string | null = null;
+
+    if (settings.password && settings.password.trim()) {
+      password_hash = await hashPassword(settings.password);
+    }
+
+    const { data, error } = await supabase
+      .from('proposals')
+      .update({
+        is_public: settings.is_public,
+        password_hash: password_hash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', proposalId)
+      .select('share_token')
+      .single();
+
+    if (error) {
+      logger.error('Error updating share settings:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, share_token: data?.share_token };
+  } catch (error) {
+    logger.error('Exception updating share settings:', error);
+    return { success: false, error: 'Failed to update share settings' };
+  }
+}
+
+/**
+ * Get share settings for a proposal
+ */
+export async function getProposalShareSettings(
+  proposalId: string
+): Promise<{ is_public: boolean; has_password: boolean; share_token: string; share_views: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('proposals')
+      .select('is_public, password_hash, share_token, share_views')
+      .eq('id', proposalId)
+      .single();
+
+    if (error || !data) {
+      logger.error('Error fetching share settings:', error);
+      return null;
+    }
+
+    return {
+      is_public: data.is_public || false,
+      has_password: !!data.password_hash,
+      share_token: data.share_token,
+      share_views: data.share_views || 0,
+    };
+  } catch (error) {
+    logger.error('Exception fetching share settings:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate a public share URL for a proposal
+ */
+export function getProposalShareUrl(shareToken: string): string {
+  // Use the current origin for the share URL
+  const baseUrl = typeof window !== 'undefined'
+    ? window.location.origin
+    : 'https://app.sixtyseconds.video';
+  return `${baseUrl}/share/${shareToken}`;
+}
+
+/**
+ * Disable sharing for a proposal
+ */
+export async function disableProposalSharing(proposalId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('proposals')
+      .update({
+        is_public: false,
+        password_hash: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', proposalId);
+
+    if (error) {
+      logger.error('Error disabling sharing:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    logger.error('Exception disabling sharing:', error);
     return false;
   }
 }

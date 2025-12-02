@@ -142,11 +142,11 @@ export default function Integrations() {
       </div>
 
       {/* Google Workspace Card */}
-      <Card className="bg-white border border-transparent dark:bg-gray-900/50 dark:backdrop-blur-xl dark:border-gray-800/50 shadow-sm dark:shadow-none">
+      <Card className="bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800/50 shadow-sm dark:shadow-none dark:backdrop-blur-xl">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gray-100 dark:bg-white rounded-lg flex items-center justify-center shadow-sm">
                 <svg className="w-6 h-6" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -156,7 +156,7 @@ export default function Integrations() {
               </div>
               <div>
                 <CardTitle className="text-xl text-gray-900 dark:text-gray-100">Google Workspace</CardTitle>
-                <CardDescription className="text-gray-700 dark:text-gray-300">
+                <CardDescription className="text-gray-600 dark:text-gray-300">
                   Connect Gmail, Calendar, and Drive to your CRM
                 </CardDescription>
               </div>
@@ -202,34 +202,34 @@ export default function Integrations() {
 
               {/* Services Preview */}
               <div className="space-y-2">
-                <p className="text-sm text-gray-400 mb-3">Services you'll be able to use:</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">Services you'll be able to use:</p>
                 <div className="grid gap-3">
-                  <div className="flex items-center space-x-3 text-gray-400">
+                  <div className="flex items-center space-x-3 text-gray-500 dark:text-gray-400">
                     <Mail className="w-5 h-5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-300">Gmail</p>
-                      <p className="text-xs">Send emails directly from contact pages</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Gmail</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Send emails directly from contact pages</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3 text-gray-400">
+                  <div className="flex items-center space-x-3 text-gray-500 dark:text-gray-400">
                     <Calendar className="w-5 h-5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-300">Google Calendar</p>
-                      <p className="text-xs">Schedule meetings and sync events</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Google Calendar</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Schedule meetings and sync events</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3 text-gray-400">
+                  <div className="flex items-center space-x-3 text-gray-500 dark:text-gray-400">
                     <FolderOpen className="w-5 h-5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-300">Google Drive</p>
-                      <p className="text-xs">Access and share files</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Google Drive</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Access and share files</p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3 text-gray-400">
+                  <div className="flex items-center space-x-3 text-gray-500 dark:text-gray-400">
                     <ListTodo className="w-5 h-5" />
                     <div>
-                      <p className="text-sm font-medium text-gray-300">Google Tasks</p>
-                      <p className="text-xs">Sync tasks across all your devices</p>
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Google Tasks</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Sync tasks across all your devices</p>
                     </div>
                   </div>
                 </div>
@@ -257,7 +257,7 @@ export default function Integrations() {
           ) : (
             <div className="space-y-4">
               {/* Connected Account Info */}
-              <div className="bg-emerald-950/20 border border-emerald-800 rounded-lg p-4">
+              <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
@@ -266,10 +266,10 @@ export default function Integrations() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-white">{email}</p>
-                      <p className="text-xs text-emerald-400">
-                        {status === 'connected' ? 'Connected successfully' : 
-                         status === 'error' ? 'Connection error' : 
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{email}</p>
+                      <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                        {status === 'connected' ? 'Connected successfully' :
+                         status === 'error' ? 'Connection error' :
                          status === 'refreshing' ? 'Refreshing...' : 'Connected'}
                       </p>
                     </div>
@@ -279,7 +279,7 @@ export default function Integrations() {
                     size="sm"
                     onClick={handleDisconnectGoogle}
                     disabled={isLoading}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-950/20"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/20"
                   >
                     Disconnect
                   </Button>
@@ -288,14 +288,14 @@ export default function Integrations() {
 
               {/* Service Toggles */}
               <div className="space-y-3">
-                <p className="text-sm font-medium text-gray-300 mb-2">Enabled Services</p>
-                
-                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Enabled Services</p>
+
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-100 dark:border-transparent">
                   <div className="flex items-center space-x-3">
-                    <Mail className="w-5 h-5 text-gray-400" />
+                    <Mail className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Gmail</p>
-                      <p className="text-xs text-gray-400">Send and manage emails</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Gmail</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Send and manage emails</p>
                     </div>
                   </div>
                   <Switch
@@ -304,12 +304,12 @@ export default function Integrations() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-100 dark:border-transparent">
                   <div className="flex items-center space-x-3">
-                    <Calendar className="w-5 h-5 text-gray-400" />
+                    <Calendar className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Google Calendar</p>
-                      <p className="text-xs text-gray-400">Schedule and sync events</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Google Calendar</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Schedule and sync events</p>
                     </div>
                   </div>
                   <Switch
@@ -318,12 +318,12 @@ export default function Integrations() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-100 dark:border-transparent">
                   <div className="flex items-center space-x-3">
-                    <FolderOpen className="w-5 h-5 text-gray-400" />
+                    <FolderOpen className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Google Drive</p>
-                      <p className="text-xs text-gray-400">Access and share files</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Google Drive</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Access and share files</p>
                     </div>
                   </div>
                   <Switch
@@ -332,17 +332,17 @@ export default function Integrations() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700/30 rounded-lg border border-gray-100 dark:border-transparent">
                   <div className="flex items-center space-x-3">
-                    <ListTodo className="w-5 h-5 text-gray-400" />
+                    <ListTodo className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                     <div>
-                      <p className="text-sm font-medium text-white">Google Tasks</p>
-                      <p className="text-xs text-gray-400">Sync tasks bidirectionally</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">Google Tasks</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Sync tasks bidirectionally</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     {tasksConnected ? (
-                      <span className="text-xs text-emerald-400 mr-2">Connected</span>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 mr-2">Connected</span>
                     ) : (
                       <span className="text-xs text-gray-500 mr-2">Not connected</span>
                     )}
@@ -359,7 +359,7 @@ export default function Integrations() {
               </div>
 
               {/* Token Status */}
-              <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-slate-700">
+              <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-200 dark:border-slate-700">
                 <span>Connected: {googleIntegration && new Date(googleIntegration.created_at).toLocaleDateString()}</span>
                 {googleIntegration?.expires_at && (
                   <span className="flex items-center space-x-1">
@@ -379,7 +379,7 @@ export default function Integrations() {
       </div>
 
       {/* Future Integrations Placeholder */}
-      <div className="mt-6 p-4 bg-slate-800/30 border border-slate-700 rounded-lg">
+      <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-800/30 border border-gray-200 dark:border-slate-700 rounded-lg">
         <div className="flex items-center space-x-2 text-gray-500">
           <AlertCircle className="w-4 h-4" />
           <p className="text-sm">More integrations coming soon: Slack, Microsoft 365, Zoom, and more</p>

@@ -41,10 +41,13 @@ interface Meeting {
 
 /**
  * Analyze transcript using Claude Haiku 4.5
+ * Also applies custom extraction rules if userId provided (Phase 6.3)
  */
 export async function analyzeTranscriptWithClaude(
   transcript: string,
-  meeting: Meeting
+  meeting: Meeting,
+  supabaseClient?: any,
+  userId?: string
 ): Promise<TranscriptAnalysis> {
   const anthropicApiKey = Deno.env.get('ANTHROPIC_API_KEY')
   if (!anthropicApiKey) {
@@ -53,6 +56,17 @@ export async function analyzeTranscriptWithClaude(
 
   const model = Deno.env.get('CLAUDE_MODEL') || 'claude-haiku-4-5-20251001'
   const prompt = buildAnalysisPrompt(transcript, meeting)
+
+  // Apply custom extraction rules first if userId and supabase client provided
+  let ruleBasedActionItems: ActionItem[] = []
+  if (userId && supabaseClient) {
+    ruleBasedActionItems = await applyExtractionRulesToTranscript(
+      supabaseClient,
+      userId,
+      transcript,
+      meeting
+    )
+  }
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -83,6 +97,11 @@ export async function analyzeTranscriptWithClaude(
     const content = data.content[0].text
     // Parse JSON response
     const analysis = parseClaudeResponse(content)
+
+    // Merge rule-based action items with AI-extracted items (prioritize rules)
+    if (ruleBasedActionItems.length > 0) {
+      analysis.actionItems = mergeActionItems(ruleBasedActionItems, analysis.actionItems)
+    }
 
     return analysis
   } catch (error) {
@@ -379,4 +398,124 @@ function isSimilarActionItem(text1: string, text2: string): boolean {
 
   // Consider similar if >60% word overlap
   return similarity > 0.6
+}
+
+/**
+ * Apply custom extraction rules to transcript (Phase 6.3)
+ * Converts matched rules into ActionItem format
+ */
+async function applyExtractionRulesToTranscript(
+  supabaseClient: any,
+  userId: string,
+  transcript: string,
+  meeting: Meeting
+): Promise<ActionItem[]> {
+  try {
+    // Fetch active extraction rules for user
+    const { data: rules, error } = await supabaseClient
+      .from('task_extraction_rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+
+    if (error || !rules || rules.length === 0) {
+      return []
+    }
+
+    const lowerTranscript = transcript.toLowerCase()
+    const actionItems: ActionItem[] = []
+
+    // Check each rule against transcript
+    for (const rule of rules) {
+      // Check if any trigger phrase matches
+      const matchingPhrase = rule.trigger_phrases.find((phrase: string) =>
+        lowerTranscript.includes(phrase.toLowerCase())
+      )
+
+      if (matchingPhrase) {
+        // Find the sentence containing the trigger phrase
+        const sentences = transcript.split(/[.!?]\s+/)
+        const matchingSentence = sentences.find((sentence: string) =>
+          sentence.toLowerCase().includes(matchingPhrase.toLowerCase())
+        )
+
+        // Create task title from sentence or phrase
+        const taskTitle = matchingSentence?.trim() || `Follow up on: ${matchingPhrase}`
+
+        // Calculate deadline based on rule's default_deadline_days
+        const meetingDate = new Date(meeting.meeting_start)
+        const deadline = rule.default_deadline_days
+          ? new Date(meetingDate.getTime() + rule.default_deadline_days * 24 * 60 * 60 * 1000)
+              .toISOString()
+              .split('T')[0]
+          : null
+
+        // Map priority
+        const priorityMap: Record<string, 'high' | 'medium' | 'low'> = {
+          'low': 'low',
+          'medium': 'medium',
+          'high': 'high',
+          'urgent': 'high'
+        }
+
+        // Map category to valid ActionItem category
+        const categoryMap: Record<string, ActionItem['category']> = {
+          'call': 'call',
+          'email': 'email',
+          'meeting': 'meeting',
+          'follow_up': 'follow_up',
+          'proposal': 'proposal',
+          'demo': 'demo',
+          'general': 'general'
+        }
+
+        actionItems.push({
+          title: taskTitle,
+          assignedTo: meeting.owner_email ? meeting.owner_email.split('@')[0] : 'Sales Rep',
+          assignedToEmail: meeting.owner_email,
+          deadline: deadline,
+          category: categoryMap[rule.task_category] || 'general',
+          priority: priorityMap[rule.default_priority] || 'medium',
+          confidence: 0.95 // High confidence for rule-based extraction
+        })
+      }
+    }
+
+    return actionItems
+  } catch (error) {
+    console.error('Error applying extraction rules:', error)
+    return []
+  }
+}
+
+/**
+ * Merge rule-based action items with AI-extracted items
+ * Prioritizes custom rules over AI analysis
+ */
+function mergeActionItems(
+  ruleItems: ActionItem[],
+  aiItems: ActionItem[]
+): ActionItem[] {
+  const merged: ActionItem[] = []
+  const seenTitles = new Set<string>()
+
+  // Add rule-based items first (higher priority)
+  for (const item of ruleItems) {
+    const key = item.title.toLowerCase().trim()
+    if (!seenTitles.has(key)) {
+      merged.push(item)
+      seenTitles.add(key)
+    }
+  }
+
+  // Add AI items that don't conflict
+  for (const item of aiItems) {
+    const key = item.title.toLowerCase().trim()
+    if (!seenTitles.has(key)) {
+      merged.push(item)
+      seenTitles.add(key)
+    }
+  }
+
+  return merged
 }

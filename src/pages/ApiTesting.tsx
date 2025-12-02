@@ -48,7 +48,7 @@ interface ApiTemplate {
   category: string;
 }
 
-const StatCard: React.FC<{ 
+const StatCard: React.FC<{
   title: string;
   value: string;
   icon: React.ReactNode;
@@ -58,7 +58,7 @@ const StatCard: React.FC<{
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     whileHover={{ scale: 1.02, y: -2 }}
-    className="relative overflow-hidden bg-gradient-to-br from-gray-900/80 to-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-gray-800/50 shadow-lg hover:shadow-xl hover:border-gray-700/60 transition-all duration-300 group"
+    className="relative overflow-hidden bg-white dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-gray-200 dark:border-gray-800/50 shadow-lg hover:shadow-xl hover:border-gray-300 dark:hover:border-gray-700/60 transition-all duration-300 group"
   >
     {/* Background decoration */}
     <div className={cn(
@@ -68,13 +68,13 @@ const StatCard: React.FC<{
       color === 'purple' && "from-purple-500/5 to-transparent",
       color === 'orange' && "from-orange-500/5 to-transparent"
     )} />
-    
+
     <div className="relative flex items-start justify-between">
       <div className="flex flex-col gap-1">
-        <div className="text-gray-400 text-xs font-medium uppercase tracking-wider">{title}</div>
-        <div className="text-2xl font-bold text-gray-100">{value}</div>
+        <div className="text-gray-600 dark:text-gray-400 text-xs font-medium uppercase tracking-wider">{title}</div>
+        <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{value}</div>
       </div>
-      <div className="text-gray-600 group-hover:text-gray-400 transition-colors">
+      <div className="text-gray-400 dark:text-gray-600 group-hover:text-gray-600 dark:group-hover:text-gray-400 transition-colors">
         {icon}
       </div>
     </div>
@@ -420,22 +420,22 @@ const ApiTesting: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Header */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-blue-500/20 to-blue-600/10 backdrop-blur-sm rounded-xl border border-blue-500/20">
-            <Terminal className="h-6 w-6 text-blue-400" />
+          <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-500/20 dark:to-blue-600/10 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-500/20">
+            <Terminal className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-100 to-gray-300 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold text-gray-900 dark:bg-gradient-to-r dark:from-gray-100 dark:to-gray-300 dark:bg-clip-text dark:text-transparent">
               API Testing
             </h1>
-            <p className="text-sm text-gray-400 mt-1">Test and explore your CRM API endpoints</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Test and explore your CRM API endpoints</p>
           </div>
         </div>
       </motion.div>
@@ -469,10 +469,10 @@ const ApiTesting: React.FC = () => {
       </div>
 
       {/* Tab Navigation */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-1 border border-gray-800/50 shadow-lg"
+        className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-2xl p-1 border border-gray-200 dark:border-gray-800/50 shadow-lg"
       >
         <div className="flex">
           {tabs.map((tab) => (
@@ -482,9 +482,9 @@ const ApiTesting: React.FC = () => {
               onClick={() => setActiveTab(tab.id as any)}
               className={cn(
                 "flex-1 relative transition-all duration-200 rounded-xl",
-                activeTab === tab.id 
-                  ? 'bg-gray-800/70 backdrop-blur-sm border border-gray-700/50 text-gray-100 shadow-md' 
-                  : 'hover:bg-gray-800/30 text-gray-400'
+                activeTab === tab.id
+                  ? 'bg-gray-100 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100 shadow-md'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-800/30 text-gray-600 dark:text-gray-400'
               )}
             >
               <tab.icon className="h-4 w-4 mr-2" />
@@ -506,8 +506,8 @@ const ApiTesting: React.FC = () => {
           >
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Request Builder */}
-              <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-xl">
-                <h3 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
+              <div className="bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800/50 shadow-xl">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
                   <Code2 className="h-5 w-5" />
                   Request Builder
                 </h3>
@@ -515,7 +515,7 @@ const ApiTesting: React.FC = () => {
                 <div className="space-y-4">
                   {/* Entity/Module Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Select Module
                     </label>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -526,8 +526,8 @@ const ApiTesting: React.FC = () => {
                           className={cn(
                             "px-3 py-2 rounded-lg border transition-all duration-200 flex items-center gap-2",
                             selectedEntity === entity.value
-                              ? "bg-blue-500/20 border-blue-500/50 text-blue-400"
-                              : "bg-gray-800/30 border-gray-700/50 text-gray-400 hover:bg-gray-800/50 hover:text-gray-300"
+                              ? "bg-blue-100 dark:bg-blue-500/20 border-blue-300 dark:border-blue-500/50 text-blue-600 dark:text-blue-400"
+                              : "bg-gray-100 dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800/50 hover:text-gray-800 dark:hover:text-gray-300"
                           )}
                         >
                           <span>{entity.icon}</span>
@@ -539,7 +539,7 @@ const ApiTesting: React.FC = () => {
 
                   {/* Operation Selector */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Select Operation
                     </label>
                     <div className="space-y-2">
@@ -550,29 +550,29 @@ const ApiTesting: React.FC = () => {
                           className={cn(
                             "w-full px-4 py-3 rounded-lg border transition-all duration-200 flex items-center justify-between group",
                             selectedOperation.method === op.method && selectedOperation.label === op.label
-                              ? "bg-green-500/20 border-green-500/50"
-                              : "bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/50"
+                              ? "bg-green-100 dark:bg-green-500/20 border-green-300 dark:border-green-500/50"
+                              : "bg-gray-100 dark:bg-gray-800/30 border-gray-200 dark:border-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-800/50"
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            <Badge 
+                            <Badge
                               className={cn(
                                 "font-mono text-xs",
-                                op.method === 'GET' && "bg-blue-500/20 text-blue-400",
-                                op.method === 'POST' && "bg-green-500/20 text-green-400",
-                                op.method === 'PUT' && "bg-amber-500/20 text-amber-400",
-                                op.method === 'DELETE' && "bg-red-500/20 text-red-400"
+                                op.method === 'GET' && "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+                                op.method === 'POST' && "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400",
+                                op.method === 'PUT' && "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+                                op.method === 'DELETE' && "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"
                               )}
                             >
                               {op.method}
                             </Badge>
                             <div className="text-left">
-                              <div className="text-sm font-medium text-gray-200">{op.label}</div>
+                              <div className="text-sm font-medium text-gray-800 dark:text-gray-200">{op.label}</div>
                               <div className="text-xs text-gray-500">{op.description}</div>
                             </div>
                           </div>
                           {selectedOperation.method === op.method && selectedOperation.label === op.label && (
-                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                            <div className="w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full animate-pulse" />
                           )}
                         </button>
                       ))}
@@ -582,7 +582,7 @@ const ApiTesting: React.FC = () => {
                   {/* Record ID Input (for single record operations) */}
                   {selectedOperation.path.includes('{id}') && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Record ID
                       </label>
                       <input
@@ -590,23 +590,23 @@ const ApiTesting: React.FC = () => {
                         value={recordId}
                         onChange={(e) => setRecordId(e.target.value)}
                         placeholder="Enter record ID (e.g., uuid-1234-5678)"
-                        className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700/50 rounded-lg text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                        className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
                       />
                     </div>
                   )}
 
                   {/* Generated Endpoint */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Endpoint URL
                     </label>
                     <div className="flex gap-3">
                       <div className={cn(
                         "px-3 py-2 rounded-lg font-mono text-sm flex items-center justify-center min-w-[80px]",
-                        method === 'GET' && "bg-blue-500/20 text-blue-400 border border-blue-500/50",
-                        method === 'POST' && "bg-green-500/20 text-green-400 border border-green-500/50",
-                        method === 'PUT' && "bg-amber-500/20 text-amber-400 border border-amber-500/50",
-                        method === 'DELETE' && "bg-red-500/20 text-red-400 border border-red-500/50"
+                        method === 'GET' && "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-500/50",
+                        method === 'POST' && "bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 border border-green-300 dark:border-green-500/50",
+                        method === 'PUT' && "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/50",
+                        method === 'DELETE' && "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 border border-red-300 dark:border-red-500/50"
                       )}>
                         {method}
                       </div>
@@ -614,14 +614,14 @@ const ApiTesting: React.FC = () => {
                         type="text"
                         value={endpoint}
                         readOnly
-                        className="flex-1 px-3 py-2 bg-gray-800/70 border border-gray-700/50 rounded-lg text-gray-300 font-mono text-sm cursor-not-allowed"
+                        className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-800/70 border border-gray-200 dark:border-gray-700/50 rounded-lg text-gray-700 dark:text-gray-300 font-mono text-sm cursor-not-allowed"
                       />
                     </div>
                   </div>
 
                   {/* Headers */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Headers</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Headers</label>
                     <CodeEditor 
                       value={headers}
                       onChange={setHeaders}
@@ -633,7 +633,7 @@ const ApiTesting: React.FC = () => {
                   {/* Body (for non-GET requests) */}
                   {method !== 'GET' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Body</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Body</label>
                       <CodeEditor 
                         value={body}
                         onChange={setBody}
@@ -660,9 +660,9 @@ const ApiTesting: React.FC = () => {
               </div>
 
               {/* Response Viewer */}
-              <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-xl">
+              <div className="bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800/50 shadow-xl">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <Database className="h-5 w-5" />
                     Response
                   </h3>
@@ -672,7 +672,7 @@ const ApiTesting: React.FC = () => {
                         size="sm"
                         variant="ghost"
                         onClick={copyResponse}
-                        className="hover:bg-gray-800/50"
+                        className="hover:bg-gray-100 dark:hover:bg-gray-800/50"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -680,17 +680,17 @@ const ApiTesting: React.FC = () => {
                         size="sm"
                         variant="ghost"
                         onClick={downloadResponse}
-                        className="hover:bg-gray-800/50"
+                        className="hover:bg-gray-100 dark:hover:bg-gray-800/50"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>
                   )}
                 </div>
-                
+
                 <div className="min-h-[300px]">
                   {response ? (
-                    <CodeEditor 
+                    <CodeEditor
                       value={response}
                       onChange={() => {}}
                       language="json"
@@ -728,13 +728,13 @@ const ApiTesting: React.FC = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-xl"
+            className="bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800/50 shadow-xl"
           >
-            <h3 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <History className="h-5 w-5" />
               Request History
             </h3>
-            
+
             <div className="space-y-3">
               {requests.length > 0 ? (
                 requests.map((request) => (
@@ -742,22 +742,22 @@ const ApiTesting: React.FC = () => {
                     key={request.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30 hover:border-gray-600/50 transition-colors"
+                    className="bg-gray-100 dark:bg-gray-800/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700/30 hover:border-gray-300 dark:hover:border-gray-600/50 transition-colors"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <Badge 
+                        <Badge
                           variant={request.method === 'GET' ? 'default' : request.method === 'POST' ? 'secondary' : 'outline'}
                           className="font-mono"
                         >
                           {request.method}
                         </Badge>
-                        <span className="text-gray-300 font-mono text-sm">{request.endpoint}</span>
+                        <span className="text-gray-700 dark:text-gray-300 font-mono text-sm">{request.endpoint}</span>
                         {request.status && (
-                          <Badge 
+                          <Badge
                             variant={request.status < 400 ? 'default' : 'destructive'}
                             className={cn(
-                              request.status < 400 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : ''
+                              request.status < 400 ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : ''
                             )}
                           >
                             {request.status}
@@ -769,7 +769,7 @@ const ApiTesting: React.FC = () => {
                       </span>
                     </div>
                     {request.response && (
-                      <div className="text-xs text-gray-400 font-mono line-clamp-2 bg-gray-900/50 p-2 rounded">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 font-mono line-clamp-2 bg-gray-200 dark:bg-gray-900/50 p-2 rounded">
                         {request.response}
                       </div>
                     )}
@@ -791,13 +791,13 @@ const ApiTesting: React.FC = () => {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-800/50 shadow-xl"
+            className="bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-900/30 backdrop-blur-xl rounded-2xl p-6 border border-gray-200 dark:border-gray-800/50 shadow-xl"
           >
-            <h3 className="text-lg font-semibold text-gray-100 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
               Request Templates
             </h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map((template) => (
                 <motion.div
@@ -805,21 +805,21 @@ const ApiTesting: React.FC = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   whileHover={{ scale: 1.02 }}
-                  className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/30 hover:border-gray-600/50 transition-all cursor-pointer"
+                  className="bg-gray-100 dark:bg-gray-800/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700/30 hover:border-gray-300 dark:hover:border-gray-600/50 transition-all cursor-pointer"
                   onClick={() => loadTemplate(template)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h4 className="font-medium text-gray-100 mb-1">{template.name}</h4>
-                      <p className="text-sm text-gray-400 line-clamp-2">{template.description}</p>
+                      <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">{template.name}</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{template.description}</p>
                     </div>
                     <Badge variant="outline" className="text-xs">
                       {template.category}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
-                    <Badge 
+                    <Badge
                       variant={template.method === 'GET' ? 'default' : template.method === 'POST' ? 'secondary' : 'outline'}
                       className="font-mono text-xs"
                     >
@@ -844,11 +844,11 @@ const ApiTesting: React.FC = () => {
             {currentApiKey ? (
               <ApiTestSuite apiKey={currentApiKey} />
             ) : (
-              <div className="bg-gradient-to-br from-gray-900/60 to-gray-900/30 backdrop-blur-xl rounded-2xl p-8 border border-gray-800/50 shadow-xl">
+              <div className="bg-white dark:bg-gradient-to-br dark:from-gray-900/60 dark:to-gray-900/30 backdrop-blur-xl rounded-2xl p-8 border border-gray-200 dark:border-gray-800/50 shadow-xl">
                 <div className="text-center">
-                  <TestTube className="h-12 w-12 mx-auto mb-4 text-purple-400 opacity-50" />
-                  <h3 className="text-xl font-semibold text-gray-100 mb-2">API Key Required</h3>
-                  <p className="text-gray-400 mb-6">Please generate an API key first to run the test suite</p>
+                  <TestTube className="h-12 w-12 mx-auto mb-4 text-purple-500 dark:text-purple-400 opacity-50" />
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">API Key Required</h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">Please generate an API key first to run the test suite</p>
                   <Button
                     onClick={() => setActiveTab('keys')}
                     className="bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white"

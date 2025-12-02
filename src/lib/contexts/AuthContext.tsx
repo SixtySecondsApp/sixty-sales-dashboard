@@ -259,11 +259,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Sign up function
   const signUp = useCallback(async (email: string, password: string, metadata?: { full_name?: string }) => {
     try {
+      // Use current origin for email redirect so it works in both local and production
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+
       const { error } = await supabase.auth.signUp({
         email: email.toLowerCase().trim(),
         password,
         options: {
           data: metadata || {},
+          emailRedirectTo: redirectUrl,
         },
       });
 

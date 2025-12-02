@@ -480,11 +480,11 @@ export default function ProposalSettings() {
     return (
       <TabsContent key={type} value={type} className="space-y-6">
         {/* Guidance Card */}
-        <Card className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-500/10 dark:to-purple-500/10 border-blue-200 dark:border-blue-500/20">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/20">
-                <Icon className="w-5 h-5 text-blue-400" />
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/20">
+                <Icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
                 <CardTitle className="text-lg">{guidance.title}</CardTitle>
@@ -495,13 +495,13 @@ export default function ProposalSettings() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-start gap-2 text-sm">
-                <Info className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="font-medium text-gray-200 mb-2">What to include:</p>
-                  <ul className="space-y-1 text-gray-400">
+                  <p className="font-medium text-gray-800 dark:text-gray-200 mb-2">What to include:</p>
+                  <ul className="space-y-1 text-gray-600 dark:text-gray-400">
                     {guidance.guidance.map((item, idx) => (
                       <li key={idx} className="flex items-start gap-2">
-                        <span className="text-blue-400">•</span>
+                        <span className="text-blue-600 dark:text-blue-400">•</span>
                         {item}
                       </li>
                     ))}
@@ -732,13 +732,13 @@ export default function ProposalSettings() {
       </div>
 
       {/* Quick Start Guide */}
-      <Card className="bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border-emerald-500/20">
+      <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 dark:from-emerald-500/10 dark:to-blue-500/10 border-emerald-200 dark:border-emerald-500/20">
         <CardContent className="py-4">
           <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-emerald-400 mt-0.5" />
+            <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-gray-200 mb-1">How it works</p>
-              <p className="text-gray-400">
+              <p className="font-medium text-gray-800 dark:text-gray-200 mb-1">How it works</p>
+              <p className="text-gray-600 dark:text-gray-400">
                 Add example documents and design guidelines below. The AI will learn from these examples
                 to generate proposals that match your style, branding, and structure preferences.
               </p>

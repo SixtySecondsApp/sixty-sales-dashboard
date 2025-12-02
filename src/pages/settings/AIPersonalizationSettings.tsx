@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, Check, Sparkles, PenTool, Save } from 'lucide-react';
+import { Plus, Trash2, Check, Sparkles, PenTool, Save, Mail, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,12 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { SalesTemplateService, type UserWritingStyle } from '@/lib/services/salesTemplateService';
+import { EmailTrainingWizard } from '@/components/ai-voice';
 import logger from '@/lib/utils/logger';
 
 export default function AIPersonalizationSettings() {
   const [styles, setStyles] = useState<UserWritingStyle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showTrainingWizard, setShowTrainingWizard] = useState(false);
   const [currentStyle, setCurrentStyle] = useState<Partial<UserWritingStyle>>({
     name: '',
     tone_description: '',
@@ -97,6 +99,44 @@ export default function AIPersonalizationSettings() {
         )}
       </div>
 
+      {/* Train from Emails Card */}
+      {!isEditing && (
+        <Card className="border-2 border-dashed border-[#37bd7e]/30 bg-gradient-to-br from-[#37bd7e]/5 to-transparent">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <div className="p-2 rounded-lg bg-[#37bd7e]/10">
+                <Mail className="w-5 h-5 text-[#37bd7e]" />
+              </div>
+              Train AI Voice from Your Emails
+              <Badge variant="outline" className="ml-2 bg-[#37bd7e]/10 text-[#37bd7e] border-[#37bd7e]/20">
+                <Zap className="w-3 h-3 mr-1" />
+                Recommended
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Automatically analyze your last 20 sent emails to extract your unique writing style,
+              tone, and patterns. The AI will learn to write exactly like you.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={() => setShowTrainingWizard(true)}
+              className="bg-[#37bd7e] hover:bg-[#2da76c]"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Train from Sent Emails
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Email Training Wizard Modal */}
+      <EmailTrainingWizard
+        open={showTrainingWizard}
+        onClose={() => setShowTrainingWizard(false)}
+        onComplete={fetchStyles}
+      />
+
       {isEditing && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -105,7 +145,7 @@ export default function AIPersonalizationSettings() {
         >
           <div className="flex items-center gap-2 text-[#37bd7e] mb-2">
             <Sparkles className="w-5 h-5" />
-            <h3 className="font-medium">Create New Style</h3>
+            <h3 className="font-medium">Create New Style Manually</h3>
           </div>
 
           <div className="space-y-2">
@@ -210,6 +250,17 @@ export default function AIPersonalizationSettings() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
 
 
 

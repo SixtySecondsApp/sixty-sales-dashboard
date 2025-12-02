@@ -21,6 +21,7 @@ export interface UserWritingStyle {
   name: string;
   examples: string[]; // Array of email bodies that represent the style
   tone_description: string;
+  is_default?: boolean;
 }
 
 export interface SmartContext {

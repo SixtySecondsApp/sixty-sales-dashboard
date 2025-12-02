@@ -36,6 +36,7 @@ export function useFathomIntegration() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lifetimeMeetingsCount, setLifetimeMeetingsCount] = useState<number>(0);
+  const [syncInProgress, setSyncInProgress] = useState(false); // Track local sync operation
 
   // Fetch integration and sync state
   useEffect(() => {
@@ -76,10 +77,11 @@ export function useFathomIntegration() {
           setSyncState(syncData);
 
           // Compute lifetime count of Fathom meetings
+          // Use OR filter to match meetings by owner_user_id OR owner_email
           const { count, error: countError } = await supabase
             .from('meetings')
             .select('id', { count: 'exact', head: true })
-            .eq('owner_user_id', user.id)
+            .or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
             .not('fathom_recording_id', 'is', null);
           if (!countError && typeof count === 'number') {
             setLifetimeMeetingsCount(count);
@@ -136,6 +138,8 @@ export function useFathomIntegration() {
       .subscribe();
 
     // Listen for new meetings to refresh lifetime count
+    // Note: Real-time filter only supports single condition, so we filter by owner_user_id
+    // but the count query uses OR filter for comprehensive coverage
     const meetingsSubscription = supabase
       .channel('meetings_changes')
       .on(
@@ -147,10 +151,11 @@ export function useFathomIntegration() {
           filter: `owner_user_id=eq.${user.id}`,
         },
         async () => {
+          // Use OR filter for comprehensive count
           const { count } = await supabase
             .from('meetings')
             .select('id', { count: 'exact', head: true })
-            .eq('owner_user_id', user.id)
+            .or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
             .not('fathom_recording_id', 'is', null);
           if (typeof count === 'number') setLifetimeMeetingsCount(count);
         }
@@ -273,15 +278,21 @@ export function useFathomIntegration() {
   }) => {
     try {
       setError(null);
+      setSyncInProgress(true); // Immediately show syncing state in UI
+      console.log('[useFathomIntegration] triggerSync called with params:', params);
 
       if (!integration) {
+        console.error('[useFathomIntegration] No active integration');
         throw new Error('No active integration');
       }
+      console.log('[useFathomIntegration] Integration found:', integration.id);
 
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !sessionData.session) {
+        console.error('[useFathomIntegration] No active session:', sessionError);
         throw new Error('No active session');
       }
+      console.log('[useFathomIntegration] Session valid, invoking fathom-sync...');
 
       const response = await supabase.functions.invoke('fathom-sync', {
         headers: {
@@ -295,22 +306,49 @@ export function useFathomIntegration() {
         },
       });
 
+      console.log('[useFathomIntegration] Edge function response:', {
+        error: response.error,
+        data: response.data,
+      });
+
       if (response.error) {
+        console.error('[useFathomIntegration] Edge function returned error:', response.error);
         throw new Error(response.error.message || 'Sync failed');
       }
 
+      // Log detailed sync results
+      const syncResult = response.data;
+      console.log('[useFathomIntegration] Sync result details:', {
+        success: syncResult?.success,
+        sync_type: syncResult?.sync_type,
+        meetings_synced: syncResult?.meetings_synced,
+        total_meetings_found: syncResult?.total_meetings_found,
+        errors: syncResult?.errors,
+      });
+
       // Refresh lifetime count after sync completes
-      const { count } = await supabase
+      // Use OR filter to match meetings by owner_user_id OR owner_email
+      const { count, error: countError } = await supabase
         .from('meetings')
         .select('id', { count: 'exact', head: true })
-        .eq('owner_user_id', user!.id)
+        .or(`owner_user_id.eq.${user!.id},owner_email.eq.${user!.email}`)
         .not('fathom_recording_id', 'is', null);
-      if (typeof count === 'number') setLifetimeMeetingsCount(count);
 
+      console.log('[useFathomIntegration] Count query result:', { count, countError });
+
+      if (typeof count === 'number') {
+        console.log('[useFathomIntegration] Updated lifetime count:', count);
+        setLifetimeMeetingsCount(count);
+      }
+
+      console.log('[useFathomIntegration] Returning response.data:', response.data);
       return response.data;
     } catch (err) {
+      console.error('[useFathomIntegration] triggerSync error:', err);
       setError(err instanceof Error ? err.message : 'Sync failed');
       throw err;
+    } finally {
+      setSyncInProgress(false); // Always reset sync state when operation completes
     }
   };
 
@@ -320,7 +358,9 @@ export function useFathomIntegration() {
     loading,
     error,
     isConnected: !!integration,
-    isSyncing: syncState?.sync_status === 'syncing',
+    // Combine local sync state (immediate feedback) with database sync state
+    isSyncing: syncInProgress || syncState?.sync_status === 'syncing',
+    syncInProgress, // Expose for components that need to differentiate
     lifetimeMeetingsCount,
     connectFathom,
     disconnectFathom,

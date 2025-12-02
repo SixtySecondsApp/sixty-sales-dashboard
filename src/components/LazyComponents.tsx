@@ -256,8 +256,8 @@ export const useRoutePreloading = () => {
         // From pipeline, users often edit deals
         LazyEditDealModal.preload?.();
         LazyDealWizard.preload?.();
-      } else if (currentPath.includes('/admin')) {
-        // Preload other admin components
+      } else if (currentPath.includes('/platform')) {
+        // Preload platform admin components
         LazyAuditLogViewer.preload?.();
         LazyBulkActivityImport.preload?.();
       }

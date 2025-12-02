@@ -13,17 +13,25 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users } from 'lucide-react';
+import { Loader2, FileText, FileCode, CheckCircle2, ArrowRight, ArrowLeft, Calendar, Clock, Users, Share2, Link, Lock, Copy, Check, Eye, Mail } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
   generateGoals,
   generateSOW,
   generateProposal,
+  generateEmailProposal,
+  generateMarkdownProposal,
   getMeetingTranscripts,
   getTranscriptsFromMeetings,
   saveProposal,
   getJobStatus,
   pollJobStatus,
   analyzeFocusAreas,
+  updateProposalShareSettings,
+  getProposalShareUrl,
+  extractGoalsFromMeeting,
   type GenerateResponse,
   type JobStatus,
   type FocusArea,
@@ -124,7 +132,7 @@ ${output}
   return output;
 };
 
-type Step = 'select_meetings' | 'analyze_focus' | 'loading' | 'review_goals' | 'choose_format' | 'configure_document' | 'preview';
+type Step = 'select_meetings' | 'analyze_focus' | 'loading' | 'review_goals' | 'choose_format' | 'configure_document' | 'preview' | 'share';
 
 // Steps that represent completed work (not transient states like 'loading')
 const COMPLETABLE_STEPS: Step[] = ['select_meetings', 'analyze_focus', 'review_goals', 'choose_format', 'configure_document', 'preview'];
@@ -136,7 +144,7 @@ interface SavedWizardState {
   focusAreas: FocusArea[];
   selectedFocusAreaIds: string[];
   goals: string;
-  selectedFormat: 'sow' | 'proposal' | null;
+  selectedFormat: 'sow' | 'proposal' | 'email' | 'markdown' | null;
   documentConfig: {
     length_target?: 'short' | 'medium' | 'long';
     word_limit?: number;
@@ -237,7 +245,7 @@ export function ProposalWizard({
   const [focusAreas, setFocusAreas] = useState<FocusArea[]>([]);
   const [selectedFocusAreaIds, setSelectedFocusAreaIds] = useState<Set<string>>(new Set());
   const [goals, setGoals] = useState<string>('');
-  const [selectedFormat, setSelectedFormat] = useState<'sow' | 'proposal' | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState<'sow' | 'proposal' | 'email' | 'markdown' | null>(null);
   const [documentConfig, setDocumentConfig] = useState<{
     length_target?: 'short' | 'medium' | 'long';
     word_limit?: number;
@@ -260,6 +268,30 @@ export function ProposalWizard({
   const [showResumeDialog, setShowResumeDialog] = useState(false);
   const storageKey = getStorageKey(initialMeetingIds, contactId);
 
+  // Tab state for preview - show HTML code while generating, switch to preview when done
+  const [previewTab, setPreviewTab] = useState<'html' | 'preview'>('html');
+  const htmlCodeTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Share settings state
+  const [savedProposalId, setSavedProposalId] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [sharePassword, setSharePassword] = useState('');
+  const [isPublicEnabled, setIsPublicEnabled] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [savingShare, setSavingShare] = useState(false);
+
+  // Phase 4.1: Quick Mode vs Advanced Mode
+  const [proposalMode, setProposalMode] = useState<'quick' | 'advanced'>('quick');
+  const [quickModeSummary, setQuickModeSummary] = useState<string>('');
+  const [quickModeEmail, setQuickModeEmail] = useState<string>('');
+
+  // Auto-scroll HTML code textarea to bottom while generating
+  useEffect(() => {
+    if (loading && previewTab === 'html' && htmlCodeTextareaRef.current) {
+      htmlCodeTextareaRef.current.scrollTop = htmlCodeTextareaRef.current.scrollHeight;
+    }
+  }, [finalContent, loading, previewTab]);
+
   // Get step label for display
   const getStepLabel = (s: Step): string => {
     switch (s) {
@@ -270,6 +302,7 @@ export function ProposalWizard({
       case 'choose_format': return 'Choose Format';
       case 'configure_document': return 'Configure';
       case 'preview': return 'Preview';
+      case 'share': return 'Share';
       default: return s;
     }
   };
@@ -314,8 +347,6 @@ export function ProposalWizard({
     setSavedState(null);
     setShowResumeDialog(false);
     // Reset all state
-    setStep('select_meetings');
-    setSelectedMeetingIds(new Set());
     setFocusAreas([]);
     setSelectedFocusAreaIds(new Set());
     setGoals('');
@@ -324,6 +355,19 @@ export function ProposalWizard({
     setFinalContent('');
     setError(null);
     setStatusMessage(null);
+    setTranscripts([]); // Clear transcripts to force reload
+
+    // If we have initial meeting IDs, skip meeting selection and reload transcripts
+    if (initialMeetingIds && initialMeetingIds.length > 0) {
+      setSelectedMeetingIds(new Set(initialMeetingIds));
+      setStep('analyze_focus');
+      // Re-load transcripts since we cleared them
+      loadTranscripts(initialMeetingIds);
+    } else {
+      // Otherwise, go back to meeting selection
+      setStep('select_meetings');
+      setSelectedMeetingIds(new Set());
+    }
   };
 
   // Jump to a specific step (for reprocessing)
@@ -584,7 +628,7 @@ export function ProposalWizard({
     }
   };
 
-  const handleContinueFromSelection = () => {
+  const handleContinueFromSelection = async () => {
     if (selectedMeetingIds.size === 0) {
       setError('Please select at least one meeting');
       setStatusMessage('Please select at least one meeting');
@@ -592,8 +636,53 @@ export function ProposalWizard({
     }
     setError(null);
     setStatusMessage(null);
-    setStep('analyze_focus');
-    loadTranscripts();
+
+    // Phase 4.1: Quick Mode - skip to summary generation
+    if (proposalMode === 'quick') {
+      setStep('loading');
+      setLoading(true);
+      setStatusMessage('Generating quick summary...');
+      
+      try {
+        // Get the first selected meeting ID
+        const firstMeetingId = Array.from(selectedMeetingIds)[0];
+        
+        // Extract goals from meeting
+        const extracted = await extractGoalsFromMeeting(firstMeetingId);
+        
+        // Generate simple summary and follow-up email
+        const summary = extracted.goals || 'Meeting summary will be generated here.';
+        const email = `Hi ${contactName || 'there'},
+
+Thank you for taking the time to meet with me today. I wanted to follow up on our conversation.
+
+${summary}
+
+${extracted.painPoints.length > 0 ? `\nKey pain points discussed:\n${extracted.painPoints.map(p => `- ${p}`).join('\n')}` : ''}
+
+${extracted.proposedSolutions.length > 0 ? `\nProposed solutions:\n${extracted.proposedSolutions.map(s => `- ${s}`).join('\n')}` : ''}
+
+I look forward to continuing our conversation and helping you achieve your goals.
+
+Best regards`;
+
+        setQuickModeSummary(summary);
+        setQuickModeEmail(email);
+        setFinalContent(email); // Set final content for preview
+        setStep('preview'); // Show preview with summary and email
+        setLoading(false);
+        setStatusMessage(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to generate quick summary');
+        setStatusMessage(null);
+        setLoading(false);
+        setStep('select_meetings');
+      }
+    } else {
+      // Advanced Mode - proceed with normal flow
+      setStep('analyze_focus');
+      loadTranscripts();
+    }
   };
 
   const analyzeFocusAreasFromTranscripts = async (transcriptList?: string[]) => {
@@ -752,7 +841,8 @@ export function ProposalWizard({
     setStep('preview');
     setLoading(true);
     setError(null);
-    
+    setPreviewTab('html'); // Show HTML code tab while generating
+
     // Initialize with base HTML structure for proposals to prevent flashing
     if (selectedFormat === 'proposal') {
       const baseHTML = `<!DOCTYPE html>
@@ -788,7 +878,8 @@ export function ProposalWizard({
       iframeContentRef.current = baseHTML;
       lastIframeUpdateRef.current = Date.now();
     } else {
-      setFinalContent(''); // Clear for SOW
+      // Clear for SOW, email, and markdown formats
+      setFinalContent('');
       setIframeContent('');
       iframeContentRef.current = '';
     }
@@ -816,8 +907,38 @@ export function ProposalWizard({
             setFinalContent((prev) => prev + chunk);
           }
         );
+      } else if (selectedFormat === 'email') {
+        // Use streaming for email proposals
+        result = await generateEmailProposal(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive
+            setFinalContent((prev) => prev + chunk);
+          }
+        );
+      } else if (selectedFormat === 'markdown') {
+        // Use streaming for markdown proposals
+        result = await generateMarkdownProposal(
+          {
+            goals,
+            contact_name: contactName,
+            company_name: companyName,
+            focus_areas: selectedFocusAreas,
+            ...documentConfig,
+          },
+          (chunk: string) => {
+            // Update content as chunks arrive
+            setFinalContent((prev) => prev + chunk);
+          }
+        );
       } else {
-        // Use streaming for proposals
+        // Use streaming for HTML proposals
         result = await generateProposal(
           {
             goals,
@@ -920,6 +1041,8 @@ ${htmlContent}
         }
         setStatusMessage(null); // Clear status message on success - content will show
         setError(null);
+        // Switch to preview tab now that generation is complete
+        setPreviewTab('preview');
       } else {
         throw new Error('No content received');
       }
@@ -942,15 +1065,16 @@ ${htmlContent}
         type: selectedFormat,
         status: 'generated',
         content: finalContent,
-        title: `${selectedFormat === 'sow' ? 'SOW' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
+        title: `${selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'} - ${companyName || contactName || 'Untitled'}`,
       });
 
       if (saved) {
-        // Show brief success message in loading state before closing
-        setStatusMessage('Saved successfully!');
-        setTimeout(() => {
-          handleClose();
-        }, 1000);
+        // Store proposal info and transition to share step
+        setSavedProposalId(saved.id);
+        setShareToken(saved.share_token || null);
+        setStep('share');
+        setStatusMessage(null);
+        setError(null);
       } else {
         setError('Failed to save proposal');
         setStatusMessage('Error: Failed to save proposal');
@@ -982,6 +1106,13 @@ ${htmlContent}
     setStatusMessage(null);
     setShouldClose(false);
     isTextareaFocusedRef.current = false;
+    // Reset share settings
+    setSavedProposalId(null);
+    setShareToken(null);
+    setSharePassword('');
+    setIsPublicEnabled(false);
+    setLinkCopied(false);
+    setSavingShare(false);
     onOpenChange(false);
   };
 
@@ -1061,6 +1192,44 @@ ${htmlContent}
             Create a proposal or SOW from call transcripts
           </DialogDescription>
         </DialogHeader>
+
+        {/* Phase 4.1: Quick Mode vs Advanced Mode Toggle */}
+        {step === 'select_meetings' && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold mb-1 text-gray-900 dark:text-gray-100">
+                  Proposal Mode
+                </h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  {proposalMode === 'quick' 
+                    ? 'Quick Mode: Generate a simple summary and follow-up email'
+                    : 'Advanced Mode: Full Goals → SOW → HTML workflow'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-medium ${proposalMode === 'quick' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+                  Quick
+                </span>
+                <Switch
+                  id="proposal-mode"
+                  checked={proposalMode === 'advanced'}
+                  onCheckedChange={(checked) => {
+                    setProposalMode(checked ? 'advanced' : 'quick');
+                    // Reset quick mode state when switching
+                    if (!checked) {
+                      setQuickModeSummary('');
+                      setQuickModeEmail('');
+                    }
+                  }}
+                />
+                <span className={`text-sm font-medium ${proposalMode === 'advanced' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+                  Advanced
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Resume Dialog - shown when saved state exists */}
         {showResumeDialog && savedState && (
@@ -1514,9 +1683,9 @@ ${htmlContent}
         {!showResumeDialog && step === 'configure_document' && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}</h3>
+              <h3 className="text-lg font-semibold mb-2">Configure {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                Set the focus and length for your {selectedFormat === 'sow' ? 'Statement of Work' : 'proposal'}.
+                Set the focus and length for your {selectedFormat === 'sow' ? 'Statement of Work' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'}.
               </p>
             </div>
 
@@ -1595,7 +1764,7 @@ ${htmlContent}
                 Back
               </Button>
               <Button onClick={handleGenerateDocument} variant="default">
-                Generate {selectedFormat === 'sow' ? 'SOW' : 'Proposal'}
+                Generate {selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'Email Proposal' : selectedFormat === 'markdown' ? 'Markdown Proposal' : 'Proposal'}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </div>
@@ -1607,7 +1776,7 @@ ${htmlContent}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold mb-2">Choose Document Format</h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Select whether you want to generate a Statement of Work (SOW) or an HTML Proposal presentation.
+              Select the format for your proposal document.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card
@@ -1659,6 +1828,56 @@ ${htmlContent}
                   </p>
                 </CardContent>
               </Card>
+
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'email' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('email');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5" />
+                    Email Proposal
+                  </CardTitle>
+                  <CardDescription>
+                    A simple email proposal in Markdown format
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Professional email format ready to send directly to clients. Includes subject, overview, pricing, and next steps.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card
+                className={`cursor-pointer transition-all hover:scale-105 ${
+                  selectedFormat === 'markdown' ? 'ring-2 ring-blue-500' : ''
+                }`}
+                onClick={() => {
+                  setSelectedFormat('markdown');
+                  setStep('configure_document');
+                }}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Markdown Proposal
+                  </CardTitle>
+                  <CardDescription>
+                    A simple Markdown document proposal
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Clean, simple proposal in Markdown format. Easy to edit and share. Perfect for quick proposals.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
             <div className="flex justify-end">
               <Button onClick={() => setStep('review_goals')} variant="secondary">
@@ -1673,8 +1892,10 @@ ${htmlContent}
         {!showResumeDialog && step === 'preview' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Preview Generated Document</h3>
-              {selectedFormat === 'proposal' && (
+              <h3 className="text-lg font-semibold">
+                {proposalMode === 'quick' ? 'Quick Summary & Follow-up Email' : 'Preview Generated Document'}
+              </h3>
+              {selectedFormat === 'proposal' && proposalMode === 'advanced' && (
                 <Button
                   onClick={() => {
                     const blob = new Blob([finalContent], { type: 'text/html' });
@@ -1687,11 +1908,64 @@ ${htmlContent}
                 </Button>
               )}
             </div>
+
+            {/* Quick Mode Preview */}
+            {proposalMode === 'quick' && quickModeSummary && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Meeting Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={quickModeSummary}
+                      onChange={(e) => setQuickModeSummary(e.target.value)}
+                      className="min-h-[200px] font-mono text-sm"
+                      placeholder="Meeting summary..."
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Follow-up Email</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={quickModeEmail}
+                      onChange={(e) => {
+                        setQuickModeEmail(e.target.value);
+                        setFinalContent(e.target.value);
+                      }}
+                      className="min-h-[300px] font-mono text-sm"
+                      placeholder="Follow-up email..."
+                    />
+                    <div className="mt-4 flex gap-2">
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(quickModeEmail);
+                          toast.success('Email copied to clipboard!');
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Copy className="w-4 h-4 mr-2" />
+                        Copy Email
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Advanced Mode Preview */}
+            {proposalMode === 'advanced' && (
+              <>
             {loading && !finalContent ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600 dark:text-blue-400 mb-4" />
                 <p className="text-gray-600 dark:text-gray-400 text-center">
-                  {statusMessage || `Generating ${selectedFormat === 'sow' ? 'SOW' : 'proposal'}...`}
+                  {statusMessage || `Generating ${selectedFormat === 'sow' ? 'SOW' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'}...`}
                 </p>
                 {statusMessage && statusMessage.includes('Generating') && (
                   <p className="text-sm text-gray-500 dark:text-gray-500 mt-2 text-center">
@@ -1704,10 +1978,16 @@ ${htmlContent}
                 <p className="text-red-800 dark:text-red-200">{error}</p>
               </div>
             ) : selectedFormat === 'proposal' && finalContent ? (
-              <Tabs defaultValue="preview" className="w-full">
+              <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as 'html' | 'preview')} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="preview">Preview</TabsTrigger>
-                  <TabsTrigger value="html">HTML Code</TabsTrigger>
+                  <TabsTrigger value="preview">
+                    Preview
+                    {loading && <Loader2 className="w-3 h-3 ml-2 animate-spin" />}
+                  </TabsTrigger>
+                  <TabsTrigger value="html">
+                    HTML Code
+                    {loading && <span className="ml-2 text-xs text-blue-400">(building...)</span>}
+                  </TabsTrigger>
                 </TabsList>
                 <TabsContent value="preview" className="mt-4">
                   <div className="border rounded-lg overflow-hidden relative">
@@ -1742,6 +2022,7 @@ ${htmlContent}
                       </Button>
                     </div>
                     <Textarea
+                      ref={htmlCodeTextareaRef}
                       value={finalContent}
                       onChange={(e) => setFinalContent(e.target.value)}
                       className="w-full h-[550px] font-mono text-xs"
@@ -1756,8 +2037,21 @@ ${htmlContent}
                   </div>
                 </TabsContent>
               </Tabs>
-            ) : selectedFormat === 'sow' && finalContent ? (
+            ) : (selectedFormat === 'sow' || selectedFormat === 'email' || selectedFormat === 'markdown') && finalContent ? (
               <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900/50 max-h-[600px] overflow-y-auto relative">
+                <div className="flex justify-end mb-2">
+                  <Button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(finalContent);
+                      setStatusMessage('Copied to clipboard!');
+                      setTimeout(() => setStatusMessage(null), 2000);
+                    }} 
+                    variant="outline" 
+                    size="sm"
+                  >
+                    Copy {selectedFormat === 'email' ? 'Email' : 'Markdown'}
+                  </Button>
+                </div>
                 <pre className="whitespace-pre-wrap font-mono text-sm">
                   {finalContent}
                 </pre>
@@ -1769,6 +2063,8 @@ ${htmlContent}
                 )}
               </div>
             ) : null}
+              </>
+            )}
             <div className="flex justify-between">
               <Button onClick={() => setStep('choose_format')} variant="secondary">
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1782,9 +2078,178 @@ ${htmlContent}
                   Cancel
                 </Button>
                 <Button onClick={handleSave} variant="default" disabled={!finalContent || loading}>
-                  Save Proposal
+                  Save & Share
                 </Button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Step 6: Share Settings */}
+        {!showResumeDialog && step === 'share' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-green-900 dark:text-green-100">Proposal Saved Successfully!</h3>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  Your {selectedFormat === 'sow' ? 'Statement of Work' : selectedFormat === 'email' ? 'email proposal' : selectedFormat === 'markdown' ? 'markdown proposal' : 'proposal'} has been saved.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Share2 className="w-5 h-5" />
+                Share Settings
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Enable public sharing to generate a link you can send to your prospect.
+              </p>
+
+              {/* Enable Public Sharing Toggle */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border">
+                <div className="flex items-center gap-3">
+                  <Link className="w-5 h-5 text-gray-500" />
+                  <div>
+                    <Label htmlFor="public-sharing" className="font-medium">Enable Public Sharing</Label>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Anyone with the link can view this proposal
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="public-sharing"
+                  checked={isPublicEnabled}
+                  onCheckedChange={setIsPublicEnabled}
+                />
+              </div>
+
+              {/* Password Protection */}
+              {isPublicEnabled && (
+                <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Lock className="w-5 h-5 text-gray-500" />
+                    <div>
+                      <Label htmlFor="share-password" className="font-medium">Password Protection (Optional)</Label>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Add a password to protect your proposal
+                      </p>
+                    </div>
+                  </div>
+                  <Input
+                    id="share-password"
+                    type="password"
+                    placeholder="Enter password (leave blank for no password)"
+                    value={sharePassword}
+                    onChange={(e) => setSharePassword(e.target.value)}
+                    className="mt-2"
+                  />
+                </div>
+              )}
+
+              {/* Share Link */}
+              {isPublicEnabled && shareToken && (
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Eye className="w-5 h-5 text-blue-500" />
+                    <Label className="font-medium text-blue-900 dark:text-blue-100">Share Link</Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      value={getProposalShareUrl(shareToken)}
+                      readOnly
+                      className="font-mono text-sm bg-white dark:bg-gray-800"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(getProposalShareUrl(shareToken));
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2000);
+                      }}
+                      className="flex-shrink-0"
+                    >
+                      {linkCopied ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    Share this link with your prospect to give them access to the proposal.
+                  </p>
+                </div>
+              )}
+
+              {/* Save Share Settings Button */}
+              {isPublicEnabled && (
+                <Button
+                  onClick={async () => {
+                    if (!savedProposalId) return;
+                    setSavingShare(true);
+                    try {
+                      await updateProposalShareSettings(savedProposalId, {
+                        is_public: true,
+                        password: sharePassword || undefined,
+                      });
+                      setStatusMessage('Share settings saved!');
+                      setTimeout(() => setStatusMessage(null), 2000);
+                    } catch (err) {
+                      setError('Failed to save share settings');
+                    } finally {
+                      setSavingShare(false);
+                    }
+                  }}
+                  disabled={savingShare}
+                  className="w-full"
+                >
+                  {savingShare ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Save Share Settings
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {statusMessage && (
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <p className="text-sm text-green-700 dark:text-green-300">{statusMessage}</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-4 border-t">
+              <Button
+                onClick={() => {
+                  // Clear saved state and close
+                  clearWizardState(storageKey);
+                  setShouldClose(true);
+                  handleClose();
+                }}
+                variant="default"
+              >
+                Done
+              </Button>
             </div>
           </div>
         )}

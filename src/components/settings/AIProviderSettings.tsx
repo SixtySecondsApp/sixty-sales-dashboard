@@ -161,14 +161,14 @@ export default function AIProviderSettings() {
   };
 
   return (
-    <div className="bg-gray-900 rounded-xl p-6 space-y-6">
+    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 space-y-6 border border-gray-200 dark:border-gray-800 shadow-sm">
       <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-purple-500/20 rounded-lg">
-          <Sparkles className="w-5 h-5 text-purple-400" />
+        <div className="p-2 bg-purple-100 dark:bg-purple-500/20 rounded-lg">
+          <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
         </div>
         <div>
-          <h2 className="text-xl font-semibold text-white">AI Provider Settings</h2>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">AI Provider Settings</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Configure API keys for AI models in your workflows
           </p>
         </div>
@@ -176,20 +176,20 @@ export default function AIProviderSettings() {
 
       <div className="space-y-4">
         {apiKeys.map((keyConfig) => (
-          <div key={keyConfig.provider} className="bg-gray-800 rounded-lg p-4">
+          <div key={keyConfig.provider} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-white font-medium">{getProviderLabel(keyConfig.provider)}</h3>
-                <p className="text-xs text-gray-400">{getProviderHelp(keyConfig.provider)}</p>
+                <h3 className="text-gray-900 dark:text-white font-medium">{getProviderLabel(keyConfig.provider)}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{getProviderHelp(keyConfig.provider)}</p>
               </div>
               {keyConfig.isValid !== undefined && (
                 <div className="flex items-center gap-2">
                   {keyConfig.isValid ? (
-                    <CheckCircle className="w-4 h-4 text-green-400" />
+                    <CheckCircle className="w-4 h-4 text-green-500 dark:text-green-400" />
                   ) : (
-                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400" />
                   )}
-                  <span className={`text-xs ${keyConfig.isValid ? 'text-green-400' : 'text-red-400'}`}>
+                  <span className={`text-xs ${keyConfig.isValid ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                     {keyConfig.isValid ? 'Valid' : 'Invalid'}
                   </span>
                 </div>
@@ -203,28 +203,28 @@ export default function AIProviderSettings() {
                   value={keyConfig.key}
                   onChange={(e) => handleKeyChange(keyConfig.provider, e.target.value)}
                   placeholder={`Enter ${getProviderLabel(keyConfig.provider)} API key`}
-                  className="w-full px-3 py-2 pr-10 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-3 py-2 pr-10 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                 />
                 <button
                   onClick={() => toggleVisibility(keyConfig.provider)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-600 rounded transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
                 >
                   {keyConfig.isVisible ? (
-                    <EyeOff className="w-4 h-4 text-gray-400" />
+                    <EyeOff className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   ) : (
-                    <Eye className="w-4 h-4 text-gray-400" />
+                    <Eye className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                   )}
                 </button>
               </div>
-              
+
               <button
                 onClick={() => testApiKey(keyConfig.provider)}
                 disabled={!keyConfig.key || testing === keyConfig.provider}
-                className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+                className="px-3 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:bg-gray-100 dark:disabled:bg-gray-700/50 disabled:text-gray-400 disabled:cursor-not-allowed text-gray-700 dark:text-white rounded-lg transition-colors text-sm"
               >
                 {testing === keyConfig.provider ? (
                   <span className="flex items-center gap-1">
-                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <div className="w-3 h-3 border-2 border-gray-400 dark:border-white/30 border-t-gray-700 dark:border-t-white rounded-full animate-spin" />
                     Testing
                   </span>
                 ) : (
@@ -236,16 +236,16 @@ export default function AIProviderSettings() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-        <div className="text-sm text-gray-400">
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="text-sm text-gray-500 dark:text-gray-400">
           <Key className="w-4 h-4 inline mr-1" />
           API keys are encrypted and stored securely
         </div>
-        
+
         <button
           onClick={saveAllKeys}
           disabled={loading || apiKeys.every(k => !k.key)}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 dark:disabled:bg-purple-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
         >
           {saveStatus === 'saving' ? (
             <>

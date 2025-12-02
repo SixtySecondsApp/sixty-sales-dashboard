@@ -381,6 +381,18 @@ serve(async (req) => {
         : `Fathom integration error: ${integrationError?.message || 'Unknown error'}`
       throw new Error(errorMessage)
     }
+
+    // Get user's primary organization ID for RLS compliance
+    const { data: membership } = await supabase
+      .from('organization_memberships')
+      .select('org_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single()
+
+    const userOrgId: string | null = membership?.org_id || null
+    console.log(`[fathom-sync] User ${userId} org_id: ${userOrgId}`)
+
     // Update sync state to 'syncing'
     await supabase
       .from('fathom_sync_state')
@@ -401,7 +413,7 @@ serve(async (req) => {
     if (sync_type === 'webhook') {
       // If webhook_payload is provided, use it directly
       if (webhook_payload) {
-        const result = await syncSingleCall(supabase, userId, integration, webhook_payload, skip_thumbnails)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, webhook_payload, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -412,7 +424,7 @@ serve(async (req) => {
         }
       } else if (call_id) {
         // Legacy: fetch single call by ID
-        const result = await syncSingleCall(supabase, userId, integration, call_id, skip_thumbnails)
+        const result = await syncSingleCall(supabase, userId, userOrgId, integration, call_id, skip_thumbnails)
 
         if (result.success) {
           meetingsSynced = 1
@@ -475,7 +487,7 @@ serve(async (req) => {
         // Process each call
         for (const call of calls) {
           try {
-            const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
+            const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
 
             if (result.success) {
               meetingsSynced++
@@ -509,7 +521,7 @@ serve(async (req) => {
         if (retryCalls.length > 0) {
           for (const call of retryCalls) {
             try {
-              const result = await syncSingleCall(supabase, userId, integration, call, skip_thumbnails)
+              const result = await syncSingleCall(supabase, userId, userOrgId, integration, call, skip_thumbnails)
               if (result.success) meetingsSynced++
             } catch (error) {
             }
@@ -529,6 +541,37 @@ serve(async (req) => {
         last_sync_error: errors.length > 0 ? JSON.stringify(errors.slice(0, 10)) : null,
       })
       .eq('user_id', userId)
+
+    // AUTO-INDEX: Trigger queue processor to index newly synced meetings
+    // This runs asynchronously in the background after sync completes
+    if (meetingsSynced > 0) {
+      console.log(`🔍 Triggering AI search indexing for ${meetingsSynced} synced meetings`)
+      try {
+        // Fire-and-forget: Don't await to avoid blocking the sync response
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/meeting-intelligence-process-queue`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            limit: Math.min(meetingsSynced, 50), // Process up to 50 meetings per batch
+          }),
+        }).then(response => {
+          if (response.ok) {
+            console.log(`✅ AI search indexing triggered successfully`)
+          } else {
+            console.warn(`⚠️  AI search indexing trigger returned status ${response.status}`)
+          }
+        }).catch(err => {
+          console.error(`⚠️  Failed to trigger AI search indexing:`, err)
+        })
+      } catch (triggerError) {
+        // Non-fatal - log but don't fail the sync response
+        console.error(`⚠️  Error triggering AI search indexing:`, triggerError)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -913,6 +956,23 @@ async function autoFetchTranscriptAndAnalyze(
         })
         .eq('id', meeting.id)
 
+      // AUTO-INDEX: Queue meeting for AI search indexing after transcript is saved
+      // This ensures all meetings with transcripts are automatically searchable
+      console.log(`🔍 Queueing meeting ${meeting.id} for AI search indexing`)
+      try {
+        await supabase
+          .from('meeting_index_queue')
+          .upsert({
+            meeting_id: meeting.id,
+            user_id: meeting.owner_user_id || userId,
+            priority: 0, // Normal priority for auto-indexed meetings
+          }, { onConflict: 'meeting_id' })
+        console.log(`✅ Meeting ${meeting.id} queued for indexing`)
+      } catch (indexQueueError) {
+        // Non-fatal - log but don't fail the sync
+        console.error(`⚠️  Failed to queue meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
+      }
+
       // Condense summary if we have a new one (non-blocking)
       const finalSummary = summaryData?.summary || meeting.summary
       if (finalSummary && finalSummary.length > 0) {
@@ -921,6 +981,22 @@ async function autoFetchTranscriptAndAnalyze(
           .catch(err => undefined)
       }
     } else {
+      // Meeting already has transcript - ensure it's queued for indexing
+      // This handles cases where transcript exists but wasn't indexed yet
+      console.log(`🔍 Queueing existing transcript meeting ${meeting.id} for AI search indexing`)
+      try {
+        await supabase
+          .from('meeting_index_queue')
+          .upsert({
+            meeting_id: meeting.id,
+            user_id: meeting.owner_user_id || userId,
+            priority: 0,
+          }, { onConflict: 'meeting_id' })
+      } catch (indexQueueError) {
+        // Non-fatal - continue with sync
+        console.warn(`⚠️  Failed to queue existing meeting for indexing:`, indexQueueError instanceof Error ? indexQueueError.message : String(indexQueueError))
+      }
+
       // Condense existing summary if not already done (non-blocking)
       if (meeting.summary && !meeting.summary_oneliner) {
         // Fire-and-forget - don't block sync on AI summarization
@@ -929,13 +1005,18 @@ async function autoFetchTranscriptAndAnalyze(
       }
     }
 
-    // Run AI analysis on transcript
-    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(transcript, {
-      id: meeting.id,
-      title: meeting.title,
-      meeting_start: meeting.meeting_start,
-      owner_email: meeting.owner_email,
-    })
+    // Run AI analysis on transcript (with extraction rules integration - Phase 6.3)
+    const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
+      transcript,
+      {
+        id: meeting.id,
+        title: meeting.title,
+        meeting_start: meeting.meeting_start,
+        owner_email: meeting.owner_email,
+      },
+      supabase,
+      meeting.owner_user_id || userId
+    )
 
     // Update meeting with AI metrics
     const { data: updateResult, error: updateError } = await supabase
@@ -1010,6 +1091,7 @@ async function autoFetchTranscriptAndAnalyze(
 async function syncSingleCall(
   supabase: any,
   userId: string,
+  orgId: string | null,
   integration: any,
   call: any, // Directly receive the call object from bulk API
   skipThumbnails: boolean = false
@@ -1091,6 +1173,7 @@ async function syncSingleCall(
     let summaryText: string | null = call.default_summary || call.summary || null
     // Map to meetings table schema using actual Fathom API fields
     const meetingData = {
+      org_id: orgId, // Required for RLS compliance
       owner_user_id: ownerUserId,
       fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
       fathom_user_id: integration.fathom_user_id,

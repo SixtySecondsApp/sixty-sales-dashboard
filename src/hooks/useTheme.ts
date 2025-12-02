@@ -22,6 +22,21 @@ function getSystemTheme(): ResolvedTheme {
 }
 
 /**
+ * Gets the currently applied theme from the DOM
+ * This is useful for initial render to avoid flash
+ */
+function getAppliedTheme(): ResolvedTheme {
+  if (typeof window === 'undefined') return 'dark'
+
+  try {
+    // Check if dark class is on document element (set by initializeTheme)
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  } catch {
+    return 'dark'
+  }
+}
+
+/**
  * Gets the stored theme preference from localStorage
  * Returns 'system' as default
  */
@@ -90,8 +105,10 @@ function applyTheme(theme: ResolvedTheme) {
  */
 export function useTheme() {
   const [themeMode, setThemeModeState] = useState<ThemeMode>(() => getStoredTheme())
+  // Use getAppliedTheme() to read from DOM (set by initializeTheme before React renders)
+  // This prevents flash of wrong theme/logo on initial render
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(getStoredTheme())
+    getAppliedTheme()
   )
 
   // Set theme mode and persist to localStorage
@@ -106,6 +123,9 @@ export function useTheme() {
     const resolved = resolveTheme(mode)
     setResolvedTheme(resolved)
     applyTheme(resolved)
+
+    // Dispatch custom event so other components using useTheme can sync
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode, resolved } }))
   }
 
   // Initialize theme on mount
@@ -113,6 +133,17 @@ export function useTheme() {
     const resolved = resolveTheme(themeMode)
     setResolvedTheme(resolved)
     applyTheme(resolved)
+  }, [])
+
+  // Listen for theme changes from other components
+  useEffect(() => {
+    const handleThemeChange = (event: CustomEvent<{ mode: ThemeMode; resolved: ResolvedTheme }>) => {
+      setThemeModeState(event.detail.mode)
+      setResolvedTheme(event.detail.resolved)
+    }
+
+    window.addEventListener('theme-changed', handleThemeChange as EventListener)
+    return () => window.removeEventListener('theme-changed', handleThemeChange as EventListener)
   }, [])
 
   // Listen for system theme changes when in system mode

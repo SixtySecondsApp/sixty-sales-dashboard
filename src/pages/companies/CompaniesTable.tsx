@@ -477,13 +477,13 @@ export default function CompaniesTable() {
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-gray-900/50 rounded-xl p-8">
+        <div className="bg-white dark:bg-gray-900/50 rounded-xl p-8 border border-[#E2E8F0] dark:border-gray-800 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-800 rounded w-1/4"></div>
-            <div className="h-4 bg-gray-800 rounded w-1/2"></div>
+            <div className="h-8 bg-slate-200 dark:bg-gray-800 rounded w-1/4"></div>
+            <div className="h-4 bg-slate-200 dark:bg-gray-800 rounded w-1/2"></div>
             <div className="space-y-3 mt-6">
               {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="h-16 bg-gray-800/50 rounded-lg"></div>
+                <div key={i} className="h-16 bg-slate-100 dark:bg-gray-800/50 rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -513,26 +513,26 @@ export default function CompaniesTable() {
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Building2 className="w-8 h-8 text-blue-400" />
-            <h1 className="text-3xl font-bold text-white">Companies</h1>
+            <h1 className="text-3xl font-bold text-[#1E293B] dark:text-white">Companies</h1>
           </div>
-          <p className="text-gray-400">
+          <p className="text-[#64748B] dark:text-gray-400">
             {getFilterDescription()}
           </p>
         </div>
 
       {/* Search and Filters */}
-      <div className="bg-gray-900/50 rounded-xl p-6 mb-6 border border-gray-800">
+      <div className="bg-white dark:bg-gray-900/50 rounded-xl p-6 mb-6 border border-[#E2E8F0] dark:border-gray-800 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
         <div className="flex flex-col gap-4">
           {/* Top row: Search and Owner Filter */}
           <div className="flex flex-col lg:flex-row gap-4">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#64748B] dark:text-gray-400 w-4 h-4" />
               <Input
                 placeholder="Search companies by name or domain..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-gray-800/50 border-gray-700 text-white placeholder-gray-400"
+                className="pl-10 bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white placeholder-[#94A3B8] dark:placeholder-gray-400"
               />
             </div>
             
@@ -549,10 +549,10 @@ export default function CompaniesTable() {
             {/* Other Filters */}
             <div className="flex flex-col sm:flex-row gap-4 flex-1">
               <Select value={sizeFilter} onValueChange={setSizeFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-gray-800/50 border-gray-700 text-white">
+                <SelectTrigger className="w-full sm:w-[180px] bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white">
                   <SelectValue placeholder="All Sizes" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-white dark:bg-gray-800 border-[#E2E8F0] dark:border-gray-700">
                   <SelectItem value="all">All Sizes</SelectItem>
                   {uniqueSizes.map(size => (
                     <SelectItem key={size} value={size}>{size}</SelectItem>
@@ -561,10 +561,10 @@ export default function CompaniesTable() {
               </Select>
 
               <Select value={industryFilter} onValueChange={setIndustryFilter}>
-                <SelectTrigger className="w-full sm:w-[180px] bg-gray-800/50 border-gray-700 text-white">
+                <SelectTrigger className="w-full sm:w-[180px] bg-slate-50 dark:bg-gray-800/50 border-[#E2E8F0] dark:border-gray-700 text-[#1E293B] dark:text-white">
                   <SelectValue placeholder="All Industries" />
                 </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
+                <SelectContent className="bg-white dark:bg-gray-800 border-[#E2E8F0] dark:border-gray-700">
                   <SelectItem value="all">All Industries</SelectItem>
                   {uniqueIndustries.map(industry => (
                     <SelectItem key={industry} value={industry}>{industry}</SelectItem>
@@ -622,7 +622,7 @@ export default function CompaniesTable() {
                 <div className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-500/20 border border-violet-500/30">
                   <CheckSquare className="w-4 h-4 text-violet-400" />
                 </div>
-                <span className="text-sm font-medium text-white">
+                <span className="text-sm font-medium text-[#1E293B] dark:text-white">
                   {selectedCompanies.size} selected
                 </span>
               </div>
@@ -653,13 +653,13 @@ export default function CompaniesTable() {
       </AnimatePresence>
 
       {/* Table */}
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900/50 rounded-xl border border-[#E2E8F0] dark:border-gray-800 overflow-hidden shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
         <Table>
           <TableHeader>
-            <TableRow className="border-gray-800 hover:bg-gray-800/50">
+            <TableRow className="border-[#E2E8F0] dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50">
               {/* Select All Checkbox - Only show when in select mode */}
               {isSelectModeActive && (
-                <TableHead className="w-12 text-gray-300">
+                <TableHead className="w-12 text-[#64748B] dark:text-gray-300">
                   <input
                     type="checkbox"
                     checked={isSelectAllChecked}
@@ -669,7 +669,7 @@ export default function CompaniesTable() {
                 </TableHead>
               )}
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('name')}
               >
                 <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('domain')}
               >
                 <div className="flex items-center gap-2">
@@ -685,7 +685,7 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('size')}
               >
                 <div className="flex items-center gap-2">
@@ -693,7 +693,7 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white"
                 onClick={() => handleSort('industry')}
               >
                 <div className="flex items-center gap-2">
@@ -701,7 +701,7 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white text-center"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white text-center"
                 onClick={() => handleSort('contactCount')}
               >
                 <div className="flex items-center justify-center gap-2">
@@ -709,7 +709,7 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white text-center"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white text-center"
                 onClick={() => handleSort('dealsCount')}
               >
                 <div className="flex items-center justify-center gap-2">
@@ -717,21 +717,21 @@ export default function CompaniesTable() {
                 </div>
               </TableHead>
               <TableHead 
-                className="text-gray-300 cursor-pointer hover:text-white text-right"
+                className="text-[#64748B] dark:text-gray-300 cursor-pointer hover:text-[#1E293B] dark:hover:text-white text-right"
                 onClick={() => handleSort('dealsValue')}
               >
                 <div className="flex items-center justify-end gap-2">
                   Value {getSortIcon('dealsValue')}
                 </div>
               </TableHead>
-              <TableHead className="text-gray-300 text-center">Actions</TableHead>
+              <TableHead className="text-[#64748B] dark:text-gray-300 text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredAndSortedCompanies.map((company) => (
-              <TableRow 
-                key={company.id} 
-                className={`border-gray-800 hover:bg-gray-800/50 cursor-pointer transition-colors ${
+              <TableRow
+                key={company.id}
+                className={`border-[#E2E8F0] dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${
                   selectedCompanies.has(company.id) && isSelectModeActive
                     ? 'border-violet-500/40 bg-gradient-to-r from-violet-500/10 via-purple-500/5 to-violet-500/10 shadow-lg shadow-violet-500/10 ring-1 ring-violet-500/20'
                     : ''
@@ -760,9 +760,9 @@ export default function CompaniesTable() {
                 )}
                 <TableCell>
                   <div className="flex flex-col">
-                    <div className="font-medium text-white">{company.name}</div>
+                    <div className="font-medium text-[#1E293B] dark:text-white">{company.name}</div>
                     {company.description && (
-                      <div className="text-sm text-gray-400 truncate max-w-xs">
+                      <div className="text-sm text-[#64748B] dark:text-gray-400 truncate max-w-xs">
                         {company.description}
                       </div>
                     )}
@@ -772,8 +772,8 @@ export default function CompaniesTable() {
                   <div className="flex items-center gap-2">
                     {company.domain && (
                       <>
-                        <Globe className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-300">{formatDomain(company.domain)}</span>
+                        <Globe className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
+                        <span className="text-[#64748B] dark:text-gray-300">{formatDomain(company.domain)}</span>
                         {company.website && (
                           <a
                             href={company.website}
@@ -803,8 +803,8 @@ export default function CompaniesTable() {
                   )}
                 </TableCell>
                 <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-1 text-gray-300">
-                    <Users className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center justify-center gap-1 text-[#64748B] dark:text-gray-300">
+                    <Users className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
                     {company.contactCount || 0}
                   </div>
                 </TableCell>
@@ -851,8 +851,8 @@ export default function CompaniesTable() {
         {filteredAndSortedCompanies.length === 0 && (
           <div className="text-center py-12">
             <Building2 className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400 mb-2">No companies found</h3>
-            <p className="text-gray-500 text-sm">
+            <h3 className="text-lg font-medium text-[#64748B] dark:text-gray-400 mb-2">No companies found</h3>
+            <p className="text-[#94A3B8] dark:text-gray-500 text-sm">
               {searchTerm || sizeFilter !== 'all' || industryFilter !== 'all' 
                 ? 'Try adjusting your search criteria or filters'
                 : 'Get started by adding your first company'

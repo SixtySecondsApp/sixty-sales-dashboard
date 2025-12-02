@@ -75,7 +75,7 @@ const Tooltip = ({ show, content, position }: TooltipProps) => {
         transform: 'translate(-50%, -100%)',
         zIndex: 9999,
       }}
-      className="bg-white/95 dark:bg-gray-900/95 text-gray-900 dark:text-white text-xs rounded-lg p-2.5 w-48 shadow-xl border border-gray-200 dark:border-gray-700"
+      className="bg-white/95 dark:bg-gray-900/95 text-[#1E293B] dark:text-white text-xs rounded-lg p-2.5 w-48 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-xl border border-[#E2E8F0] dark:border-gray-700"
     >
       <div className="text-center font-medium mb-2">{content.title}</div>
       <div className="flex justify-center items-center gap-1">
@@ -83,7 +83,7 @@ const Tooltip = ({ show, content, position }: TooltipProps) => {
           {content.message}
         </span>
       </div>
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white dark:bg-gray-900 border-r border-b border-gray-200 dark:border-gray-700"></div>
+      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 rotate-45 w-2 h-2 bg-white dark:bg-gray-900 border-r border-b border-[#E2E8F0] dark:border-gray-700"></div>
     </div>,
     document.body
   );
@@ -201,8 +201,8 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
             }`} />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">{title}</span>
-            <span className="text-xs text-gray-600 dark:text-gray-500">This month</span>
+            <span className="text-sm font-medium text-[#1E293B] dark:text-white">{title}</span>
+            <span className="text-xs text-[#64748B] dark:text-gray-500">This month</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -299,17 +299,17 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
         <div className="flex items-baseline gap-2">
           {isInitialLoad ? (
             <div className="flex items-baseline gap-2">
-              <div className="w-24 h-9 bg-gray-200 dark:bg-gray-800/50 rounded animate-pulse" />
-              <span className="text-sm text-gray-600 dark:text-gray-500 font-medium">
+              <div className="w-24 h-9 bg-slate-200 dark:bg-gray-800/50 rounded animate-pulse" />
+              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </div>
           ) : (
             <>
-              <span className="text-3xl font-bold text-gray-900 dark:text-white transition-none" suppressHydrationWarning>
+              <span className="text-3xl font-bold text-[#1E293B] dark:text-white transition-none" suppressHydrationWarning>
                 {title === 'New Business' ? `£${value.toLocaleString()}` : value}
               </span>
-              <span className="text-sm text-gray-600 dark:text-gray-500 font-medium">
+              <span className="text-sm text-[#64748B] dark:text-gray-500 font-medium">
                 / {title === 'New Business' ? `£${target.toLocaleString()}` : target}
               </span>
             </>
@@ -317,7 +317,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
         </div>
         
         <div className="space-y-1">
-          <div className="h-2.5 bg-gray-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
+          <div className="h-2.5 bg-slate-200 dark:bg-gray-900/80 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-none ${
                 title === 'New Business'
@@ -331,7 +331,7 @@ const MetricCard = React.memo(({ title, value, target, trend, icon: Icon, type, 
               style={{ width: `${Math.min(100, (value / target) * 100)}%` }}
             ></div>
           </div>
-          <div className="text-xs text-gray-600 dark:text-gray-400 flex justify-between">
+          <div className="text-xs text-[#64748B] dark:text-gray-400 flex justify-between">
             <span>Progress</span>
             <span>{Math.round((value / target) * 100)}%</span>
           </div>
@@ -359,33 +359,33 @@ function DashboardSkeleton() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 mt-12 lg:mt-0 animate-pulse">
       {/* Header skeleton */}
       <div className="space-y-1 mb-6 sm:mb-8">
-        <div className="h-8 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg mb-2" />
-        <div className="h-4 w-64 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+        <div className="h-8 w-48 bg-slate-200 dark:bg-gray-800 rounded-lg mb-2" />
+        <div className="h-4 w-64 bg-slate-200 dark:bg-gray-800 rounded-lg" />
       </div>
 
       {/* Metrics grid skeleton */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-8">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
+          <div key={i} className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+                <div className="w-10 h-10 bg-slate-200 dark:bg-gray-800 rounded-lg" />
                 <div>
-                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-800 rounded-lg mb-1" />
-                  <div className="h-3 w-16 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+                  <div className="h-4 w-24 bg-slate-200 dark:bg-gray-800 rounded-lg mb-1" />
+                  <div className="h-3 w-16 bg-slate-200 dark:bg-gray-800 rounded-lg" />
                 </div>
               </div>
               <div className="flex gap-2">
-                <div className="w-16 h-8 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+                <div className="w-16 h-8 bg-slate-200 dark:bg-gray-800 rounded-lg" />
               </div>
             </div>
             <div className="space-y-2">
-              <div className="h-8 w-32 bg-gray-200 dark:bg-gray-800 rounded-lg mb-2" />
+              <div className="h-8 w-32 bg-slate-200 dark:bg-gray-800 rounded-lg mb-2" />
               <div className="space-y-1">
-                <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full" />
+                <div className="h-2 bg-slate-200 dark:bg-gray-800 rounded-full" />
                 <div className="flex justify-between">
-                  <div className="h-3 w-16 bg-gray-200 dark:bg-gray-800 rounded-lg" />
-                  <div className="h-3 w-8 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+                  <div className="h-3 w-16 bg-slate-200 dark:bg-gray-800 rounded-lg" />
+                  <div className="h-3 w-8 bg-slate-200 dark:bg-gray-800 rounded-lg" />
                 </div>
               </div>
             </div>
@@ -394,31 +394,31 @@ function DashboardSkeleton() {
       </div>
 
       {/* Chart skeleton */}
-      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none mb-8">
-        <div className="h-6 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg mb-8" />
-        <div className="h-64 w-full bg-gray-200 dark:bg-gray-800 rounded-lg" />
+      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none mb-8">
+        <div className="h-6 w-48 bg-slate-200 dark:bg-gray-800 rounded-lg mb-8" />
+        <div className="h-64 w-full bg-slate-200 dark:bg-gray-800 rounded-lg" />
       </div>
 
       {/* Recent deals skeleton */}
-      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
+      <div className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none">
         <div className="flex justify-between items-center mb-6">
-          <div className="h-6 w-36 bg-gray-200 dark:bg-gray-800 rounded-lg" />
-          <div className="h-9 w-48 bg-gray-200 dark:bg-gray-800 rounded-lg" />
+          <div className="h-6 w-36 bg-slate-200 dark:bg-gray-800 rounded-lg" />
+          <div className="h-9 w-48 bg-slate-200 dark:bg-gray-800 rounded-lg" />
         </div>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-4">
+            <div key={i} className="bg-slate-100 dark:bg-gray-800/50 rounded-xl p-4">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                  <div className="w-10 h-10 bg-slate-200 dark:bg-gray-700 rounded-lg" />
                   <div>
-                    <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg mb-1" />
-                    <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                    <div className="h-5 w-32 bg-slate-200 dark:bg-gray-700 rounded-lg mb-1" />
+                    <div className="h-4 w-48 bg-slate-200 dark:bg-gray-700 rounded-lg" />
                   </div>
                 </div>
                 <div>
-                  <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg mb-1" />
-                  <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                  <div className="h-6 w-24 bg-slate-200 dark:bg-gray-700 rounded-lg mb-1" />
+                  <div className="h-4 w-16 bg-slate-200 dark:bg-gray-700 rounded-lg" />
                 </div>
               </div>
             </div>
@@ -589,17 +589,17 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
       {/* Header with Month Selection */}
       <div className="space-y-1 mt-12 lg:mt-0 mb-6 sm:mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Welcome back{userData?.first_name ? `, ${userData.first_name}` : ''}</h1>
+        <h1 className="text-3xl font-bold text-[#1E293B] dark:text-white">Welcome back{userData?.first_name ? `, ${userData.first_name}` : ''}</h1>
         <div className="flex items-center justify-between mt-2">
-          <p className="text-gray-600 dark:text-gray-400">Here's how your sales performance is tracking</p>
+          <p className="text-[#64748B] dark:text-gray-400">Here's how your sales performance is tracking</p>
           <div className="flex items-center gap-3 bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-2 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none">
             <button
               onClick={handlePreviousMonth}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <ChevronLeft className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
-            <span className="text-sm font-medium text-gray-900 dark:text-white min-w-[100px] text-center">
+            <span className="text-sm font-medium text-[#1E293B] dark:text-white min-w-[100px] text-center">
               {(() => {
                 try {
                   return format(selectedMonth, 'MMMM yyyy');
@@ -611,10 +611,10 @@ export default function Dashboard() {
             </span>
             <button
               onClick={handleNextMonth}
-              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
               disabled={selectedMonth >= new Date()}
             >
-              <ChevronRight className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+              <ChevronRight className="w-4 h-4 text-[#64748B] dark:text-gray-400" />
             </button>
           </div>
         </div>
@@ -688,8 +688,8 @@ export default function Dashboard() {
       {/* MRR Subscription Statistics */}
       <div className="mb-8">
         <div className="mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Subscription Revenue</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400">Track your monthly recurring revenue and client metrics</p>
+          <h2 className="text-xl font-semibold text-[#1E293B] dark:text-white">Subscription Revenue</h2>
+          <p className="text-sm text-[#64748B] dark:text-gray-400">Track your monthly recurring revenue and client metrics</p>
         </div>
         <LazySubscriptionStats
           onClick={(cardTitle) => {
@@ -700,16 +700,16 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Deals Section */}
-      <div ref={recentDealsRef} className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-transparent dark:border-gray-800/50 shadow-sm dark:shadow-none mb-8">
+      <div ref={recentDealsRef} className="bg-white dark:bg-gray-900/50 backdrop-blur-xl rounded-xl p-6 border border-[#E2E8F0] dark:border-gray-800/50 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none mb-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Recent Deals</h2>
+          <h2 className="text-xl font-semibold text-[#1E293B] dark:text-white">Recent Deals</h2>
           <div className="relative w-full sm:w-64">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by client or amount..."
-              className="w-full py-2 px-3 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500"
+              className="w-full py-2 px-3 bg-slate-100 dark:bg-gray-800 border border-[#E2E8F0] dark:border-gray-700 rounded-xl text-[#1E293B] dark:text-white placeholder-[#94A3B8] dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500"
             />
           </div>
         </div>
@@ -750,7 +750,7 @@ export default function Dashboard() {
                 transition: { duration: 0.2 }
               }}
               whileTap={{ scale: 0.98 }}
-              className="bg-gray-100 dark:bg-gray-800/50 rounded-xl p-3 sm:p-4 hover:bg-gray-200 dark:hover:bg-gray-800/70 transition-all duration-300 group hover:shadow-lg hover:shadow-emerald-500/10 border border-transparent hover:border-emerald-500/20 relative overflow-hidden cursor-pointer"
+              className="bg-slate-100 dark:bg-gray-800/50 rounded-xl p-3 sm:p-4 hover:bg-slate-200 dark:hover:bg-gray-800/70 transition-all duration-300 group hover:shadow-lg hover:shadow-emerald-500/10 border border-transparent hover:border-emerald-500/20 relative overflow-hidden cursor-pointer"
               onClick={() => {
                 setFilters({
                   type: 'sale',
@@ -784,16 +784,16 @@ export default function Dashboard() {
                     <PoundSterling className="w-5 h-5 text-emerald-500" />
                   </motion.div>
                   <div>
-                    <h3 className="font-medium text-gray-900 dark:text-white group-hover:text-emerald-500 transition-colors duration-300">
+                    <h3 className="font-medium text-[#1E293B] dark:text-white group-hover:text-emerald-500 transition-colors duration-300">
                       {deal.client_name}
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-sm text-[#64748B] dark:text-gray-400">
                       {deal.details} • {format(new Date(deal.date), 'MMM d, yyyy')}
                     </p>
                   </div>
                 </div>
                 <div className="text-left sm:text-right">
-                  <div className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-emerald-400 transition-colors duration-300">
+                  <div className="text-lg font-bold text-[#1E293B] dark:text-white group-hover:text-emerald-400 transition-colors duration-300">
                     £{(deal.amount || 0).toLocaleString()}
                   </div>
                   <div className="text-sm text-emerald-500 group-hover:text-emerald-400 transition-colors duration-300">Signed</div>
@@ -804,7 +804,7 @@ export default function Dashboard() {
           
           {loadRecentDeals && filteredDeals.length === 0 && (
             <div className="text-center py-8">
-              <div className="text-gray-600 dark:text-gray-400">No matching deals found</div>
+              <div className="text-[#64748B] dark:text-gray-400">No matching deals found</div>
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}

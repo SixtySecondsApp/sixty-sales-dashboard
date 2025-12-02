@@ -4,6 +4,10 @@ import SalesFunnel from '@/pages/SalesFunnel';
 import Heatmap from '@/pages/Heatmap';
 import { LineChart, Activity, Sparkles } from 'lucide-react';
 import { LeadAnalyticsCard } from '@/components/leads/LeadAnalyticsCard';
+// Sentiment components moved to dedicated /meetings/sentiment page
+// import { SentimentDashboard } from '@/components/insights/SentimentDashboard';
+// import { SentimentTrend } from '@/components/insights/SentimentTrend';
+// import { SentimentAlerts } from '@/components/insights/SentimentAlerts';
 
 export default function Insights() {
   const [activeTab, setActiveTab] = useState('funnel');

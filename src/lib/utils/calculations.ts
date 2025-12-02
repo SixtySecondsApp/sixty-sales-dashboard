@@ -75,9 +75,16 @@ export function formatCurrency(value: number | null | undefined): string {
 
 /**
  * Get a display string for LTV with optional original amount
- * 
- * @param originalAmount - The original activity amount
- * @param ltvValue - The calculated LTV
+ *
+ * BUSINESS RULE: The effective LTV is always the HIGHER of:
+ * - The deal value (e.g., 12 months × MRR + one-off)
+ * - The LTV formula (3 × MRR + one-off)
+ *
+ * If the deal value exceeds the LTV formula, just show the deal value
+ * since that's the actual committed revenue.
+ *
+ * @param originalAmount - The original activity/deal amount
+ * @param ltvValue - The calculated LTV using formula (MRR × 3 + one-off)
  * @param activityType - The type of activity (for special handling)
  * @returns Display string for the amount column
  */
@@ -114,6 +121,12 @@ export function formatActivityAmount(
     return formatCurrency(originalAmount);
   }
 
-  // Show both if they're different
+  // When deal value exceeds LTV formula, the deal value IS the effective LTV
+  // (e.g., 12-month contract is worth more than 3× MRR formula)
+  if (originalAmount! >= ltvValue!) {
+    return formatCurrency(originalAmount);
+  }
+
+  // Only show LTV annotation when formula gives higher value than deal amount
   return `${formatCurrency(originalAmount)} (LTV: ${formatCurrency(ltvValue)})`;
 }

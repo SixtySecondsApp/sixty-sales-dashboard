@@ -27,7 +27,12 @@ export async function fetchLeads(): Promise<LeadWithPrep[]> {
         lead_prep_notes(*),
         owner:profiles!leads_owner_id_fkey(id, first_name, last_name, email),
         source:lead_sources!leads_source_id_fkey(id, name, source_key),
-        contact:contacts!leads_contact_id_fkey(id, title, first_name, last_name, email)
+        contact:contacts!leads_contact_id_fkey(id, title, first_name, last_name, email),
+        converted_deal:deals!leads_converted_deal_id_fkey(
+          id,
+          name,
+          stage:deal_stages!deals_stage_id_fkey(id, name)
+        )
       `)
       .order('created_at', { ascending: false })
       .range(from, to);

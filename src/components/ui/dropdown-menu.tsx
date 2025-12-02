@@ -24,24 +24,35 @@ interface DropdownMenuItemProps {
 
 const DropdownMenuContext = React.createContext<{
   isOpen: boolean;
-  setIsOpen: (open: boolean) => void;
+  setIsOpen: React.Dispatch<React.SetStateAction<boolean>>;
   triggerRef: React.RefObject<HTMLElement>;
+  contentRef: React.RefObject<HTMLDivElement>;
 }>({
   isOpen: false,
   setIsOpen: () => {},
   triggerRef: { current: null },
+  contentRef: { current: null },
 });
+
+// Export hook to allow closing dropdown from nested components
+export function useDropdownMenuClose() {
+  const { setIsOpen } = React.useContext(DropdownMenuContext);
+  return () => setIsOpen(false);
+}
 
 export function DropdownMenu({ children }: DropdownMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      // Check if click is outside both the trigger AND the dropdown content
+      const isOutsideTrigger = triggerRef.current && !triggerRef.current.contains(target);
+      const isOutsideContent = contentRef.current && !contentRef.current.contains(target);
+
+      if (isOutsideTrigger && isOutsideContent) {
         setIsOpen(false);
       }
     };
@@ -56,7 +67,7 @@ export function DropdownMenu({ children }: DropdownMenuProps) {
   }, [isOpen]);
 
   return (
-    <DropdownMenuContext.Provider value={{ isOpen, setIsOpen, triggerRef }}>
+    <DropdownMenuContext.Provider value={{ isOpen, setIsOpen, triggerRef, contentRef }}>
       <div className="relative">{children}</div>
     </DropdownMenuContext.Provider>
   );
@@ -88,7 +99,7 @@ export function DropdownMenuContent({
   align = 'start',
   className = '',
 }: DropdownMenuContentProps) {
-  const { isOpen } = React.useContext(DropdownMenuContext);
+  const { isOpen, contentRef } = React.useContext(DropdownMenuContext);
 
   const alignmentClass = {
     start: 'left-0',
@@ -100,13 +111,14 @@ export function DropdownMenuContent({
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          ref={contentRef}
           initial={{ opacity: 0, y: -10, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.95 }}
           transition={{ duration: 0.1 }}
           className={`
             absolute top-full mt-1 z-50 min-w-[8rem] rounded-md border shadow-md backdrop-blur-sm
-            bg-white/95 dark:bg-gray-900/95 border-gray-200 dark:border-gray-700/50 text-gray-900 dark:text-gray-100
+            bg-white/95 dark:bg-gray-900/95 border-[#E2E8F0] dark:border-gray-700/50 text-[#1E293B] dark:text-gray-100 shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05)] dark:shadow-none
             ${alignmentClass} ${className}
           `}
         >
@@ -134,7 +146,7 @@ export function DropdownMenuItem({
       onClick={handleClick}
       className={`
         relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm
-        outline-none transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white focus:bg-gray-100 dark:focus:bg-gray-800 focus:text-gray-900 dark:focus:text-white
+        outline-none transition-colors hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-[#1E293B] dark:hover:text-white focus:bg-slate-100 dark:focus:bg-gray-800 focus:text-[#1E293B] dark:focus:text-white
         ${className}
       `}
     >
