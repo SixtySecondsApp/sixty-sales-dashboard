@@ -94,12 +94,15 @@ jobs:
           echo "✅ Development branch connection configured"
 
       - name: Export Production Data
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "📦 Exporting production data..."
-          
+
           # Use pg_dump to export production data
           # Exclude system tables and use custom format for better compression
-          pg_dump "${{ secrets.PRODUCTION_DB_URL }}" \
+          pg_dump \
+            --dbname="${{ secrets.PRODUCTION_DB_URL }}" \
             --format=custom \
             --no-owner \
             --no-acl \
@@ -114,17 +117,19 @@ jobs:
           echo "dump_size=$DUMP_SIZE" >> $GITHUB_OUTPUT
 
       - name: Restore Data to Development Branch
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔄 Restoring data to development branch..."
-          
+
           # Drop all existing data (except migrations)
           echo "⚠️ Dropping existing data in development branch..."
-          PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" psql "${{ steps.get-dev-connection.outputs.db_url }}" <<EOF
+          psql --dbname="${{ steps.get-dev-connection.outputs.db_url }}" <<EOF
           -- Disable triggers temporarily
           SET session_replication_role = replica;
-          
+
           -- Drop all tables (migrations will recreate schema)
-          DO \$\$ 
+          DO \$\$
           DECLARE
             r RECORD;
           BEGIN
@@ -132,16 +137,16 @@ jobs:
               EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
             END LOOP;
           END \$\$;
-          
+
           -- Re-enable triggers
           SET session_replication_role = DEFAULT;
           EOF
-          
+
           echo "✅ Cleared existing data"
-          
+
           # Restore production data
           echo "📥 Restoring production data..."
-          PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" pg_restore \
+          pg_restore \
             --dbname="${{ steps.get-dev-connection.outputs.db_url }}" \
             --no-owner \
             --no-acl \
@@ -149,23 +154,26 @@ jobs:
             production_dump.dump || {
               echo "❌ Restore failed, trying alternative method..."
               # Alternative: Use plain SQL format
-              pg_dump "${{ secrets.PRODUCTION_DB_URL }}" \
+              pg_dump \
+                --dbname="${{ secrets.PRODUCTION_DB_URL }}" \
                 --format=plain \
                 --no-owner \
                 --no-acl \
                 --exclude-table=supabase_migrations.schema_migrations \
                 --exclude-table=supabase_migrations.migration_history \
-                | PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" psql "${{ steps.get-dev-connection.outputs.db_url }}"
+                | psql --dbname="${{ steps.get-dev-connection.outputs.db_url }}"
             }
           
           echo "✅ Data restored to development branch"
 
       - name: Verify Data Sync
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "🔍 Verifying data sync..."
-          
+
           # Check table counts
-          PGPASSWORD="${{ secrets.SUPABASE_DB_PASSWORD }}" psql "${{ steps.get-dev-connection.outputs.db_url }}" <<EOF
+          psql --dbname="${{ steps.get-dev-connection.outputs.db_url }}" <<EOF
           SELECT 
             schemaname,
             tablename,
