@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Supabase Connection</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .info { color: #60a5fa; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        pre {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Supabase Connection Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Environment Check</h2>
+        <button onclick="checkEnvironment()">Check Environment</button>
+        <div id="env-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Supabase Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connection-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Session Check</h2>
+        <button onclick="checkSession()">Check Session</button>
+        <div id="session-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Local Storage</h2>
+        <button onclick="checkLocalStorage()">Check Local Storage</button>
+        <button onclick="clearAuthStorage()">Clear Auth Storage</button>
+        <div id="storage-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Test Login</h2>
+        <input type="email" id="email" placeholder="Email" style="padding: 8px; margin: 5px;">
+        <input type="password" id="password" placeholder="Password" style="padding: 8px; margin: 5px;">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="login-result"></div>
+    </div>
+
+    <script>
+        // Get environment variables from the app - USING CORRECT VALUES FROM .env
+        const SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+
+        let supabase;
+
+        function checkEnvironment() {
+            const result = document.getElementById('env-result');
+            result.innerHTML = `
+                <p class="info">Supabase URL: ${SUPABASE_URL}</p>
+                <p class="info">Anon Key: ${SUPABASE_ANON_KEY.substring(0, 50)}...</p>
+                <p class="success">✓ Environment variables loaded</p>
+            `;
+        }
+
+        async function testConnection() {
+            const result = document.getElementById('connection-result');
+            try {
+                supabase = supabase || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Try a simple query to test connection
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('count')
+                    .limit(1);
+                
+                if (error) {
+                    result.innerHTML = `<p class="error">❌ Connection error: ${error.message}</p>`;
+                } else {
+                    result.innerHTML = `<p class="success">✓ Successfully connected to Supabase!</p>`;
+                }
+            } catch (err) {
+                result.innerHTML = `<p class="error">❌ Error: ${err.message}</p>`;
+            }
+        }
+
+        async function checkSession() {
+            const result = document.getElementById('session-result');
+            try {
+                supabase = supabase || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                const { data: { session }, error } = await supabase.auth.getSession();
+                
+                if (error) {
+                    result.innerHTML = `<p class="error">❌ Session error: ${error.message}</p>`;
+                } else if (session) {
+                    result.innerHTML = `
+                        <p class="success">✓ Active session found!</p>
+                        <p class="info">User: ${session.user.email}</p>
+                        <p class="info">Expires: ${new Date(session.expires_at * 1000).toLocaleString()}</p>
+                    `;
+                } else {
+                    result.innerHTML = `<p class="info">No active session</p>`;
+                }
+            } catch (err) {
+                result.innerHTML = `<p class="error">❌ Error: ${err.message}</p>`;
+            }
+        }
+
+        function checkLocalStorage() {
+            const result = document.getElementById('storage-result');
+            const authKeys = [];
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.includes('sb') || key.includes('supabase') || key.includes('auth')) {
+                    authKeys.push(key);
+                }
+            }
+            
+            if (authKeys.length > 0) {
+                result.innerHTML = `
+                    <p class="info">Found auth-related keys:</p>
+                    <pre>${authKeys.join('\n')}</pre>
+                `;
+            } else {
+                result.innerHTML = `<p class="info">No auth-related keys in localStorage</p>`;
+            }
+        }
+
+        function clearAuthStorage() {
+            const keysToRemove = [
+                'sb.auth.v2',
+                'sb.auth.admin.v2',
+                'supabase.auth.token',
+                'sb-refresh-token',
+                'sb-access-token',
+                'sb-hfehywpachtsrzvftelu-auth-token'
+            ];
+            
+            keysToRemove.forEach(key => {
+                localStorage.removeItem(key);
+            });
+            
+            // Also clear any keys that contain 'sb-' or 'supabase'
+            const allKeys = Object.keys(localStorage);
+            allKeys.forEach(key => {
+                if (key.includes('sb-') || key.includes('supabase')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            document.getElementById('storage-result').innerHTML = `<p class="success">✓ Auth storage cleared!</p>`;
+        }
+
+        async function testLogin() {
+            const result = document.getElementById('login-result');
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            if (!email || !password) {
+                result.innerHTML = `<p class="error">Please enter email and password</p>`;
+                return;
+            }
+            
+            try {
+                supabase = supabase || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                if (error) {
+                    result.innerHTML = `<p class="error">❌ Login failed: ${error.message}</p>`;
+                } else {
+                    result.innerHTML = `
+                        <p class="success">✓ Login successful!</p>
+                        <p class="info">User: ${data.user.email}</p>
+                        <p class="info">Session: ${data.session.access_token.substring(0, 50)}...</p>
+                    `;
+                }
+            } catch (err) {
+                result.innerHTML = `<p class="error">❌ Error: ${err.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

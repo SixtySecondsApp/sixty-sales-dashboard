@@ -26,6 +26,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Allow importing landing package for dev-only local preview
+      '@landing': path.resolve(__dirname, './packages/landing/src'),
     },
   },
   

@@ -21,6 +21,7 @@ export interface WaitlistEntry {
   referral_count: number;
   signup_position?: number;
   effective_position?: number;
+  display_rank?: number; // Unique rank from waitlist_with_rank view (breaks ties by created_at)
   total_points?: number;
   linkedin_boost_claimed?: boolean;
   twitter_boost_claimed?: boolean;
@@ -33,6 +34,7 @@ export interface WaitlistEntry {
   utm_medium?: string;
   linkedin_share_claimed?: boolean;
   linkedin_first_share_at?: string;
+  is_seeded: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -87,6 +89,7 @@ export interface WaitlistFilters {
   date_from?: string;
   date_to?: string;
   search?: string; // Search by name, email, or company
+  show_seeded?: boolean; // Whether to show seeded/fake users
 }
 
 // Tool options for form dropdowns

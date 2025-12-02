@@ -345,11 +345,17 @@ serve(async (req) => {
     // Get user ID - either from body (webhook) or from auth header
     let userId: string
 
+    console.log('🔍 Request body:', JSON.stringify(body).substring(0, 200))
+    console.log('🔍 body.user_id:', body.user_id)
+    console.log('🔍 Has user_id?:', !!body.user_id)
+
     if (body.user_id) {
       // Webhook call with explicit user_id
+      console.log('✅ Using user_id from body:', body.user_id)
       userId = body.user_id
     } else {
       // Regular authenticated call
+      console.log('⚠️ No user_id in body, attempting JWT auth')
       const authHeader = req.headers.get('Authorization')
       if (!authHeader) {
         throw new Error('Missing authorization header and no user_id in request')
@@ -360,6 +366,7 @@ serve(async (req) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token)
 
       if (userError || !user) {
+        console.error('❌ JWT validation failed:', userError?.message || 'No user')
         throw new Error('Unauthorized: Invalid token')
       }
 
@@ -705,7 +712,11 @@ async function fetchFathomCalls(
         accessToken = await refreshAccessToken(supabase, integration)
         // Update the integration object with the new token
         integration.access_token = accessToken
+        console.log(`✅ Token refreshed successfully for user ${integration.user_id}`)
       } catch (error) {
+        // Log the error but continue with existing token
+        console.error(`⚠️ Token refresh failed for user ${integration.user_id}:`, error instanceof Error ? error.message : String(error))
+        console.error('Token refresh error details:', error)
         // Continue with existing token - it might still work
       }
     }
@@ -1018,7 +1029,7 @@ async function autoFetchTranscriptAndAnalyze(
       meeting.owner_user_id || userId
     )
 
-    // Update meeting with AI metrics
+    // Update meeting with AI metrics including coaching insights
     const { data: updateResult, error: updateError } = await supabase
       .from('meetings')
       .update({
@@ -1027,6 +1038,13 @@ async function autoFetchTranscriptAndAnalyze(
         talk_time_judgement: analysis.talkTime.assessment,
         sentiment_score: analysis.sentiment.score,
         sentiment_reasoning: analysis.sentiment.reasoning,
+        coach_rating: analysis.coaching.rating,
+        coach_summary: JSON.stringify({
+          summary: analysis.coaching.summary,
+          strengths: analysis.coaching.strengths,
+          improvements: analysis.coaching.improvements,
+          evaluationBreakdown: analysis.coaching.evaluationBreakdown,
+        }),
       })
       .eq('id', meeting.id)
       .select() // CRITICAL: Add .select() to get confirmation of what was updated
@@ -1228,10 +1246,15 @@ async function syncSingleCall(
     // REFRESH TOKEN BEFORE FETCHING TRANSCRIPT/SUMMARY
     // Webhook syncs don't go through fetchFathomCalls, so we need to refresh here
     try {
+      console.log(`🔄 Attempting token refresh for user ${integration.user_id} before fetching transcript`)
       const refreshedToken = await refreshAccessToken(supabase, integration)
       // Update integration object with refreshed token for subsequent API calls
       integration.access_token = refreshedToken
+      console.log(`✅ Token refreshed successfully for user ${integration.user_id}`)
     } catch (error) {
+      // Log the error but continue with existing token
+      console.error(`⚠️ Token refresh failed for user ${integration.user_id}:`, error instanceof Error ? error.message : String(error))
+      console.error('Token refresh error details:', error)
       // Continue with existing token - it might still work
     }
 

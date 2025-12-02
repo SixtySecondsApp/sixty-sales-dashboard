@@ -1,0 +1,52 @@
+import { lazy, Suspense, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// Loading component for landing pages
+const LandingLoader = () => (
+  <div className="flex items-center justify-center min-h-screen bg-black">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+  </div>
+);
+
+// Lazy load landing pages from the landing package
+// Only load in development mode to avoid bundling in production
+const MeetingsLandingV4 = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/MeetingsLandingV4').then(m => ({ default: m.MeetingsLandingV4 })))
+  : () => <Navigate to="/" replace />;
+
+const WaitlistLanding = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/WaitlistLanding'))
+  : () => <Navigate to="/" replace />;
+
+const PricingPage = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/PricingPage').then(m => ({ default: m.PricingPage })))
+  : () => <Navigate to="/" replace />;
+
+/**
+ * LandingWrapper - Development-only component for viewing landing pages locally
+ *
+ * In development: Serves landing pages at /landing, /landing/waitlist, /landing/pricing
+ * In production: Redirects to home (landing pages are deployed separately)
+ *
+ * Usage:
+ * - localhost:5175/landing - Main landing page
+ * - localhost:5175/landing/waitlist - Waitlist page
+ * - localhost:5175/landing/pricing - Pricing page
+ */
+export function LandingWrapper() {
+  // In production, redirect away from landing routes
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <Routes>
+        <Route index element={<MeetingsLandingV4 />} />
+        <Route path="waitlist" element={<WaitlistLanding />} />
+        <Route path="pricing" element={<PricingPage />} />
+        <Route path="*" element={<Navigate to="/landing" replace />} />
+      </Routes>
+    </Suspense>
+  );
+}

@@ -116,3 +116,4 @@ performance-profiles/
 local-scripts/
 dev-utils/
 **/local-only/
+.env*.local

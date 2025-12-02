@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, Play, FileText, MessageSquare, Sparkles, ListTodo, Trash2, CheckCircle2, Plus, X, RefreshCw, BarChart3 } from 'lucide-react';
 import FathomPlayerV2, { FathomPlayerV2Handle } from '@/components/FathomPlayerV2';
 import { AskAIChat } from '@/components/meetings/AskAIChat';
 import { MeetingContent } from '@/components/meetings/MeetingContent';
@@ -176,6 +176,7 @@ export function MeetingDetail() {
   const [animatingActionItemId, setAnimatingActionItemId] = useState<string | null>(null);
   const [newlyAddedTaskId, setNewlyAddedTaskId] = useState<string | null>(null);
   const [showProposalWizard, setShowProposalWizard] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
 
   // Clear newly added task highlight after animation completes
   useEffect(() => {
@@ -717,6 +718,51 @@ export function MeetingDetail() {
     }
   }, [refetchTasks]);
 
+  // Reprocess meeting with AI analysis
+  const handleReprocessMeeting = useCallback(async () => {
+    if (!meeting?.id) return;
+
+    try {
+      setIsReprocessing(true);
+
+      const { data, error } = await supabase.functions.invoke('reprocess-meetings-ai', {
+        body: {
+          meeting_ids: [meeting.id],
+          force: true
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success('Meeting reprocessed successfully! Refreshing...');
+
+        // Refresh meeting data
+        const { data: updatedMeeting, error: fetchError } = await supabase
+          .from('meetings')
+          .select('*')
+          .eq('id', meeting.id)
+          .single();
+
+        if (!fetchError && updatedMeeting) {
+          setMeeting(updatedMeeting);
+        }
+
+        // Also refresh action items if any were created
+        if (data.action_items_created > 0) {
+          await handleGetActionItems();
+        }
+      } else {
+        throw new Error(data?.error || 'Reprocessing failed');
+      }
+    } catch (e) {
+      console.error('Reprocess error:', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to reprocess meeting');
+    } finally {
+      setIsReprocessing(false);
+    }
+  }, [meeting?.id, handleGetActionItems]);
+
   // Attach click handlers to Fathom timestamp links in summary
   useEffect(() => {
     if (!summaryRef.current || !meeting?.summary) {
@@ -873,6 +919,51 @@ export function MeetingDetail() {
                   {meeting.sentiment_reasoning}
                 </p>
               </div>
+            )}
+
+            {/* Missing AI Analysis Alert */}
+            {meeting.transcript_text && (
+              meeting.sentiment_score === null ||
+              meeting.talk_time_rep_pct === null ||
+              meeting.talk_time_customer_pct === null
+            ) && (
+              <Alert className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+                <BarChart3 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertDescription className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="font-medium text-amber-900 dark:text-amber-100">
+                      AI Analysis Incomplete
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                      This meeting has a transcript but is missing {
+                        [
+                          meeting.sentiment_score === null && 'sentiment analysis',
+                          meeting.talk_time_rep_pct === null && 'talk time data',
+                          meeting.talk_time_customer_pct === null && meeting.talk_time_rep_pct !== null && 'coaching insights'
+                        ].filter(Boolean).join(' and ')
+                      }. Click to reprocess with AI.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleReprocessMeeting}
+                    disabled={isReprocessing}
+                    size="sm"
+                    className="ml-4 bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+                  >
+                    {isReprocessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Reprocess
+                      </>
+                    )}
+                  </Button>
+                </AlertDescription>
+              </Alert>
             )}
 
             {/* Enhanced Talk Time Analytics */}

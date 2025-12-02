@@ -1,0 +1,69 @@
+{
+  "header": {
+    "title": "Simple, Transparent",
+    "titleHighlight": "Early Adopter Pricing",
+    "subtitle": "Lock in special pricing as a founding user. All plans include 14-day free trial. No credit card required."
+  },
+  "plans": {
+    "solo": {
+      "name": "Solo",
+      "period": "/month",
+      "description": "Perfect for individual sales reps",
+      "features": [
+        "Unlimited meeting analysis",
+        "AI proposal generation",
+        "Smart action items",
+        "Fathom integration",
+        "Semantic search",
+        "Email support"
+      ],
+      "cta": "Start Free Trial",
+      "earlyAdopterNote": "Early adopter: Lock in this price forever"
+    },
+    "team": {
+      "name": "Team",
+      "period": "/user/month",
+      "description": "For growing sales teams",
+      "features": [
+        "Everything in Solo",
+        "Team collaboration",
+        "CRM integrations",
+        "Advanced analytics",
+        "Priority support",
+        "Custom workflows"
+      ],
+      "cta": "Start Free Trial",
+      "badge": "Most Popular",
+      "earlyAdopterNote": "Early adopter: 20% off for life"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "period": "",
+      "description": "For large organizations",
+      "features": [
+        "Everything in Team",
+        "Dedicated account manager",
+        "Custom integrations",
+        "SSO & advanced security",
+        "Onboarding & training",
+        "SLA guarantee"
+      ],
+      "cta": "Contact Sales"
+    }
+  },
+  "roi": {
+    "title": "Calculate Your Savings",
+    "subtitle": "See how much time (and money) Sixty saves your team every month",
+    "inputLabel": "Number of sales reps on your team",
+    "results": {
+      "timeSaved": "Time Saved Per Month",
+      "hours": "hrs",
+      "estimatedSavings": "Estimated Monthly Savings"
+    },
+    "explanation": {
+      "title": "How we calculate:",
+      "description": "Sixty saves each rep ~10 hours/week on meeting notes, follow-ups, and proposal writing. At an average of ${{hourlyRate}}/hr, that's ${{monthlySavings}}/rep/month in recovered selling time."
+    },
+    "cta": "Start Saving Time Today"
+  }
+}

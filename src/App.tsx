@@ -34,11 +34,6 @@ import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
-import MeetingsLanding from '@/product-pages/meetings/MeetingsLanding';
-import MeetingsLandingV2 from '@/product-pages/meetings/MeetingsLandingV2';
-import MeetingsLandingV3 from '@/product-pages/meetings/MeetingsLandingV3';
-import { MeetingsLandingV4 } from '@/product-pages/meetings/MeetingsLandingV4';
-const WaitlistLanding = lazy(() => import('@/product-pages/meetings/WaitlistLanding'));
 const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
 const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 
@@ -87,38 +82,40 @@ const Roadmap = lazyWithRetry(() => import('@/pages/Roadmap'));
 const Releases = lazyWithRetry(() => import('@/pages/Releases'));
 const Clients = lazyWithRetry(() => import('@/pages/Clients'));
 const TestFallback = lazyWithRetry(() => import('@/pages/TestFallback'));
-const MeetingsPage = lazy(() => import('@/pages/MeetingsPage'));
+const MeetingsPage = lazyWithRetry(() => import('@/pages/MeetingsPage'));
 const MeetingIntelligence = lazyWithRetry(() => import('@/pages/MeetingIntelligence'));
 const MeetingSentimentAnalytics = lazyWithRetry(() => import('@/pages/MeetingSentimentAnalytics'));
 const FreepikFlow = lazyWithRetry(() => import('@/components/workflows/FreepikFlow'));
-const MeetingDetail = lazy(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
-const DebugAuth = lazy(() => import('@/pages/DebugAuth'));
-const DebugMeetings = lazy(() => import('@/pages/DebugMeetings'));
-const ApiTesting = lazy(() => import('@/pages/ApiTesting'));
-const TestNotifications = lazy(() => import('@/pages/TestNotifications'));
-const Events = lazy(() => import('@/pages/Events'));
+const MeetingDetail = lazyWithRetry(() => import('@/pages/MeetingDetail').then(m => ({ default: m.MeetingDetail })));
+const DebugAuth = lazyWithRetry(() => import('@/pages/DebugAuth'));
+const DebugPermissions = lazyWithRetry(() => import('@/pages/DebugPermissions'));
+const DebugMeetings = lazyWithRetry(() => import('@/pages/DebugMeetings'));
+const ApiTesting = lazyWithRetry(() => import('@/pages/ApiTesting'));
+const TestNotifications = lazyWithRetry(() => import('@/pages/TestNotifications'));
+const Events = lazyWithRetry(() => import('@/pages/Events'));
 
-// CRM routes - heavy components, lazy load
-const CRM = lazy(() => import('@/pages/CRM'));
-const ElegantCRM = lazy(() => import('@/pages/ElegantCRM'));
+// CRM routes - heavy components, lazy load with retry
+const CRM = lazyWithRetry(() => import('@/pages/CRM'));
+const ElegantCRM = lazyWithRetry(() => import('@/pages/ElegantCRM'));
 // Admin pages removed - now using /platform routes instead
-const Insights = lazy(() => import('@/pages/Insights'));
+const Insights = lazyWithRetry(() => import('@/pages/Insights'));
 const Workflows = lazyWithRetry(() => import('@/pages/Workflows'));
-const Integrations = lazy(() => import('@/pages/Integrations'));
-const GoogleCallback = lazy(() => import('@/pages/GoogleCallback'));
-const FathomCallback = lazy(() => import('@/pages/auth/FathomCallback'));
-const FormDisplay = lazy(() => import('@/pages/FormDisplay'));
-const CompaniesTable = lazy(() => import('@/pages/companies/CompaniesTable'));
-const CompanyProfile = lazy(() => import('@/pages/companies/CompanyProfile'));
-const ContactsTable = lazy(() => import('@/pages/contacts/ContactsTable'));
-const ContactRecord = lazy(() => import('@/pages/contacts/ContactRecord'));
-const DealRecord = lazy(() => import('@/pages/deals/DealRecord'));
+const Integrations = lazyWithRetry(() => import('@/pages/Integrations'));
+const GoogleCallback = lazyWithRetry(() => import('@/pages/GoogleCallback'));
+const FathomCallback = lazyWithRetry(() => import('@/pages/auth/FathomCallback'));
+const FormDisplay = lazyWithRetry(() => import('@/pages/FormDisplay'));
+const CompaniesTable = lazyWithRetry(() => import('@/pages/companies/CompaniesTable'));
+const CompanyProfile = lazyWithRetry(() => import('@/pages/companies/CompanyProfile'));
+const ContactsTable = lazyWithRetry(() => import('@/pages/contacts/ContactsTable'));
+const ContactRecord = lazyWithRetry(() => import('@/pages/contacts/ContactRecord'));
+const DealRecord = lazyWithRetry(() => import('@/pages/deals/DealRecord'));
 // Email page removed - users now redirected to Gmail directly
-const Preferences = lazy(() => import('@/pages/Preferences'));
+const Preferences = lazyWithRetry(() => import('@/pages/Preferences'));
 const SettingsPage = lazyWithRetry(() => import('@/pages/Settings'));
 const AISettings = lazyWithRetry(() => import('@/pages/settings/AISettings'));
-const ExtractionRules = lazyWithRetry(() => import('@/pages/settings/ExtractionRules'));
+const TaskSyncSettings = lazyWithRetry(() => import('@/pages/settings/TaskSyncSettings'));
 const TeamSettings = lazyWithRetry(() => import('@/pages/settings/TeamSettings'));
+const CoachingPreferences = lazyWithRetry(() => import('@/pages/settings/CoachingPreferences'));
 const TeamAnalytics = lazyWithRetry(() => import('@/pages/insights/TeamAnalytics'));
 const ContentTopics = lazyWithRetry(() => import('@/pages/insights/ContentTopics'));
 const AdminModelSettings = lazyWithRetry(() => import('@/pages/admin/AdminModelSettings'));
@@ -127,6 +124,9 @@ const LeadsInbox = lazyWithRetry(() => import('@/pages/leads/LeadsInbox'));
 const SaasAdminDashboard = lazyWithRetry(() => import('@/pages/SaasAdminDashboard'));
 const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/InternalDomainsSettings'));
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
+
+// Landing pages wrapper (dev-only for local preview)
+import { LandingWrapper } from '@/components/LandingWrapper';
 
 // New 3-tier architecture routes
 const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
@@ -285,27 +285,23 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Public proposal sharing - allows prospects to view shared proposals */}
         <Route path="/share/:token" element={<PublicProposal />} />
 
-        {/* Public landing page for Meetings feature */}
-        <Route path="/product/meetings" element={<MeetingsLandingV4 />} />
-        <Route path="/product/meetings-v1" element={<MeetingsLanding />} />
-        <Route path="/product/meetings-v2" element={<MeetingsLandingV2 />} />
-        <Route path="/product/meetings-v3" element={<MeetingsLandingV3 />} />
-        <Route path="/product/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
+        {/* Development-only: Local landing page preview */}
+        {import.meta.env.DEV && <Route path="/landing/*" element={<LandingWrapper />} />}
 
-        {/* Public waitlist page (no auth required) */}
-        <Route path="/product/meetings/waitlist" element={<WaitlistLanding />} />
-        <Route path="/features/meetings-v3" element={<Navigate to="/product/meetings-v3" replace />} />
-        <Route path="/features/meetings-v4" element={<Navigate to="/product/meetings" replace />} />
-        {/* Legacy redirects */}
-        <Route path="/product/meetings/opus-v2" element={<Navigate to="/product/meetings-v1" replace />} />
-        <Route path="/features/meetings" element={<Navigate to="/product/meetings" replace />} />
-        <Route path="/features/meetings-v1" element={<Navigate to="/product/meetings-v1" replace />} />
-        <Route path="/features/meetings-v2" element={<Navigate to="/product/meetings-v2" replace />} />
-
-        {/* Public pricing page - redirected to landing page */}
-        <Route path="/product/meetings/pricing" element={<Navigate to="/product/meetings" replace />} />
-        {/* Legacy pricing redirect */}
-        <Route path="/pricing" element={<Navigate to="/product/meetings/pricing" replace />} />
+        {/* Redirect landing pages to www.use60.com */}
+        <Route path="/product/meetings" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/product/meetings-v1" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/product/meetings-v2" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/product/meetings-v3" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/product/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/product/meetings/waitlist" element={<ExternalRedirect url="https://www.use60.com/waitlist" />} />
+        <Route path="/product/meetings/pricing" element={<ExternalRedirect url="https://www.use60.com#pricing" />} />
+        <Route path="/features/meetings" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/features/meetings-v1" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/features/meetings-v2" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/features/meetings-v3" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/features/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
+        <Route path="/pricing" element={<ExternalRedirect url="https://www.use60.com#pricing" />} />
 
         {/* Auth routes that should also be accessible without protection */}
         <Route path="/auth/login" element={<Login />} />
@@ -325,6 +321,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
               <Routes>
                 <Route path="/onboarding" element={<Onboarding />} />
                 <Route path="/debug-auth" element={<DebugAuth />} />
+                <Route path="/debug-permissions" element={<DebugPermissions />} />
                 {/* Home route - shows Activity Dashboard for internal users, Meeting Analytics for external */}
                 <Route path="/" element={<InternalRouteGuard><AppLayout><Dashboard /></AppLayout></InternalRouteGuard>} />
                 {/* Dashboard alias for backwards compatibility */}
@@ -453,17 +450,20 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/clients" element={<InternalRouteGuard><AppLayout><Clients /></AppLayout></InternalRouteGuard>} />
                 <Route path="/subscriptions" element={<Navigate to="/clients" replace />} />
                 <Route path="/profile" element={<AppLayout><Profile /></AppLayout>} />
-                <Route path="/preferences" element={<Navigate to="/settings" replace />} />
-                <Route path="/settings" element={<AppLayout><SettingsPage /></AppLayout>} />
+                <Route path="/preferences" element={<Navigate to="/settings/user" replace />} />
+                <Route path="/settings" element={<Navigate to="/settings/user" replace />} />
+                <Route path="/settings/user" element={<AppLayout><SettingsPage /></AppLayout>} />
                 <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
-                <Route path="/settings/extraction-rules" element={<AppLayout><ExtractionRules /></AppLayout>} />
+                <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
+                <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />
+                <Route path="/settings/coaching" element={<AppLayout><CoachingPreferences /></AppLayout>} />
                 <Route path="/insights/team" element={<AppLayout><TeamAnalytics /></AppLayout>} />
                 <Route path="/insights/content-topics" element={<AppLayout><ContentTopics /></AppLayout>} />
                 <Route path="/roadmap" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/roadmap/ticket/:ticketId" element={<AppLayout><Roadmap /></AppLayout>} />
                 <Route path="/releases" element={<AppLayout><Releases /></AppLayout>} />
-                <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
+                <Route path="/meetings/*" element={<AppLayout><MeetingsPage /></AppLayout>} />
                 <Route path="/meetings/intelligence" element={<AppLayout><MeetingIntelligence /></AppLayout>} />
                 <Route path="/meetings/sentiment" element={<AppLayout><MeetingSentimentAnalytics /></AppLayout>} />
                 <Route path="/meetings/:id" element={<AppLayout><MeetingDetail /></AppLayout>} />

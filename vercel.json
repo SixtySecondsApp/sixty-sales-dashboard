@@ -134,6 +134,8 @@
       "destination": "/index.html"
     }
   ],
+  "trailingSlash": false,
+  "cleanUrls": true,
   "crons": [
     {
       "path": "/api/cron/health-refresh",

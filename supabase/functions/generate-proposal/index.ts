@@ -337,8 +337,22 @@ async function processJob(
     let systemPrompt = ''
     const action = job.action
 
+    // Get current date for context
+    const currentDate = new Date()
+    const dateContext = `IMPORTANT CONTEXT - Current Date: ${currentDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })} (${currentDate.toISOString().split('T')[0]})
+
+Use this date as the reference for "today" when creating timelines, deadlines, or any date references in the proposal.
+`
+
     if (action === 'generate_goals') {
-      systemPrompt = `You are an expert business consultant who extracts strategic goals and objectives from sales call transcripts. 
+      systemPrompt = `${dateContext}
+
+You are an expert business consultant who extracts strategic goals and objectives from sales call transcripts. 
 Your task is to analyze call transcripts and create a comprehensive Goals & Objectives document.
 
 Use the following example structure as a reference for format and style:
@@ -370,7 +384,9 @@ ${transcriptsText}${focusAreasText}
 Create a Goals & Objectives document following the structure and style of the example provided. Include all strategic objectives, immediate actions, success metrics, timelines, and any other relevant information from the calls.`
 
     } else if (action === 'generate_sow') {
-      systemPrompt = `You are an expert proposal writer who creates Statement of Work (SOW) documents in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates Statement of Work (SOW) documents in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a comprehensive Statement of Work document.
 
@@ -454,7 +470,9 @@ IMPORTANT DESIGN SYSTEM PRINCIPLES:
 - Layout: Mobile-first responsive design, proper spacing and padding
 ` : ''
 
-      systemPrompt = `You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
+      systemPrompt = `${dateContext}
+
+You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
 Your task is to transform a Goals & Objectives document into a modern, professional HTML proposal presentation tailored to the specific needs and context of the client.
 
 CRITICAL INSTRUCTION: You must IMMEDIATELY output the complete HTML document. Do NOT:
@@ -501,7 +519,16 @@ Key requirements:
 - Include password protection if needed
 - Use Tailwind CSS via CDN for styling
 - Follow the design system's color tokens, typography, and component patterns
-- Tailor every section to the specific Goals & Objectives provided - avoid generic content`
+- Tailor every section to the specific Goals & Objectives provided - avoid generic content
+
+STREAMING GENERATION GUIDANCE (CRITICAL FOR USER EXPERIENCE):
+Generate the HTML in complete, logical blocks that build the proposal like a visual story:
+1. Start with the complete <!DOCTYPE html>, <head> section, and opening <body> tag as one block
+2. Generate each slide/section as a COMPLETE block (full <div class="slide">...</div>)
+3. End with closing </body></html> tags as final block
+4. Each section should be fully formed and visually complete before moving to the next
+5. This allows the user to watch their proposal build up section by section in a visually appealing way
+6. Think of it like assembling a beautiful presentation one slide at a time, not streaming raw code`
 
       const lengthGuidance = length_target === 'short' 
         ? 'Keep the proposal concise: under 1000 words, approximately 2 pages. Use fewer slides and more concise content.'
@@ -552,7 +579,9 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
 
     } else if (action === 'generate_email') {
       // Generate Email Proposal from Goals
-      systemPrompt = `You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a professional email proposal that can be sent directly to clients.
 
@@ -624,7 +653,9 @@ Output ONLY markdown text starting with # header and **Subject:** line.`
 
     } else if (action === 'generate_markdown') {
       // Generate Markdown Proposal from Goals
-      systemPrompt = `You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a clean, simple markdown proposal document.
 
@@ -1856,8 +1887,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
         // For goals/SOW, fall back to sync if job creation fails
         console.warn('Job creation failed, falling back to sync mode:', jobError)
       } else {
-        // For streaming proposals, SOW, and goals, process immediately and return stream
-        if (useStreaming && (action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow' || action === 'generate_goals')) {
+        // For streaming proposals, SOW, email, markdown, and goals, process immediately and return stream
+        if (useStreaming && (action === 'generate_proposal' || action === 'stream_proposal' || action === 'generate_sow' || action === 'generate_goals' || action === 'generate_email' || action === 'generate_markdown')) {
           // Process job with streaming
           return await processJob(supabase, user.id, job.id)
         }
@@ -1935,9 +1966,23 @@ Return ONLY valid JSON (no markdown, no code blocks):
     let prompt = ''
     let systemPrompt = ''
 
+    // Get current date for context
+    const currentDate = new Date()
+    const dateContext = `IMPORTANT CONTEXT - Current Date: ${currentDate.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })} (${currentDate.toISOString().split('T')[0]})
+
+Use this date as the reference for "today" when creating timelines, deadlines, or any date references in the proposal.
+`
+
     if (action === 'generate_goals') {
       // Generate Goals from transcripts
-      systemPrompt = `You are an expert business consultant who extracts strategic goals and objectives from sales call transcripts. 
+      systemPrompt = `${dateContext}
+
+You are an expert business consultant who extracts strategic goals and objectives from sales call transcripts. 
 Your task is to analyze call transcripts and create a comprehensive Goals & Objectives document.
 
 Use the following example structure as a reference for format and style:
@@ -1970,7 +2015,9 @@ Create a Goals & Objectives document following the structure and style of the ex
 
     } else if (action === 'generate_sow') {
       // Generate SOW from Goals
-      systemPrompt = `You are an expert proposal writer who creates Statement of Work (SOW) documents in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates Statement of Work (SOW) documents in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a comprehensive Statement of Work document.
 
@@ -2055,7 +2102,9 @@ IMPORTANT DESIGN SYSTEM PRINCIPLES:
 - Layout: Mobile-first responsive design, proper spacing and padding
 ` : ''
 
-      systemPrompt = `You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
+      systemPrompt = `${dateContext}
+
+You are an expert web developer and proposal designer who creates beautiful, interactive HTML proposal presentations.
 Your task is to transform a Goals & Objectives document into a modern, professional HTML proposal presentation.
 
 CRITICAL INSTRUCTION: You must IMMEDIATELY output the complete HTML document. Do NOT:
@@ -2080,7 +2129,16 @@ Key requirements:
 - Ensure mobile responsiveness
 - Include password protection if needed
 - Use Tailwind CSS via CDN for styling
-- Follow the design system's color tokens, typography, and component patterns`
+- Follow the design system's color tokens, typography, and component patterns
+
+STREAMING GENERATION GUIDANCE (CRITICAL FOR USER EXPERIENCE):
+Generate the HTML in complete, logical blocks that build the proposal like a visual story:
+1. Start with the complete <!DOCTYPE html>, <head> section, and opening <body> tag as one block
+2. Generate each slide/section as a COMPLETE block (full <div class="slide">...</div>)
+3. End with closing </body></html> tags as final block
+4. Each section should be fully formed and visually complete before moving to the next
+5. This allows the user to watch their proposal build up section by section in a visually appealing way
+6. Think of it like assembling a beautiful presentation one slide at a time, not streaming raw code`
 
       const lengthGuidance = length_target === 'short'
         ? 'Keep the proposal concise: under 1000 words, approximately 2 pages. Use fewer slides and more concise content.'
@@ -2124,7 +2182,9 @@ BEGIN YOUR RESPONSE WITH <!DOCTYPE html> - NO OTHER TEXT BEFORE IT.`
 
     } else if (action === 'generate_email') {
       // Generate Email Proposal from Goals
-      systemPrompt = `You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates professional email proposals in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a professional email proposal that can be sent directly to clients.
 
@@ -2232,7 +2292,9 @@ Output ONLY markdown text starting with # header and **Subject:** line.`
 
     } else if (action === 'generate_markdown') {
       // Generate Markdown Proposal from Goals
-      systemPrompt = `You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
+      systemPrompt = `${dateContext}
+
+You are an expert proposal writer who creates professional proposal documents in MARKDOWN FORMAT ONLY.
 
 Your task is to transform a Goals & Objectives document into a clean, simple markdown proposal document.
 

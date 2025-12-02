@@ -1,0 +1,24 @@
+{
+  "_documentation": {
+    "_note": "UK English localization - uses i18next fallback inheritance",
+    "_fallbackBehavior": "All undefined keys automatically fallback to en-US",
+    "_whenToAddKeys": "Only add keys here when UK spelling/phrasing differs from US",
+    "_examples": {
+      "spelling": "analyze → analyse, customize → customise, organization → organisation",
+      "phrasing": "trash → bin, apartment → flat, elevator → lift"
+    },
+    "_currentStatus": "Current pricing content is spelling-neutral - no UK variants needed"
+  },
+  "plans": {
+    "team": {
+      "features": [
+        "Everything in Solo",
+        "Team collaboration",
+        "CRM integrations",
+        "Advanced analytics",
+        "Priority support",
+        "Custom workflows"
+      ]
+    }
+  }
+}

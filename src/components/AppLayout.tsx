@@ -389,11 +389,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {/* Fixed Footer with Settings and Logout */}
               <div className="flex-shrink-0 p-4 sm:p-6 border-t border-[#E2E8F0] dark:border-gray-800 space-y-2">
                 <Link
-                  to="/settings/ai"
+                  to="/settings/user"
                   onClick={() => toggleMobileMenu()}
                   className={cn(
                     "flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 sm:py-4 min-h-[56px] rounded-xl text-base sm:text-lg font-medium transition-colors active:scale-[0.98]",
-                    location.pathname === '/settings/ai'
+                    location.pathname.startsWith('/settings')
                       ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                       : 'text-[#64748B] dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800/50'
                   )}
@@ -532,9 +532,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <UserCog className="w-4 h-4 mr-2" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate('/settings/ai')}>
+              <DropdownMenuItem onClick={() => navigate('/settings/user')}>
                 <Settings className="w-4 h-4 mr-2" />
-                Meetings Settings
+                User Settings
               </DropdownMenuItem>
               {/* Org Admin - for org owners/admins */}
               {isOrgAdmin && (
@@ -727,10 +727,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Settings and Logout at bottom */}
           <div className="mt-auto pt-6 border-t border-[#E2E8F0] dark:border-gray-800/50">
             <Link
-              to="/settings/ai"
+              to="/settings/user"
               className={cn(
                 'w-full flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors mb-2',
-                location.pathname === '/settings/ai'
+                location.pathname.startsWith('/settings')
                   ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/70 shadow-sm dark:bg-[#37bd7e]/10 dark:text-white dark:border-[#37bd7e]/20'
                   : 'text-[#64748B] hover:bg-slate-50 dark:text-gray-400/80 dark:hover:bg-gray-800/20'
               )}
