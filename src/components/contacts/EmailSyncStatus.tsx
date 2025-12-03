@@ -18,12 +18,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { 
-  Tooltip, 
-  TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
-// } from '@/components/ui/tooltip'; // TODO: Tooltip component not implemented yet
+// TODO: Tooltip component not implemented yet
+// import {
+//   Tooltip,
+//   TooltipContent,
+//   TooltipProvider,
+//   TooltipTrigger
+// } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 // TODO: googleEmailService not implemented yet
 // import { googleEmailService } from '@/lib/services/googleEmailService';
