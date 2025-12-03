@@ -80,22 +80,36 @@ jobs:
           echo "📋 Branch info response:"
           echo "$BRANCH_INFO" | jq '.' || echo "Failed to parse JSON"
 
-          # Get the branch database name (format: postgres-xxxx)
-          # Try different field names that might contain the database name
-          BRANCH_DB=$(echo "$BRANCH_INFO" | jq -r '.database // .db_name // .database_name // empty' || echo "")
+          # Extract the non-pooling connection URL and convert to pooled URL
+          # The CLI returns POSTGRES_URL_NON_POOLING which we need to convert to pooled
+          NON_POOLING_URL=$(echo "$BRANCH_INFO" | jq -r '.POSTGRES_URL_NON_POOLING // empty' || echo "")
 
-          if [ -z "$BRANCH_DB" ]; then
-            echo "❌ Could not determine branch database name"
+          if [ -z "$NON_POOLING_URL" ]; then
+            echo "❌ Could not extract POSTGRES_URL_NON_POOLING from branch info"
             echo "Available fields in response:"
             echo "$BRANCH_INFO" | jq 'keys' || echo "No keys available"
             exit 1
           fi
 
-          echo "📋 Branch database: $BRANCH_DB"
+          echo "📋 Non-pooling URL found"
 
-          # Construct Supavisor Session Mode connection string for branch
-          # Branches use the same regional pooler as the main project, but with /branch-db-name
-          DB_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/$BRANCH_DB"
+          # Extract database host and database name from the URL
+          # Format: postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/[DATABASE]?[PARAMS]
+          # We need to extract the database name and use Supavisor pooler
+
+          # Extract just the database name from the URL (after the last /)
+          DB_NAME=$(echo "$NON_POOLING_URL" | sed -n 's/.*\/\([^?]*\).*/\1/p')
+
+          if [ -z "$DB_NAME" ]; then
+            echo "❌ Could not extract database name from connection URL"
+            exit 1
+          fi
+
+          echo "📋 Database name: $DB_NAME"
+
+          # Use Supavisor pooler with Session Mode (port 5432) for IPv4 compatibility
+          # This matches the production connection format
+          DB_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/$DB_NAME"
 
           echo "db_url=$DB_URL" >> $GITHUB_OUTPUT
           echo "✅ Development branch connection configured"
