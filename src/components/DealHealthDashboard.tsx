@@ -358,7 +358,7 @@ function DealHealthCard({ healthScore }: { healthScore: ExtendedHealthScore }) {
   const [personalizedTemplate, setPersonalizedTemplate] = useState<PersonalizedTemplate | null>(null);
   const [alternativeTemplates, setAlternativeTemplates] = useState<InterventionTemplate[]>([]);
   const [loadingIntervention, setLoadingIntervention] = useState(false);
-  const { user } = useUser();
+  const { userData: user } = useUser();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0 }).format(value);

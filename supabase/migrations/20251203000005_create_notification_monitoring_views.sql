@@ -12,7 +12,6 @@ CREATE OR REPLACE VIEW notification_counts_by_user AS
 SELECT
   n.user_id,
   u.email as user_email,
-  u.full_name as user_name,
   COUNT(*) as total_notifications,
   COUNT(*) FILTER (WHERE n.read = false) as unread_notifications,
   COUNT(*) FILTER (WHERE n.type = 'error') as error_notifications,
@@ -26,7 +25,7 @@ SELECT
   MIN(n.created_at) as first_notification_at
 FROM notifications n
 LEFT JOIN auth.users u ON u.id = n.user_id
-GROUP BY n.user_id, u.email, u.full_name;
+GROUP BY n.user_id, u.email;
 
 COMMENT ON VIEW notification_counts_by_user IS
   'Shows notification counts and statistics per user for monitoring. Useful for identifying users with excessive notifications.';
@@ -39,7 +38,6 @@ CREATE OR REPLACE VIEW notification_flood_alerts AS
 SELECT
   user_id,
   user_email,
-  user_name,
   total_notifications,
   unread_notifications,
   error_notifications,
@@ -85,12 +83,12 @@ SELECT
 FROM notification_counts_by_user
 WHERE total_notifications > 0
 ORDER BY
-  CASE alert_level
-    WHEN 'CRITICAL' THEN 1
-    WHEN 'HIGH' THEN 2
-    WHEN 'MEDIUM' THEN 3
-    WHEN 'LOW' THEN 4
-    ELSE 5
+  CASE
+    WHEN last_hour > 100 OR last_24_hours > 1000 THEN 1  -- CRITICAL
+    WHEN last_hour > 50 OR last_24_hours > 500 OR error_notifications > 500 THEN 2  -- HIGH
+    WHEN last_hour > 20 OR last_24_hours > 200 OR error_notifications > 100 THEN 3  -- MEDIUM
+    WHEN last_hour > 10 OR last_24_hours > 100 OR error_notifications > 50 THEN 4  -- LOW
+    ELSE 5  -- NORMAL
   END,
   last_24_hours DESC;
 

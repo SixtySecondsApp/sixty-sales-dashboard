@@ -21,8 +21,8 @@ import { OwnerFilter } from '@/components/OwnerFilter';
 import { CRMNavigation } from '@/components/CRMNavigation';
 import { CompanyDealsModal } from '@/components/CompanyDealsModal';
 import CompanyCard from '@/components/CompanyCard';
-import { QuickStatsBar } from '@/components/QuickStatsBar';
-import { ViewModeToggle } from '@/components/ViewModeToggle';
+import QuickStatsBar from '@/components/QuickStatsBar';
+import ViewModeToggle from '@/components/ViewModeToggle';
 import { useUser } from '@/lib/hooks/useUser';
 import { useCompanies } from '@/lib/hooks/useCompanies';
 import { toast } from 'sonner';
@@ -144,8 +144,8 @@ export default function ElegantCRMPage() {
         `"${company.size || ''}"`,
         `"${company.industry || ''}"`,
         company.contactCount || 0,
-        company.dealsCount || 0,
-        company.dealsValue || 0,
+        (company as any).dealsCount || 0,
+        (company as any).dealsValue || 0,
         new Date(company.created_at).toLocaleDateString()
       ].join(','))
     ].join('\n');
@@ -480,11 +480,11 @@ export default function ElegantCRMPage() {
                       company={company}
                       viewMode="grid"
                       isSelected={selectedCompanies.has(company.id)}
-                      showSelectMode={isSelectModeActive}
+                      isSelectMode={isSelectModeActive}
                       onSelect={handleSelectCompany}
                       onEdit={handleEditCompany}
                       onDelete={handleDeleteCompany}
-                      onClick={handleCompanyClick}
+                      onNavigate={handleCompanyClick}
                     />
                   ))}
                 </motion.div>
@@ -502,11 +502,11 @@ export default function ElegantCRMPage() {
                       company={company}
                       viewMode="list"
                       isSelected={selectedCompanies.has(company.id)}
-                      showSelectMode={isSelectModeActive}
+                      isSelectMode={isSelectModeActive}
                       onSelect={handleSelectCompany}
                       onEdit={handleEditCompany}
                       onDelete={handleDeleteCompany}
-                      onClick={handleCompanyClick}
+                      onNavigate={handleCompanyClick}
                     />
                   ))}
                 </motion.div>

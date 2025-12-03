@@ -150,8 +150,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- Get old assignee name
-  SELECT COALESCE(full_name, email) INTO old_assignee_name
+  -- Get old assignee email
+  SELECT email INTO old_assignee_name
   FROM auth.users
   WHERE id = OLD.assigned_to;
 

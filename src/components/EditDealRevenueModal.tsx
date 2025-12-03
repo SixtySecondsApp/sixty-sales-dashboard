@@ -109,14 +109,14 @@ export function EditDealRevenueModal({
         return;
       }
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase
         .from('deals')
         .update({
           monthly_mrr: mrrValidation.value > 0 ? mrrValidation.value : null,
           one_off_revenue: revenueValidation.value > 0 ? revenueValidation.value : null,
           annual_value: lifetimeCalculation.value > 0 ? lifetimeCalculation.value : null,
           updated_at: new Date().toISOString()
-        })
+        }) as any)
         .eq('id', dealId)
         .select()
         .single();

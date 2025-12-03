@@ -229,14 +229,14 @@ export function EditClientModal({
       }
 
       // Update deal revenue
-      const { error: dealError } = await supabase
+      const { error: dealError } = await (supabase
         .from('deals')
         .update({
           monthly_mrr: mrrValidation.value > 0 ? mrrValidation.value : null,
           one_off_revenue: revenueValidation.value > 0 ? revenueValidation.value : null,
           annual_value: lifetimeCalculation.value > 0 ? lifetimeCalculation.value : null,
           updated_at: new Date().toISOString()
-        })
+        }) as any)
         .eq('id', selectedDealId);
 
       if (dealError) {
@@ -280,9 +280,9 @@ export function EditClientModal({
           }
         }
 
-        const { error: clientError } = await supabase
+        const { error: clientError } = await (supabase
           .from('clients')
-          .update(clientUpdates)
+          .update(clientUpdates) as any)
           .eq('id', clientData.id);
 
         if (clientError) {

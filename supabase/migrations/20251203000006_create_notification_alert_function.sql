@@ -37,11 +37,12 @@ BEGIN
   WHERE alert_level != 'NORMAL';
 
   -- Get detailed flood information
-  SELECT jsonb_agg(
-    jsonb_build_object(
+  SELECT jsonb_agg(flood_data)
+  INTO flood_details
+  FROM (
+    SELECT jsonb_build_object(
       'user_id', user_id,
       'user_email', user_email,
-      'user_name', user_name,
       'alert_level', alert_level,
       'total_notifications', total_notifications,
       'unread_notifications', unread_notifications,
@@ -50,25 +51,25 @@ BEGIN
       'last_24_hours', last_24_hours,
       'alert_reason', alert_reason,
       'recommended_action', recommended_action
-    )
-  ) INTO flood_details
-  FROM notification_flood_alerts
-  WHERE
-    CASE p_alert_threshold
-      WHEN 'CRITICAL' THEN alert_level = 'CRITICAL'
-      WHEN 'HIGH' THEN alert_level IN ('CRITICAL', 'HIGH')
-      WHEN 'MEDIUM' THEN alert_level IN ('CRITICAL', 'HIGH', 'MEDIUM')
-      WHEN 'LOW' THEN alert_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
-      ELSE FALSE
-    END
-  ORDER BY
-    CASE alert_level
-      WHEN 'CRITICAL' THEN 1
-      WHEN 'HIGH' THEN 2
-      WHEN 'MEDIUM' THEN 3
-      WHEN 'LOW' THEN 4
-    END,
-    last_24_hours DESC;
+    ) as flood_data
+    FROM notification_flood_alerts
+    WHERE
+      CASE p_alert_threshold
+        WHEN 'CRITICAL' THEN alert_level = 'CRITICAL'
+        WHEN 'HIGH' THEN alert_level IN ('CRITICAL', 'HIGH')
+        WHEN 'MEDIUM' THEN alert_level IN ('CRITICAL', 'HIGH', 'MEDIUM')
+        WHEN 'LOW' THEN alert_level IN ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW')
+        ELSE FALSE
+      END
+    ORDER BY
+      CASE alert_level
+        WHEN 'CRITICAL' THEN 1
+        WHEN 'HIGH' THEN 2
+        WHEN 'MEDIUM' THEN 3
+        WHEN 'LOW' THEN 4
+      END,
+      last_24_hours DESC
+  ) ordered_floods;
 
   -- Build result
   flood_result := json_build_object(
@@ -150,7 +151,7 @@ CREATE OR REPLACE FUNCTION get_notification_health_summary()
 RETURNS JSON AS $$
 DECLARE
   health_summary JSON;
-  total_notifications INTEGER;
+  sum_total_notifications INTEGER;
   total_users_with_notifications INTEGER;
   avg_notifications_per_user NUMERIC;
   rate_limit_reached_count INTEGER;
@@ -162,7 +163,7 @@ BEGIN
     COUNT(*),
     ROUND(AVG(total_notifications), 1)
   INTO
-    total_notifications,
+    sum_total_notifications,
     total_users_with_notifications,
     avg_notifications_per_user
   FROM notification_counts_by_user;
@@ -200,7 +201,7 @@ BEGIN
       ELSE 'HEALTHY'
     END,
     'statistics', json_build_object(
-      'total_notifications', COALESCE(total_notifications, 0),
+      'total_notifications', COALESCE(sum_total_notifications, 0),
       'users_with_notifications', COALESCE(total_users_with_notifications, 0),
       'avg_notifications_per_user', COALESCE(avg_notifications_per_user, 0),
       'users_at_rate_limit', COALESCE(rate_limit_reached_count, 0)
