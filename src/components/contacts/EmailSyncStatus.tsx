@@ -23,9 +23,10 @@ import {
   TooltipContent, 
   TooltipProvider, 
   TooltipTrigger 
-} from '@/components/ui/tooltip';
+// } from '@/components/ui/tooltip'; // TODO: Tooltip component not implemented yet
 import { toast } from 'sonner';
-import { googleEmailService } from '@/lib/services/googleEmailService';
+// TODO: googleEmailService not implemented yet
+// import { googleEmailService } from '@/lib/services/googleEmailService';
 import { formatDistanceToNow, format } from 'date-fns';
 
 interface EmailSyncStatusProps {

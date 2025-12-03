@@ -74,9 +74,7 @@ $$ LANGUAGE plpgsql;
 
 -- Update function comment to reflect rate limiting
 COMMENT ON FUNCTION create_task_notification IS
-  'Helper function to create task-related notifications. ' ||
-  'RATE LIMITED: Max 10 per hour, 50 per day per user per notification type. ' ||
-  'Returns notification ID on success, NULL if rate limit exceeded.';
+  'Helper function to create task-related notifications. RATE LIMITED: Max 10 per hour, 50 per day per user per notification type. Returns notification ID on success, NULL if rate limit exceeded.';
 
 -- ============================================================================
 -- Step 2: Update notification triggers to handle NULL returns gracefully
@@ -209,12 +207,10 @@ $$ LANGUAGE plpgsql;
 
 -- Update function comments to reflect rate limiting
 COMMENT ON FUNCTION notify_task_from_meeting IS
-  'Trigger function: Notify user when task is created from meeting action item. ' ||
-  'RATE LIMITED: May skip notification if user rate limit exceeded.';
+  'Trigger function: Notify user when task is created from meeting action item. RATE LIMITED: May skip notification if user rate limit exceeded.';
 
 COMMENT ON FUNCTION notify_task_reassignment IS
-  'Trigger function: Notify user when task is reassigned to them. ' ||
-  'RATE LIMITED: May skip notification if user rate limit exceeded.';
+  'Trigger function: Notify user when task is reassigned to them. RATE LIMITED: May skip notification if user rate limit exceeded.';
 
 -- ============================================================================
 -- Step 3: Verification and Testing

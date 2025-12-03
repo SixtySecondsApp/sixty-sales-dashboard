@@ -32,9 +32,7 @@ $$ LANGUAGE plpgsql;
 
 -- Update function comment to document the change
 COMMENT ON FUNCTION notify_overdue_tasks IS
-  'DISABLED 2025-12-03: Creating spurious notifications despite 0 tasks in database. ' ||
-  'Replaced with no-op version. See migration 20251203000002. ' ||
-  'Rollback script: ROLLBACK_20251203000002_re_enable_overdue_notifications.sql';
+  'DISABLED 2025-12-03: Creating spurious notifications despite 0 tasks in database. Replaced with no-op version. See migration 20251203000002. Rollback script: ROLLBACK_20251203000002_re_enable_overdue_notifications.sql';
 
 -- Verification: Test the function returns disabled response
 DO $$

@@ -29,8 +29,7 @@ LEFT JOIN auth.users u ON u.id = n.user_id
 GROUP BY n.user_id, u.email, u.full_name;
 
 COMMENT ON VIEW notification_counts_by_user IS
-  'Shows notification counts and statistics per user for monitoring. ' ||
-  'Useful for identifying users with excessive notifications.';
+  'Shows notification counts and statistics per user for monitoring. Useful for identifying users with excessive notifications.';
 
 -- ============================================================================
 -- Step 2: View for notification flood detection alerts
@@ -96,9 +95,7 @@ ORDER BY
   last_24_hours DESC;
 
 COMMENT ON VIEW notification_flood_alerts IS
-  'Detects notification floods and categorizes users by alert level. ' ||
-  'Alert Levels: CRITICAL (>100/hr or >1000/day), HIGH (>50/hr or >500/day), MEDIUM (>20/hr or >200/day), LOW (>10/hr or >100/day). ' ||
-  'Use this view to identify and respond to notification floods.';
+  'Detects notification floods and categorizes users by alert level. Alert Levels: CRITICAL (>100/hr or >1000/day), HIGH (>50/hr or >500/day), MEDIUM (>20/hr or >200/day), LOW (>10/hr or >100/day). Use this view to identify and respond to notification floods.';
 
 -- ============================================================================
 -- Step 3: View for notification type breakdown
@@ -124,8 +121,7 @@ GROUP BY n.type, n.category, n.entity_type
 ORDER BY total_count DESC;
 
 COMMENT ON VIEW notification_type_breakdown IS
-  'Shows notification distribution by type, category, and entity. ' ||
-  'Useful for identifying which notification types are most common and may need optimization.';
+  'Shows notification distribution by type, category, and entity. Useful for identifying which notification types are most common and may need optimization.';
 
 -- ============================================================================
 -- Step 4: View for recent notification activity (last 24 hours)
@@ -159,9 +155,7 @@ WHERE n.created_at > NOW() - INTERVAL '24 hours'
 ORDER BY n.created_at DESC;
 
 COMMENT ON VIEW recent_notification_activity IS
-  'Shows detailed notification activity from the last 24 hours. ' ||
-  'Includes rate limiting context (notifications in same hour). ' ||
-  'Useful for debugging notification issues and patterns.';
+  'Shows detailed notification activity from the last 24 hours. Includes rate limiting context (notifications in same hour). Useful for debugging notification issues and patterns.';
 
 -- ============================================================================
 -- Step 5: View for notification rate limit status
@@ -196,9 +190,7 @@ GROUP BY nrl.user_id, u.email, nrl.notification_type
 ORDER BY count_last_hour DESC, count_last_24_hours DESC;
 
 COMMENT ON VIEW notification_rate_limit_status IS
-  'Shows current rate limit usage and remaining capacity per user and notification type. ' ||
-  'Limits: 10 per hour, 50 per day. ' ||
-  'Status: HOURLY_LIMIT_REACHED, DAILY_LIMIT_REACHED, HOURLY_WARNING (8+), DAILY_WARNING (40+), NORMAL.';
+  'Shows current rate limit usage and remaining capacity per user and notification type. Limits: 10 per hour, 50 per day. Status: HOURLY_LIMIT_REACHED, DAILY_LIMIT_REACHED, HOURLY_WARNING (8+), DAILY_WARNING (40+), NORMAL.';
 
 -- ============================================================================
 -- Step 6: Grant appropriate permissions on views

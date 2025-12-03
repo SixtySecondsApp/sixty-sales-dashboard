@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/button';
 import { 
   Tooltip, 
   TooltipContent, 
-  TooltipProvider, 
-  TooltipTrigger 
-} from '@/components/ui/tooltip';
+  TooltipProvider,
+  TooltipTrigger
+// } from '@/components/ui/tooltip'; // TODO: Tooltip component not implemented yet
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase/clientV2';
@@ -101,10 +101,10 @@ const SendEmailButton: React.FC<SendEmailButtonProps> = ({
 
       // Check if tokens are still valid (basic check)
       const now = new Date();
-      const expiresAt = new Date(integration.expires_at);
+      const expiresAt = new Date(integration?.expires_at || '');
       const isExpired = expiresAt <= now;
 
-      if (isExpired && !integration.refresh_token) {
+      if (isExpired && !integration?.refresh_token) {
         setGoogleStatus({
           isConnected: false,
           loading: false,
@@ -117,7 +117,7 @@ const SendEmailButton: React.FC<SendEmailButtonProps> = ({
         isConnected: true,
         loading: false,
         error: null,
-        userEmail: integration.email
+        userEmail: integration?.email || ''
       });
 
     } catch (error) {
@@ -202,6 +202,9 @@ const SendEmailButton: React.FC<SendEmailButtonProps> = ({
 
   const isDisabled = disabled || googleStatus.loading || checking || !googleStatus.isConnected;
 
+  // Map 'md' size to 'default' for Button component compatibility
+  const buttonSize = size === 'md' ? 'default' : size;
+
   return (
     <TooltipProvider>
       <div className="relative">
@@ -209,7 +212,7 @@ const SendEmailButton: React.FC<SendEmailButtonProps> = ({
           <TooltipTrigger asChild>
             <Button
               variant={variant}
-              size={size}
+              size={buttonSize as 'default' | 'sm' | 'lg' | 'icon'}
               onClick={handleEmailClick}
               disabled={isDisabled}
               className={`relative ${className} ${

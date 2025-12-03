@@ -20,7 +20,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { googleEmailService, SendEmailRequest } from '@/lib/services/googleEmailService';
+// TODO: googleEmailService not implemented yet
+// import { googleEmailService, SendEmailRequest } from '@/lib/services/googleEmailService';
+
+// Placeholder type until googleEmailService is implemented
+interface SendEmailRequest {
+  to: string;
+  subject: string;
+  body: string;
+  cc?: string[];
+  bcc?: string[];
+}
 
 interface EmailComposerModalProps {
   isOpen: boolean;

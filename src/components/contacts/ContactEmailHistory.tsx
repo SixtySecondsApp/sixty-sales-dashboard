@@ -29,8 +29,19 @@ import {
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { googleEmailService, ContactEmail } from '@/lib/services/googleEmailService';
+// TODO: googleEmailService not implemented yet
+// import { googleEmailService, ContactEmail } from '@/lib/services/googleEmailService';
 import { formatDistanceToNow, format } from 'date-fns';
+
+// Placeholder type until googleEmailService is implemented
+interface ContactEmail {
+  id: string;
+  subject: string;
+  from: string;
+  to: string;
+  date: string;
+  snippet: string;
+}
 
 interface ContactEmailHistoryProps {
   contactId: string;

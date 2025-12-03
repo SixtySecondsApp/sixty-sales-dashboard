@@ -151,7 +151,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         position: 'relative'
       }}
     >
-      <style jsx global>{`
+      <style>{`
         /* Aggressive Reset of FullCalendar inline styles */
         .fc-scrollgrid-sync-inner {
           min-width: 0 !important;

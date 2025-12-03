@@ -290,8 +290,10 @@ export function CalendarEventEditor({
       if (isRecurring && recurringPattern) {
         try {
           // Convert UI recurring pattern to RRULE
+          // Filter out 'custom' frequency which isn't supported by createSimpleRecurrence
+          const frequency = recurringPattern.frequency === 'custom' ? 'daily' : recurringPattern.frequency;
           const rrulePattern = createSimpleRecurrence(
-            recurringPattern.frequency,
+            frequency as 'daily' | 'weekly' | 'monthly' | 'yearly',
             {
               interval: recurringPattern.interval || 1,
               weekDays: recurringPattern.daysOfWeek?.map(day => {

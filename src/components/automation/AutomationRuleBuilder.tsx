@@ -61,7 +61,7 @@ const actionTypeLabels = {
 };
 
 export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRuleBuilderProps) {
-  const { data: dealStages } = useDealStages();
+  const { stages: dealStages } = useDealStages();
   
   const [formData, setFormData] = useState<AutomationRule>({
     name: '',
@@ -198,14 +198,14 @@ export function AutomationRuleBuilder({ rule, onSave, onCancel }: AutomationRule
       };
 
       if (formData.id) {
-        await supabase
+        await (supabase
           .from('user_automation_rules')
-          .update(ruleData)
+          .update(ruleData) as any)
           .eq('id', formData.id);
       } else {
-        await supabase
+        await (supabase
           .from('user_automation_rules')
-          .insert([ruleData]);
+          .insert([ruleData]) as any);
       }
 
       onSave(formData);

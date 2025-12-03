@@ -11,25 +11,19 @@ CREATE TABLE IF NOT EXISTS notification_rate_limits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   notification_type TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-  -- Performance optimization: Index for fast lookups
-  CONSTRAINT notification_rate_limits_user_type_created_idx
-    UNIQUE (user_id, notification_type, created_at)
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Create indexes for efficient rate limit queries
-CREATE INDEX IF NOT EXISTS idx_notification_rate_limits_user_created
-  ON notification_rate_limits(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_rate_limits_user_type_created
+  ON notification_rate_limits(user_id, notification_type, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_notification_rate_limits_cleanup
-  ON notification_rate_limits(created_at)
-  WHERE created_at < NOW() - INTERVAL '24 hours';
+  ON notification_rate_limits(created_at);
 
 -- Add helpful comment
 COMMENT ON TABLE notification_rate_limits IS
-  'Tracks notification creation rates per user for flood prevention. ' ||
-  'Records are kept for 24 hours then cleaned up automatically.';
+  'Tracks notification creation rates per user for flood prevention. Records are kept for 24 hours then cleaned up automatically.';
 
 -- ============================================================================
 -- Step 2: Create function to check if notification should be created
@@ -82,9 +76,7 @@ $$ LANGUAGE plpgsql;
 
 -- Add function comment
 COMMENT ON FUNCTION should_create_notification IS
-  'Check if notification should be created based on rate limits. ' ||
-  'Default limits: 10 per hour, 50 per day. ' ||
-  'Returns TRUE if notification should be created, FALSE if rate limit exceeded.';
+  'Check if notification should be created based on rate limits. Default limits: 10 per hour, 50 per day. Returns TRUE if notification should be created, FALSE if rate limit exceeded.';
 
 -- ============================================================================
 -- Step 3: Create cleanup function for old rate limit records
@@ -108,8 +100,7 @@ $$ LANGUAGE plpgsql;
 
 -- Add function comment
 COMMENT ON FUNCTION cleanup_notification_rate_limits IS
-  'Remove rate limit records older than 24 hours. ' ||
-  'Should be called periodically (e.g., daily cron job).';
+  'Remove rate limit records older than 24 hours. Should be called periodically (e.g., daily cron job).';
 
 -- ============================================================================
 -- Step 4: Enable Row Level Security on rate limits table
