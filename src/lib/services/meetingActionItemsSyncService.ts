@@ -286,9 +286,20 @@ export class MeetingActionItemsSyncService {
 
   /**
    * Trigger task notifications (upcoming deadlines and overdue)
+   * DISABLED 2025-12-03: This was causing notification floods (11,990 notifications)
    * This calls the database function trigger_all_task_notifications()
    */
   static async triggerTaskNotifications(): Promise<TaskNotificationResult> {
+    console.warn('[DISABLED] triggerTaskNotifications() has been disabled to prevent notification floods');
+    console.warn('[DISABLED] The notify_overdue_tasks() function was creating spurious notifications');
+    console.warn('[DISABLED] See migration: 20251203000002_disable_overdue_task_notifications.sql');
+
+    return {
+      success: false,
+      error: 'Manual notification triggering has been disabled due to notification flood bug'
+    } as TaskNotificationResult;
+
+    /* ORIGINAL CODE - DISABLED 2025-12-03
     const { data, error } = await supabase.rpc('trigger_all_task_notifications');
 
     if (error) {
@@ -298,12 +309,19 @@ export class MeetingActionItemsSyncService {
     }
 
     return data as TaskNotificationResult;
+    */
   }
 
   /**
    * Trigger upcoming deadline notifications only
+   * DISABLED 2025-12-03: Manual triggering has been disabled as part of notification flood fix
    */
   static async notifyUpcomingDeadlines() {
+    console.warn('[DISABLED] notifyUpcomingDeadlines() has been disabled');
+    console.warn('[DISABLED] Manual notification triggering disabled to prevent floods');
+    throw new Error('Manual notification triggering has been disabled due to notification flood bug');
+
+    /* ORIGINAL CODE - DISABLED 2025-12-03
     const { data, error } = await supabase.rpc('notify_upcoming_task_deadlines');
 
     if (error) {
@@ -311,12 +329,19 @@ export class MeetingActionItemsSyncService {
     }
 
     return data;
+    */
   }
 
   /**
    * Trigger overdue task notifications only
+   * DISABLED 2025-12-03: This function was causing the notification flood
    */
   static async notifyOverdueTasks() {
+    console.warn('[DISABLED] notifyOverdueTasks() has been disabled - this was the source of 11,990 notification flood');
+    console.warn('[DISABLED] See migration: 20251203000002_disable_overdue_task_notifications.sql');
+    throw new Error('Overdue task notifications have been disabled due to critical bug');
+
+    /* ORIGINAL CODE - DISABLED 2025-12-03
     const { data, error } = await supabase.rpc('notify_overdue_tasks');
 
     if (error) {
@@ -324,6 +349,7 @@ export class MeetingActionItemsSyncService {
     }
 
     return data;
+    */
   }
 
   /**
