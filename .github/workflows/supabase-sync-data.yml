@@ -73,23 +73,23 @@ jobs:
         id: get-dev-connection
         run: |
           echo "🔍 Getting development branch connection details..."
-          
+
           BRANCH_INFO=$(supabase branches get ${{ steps.get-dev-branch.outputs.branch_id }} --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json || echo "{}")
-          
-          DB_URL=$(echo "$BRANCH_INFO" | jq -r '.database_url // empty' || echo "")
-          
-          if [ -z "$DB_URL" ]; then
-            # Construct connection string from branch info
-            BRANCH_REF=$(echo "$BRANCH_INFO" | jq -r '.db_url // empty' || echo "")
-            if [ -n "$BRANCH_REF" ]; then
-              DB_URL="$BRANCH_REF"
-            else
-              echo "⚠️ Could not determine database URL, using connection pooler"
-              # Use connection pooler format
-              DB_URL="postgresql://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-${{ steps.get-dev-branch.outputs.branch_id }}.pooler.supabase.com:6543/postgres"
-            fi
+
+          # Get the branch database name (format: postgres-xxxx)
+          BRANCH_DB=$(echo "$BRANCH_INFO" | jq -r '.database // empty' || echo "")
+
+          if [ -z "$BRANCH_DB" ]; then
+            echo "❌ Could not determine branch database name"
+            exit 1
           fi
-          
+
+          echo "📋 Branch database: $BRANCH_DB"
+
+          # Construct Supavisor Session Mode connection string for branch
+          # Branches use the same regional pooler as the main project, but with /branch-db-name
+          DB_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/$BRANCH_DB"
+
           echo "db_url=$DB_URL" >> $GITHUB_OUTPUT
           echo "✅ Development branch connection configured"
 
