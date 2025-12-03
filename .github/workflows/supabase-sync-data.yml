@@ -121,12 +121,16 @@ jobs:
         run: |
           echo "🔄 Restoring data to development branch via Supavisor..."
 
-          # Get development branch database host
-          DEV_BRANCH_HOST=$(echo "${{ steps.get-dev-connection.outputs.db_url }}" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+          # Use the connection URL provided by Supabase CLI (already includes Supavisor pooler for IPv4)
+          DEV_DB_URL="${{ steps.get-dev-connection.outputs.db_url }}"
 
-          # Use pg_restore with Supavisor Session Mode
+          # Show connection info (without password)
+          DEV_BRANCH_HOST=$(echo "$DEV_DB_URL" | sed -n 's/.*@\([^:]*\):.*/\1/p')
+          echo "📡 Connecting to development branch at: $DEV_BRANCH_HOST"
+
+          # Use pg_restore with the CLI-provided connection string
           pg_restore \
-            --dbname="$DEVELOPMENT_DB_URL" \
+            --dbname="$DEV_DB_URL" \
             --no-owner \
             --no-privileges \
             --clean \
@@ -134,9 +138,6 @@ jobs:
             production_dump.sql
 
           echo "✅ Data restored to development branch"
-        env:
-          # Development branch also uses Supavisor for IPv4 compatibility
-          DEVELOPMENT_DB_URL: "postgres://postgres.${{ secrets.DEVELOPMENT_BRANCH_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
 
       - name: Verify Data Sync
         run: |
