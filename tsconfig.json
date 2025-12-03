@@ -47,7 +47,9 @@
     "src/components/admin/GoogleTasksTests.tsx",
     "src/components/admin/WorkflowsE2ETestSuite.tsx",
     "src/test-*.ts",
-    "src/test-*.tsx"
+    "src/test-*.tsx",
+    "src/test-calendar-e2e.ts",
+    "src/test-calendar-sync.ts"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
