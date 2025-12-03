@@ -146,14 +146,14 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
         if (enrichedError) {
           logger.warn('Could not fetch enriched deal data, using basic data:', enrichedError);
           // Manually fetch stage data if relationship fails
-          if (basicData.stage_id) {
+          if (basicData && basicData.stage_id) {
             try {
               const { data: stageData } = await supabase
                 .from('deal_stages')
                 .select('name, color')
                 .eq('id', basicData.stage_id)
                 .single();
-              
+
               if (stageData) {
                 basicData.deal_stages = stageData;
               }
@@ -161,7 +161,9 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
               logger.warn('Could not fetch stage data:', stageError);
             }
           }
-          setDeal(basicData);
+          if (basicData) {
+            setDeal(basicData);
+          }
         } else {
           logger.log('✅ Enriched deal data found:', enrichedData);
           setDeal(enrichedData);

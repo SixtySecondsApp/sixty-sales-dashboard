@@ -195,7 +195,7 @@ const DealCard: React.FC<DealCardProps> = ({
               {logoUrl && !logoError && !isLoading ? (
                 <img
                   src={logoUrl}
-                  alt={`${typeof deal.company === 'string' ? deal.company : deal.company?.name || 'Company'} logo`}
+                  alt={`${typeof deal.company === 'string' ? deal.company : (deal.company as any)?.name || 'Company'} logo`}
                   className="w-full h-full object-cover"
                   onError={() => setLogoError(true)}
                 />
@@ -212,9 +212,9 @@ const DealCard: React.FC<DealCardProps> = ({
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <Building2 className="w-3 h-3" />
                 <span>
-                  {typeof deal.company === 'string' 
-                    ? deal.company 
-                    : deal.company?.name || 'Unknown Company'}
+                  {typeof deal.company === 'string'
+                    ? deal.company
+                    : (deal.company as any)?.name || 'Unknown Company'}
                 </span>
                 {deal.contact_name && (
                   <>
@@ -335,7 +335,7 @@ const DealCard: React.FC<DealCardProps> = ({
           {logoUrl && !logoError && !isLoading ? (
             <img
               src={logoUrl}
-              alt={`${typeof deal.company === 'string' ? deal.company : deal.company?.name || 'Company'} logo`}
+              alt={`${typeof deal.company === 'string' ? deal.company : (deal.company as any)?.name || 'Company'} logo`}
               className="w-full h-full object-cover"
               onError={() => setLogoError(true)}
             />
@@ -356,9 +356,9 @@ const DealCard: React.FC<DealCardProps> = ({
         <div className="flex items-center gap-1 text-sm text-gray-400 mb-2">
           <Building2 className="w-3 h-3" />
           <span>
-            {typeof deal.company === 'string' 
-              ? deal.company 
-              : deal.company?.name || 'Unknown Company'}
+            {typeof deal.company === 'string'
+              ? deal.company
+              : (deal.company as any)?.name || 'Unknown Company'}
           </span>
         </div>
         {deal.contact_name && (

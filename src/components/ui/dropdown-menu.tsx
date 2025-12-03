@@ -20,6 +20,7 @@ interface DropdownMenuItemProps {
   children: React.ReactNode;
   className?: string;
   onClick?: () => void;
+  disabled?: boolean;
 }
 
 const DropdownMenuContext = React.createContext<{
@@ -133,10 +134,12 @@ export function DropdownMenuItem({
   children,
   className = '',
   onClick,
+  disabled = false,
 }: DropdownMenuItemProps) {
   const { setIsOpen } = React.useContext(DropdownMenuContext);
 
   const handleClick = () => {
+    if (disabled) return;
     onClick?.();
     setIsOpen(false);
   };
@@ -144,9 +147,11 @@ export function DropdownMenuItem({
   return (
     <button
       onClick={handleClick}
+      disabled={disabled}
       className={`
         relative flex w-full cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm
         outline-none transition-colors hover:bg-slate-100 dark:hover:bg-gray-800 hover:text-[#1E293B] dark:hover:text-white focus:bg-slate-100 dark:focus:bg-gray-800 focus:text-[#1E293B] dark:focus:text-white
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         ${className}
       `}
     >

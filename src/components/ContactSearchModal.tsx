@@ -358,7 +358,7 @@ export function ContactSearchModal({
           newContact.id,
           fullName,
           contactData.email,
-          company?.name || newContactForm.company_name
+          company?.name || ''
         ).then(success => {
           if (success) toast.success('Contact profile enriched with LinkedIn data');
         });
