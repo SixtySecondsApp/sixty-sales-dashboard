@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Clear Authentication - Sixty Sales Dashboard</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    h1 {
+      color: #60a5fa;
+      margin-top: 0;
+    }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      width: 100%;
+      margin-top: 20px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .info {
+      background: #1e40af20;
+      border: 1px solid #3b82f6;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .success {
+      background: #10b98120;
+      border: 1px solid #10b981;
+      color: #10b981;
+    }
+    ul {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    li {
+      margin: 5px 0;
+    }
+    code {
+      background: #334155;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Courier New', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔐 Clear Authentication</h1>
+
+    <div class="info">
+      <p><strong>Why do I need this?</strong></p>
+      <p>You're switching to a development branch database. Your current session is for a user that doesn't exist in the dev database yet.</p>
+    </div>
+
+    <p>This will clear:</p>
+    <ul>
+      <li>Supabase authentication tokens</li>
+      <li>Session data</li>
+      <li>Cached user information</li>
+    </ul>
+
+    <button onclick="clearAuth()">Clear Authentication & Reload</button>
+
+    <div id="result"></div>
+
+    <div class="info" style="margin-top: 30px;">
+      <p><strong>After clearing:</strong></p>
+      <ol>
+        <li>You'll be redirected to the login page</li>
+        <li>Sign in with your account</li>
+        <li>If you don't have an account in the dev database, you may need to create one</li>
+      </ol>
+    </div>
+  </div>
+
+  <script>
+    function clearAuth() {
+      const button = document.querySelector('button');
+      button.disabled = true;
+      button.textContent = 'Clearing...';
+
+      // Get all localStorage keys
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key) {
+          // Remove Supabase auth keys
+          if (key.includes('sb-') ||
+              key.includes('supabase') ||
+              key.includes('auth') ||
+              key.includes('session')) {
+            keysToRemove.push(key);
+          }
+        }
+      }
+
+      // Remove all auth-related keys
+      keysToRemove.forEach(key => {
+        localStorage.removeItem(key);
+        console.log('Removed:', key);
+      });
+
+      // Also clear sessionStorage
+      sessionStorage.clear();
+
+      // Show success message
+      const result = document.getElementById('result');
+      result.innerHTML = `
+        <div class="info success" style="margin-top: 20px;">
+          <p><strong>✅ Authentication cleared!</strong></p>
+          <p>Removed ${keysToRemove.length} auth keys</p>
+          <p>Redirecting to home page in 2 seconds...</p>
+        </div>
+      `;
+
+      // Redirect to home after 2 seconds
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
