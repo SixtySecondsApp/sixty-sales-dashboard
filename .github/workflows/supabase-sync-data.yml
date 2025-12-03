@@ -167,15 +167,17 @@ jobs:
 
           # Use pg_restore with the CLI-provided connection string
           # Remove --clean flag to avoid dropping functions with triggers on auth.users
-          # Use --data-only to avoid schema conflicts, since the branch already has the schema
+          # Don't use --data-only since we need to ensure schema exists
           echo "📦 Restoring data..."
           pg_restore \
             --dbname="$DEV_DB_URL" \
             --no-owner \
             --no-privileges \
-            --data-only \
+            --clean \
+            --if-exists \
             --disable-triggers \
-            production_dump.sql || {
+            --verbose \
+            production_dump.sql 2>&1 | grep -v "ERROR.*does not exist" || {
               echo "⚠️  pg_restore completed with warnings (this is expected for branch databases)"
               echo "Continuing with verification..."
             }
