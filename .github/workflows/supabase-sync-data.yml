@@ -76,11 +76,18 @@ jobs:
 
           BRANCH_INFO=$(supabase branches get ${{ steps.get-dev-branch.outputs.branch_id }} --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json || echo "{}")
 
+          # Debug: Show the branch info
+          echo "📋 Branch info response:"
+          echo "$BRANCH_INFO" | jq '.' || echo "Failed to parse JSON"
+
           # Get the branch database name (format: postgres-xxxx)
-          BRANCH_DB=$(echo "$BRANCH_INFO" | jq -r '.database // empty' || echo "")
+          # Try different field names that might contain the database name
+          BRANCH_DB=$(echo "$BRANCH_INFO" | jq -r '.database // .db_name // .database_name // empty' || echo "")
 
           if [ -z "$BRANCH_DB" ]; then
             echo "❌ Could not determine branch database name"
+            echo "Available fields in response:"
+            echo "$BRANCH_INFO" | jq 'keys' || echo "No keys available"
             exit 1
           fi
 
