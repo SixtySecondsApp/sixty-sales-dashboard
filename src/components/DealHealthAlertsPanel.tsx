@@ -280,9 +280,9 @@ function DealHealthAlertCard({
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 flex-wrap">
-              {alert.action_url && (
+              {(alert as any).action_url && (
                 <a
-                  href={alert.action_url}
+                  href={(alert as any).action_url}
                   className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
                   View Deal

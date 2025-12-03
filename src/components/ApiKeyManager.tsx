@@ -334,9 +334,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySelected }) =
 
   const revokeApiKey = async (keyId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase
         .from('api_keys')
-        .update({ is_active: false } as any)
+        .update({ is_active: false }) as any)
         .eq('id', keyId)
         .eq('user_id', user?.id);
 

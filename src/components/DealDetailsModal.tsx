@@ -146,23 +146,23 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
         if (enrichedError) {
           logger.warn('Could not fetch enriched deal data, using basic data:', enrichedError);
           // Manually fetch stage data if relationship fails
-          if (basicData && basicData.stage_id) {
+          if (basicData && (basicData as any).stage_id) {
             try {
               const { data: stageData } = await supabase
                 .from('deal_stages')
                 .select('name, color')
-                .eq('id', basicData.stage_id)
+                .eq('id', (basicData as any).stage_id)
                 .single();
 
               if (stageData) {
-                basicData.deal_stages = stageData;
+                (basicData as any).deal_stages = stageData;
               }
             } catch (stageError) {
               logger.warn('Could not fetch stage data:', stageError);
             }
           }
           if (basicData) {
-            setDeal(basicData);
+            setDeal(basicData as any);
           }
         } else {
           logger.log('✅ Enriched deal data found:', enrichedData);
@@ -171,22 +171,24 @@ export function DealDetailsModal({ isOpen, onClose, dealId }: DealDetailsModalPr
       } catch (enrichedError) {
         logger.warn('Error with enriched query, using basic data:', enrichedError);
         // Manually fetch stage data if relationship fails
-        if (basicData.stage_id) {
+        if (basicData && (basicData as any).stage_id) {
           try {
             const { data: stageData } = await supabase
               .from('deal_stages')
               .select('name, color')
-              .eq('id', basicData.stage_id)
+              .eq('id', (basicData as any).stage_id)
               .single();
-            
+
             if (stageData) {
-              basicData.deal_stages = stageData;
+              (basicData as any).deal_stages = stageData;
             }
           } catch (stageError) {
             logger.warn('Could not fetch stage data:', stageError);
           }
         }
-        setDeal(basicData);
+        if (basicData) {
+          setDeal(basicData as any);
+        }
       }
     } catch (error: any) {
       logger.error('Error fetching deal:', error);

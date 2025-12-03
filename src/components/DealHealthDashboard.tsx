@@ -40,7 +40,7 @@ type HealthFilter = 'all' | 'healthy' | 'warning' | 'critical' | 'stalled';
 type SortBy = 'health_asc' | 'health_desc' | 'days_in_stage' | 'risk_level';
 
 export function DealHealthDashboard() {
-  const { user: currentUser } = useUser();
+  const { userData: currentUser } = useUser();
   const { users } = useUsers();
   const { healthScores, loading, calculateAllHealth, smartRefresh } = useUserDealsHealth();
   const [filter, setFilter] = useState<HealthFilter>('all');
