@@ -44,29 +44,37 @@ jobs:
       - name: Get Development Branch ID
         id: get-dev-branch
         run: |
-          echo "🔍 Finding development branch..."
-          
-          # List all branches and find the development branch
-          BRANCHES=$(supabase branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json || echo "[]")
-          
-          DEV_BRANCH=$(echo "$BRANCHES" | jq -r '.[] | select(.name == "development") | .id' || echo "")
-          
+          echo "🔍 Finding development-v2 branch..."
+
+          # List all branches for debugging
+          echo "📋 All branches:"
+          supabase branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --experimental
+
+          # List all branches and find the development-v2 branch (new clean branch)
+          BRANCHES=$(supabase branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json --experimental || echo "[]")
+
+          echo "📋 Branches JSON:"
+          echo "$BRANCHES" | jq '.'
+
+          # Search for development-v2 explicitly
+          DEV_BRANCH=$(echo "$BRANCHES" | jq -r '.[] | select(.name == "development-v2") | .id' || echo "")
+
           if [ -z "$DEV_BRANCH" ]; then
-            echo "❌ Development branch not found. Creating it..."
-            
-            # Create development branch if it doesn't exist
-            DEV_BRANCH=$(supabase branches create development --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json | jq -r '.id' || echo "")
-            
-            if [ -z "$DEV_BRANCH" ]; then
-              echo "❌ Failed to create development branch"
-              exit 1
-            fi
-            
-            echo "✅ Created development branch: $DEV_BRANCH"
-          else
-            echo "✅ Found development branch: $DEV_BRANCH"
+            echo "❌ Development-v2 branch not found!"
+            echo "Available branches:"
+            echo "$BRANCHES" | jq -r '.[].name'
+            exit 1
           fi
-          
+
+          echo "✅ Found development-v2 branch: $DEV_BRANCH"
+
+          # Verify it's the correct branch
+          if [ "$DEV_BRANCH" != "17b178b9-bb9b-4ccd-a125-5e49398bb989" ]; then
+            echo "⚠️  WARNING: Branch ID doesn't match expected development-v2 ID"
+            echo "Expected: 17b178b9-bb9b-4ccd-a125-5e49398bb989"
+            echo "Got: $DEV_BRANCH"
+          fi
+
           echo "branch_id=$DEV_BRANCH" >> $GITHUB_OUTPUT
 
       - name: Get Development Branch Connection String
