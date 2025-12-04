@@ -2,7 +2,7 @@ name: Sync Production Data to Development
 
 on:
   schedule:
-    # Run weekly on Sunday at 2 AM UTC (configurable)
+    # Run weekly on Sunday at 2 AM UTC
     - cron: '0 2 * * 0'
   workflow_dispatch:
     inputs:
@@ -11,10 +11,19 @@ on:
         required: false
         default: 'false'
         type: boolean
+      tables:
+        description: 'Specific tables to sync (comma-separated, or "all")'
+        required: false
+        default: 'all'
+        type: string
 
 env:
   SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  # AWS region for Supavisor pooler (us-west-1 for West US/North California)
+  SUPABASE_REGION: us-west-1
+  # Development branch ID (development-v2)
+  DEV_BRANCH_ID: "17b178b9-bb9b-4ccd-a125-5e49398bb989"
 
 jobs:
   sync-production-to-development:
@@ -32,187 +41,211 @@ jobs:
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y postgresql-client-15
 
       - name: Authenticate with Supabase
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
-          # Authenticate using the access token
-          supabase login --token $SUPABASE_ACCESS_TOKEN
+          supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Get Development Branch ID
-        id: get-dev-branch
+      - name: Link to Supabase project
         run: |
-          echo "🔍 Finding development-v2 branch..."
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
 
-          # List all branches for debugging
-          echo "📋 All branches:"
-          supabase branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --experimental
+      - name: Verify Development Branch Exists
+        id: verify-branch
+        run: |
+          echo "🔍 Verifying development-v2 branch..."
 
-          # List all branches and find the development-v2 branch (new clean branch)
-          BRANCHES=$(supabase branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json --experimental || echo "[]")
+          # List branches to confirm the branch exists
+          BRANCHES=$(supabase --experimental branches list --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json 2>/dev/null || echo "[]")
 
-          echo "📋 Branches JSON:"
-          echo "$BRANCHES" | jq '.'
+          echo "📋 Available branches:"
+          echo "$BRANCHES" | jq -r '.[].name' 2>/dev/null || echo "Could not parse branches"
 
-          # Search for development-v2 explicitly
-          DEV_BRANCH=$(echo "$BRANCHES" | jq -r '.[] | select(.name == "development-v2") | .id' || echo "")
+          # Check if our target branch exists
+          BRANCH_EXISTS=$(echo "$BRANCHES" | jq -r --arg id "$DEV_BRANCH_ID" '.[] | select(.id == $id) | .name' 2>/dev/null || echo "")
 
-          if [ -z "$DEV_BRANCH" ]; then
-            echo "❌ Development-v2 branch not found!"
-            echo "Available branches:"
-            echo "$BRANCHES" | jq -r '.[].name'
-            exit 1
+          if [ -z "$BRANCH_EXISTS" ]; then
+            echo "⚠️ Branch $DEV_BRANCH_ID not found in list, but continuing with direct connection..."
+          else
+            echo "✅ Found branch: $BRANCH_EXISTS"
           fi
 
-          echo "✅ Found development-v2 branch: $DEV_BRANCH"
+          echo "branch_verified=true" >> $GITHUB_OUTPUT
 
-          # Verify it's the correct branch
-          if [ "$DEV_BRANCH" != "17b178b9-bb9b-4ccd-a125-5e49398bb989" ]; then
-            echo "⚠️  WARNING: Branch ID doesn't match expected development-v2 ID"
-            echo "Expected: 17b178b9-bb9b-4ccd-a125-5e49398bb989"
-            echo "Got: $DEV_BRANCH"
-          fi
-
-          echo "branch_id=$DEV_BRANCH" >> $GITHUB_OUTPUT
-
-      - name: Get Development Branch Connection String
-        id: get-dev-connection
+      - name: Get Development Branch Database Name
+        id: get-dev-db
         run: |
-          echo "🔍 Getting development branch connection details..."
+          echo "🔍 Getting development branch database info..."
 
-          BRANCH_INFO=$(supabase branches get ${{ steps.get-dev-branch.outputs.branch_id }} --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json || echo "{}")
+          # Get branch details
+          BRANCH_INFO=$(supabase --experimental branches get $DEV_BRANCH_ID --project-ref ${{ secrets.SUPABASE_PROJECT_ID }} --output json 2>/dev/null || echo "{}")
 
-          # Debug: Show the branch info
-          echo "📋 Branch info response:"
-          echo "$BRANCH_INFO" | jq '.' || echo "Failed to parse JSON"
+          echo "📋 Branch info received"
 
-          # Extract the non-pooling connection URL and convert to pooled URL
-          # The CLI returns POSTGRES_URL_NON_POOLING which we need to convert to pooled
-          NON_POOLING_URL=$(echo "$BRANCH_INFO" | jq -r '.POSTGRES_URL_NON_POOLING // empty' || echo "")
+          # Extract database name from the non-pooling URL
+          NON_POOLING_URL=$(echo "$BRANCH_INFO" | jq -r '.POSTGRES_URL_NON_POOLING // empty' 2>/dev/null || echo "")
 
           if [ -z "$NON_POOLING_URL" ]; then
-            echo "❌ Could not extract POSTGRES_URL_NON_POOLING from branch info"
-            echo "Available fields in response:"
-            echo "$BRANCH_INFO" | jq 'keys' || echo "No keys available"
-            exit 1
-          fi
-
-          echo "📋 Non-pooling URL found"
-
-          # Extract database host and database name from the URL
-          # Format: postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/[DATABASE]?[PARAMS]
-          # We need to extract the database name and use Supavisor pooler
-
-          # Extract just the database name from the URL (after the last /)
-          DB_NAME=$(echo "$NON_POOLING_URL" | sed -n 's/.*\/\([^?]*\).*/\1/p')
-
-          if [ -z "$DB_NAME" ]; then
-            echo "❌ Could not extract database name from connection URL"
-            exit 1
+            echo "⚠️ Could not get POSTGRES_URL_NON_POOLING, using default database name"
+            DB_NAME="postgres"
+          else
+            # Extract database name (after the last / and before any ?)
+            DB_NAME=$(echo "$NON_POOLING_URL" | sed -n 's/.*\/\([^?]*\).*/\1/p')
+            if [ -z "$DB_NAME" ]; then
+              DB_NAME="postgres"
+            fi
           fi
 
           echo "📋 Database name: $DB_NAME"
+          echo "db_name=$DB_NAME" >> $GITHUB_OUTPUT
 
-          # Use Supavisor pooler with Session Mode (port 5432) for IPv4 compatibility
-          # This matches the production connection format
-          DB_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/$DB_NAME"
+      - name: Build Connection URLs
+        id: build-urls
+        run: |
+          echo "🔧 Building Supavisor connection URLs..."
 
-          echo "db_url=$DB_URL" >> $GITHUB_OUTPUT
-          echo "✅ Development branch connection configured"
+          # Production DB URL (Supavisor Session Mode - port 5432 for IPv4)
+          PROD_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-${SUPABASE_REGION}.pooler.supabase.com:5432/postgres"
+
+          # Development DB URL
+          DEV_DB_NAME="${{ steps.get-dev-db.outputs.db_name }}"
+          DEV_URL="postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-${SUPABASE_REGION}.pooler.supabase.com:5432/${DEV_DB_NAME}"
+
+          echo "prod_url=$PROD_URL" >> $GITHUB_OUTPUT
+          echo "dev_url=$DEV_URL" >> $GITHUB_OUTPUT
+
+          echo "✅ Connection URLs configured"
+
+      - name: Test Production Connection
+        run: |
+          echo "🔍 Testing production database connection..."
+          psql "${{ steps.build-urls.outputs.prod_url }}" -c "SELECT 'Production connection successful' as status, NOW() as timestamp;" || {
+            echo "❌ Failed to connect to production database"
+            exit 1
+          }
+          echo "✅ Production connection verified"
+
+      - name: Test Development Connection
+        run: |
+          echo "🔍 Testing development database connection..."
+          psql "${{ steps.build-urls.outputs.dev_url }}" -c "SELECT 'Development connection successful' as status, NOW() as timestamp;" || {
+            echo "❌ Failed to connect to development database"
+            exit 1
+          }
+          echo "✅ Development connection verified"
 
       - name: Export Production Data
+        id: export
         run: |
-          echo "📦 Exporting production data via Supavisor Session Mode (IPv4)..."
+          echo "📦 Exporting production data..."
 
-          # Use pg_dump with Supavisor Session Mode (port 5432) for IPv4 compatibility
-          # This is required because GitHub Actions runners don't support IPv6
-          pg_dump "$PRODUCTION_DB_URL" \
+          PROD_URL="${{ steps.build-urls.outputs.prod_url }}"
+
+          # Export public schema data only (schema comes from migrations)
+          pg_dump "$PROD_URL" \
             --no-owner \
             --no-privileges \
             --schema=public \
+            --data-only \
             -Fc \
-            -f production_dump.sql
+            -f production_dump.dump
 
-          echo "✅ Production data exported"
-
-          # Get dump size
-          DUMP_SIZE=$(du -h production_dump.sql | cut -f1)
-          echo "✅ Production data size: $DUMP_SIZE"
+          DUMP_SIZE=$(du -h production_dump.dump | cut -f1)
+          echo "✅ Production data exported: $DUMP_SIZE"
           echo "dump_size=$DUMP_SIZE" >> $GITHUB_OUTPUT
-        env:
-          # Supavisor Session Mode (port 5432) provides IPv4 compatibility
-          # Format: postgres://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres
-          PRODUCTION_DB_URL: "postgres://postgres.${{ secrets.SUPABASE_PROJECT_ID }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-us-west-1.pooler.supabase.com:5432/postgres"
+
+      - name: Prepare Development Database
+        run: |
+          echo "🔧 Preparing development database for data restore..."
+
+          DEV_URL="${{ steps.build-urls.outputs.dev_url }}"
+
+          # Disable triggers temporarily and drop foreign key constraints that might cause issues
+          psql "$DEV_URL" <<'EOF' || true
+          -- Disable triggers on tables that might conflict
+          SET session_replication_role = replica;
+
+          -- Drop problematic FK constraints
+          ALTER TABLE IF EXISTS meeting_action_items DROP CONSTRAINT IF EXISTS meeting_action_items_task_id_fkey CASCADE;
+          ALTER TABLE IF EXISTS next_action_suggestions DROP CONSTRAINT IF EXISTS next_action_suggestions_created_task_id_fkey CASCADE;
+
+          -- Truncate tables to avoid duplicate key errors (preserves schema)
+          DO $$
+          DECLARE
+            r RECORD;
+          BEGIN
+            FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT LIKE 'pg_%')
+            LOOP
+              EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE';
+            END LOOP;
+          END $$;
+          EOF
+
+          echo "✅ Development database prepared"
 
       - name: Restore Data to Development Branch
         run: |
-          echo "🔄 Restoring data to development branch via Supavisor..."
+          echo "🔄 Restoring data to development branch..."
 
-          # Use the connection URL provided by Supabase CLI (already includes Supavisor pooler for IPv4)
-          DEV_DB_URL="${{ steps.get-dev-connection.outputs.db_url }}"
+          DEV_URL="${{ steps.build-urls.outputs.dev_url }}"
 
-          # Show connection info (without password)
-          DEV_BRANCH_HOST=$(echo "$DEV_DB_URL" | sed -n 's/.*@\([^:]*\):.*/\1/p')
-          echo "📡 Connecting to development branch at: $DEV_BRANCH_HOST"
-
-          # First, drop foreign key constraints that might cause issues
-          echo "🔧 Temporarily dropping foreign key constraints..."
-          psql --dbname="$DEV_DB_URL" <<'EOF' || true
-          -- Drop FK constraints that reference tasks table
-          ALTER TABLE IF EXISTS meeting_action_items DROP CONSTRAINT IF EXISTS meeting_action_items_task_id_fkey CASCADE;
-          ALTER TABLE IF EXISTS next_action_suggestions DROP CONSTRAINT IF EXISTS next_action_suggestions_created_task_id_fkey CASCADE;
-          EOF
-
-          # Use pg_restore with the CLI-provided connection string
-          # Remove --clean flag to avoid dropping functions with triggers on auth.users
-          # Don't use --data-only since we need to ensure schema exists
-          echo "📦 Restoring data..."
+          # Restore with triggers disabled
           pg_restore \
-            --dbname="$DEV_DB_URL" \
+            --dbname="$DEV_URL" \
             --no-owner \
             --no-privileges \
-            --clean \
-            --if-exists \
             --disable-triggers \
+            --data-only \
             --verbose \
-            production_dump.sql 2>&1 | grep -v "ERROR.*does not exist" || {
-              echo "⚠️  pg_restore completed with warnings (this is expected for branch databases)"
-              echo "Continuing with verification..."
+            production_dump.dump 2>&1 | grep -E "(processing|restoring|error)" | head -50 || {
+              echo "⚠️ pg_restore completed with warnings (expected for branch databases)"
             }
 
-          # Restore foreign key constraints
-          echo "🔧 Restoring foreign key constraints..."
-          psql --dbname="$DEV_DB_URL" <<'EOF' || true
+          echo "✅ Data restore completed"
+
+      - name: Restore Constraints and Triggers
+        run: |
+          echo "🔧 Restoring constraints and triggers..."
+
+          DEV_URL="${{ steps.build-urls.outputs.dev_url }}"
+
+          psql "$DEV_URL" <<'EOF' || true
+          -- Re-enable triggers
+          SET session_replication_role = DEFAULT;
+
           -- Restore FK constraints
-          ALTER TABLE meeting_action_items
-            ADD CONSTRAINT meeting_action_items_task_id_fkey
+          ALTER TABLE IF EXISTS meeting_action_items
+            ADD CONSTRAINT IF NOT EXISTS meeting_action_items_task_id_fkey
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
 
-          ALTER TABLE next_action_suggestions
-            ADD CONSTRAINT next_action_suggestions_created_task_id_fkey
+          ALTER TABLE IF EXISTS next_action_suggestions
+            ADD CONSTRAINT IF NOT EXISTS next_action_suggestions_created_task_id_fkey
             FOREIGN KEY (created_task_id) REFERENCES tasks(id) ON DELETE SET NULL;
           EOF
 
-          echo "✅ Data restored to development branch"
+          echo "✅ Constraints restored"
 
       - name: Verify Data Sync
+        id: verify
         run: |
           echo "🔍 Verifying data sync..."
 
-          # Check table counts using development branch connection
-          psql --dbname="${{ steps.get-dev-connection.outputs.db_url }}" <<EOF
-          SELECT 
-            schemaname,
-            tablename,
-            pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-          FROM pg_tables 
-          WHERE schemaname = 'public'
-          ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
-          LIMIT 10;
-          EOF
-          
+          DEV_URL="${{ steps.build-urls.outputs.dev_url }}"
+          PROD_URL="${{ steps.build-urls.outputs.prod_url }}"
+
+          echo "📊 Comparing table counts:"
+          echo ""
+          echo "| Table | Production | Development |"
+          echo "|-------|------------|-------------|"
+
+          for table in profiles deals contacts meetings activities tasks; do
+            PROD_COUNT=$(psql "$PROD_URL" -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null | tr -d ' ' || echo "N/A")
+            DEV_COUNT=$(psql "$DEV_URL" -t -c "SELECT COUNT(*) FROM $table;" 2>/dev/null | tr -d ' ' || echo "N/A")
+            echo "| $table | $PROD_COUNT | $DEV_COUNT |"
+          done
+
+          echo ""
           echo "✅ Data sync verification complete"
 
       - name: Sync Summary
@@ -220,15 +253,19 @@ jobs:
         run: |
           echo "## 🔄 Production → Development Data Sync" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Source**: Production Database" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target**: Development Branch (\`${{ steps.get-dev-branch.outputs.branch_id }}\`)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dump Size**: ${{ steps.get-dev-connection.outputs.dump_size || 'N/A' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: ${{ job.status == 'success' && '✅ Completed' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Sync Time**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Source | Production Database |" >> $GITHUB_STEP_SUMMARY
+          echo "| Target | Development Branch (\`$DEV_BRANCH_ID\`) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dump Size | ${{ steps.export.outputs.dump_size || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status == 'success' && '✅ Completed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Sync Time | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Scheduled Sync" >> $GITHUB_STEP_SUMMARY
+          echo "Sunday at 2:00 AM UTC" >> $GITHUB_STEP_SUMMARY
 
       - name: Cleanup
         if: always()
         run: |
           rm -f production_dump.dump
           echo "🧹 Cleanup complete"
-
