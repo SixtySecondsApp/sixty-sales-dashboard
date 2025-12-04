@@ -27,7 +27,7 @@ The GitHub Actions workflow has the correct PostgreSQL version and will work per
    ```
    Target: Development Branch (17b178b9-bb9b-4ccd-a125-5e49398bb989)
    ```
-   
+
    Should be `17b178b9` (development-v2), NOT `68fc8173` (old branch)
 
 4. **Verify**:

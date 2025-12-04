@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
 import { authLogger } from '../services/authLogger';
@@ -6,20 +6,28 @@ import { toast } from 'sonner';
 import { getAuthRedirectUrl } from '@/lib/utils/siteUrl';
 import logger from '@/lib/utils/logger';
 
-// Auth context types
-interface AuthContextType {
+// Check if Clerk auth is enabled via feature flag
+const USE_CLERK_AUTH = import.meta.env.VITE_USE_CLERK_AUTH === 'true';
+
+// Lazy load Clerk components only when needed
+const ClerkAuthProviderLazy = USE_CLERK_AUTH
+  ? lazy(() => import('./ClerkAuthContext').then(m => ({ default: m.ClerkAuthProvider })))
+  : null;
+
+// Auth context types - shared between Supabase and Clerk implementations
+export interface AuthContextType {
   // State
   user: User | null;
   session: Session | null;
   loading: boolean;
-  
+
   // Actions
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
-  
+
   // Utilities
   isAuthenticated: boolean;
   userId: string | null;
@@ -28,6 +36,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Custom hook to use auth context
+// This hook works with BOTH Supabase Auth and Clerk Auth based on feature flag
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -36,12 +45,91 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
+// Export the feature flag check for other components
+export const isClerkAuthEnabled = () => USE_CLERK_AUTH;
+
 // Auth provider component
 interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+/**
+ * AuthProvider - Unified auth provider that delegates to either Supabase or Clerk
+ *
+ * When VITE_USE_CLERK_AUTH=true:
+ * - Uses ClerkAuthProvider for authentication
+ * - Clerk handles user sessions, tokens, and auth state
+ * - Bridges ClerkAuthContext to AuthContext so useAuth() works
+ *
+ * When VITE_USE_CLERK_AUTH=false (default):
+ * - Uses SupabaseAuthProvider (existing behavior)
+ * - Supabase Auth handles everything
+ */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // If Clerk auth is enabled, use the Clerk provider with bridge
+  if (USE_CLERK_AUTH && ClerkAuthProviderLazy) {
+    logger.log('🔐 AuthProvider: Using Clerk authentication');
+
+    return (
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div></div>}>
+        <ClerkAuthProviderWithBridge>{children}</ClerkAuthProviderWithBridge>
+      </Suspense>
+    );
+  }
+
+  // Default: Use Supabase auth provider
+  logger.log('🔐 AuthProvider: Using Supabase authentication');
+  return <SupabaseAuthProvider>{children}</SupabaseAuthProvider>;
+};
+
+/**
+ * ClerkAuthProviderWithBridge - Wraps Clerk provider and bridges context
+ * This is a separate component to allow proper hook usage
+ */
+const ClerkAuthProviderWithBridge: React.FC<AuthProviderProps> = ({ children }) => {
+  // Import dynamically loaded component
+  const [ClerkComponents, setClerkComponents] = useState<{
+    ClerkAuthProvider: React.FC<{ children: React.ReactNode }>;
+    ClerkAuthContext: React.Context<AuthContextType | undefined>;
+  } | null>(null);
+
+  useEffect(() => {
+    import('./ClerkAuthContext').then(module => {
+      setClerkComponents({
+        ClerkAuthProvider: module.ClerkAuthProvider,
+        ClerkAuthContext: module.ClerkAuthContext,
+      });
+    });
+  }, []);
+
+  if (!ClerkComponents) {
+    return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div></div>;
+  }
+
+  const { ClerkAuthProvider, ClerkAuthContext } = ClerkComponents;
+
+  // ClerkBridge component bridges ClerkAuthContext to AuthContext
+  const ClerkBridge: React.FC<{ children: React.ReactNode }> = ({ children: bridgeChildren }) => {
+    const clerkValue = React.useContext(ClerkAuthContext);
+    return (
+      <AuthContext.Provider value={clerkValue as AuthContextType}>
+        {bridgeChildren}
+      </AuthContext.Provider>
+    );
+  };
+
+  return (
+    <ClerkAuthProvider>
+      <ClerkBridge>{children}</ClerkBridge>
+    </ClerkAuthProvider>
+  );
+};
+
+/**
+ * SupabaseAuthProvider - Original Supabase-based auth implementation
+ * This is the existing implementation, now wrapped in its own component
+ */
+const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);

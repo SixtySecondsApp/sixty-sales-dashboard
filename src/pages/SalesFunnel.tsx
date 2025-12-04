@@ -3,11 +3,11 @@ import { motion } from 'framer-motion';
 import { useUser } from '@/lib/hooks/useUser';
 import { useSalesData } from '@/lib/hooks/useSalesData';
 import { useTargets } from '@/lib/hooks/useTargets';
-import { Users, Phone, FileText, PoundSterling, Loader2 } from 'lucide-react';
+import { Users, Phone, FileText, PoundSterling, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useActivityFilters } from '@/lib/hooks/useActivityFilters';
 import { useNavigate } from 'react-router-dom';
 import { useActivities } from '@/lib/hooks/useActivities';
-import { startOfMonth } from 'date-fns';
+import { startOfMonth, endOfMonth, format, addMonths, subMonths } from 'date-fns';
 
 // Separate loading skeleton component for better code splitting
 function FunnelSkeleton() {
@@ -47,7 +47,7 @@ function FunnelSkeleton() {
 }
 
 // Separate metrics calculation for better memoization
-function useFunnelMetrics(activities: any[] | undefined) {
+function useFunnelMetrics(activities: any[] | undefined, selectedMonth: Date) {
   return useMemo(() => {
     if (!activities) return {
       outbound: 0,
@@ -61,10 +61,15 @@ function useFunnelMetrics(activities: any[] | undefined) {
       avgSalesVelocity: 0
     };
 
-    const monthStart = startOfMonth(new Date());
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
+    const now = new Date();
+    // If selected month is current month, cap at today; otherwise use end of month
+    const effectiveEnd = monthEnd > now ? now : monthEnd;
+    
     const monthActivities = activities.filter(activity => {
       const activityDate = new Date(activity.date);
-      return activityDate >= monthStart && activityDate <= new Date();
+      return activityDate >= monthStart && activityDate <= effectiveEnd;
     });
 
     const outboundCount = monthActivities
@@ -170,16 +175,25 @@ function useFunnelMetrics(activities: any[] | undefined) {
       avgDealSize,
       avgSalesVelocity
     };
-  }, [activities]);
+  }, [activities, selectedMonth]);
 }
 
 export default function SalesFunnel() {
   const { userData } = useUser();
   const navigate = useNavigate();
-  const [dateRange] = useState({
-    start: new Date(new Date().setDate(1)),
-    end: new Date(),
-  });
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Calculate date range based on selected month
+  const dateRange = useMemo(() => {
+    const start = startOfMonth(currentMonth);
+    const end = endOfMonth(currentMonth);
+    const now = new Date();
+    return {
+      start,
+      end: end > now ? now : end,
+    };
+  }, [currentMonth]);
+  
   const { setFilters } = useActivityFilters();
   const { activities, isLoading: isLoadingActivities } = useActivities();
   const { data: salesData, isLoading: isLoadingSales } = useSalesData(dateRange.start, dateRange.end);
@@ -206,7 +220,7 @@ export default function SalesFunnel() {
   }, [isAnyLoading]);
 
   // Use the separated metrics hook
-  const funnelMetrics = useFunnelMetrics(activities);
+  const funnelMetrics = useFunnelMetrics(activities, currentMonth);
 
   // Define funnel stages with memoization
   const funnelStages = useMemo(() => [
@@ -275,8 +289,40 @@ export default function SalesFunnel() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8 lg:mb-12">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Sales Funnel</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">Visualise your sales pipeline conversion rates</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Sales Funnel</h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">Visualise your sales pipeline conversion rates</p>
+            </div>
+            
+            {/* Month Navigation */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setCurrentMonth(prev => subMonths(prev, 1))}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
+                aria-label="Previous month"
+              >
+                <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+              <span className="text-base sm:text-lg font-medium text-emerald-600 dark:text-emerald-500 min-w-[140px] text-center">
+                {format(currentMonth, 'MMMM yyyy')}
+              </span>
+              <button
+                onClick={() => {
+                  const nextMonth = addMonths(currentMonth, 1);
+                  // Don't allow going beyond current month
+                  if (nextMonth <= new Date()) {
+                    setCurrentMonth(nextMonth);
+                  }
+                }}
+                disabled={addMonths(currentMonth, 1) > new Date()}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800/50 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Next month"
+              >
+                <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Funnel Visualization */}

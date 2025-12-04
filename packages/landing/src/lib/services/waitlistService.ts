@@ -65,7 +65,7 @@ export async function signupForWaitlist(
 export async function getWaitlistPosition(email: string): Promise<WaitlistPosition | null> {
   const { data, error } = await supabase
     .from('meetings_waitlist')
-    .select('signup_position, effective_position, referral_count, referral_code, email, full_name')
+    .select('signup_position, effective_position, referral_count, referral_code, email, full_name, total_points')
     .eq('email', email)
     .single();
 

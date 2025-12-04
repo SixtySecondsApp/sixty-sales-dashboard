@@ -77,6 +77,7 @@ export interface WaitlistPosition {
   referral_code: string;
   email: string;
   full_name: string;
+  total_points?: number;
 }
 
 export interface WaitlistFilters {

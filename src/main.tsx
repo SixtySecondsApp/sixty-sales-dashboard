@@ -6,10 +6,15 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { ClerkProvider } from '@clerk/clerk-react';
 import App from './App';
 import './index.css';
 import { initializeTheme } from './hooks/useTheme';
 import { clearCacheAndReload } from './lib/config/version';
+
+// Clerk configuration
+const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const USE_CLERK_AUTH = import.meta.env.VITE_USE_CLERK_AUTH === 'true';
 
 // Initialize theme before React renders to prevent flash of wrong theme
 initializeTheme();
@@ -68,8 +73,20 @@ if (import.meta.env.DEV) {
   import('./debug-notifications');
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+/**
+ * App wrapper component that conditionally includes ClerkProvider
+ * based on the VITE_USE_CLERK_AUTH feature flag.
+ *
+ * When USE_CLERK_AUTH=true:
+ * - ClerkProvider wraps the app for Clerk authentication
+ * - Clerk handles user sessions, tokens, and auth state
+ *
+ * When USE_CLERK_AUTH=false (default):
+ * - App uses Supabase Auth (existing behavior)
+ * - ClerkProvider is not loaded
+ */
+function AppWithProviders() {
+  const appContent = (
     <HelmetProvider>
       <BrowserRouter
         future={{
@@ -80,5 +97,37 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <App />
       </BrowserRouter>
     </HelmetProvider>
+  );
+
+  // Conditionally wrap with ClerkProvider based on feature flag
+  if (USE_CLERK_AUTH && CLERK_PUBLISHABLE_KEY) {
+    return (
+      <ClerkProvider
+        publishableKey={CLERK_PUBLISHABLE_KEY}
+        afterSignOutUrl="/"
+        appearance={{
+          // Match your existing dark theme
+          baseTheme: undefined,
+          variables: {
+            colorPrimary: '#3b82f6', // blue-500
+            colorBackground: '#1f2937', // gray-800
+            colorText: '#f9fafb', // gray-50
+            colorInputBackground: '#374151', // gray-700
+            colorInputText: '#f9fafb', // gray-50
+          },
+        }}
+      >
+        {appContent}
+      </ClerkProvider>
+    );
+  }
+
+  // Default: no ClerkProvider (Supabase Auth mode)
+  return appContent;
+}
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <AppWithProviders />
   </React.StrictMode>
 );

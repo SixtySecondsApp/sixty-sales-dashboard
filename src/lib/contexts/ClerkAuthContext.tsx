@@ -1,0 +1,440 @@
+/**
+ * ClerkAuthContext.tsx
+ *
+ * Compatibility wrapper that provides the same interface as AuthContext
+ * but uses Clerk for authentication instead of Supabase Auth.
+ *
+ * This allows gradual migration - all 53+ files using useAuth() continue
+ * working with the same interface while the backend switches to Clerk.
+ */
+
+import React, { createContext, useContext, useCallback, useMemo, useState, useEffect } from 'react';
+import { useUser, useAuth as useClerkAuth, useSignIn, useSignUp, useClerk } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import logger from '@/lib/utils/logger';
+import { supabase } from '../supabase/clientV2';
+
+// Types that match the existing AuthContext interface
+// We create simplified versions since Clerk user/session differ from Supabase
+interface ClerkUserCompat {
+  id: string;
+  email?: string;
+  user_metadata?: {
+    full_name?: string;
+    first_name?: string;
+    last_name?: string;
+  };
+  created_at?: string;
+}
+
+interface ClerkSessionCompat {
+  user: ClerkUserCompat | null;
+  access_token?: string;
+  expires_at?: number;
+}
+
+interface AuthError {
+  message: string;
+  status?: number;
+}
+
+// Same interface as the original AuthContext - exported for type compatibility
+export interface ClerkAuthContextType {
+  // State
+  user: ClerkUserCompat | null;
+  session: ClerkSessionCompat | null;
+  loading: boolean;
+
+  // Actions
+  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: AuthError | null }>;
+  signOut: () => Promise<{ error: AuthError | null }>;
+  resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
+  updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
+
+  // Utilities
+  isAuthenticated: boolean;
+  userId: string | null;
+}
+
+// Create a shared context that can be used by both providers
+// This is exported so AuthContext.tsx can use the same context
+export const ClerkAuthContext = createContext<ClerkAuthContextType | undefined>(undefined);
+
+/**
+ * Hook to use Clerk auth with the same interface as useAuth()
+ * Note: Most components should use useAuth() from AuthContext instead
+ */
+export const useClerkAuthContext = (): ClerkAuthContextType => {
+  const context = useContext(ClerkAuthContext);
+  if (context === undefined) {
+    throw new Error('useClerkAuthContext must be used within a ClerkAuthProvider');
+  }
+  return context;
+};
+
+interface ClerkAuthProviderProps {
+  children: React.ReactNode;
+}
+
+/**
+ * ClerkAuthProvider - Provides Clerk authentication with Supabase-compatible interface
+ */
+export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }) => {
+  const { user: clerkUser, isLoaded: userLoaded, isSignedIn } = useUser();
+  const { isLoaded: authLoaded, getToken } = useClerkAuth();
+  const { signIn: clerkSignIn, setActive: setSignInActive, isLoaded: signInLoaded } = useSignIn();
+  const { signUp: clerkSignUp, setActive: setSignUpActive, isLoaded: signUpLoaded } = useSignUp();
+  const { signOut: clerkSignOut } = useClerk();
+  const queryClient = useQueryClient();
+
+  // Track the mapped Supabase user ID
+  const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
+  const [mappingLoaded, setMappingLoaded] = useState(false);
+
+  // Fetch the Supabase user ID from the mapping table when Clerk user is loaded
+  useEffect(() => {
+    async function fetchSupabaseUserId() {
+      if (!clerkUser?.id) {
+        setSupabaseUserId(null);
+        setMappingLoaded(true);
+        return;
+      }
+
+      try {
+        logger.log('🔗 ClerkAuth: Looking up Supabase user ID for Clerk user:', clerkUser.id);
+
+        const { data, error } = await supabase
+          .from('clerk_user_mapping')
+          .select('supabase_user_id')
+          .eq('clerk_user_id', clerkUser.id)
+          .single();
+
+        if (error) {
+          // If no mapping found, try looking up by email
+          if (error.code === 'PGRST116') {
+            logger.log('🔗 ClerkAuth: No mapping found by Clerk ID, trying email lookup');
+            const email = clerkUser.primaryEmailAddress?.emailAddress;
+            if (email) {
+              const { data: emailData, error: emailError } = await supabase
+                .from('clerk_user_mapping')
+                .select('supabase_user_id')
+                .eq('email', email)
+                .single();
+
+              if (emailData && !emailError) {
+                logger.log('✅ ClerkAuth: Found Supabase user ID via email:', emailData.supabase_user_id);
+                setSupabaseUserId(emailData.supabase_user_id);
+                setMappingLoaded(true);
+                return;
+              }
+            }
+          }
+          logger.warn('⚠️ ClerkAuth: Could not find Supabase user mapping:', error.message);
+          // Fall back to using Clerk ID (won't match existing data but allows new users)
+          setSupabaseUserId(null);
+        } else if (data) {
+          logger.log('✅ ClerkAuth: Found Supabase user ID:', data.supabase_user_id);
+          setSupabaseUserId(data.supabase_user_id);
+        }
+      } catch (err) {
+        logger.error('❌ ClerkAuth: Error fetching Supabase user mapping:', err);
+        setSupabaseUserId(null);
+      }
+
+      setMappingLoaded(true);
+    }
+
+    if (userLoaded) {
+      fetchSupabaseUserId();
+    }
+  }, [clerkUser?.id, clerkUser?.primaryEmailAddress?.emailAddress, userLoaded]);
+
+  // Convert Clerk user to Supabase-compatible format
+  // IMPORTANT: Use the mapped Supabase user ID for data queries
+  const user: ClerkUserCompat | null = useMemo(() => {
+    if (!clerkUser) return null;
+
+    return {
+      // Use Supabase user ID if available, otherwise fall back to Clerk ID
+      id: supabaseUserId || clerkUser.id,
+      email: clerkUser.primaryEmailAddress?.emailAddress,
+      user_metadata: {
+        full_name: clerkUser.fullName || undefined,
+        first_name: clerkUser.firstName || undefined,
+        last_name: clerkUser.lastName || undefined,
+      },
+      created_at: clerkUser.createdAt?.toISOString(),
+    };
+  }, [clerkUser, supabaseUserId]);
+
+  // Create session-like object for compatibility
+  const session: ClerkSessionCompat | null = useMemo(() => {
+    if (!isSignedIn || !user) return null;
+
+    return {
+      user,
+      // Token will be fetched when needed via getToken()
+    };
+  }, [isSignedIn, user]);
+
+  // Loading state - true until all Clerk hooks are loaded AND mapping is resolved
+  const loading = !userLoaded || !authLoaded || !signInLoaded || !signUpLoaded || !mappingLoaded;
+
+  /**
+   * Sign in with email and password
+   */
+  const signIn = useCallback(async (email: string, password: string): Promise<{ error: AuthError | null }> => {
+    if (!clerkSignIn) {
+      return { error: { message: 'Sign in not available', status: 500 } };
+    }
+
+    try {
+      logger.log('🔐 ClerkAuth: Attempting sign in for:', email.toLowerCase().trim());
+
+      const signInAttempt = await clerkSignIn.create({
+        identifier: email.toLowerCase().trim(),
+        password,
+      });
+
+      if (signInAttempt.status === 'complete') {
+        await setSignInActive({ session: signInAttempt.createdSessionId });
+
+        logger.log('✅ ClerkAuth: Sign in successful');
+
+        // Invalidate all queries to refetch with new auth context
+        queryClient.invalidateQueries();
+
+        return { error: null };
+      } else {
+        // Handle incomplete sign-in (e.g., 2FA required)
+        logger.warn('⚠️ ClerkAuth: Sign in incomplete, status:', signInAttempt.status);
+        return {
+          error: {
+            message: `Sign in requires additional verification: ${signInAttempt.status}`,
+            status: 403
+          }
+        };
+      }
+    } catch (err: any) {
+      logger.error('❌ ClerkAuth: Sign in error:', err);
+
+      // Extract error message from Clerk error format
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Sign in failed';
+
+      return {
+        error: {
+          message: errorMessage,
+          status: err?.status || 401
+        }
+      };
+    }
+  }, [clerkSignIn, setSignInActive, queryClient]);
+
+  /**
+   * Sign up with email and password
+   */
+  const signUp = useCallback(async (
+    email: string,
+    password: string,
+    metadata?: { full_name?: string }
+  ): Promise<{ error: AuthError | null }> => {
+    if (!clerkSignUp) {
+      return { error: { message: 'Sign up not available', status: 500 } };
+    }
+
+    try {
+      logger.log('🔐 ClerkAuth: Attempting sign up for:', email.toLowerCase().trim());
+
+      // Parse full_name into first and last name
+      let firstName: string | undefined;
+      let lastName: string | undefined;
+
+      if (metadata?.full_name) {
+        const nameParts = metadata.full_name.trim().split(' ');
+        firstName = nameParts[0];
+        lastName = nameParts.slice(1).join(' ') || undefined;
+      }
+
+      // Create the sign up
+      await clerkSignUp.create({
+        emailAddress: email.toLowerCase().trim(),
+        password,
+        firstName,
+        lastName,
+      });
+
+      // Send email verification code
+      await clerkSignUp.prepareEmailAddressVerification({
+        strategy: 'email_code',
+      });
+
+      logger.log('✅ ClerkAuth: Sign up initiated, verification email sent');
+
+      // Note: User needs to verify email before sign up is complete
+      // The verification flow will be handled in the sign up page
+      return { error: null };
+    } catch (err: any) {
+      logger.error('❌ ClerkAuth: Sign up error:', err);
+
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Sign up failed';
+
+      return {
+        error: {
+          message: errorMessage,
+          status: err?.status || 400
+        }
+      };
+    }
+  }, [clerkSignUp]);
+
+  /**
+   * Sign out the current user
+   */
+  const signOut = useCallback(async (): Promise<{ error: AuthError | null }> => {
+    try {
+      logger.log('🔐 ClerkAuth: Signing out...');
+
+      await clerkSignOut();
+
+      // Clear all cached data
+      queryClient.clear();
+
+      toast.success('Successfully signed out!');
+      logger.log('✅ ClerkAuth: Sign out successful');
+
+      return { error: null };
+    } catch (err: any) {
+      logger.error('❌ ClerkAuth: Sign out error:', err);
+
+      return {
+        error: {
+          message: err?.message || 'Sign out failed',
+          status: err?.status || 500
+        }
+      };
+    }
+  }, [clerkSignOut, queryClient]);
+
+  /**
+   * Request password reset email
+   */
+  const resetPassword = useCallback(async (email: string): Promise<{ error: AuthError | null }> => {
+    if (!clerkSignIn) {
+      return { error: { message: 'Password reset not available', status: 500 } };
+    }
+
+    try {
+      logger.log('🔐 ClerkAuth: Requesting password reset for:', email.toLowerCase().trim());
+
+      // Use Clerk's forgot password flow
+      await clerkSignIn.create({
+        strategy: 'reset_password_email_code',
+        identifier: email.toLowerCase().trim(),
+      });
+
+      logger.log('✅ ClerkAuth: Password reset email sent');
+
+      return { error: null };
+    } catch (err: any) {
+      logger.error('❌ ClerkAuth: Password reset error:', err);
+
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Password reset failed';
+
+      return {
+        error: {
+          message: errorMessage,
+          status: err?.status || 400
+        }
+      };
+    }
+  }, [clerkSignIn]);
+
+  /**
+   * Update password (after receiving reset code)
+   * Note: This is different from Supabase - Clerk requires the reset code
+   * The actual implementation will be in the reset-password page
+   */
+  const updatePassword = useCallback(async (password: string): Promise<{ error: AuthError | null }> => {
+    // Note: In Clerk, updating password requires the reset code from email
+    // This method signature exists for compatibility but the full flow
+    // happens in the forgot-password page using signIn.attemptFirstFactor
+
+    logger.warn('⚠️ ClerkAuth: updatePassword called directly - use forgot password flow instead');
+
+    return {
+      error: {
+        message: 'Use the forgot password flow to update your password',
+        status: 400
+      }
+    };
+  }, []);
+
+  // Computed values
+  const isAuthenticated = isSignedIn ?? false;
+  // Use mapped Supabase user ID for data queries, fall back to Clerk ID
+  const userId = supabaseUserId || clerkUser?.id || null;
+
+  const value: ClerkAuthContextType = useMemo(() => ({
+    // State
+    user,
+    session,
+    loading,
+
+    // Actions
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+
+    // Utilities
+    isAuthenticated,
+    userId,
+  }), [
+    user,
+    session,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+    updatePassword,
+    isAuthenticated,
+    userId,
+  ]);
+
+  // Note: We use ClerkAuthContext here, but AuthContext.tsx wraps this
+  // and re-exports the value through the main AuthContext
+  return (
+    <ClerkAuthContext.Provider value={value}>
+      {children}
+    </ClerkAuthContext.Provider>
+  );
+};
+
+/**
+ * Hook to get Clerk token for Supabase requests
+ * Use this when making Supabase API calls with Clerk auth
+ */
+export const useClerkSupabaseToken = () => {
+  const { getToken } = useClerkAuth();
+
+  return useCallback(async () => {
+    // Get token from the 'supabase' JWT template configured in Clerk
+    const token = await getToken({ template: 'supabase' });
+    return token;
+  }, [getToken]);
+};
+
+export default ClerkAuthProvider;

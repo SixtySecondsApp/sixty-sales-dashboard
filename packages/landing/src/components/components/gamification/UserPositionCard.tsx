@@ -5,11 +5,12 @@ interface UserPositionCardProps {
   effectivePosition: number;
   signupPosition: number;
   referralCount: number;
+  totalPoints?: number;
 }
 
-export function UserPositionCard({ effectivePosition, signupPosition, referralCount }: UserPositionCardProps) {
+export function UserPositionCard({ effectivePosition, signupPosition, referralCount, totalPoints }: UserPositionCardProps) {
   const positionsMoved = signupPosition - effectivePosition;
-  const pointsEarned = referralCount * 5;
+  const pointsEarned = totalPoints ?? 0;
 
   return (
     <motion.div
@@ -71,10 +72,10 @@ export function UserPositionCard({ effectivePosition, signupPosition, referralCo
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs text-gray-500 uppercase tracking-wide">Points</span>
+              <span className="text-xs text-gray-500 uppercase tracking-wide">Total Points</span>
             </div>
             <div className="text-2xl font-bold text-white">{pointsEarned}</div>
-            <div className="text-xs text-gray-500 mt-1">positions moved</div>
+            <div className="text-xs text-gray-500 mt-1">earned</div>
           </div>
         </div>
 

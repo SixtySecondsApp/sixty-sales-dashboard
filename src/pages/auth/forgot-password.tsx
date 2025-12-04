@@ -1,20 +1,88 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/lib/contexts/AuthContext';
+import { useAuth, isClerkAuthEnabled } from '@/lib/contexts/AuthContext';
+import { useSignIn } from '@clerk/clerk-react';
 import { toast } from 'sonner';
-import { Mail, ArrowLeft } from 'lucide-react';
+import { Mail, ArrowLeft, Lock, KeyRound } from 'lucide-react';
 
 export default function ForgotPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  // Clerk-specific state for 2-step verification
+  const [verificationCode, setVerificationCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showVerificationStep, setShowVerificationStep] = useState(false);
+
   const navigate = useNavigate();
   const { resetPassword } = useAuth();
 
+  // Clerk hooks - only used when Clerk auth is enabled
+  const clerkSignIn = isClerkAuthEnabled() ? useSignIn() : null;
+  const { signIn, setActive } = clerkSignIn || {};
+
+  // Handle Supabase password reset (sends email with link)
+  const handleSupabaseReset = async () => {
+    const { error } = await resetPassword(email);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      setIsSubmitted(true);
+      toast.success('Password reset instructions sent to your email');
+    }
+  };
+
+  // Handle Clerk password reset - Step 1: Request code
+  const handleClerkResetRequest = async () => {
+    if (!signIn) return;
+
+    try {
+      await signIn.create({
+        strategy: 'reset_password_email_code',
+        identifier: email.toLowerCase().trim(),
+      });
+      setShowVerificationStep(true);
+      toast.success('Verification code sent to your email');
+    } catch (err: any) {
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Failed to send reset code';
+      toast.error(errorMessage);
+    }
+  };
+
+  // Handle Clerk password reset - Step 2: Verify code and set password
+  const handleClerkVerifyAndReset = async () => {
+    if (!signIn || !setActive) return;
+
+    try {
+      const result = await signIn.attemptFirstFactor({
+        strategy: 'reset_password_email_code',
+        code: verificationCode,
+        password: newPassword,
+      });
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        toast.success('Password reset successful! You are now logged in.');
+        navigate('/');
+      } else {
+        toast.error('Password reset incomplete. Please try again.');
+      }
+    } catch (err: any) {
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Failed to reset password';
+      toast.error(errorMessage);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email.trim()) {
       toast.error('Please enter your email address');
       return;
@@ -23,14 +91,35 @@ export default function ForgotPassword() {
     setIsLoading(true);
 
     try {
-      const { error } = await resetPassword(email);
-
-      if (error) {
-        toast.error(error.message);
+      if (isClerkAuthEnabled()) {
+        await handleClerkResetRequest();
       } else {
-        setIsSubmitted(true);
-        toast.success('Password reset instructions sent to your email');
+        await handleSupabaseReset();
       }
+    } catch (error: any) {
+      toast.error('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!verificationCode.trim()) {
+      toast.error('Please enter the verification code');
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await handleClerkVerifyAndReset();
     } catch (error: any) {
       toast.error('An unexpected error occurred. Please try again.');
     } finally {
@@ -61,7 +150,8 @@ export default function ForgotPassword() {
             </p>
           </div>
 
-          {!isSubmitted ? (
+          {/* Step 1: Email input (for both Supabase and Clerk) */}
+          {!isSubmitted && !showVerificationStep && (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-400">
@@ -86,10 +176,81 @@ export default function ForgotPassword() {
                 disabled={isLoading}
                 className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
               >
-                {isLoading ? 'Sending...' : 'Send Reset Link'}
+                {isLoading ? 'Sending...' : 'Send Reset Code'}
               </button>
             </form>
-          ) : (
+          )}
+
+          {/* Step 2: Clerk verification code + new password */}
+          {showVerificationStep && (
+            <form onSubmit={handleVerificationSubmit} className="space-y-6">
+              <div className="p-4 bg-gray-800/30 rounded-xl border border-gray-700/30 mb-4">
+                <p className="text-gray-300 text-sm">
+                  We've sent a verification code to <span className="text-[#37bd7e] font-medium">{email}</span>
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-400">
+                  Verification Code
+                </label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    required
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors hover:bg-gray-600"
+                    placeholder="Enter 6-digit code"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-400">
+                  New Password
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full bg-gray-700 border border-gray-600 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors hover:bg-gray-600"
+                    placeholder="At least 8 characters"
+                    disabled={isLoading}
+                    minLength={8}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-[#37bd7e] text-white py-2.5 rounded-xl font-medium hover:bg-[#2da76c] focus:outline-none focus:ring-2 focus:ring-[#37bd7e] focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#37bd7e]/20"
+              >
+                {isLoading ? 'Resetting...' : 'Reset Password'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVerificationStep(false);
+                  setVerificationCode('');
+                  setNewPassword('');
+                }}
+                className="w-full text-gray-400 hover:text-white text-sm font-medium transition-colors"
+              >
+                Use a different email
+              </button>
+            </form>
+          )}
+
+          {/* Supabase success message (email link sent) */}
+          {isSubmitted && !showVerificationStep && (
             <div className="p-6 bg-gray-800/30 rounded-xl border border-gray-700/30 text-center">
               <p className="text-gray-300 mb-4">
                 We've sent a password reset link to <span className="text-[#37bd7e] font-medium">{email}</span>

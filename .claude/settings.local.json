@@ -37,7 +37,10 @@
       "Bash(while read file)",
       "Bash(do grep -c 'variant=' \"$file\")",
       "Bash(done)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(grep:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs"
     ],
     "deny": [],
     "ask": []

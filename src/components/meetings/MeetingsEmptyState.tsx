@@ -2,7 +2,6 @@ import { motion } from 'framer-motion';
 import { Video, Link2, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useFathomIntegration } from '@/lib/hooks/useFathomIntegration';
-import { useNavigate } from 'react-router-dom';
 
 interface MeetingsEmptyStateProps {
   meetingCount?: number;
@@ -11,7 +10,6 @@ interface MeetingsEmptyStateProps {
 
 export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing = false }: MeetingsEmptyStateProps) {
   const { integration, connectFathom, triggerSync, loading: fathomLoading, isSyncing: hookIsSyncing } = useFathomIntegration();
-  const navigate = useNavigate();
 
   const isConnected = integration?.is_active === true;
   const hasMeetings = meetingCount > 0;
@@ -68,15 +66,6 @@ export function MeetingsEmptyState({ meetingCount = 0, isSyncing: propIsSyncing 
             </>
           )}
         </Button>
-        <p className="text-sm text-gray-500 mt-4">
-          Or{' '}
-          <button
-            onClick={() => navigate('/onboarding')}
-            className="text-[#37bd7e] hover:text-[#2da76c] underline"
-          >
-            complete onboarding
-          </button>
-        </p>
       </motion.div>
     );
   }

@@ -11,6 +11,21 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Loader2, CheckCircle2, Info, XCircle, TestTube2 } from 'lucide-react'
 
+// Type definitions for user_settings table (not yet in database.types.ts)
+interface UserSettings {
+  id: string
+  user_id: string
+  preferences: Record<string, any>
+  created_at?: string
+  updated_at?: string
+}
+
+interface UserSettingsInsert {
+  user_id: string
+  preferences: Record<string, any>
+  updated_at?: string
+}
+
 export function TaskSyncSettings() {
   const { user, loading: authLoading } = useAuth()
 
@@ -34,7 +49,7 @@ export function TaskSyncSettings() {
 
   const [settings, setSettings] = useState({
     enabled: false,
-    importance_levels: ['critical', 'high', 'medium', 'low'], // Default to all levels for better UX
+    importance_levels: ['high', 'medium', 'low'], // Valid values: 'high', 'medium', 'low' (no 'critical')
     confidence_threshold: 0.8
   })
 
@@ -46,6 +61,19 @@ export function TaskSyncSettings() {
       setIsLoading(false)
     }
   }, [user?.id])
+
+  // Ensure settings are always valid (no 'critical' or invalid values)
+  useEffect(() => {
+    const validLevels = settings.importance_levels.filter(
+      level => ['high', 'medium', 'low'].includes(level)
+    )
+    
+    if (validLevels.length !== settings.importance_levels.length) {
+      // Invalid values detected, sanitize
+      const sanitizedLevels = validLevels.length > 0 ? validLevels : ['high', 'medium', 'low']
+      setSettings({ ...settings, importance_levels: sanitizedLevels })
+    }
+  }, [settings.importance_levels])
 
   useEffect(() => {
     if (user?.id && settings.enabled) {
@@ -74,23 +102,48 @@ export function TaskSyncSettings() {
       if (error) {
         // If no settings exist, create default settings
         if (error.code === 'PGRST116') {
-          await supabase
-            .from('user_settings')
-            .insert({
-              user_id: user.id,
-              preferences: {
-                task_auto_sync: {
-                  enabled: false,
-                  importance_levels: ['critical', 'high', 'medium', 'low'], // Default to all levels
-                  confidence_threshold: 0.8
-                }
+          const insertData: UserSettingsInsert = {
+            user_id: user.id,
+            preferences: {
+              task_auto_sync: {
+                enabled: false,
+                importance_levels: ['high', 'medium', 'low'], // Valid values only
+                confidence_threshold: 0.8
               }
+            }
+          }
+          const { error: insertError } = await supabase
+            .from('user_settings')
+            .upsert(insertData as any, {
+              onConflict: 'user_id'
             })
+          
+          if (insertError) {
+            console.error('Failed to create default settings:', insertError)
+          }
         } else {
           throw error
         }
-      } else if (data?.preferences?.task_auto_sync) {
-        setSettings(data.preferences.task_auto_sync)
+      } else if (data) {
+        const settingsData = data as UserSettings
+        if (settingsData.preferences) {
+          const preferences = settingsData.preferences as Record<string, any>
+          if (preferences.task_auto_sync) {
+            // Validate and sanitize importance_levels - remove any invalid values like 'critical'
+            const loadedLevels = preferences.task_auto_sync.importance_levels || []
+            const validLevels = Array.isArray(loadedLevels)
+              ? loadedLevels.filter((level: string) => ['high', 'medium', 'low'].includes(level))
+              : ['high', 'medium', 'low']
+            
+            // Ensure at least one level is selected
+            const sanitizedLevels = validLevels.length > 0 ? validLevels : ['high', 'medium', 'low']
+            
+            setSettings({
+              ...preferences.task_auto_sync,
+              importance_levels: sanitizedLevels
+            })
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to load settings:', error)
@@ -108,12 +161,28 @@ export function TaskSyncSettings() {
 
     setIsLoadingPreview(true)
     try {
-      // Count action items that would auto-sync with current settings
+      // Filter out invalid importance levels (only 'high', 'medium', 'low' are valid)
+      const validImportanceLevels = settings.importance_levels.filter(
+        level => ['high', 'medium', 'low'].includes(level)
+      )
+      
+      if (validImportanceLevels.length === 0) {
+        setPreviewCount(0)
+        return
+      }
+
+      // Build query - handle single value case differently to avoid encoding issues
       let query = supabase
         .from('meeting_action_items')
         .select('id', { count: 'exact', head: true })
         .eq('synced_to_task', false)
-        .in('importance', settings.importance_levels)
+
+      // Use .in() for multiple values, .eq() for single value
+      if (validImportanceLevels.length === 1) {
+        query = query.eq('importance', validImportanceLevels[0])
+      } else {
+        query = query.in('importance', validImportanceLevels)
+      }
 
       // Add confidence threshold filter if applicable
       if (settings.confidence_threshold > 0) {
@@ -122,7 +191,10 @@ export function TaskSyncSettings() {
 
       const { count, error } = await query
 
-      if (error) throw error
+      if (error) {
+        console.error('Preview count query error:', error)
+        throw error
+      }
       setPreviewCount(count || 0)
     } catch (error) {
       console.error('Failed to load preview:', error)
@@ -137,43 +209,96 @@ export function TaskSyncSettings() {
 
     setIsSaving(true)
     try {
+      // Filter out invalid importance levels before saving (ensure 'critical' is never included)
+      const validImportanceLevels = settings.importance_levels.filter(
+        level => ['high', 'medium', 'low'].includes(level)
+      )
+      
+      // Ensure at least one valid level is selected
+      if (validImportanceLevels.length === 0) {
+        toast.error('Please select at least one importance level')
+        setIsSaving(false)
+        return
+      }
+      
+      const settingsToSave = {
+        ...settings,
+        importance_levels: validImportanceLevels
+      }
+
       // Get existing preferences to merge with
-      const { data: existingData } = await supabase
+      const { data: existingData, error: fetchError } = await supabase
         .from('user_settings')
         .select('preferences')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
-      const existingPreferences = existingData?.preferences || {}
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        throw fetchError
+      }
 
+      const existingPreferences = existingData 
+        ? ((existingData as UserSettings).preferences as Record<string, any>)
+        : {}
+
+      const updateData: UserSettingsInsert = {
+        user_id: user.id,
+        preferences: {
+          ...existingPreferences,
+          task_auto_sync: settingsToSave
+        },
+        updated_at: new Date().toISOString()
+      }
+
+      // Use upsert with proper conflict handling
       const { error } = await supabase
         .from('user_settings')
-        .upsert({
-          user_id: user.id,
-          preferences: {
-            ...existingPreferences,
-            task_auto_sync: settings
-          },
-          updated_at: new Date().toISOString()
+        .upsert(updateData as any, {
+          onConflict: 'user_id'
         })
 
-      if (error) throw error
+      if (error) {
+        // If upsert fails with conflict, try explicit update
+        if (error.code === '23505' || error.message?.includes('duplicate')) {
+          const { error: updateError } = await (supabase
+            .from('user_settings') as any)
+            .update(updateData)
+            .eq('user_id', user.id)
+          
+          if (updateError) throw updateError
+        } else {
+          throw error
+        }
+      }
 
       toast.success('Settings saved successfully')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save settings:', error)
-      toast.error('Failed to save settings')
+      const errorMessage = error?.message || 'Failed to save settings'
+      toast.error(errorMessage)
     } finally {
       setIsSaving(false)
     }
   }
 
   const toggleImportanceLevel = (level: string) => {
+    // Only allow valid importance levels
+    if (!['high', 'medium', 'low'].includes(level)) {
+      console.warn(`Invalid importance level attempted: ${level}`)
+      return
+    }
+
     const newLevels = settings.importance_levels.includes(level)
       ? settings.importance_levels.filter(l => l !== level)
       : [...settings.importance_levels, level]
 
-    setSettings({ ...settings, importance_levels: newLevels })
+    // Ensure we always have at least one valid level
+    const validNewLevels = newLevels.filter(l => ['high', 'medium', 'low'].includes(l))
+    
+    setSettings({ 
+      ...settings, 
+      importance_levels: validNewLevels.length > 0 ? validNewLevels : ['high', 'medium', 'low']
+    })
   }
 
   const loadRecentMeetings = async () => {
@@ -199,13 +324,25 @@ export function TaskSyncSettings() {
       if (error) throw error
 
       // Deduplicate and format meetings
-      const uniqueMeetings = data?.reduce((acc: any[], meeting) => {
+      interface MeetingWithActionItems {
+        id: string
+        title: string | null
+        meeting_start: string | null
+        meeting_action_items: Array<{ id: string }>
+      }
+
+      const uniqueMeetings = (data as MeetingWithActionItems[] | null)?.reduce((acc: Array<{
+        id: string
+        title: string | null
+        meeting_start: string | null
+        action_item_count: number
+      }>, meeting) => {
         if (!acc.find(m => m.id === meeting.id)) {
           acc.push({
             id: meeting.id,
             title: meeting.title,
             meeting_start: meeting.meeting_start,
-            action_item_count: data.filter(m => m.id === meeting.id).length
+            action_item_count: (data as MeetingWithActionItems[]).filter(m => m.id === meeting.id).length
           })
         }
         return acc
@@ -235,16 +372,29 @@ export function TaskSyncSettings() {
       if (error) throw error
 
       // Test each action item against current settings
-      const results = actionItems?.map(item => {
-        const importanceMatch = settings.importance_levels.includes(item.importance || 'medium')
-        const confidenceMatch = !item.confidence_score || item.confidence_score >= settings.confidence_threshold
+      interface ActionItemWithExtras {
+        id: string
+        title: string
+        description?: string | null
+        importance?: 'high' | 'medium' | 'low' | null
+        confidence_score?: number | null
+        ai_confidence_score?: number | null
+        [key: string]: any
+      }
+
+      const results = (actionItems as ActionItemWithExtras[] | null)?.map(item => {
+        // Use confidence_score if available, otherwise fall back to ai_confidence_score
+        const confidenceScore = item.confidence_score ?? item.ai_confidence_score ?? null
+        const importanceMatch = settings.importance_levels.includes((item.importance || 'medium') as string)
+        const confidenceMatch = !confidenceScore || confidenceScore >= settings.confidence_threshold
         const wouldSync = importanceMatch && confidenceMatch
 
         return {
           ...item,
           wouldSync,
           importanceMatch,
-          confidenceMatch
+          confidenceMatch,
+          confidence_score: confidenceScore
         }
       }) || []
 
@@ -355,25 +505,12 @@ export function TaskSyncSettings() {
             <div className="space-y-2 ml-1">
               <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                 <Checkbox
-                  checked={settings.importance_levels.includes('critical')}
-                  onCheckedChange={() => toggleImportanceLevel('critical')}
-                  disabled={!settings.enabled}
-                />
-                <div className="flex-1 flex items-center justify-between">
-                  <span className="text-sm text-gray-900 dark:text-gray-100">Critical Importance</span>
-                  <span className="px-2 py-0.5 text-xs font-bold bg-purple-100 text-purple-900 dark:bg-purple-900 dark:text-purple-100 rounded">
-                    CRITICAL
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                <Checkbox
                   checked={settings.importance_levels.includes('high')}
                   onCheckedChange={() => toggleImportanceLevel('high')}
                   disabled={!settings.enabled}
                 />
                 <div className="flex-1 flex items-center justify-between">
-                  <span className="text-sm text-gray-900 dark:text-gray-100">High Importance</span>
+                  <span className="text-sm text-gray-900 dark:text-gray-100">High Importance (Critical)</span>
                   <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100 rounded">
                     HIGH
                   </span>

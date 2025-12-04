@@ -13,6 +13,8 @@ const publicRoutes = [
   '/auth/signup',
   '/auth/forgot-password',
   '/auth/reset-password',
+  '/auth/callback',
+  '/auth/sso-callback',
   '/debug-auth',
   '/auth/google/callback',
   '/oauth/fathom/callback'
