@@ -355,7 +355,7 @@ export function MeetingDetail() {
         // Fallback: placeholder
         if (!thumbnailUrl) {
           const firstLetter = (meeting.title || 'M')[0].toUpperCase();
-          thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`;
+          thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`;
         }
 
         // Update meeting record (best effort; RLS must allow owner updates)

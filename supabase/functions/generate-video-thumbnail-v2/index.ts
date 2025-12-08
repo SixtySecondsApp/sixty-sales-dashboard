@@ -70,6 +70,10 @@ async function captureWithCustomAPI(
     })
     if (!response.ok) {
       const errorText = await response.text()
+      console.error(
+        `❌ Thumbnail API returned ${response.status} for recording ${recordingId}:`,
+        errorText.substring(0, 300)
+      )
       return null
     }
     
@@ -77,10 +81,13 @@ async function captureWithCustomAPI(
     if (data.http_url) {
       return data.http_url
     }
+    console.warn(`⚠️ Thumbnail API did not return http_url for recording ${recordingId}`, data)
     return null
   } catch (error) {
-    if (error instanceof Error && error.stack) {
-    }
+    console.error(
+      `❌ Thumbnail API request failed for recording ${recordingId}:`,
+      error instanceof Error ? error.message : String(error)
+    )
     return null
   }
 }
@@ -140,10 +147,16 @@ serve(async (req) => {
     const normalizedShareUrl = normalizeFathomShareUrl(share_url)
     let thumbnailUrl: string | null = null
 
-    // Try custom API first (primary method)
-    if (Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
+    // Try custom API first (primary method) unless explicitly disabled
+    const thumbnailsFlag = Deno.env.get('ENABLE_VIDEO_THUMBNAILS')
+    const thumbnailsExplicitlyDisabled = thumbnailsFlag === 'false'
+    if (!thumbnailsExplicitlyDisabled) {
       thumbnailUrl = await captureWithCustomAPI(normalizedShareUrl, recording_id)
+      if (!thumbnailUrl) {
+        console.warn(`⚠️ Custom thumbnail API returned null for recording ${recording_id}`)
+      }
     } else {
+      console.log('ℹ️ ENABLE_VIDEO_THUMBNAILS is explicitly false; skipping custom API capture')
     }
 
     // Fallback to og:image scraping
@@ -154,7 +167,7 @@ serve(async (req) => {
     // Final fallback: placeholder image
     if (!thumbnailUrl) {
       const firstLetter = (share_url.match(/\/([A-Za-z])/)?.[1] || 'M').toUpperCase()
-      thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+      thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
     }
     // If meeting_id provided, persist to database using service role
     let dbUpdated = false
@@ -172,8 +185,10 @@ serve(async (req) => {
         if (!updateError) {
           dbUpdated = true
         } else {
+          console.warn(`⚠️ Failed to persist thumbnail_url for meeting ${meeting_id}:`, updateError.message)
         }
       } catch (e) {
+        console.error(`❌ Error persisting thumbnail for meeting ${meeting_id}:`, e instanceof Error ? e.message : String(e))
       }
     }
 
@@ -184,7 +199,7 @@ serve(async (req) => {
         recording_id,
         db_updated: dbUpdated,
         method_used: thumbnailUrl.includes('fathom-thumbnail.s3') ? 'custom_api' : 
-                     thumbnailUrl.includes('placeholder') ? 'placeholder' : 'og_image'
+                     thumbnailUrl.includes('dummyimage.com') ? 'placeholder' : 'og_image'
       }),
       {
         status: 200,
@@ -192,6 +207,7 @@ serve(async (req) => {
       }
     )
   } catch (error) {
+    console.error('❌ Unhandled error in generate-video-thumbnail-v2:', error)
     return new Response(
       JSON.stringify({
         success: false,

@@ -346,7 +346,7 @@ const MeetingsList: React.FC = () => {
           // Fallback placeholder if generation not possible
           if (!thumbnailUrl) {
             const firstLetter = (m.title || 'M')[0].toUpperCase()
-            thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+            thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
           }
 
           // Persist and update local state

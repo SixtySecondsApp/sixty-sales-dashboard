@@ -132,7 +132,7 @@ serve(async (req) => {
         // Fallback to placeholder if thumbnail service failed
         if (!thumbnailUrl) {
           const firstLetter = (meeting.title || 'M')[0].toUpperCase()
-          thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+          thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
         }
 
         // Update meeting with thumbnail URL

@@ -155,6 +155,18 @@ function buildEmbedUrl(shareUrl?: string, recordingId?: string | number): string
   }
 }
 
+/**
+ * Normalize calendar_invitees_type to allowed values for DB check constraint.
+ * Only 'all_internal' or 'one_or_more_external' are permitted; everything else becomes null.
+ */
+function normalizeInviteesType(rawType: unknown): 'all_internal' | 'one_or_more_external' | null {
+  if (!rawType || typeof rawType !== 'string') return null
+  const value = rawType.toLowerCase().replace('-', '_').trim()
+  if (value === 'all_internal') return 'all_internal'
+  if (value === 'one_or_more_external') return 'one_or_more_external'
+  return null
+}
+
 
 /**
  * Helper: Generate video thumbnail by calling the thumbnail generation service
@@ -162,25 +174,34 @@ function buildEmbedUrl(shareUrl?: string, recordingId?: string | number): string
 async function generateVideoThumbnail(
   recordingId: string | number,
   shareUrl: string,
-  embedUrl: string
+  embedUrl: string,
+  meetingId?: string
 ): Promise<string | null> {
   try {
     const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-video-thumbnail-v2`
+    const requestBody: any = {
+      recording_id: String(recordingId),
+      share_url: shareUrl,
+      fathom_embed_url: embedUrl,
+    }
+    
+    // Include meeting_id if available so thumbnail can be persisted to database
+    if (meetingId) {
+      requestBody.meeting_id = meetingId
+    }
+    
     const response = await fetch(functionUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        recording_id: String(recordingId),
-        share_url: shareUrl,
-        fathom_embed_url: embedUrl,
-      }),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
+      console.error(`❌ Thumbnail generation failed (status ${response.status}):`, errorText.substring(0, 200))
       return null
     }
 
@@ -189,8 +210,11 @@ async function generateVideoThumbnail(
     if (data.success && data.thumbnail_url) {
       return data.thumbnail_url
     }
+    
+    console.warn(`⚠️  Thumbnail generation returned unsuccessful response:`, data)
     return null
   } catch (error) {
+    console.error(`❌ Error calling thumbnail generation function:`, error instanceof Error ? error.message : String(error))
     return null
   }
 }
@@ -1200,18 +1224,32 @@ async function syncSingleCall(
     // Compute derived fields prior to DB write
     const embedUrl = buildEmbedUrl(call.share_url, call.recording_id)
 
-    // Generate thumbnail using thumbnail service only
+    // Generate thumbnail using thumbnail service
     let thumbnailUrl: string | null = null
 
-    // Generate video screenshot (if enabled, not skipped, and embed URL available)
-    if (!skipThumbnails && embedUrl && Deno.env.get('ENABLE_VIDEO_THUMBNAILS') === 'true') {
-      thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
+    // Always attempt thumbnail generation if embed URL is available (unless explicitly skipped)
+    // The generateVideoThumbnail function will handle fallbacks internally
+    // Note: We'll call it again after meeting is created to pass meeting_id for DB persistence
+    if (!skipThumbnails && embedUrl) {
+      try {
+        console.log(`🖼️  Generating thumbnail for recording ${call.recording_id}`)
+        thumbnailUrl = await generateVideoThumbnail(call.recording_id, call.share_url, embedUrl)
+        if (thumbnailUrl) {
+          console.log(`✅ Thumbnail generated successfully: ${thumbnailUrl.substring(0, 100)}...`)
+        } else {
+          console.log(`⚠️  Thumbnail generation returned null for recording ${call.recording_id}`)
+        }
+      } catch (error) {
+        console.error(`❌ Error generating thumbnail for recording ${call.recording_id}:`, error instanceof Error ? error.message : String(error))
+        // Continue with fallback placeholder
+      }
     }
 
     // Fallback to placeholder if thumbnail service failed or disabled
     if (!thumbnailUrl) {
       const firstLetter = (call.title || 'M')[0].toUpperCase()
-      thumbnailUrl = `https://via.placeholder.com/640x360/1a1a1a/10b981?text=${encodeURIComponent(firstLetter)}`
+      thumbnailUrl = `https://dummyimage.com/640x360/1a1a1a/10b981&text=${encodeURIComponent(firstLetter)}`
+      console.log(`📝 Using placeholder thumbnail for meeting ${call.recording_id}`)
     }
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
@@ -1241,15 +1279,10 @@ async function syncSingleCall(
       // Additional metadata fields
       fathom_created_at: call.created_at || null,
       transcript_language: call.transcript_language || 'en',
-      // Validate calendar_invitees_type against check constraint
-      // Only allow 'all_internal' or 'one_or_more_external', set to null otherwise
-      calendar_invitees_type: (() => {
-        const inviteesType = call.calendar_invitees_domains_type;
-        if (inviteesType === 'all_internal' || inviteesType === 'one_or_more_external') {
-          return inviteesType;
-        }
-        return null; // Set to null if value doesn't match constraint
-      })(),
+      // Validate calendar_invitees_type against check constraint (only two allowed values)
+      calendar_invitees_type: normalizeInviteesType(
+        call.calendar_invitees_domains_type || call.calendar_invitees_type
+      ),
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
     }
@@ -1270,6 +1303,27 @@ async function syncSingleCall(
     if (meetingError) {
       throw new Error(`Failed to upsert meeting: ${meetingError.message}`)
     }
+    
+    // If thumbnail wasn't generated or is a placeholder, try again now that we have meeting.id
+    // This allows the thumbnail function to persist directly to the database
+    if (meeting && (!thumbnailUrl || thumbnailUrl.includes('dummyimage.com')) && embedUrl && !skipThumbnails) {
+      console.log(`🖼️  Retrying thumbnail generation for meeting ${meeting.id} (recording ${call.recording_id})`)
+      try {
+        const retryThumbnail = await generateVideoThumbnail(
+          call.recording_id,
+          call.share_url,
+          embedUrl,
+          meeting.id // Pass meeting_id so thumbnail can be persisted to DB
+        )
+        if (retryThumbnail && !retryThumbnail.includes('via.placeholder.com')) {
+          thumbnailUrl = retryThumbnail
+          console.log(`✅ Retry thumbnail generation successful for meeting ${meeting.id}`)
+        }
+      } catch (error) {
+        console.warn(`⚠️  Thumbnail retry failed for meeting ${meeting.id}:`, error instanceof Error ? error.message : String(error))
+      }
+    }
+    
     // CONDENSE SUMMARY IF AVAILABLE (non-blocking)
     // If we already have a summary from the bulk API, condense it in background
     if (summaryText && summaryText.length > 0) {
