@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
 
+// Log module load immediately
+console.log('🔵 FathomCallback.tsx module loaded');
+
 /**
  * Fathom OAuth Callback Page
  *
@@ -12,7 +15,7 @@ import { supabase } from '@/lib/supabase/clientV2';
  * without an authenticated session. The edge function handles authentication.
  */
 export default function FathomCallback() {
-  console.log('🔵 FathomCallback component loaded');
+  console.log('🔵 FathomCallback component function called');
   
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
