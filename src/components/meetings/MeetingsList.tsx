@@ -378,11 +378,6 @@ const MeetingsList: React.FC = () => {
 
   const fetchMeetings = async () => {
     if (!user) return
-    if (!activeOrgId) {
-      setMeetings([])
-      setLoading(false)
-      return
-    }
     
     setLoading(true)
     try {
@@ -394,18 +389,20 @@ const MeetingsList: React.FC = () => {
           action_items:meeting_action_items(completed),
           tasks(status)
         `)
-        .eq('org_id', activeOrgId)
         .order('meeting_start', { ascending: false })
+      
+      // Apply org scoping if we have an active org
+      if (activeOrgId) {
+        query = query.eq('org_id', activeOrgId)
+      }
 
       // RLS already filters by organization, so we get all meetings the user can access
-      // "My" scope filters to meetings where user is the owner
-      // "Team" scope shows all meetings in the organization
-      if (scope === 'me') {
-        // Show only meetings owned by the current user
-        // Use owner_user_id as primary filter, owner_email as fallback
+      // Additional client filters:
+      // - If no activeOrgId, fall back to user-owned meetings only to avoid empty state
+      // - "My" scope filters to meetings where user is the owner
+      if (scope === 'me' || !activeOrgId) {
         query = query.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
       }
-      // For 'team' scope, no additional filter needed - RLS handles org isolation
 
       const { data, error } = await query
 

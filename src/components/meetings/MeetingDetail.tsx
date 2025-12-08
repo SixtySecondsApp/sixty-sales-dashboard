@@ -162,17 +162,23 @@ const MeetingDetail: React.FC = () => {
 
   const fetchMeetingDetails = async () => {
     if (!id || !user) return
-    if (!activeOrgId) return
     
     setLoading(true)
     try {
       // Fetch meeting details - using left joins for optional relationships
-      const { data: meetingData, error: meetingError } = await supabase
+      let detailQuery = supabase
         .from('meetings')
         .select('*')
         .eq('id', id)
-        .eq('org_id', activeOrgId)
-        .single()
+      
+      // If we have an active org, enforce it. Otherwise, restrict to user's own meeting.
+      if (activeOrgId) {
+        detailQuery = detailQuery.eq('org_id', activeOrgId)
+      } else {
+        detailQuery = detailQuery.or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`)
+      }
+
+      const { data: meetingData, error: meetingError } = await detailQuery.single()
 
       if (meetingError) {
         throw meetingError
