@@ -107,6 +107,12 @@ const Integrations = lazyWithRetry(() => import('@/pages/Integrations'));
 const GoogleCallback = lazyWithRetry(() => import('@/pages/GoogleCallback'));
 // Import FathomCallback directly (not lazy) to ensure it loads for OAuth callbacks
 import FathomCallback from '@/pages/auth/FathomCallback';
+
+// Wrapper to verify route matching
+const FathomCallbackWrapper = () => {
+  console.log('🔴 FathomCallbackWrapper rendered - route matched!', window.location.href);
+  return <FathomCallback />;
+};
 const FormDisplay = lazyWithRetry(() => import('@/pages/FormDisplay'));
 const CompaniesTable = lazyWithRetry(() => import('@/pages/companies/CompaniesTable'));
 const CompanyProfile = lazyWithRetry(() => import('@/pages/companies/CompanyProfile'));
@@ -328,7 +334,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         
         {/* OAuth callback routes - must be public for external redirects */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
-        <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
+        <Route path="/oauth/fathom/callback" element={<FathomCallbackWrapper />} />
 
         {/* Organization invitation acceptance (can be accessed logged in or out) */}
         <Route path="/invite/:token" element={<AcceptInvitation />} />
