@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase/clientV2';
 import { toast } from 'sonner';
 import { Save, AlertCircle, Video } from 'lucide-react';
+import { FathomSettings } from '@/components/integrations/FathomSettings';
 
 export default function MeetingSyncPage() {
   const [autoMeetingEnabled, setAutoMeetingEnabled] = useState(false);
@@ -92,9 +93,20 @@ export default function MeetingSyncPage() {
   return (
     <SettingsPageWrapper
       title="Meeting Sync"
-      description="Automatically log meetings as activities"
+      description="Connect Fathom and configure automatic meeting sync"
     >
       <div className="space-y-6">
+        {/* Fathom Connection Section */}
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Fathom Integration</h2>
+          <FathomSettings />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-200 dark:border-gray-800 pt-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Auto-Log Settings</h2>
+        </div>
+
         {/* Info Banner */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
           <div className="flex gap-3">
