@@ -38,6 +38,7 @@ import { TalkTimeChart } from '@/components/meetings/analytics/TalkTimeChart'
 import { TalkTimeTrend } from '@/components/meetings/analytics/TalkTimeTrend'
 import { CoachingInsights } from '@/components/meetings/analytics/CoachingInsights'
 import { analyzeTalkTime, type TalkTimeMetrics } from '@/lib/services/coachingService'
+import { useOrg } from '@/lib/contexts/OrgContext'
 import { ActionItemsList } from '@/components/meetings/ActionItemsList'
 
 interface Meeting {
@@ -141,6 +142,7 @@ const MeetingDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { activeOrgId } = useOrg()
   const playerRef = useRef<any>(null)
   
   const [meeting, setMeeting] = useState<Meeting | null>(null)
@@ -160,6 +162,7 @@ const MeetingDetail: React.FC = () => {
 
   const fetchMeetingDetails = async () => {
     if (!id || !user) return
+    if (!activeOrgId) return
     
     setLoading(true)
     try {
@@ -168,6 +171,7 @@ const MeetingDetail: React.FC = () => {
         .from('meetings')
         .select('*')
         .eq('id', id)
+        .eq('org_id', activeOrgId)
         .single()
 
       if (meetingError) {

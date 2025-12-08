@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '@/lib/supabase/clientV2'
 import { useAuth } from '@/lib/contexts/AuthContext'
+import { useOrg } from '@/lib/contexts/OrgContext'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -242,6 +243,7 @@ const MeetingsListSkeleton: React.FC<{ view: 'list' | 'grid' }> = ({ view }) => 
 const MeetingsList: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { activeOrgId } = useOrg()
   const { syncState, isConnected, isSyncing, triggerSync } = useFathomIntegration()
   const [meetings, setMeetings] = useState<Meeting[]>([])
   const [loading, setLoading] = useState(true)
@@ -259,7 +261,7 @@ const MeetingsList: React.FC = () => {
 
   useEffect(() => {
     fetchMeetings()
-  }, [scope, user])
+  }, [scope, user, activeOrgId])
 
   // Auto-sync when user arrives with Fathom connected but no meetings
   // This handles users coming from onboarding who skipped the sync step
@@ -376,6 +378,11 @@ const MeetingsList: React.FC = () => {
 
   const fetchMeetings = async () => {
     if (!user) return
+    if (!activeOrgId) {
+      setMeetings([])
+      setLoading(false)
+      return
+    }
     
     setLoading(true)
     try {
@@ -387,6 +394,7 @@ const MeetingsList: React.FC = () => {
           action_items:meeting_action_items(completed),
           tasks(status)
         `)
+        .eq('org_id', activeOrgId)
         .order('meeting_start', { ascending: false })
 
       // RLS already filters by organization, so we get all meetings the user can access
