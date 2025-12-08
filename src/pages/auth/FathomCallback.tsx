@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase/clientV2';
-import { useAuth } from '@/lib/contexts/AuthContext';
 
 /**
  * Fathom OAuth Callback Page
  *
  * Handles the OAuth callback from Fathom and forwards to Edge Function
  * Flow: Fathom → This page → Edge Function → Integrations page
+ * 
+ * Note: This page must be public (no auth required) as Fathom redirects here
+ * without an authenticated session. The edge function handles authentication.
  */
 export default function FathomCallback() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState<string>('');
 
@@ -37,18 +38,27 @@ export default function FathomCallback() {
         }
 
         if (!code || !state) {
+          console.error('Fathom OAuth callback missing parameters:', { code: !!code, state: !!state });
           throw new Error('Missing authorization code or state parameter');
         }
+
+        console.log('Fathom OAuth callback received, calling edge function...', { code: code.substring(0, 10) + '...', state });
+        
         // Call the Edge Function to handle token exchange
+        // Edge function validates state parameter (contains user_id) - doesn't require client auth
         const { data, error: functionError } = await supabase.functions.invoke(
           'fathom-oauth-callback',
           {
             body: { code, state }
           }
         );
+        
         if (functionError) {
-          throw new Error(functionError.message || 'Failed to complete OAuth flow');
+          console.error('Fathom OAuth edge function error:', functionError);
+          throw new Error(functionError.message || `Failed to complete OAuth flow: ${JSON.stringify(functionError)}`);
         }
+        
+        console.log('Fathom OAuth callback successful:', data);
         setStatus('success');
 
         // Check if we're in a popup window (multiple detection methods)
@@ -82,12 +92,14 @@ export default function FathomCallback() {
         }
 
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+        const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+        console.error('Fathom OAuth callback error:', err);
+        setError(errorMessage);
         setStatus('error');
 
         // Redirect back to integrations after 5 seconds
         setTimeout(() => {
-          navigate('/integrations?error=fathom-connection-failed');
+          navigate(`/integrations?error=fathom-connection-failed&message=${encodeURIComponent(errorMessage)}`);
         }, 5000);
       }
     };
