@@ -57,9 +57,19 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
         }
         setIsPolling(false);
         setIsConnecting(false);
+        
+        // Mark as connected in onboarding progress
         await markFathomConnected();
+        
+        // Small delay to ensure UI updates before showing success
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         toast.success('Fathom connected successfully!');
-        onNext();
+        
+        // Small delay before proceeding to next step
+        setTimeout(() => {
+          onNext();
+        }, 1000);
         return;
       }
 
@@ -71,6 +81,7 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
         }
         setIsPolling(false);
         setIsConnecting(false);
+        toast.error('Connection timeout. Please check if you completed the authorization.');
         // Don't show error - user can still try again or check manually
       }
     }, 1000);
