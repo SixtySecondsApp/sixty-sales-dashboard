@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, lazy, Suspense } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, authUtils, type Session, type User, type AuthError } from '../supabase/clientV2';
 import { authLogger } from '../services/authLogger';
@@ -9,10 +9,10 @@ import logger from '@/lib/utils/logger';
 // Check if Clerk auth is enabled via feature flag
 const USE_CLERK_AUTH = import.meta.env.VITE_USE_CLERK_AUTH === 'true';
 
-// Lazy load Clerk components only when needed
-const ClerkAuthProviderLazy = USE_CLERK_AUTH
-  ? lazy(() => import('./ClerkAuthContext').then(m => ({ default: m.ClerkAuthProvider })))
-  : null;
+// Extended auth error type that includes verification status
+interface ExtendedAuthError extends AuthError {
+  requiresVerification?: boolean;
+}
 
 // Auth context types - shared between Supabase and Clerk implementations
 export interface AuthContextType {
@@ -22,11 +22,12 @@ export interface AuthContextType {
   loading: boolean;
 
   // Actions
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: ExtendedAuthError | null }>;
   signUp: (email: string, password: string, metadata?: { full_name?: string }) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
+  verifySecondFactor: (code: string) => Promise<{ error: AuthError | null }>;
 
   // Utilities
   isAuthenticated: boolean;
@@ -53,11 +54,15 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// Import Clerk auth components when feature flag is enabled
+// Note: ClerkProvider is already in main.tsx, so ClerkAuthProvider just uses hooks
+import { ClerkAuthProvider, ClerkAuthContext } from './ClerkAuthContext';
+
 /**
  * AuthProvider - Unified auth provider that delegates to either Supabase or Clerk
  *
  * When VITE_USE_CLERK_AUTH=true:
- * - Uses ClerkAuthProvider for authentication
+ * - Uses ClerkAuthProvider for authentication (ClerkProvider is already in main.tsx)
  * - Clerk handles user sessions, tokens, and auth state
  * - Bridges ClerkAuthContext to AuthContext so useAuth() works
  *
@@ -67,13 +72,11 @@ interface AuthProviderProps {
  */
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // If Clerk auth is enabled, use the Clerk provider with bridge
-  if (USE_CLERK_AUTH && ClerkAuthProviderLazy) {
+  if (USE_CLERK_AUTH) {
     logger.log('🔐 AuthProvider: Using Clerk authentication');
 
     return (
-      <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div></div>}>
-        <ClerkAuthProviderWithBridge>{children}</ClerkAuthProviderWithBridge>
-      </Suspense>
+      <ClerkAuthProviderWithBridge>{children}</ClerkAuthProviderWithBridge>
     );
   }
 
@@ -83,31 +86,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 };
 
 /**
- * ClerkAuthProviderWithBridge - Wraps Clerk provider and bridges context
- * This is a separate component to allow proper hook usage
+ * ClerkAuthProviderWithBridge - Uses ClerkAuthProvider and bridges context to AuthContext
+ * Note: ClerkProvider is already wrapped in main.tsx, so we just use ClerkAuthProvider here
+ * which uses Clerk hooks internally but doesn't add another ClerkProvider
  */
 const ClerkAuthProviderWithBridge: React.FC<AuthProviderProps> = ({ children }) => {
-  // Import dynamically loaded component
-  const [ClerkComponents, setClerkComponents] = useState<{
-    ClerkAuthProvider: React.FC<{ children: React.ReactNode }>;
-    ClerkAuthContext: React.Context<AuthContextType | undefined>;
-  } | null>(null);
-
-  useEffect(() => {
-    import('./ClerkAuthContext').then(module => {
-      setClerkComponents({
-        ClerkAuthProvider: module.ClerkAuthProvider,
-        ClerkAuthContext: module.ClerkAuthContext,
-      });
-    });
-  }, []);
-
-  if (!ClerkComponents) {
-    return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin h-8 w-8 border-4 border-blue-500 rounded-full border-t-transparent"></div></div>;
-  }
-
-  const { ClerkAuthProvider, ClerkAuthContext } = ClerkComponents;
-
   // ClerkBridge component bridges ClerkAuthContext to AuthContext
   const ClerkBridge: React.FC<{ children: React.ReactNode }> = ({ children: bridgeChildren }) => {
     const clerkValue = React.useContext(ClerkAuthContext);
@@ -423,6 +406,13 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Verify second factor - stub for Supabase (not used with Supabase Auth)
+  const verifySecondFactor = useCallback(async (_code: string) => {
+    // Supabase Auth doesn't use second factor verification like Clerk does
+    // This is a stub to maintain interface compatibility
+    return { error: { message: 'Second factor verification is not supported with Supabase Auth' } };
+  }, []);
+
   // Computed values
   const isAuthenticated = authUtils.isAuthenticated(session);
   const userId = authUtils.getUserId(session);
@@ -432,14 +422,15 @@ const SupabaseAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     session,
     loading,
-    
+
     // Actions
     signIn,
     signUp,
     signOut,
     resetPassword,
     updatePassword,
-    
+    verifySecondFactor,
+
     // Utilities
     isAuthenticated,
     userId,

@@ -187,6 +187,16 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'tools',
     order: 1,
   },
+  {
+    path: '/projects',
+    access: 'internal',
+    label: 'Projects',
+    icon: Layers,
+    showInNav: true,
+    navSection: 'tools',
+    order: 2,
+    badge: 'New',
+  },
   // Calendar and Email routes removed from navigation - users should use Google Calendar/Gmail directly
   // Routes still exist but redirect to Google services in App.tsx
   {
@@ -196,7 +206,7 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     icon: Workflow,
     showInNav: true,
     navSection: 'tools',
-    order: 2,
+    order: 3,
   },
   {
     path: '/integrations',

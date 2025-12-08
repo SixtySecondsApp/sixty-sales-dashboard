@@ -8,12 +8,12 @@
  * working with the same interface while the backend switches to Clerk.
  */
 
-import React, { createContext, useContext, useCallback, useMemo, useState, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useUser, useAuth as useClerkAuth, useSignIn, useSignUp, useClerk } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import logger from '@/lib/utils/logger';
-import { supabase } from '../supabase/clientV2';
+import { supabase, setClerkTokenGetter } from '../supabase/clientV2';
 
 // Types that match the existing AuthContext interface
 // We create simplified versions since Clerk user/session differ from Supabase
@@ -37,6 +37,12 @@ interface ClerkSessionCompat {
 interface AuthError {
   message: string;
   status?: number;
+  requiresVerification?: boolean;
+}
+
+// Extended error type for verification flow
+export interface VerificationRequiredError extends AuthError {
+  requiresVerification: true;
 }
 
 // Same interface as the original AuthContext - exported for type compatibility
@@ -52,6 +58,7 @@ export interface ClerkAuthContextType {
   signOut: () => Promise<{ error: AuthError | null }>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   updatePassword: (password: string) => Promise<{ error: AuthError | null }>;
+  verifySecondFactor: (code: string) => Promise<{ error: AuthError | null }>;
 
   // Utilities
   isAuthenticated: boolean;
@@ -93,51 +100,128 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [mappingLoaded, setMappingLoaded] = useState(false);
 
-  // Fetch the Supabase user ID from the mapping table when Clerk user is loaded
+  // Track if we've registered the token getter
+  const tokenGetterRegistered = useRef(false);
+
+  // Register the Clerk token getter with Supabase client
+  // This enables Clerk JWT to be used for all Supabase requests
   useEffect(() => {
-    async function fetchSupabaseUserId() {
+    if (authLoaded && getToken && !tokenGetterRegistered.current) {
+      const clerkTokenGetter = async () => {
+        try {
+          // Get token using the 'supabase' JWT template configured in Clerk
+          const token = await getToken({ template: 'supabase' });
+          return token;
+        } catch (err) {
+          logger.error('❌ ClerkAuth: Failed to get Supabase JWT:', err);
+          return null;
+        }
+      };
+
+      setClerkTokenGetter(clerkTokenGetter);
+      tokenGetterRegistered.current = true;
+      logger.log('✅ ClerkAuth: Registered Clerk token getter with Supabase client');
+    }
+  }, [authLoaded, getToken]);
+
+  // Fetch the Supabase user ID from the mapping table when Clerk user is loaded
+  // Auto-provision if no mapping exists
+  useEffect(() => {
+    async function fetchOrProvisionSupabaseUserId() {
       if (!clerkUser?.id) {
         setSupabaseUserId(null);
         setMappingLoaded(true);
         return;
       }
 
+      const email = clerkUser.primaryEmailAddress?.emailAddress;
+      const fullName = clerkUser.fullName || undefined;
+
       try {
         logger.log('🔗 ClerkAuth: Looking up Supabase user ID for Clerk user:', clerkUser.id);
 
+        // Step 1: Try to find existing mapping by Clerk ID
         const { data, error } = await supabase
           .from('clerk_user_mapping')
           .select('supabase_user_id')
           .eq('clerk_user_id', clerkUser.id)
           .single();
 
-        if (error) {
-          // If no mapping found, try looking up by email
-          if (error.code === 'PGRST116') {
-            logger.log('🔗 ClerkAuth: No mapping found by Clerk ID, trying email lookup');
-            const email = clerkUser.primaryEmailAddress?.emailAddress;
-            if (email) {
-              const { data: emailData, error: emailError } = await supabase
-                .from('clerk_user_mapping')
-                .select('supabase_user_id')
-                .eq('email', email)
-                .single();
+        if (data && !error) {
+          logger.log('✅ ClerkAuth: Found Supabase user ID:', data.supabase_user_id);
+          setSupabaseUserId(data.supabase_user_id);
+          setMappingLoaded(true);
+          return;
+        }
 
-              if (emailData && !emailError) {
-                logger.log('✅ ClerkAuth: Found Supabase user ID via email:', emailData.supabase_user_id);
-                setSupabaseUserId(emailData.supabase_user_id);
+        // Step 2: If no mapping by Clerk ID, try by email
+        if (error?.code === 'PGRST116' && email) {
+          logger.log('🔗 ClerkAuth: No mapping found by Clerk ID, trying email lookup');
+
+          const { data: emailData, error: emailError } = await supabase
+            .from('clerk_user_mapping')
+            .select('supabase_user_id')
+            .eq('email', email.toLowerCase())
+            .single();
+
+          if (emailData && !emailError) {
+            logger.log('✅ ClerkAuth: Found Supabase user ID via email:', emailData.supabase_user_id);
+
+            // Update the mapping with the Clerk user ID for future lookups
+            await supabase
+              .from('clerk_user_mapping')
+              .update({ clerk_user_id: clerkUser.id, updated_at: new Date().toISOString() })
+              .eq('supabase_user_id', emailData.supabase_user_id);
+
+            setSupabaseUserId(emailData.supabase_user_id);
+            setMappingLoaded(true);
+            return;
+          }
+        }
+
+        // Step 3: No mapping found anywhere - auto-provision new user
+        if (email) {
+          logger.log('🆕 ClerkAuth: No mapping found, auto-provisioning new user...');
+
+          try {
+            // Call the clerk-user-sync Edge Function to provision the user
+            const response = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/clerk-user-sync`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                },
+                body: JSON.stringify({
+                  action: 'provision',
+                  clerk_user_id: clerkUser.id,
+                  email: email.toLowerCase(),
+                  full_name: fullName,
+                }),
+              }
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              if (result.supabase_user_id) {
+                logger.log('✅ ClerkAuth: User auto-provisioned:', result.supabase_user_id);
+                setSupabaseUserId(result.supabase_user_id);
                 setMappingLoaded(true);
                 return;
               }
+            } else {
+              const errorText = await response.text();
+              logger.warn('⚠️ ClerkAuth: Auto-provision failed:', errorText);
             }
+          } catch (provisionError) {
+            logger.warn('⚠️ ClerkAuth: Auto-provision request failed:', provisionError);
           }
-          logger.warn('⚠️ ClerkAuth: Could not find Supabase user mapping:', error.message);
-          // Fall back to using Clerk ID (won't match existing data but allows new users)
-          setSupabaseUserId(null);
-        } else if (data) {
-          logger.log('✅ ClerkAuth: Found Supabase user ID:', data.supabase_user_id);
-          setSupabaseUserId(data.supabase_user_id);
         }
+
+        // Final fallback: No mapping and couldn't provision
+        logger.warn('⚠️ ClerkAuth: Could not find or create Supabase user mapping');
+        setSupabaseUserId(null);
       } catch (err) {
         logger.error('❌ ClerkAuth: Error fetching Supabase user mapping:', err);
         setSupabaseUserId(null);
@@ -147,9 +231,9 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
     }
 
     if (userLoaded) {
-      fetchSupabaseUserId();
+      fetchOrProvisionSupabaseUserId();
     }
-  }, [clerkUser?.id, clerkUser?.primaryEmailAddress?.emailAddress, userLoaded]);
+  }, [clerkUser?.id, clerkUser?.primaryEmailAddress?.emailAddress, clerkUser?.fullName, userLoaded]);
 
   // Convert Clerk user to Supabase-compatible format
   // IMPORTANT: Use the mapped Supabase user ID for data queries
@@ -194,9 +278,14 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
       logger.log('🔐 ClerkAuth: Attempting sign in for:', email.toLowerCase().trim());
 
       const signInAttempt = await clerkSignIn.create({
+        strategy: 'password',
         identifier: email.toLowerCase().trim(),
         password,
       });
+
+      // Debug: Log what Clerk returns
+      console.log('🔐 ClerkAuth DEBUG: signInAttempt status =', signInAttempt.status);
+      console.log('🔐 ClerkAuth DEBUG: supportedSecondFactors =', signInAttempt.supportedSecondFactors);
 
       if (signInAttempt.status === 'complete') {
         await setSignInActive({ session: signInAttempt.createdSessionId });
@@ -207,8 +296,40 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
         queryClient.invalidateQueries();
 
         return { error: null };
+      } else if (signInAttempt.status === 'needs_second_factor') {
+        // Clerk requires email verification as second factor
+        // Check if email_code is supported and prepare for it
+        const emailFactor = signInAttempt.supportedSecondFactors?.find(
+          (factor: any) => factor.strategy === 'email_code'
+        );
+
+        if (emailFactor) {
+          // Prepare the second factor verification - this sends the code
+          await signInAttempt.prepareSecondFactor({
+            strategy: 'email_code',
+          });
+
+          logger.log('📧 ClerkAuth: Email verification code sent for second factor');
+          return {
+            error: {
+              message: 'Please check your email for a verification code',
+              status: 403,
+              requiresVerification: true,
+              signInAttempt: signInAttempt,
+            } as any
+          };
+        }
+
+        // No supported second factor
+        logger.warn('⚠️ ClerkAuth: Sign in requires second factor but none supported');
+        return {
+          error: {
+            message: 'Sign in requires additional verification',
+            status: 403
+          }
+        };
       } else {
-        // Handle incomplete sign-in (e.g., 2FA required)
+        // Handle other incomplete sign-in states
         logger.warn('⚠️ ClerkAuth: Sign in incomplete, status:', signInAttempt.status);
         return {
           error: {
@@ -380,6 +501,58 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
     };
   }, []);
 
+  /**
+   * Verify second factor with email code
+   * Called after signIn returns requiresVerification: true
+   */
+  const verifySecondFactor = useCallback(async (code: string): Promise<{ error: AuthError | null }> => {
+    if (!clerkSignIn) {
+      return { error: { message: 'Sign in not available', status: 500 } };
+    }
+
+    try {
+      logger.log('🔐 ClerkAuth: Verifying second factor with code');
+
+      const result = await clerkSignIn.attemptSecondFactor({
+        strategy: 'email_code',
+        code,
+      });
+
+      if (result.status === 'complete') {
+        await setSignInActive({ session: result.createdSessionId });
+
+        logger.log('✅ ClerkAuth: Second factor verification successful');
+
+        // Invalidate all queries to refetch with new auth context
+        queryClient.invalidateQueries();
+
+        return { error: null };
+      } else {
+        logger.warn('⚠️ ClerkAuth: Second factor verification incomplete, status:', result.status);
+        return {
+          error: {
+            message: `Verification incomplete: ${result.status}`,
+            status: 403
+          }
+        };
+      }
+    } catch (err: any) {
+      logger.error('❌ ClerkAuth: Second factor verification error:', err);
+
+      const errorMessage = err?.errors?.[0]?.longMessage
+        || err?.errors?.[0]?.message
+        || err?.message
+        || 'Verification failed';
+
+      return {
+        error: {
+          message: errorMessage,
+          status: err?.status || 401
+        }
+      };
+    }
+  }, [clerkSignIn, setSignInActive, queryClient]);
+
   // Computed values
   const isAuthenticated = isSignedIn ?? false;
   // Use mapped Supabase user ID for data queries, fall back to Clerk ID
@@ -397,6 +570,7 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
     signOut,
     resetPassword,
     updatePassword,
+    verifySecondFactor,
 
     // Utilities
     isAuthenticated,
@@ -410,6 +584,7 @@ export const ClerkAuthProvider: React.FC<ClerkAuthProviderProps> = ({ children }
     signOut,
     resetPassword,
     updatePassword,
+    verifySecondFactor,
     isAuthenticated,
     userId,
   ]);

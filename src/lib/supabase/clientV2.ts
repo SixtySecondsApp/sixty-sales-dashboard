@@ -11,6 +11,22 @@ const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY; // Publis
 // The supabaseAdmin client should only be used server-side (edge functions, API routes).
 const supabaseSecretKey = undefined; // Removed: import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
+// Check if Clerk auth is enabled
+const USE_CLERK_AUTH = import.meta.env.VITE_USE_CLERK_AUTH === 'true';
+
+// Clerk token getter - will be set by ClerkAuthContext
+let clerkGetToken: (() => Promise<string | null>) | null = null;
+
+/**
+ * Set the Clerk token getter function.
+ * Called by ClerkAuthContext when Clerk is initialized.
+ * The clerkFetch function checks this at request time, so no client reset needed.
+ */
+export function setClerkTokenGetter(getter: () => Promise<string | null>) {
+  clerkGetToken = getter;
+  logger.log('🔐 Clerk token getter registered with Supabase client');
+}
+
 // Validate required environment variables
 if (!supabaseUrl || !supabasePublishableKey) {
   const isProduction = typeof window !== 'undefined' && 
@@ -32,6 +48,57 @@ let supabaseInstance: TypedSupabaseClient | null = null;
 let supabaseAdminInstance: TypedSupabaseClient | null = null;
 
 /**
+ * Custom fetch wrapper that adds Clerk JWT to requests when Clerk auth is enabled
+ * Note: This function checks clerkGetToken at REQUEST time, not at creation time,
+ * so it will pick up the token getter even if it's registered after the client is created.
+ */
+const clerkFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const headers = new Headers(init?.headers);
+
+  // If Clerk auth is enabled and we have a token getter, add the JWT
+  // Check clerkGetToken at request time (not creation time) so it works after registration
+  if (USE_CLERK_AUTH && clerkGetToken) {
+    try {
+      const token = await clerkGetToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+        // Log first few characters of token for debugging
+        console.log('🔐 Clerk JWT obtained, length:', token.length, 'prefix:', token.substring(0, 20) + '...');
+      } else {
+        console.warn('⚠️ Clerk token getter returned null - user may not be signed in');
+      }
+    } catch (err) {
+      console.error('⚠️ Failed to get Clerk token for Supabase request:', err);
+    }
+  } else if (USE_CLERK_AUTH && !clerkGetToken) {
+    // Token getter not yet registered - this is expected during initialization
+    console.log('⏳ Clerk token getter not yet registered, request will use anon key');
+  }
+
+  // Make the request
+  const response = await fetch(input, {
+    ...init,
+    headers,
+  });
+
+  // Log error responses for debugging
+  if (!response.ok) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    // Clone response to read body without consuming it
+    const clonedResponse = response.clone();
+    try {
+      const errorBody = await clonedResponse.text();
+      console.error(`❌ Supabase request failed: ${response.status} ${response.statusText}`, url);
+      console.error('❌ Error body:', errorBody);
+    } catch {
+      console.error(`❌ Supabase request failed: ${response.status} ${response.statusText}`, url);
+    }
+  }
+
+  return response;
+};
+
+/**
  * Get the main Supabase client for user operations
  * Uses lazy initialization to avoid vendor bundle issues
  */
@@ -49,10 +116,10 @@ function getSupabaseClient(): TypedSupabaseClient {
 
     supabaseInstance = createClient<Database>(supabaseUrl, supabasePublishableKey, {
       auth: {
-        persistSession: true,
-        // Removed custom storageKey to use default sb-[project-ref]-auth-token format
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        // When Clerk auth is enabled, we don't need Supabase's session management
+        persistSession: !USE_CLERK_AUTH,
+        autoRefreshToken: !USE_CLERK_AUTH,
+        detectSessionInUrl: !USE_CLERK_AUTH,
         flowType: 'pkce', // PKCE for better security
         // Disable debug logging to prevent memory and performance issues
         debug: false,
@@ -82,6 +149,8 @@ function getSupabaseClient(): TypedSupabaseClient {
       },
       functions: functionsUrl ? { url: functionsUrl } : undefined,
       global: {
+        // Use custom fetch when Clerk auth is enabled to inject JWT
+        fetch: USE_CLERK_AUTH ? clerkFetch : undefined,
         headers: {
           'X-Client-Info': 'sales-dashboard-v2'
         }

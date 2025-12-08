@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Debug Clerk Auth</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #eee; }
+    h1 { color: #4cc9f0; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; background: #4361ee; color: white; border: none; border-radius: 4px; }
+    button:hover { background: #3a56d4; }
+    pre { background: #16213e; padding: 15px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; }
+    .success { color: #4cc9f0; }
+    .error { color: #f72585; }
+    .warning { color: #f4a261; }
+    .section { margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 8px; }
+  </style>
+</head>
+<body>
+<h1>🔐 Debug Clerk → Supabase Auth</h1>
+
+<div class="section">
+  <h3>Step 1: Run the SQL script first</h3>
+  <p>Go to Supabase Dashboard → SQL Editor and run:</p>
+  <code>scripts/debug-and-fix-clerk-auth.sql</code>
+</div>
+
+<div class="section">
+  <h3>Step 2: Test from here</h3>
+  <button onclick="runDebug()">🔍 Run Debug</button>
+  <button onclick="testDealsQuery()">📊 Test Deals Query</button>
+  <button onclick="testProfileQuery()">👤 Test Profile Query</button>
+</div>
+
+<pre id="output">Click a button to run tests...</pre>
+
+<script>
+const SUPABASE_URL = 'https://ewtuefzeogytgmsnkpmb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3dHVlZnplb2d5dGdtc25rcG1iIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzc4OTQ5MjcsImV4cCI6MjA1MzQ3MDkyN30.O22Zx_xB_UuasB19V66g69fl6GdAdW38vuYQPbGUUf8';
+
+function log(msg, type = '') {
+  const output = document.getElementById('output');
+  const className = type ? `class="${type}"` : '';
+  output.innerHTML += `<span ${className}>${msg}</span>\n`;
+}
+
+function clearLog() {
+  document.getElementById('output').innerHTML = '';
+}
+
+async function getClerkToken() {
+  if (!window.Clerk || !window.Clerk.session) {
+    throw new Error('Clerk not loaded or user not signed in. Please sign in first at /auth/login');
+  }
+  const token = await window.Clerk.session.getToken({ template: 'supabase' });
+  if (!token) {
+    throw new Error('No token returned - check if supabase JWT template is configured in Clerk');
+  }
+  return token;
+}
+
+function decodeJWT(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    ).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    return { error: 'Failed to decode JWT' };
+  }
+}
+
+async function runDebug() {
+  clearLog();
+  log('=== Debug Clerk Auth ===\n', 'success');
+
+  try {
+    // Step 1: Get token
+    log('1. Getting Clerk JWT token...');
+    const token = await getClerkToken();
+    log('   ✅ Token obtained (length: ' + token.length + ')', 'success');
+
+    // Step 2: Decode token locally
+    log('\n2. Decoding JWT locally...');
+    const decoded = decodeJWT(token);
+    log('   JWT payload:', 'success');
+    log('   ' + JSON.stringify(decoded, null, 2));
+
+    // Step 3: Call debug function
+    log('\n3. Calling debug_clerk_auth() RPC...');
+    const response = await fetch(SUPABASE_URL + '/rest/v1/rpc/debug_clerk_auth', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log('   ❌ Request failed: ' + response.status + ' ' + response.statusText, 'error');
+      log('   Error: ' + errorText, 'error');
+      return;
+    }
+
+    const data = await response.json();
+    log('   ✅ Debug response:', 'success');
+    log('   ' + JSON.stringify(data, null, 2));
+
+    // Step 4: Analyze results
+    log('\n=== Analysis ===', 'success');
+    if (data.has_jwt) {
+      log('✅ JWT is being received by Supabase', 'success');
+    } else {
+      log('❌ JWT not being received - check Authorization header', 'error');
+    }
+
+    if (data.jwt_sub) {
+      log('✅ JWT sub claim present: ' + data.jwt_sub, 'success');
+    } else {
+      log('❌ JWT sub claim missing - check Clerk JWT template', 'error');
+    }
+
+    if (data.mapping_found) {
+      log('✅ Clerk→Supabase mapping found: ' + data.mapped_uuid, 'success');
+    } else {
+      log('❌ No mapping found for Clerk user - run the SQL script to add mapping', 'error');
+    }
+
+    if (data.current_user_id_result) {
+      log('✅ current_user_id() returns: ' + data.current_user_id_result, 'success');
+    } else {
+      log('❌ current_user_id() returns NULL - check function definition', 'error');
+    }
+
+  } catch (e) {
+    log('❌ Error: ' + e.message, 'error');
+    console.error(e);
+  }
+}
+
+async function testDealsQuery() {
+  clearLog();
+  log('=== Testing Deals Query ===\n', 'success');
+
+  try {
+    const token = await getClerkToken();
+    log('Token obtained ✅\n');
+
+    const response = await fetch(SUPABASE_URL + '/rest/v1/deals?select=id,name,stage,value&limit=5', {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    log('Response status: ' + response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log('❌ Query failed: ' + errorText, 'error');
+      return;
+    }
+
+    const data = await response.json();
+    log('✅ Deals returned: ' + data.length, 'success');
+    log(JSON.stringify(data, null, 2));
+
+  } catch (e) {
+    log('❌ Error: ' + e.message, 'error');
+  }
+}
+
+async function testProfileQuery() {
+  clearLog();
+  log('=== Testing Profile Query ===\n', 'success');
+
+  try {
+    const token = await getClerkToken();
+    log('Token obtained ✅\n');
+
+    const response = await fetch(SUPABASE_URL + '/rest/v1/profiles?select=id,email,full_name,is_admin&limit=1', {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    log('Response status: ' + response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      log('❌ Query failed: ' + errorText, 'error');
+      return;
+    }
+
+    const data = await response.json();
+    log('✅ Profile returned: ' + data.length + ' rows', 'success');
+    log(JSON.stringify(data, null, 2));
+
+  } catch (e) {
+    log('❌ Error: ' + e.message, 'error');
+  }
+}
+</script>
+</body>
+</html>

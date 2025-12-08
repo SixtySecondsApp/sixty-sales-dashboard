@@ -77,6 +77,7 @@ const Onboarding = lazyWithRetry(() => import('@/pages/onboarding'));
 const PipelinePage = lazyWithRetry(() => import('@/pages/PipelinePage').then(module => ({ default: module.PipelinePage })));
 const ActivityProcessingPage = lazyWithRetry(() => import('@/pages/ActivityProcessingPage'));
 const TasksPage = lazyWithRetry(() => import('@/pages/TasksPage'));
+const ProjectsHub = lazyWithRetry(() => import('@/pages/ProjectsHub'));
 const GoogleTasksSettings = lazyWithRetry(() => import('@/pages/GoogleTasksSettings'));
 const Roadmap = lazyWithRetry(() => import('@/pages/Roadmap'));
 const Releases = lazyWithRetry(() => import('@/pages/Releases'));
@@ -422,6 +423,7 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/pipeline" element={<InternalRouteGuard><AppLayout><PipelinePage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/crm/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
+                <Route path="/projects" element={<InternalRouteGuard><AppLayout><ProjectsHub /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks/settings" element={<InternalRouteGuard><AppLayout><GoogleTasksSettings /></AppLayout></InternalRouteGuard>} />
                 <Route path="/calendar" element={<ExternalRedirect url="https://calendar.google.com" />} />
                 <Route path="/events" element={<InternalRouteGuard><AppLayout><Events /></AppLayout></InternalRouteGuard>} />
