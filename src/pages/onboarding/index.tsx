@@ -8,6 +8,7 @@ import { TeamInviteStep } from './TeamInviteStep';
 import { FathomConnectionStep } from './FathomConnectionStep';
 import { CompletionStep } from './CompletionStep';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { isInternalUser } from '@/lib/utils/userTypeUtils';
 
 export default function OnboardingPage() {
   const { user } = useAuth();
@@ -92,8 +93,8 @@ export default function OnboardingPage() {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />
       
       <div className="relative w-full max-w-4xl">
-        {/* Show completion message if onboarding is already done */}
-        {!needsOnboarding && !loading && (
+        {/* Show completion message only for internal users who completed onboarding */}
+        {!needsOnboarding && !loading && user && isInternalUser(user.email) && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}

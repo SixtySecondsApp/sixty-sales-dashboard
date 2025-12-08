@@ -53,33 +53,15 @@ export function CompletionStep({ onComplete }: CompletionStepProps) {
   }, []);
 
   const handleGetStarted = async () => {
-    // Prevent double-click
     if (isCompleting) return;
-
     setIsCompleting(true);
 
-    // Verify user is still authenticated before navigating
-    if (!isAuthenticated || !user || !session) {
-      console.error('User not authenticated in context, verifying session...');
-
-      // Double-check with Supabase directly
-      const isValid = await verifySessionAndNavigate();
-      if (!isValid) {
-        console.error('Session verification failed, redirecting to login');
-        navigate('/auth/login', { replace: true });
-        return;
-      }
-    }
-
     try {
-      // Small delay to ensure any pending auth state updates complete
+      // Small delay to allow any pending auth state updates to settle
       await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Navigate directly to meetings using replace to prevent back navigation to onboarding
       navigate('/meetings', { replace: true });
     } catch (error) {
       console.error('Error navigating to meetings:', error);
-      // Force navigation even on error
       window.location.href = '/meetings';
     }
   };
