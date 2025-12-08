@@ -339,6 +339,16 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Organization invitation acceptance (can be accessed logged in or out) */}
         <Route path="/invite/:token" element={<AcceptInvitation />} />
 
+        {/* Debug: Log unmatched OAuth routes */}
+        <Route path="/callback" element={
+          <div style={{ padding: '20px', color: 'white', background: 'red' }}>
+            <h1>⚠️ Route /callback matched (not /oauth/fathom/callback)</h1>
+            <p>Current URL: {window.location.href}</p>
+            <p>Expected: /oauth/fathom/callback</p>
+            <script dangerouslySetInnerHTML={{__html: `console.error('🔴 WRONG ROUTE: /callback instead of /oauth/fathom/callback');`}} />
+          </div>
+        } />
+        
         {/* All other routes wrapped in ProtectedRoute */}
         <Route path="/*" element={
           <ProtectedRoute>
