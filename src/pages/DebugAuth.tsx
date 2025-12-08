@@ -31,7 +31,7 @@ export default function DebugAuth() {
           user: user?.email || null,
           error: error?.message || null,
           localStorage: {
-            hasAuthToken: !!localStorage.getItem('sb-ewtuefzeogytgmsnkpmb-auth-token'),
+            hasAuthToken: !!localStorage.getItem('sb-ygdpgliavpxeugaajgrb-auth-token'),
             keys: Object.keys(localStorage).filter(k => k.includes('sb-') || k.includes('supabase'))
           }
         });
