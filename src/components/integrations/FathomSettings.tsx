@@ -4,12 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, RefreshCw, Calendar, Play, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FathomTokenTest } from '@/components/FathomTokenTest';
+import { toast } from 'sonner';
 
 export function FathomSettings() {
   const {
@@ -29,6 +30,9 @@ export function FathomSettings() {
   const [syncType, setSyncType] = useState<'initial' | 'incremental' | 'manual' | 'all_time'>('manual');
   const [dateRange, setDateRange] = useState<{ start?: string; end?: string }>({});
   const [syncing, setSyncing] = useState(false);
+  const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
+  const [deleteSyncedMeetings, setDeleteSyncedMeetings] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -262,12 +266,95 @@ export function FathomSettings() {
 
         {isConnected && (
           <CardFooter className="border-t border-gray-200 dark:border-slate-700 pt-4">
-            <Button variant="destructive" onClick={disconnectFathom} size="sm">
+            <Button 
+              variant="destructive" 
+              onClick={() => setShowDisconnectDialog(true)} 
+              size="sm"
+              className="gap-2"
+            >
+              <XCircle className="h-4 w-4" />
               Disconnect Fathom
             </Button>
           </CardFooter>
         )}
       </Card>
+
+      {/* Disconnect Confirmation Dialog */}
+      <Dialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disconnect Fathom Integration</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to disconnect your Fathom account? This will stop automatic meeting syncing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-start space-x-3 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <div className="flex items-start space-x-2 flex-1">
+                <input
+                  type="checkbox"
+                  id="deleteMeetings"
+                  checked={deleteSyncedMeetings}
+                  onChange={(e) => setDeleteSyncedMeetings(e.target.checked)}
+                  className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                />
+                <label htmlFor="deleteMeetings" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                  <span className="font-medium">Also delete all synced meeting data</span>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    This will permanently delete all meetings that were synced from Fathom. This action cannot be undone.
+                  </p>
+                </label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDisconnectDialog(false);
+                setDeleteSyncedMeetings(false);
+              }}
+              disabled={disconnecting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                setDisconnecting(true);
+                try {
+                  await disconnectFathom(deleteSyncedMeetings);
+                  toast.success(
+                    deleteSyncedMeetings 
+                      ? 'Fathom disconnected and synced meetings deleted' 
+                      : 'Fathom disconnected successfully'
+                  );
+                  setShowDisconnectDialog(false);
+                  setDeleteSyncedMeetings(false);
+                } catch (error) {
+                  toast.error('Failed to disconnect Fathom');
+                } finally {
+                  setDisconnecting(false);
+                }
+              }}
+              disabled={disconnecting}
+              className="gap-2"
+            >
+              {disconnecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Disconnecting...
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-4 w-4" />
+                  Disconnect
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Sync Modal */}
       <Dialog open={showSyncModal} onOpenChange={setShowSyncModal}>

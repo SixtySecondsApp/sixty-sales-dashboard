@@ -245,7 +245,7 @@ export function useFathomIntegration() {
   };
 
   // Disconnect Fathom
-  const disconnectFathom = async () => {
+  const disconnectFathom = async (deleteSyncedMeetings: boolean = false) => {
     try {
       setError(null);
 
@@ -253,6 +253,22 @@ export function useFathomIntegration() {
         throw new Error('No integration to disconnect');
       }
 
+      // Delete synced meetings if requested
+      if (deleteSyncedMeetings && user) {
+        // Delete all meetings that have a Fathom recording ID and belong to this user
+        const { error: meetingsDeleteError } = await supabase
+          .from('meetings')
+          .delete()
+          .not('fathom_recording_id', 'is', null)
+          .or(`owner_user_id.eq.${user.id},owner_email.eq.${user.email}`);
+
+        if (meetingsDeleteError) {
+          console.error('Error deleting synced meetings:', meetingsDeleteError);
+          // Continue with disconnect even if meeting deletion fails
+        }
+      }
+
+      // Deactivate the integration
       const { error: deleteError } = await supabase
         .from('fathom_integrations')
         .update({ is_active: false })
