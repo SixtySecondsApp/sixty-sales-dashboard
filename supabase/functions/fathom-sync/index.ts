@@ -882,9 +882,12 @@ async function autoFetchTranscriptAndAnalyze(
     const fetchAttempts = meeting.transcript_fetch_attempts || 0
     const cooldownMinutes = calculateTranscriptFetchCooldownMinutes(fetchAttempts)
 
-    // Check if we already have transcript AND action items FIRST
+    // Check if we already have transcript AND AI analysis completed
     // This prevents cooldown from blocking AI analysis on existing transcripts
     if (meeting.transcript_text) {
+      // Check if AI analysis has already been completed (has sentiment_score or talk_time data)
+      const hasAIAnalysis = meeting.sentiment_score !== null || meeting.talk_time_rep_pct !== null
+      
       // Check if action items exist for this meeting
       const { data: existingActionItems, error: aiCheckError } = await supabase
         .from('meeting_action_items')
@@ -893,11 +896,18 @@ async function autoFetchTranscriptAndAnalyze(
         .limit(1)
 
       if (aiCheckError) {
+        console.warn(`⚠️  Error checking action items for meeting ${meeting.id}:`, aiCheckError.message)
       }
 
-      if (existingActionItems && existingActionItems.length > 0) {
+      // If we have both AI analysis AND action items, skip processing
+      if (hasAIAnalysis && existingActionItems && existingActionItems.length > 0) {
+        console.log(`✅ Meeting ${meeting.id} already has AI analysis and action items - skipping`)
         return
-      } else {
+      }
+      
+      // If we have transcript but missing AI analysis, continue to run analysis
+      if (!hasAIAnalysis) {
+        console.log(`🤖 Meeting ${meeting.id} has transcript but missing AI analysis - will run analysis`)
         // Continue to AI analysis using existing transcript
         // NOTE: Cooldown does NOT apply here - we're just running AI on existing transcript
       }
@@ -1017,6 +1027,13 @@ async function autoFetchTranscriptAndAnalyze(
     }
 
     // Run AI analysis on transcript (with extraction rules integration - Phase 6.3)
+    // Only run if transcript exists and has content
+    if (!transcript || transcript.trim().length === 0) {
+      console.log(`⚠️  Skipping AI analysis for meeting ${meeting.id} - no transcript available`)
+      return
+    }
+
+    console.log(`🤖 Starting AI analysis for meeting ${meeting.id} (transcript length: ${transcript.length} chars)`)
     const analysis: TranscriptAnalysis = await analyzeTranscriptWithClaude(
       transcript,
       {
@@ -1028,6 +1045,7 @@ async function autoFetchTranscriptAndAnalyze(
       supabase,
       meeting.owner_user_id || userId
     )
+    console.log(`✅ AI analysis completed for meeting ${meeting.id}`)
 
     // Update meeting with AI metrics including coaching insights
     const { data: updateResult, error: updateError } = await supabase
@@ -1093,10 +1111,32 @@ async function autoFetchTranscriptAndAnalyze(
 
   } catch (error) {
     // Don't throw - allow meeting sync to continue even if AI analysis fails
-    // But log the error for debugging
-    console.error(`❌ Error in autoFetchTranscriptAndAnalyze for meeting ${meeting?.id || 'unknown'}:`, error instanceof Error ? error.message : String(error))
+    // But log the error for debugging with more context
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isMissingApiKey = errorMessage.includes('ANTHROPIC_API_KEY')
+    
+    console.error(`❌ Error in autoFetchTranscriptAndAnalyze for meeting ${meeting?.id || 'unknown'}:`, errorMessage)
+    
+    if (isMissingApiKey) {
+      console.error(`🚨 CRITICAL: ANTHROPIC_API_KEY is not configured in edge function environment variables`)
+      console.error(`   Please set ANTHROPIC_API_KEY in Supabase Dashboard → Edge Functions → fathom-sync → Settings → Secrets`)
+    }
+    
     if (error instanceof Error && error.stack) {
       console.error(`Stack trace:`, error.stack.substring(0, 500))
+    }
+    
+    // Store error in meeting record for UI to display
+    try {
+      await supabase
+        .from('meetings')
+        .update({
+          ai_analysis_error: errorMessage.substring(0, 500), // Store first 500 chars of error
+        })
+        .eq('id', meeting?.id)
+    } catch (updateError) {
+      // Non-fatal - just log
+      console.warn(`Failed to store AI analysis error:`, updateError)
     }
   }
 }
