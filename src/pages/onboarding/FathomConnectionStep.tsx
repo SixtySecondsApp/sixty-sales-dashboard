@@ -118,10 +118,18 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.2, type: 'spring' }}
-          className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-[#37bd7e] to-[#2da76c] mb-6"
+          className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 ${
+            isConnected 
+              ? 'bg-gradient-to-br from-[#37bd7e] to-[#2da76c]'
+              : isConnecting || isPolling
+              ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+              : 'bg-gradient-to-br from-[#37bd7e] to-[#2da76c]'
+          }`}
         >
           {isConnected ? (
             <CheckCircle2 className="w-10 h-10 text-white" />
+          ) : isConnecting || isPolling ? (
+            <Loader2 className="w-10 h-10 text-white animate-spin" />
           ) : (
             <Video className="w-10 h-10 text-white" />
           )}
@@ -189,6 +197,22 @@ export function FathomConnectionStep({ onNext, onBack }: FathomConnectionStepPro
           <p className="text-xs text-gray-500 mt-3">
             💡 You can reconnect to test the integration or update your connection
           </p>
+        </div>
+      ) : isConnecting || isPolling ? (
+        <div className="bg-blue-900/20 border border-blue-800/50 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-3">
+            <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+            <div className="flex-1">
+              <p className="text-blue-400 font-medium">
+                {isPolling ? 'Waiting for connection...' : 'Connecting to Fathom...'}
+              </p>
+              <p className="text-sm text-gray-400">
+                {isPolling 
+                  ? 'Please complete the authorization in the popup window. This may take a few seconds...'
+                  : 'Opening Fathom authorization window...'}
+              </p>
+            </div>
+          </div>
         </div>
       ) : (
         <div className="bg-yellow-900/20 border border-yellow-800/50 rounded-xl p-6 mb-6">
