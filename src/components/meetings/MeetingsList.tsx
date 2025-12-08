@@ -36,6 +36,19 @@ import {
   Lightbulb
 } from 'lucide-react'
 
+// Helper to format duration safely (filters out corrupted data)
+const formatDuration = (minutes: number | null | undefined): string => {
+  if (!minutes || minutes <= 0 || minutes > 480) {
+    return '—' // 8 hours max, anything more is bad data
+  }
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
+  }
+  return `${minutes}m`
+}
+
 interface Meeting {
   id: string
   fathom_recording_id: string
@@ -426,8 +439,12 @@ const MeetingsList: React.FC = () => {
       new Date(m.meeting_start) >= startOfMonth
     )
     
-    const totalDuration = meetings.reduce((sum, m) => sum + (m.duration_minutes || 0), 0)
-    const avgDuration = meetings.length > 0 ? Math.round(totalDuration / meetings.length) : 0
+    // Filter out unreasonable durations (> 8 hours = 480 minutes is likely bad data)
+    const validDurations = meetings
+      .map(m => m.duration_minutes || 0)
+      .filter(d => d > 0 && d <= 480)
+    const totalDuration = validDurations.reduce((sum, d) => sum + d, 0)
+    const avgDuration = validDurations.length > 0 ? Math.round(totalDuration / validDurations.length) : 0
     
     const openActionItems = meetings.reduce((sum, m) => {
       const open = m.action_items?.filter(a => !a.completed).length || 0
@@ -562,11 +579,11 @@ const MeetingsList: React.FC = () => {
           icon={<TrendingUp className="h-5 w-5" />}
           trend={stats.avgSentiment > 0.25 ? 'up' : stats.avgSentiment < -0.25 ? 'down' : 'neutral'}
         />
-        <StatCard 
-          title="Coach Score" 
-          value={stats.avgCoachRating ? `${stats.avgCoachRating}%` : 'N/A'}
+        <StatCard
+          title="Coach Score"
+          value={stats.avgCoachRating ? `${stats.avgCoachRating}/10` : 'N/A'}
           icon={<Award className="h-5 w-5" />}
-          trend={stats.avgCoachRating > 75 ? 'up' : stats.avgCoachRating < 50 ? 'down' : 'neutral'}
+          trend={stats.avgCoachRating > 7 ? 'up' : stats.avgCoachRating < 5 ? 'down' : 'neutral'}
         />
       </div>
 
@@ -626,7 +643,7 @@ const MeetingsList: React.FC = () => {
                       <TableCell className="text-gray-700 dark:text-gray-400">
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {meeting.duration_minutes || 0}m
+                          {formatDuration(meeting.duration_minutes)}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -652,7 +669,7 @@ const MeetingsList: React.FC = () => {
                       <TableCell>
                         {meeting.coach_rating !== null && (
                           <Badge variant="secondary" className="backdrop-blur-sm">
-                            {meeting.coach_rating}%
+                            {meeting.coach_rating}/10
                           </Badge>
                         )}
                       </TableCell>
@@ -724,7 +741,7 @@ const MeetingsList: React.FC = () => {
                     {/* Duration badge */}
                     <div className="absolute bottom-2 right-2 px-2.5 py-1 bg-white/90 dark:bg-gray-900/70 backdrop-blur-md rounded-lg text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1 border border-gray-200/30 dark:border-gray-700/30">
                       <Clock className="h-3 w-3" />
-                      {meeting.duration_minutes || 0}m
+                      {formatDuration(meeting.duration_minutes)}
                     </div>
                   </div>
 
@@ -757,7 +774,7 @@ const MeetingsList: React.FC = () => {
                       </Badge>
                       {meeting.coach_rating !== null && (
                         <Badge variant="secondary" className="backdrop-blur-sm text-xs">
-                          Coach: {meeting.coach_rating}%
+                          Coach: {meeting.coach_rating}/10
                         </Badge>
                       )}
                       {openTasks > 0 && (

@@ -77,7 +77,7 @@ export async function recordAICostEvent(
   const { error } = await supabase.from('ai_cost_events').insert({
     ...event,
     created_at: new Date().toISOString(),
-  });
+  } as any);
 
   if (error) {
     // Silently fail if table doesn't exist - this is expected during initial setup
@@ -160,6 +160,27 @@ export async function getModelUsageBreakdown(
 // Organization Cost Analysis
 // ============================================================================
 
+// Type definitions for database query results
+interface OrganizationUsageRow {
+  org_id: string;
+  period_start: string;
+  period_end: string;
+  storage_used_mb: number;
+  meetings_count: number;
+  active_users_count: number;
+}
+
+interface SubscriptionWithPlan {
+  org_id: string;
+  billing_cycle: 'monthly' | 'yearly';
+  plan: {
+    name: string;
+    slug: string;
+    price_monthly: number;
+    price_yearly: number;
+  } | null;
+}
+
 /**
  * Calculate cost analysis for a specific organization
  */
@@ -181,6 +202,9 @@ export async function getOrganizationCostAnalysis(
     return null;
   }
 
+  // Cast usage to proper type
+  const typedUsage = usage as unknown as OrganizationUsageRow;
+
   // Get organization details
   const { data: org, error: orgError } = await supabase
     .from('organizations')
@@ -188,7 +212,7 @@ export async function getOrganizationCostAnalysis(
     .eq('id', orgId)
     .single();
 
-  if (orgError) {
+  if (orgError || !org) {
     console.error('Error fetching organization:', orgError);
     return null;
   }
@@ -213,40 +237,43 @@ export async function getOrganizationCostAnalysis(
     return null;
   }
 
+  // Cast subscription to proper type
+  const typedSubscription = subscription as unknown as SubscriptionWithPlan | null;
+
   // Get model usage breakdown
   const modelBreakdown = await getModelUsageBreakdown(orgId, periodStart, periodEnd);
 
   // Calculate costs
   const totalAICost = modelBreakdown.reduce((sum, m) => sum + m.estimated_cost, 0);
-  
+
   // Estimate infrastructure costs (Supabase pricing)
-  const storageCost = (usage.storage_used_mb / 1024) * 0.021; // $0.021/GB/month
-  const databaseCost = (usage.storage_used_mb / 1024) * 0.09; // $0.09/GB/month (rough estimate)
-  
+  const storageCost = (typedUsage.storage_used_mb / 1024) * 0.021; // $0.021/GB/month
+  const databaseCost = (typedUsage.storage_used_mb / 1024) * 0.09; // $0.09/GB/month (rough estimate)
+
   const totalCost = totalAICost + storageCost + databaseCost;
 
   // Calculate revenue
-  const plan = subscription.plan as { price_monthly: number; price_yearly: number } | null;
+  const plan = typedSubscription?.plan;
   const revenue = plan
-    ? subscription.billing_cycle === 'yearly'
+    ? typedSubscription?.billing_cycle === 'yearly'
       ? plan.price_yearly / 12
       : plan.price_monthly
     : 0;
 
   const marginPercent = revenue > 0 ? ((revenue - totalCost) / revenue) * 100 : 0;
-  const costPerMeeting = usage.meetings_count > 0 ? totalCost / usage.meetings_count : 0;
-  const costPerUser = usage.active_users_count > 0 ? totalCost / usage.active_users_count : 0;
+  const costPerMeeting = typedUsage.meetings_count > 0 ? totalCost / typedUsage.meetings_count : 0;
+  const costPerUser = typedUsage.active_users_count > 0 ? totalCost / typedUsage.active_users_count : 0;
 
   return {
     org_id: orgId,
-    org_name: org.name,
+    org_name: (org as any).name,
     plan_name: plan?.name || 'Unknown',
     plan_slug: plan?.slug || 'unknown',
     period_start: periodStart,
     period_end: periodEnd,
-    meetings_count: usage.meetings_count,
-    active_users_count: usage.active_users_count,
-    storage_mb: usage.storage_used_mb,
+    meetings_count: typedUsage.meetings_count,
+    active_users_count: typedUsage.active_users_count,
+    storage_mb: typedUsage.storage_used_mb,
     model_breakdown: modelBreakdown,
     total_ai_cost: totalAICost,
     storage_cost: storageCost,
@@ -290,9 +317,9 @@ export async function getCostAnalysisSummary(
     usageQuery = usageQuery.eq('period_start', periodStart);
   }
   
-  const { data: allUsage, error: usageError } = await usageQuery;
+  const { data: allUsageData, error: usageError } = await usageQuery;
 
-  if (usageError || !allUsage) {
+  if (usageError || !allUsageData) {
     console.error('Error fetching usage data:', usageError);
     return {
       total_organizations: 0,
@@ -310,22 +337,25 @@ export async function getCostAnalysisSummary(
     };
   }
 
+  // Cast to proper type
+  const allUsage = allUsageData as unknown as OrganizationUsageRow[];
+
   // Aggregate totals
   let totalMeetings = 0;
   let totalUsers = 0;
   let totalStorageMB = 0;
   const modelMap = new Map<string, ModelUsageBreakdown>();
   const tierMap = new Map<string, TierCostAnalysis>();
-  
+
   // For lifetime queries, we need to aggregate across all periods
   // For period queries, we sum usage from the single period
   const orgUsageMap = new Map<string, { meetings: number; users: number; storage: number }>();
-  
+
   // Process each organization usage record
   for (const usage of allUsage) {
     const orgId = usage.org_id;
     const existing = orgUsageMap.get(orgId);
-    
+
     if (isLifetime && existing) {
       // For lifetime, sum across all periods
       existing.meetings += usage.meetings_count;
@@ -365,8 +395,8 @@ export async function getCostAnalysisSummary(
   
   // Build subscription map
   if (allSubscriptions) {
-    for (const sub of allSubscriptions) {
-      const plan = sub.plan as { slug: string; name: string } | null;
+    for (const sub of allSubscriptions as unknown as Array<{ org_id: string; plan: { slug: string; name: string } | null }>) {
+      const plan = sub.plan;
       if (plan) {
         orgSubscriptionMap.set(sub.org_id, plan);
       }
@@ -442,7 +472,7 @@ export async function getCostAnalysisSummary(
       }
 
       // Get revenue
-      const { data: sub } = await supabase
+      const { data: subData } = await supabase
         .from('organization_subscriptions')
         .select(`
           billing_cycle,
@@ -454,8 +484,9 @@ export async function getCostAnalysisSummary(
         .eq('org_id', orgId)
         .single();
 
-      if (sub) {
-        const plan = sub.plan as { price_monthly: number; price_yearly: number } | null;
+      if (subData) {
+        const sub = subData as unknown as { billing_cycle: 'monthly' | 'yearly'; plan: { price_monthly: number; price_yearly: number } | null };
+        const plan = sub.plan;
         if (plan) {
           tierTotalRevenue +=
             sub.billing_cycle === 'yearly' ? plan.price_yearly / 12 : plan.price_monthly;
@@ -478,7 +509,7 @@ export async function getCostAnalysisSummary(
   // Calculate total revenue
   let totalRevenue = 0;
   for (const usage of allUsage) {
-    const { data: sub } = await supabase
+    const { data: subData } = await supabase
       .from('organization_subscriptions')
       .select(`
         billing_cycle,
@@ -490,8 +521,9 @@ export async function getCostAnalysisSummary(
       .eq('org_id', usage.org_id)
       .single();
 
-    if (sub) {
-      const plan = sub.plan as { price_monthly: number; price_yearly: number } | null;
+    if (subData) {
+      const sub = subData as unknown as { billing_cycle: 'monthly' | 'yearly'; plan: { price_monthly: number; price_yearly: number } | null };
+      const plan = sub.plan;
       if (plan) {
         totalRevenue += sub.billing_cycle === 'yearly' ? plan.price_yearly / 12 : plan.price_monthly;
       }

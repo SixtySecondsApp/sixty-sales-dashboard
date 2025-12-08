@@ -30,10 +30,12 @@ interface SyncRequest {
   user_id?: string // For webhook calls that explicitly pass user ID
   limit?: number // Optional limit for test syncs (e.g., only sync last 5 calls)
   webhook_payload?: any // For webhook calls that pass the complete Fathom payload
+  skip_thumbnails?: boolean // Skip thumbnail generation for faster syncs
 }
 
 interface FathomCall {
   id: string
+  recording_id?: string | number // Alternative ID field from Fathom API
   title: string
   start_time: string
   end_time: string
@@ -523,11 +525,11 @@ serve(async (req) => {
             if (result.success) {
               meetingsSynced++
             } else {
-              errors.push({ call_id: call.recording_id || call.id, error: result.error || 'Unknown error' })
+              errors.push({ call_id: String(call.recording_id || call.id), error: result.error || 'Unknown error' })
             }
           } catch (error) {
             errors.push({
-              call_id: call.recording_id || call.id,
+              call_id: String(call.recording_id || call.id),
               error: error instanceof Error ? error.message : 'Unknown error',
             })
           }
@@ -1253,9 +1255,9 @@ async function syncSingleCall(
     }
     // Use summary from bulk API response only (don't fetch separately)
     // Summary and transcript should be fetched on-demand via separate endpoint
-    let summaryText: string | null = call.default_summary || call.summary || null
+    const summaryText: string | null = call.default_summary || call.summary || null
     // Map to meetings table schema using actual Fathom API fields
-    const meetingData = {
+    const meetingData: Record<string, any> = {
       org_id: orgId, // Required for RLS compliance
       owner_user_id: ownerUserId,
       fathom_recording_id: String(call.recording_id), // Use recording_id as unique identifier
@@ -1680,7 +1682,7 @@ async function syncSingleCall(
       for (const actionItem of actionItems) {
         // Parse the new Fathom API format
         // recording_timestamp is in format "HH:MM:SS", we need to convert to seconds
-        let timestampSeconds = null
+        let timestampSeconds: number | null = null
         if (actionItem.recording_timestamp) {
           const parts = actionItem.recording_timestamp.split(':')
           if (parts.length === 3) {

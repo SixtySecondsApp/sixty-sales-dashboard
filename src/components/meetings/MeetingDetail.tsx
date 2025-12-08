@@ -488,7 +488,7 @@ const MeetingDetail: React.FC = () => {
             </Button>
             {meeting.coach_rating !== null && (
               <Badge variant="secondary" className="backdrop-blur-sm">
-                Coach {meeting.coach_rating}%
+                Coach {meeting.coach_rating}/10
               </Badge>
             )}
           </div>
@@ -649,10 +649,10 @@ const MeetingDetail: React.FC = () => {
                   <div className="p-3 bg-gray-100 dark:bg-gray-800/30 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-gray-700/50">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-medium text-gray-600 dark:text-gray-300 uppercase tracking-wider">Coach Score</span>
-                      <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{meeting.coach_rating}%</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{meeting.coach_rating}/10</div>
                     </div>
                     <Progress
-                      value={meeting.coach_rating}
+                      value={meeting.coach_rating * 10}
                       className="h-2 bg-gray-200 dark:bg-gray-700/50"
                     />
                     {meeting.coach_summary && (
