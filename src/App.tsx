@@ -324,6 +324,10 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
         <Route path="/auth/reset-password" element={<ResetPassword />} />
+        
+        {/* OAuth callback routes - must be public for external redirects */}
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
 
         {/* Organization invitation acceptance (can be accessed logged in or out) */}
         <Route path="/invite/:token" element={<AcceptInvitation />} />
@@ -421,8 +425,6 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/integrations" element={<InternalRouteGuard><AppLayout><Integrations /></AppLayout></InternalRouteGuard>} />
                 {/* Email and Calendar routes redirect to Google services */}
                 <Route path="/email" element={<ExternalRedirect url="https://mail.google.com" />} />
-                <Route path="/auth/google/callback" element={<GoogleCallback />} />
-                <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
                 {/* Internal-only: Pipeline, Tasks */}
                 <Route path="/pipeline" element={<InternalRouteGuard><AppLayout><PipelinePage /></AppLayout></InternalRouteGuard>} />
                 <Route path="/tasks" element={<InternalRouteGuard><AppLayout><TasksPage /></AppLayout></InternalRouteGuard>} />
