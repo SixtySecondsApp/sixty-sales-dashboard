@@ -12,12 +12,15 @@ import { supabase } from '@/lib/supabase/clientV2';
  * without an authenticated session. The edge function handles authentication.
  */
 export default function FathomCallback() {
+  console.log('🔵 FathomCallback component loaded');
+  
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [status, setStatus] = useState<'processing' | 'success' | 'error'>('processing');
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
+    console.log('🔵 FathomCallback useEffect triggered');
     const handleCallback = async () => {
       try {
         const code = searchParams.get('code');
@@ -104,8 +107,17 @@ export default function FathomCallback() {
       }
     };
 
-    handleCallback();
+    handleCallback().catch((err) => {
+      console.error('🔴 FathomCallback handleCallback promise rejection:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setStatus('error');
+    });
   }, [searchParams, navigate]);
+
+  // Log render state changes
+  useEffect(() => {
+    console.log('🔵 FathomCallback status changed:', status, error || 'no error');
+  }, [status, error]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">

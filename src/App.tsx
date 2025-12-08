@@ -327,7 +327,20 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         
         {/* OAuth callback routes - must be public for external redirects */}
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
-        <Route path="/oauth/fathom/callback" element={<FathomCallback />} />
+        <Route path="/oauth/fathom/callback" element={
+          <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
+              <div className="text-center">
+                <div className="inline-flex items-center space-x-2 bg-[#1a1a1a] px-4 py-3 rounded-lg mb-6">
+                  <span className="text-white font-bold text-2xl tracking-wide">FATHOM</span>
+                </div>
+                <h1 className="text-2xl font-bold text-white mb-2">Loading...</h1>
+              </div>
+            </div>
+          }>
+            <FathomCallback />
+          </Suspense>
+        } />
 
         {/* Organization invitation acceptance (can be accessed logged in or out) */}
         <Route path="/invite/:token" element={<AcceptInvitation />} />
