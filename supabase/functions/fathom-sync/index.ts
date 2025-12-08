@@ -1214,7 +1214,15 @@ async function syncSingleCall(
       // Additional metadata fields
       fathom_created_at: call.created_at || null,
       transcript_language: call.transcript_language || 'en',
-      calendar_invitees_type: call.calendar_invitees_domains_type || null,
+      // Validate calendar_invitees_type against check constraint
+      // Only allow 'all_internal' or 'one_or_more_external', set to null otherwise
+      calendar_invitees_type: (() => {
+        const inviteesType = call.calendar_invitees_domains_type;
+        if (inviteesType === 'all_internal' || inviteesType === 'one_or_more_external') {
+          return inviteesType;
+        }
+        return null; // Set to null if value doesn't match constraint
+      })(),
       last_synced_at: new Date().toISOString(),
       sync_status: 'synced',
     }
