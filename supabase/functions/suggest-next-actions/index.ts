@@ -506,6 +506,42 @@ IMPORTANT:
 
   const responseData = await response.json()
   let aiResponse = responseData.content[0]?.text || '[]'
+  
+  // Log cost event if we have usage data
+  if (responseData.usage) {
+    try {
+      const { logAICostEvent } = await import('../_shared/costTracking.ts')
+      const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') || '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      )
+      
+      // Get user ID from context if available
+      const userId = context.userId || context.user_id
+      if (userId) {
+        await logAICostEvent(
+          supabaseClient,
+          userId,
+          null, // Will be resolved from user
+          'anthropic',
+          model.includes('haiku') ? 'claude-haiku-4-5' : 'claude-sonnet-4',
+          responseData.usage.input_tokens || 0,
+          responseData.usage.output_tokens || 0,
+          'next_action_suggestions',
+          {
+            activity_type: context.type,
+            activity_id: context.activityId,
+          }
+        )
+      }
+    } catch (err) {
+      // Silently fail - cost tracking is optional
+      if (err instanceof Error && !err.message.includes('relation') && !err.message.includes('does not exist')) {
+        console.warn('[SuggestNextActions] Error logging cost:', err)
+      }
+    }
+  }
+  
   // Strip markdown code blocks if present (```json ... ```)
   const codeBlockMatch = aiResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
   if (codeBlockMatch) {

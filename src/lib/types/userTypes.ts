@@ -5,11 +5,12 @@
  * based on email domain. This is the foundation for feature access control.
  */
 
-// User type - derived from email domain at runtime
+// User type - derived from email whitelist at runtime
 export type UserType = 'internal' | 'external';
 
-// Internal email domains - users with these domains get full access
-export const INTERNAL_DOMAINS = ['sixtyseconds.video'] as const;
+// Legacy: Internal email domains - no longer used, kept for backwards compatibility
+// Now using internal_users table whitelist instead
+export const INTERNAL_DOMAINS = [] as const;
 
 // Feature access flags - what each user type can access
 export interface FeatureAccess {

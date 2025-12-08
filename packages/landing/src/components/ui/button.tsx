@@ -49,9 +49,15 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
+    // When variant is undefined, only apply base classes and size, not default variant
+    // This allows custom className styles (like gradient backgrounds) to take precedence
+    const baseClasses = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed';
+    const classes = variant === undefined
+      ? cn(baseClasses, size ? buttonVariants({ size }) : '', className)
+      : cn(buttonVariants({ variant, size }), className);
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={classes}
         ref={ref}
         {...props}
       />

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useOnboardingProgress, OnboardingStep } from '@/lib/hooks/useOnboardingProgress';
@@ -12,9 +12,10 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 export default function OnboardingPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { needsOnboarding, currentStep, loading, resetOnboarding } = useOnboardingProgress();
+  const { needsOnboarding, currentStep, loading, resetOnboarding, completeStep } = useOnboardingProgress();
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isResetting, setIsResetting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Removed 'sync' step - meetings will sync in the background after reaching dashboard
   const steps: OnboardingStep[] = ['welcome', 'org_setup', 'team_invite', 'fathom_connect', 'complete'];
@@ -32,11 +33,26 @@ export default function OnboardingPage() {
     }
   }, [loading, user, currentStep]);
 
-  const handleNext = () => {
+  // Save progress and move to next step
+  const handleNext = useCallback(async () => {
     if (currentStepIndex < steps.length - 1) {
-      setCurrentStepIndex(currentStepIndex + 1);
+      const nextIndex = currentStepIndex + 1;
+      const nextStep = steps[nextIndex];
+
+      // Save progress to database
+      setIsSaving(true);
+      try {
+        await completeStep(nextStep);
+        setCurrentStepIndex(nextIndex);
+      } catch (error) {
+        console.error('Failed to save onboarding progress:', error);
+        // Still advance locally even if save fails
+        setCurrentStepIndex(nextIndex);
+      } finally {
+        setIsSaving(false);
+      }
     }
-  };
+  }, [currentStepIndex, steps, completeStep]);
 
   const handleBack = () => {
     if (currentStepIndex > 0) {

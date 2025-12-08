@@ -152,6 +152,37 @@ Instructions:
 
     const anthropicData = await anthropicResponse.json()
     const aiResponse = anthropicData.content[0]?.text || 'I apologize, but I could not generate a response.'
+    
+    // Log cost event
+    if (anthropicData.usage && userId) {
+      try {
+        const { logAICostEvent } = await import('../_shared/costTracking.ts')
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') || '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+        )
+        
+        await logAICostEvent(
+          supabaseClient,
+          userId,
+          null, // Will be resolved from user
+          'anthropic',
+          model.includes('haiku') ? 'claude-haiku-4-5' : 'claude-sonnet-4',
+          anthropicData.usage.input_tokens || 0,
+          anthropicData.usage.output_tokens || 0,
+          'meeting_search',
+          {
+            meeting_id: meetingId,
+          }
+        )
+      } catch (err) {
+        // Silently fail - cost tracking is optional
+        if (err instanceof Error && !err.message.includes('relation') && !err.message.includes('does not exist')) {
+          console.warn('[AskMeetingAI] Error logging cost:', err)
+        }
+      }
+    }
+    
     return new Response(
       JSON.stringify({ response: aiResponse }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

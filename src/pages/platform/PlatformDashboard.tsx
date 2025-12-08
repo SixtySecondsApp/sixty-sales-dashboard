@@ -33,6 +33,7 @@ import {
   Layers,
   Globe,
   LayoutDashboard,
+  PieChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,24 @@ const platformSections: Record<string, PlatformSection[]> = {
       icon: CreditCard,
       href: '/platform/plans',
       color: 'text-emerald-600 bg-emerald-100 dark:bg-emerald-900/30',
+    },
+    {
+      id: 'pricing',
+      title: 'Pricing Control',
+      description: 'Manage pricing page, free tier, and Stripe integration',
+      icon: DollarSign,
+      href: '/platform/pricing',
+      color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30',
+      badge: 'New',
+    },
+    {
+      id: 'cost-analysis',
+      title: 'Cost Analysis',
+      description: 'Analyze costs per organization, tier, and AI model',
+      icon: BarChart3,
+      href: '/platform/cost-analysis',
+      color: 'text-cyan-600 bg-cyan-100 dark:bg-cyan-900/30',
+      badge: 'New',
     },
     {
       id: 'users',

@@ -558,12 +558,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
               {/* Product Pages Links */}
               <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
-              <DropdownMenuItem onClick={() => window.open('/product/meetings', '_blank')}>
+              <DropdownMenuItem onClick={() => window.open(import.meta.env.DEV ? '/landing' : '/product/meetings', '_blank')}>
                 <Eye className="w-4 h-4 mr-2" />
                 View Sales Page
                 <LinkIcon className="w-3 h-3 ml-auto text-gray-400" />
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => window.open('/product/meetings/pricing', '_blank')}>
+              <DropdownMenuItem onClick={() => window.open(import.meta.env.DEV ? '/landing#pricing' : '/product/meetings/pricing', '_blank')}>
                 <DollarSign className="w-4 h-4 mr-2" />
                 View Pricing
                 <LinkIcon className="w-3 h-3 ml-auto text-gray-400" />

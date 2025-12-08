@@ -1,11 +1,11 @@
 // src/pages/Pricing.tsx
-// Premium pricing page with currency conversion
+// Dynamic pricing page with database-driven plans and currency conversion
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Shield, Zap, Users, Clock, ChevronDown, Check, X, Sparkles } from 'lucide-react';
-import { usePlans, useStartFreeTrial, useCurrentSubscription } from '../lib/hooks/useSubscription';
+import { ArrowRight, Shield, Zap, Users, Clock, ChevronDown, Check, X, Sparkles, Gift } from 'lucide-react';
+import { usePublicPlans, useStartFreeTrial, useCurrentSubscription } from '../lib/hooks/useSubscription';
 import { useCurrency } from '../lib/hooks/useCurrency';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
@@ -14,17 +14,7 @@ import { BillingToggle } from '../components/subscription/BillingToggle';
 import { CurrencySelector } from '../components/subscription/CurrencySelector';
 import type { SubscriptionPlan, BillingCycle } from '../lib/types/subscription';
 
-// Base prices in USD cents - only the 4 plans we want to show
-const BASE_PRICES_USD: Record<string, number> = {
-  starter: 4900,   // $49
-  pro: 7900,       // $79 (main mid-tier plan)
-  team: 12900,     // $129
-};
-
-// Plans we want to display (in order) - filtering out duplicates
-const ALLOWED_PLAN_SLUGS = ['starter', 'pro', 'team'];
-
-// Enterprise plan placeholder
+// Enterprise plan placeholder (contact sales, no database entry needed)
 const ENTERPRISE_PLAN: SubscriptionPlan = {
   id: 'enterprise',
   name: 'Enterprise',
@@ -58,8 +48,22 @@ const ENTERPRISE_PLAN: SubscriptionPlan = {
   trial_days: 0,
   is_active: true,
   is_default: false,
-  display_order: 4,
+  is_free_tier: false,
+  is_public: true,
+  display_order: 999,
   badge_text: null,
+  cta_text: 'Contact Sales',
+  cta_url: 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry',
+  highlight_features: [
+    'Unlimited meetings',
+    'Unlimited team members',
+    'Custom integrations',
+    'Dedicated success manager',
+    'SSO & SAML',
+    'Custom SLA',
+  ],
+  stripe_synced_at: null,
+  stripe_sync_error: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
@@ -92,7 +96,7 @@ export function PricingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeOrgId: organizationId } = useOrg();
-  const { data: plans, isLoading: plansLoading } = usePlans();
+  const { data: plans, isLoading: plansLoading } = usePublicPlans();
   const { subscription, trial } = useCurrentSubscription();
   const startTrial = useStartFreeTrial();
   const {
@@ -110,10 +114,40 @@ export function PricingPage() {
   const hasActiveTrial = trial?.isTrialing && !trial?.hasExpired;
   const hasActiveSubscription = subscription?.status === 'active';
 
+  // Process plans from database - add enterprise at the end
+  const displayPlans = useMemo(() => {
+    if (!plans) return [ENTERPRISE_PLAN];
+
+    // Plans are already sorted by display_order from the API
+    // Add enterprise plan at the end
+    return [...plans, ENTERPRISE_PLAN];
+  }, [plans]);
+
+  // Check if there's a free tier available
+  const hasFreeTier = useMemo(() => {
+    return plans?.some(p => p.is_free_tier) || false;
+  }, [plans]);
+
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
     // Enterprise plan - contact sales
     if (plan.slug === 'enterprise') {
-      window.location.href = 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry';
+      const url = plan.cta_url || 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry';
+      window.location.href = url;
+      return;
+    }
+
+    // Free tier - different flow
+    if (plan.is_free_tier) {
+      if (!user) {
+        navigate(`/signup?plan=${plan.slug}`);
+        return;
+      }
+      if (!organizationId) {
+        navigate(`/onboarding?plan=${plan.slug}`);
+        return;
+      }
+      // TODO: Assign free tier directly
+      navigate('/dashboard');
       return;
     }
 
@@ -143,25 +177,11 @@ export function PricingPage() {
     }
   };
 
-  // Filter to only allowed plans (Starter, Pro, Team) and sort by our defined order
-  // This prevents duplicates like showing both 'growth' and 'pro' at the same price
-  const displayPlans = plans
-    ?.filter(p => ALLOWED_PLAN_SLUGS.includes(p.slug))
-    .sort((a, b) => {
-      const aIndex = ALLOWED_PLAN_SLUGS.indexOf(a.slug);
-      const bIndex = ALLOWED_PLAN_SLUGS.indexOf(b.slug);
-      return aIndex - bIndex;
-    }) || [];
-
-  // Add enterprise plan at the end (only our static one)
-  // Final result: Starter, Pro, Team, Enterprise (4 plans)
-  const allPlans = [...displayPlans, ENTERPRISE_PLAN];
-
   // Get formatted prices for a plan
   const getFormattedPrices = (plan: SubscriptionPlan) => {
-    const basePriceUSD = BASE_PRICES_USD[plan.slug as keyof typeof BASE_PRICES_USD] || plan.price_monthly;
-    const monthlyPrice = formatPrice(basePriceUSD);
-    const yearlyTotal = Math.round(basePriceUSD * 12 * 0.8); // 20% discount
+    // Use database prices directly
+    const monthlyPrice = formatPrice(plan.price_monthly);
+    const yearlyTotal = plan.price_yearly || Math.round(plan.price_monthly * 12 * 0.8); // 20% discount if not set
     const yearlyMonthly = formatPrice(Math.round(yearlyTotal / 12));
     const yearlyPrice = formatPrice(yearlyTotal);
 
@@ -171,6 +191,37 @@ export function PricingPage() {
       yearlyPrice,
     };
   };
+
+  // Generate comparison features dynamically from plans
+  const comparisonFeatures = useMemo(() => {
+    const baseFeatures = [
+      {
+        name: 'Monthly meetings',
+        getValue: (p: SubscriptionPlan) => p.is_free_tier ? `${p.max_meetings_per_month}` : p.max_meetings_per_month ? `${p.max_meetings_per_month}` : 'Unlimited'
+      },
+      {
+        name: 'Data retention',
+        getValue: (p: SubscriptionPlan) => p.meeting_retention_months ? `${p.meeting_retention_months} months` : 'Unlimited'
+      },
+      {
+        name: 'Team members',
+        getValue: (p: SubscriptionPlan) => p.max_users ? `${p.max_users}${p.max_users > 1 ? ' (add more)' : ''}` : 'Unlimited'
+      },
+      { name: 'AI summaries', getValue: (p: SubscriptionPlan) => p.features?.ai_summaries || false },
+      { name: 'Meeting transcripts', getValue: () => true },
+      { name: 'Action item tracking', getValue: () => true },
+      { name: 'CRM integrations', getValue: (p: SubscriptionPlan) => p.features?.integrations || false },
+      { name: 'Advanced analytics', getValue: (p: SubscriptionPlan) => p.features?.analytics || false },
+      { name: 'Team insights', getValue: (p: SubscriptionPlan) => p.features?.team_insights || false },
+      { name: 'API access', getValue: (p: SubscriptionPlan) => p.features?.api_access || false },
+      { name: 'Custom branding', getValue: (p: SubscriptionPlan) => p.features?.custom_branding || false },
+      { name: 'SSO / SAML', getValue: (p: SubscriptionPlan) => p.features?.sso || false },
+      { name: 'Dedicated support', getValue: (p: SubscriptionPlan) => p.features?.dedicated_support || false },
+      { name: 'Custom SLA', getValue: (p: SubscriptionPlan) => p.slug === 'enterprise' },
+    ];
+
+    return baseFeatures;
+  }, []);
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950">
@@ -258,6 +309,12 @@ export function PricingPage() {
                   <br className="hidden sm:block" />
                   Upgrade or change your plan anytime.
                 </>
+              ) : hasFreeTier ? (
+                <>
+                  Start free with up to 50 meetings per month.
+                  <br className="hidden sm:block" />
+                  Upgrade anytime for unlimited access.
+                </>
               ) : (
                 <>
                   Start with a 14-day free trial. No credit card required.
@@ -274,12 +331,21 @@ export function PricingPage() {
                   to="/signup"
                   className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:from-emerald-600 hover:to-emerald-700 transition-all"
                 >
-                  <Sparkles className="w-5 h-5" />
-                  Get Started Free
+                  {hasFreeTier ? (
+                    <>
+                      <Gift className="w-5 h-5" />
+                      Start Free
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Get Started Free
+                    </>
+                  )}
                   <ArrowRight className="w-4 h-4" />
                 </Link>
                 <p className="mt-3 text-sm text-gray-500 dark:text-gray-500">
-                  14-day free trial • No credit card required
+                  {hasFreeTier ? 'Free forever • No credit card required' : '14-day free trial • No credit card required'}
                 </p>
               </motion.div>
             )}
@@ -318,11 +384,12 @@ export function PricingPage() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {allPlans.map((plan, index) => {
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${displayPlans.length <= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
+              {displayPlans.map((plan, index) => {
                 const prices = getFormattedPrices(plan);
                 const isEnterprise = plan.slug === 'enterprise';
                 const isCurrentPlan = subscription?.plan?.slug === plan.slug;
+                const isFreeTier = plan.is_free_tier;
 
                 return (
                   <PricingCard
@@ -330,16 +397,19 @@ export function PricingPage() {
                     plan={plan}
                     billingCycle={billingCycle}
                     isCurrentPlan={isCurrentPlan}
-                    isPopular={plan.slug === 'pro'}
+                    isPopular={plan.badge_text === 'Popular' || plan.slug === 'pro'}
                     isEnterprise={isEnterprise}
+                    isFreeTier={isFreeTier}
                     onSelect={handleSelectPlan}
                     isLoading={selectedPlan === plan.id && startTrial.isPending}
                     formattedPrice={
-                      billingCycle === 'yearly' ? prices.yearlyMonthly : prices.monthlyPrice
+                      isFreeTier ? '$0' : billingCycle === 'yearly' ? prices.yearlyMonthly : prices.monthlyPrice
                     }
-                    formattedYearlyPrice={prices.yearlyPrice}
+                    formattedYearlyPrice={isFreeTier ? '$0' : prices.yearlyPrice}
                     yearlyDiscount={20}
                     index={index}
+                    ctaText={plan.cta_text}
+                    highlightFeatures={plan.highlight_features}
                   />
                 );
               })}
@@ -373,22 +443,22 @@ export function PricingPage() {
                   <th className="py-4 px-6 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Feature
                   </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                    Starter
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-blue-600 dark:text-blue-400">
-                    Pro
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                    Team
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                    Enterprise
-                  </th>
+                  {displayPlans.map((plan) => (
+                    <th
+                      key={plan.id}
+                      className={`py-4 px-6 text-center text-sm font-semibold ${
+                        plan.slug === 'pro' || plan.badge_text === 'Popular'
+                          ? 'text-blue-600 dark:text-blue-400'
+                          : 'text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {plan.name}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {COMPARISON_FEATURES.map((feature, index) => (
+                {comparisonFeatures.map((feature, index) => (
                   <motion.tr
                     key={feature.name}
                     initial={{ opacity: 0, y: 10 }}
@@ -400,18 +470,18 @@ export function PricingPage() {
                     <td className="py-4 px-6 text-sm text-gray-700 dark:text-gray-300">
                       {feature.name}
                     </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.starter} />
-                    </td>
-                    <td className="py-4 px-6 text-center bg-blue-50/50 dark:bg-blue-500/5">
-                      <FeatureValue value={feature.pro} highlight />
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.team} />
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.enterprise} />
-                    </td>
+                    {displayPlans.map((plan) => {
+                      const value = feature.getValue(plan);
+                      const isPopular = plan.slug === 'pro' || plan.badge_text === 'Popular';
+                      return (
+                        <td
+                          key={plan.id}
+                          className={`py-4 px-6 text-center ${isPopular ? 'bg-blue-50/50 dark:bg-blue-500/5' : ''}`}
+                        >
+                          <FeatureValue value={value} highlight={isPopular} />
+                        </td>
+                      );
+                    })}
                   </motion.tr>
                 ))}
               </tbody>
@@ -484,13 +554,16 @@ export function PricingPage() {
                 Ready to transform your sales calls?
               </h2>
               <p className="text-lg text-gray-600 dark:text-gray-400 mb-8">
-                Start your free 14-day trial today. No credit card required.
+                {hasFreeTier
+                  ? 'Start free today. No credit card required.'
+                  : 'Start your free 14-day trial today. No credit card required.'
+                }
               </p>
               <Link
                 to={user ? '/dashboard' : '/signup'}
                 className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700 transition-all"
               >
-                Get Started Free
+                {hasFreeTier ? 'Start Free' : 'Get Started Free'}
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
@@ -526,36 +599,18 @@ export function PricingPage() {
   );
 }
 
-// Feature comparison data
-const COMPARISON_FEATURES = [
-  { name: 'Monthly calls', starter: '30', pro: '100', team: 'Unlimited', enterprise: 'Unlimited' },
-  { name: 'Data retention', starter: '6 months', pro: '12 months', team: '2 years', enterprise: 'Unlimited' },
-  { name: 'Team members', starter: '1', pro: '1', team: '5 (add more)', enterprise: 'Unlimited' },
-  { name: 'AI summaries', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Meeting transcripts', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Action item tracking', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'CRM integrations', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Advanced analytics', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Team insights', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'API access', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'Custom branding', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'SSO / SAML', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Dedicated support', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Custom SLA', starter: false, pro: false, team: false, enterprise: true },
-];
-
 // FAQ data
 const FAQ_ITEMS = [
   {
-    question: 'Do I need a credit card to start the trial?',
-    answer: 'No! Start your 14-day free trial without any payment information. You\'ll only need to add payment details when you\'re ready to continue after the trial.',
+    question: 'Is there a free plan?',
+    answer: 'Yes! Our Free plan includes up to 50 meetings per month with core features. Perfect for individuals or small teams getting started. No credit card required.',
   },
   {
     question: 'Can I change plans later?',
     answer: 'Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and we\'ll prorate your billing accordingly.',
   },
   {
-    question: 'What happens when I reach my call limit?',
+    question: 'What happens when I reach my meeting limit?',
     answer: 'You\'ll receive a notification when you\'re approaching your limit. You can upgrade to a higher plan at any time to increase your allowance.',
   },
   {

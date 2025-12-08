@@ -36,6 +36,8 @@ import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
 const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
 const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
+const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
+const CostAnalysis = lazyWithRetry(() => import('@/pages/platform/CostAnalysis'));
 
 // Heavy routes - lazy load with retry mechanism to handle cache issues
 const ActivityLog = lazyWithRetry(() => import('@/pages/ActivityLog'));
@@ -389,6 +391,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 {/* Platform Admin - Customer Management */}
                 <Route path="/platform/customers" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/plans" element={<PlatformAdminRouteGuard><AppLayout><SaasAdminDashboard /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/pricing" element={<PlatformAdminRouteGuard><AppLayout><PricingControl /></AppLayout></PlatformAdminRouteGuard>} />
+                <Route path="/platform/cost-analysis" element={<PlatformAdminRouteGuard><AppLayout><CostAnalysis /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/users" element={<PlatformAdminRouteGuard><AppLayout><Users /></AppLayout></PlatformAdminRouteGuard>} />
                 {/* Platform Admin - CRM Configuration */}
                 <Route path="/platform/crm/pipeline" element={<PlatformAdminRouteGuard><AppLayout><PipelineSettings /></AppLayout></PlatformAdminRouteGuard>} />

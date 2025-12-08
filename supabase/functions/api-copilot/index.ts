@@ -22,6 +22,7 @@ import {
   rateLimitMiddleware,
   RATE_LIMIT_CONFIGS
 } from '../_shared/rateLimiter.ts'
+import { logAICostEvent, extractAnthropicUsage } from '../_shared/costTracking.ts'
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 const ANTHROPIC_VERSION = '2023-06-01' // API version for tool calling
@@ -501,6 +502,42 @@ async function handleChat(
         const inputCost = (analyticsData.input_tokens / 1_000_000) * 0.25
         const outputCost = (analyticsData.output_tokens / 1_000_000) * 1.25
         analyticsData.estimated_cost_cents = (inputCost + outputCost) * 100
+        
+        // Log cost event for tracking
+        try {
+          // Get user's org_id
+          const { data: membership } = await client
+            .from('organization_memberships')
+            .select('org_id')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .single()
+          
+          if (membership?.org_id && aiResponse.usage.input_tokens && aiResponse.usage.output_tokens) {
+            // Use the cost tracking helper function
+            await logAICostEvent(
+              client,
+              userId,
+              membership.org_id,
+              'anthropic',
+              'claude-haiku-4-5', // Copilot uses Haiku 4.5
+              aiResponse.usage.input_tokens,
+              aiResponse.usage.output_tokens,
+              'copilot',
+              {
+                tool_iterations: aiResponse.tool_iterations || 0,
+                tools_used: aiResponse.tools_used || [],
+                conversation_id: conversationId,
+              }
+            )
+          }
+        } catch (err) {
+          // Silently fail - cost tracking is optional
+          if (err instanceof Error && !err.message.includes('relation') && !err.message.includes('does not exist')) {
+            console.warn('[Copilot] Error in cost logging:', err)
+          }
+        }
       }
       if (aiResponse.tools_used) {
         analyticsData.tools_used = aiResponse.tools_used

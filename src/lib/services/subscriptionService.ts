@@ -90,15 +90,17 @@ export async function getPlanBySlug(slug: string): Promise<SubscriptionPlan | nu
  */
 export async function getOrgSubscription(orgId: string): Promise<SubscriptionWithPlan | null> {
   // First get the subscription
-  const { data: subscription, error: subError } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: subscription, error: subError } = await (supabase as any)
     .from('organization_subscriptions')
     .select('*')
     .eq('org_id', orgId)
-    .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors when no row exists
+    .maybeSingle();
 
   if (subError) {
     // 406 errors typically indicate RLS policy blocking access
-    if (subError.code === 'PGRST116' || subError.status === 406) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (subError.code === 'PGRST116' || (subError as any).status === 406) {
       console.warn('Subscription not found or access denied:', subError.message);
       return null;
     }
@@ -109,7 +111,8 @@ export async function getOrgSubscription(orgId: string): Promise<SubscriptionWit
   if (!subscription) return null;
 
   // Then get the plan separately
-  const { data: plan, error: planError } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: plan, error: planError } = await (supabase as any)
     .from('subscription_plans')
     .select('*')
     .eq('id', subscription.plan_id)
@@ -169,21 +172,43 @@ export function calculateTrialStatus(subscription: SubscriptionWithPlan | null):
 
 /**
  * Get usage limits for an organization
+ * For free tier: counts TOTAL meetings ever (not per month)
+ * For paid tiers: counts meetings in current billing period
  */
 export async function getOrgUsageLimits(orgId: string): Promise<UsageLimits | null> {
   const subscription = await getOrgSubscription(orgId);
   if (!subscription) return null;
 
-  // Get current period usage
-  const { data: usage } = await supabase
-    .from('organization_usage')
-    .select('*')
-    .eq('org_id', orgId)
-    .gte('period_start', subscription.current_period_start)
-    .lte('period_end', subscription.current_period_end)
-    .order('period_start', { ascending: false })
-    .limit(1)
-    .single();
+  const plan = subscription.plan;
+  const isFreeTier = plan.is_free_tier === true;
+
+  let meetingsUsed = 0;
+
+  if (isFreeTier) {
+    // For free tier: count TOTAL meetings ever (not per month)
+    // This uses the meeting limit as a lifetime cap
+    const { count: totalMeetings } = await supabase
+      .from('meetings')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', orgId);
+
+    meetingsUsed = totalMeetings || 0;
+  } else {
+    // For paid tiers: count meetings in current billing period
+    const { data: usage } = await supabase
+      .from('organization_usage')
+      .select('*')
+      .eq('org_id', orgId)
+      .gte('period_start', subscription.current_period_start)
+      .lte('period_end', subscription.current_period_end)
+      .order('period_start', { ascending: false })
+      .limit(1)
+      .single();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const usageData = usage as any;
+    meetingsUsed = usageData?.meetings_count || 0;
+  }
 
   // Get active user count
   const { count: activeUsers } = await supabase
@@ -192,10 +217,6 @@ export async function getOrgUsageLimits(orgId: string): Promise<UsageLimits | nu
     .eq('org_id', orgId)
     .eq('status', 'active');
 
-  const plan = subscription.plan;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const usageData = usage as any;
-  const meetingsUsed = usageData?.meetings_count || 0;
   const meetingsLimit = subscription.custom_max_meetings || plan.max_meetings_per_month;
   const usersLimit = subscription.custom_max_users || plan.max_users;
   const includedSeats = plan.included_seats || 1;
@@ -223,6 +244,8 @@ export async function getOrgUsageLimits(orgId: string): Promise<UsageLimits | nu
     retentionMonths: subscription.custom_max_storage_mb
       ? null
       : plan.meeting_retention_months,
+    // Include flag so UI knows how to display the limit
+    isFreeTierLimit: isFreeTier,
   };
 }
 
@@ -550,4 +573,61 @@ export async function changePlan(
     plan_id: newPlanId,
     billing_cycle: billingCycle,
   });
+}
+
+// ============================================================================
+// Free Tier Enforcement
+// ============================================================================
+
+/**
+ * Check if organization is on free tier
+ */
+export async function isOnFreeTier(orgId: string): Promise<boolean> {
+  const subscription = await getOrgSubscription(orgId);
+  if (!subscription) return false;
+  return subscription.plan.is_free_tier === true;
+}
+
+/**
+ * Get free tier usage status for upgrade prompts
+ * For free tier: limit is TOTAL meetings ever
+ * For paid tiers: limit is per billing period
+ */
+export async function getFreeTierUsageStatus(orgId: string): Promise<{
+  isFreeTier: boolean;
+  meetingsUsed: number;
+  meetingsLimit: number | null;
+  percentUsed: number;
+  shouldShowUpgradePrompt: boolean;
+  remainingMeetings: number | null;
+  /** True if limit is total (free tier), false if per month (paid tier) */
+  isTotalLimit: boolean;
+} | null> {
+  const subscription = await getOrgSubscription(orgId);
+  if (!subscription) return null;
+
+  const limits = await getOrgUsageLimits(orgId);
+  if (!limits) return null;
+
+  const isFreeTier = subscription.plan.is_free_tier === true;
+  const meetingsUsed = limits.meetings.used || 0;
+  const meetingsLimit = limits.meetings.limit;
+  const remainingMeetings = limits.meetings.remaining;
+
+  // Calculate percentage used (for free tier only)
+  const percentUsed = meetingsLimit ? Math.round((meetingsUsed / meetingsLimit) * 100) : 0;
+
+  // Show upgrade prompt when 80% of free tier limit is used
+  const shouldShowUpgradePrompt = isFreeTier && percentUsed >= 80;
+
+  return {
+    isFreeTier,
+    meetingsUsed,
+    meetingsLimit,
+    percentUsed,
+    shouldShowUpgradePrompt,
+    remainingMeetings,
+    // Free tier = total meetings limit, Paid tier = per month limit
+    isTotalLimit: isFreeTier,
+  };
 }

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Check, Sparkles, Zap, Users, Building2, Clock } from 'lucide-react';
+import { Check, Sparkles, Zap, Users, Building2, Clock, Gift } from 'lucide-react';
 import type { SubscriptionPlan, BillingCycle } from '../../lib/types/subscription';
 
 interface PricingCardProps {
@@ -12,12 +12,15 @@ interface PricingCardProps {
   isCurrentPlan?: boolean;
   isPopular?: boolean;
   isEnterprise?: boolean;
+  isFreeTier?: boolean;
   onSelect: (plan: SubscriptionPlan) => void;
   isLoading?: boolean;
   formattedPrice: string;
   formattedYearlyPrice?: string;
   yearlyDiscount?: number;
   index?: number;
+  ctaText?: string;
+  highlightFeatures?: string[];
 }
 
 // Card animation variants
@@ -58,15 +61,21 @@ export function PricingCard({
   isCurrentPlan = false,
   isPopular = false,
   isEnterprise = false,
+  isFreeTier = false,
   onSelect,
   isLoading = false,
   formattedPrice,
   formattedYearlyPrice,
   yearlyDiscount = 20,
   index = 0,
+  ctaText,
+  highlightFeatures,
 }: PricingCardProps) {
-  const features = getFeaturesList(plan, isEnterprise);
-  const PlanIcon = getPlanIcon(plan.slug);
+  // Use highlight_features if provided, otherwise generate from plan attributes
+  const features = highlightFeatures && highlightFeatures.length > 0
+    ? highlightFeatures
+    : getFeaturesList(plan, isEnterprise, isFreeTier);
+  const PlanIcon = getPlanIcon(plan.slug, isFreeTier);
 
   return (
     <motion.div
@@ -80,11 +89,15 @@ export function PricingCard({
         backdrop-blur-xl transition-all duration-300
         ${isPopular
           ? 'bg-gradient-to-b from-blue-600/10 to-gray-900/80 dark:from-blue-600/20 dark:to-gray-900/80'
-          : 'bg-white/80 dark:bg-gray-900/80'
+          : isFreeTier
+            ? 'bg-gradient-to-b from-emerald-600/5 to-gray-900/80 dark:from-emerald-600/10 dark:to-gray-900/80'
+            : 'bg-white/80 dark:bg-gray-900/80'
         }
         ${isPopular
           ? 'border-2 border-blue-500/50 shadow-lg shadow-blue-500/20'
-          : 'border border-gray-200 dark:border-gray-700/50'
+          : isFreeTier
+            ? 'border-2 border-emerald-500/30 shadow-lg shadow-emerald-500/10'
+            : 'border border-gray-200 dark:border-gray-700/50'
         }
         ${isCurrentPlan ? 'ring-2 ring-emerald-500/50' : ''}
         hover:border-blue-500/50 dark:hover:border-blue-500/50
@@ -101,7 +114,22 @@ export function PricingCard({
         >
           <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500 text-white text-xs font-bold uppercase tracking-wide shadow-lg shadow-blue-500/30">
             <Sparkles className="w-3.5 h-3.5" />
-            Most Popular
+            {plan.badge_text || 'Most Popular'}
+          </span>
+        </motion.div>
+      )}
+
+      {/* Free tier badge */}
+      {isFreeTier && !isPopular && (
+        <motion.div
+          variants={badgeVariants}
+          initial="initial"
+          animate="animate"
+          className="absolute -top-4 left-1/2 -translate-x-1/2"
+        >
+          <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold uppercase tracking-wide shadow-lg shadow-emerald-500/30">
+            <Gift className="w-3.5 h-3.5" />
+            Free Forever
           </span>
         </motion.div>
       )}
@@ -124,7 +152,9 @@ export function PricingCard({
               ? 'bg-blue-500/20 text-blue-400'
               : isEnterprise
                 ? 'bg-purple-500/20 text-purple-400'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                : isFreeTier
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
             }
           `}>
             <PlanIcon className="w-5 h-5" />
@@ -143,6 +173,16 @@ export function PricingCard({
             <span className="text-3xl font-bold text-gray-900 dark:text-white">Custom</span>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Tailored for your organization
+            </p>
+          </div>
+        ) : isFreeTier ? (
+          <div className="py-2">
+            <div className="flex items-baseline gap-1">
+              <span className="text-4xl font-bold text-emerald-500">$0</span>
+              <span className="text-gray-500 dark:text-gray-400">/month</span>
+            </div>
+            <p className="mt-1 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+              No credit card required
             </p>
           </div>
         ) : (
@@ -177,8 +217,8 @@ export function PricingCard({
         )}
       </div>
 
-      {/* Trial badge */}
-      {plan.trial_days > 0 && !isCurrentPlan && !isEnterprise && (
+      {/* Trial badge - don't show for free tier */}
+      {plan.trial_days > 0 && !isCurrentPlan && !isEnterprise && !isFreeTier && (
         <div className="mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <Clock className="w-4 h-4 text-blue-400" />
@@ -207,7 +247,9 @@ export function PricingCard({
                 mt-0.5 p-0.5 rounded-full
                 ${isPopular
                   ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-emerald-500/20 text-emerald-400'
+                  : isFreeTier
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'bg-emerald-500/20 text-emerald-400'
                 }
               `}>
                 <Check className="w-4 h-4" />
@@ -232,9 +274,11 @@ export function PricingCard({
             ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500'
             : isEnterprise
               ? 'bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-400 dark:hover:border-gray-500'
-              : isPopular
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700'
-                : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100'
+              : isFreeTier
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:from-emerald-600 hover:to-teal-600'
+                : isPopular
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:from-blue-600 hover:to-blue-700'
+                  : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100'
           }
         `}
       >
@@ -260,8 +304,12 @@ export function PricingCard({
           </span>
         ) : isCurrentPlan ? (
           'Current Plan'
+        ) : ctaText ? (
+          ctaText
         ) : isEnterprise ? (
           'Contact Sales'
+        ) : isFreeTier ? (
+          'Get Started Free'
         ) : (
           'Start Free Trial'
         )}
@@ -280,8 +328,12 @@ export function PricingCard({
 /**
  * Get icon for plan type
  */
-function getPlanIcon(slug: string) {
+function getPlanIcon(slug: string, isFreeTier: boolean = false) {
+  if (isFreeTier) return Gift;
+
   switch (slug) {
+    case 'free':
+      return Gift;
     case 'starter':
       return Zap;
     case 'pro':
@@ -298,7 +350,7 @@ function getPlanIcon(slug: string) {
 /**
  * Generate features list based on plan attributes
  */
-function getFeaturesList(plan: SubscriptionPlan, isEnterprise: boolean = false): string[] {
+function getFeaturesList(plan: SubscriptionPlan, isEnterprise: boolean = false, isFreeTier: boolean = false): string[] {
   if (isEnterprise) {
     return [
       'Unlimited calls & recordings',
@@ -311,6 +363,19 @@ function getFeaturesList(plan: SubscriptionPlan, isEnterprise: boolean = false):
       'Custom security controls',
       'SSO & SAML',
     ];
+  }
+
+  if (isFreeTier) {
+    const features: string[] = [];
+    // Free tier uses TOTAL meetings (not per month) - display from database value
+    features.push(`${plan.max_meetings_per_month || 30} free meetings total`);
+    features.push('AI meeting summaries');
+    features.push('Meeting transcripts');
+    features.push('Action item tracking');
+    if (plan.meeting_retention_months) {
+      features.push(`${plan.meeting_retention_months} month data retention`);
+    }
+    return features;
   }
 
   const features: string[] = [];

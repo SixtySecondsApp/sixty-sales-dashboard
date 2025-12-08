@@ -24,17 +24,38 @@ export interface SubscriptionPlan {
   max_meetings_per_month: number | null;
   max_ai_tokens_per_month: number | null;
   max_storage_mb: number | null;
+  meeting_retention_months: number | null;
+
+  // Seat-based pricing
+  included_seats: number;
+  per_seat_price: number;
 
   // Features
   features: PlanFeatures;
 
+  // Stripe integration
+  stripe_product_id: string | null;
+  stripe_price_id_monthly: string | null;
+  stripe_price_id_yearly: string | null;
+  stripe_seat_price_id: string | null;
+  stripe_synced_at: string | null;
+  stripe_sync_error: string | null;
+
+  // Trial
+  trial_days: number;
+
   // Status
   is_active: boolean;
   is_default: boolean;
+  is_free_tier: boolean;
+  is_public: boolean;
 
   // Display
   display_order: number;
   badge_text: string | null;
+  cta_text: string | null;
+  cta_url: string | null;
+  highlight_features: string[];
 
   created_at: string;
   updated_at: string;
@@ -285,11 +306,24 @@ export interface CreatePlanInput {
   max_meetings_per_month?: number | null;
   max_ai_tokens_per_month?: number | null;
   max_storage_mb?: number | null;
-  features: PlanFeatures;
+  meeting_retention_months?: number | null;
+  included_seats?: number;
+  per_seat_price?: number;
+  trial_days?: number;
+  features?: Partial<PlanFeatures>;
   is_active?: boolean;
   is_default?: boolean;
+  is_free_tier?: boolean;
+  is_public?: boolean;
   display_order?: number;
   badge_text?: string | null;
+  cta_text?: string | null;
+  cta_url?: string | null;
+  highlight_features?: string[];
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_yearly?: string | null;
+  stripe_seat_price_id?: string | null;
 }
 
 export interface UpdateSubscriptionInput {

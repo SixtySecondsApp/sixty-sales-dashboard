@@ -44,8 +44,15 @@ export interface SubscriptionPlan {
   features: PlanFeatures;
   is_active: boolean;
   is_default: boolean;
+  is_free_tier: boolean;
+  is_public: boolean;
   display_order: number;
   badge_text: string | null;
+  cta_text: string;
+  cta_url: string | null;
+  highlight_features: string[];
+  stripe_synced_at: string | null;
+  stripe_sync_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +118,8 @@ export interface UsageLimits {
     overageAmount: number; // in pence
   };
   retentionMonths: number | null;
+  // True if this is a free tier limit (total meetings) vs paid tier (per month)
+  isFreeTierLimit?: boolean;
 }
 
 // Organization usage from database
@@ -288,4 +297,93 @@ export function getTierFromSlug(slug: string): PlanTier {
 export function isTierHigher(current: PlanTier, required: PlanTier): boolean {
   const tierOrder: PlanTier[] = ['free', 'starter', 'growth', 'team'];
   return tierOrder.indexOf(current) >= tierOrder.indexOf(required);
+}
+
+// ============================================================================
+// ADMIN TYPES FOR PRICING CONTROL
+// ============================================================================
+
+// Public plan for pricing page display
+export interface PublicPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  price_monthly: number;
+  price_yearly: number;
+  currency: string;
+  max_users: number | null;
+  max_meetings_per_month: number | null;
+  max_ai_tokens_per_month: number | null;
+  max_storage_mb: number | null;
+  meeting_retention_months: number | null;
+  included_seats: number;
+  per_seat_price: number;
+  trial_days: number;
+  features: PlanFeatures;
+  is_free_tier: boolean;
+  display_order: number;
+  badge_text: string | null;
+  cta_text: string;
+  cta_url: string | null;
+  highlight_features: string[];
+}
+
+// Input for creating a new plan
+export interface CreatePlanInput {
+  name: string;
+  slug: string;
+  description?: string;
+  price_monthly: number;
+  price_yearly: number;
+  currency?: string;
+  max_users?: number | null;
+  max_meetings_per_month?: number | null;
+  max_ai_tokens_per_month?: number | null;
+  max_storage_mb?: number | null;
+  meeting_retention_months?: number | null;
+  included_seats?: number;
+  per_seat_price?: number;
+  trial_days?: number;
+  features?: Partial<PlanFeatures>;
+  is_active?: boolean;
+  is_default?: boolean;
+  is_free_tier?: boolean;
+  is_public?: boolean;
+  display_order?: number;
+  badge_text?: string | null;
+  cta_text?: string;
+  cta_url?: string | null;
+  highlight_features?: string[];
+  stripe_product_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_yearly?: string | null;
+  stripe_seat_price_id?: string | null;
+}
+
+// Input for updating a plan
+export interface UpdatePlanInput extends Partial<CreatePlanInput> {
+  id: string;
+}
+
+// Stripe sync request
+export interface StripeSyncRequest {
+  plan_id: string;
+  action: 'create' | 'update' | 'sync';
+}
+
+// Stripe sync response
+export interface StripeSyncResponse {
+  success: boolean;
+  stripe_product_id?: string;
+  stripe_price_id_monthly?: string;
+  stripe_price_id_yearly?: string;
+  error?: string;
+}
+
+// Plan validation result
+export interface PlanValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
 }

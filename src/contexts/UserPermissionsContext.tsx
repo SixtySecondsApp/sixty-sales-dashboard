@@ -36,7 +36,7 @@ import {
   getFeatureAccess,
   isRouteAllowed,
   getUnauthorizedRedirect,
-  loadInternalDomains,
+  loadInternalUsers,
 } from '@/lib/utils/userTypeUtils';
 import { isUserAdmin } from '@/lib/utils/adminUtils';
 import {
@@ -116,22 +116,22 @@ export function UserPermissionsProvider({ children }: UserPermissionsProviderPro
   const { userData } = useUser();
   const { userRole } = useOrg();
 
-  // Track when domains are loaded
-  const [domainsLoaded, setDomainsLoaded] = useState(false);
+  // Track when internal users whitelist is loaded
+  const [usersLoaded, setUsersLoaded] = useState(false);
 
-  // Load internal domains from database on mount
+  // Load internal users whitelist from database on mount
   useEffect(() => {
-    loadInternalDomains()
-      .then(() => setDomainsLoaded(true))
+    loadInternalUsers()
+      .then(() => setUsersLoaded(true))
       .catch(console.error);
   }, []);
 
   // Determine actual user type from email
-  // Re-evaluate when domains are loaded
+  // Re-evaluate when internal users whitelist is loaded
   const actualUserType = useMemo(() => {
     return getUserTypeFromEmail(user?.email);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, domainsLoaded]);
+  }, [user?.email, usersLoaded]);
 
   // View mode state - persisted in session storage
   const [isExternalViewActive, setIsExternalViewActive] = useState(() => {

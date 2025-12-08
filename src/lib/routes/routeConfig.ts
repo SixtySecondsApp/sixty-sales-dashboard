@@ -327,6 +327,22 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     order: 3,
   },
   {
+    path: '/platform/pricing',
+    access: 'platformAdmin',
+    label: 'Pricing Control',
+    showInNav: false,
+    navSection: 'platform',
+    order: 3.5,
+  },
+  {
+    path: '/platform/cost-analysis',
+    access: 'platformAdmin',
+    label: 'Cost Analysis',
+    showInNav: false,
+    navSection: 'platform',
+    order: 3.6,
+  },
+  {
     path: '/platform/usage',
     access: 'platformAdmin',
     label: 'Usage',

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Check, X } from 'lucide-react';
-import { usePlans, useStartFreeTrial, useCurrentSubscription } from '@/lib/hooks/useSubscription';
+import { Check, X, ArrowRight, Building2, Shield, Users, Headphones } from 'lucide-react';
+import { usePublicPlans, useStartFreeTrial, useCurrentSubscription } from '@/lib/hooks/useSubscription';
 import { useCurrency } from '@/lib/hooks/useCurrency';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useOrg } from '@/lib/contexts/OrgContext';
@@ -10,74 +10,6 @@ import { PricingCard } from '@/components/subscription/PricingCard';
 import { BillingToggle } from '@/components/subscription/BillingToggle';
 import { CurrencySelector } from '@/components/subscription/CurrencySelector';
 import type { SubscriptionPlan, BillingCycle } from '@/lib/types/subscription';
-
-// Base prices in USD cents
-const BASE_PRICES_USD: Record<string, number> = {
-  starter: 4900,   // $49
-  pro: 7900,       // $79
-  team: 12900,     // $129
-};
-
-// Plans we want to display
-const ALLOWED_PLAN_SLUGS = ['starter', 'pro', 'team'];
-
-// Enterprise plan placeholder
-const ENTERPRISE_PLAN: SubscriptionPlan = {
-  id: 'enterprise',
-  name: 'Enterprise',
-  slug: 'enterprise',
-  description: 'For large organizations with custom needs',
-  price_monthly: 0,
-  price_yearly: 0,
-  currency: 'USD',
-  max_meetings_per_month: null,
-  max_users: null,
-  max_ai_tokens_per_month: null,
-  max_storage_mb: null,
-  meeting_retention_months: null,
-  included_seats: 0,
-  per_seat_price: 0,
-  features: {
-    ai_summaries: true,
-    analytics: true,
-    team_insights: true,
-    api_access: true,
-    custom_branding: true,
-    priority_support: true,
-    integrations: true,
-    sso: true,
-    dedicated_support: true,
-  },
-  stripe_product_id: null,
-  stripe_price_id_monthly: null,
-  stripe_price_id_yearly: null,
-  stripe_seat_price_id: null,
-  trial_days: 0,
-  is_active: true,
-  is_default: false,
-  display_order: 4,
-  badge_text: null,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
-// Feature comparison data
-const COMPARISON_FEATURES = [
-  { name: 'Monthly calls', starter: '30', pro: '100', team: 'Unlimited', enterprise: 'Unlimited' },
-  { name: 'Data retention', starter: '6 months', pro: '12 months', team: '2 years', enterprise: 'Unlimited' },
-  { name: 'Team members', starter: '1', pro: '1', team: '5 (add more)', enterprise: 'Unlimited' },
-  { name: 'AI summaries', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Meeting transcripts', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'Action item tracking', starter: true, pro: true, team: true, enterprise: true },
-  { name: 'CRM integrations', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Advanced analytics', starter: false, pro: true, team: true, enterprise: true },
-  { name: 'Team insights', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'API access', starter: false, pro: false, team: true, enterprise: true },
-  { name: 'Custom branding', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'SSO / SAML', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Dedicated support', starter: false, pro: false, team: false, enterprise: true },
-  { name: 'Custom SLA', starter: false, pro: false, team: false, enterprise: true },
-];
 
 function FeatureValue({ value, highlight = false }: { value: string | boolean; highlight?: boolean }) {
   if (typeof value === 'boolean') {
@@ -98,8 +30,9 @@ export function PricingSection() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeOrgId: organizationId } = useOrg();
-  const { data: plans, isLoading: plansLoading } = usePlans();
-  const { subscription, trial } = useCurrentSubscription();
+  // Fetch all public plans from the database
+  const { data: plans, isLoading: plansLoading } = usePublicPlans();
+  const { subscription } = useCurrentSubscription();
   const startTrial = useStartFreeTrial();
   const {
     currency,
@@ -113,8 +46,9 @@ export function PricingSection() {
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
   const handleSelectPlan = async (plan: SubscriptionPlan) => {
-    if (plan.slug === 'enterprise') {
-      window.location.href = 'mailto:sales@sixty.ai?subject=Enterprise%20Plan%20Inquiry';
+    // Use cta_url if provided (e.g., for enterprise "Contact Sales")
+    if (plan.cta_url && (plan.slug === 'enterprise' || (plan.price_monthly === 0 && !plan.is_free_tier))) {
+      window.location.href = plan.cta_url;
       return;
     }
 
@@ -142,20 +76,27 @@ export function PricingSection() {
     }
   };
 
-  const displayPlans = plans
-    ?.filter(p => ALLOWED_PLAN_SLUGS.includes(p.slug))
-    .sort((a, b) => {
-      const aIndex = ALLOWED_PLAN_SLUGS.indexOf(a.slug);
-      const bIndex = ALLOWED_PLAN_SLUGS.indexOf(b.slug);
-      return aIndex - bIndex;
-    }) || [];
+  // Sort plans by display_order from database
+  const allPlans = (plans || []).sort((a, b) =>
+    (a.display_order || 0) - (b.display_order || 0)
+  );
 
-  const allPlans = [...displayPlans, ENTERPRISE_PLAN];
+  // Separate core plans (free, pro, team) from enterprise
+  // Enterprise is identified by slug='enterprise' or cta_url containing 'contact' or 'sales'
+  const corePlans = allPlans.filter(p =>
+    p.slug !== 'enterprise' &&
+    !(p.cta_url?.toLowerCase().includes('contact') || p.cta_url?.toLowerCase().includes('sales'))
+  );
+
+  const enterprisePlan = allPlans.find(p =>
+    p.slug === 'enterprise' ||
+    (p.cta_url?.toLowerCase().includes('contact') || p.cta_url?.toLowerCase().includes('sales'))
+  );
 
   const getFormattedPrices = (plan: SubscriptionPlan) => {
-    const basePriceUSD = BASE_PRICES_USD[plan.slug as keyof typeof BASE_PRICES_USD] || plan.price_monthly;
-    const monthlyPrice = formatPrice(basePriceUSD);
-    const yearlyTotal = Math.round(basePriceUSD * 12 * 0.8);
+    // Use actual prices from database
+    const monthlyPrice = formatPrice(plan.price_monthly);
+    const yearlyTotal = plan.price_yearly || Math.round(plan.price_monthly * 12 * 0.8);
     const yearlyMonthly = formatPrice(Math.round(yearlyTotal / 12));
     const yearlyPrice = formatPrice(yearlyTotal);
 
@@ -165,6 +106,78 @@ export function PricingSection() {
       yearlyPrice,
     };
   };
+
+  // Build dynamic comparison features from the plans
+  const buildComparisonFeatures = () => {
+    const features: Array<{
+      name: string;
+      values: Record<string, string | boolean>;
+    }> = [];
+
+    // Meeting limits
+    features.push({
+      name: 'Meetings',
+      values: corePlans.reduce((acc, p) => {
+        if (p.is_free_tier) {
+          acc[p.slug] = `${p.max_meetings_per_month || 30} total`;
+        } else if (p.max_meetings_per_month) {
+          acc[p.slug] = `${p.max_meetings_per_month}/month`;
+        } else {
+          acc[p.slug] = 'Unlimited';
+        }
+        return acc;
+      }, {} as Record<string, string>),
+    });
+
+    // Data retention
+    features.push({
+      name: 'Data retention',
+      values: corePlans.reduce((acc, p) => {
+        if (p.meeting_retention_months) {
+          acc[p.slug] = `${p.meeting_retention_months} months`;
+        } else {
+          acc[p.slug] = 'Unlimited';
+        }
+        return acc;
+      }, {} as Record<string, string>),
+    });
+
+    // Team members
+    features.push({
+      name: 'Team members',
+      values: corePlans.reduce((acc, p) => {
+        if (p.max_users) {
+          acc[p.slug] = p.max_users === 1 ? '1 user' : `${p.max_users} users`;
+        } else {
+          acc[p.slug] = 'Unlimited';
+        }
+        return acc;
+      }, {} as Record<string, string>),
+    });
+
+    // Boolean features from plan.features
+    const featureLabels: Record<string, string> = {
+      analytics: 'Analytics',
+      team_insights: 'Team insights',
+      api_access: 'API access',
+      custom_branding: 'Custom branding',
+      priority_support: 'Priority support',
+    };
+
+    Object.entries(featureLabels).forEach(([key, label]) => {
+      features.push({
+        name: label,
+        values: corePlans.reduce((acc, p) => {
+          acc[p.slug] = p.features?.[key] ?? false;
+          return acc;
+        }, {} as Record<string, boolean>),
+      });
+    });
+
+    return features;
+  };
+
+  const comparisonFeatures = buildComparisonFeatures();
 
   return (
     <section id="pricing" className="relative z-10 py-16 sm:py-24 bg-[#0f1419] dark">
@@ -200,23 +213,24 @@ export function PricingSection() {
           </div>
         </div>
 
-        {/* Pricing Cards */}
-        <div className="mb-24">
+        {/* Core Pricing Cards (3 plans) */}
+        <div className="mb-12">
           {plansLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[1, 2, 3, 4].map((i) => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-[600px] rounded-2xl bg-gray-100 dark:bg-gray-900/50 animate-pulse"
+                  className="h-[600px] rounded-2xl bg-gray-900/50 animate-pulse"
                 />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {allPlans.map((plan, index) => {
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+              {corePlans.map((plan, index) => {
                 const prices = getFormattedPrices(plan);
-                const isEnterprise = plan.slug === 'enterprise';
                 const isCurrentPlan = subscription?.plan?.slug === plan.slug;
+                // Use badge_text from database to determine if popular
+                const isPopular = plan.badge_text?.toLowerCase().includes('popular') || plan.slug === 'pro';
 
                 return (
                   <PricingCard
@@ -224,8 +238,8 @@ export function PricingSection() {
                     plan={plan}
                     billingCycle={billingCycle}
                     isCurrentPlan={isCurrentPlan}
-                    isPopular={plan.slug === 'pro'}
-                    isEnterprise={isEnterprise}
+                    isPopular={isPopular}
+                    isEnterprise={false}
                     onSelect={handleSelectPlan}
                     isLoading={selectedPlan === plan.id && startTrial.isPending}
                     formattedPrice={
@@ -241,71 +255,141 @@ export function PricingSection() {
           )}
         </div>
 
-        {/* Features Comparison */}
-        <div className="border-t border-gray-800/50 pt-16">
-          <div className="text-center mb-12">
-            <h3 className="text-3xl font-bold text-white mb-4">
-              Compare all features
-            </h3>
-            <p className="text-gray-400">
-              Choose the plan that best fits your team's needs
-            </p>
-          </div>
+        {/* Enterprise Banner */}
+        {enterprisePlan && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mb-24"
+          >
+            <div className="relative overflow-hidden rounded-2xl border border-gray-700/50 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8 md:p-12">
+              {/* Background decoration */}
+              <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-blue-500/20 via-blue-500/10 to-transparent" />
+              <div className="absolute bottom-0 left-0 w-1/3 h-2/3 bg-gradient-to-tr from-emerald-500/15 to-transparent" />
+              <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-700/50">
-                  <th className="py-4 px-6 text-left text-sm font-semibold text-white">
-                    Feature
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-white">
-                    Starter
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-blue-400">
-                    Pro
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-white">
-                    Team
-                  </th>
-                  <th className="py-4 px-6 text-center text-sm font-semibold text-white">
-                    Enterprise
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON_FEATURES.map((feature, index) => (
-                  <motion.tr
-                    key={feature.name}
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: index * 0.03 }}
-                    className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors"
+              <div className="relative flex flex-col lg:flex-row items-center justify-between gap-8">
+                {/* Left side - Text content */}
+                <div className="flex-1 text-center lg:text-left">
+                  <div className="flex items-center justify-center lg:justify-start gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-blue-500/20 backdrop-blur-sm">
+                      <Building2 className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <h3 className="text-2xl md:text-3xl font-bold text-white">
+                      Custom
+                    </h3>
+                  </div>
+                  <p className="text-gray-300 text-lg mb-6 max-w-xl">
+                    For organisations with custom needs. Custom integrations, custom functions, and custom features tailored to your workflow.
+                  </p>
+
+                  {/* Custom features grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="flex items-center gap-2 text-gray-200">
+                      <Shield className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      <span className="text-sm font-medium">Custom integrations</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-200">
+                      <Users className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      <span className="text-sm font-medium">Unlimited users</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-200">
+                      <Headphones className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      <span className="text-sm font-medium">Dedicated support</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-200">
+                      <Check className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                      <span className="text-sm font-medium">Custom features</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right side - CTA */}
+                <div className="flex flex-col items-center lg:items-end gap-4">
+                  <div className="text-center lg:text-right">
+                    <p className="text-3xl font-bold text-white mb-1">Let's Talk</p>
+                    <p className="text-gray-400 text-sm">We'll build it together</p>
+                  </div>
+                  <button
+                    onClick={() => handleSelectPlan(enterprisePlan)}
+                    className="group flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-slate-900 font-semibold hover:bg-gray-100 transition-all duration-200 shadow-lg hover:shadow-xl"
                   >
-                    <td className="py-4 px-6 text-sm text-gray-300">
-                      {feature.name}
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.starter} />
-                    </td>
-                    <td className="py-4 px-6 text-center bg-blue-500/5">
-                      <FeatureValue value={feature.pro} highlight />
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.team} />
-                    </td>
-                    <td className="py-4 px-6 text-center">
-                      <FeatureValue value={feature.enterprise} />
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
+                    {enterprisePlan.cta_text || 'Contact Us'}
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Features Comparison */}
+        {corePlans.length > 0 && (
+          <div className="border-t border-gray-800/50 pt-16">
+            <div className="text-center mb-12">
+              <h3 className="text-3xl font-bold text-white mb-4">
+                Compare all features
+              </h3>
+              <p className="text-gray-400">
+                Choose the plan that best fits your team's needs
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full max-w-4xl mx-auto">
+                <thead>
+                  <tr className="border-b-2 border-gray-700/50">
+                    <th className="py-4 px-6 text-left text-sm font-semibold text-white">
+                      Feature
+                    </th>
+                    {corePlans.map((plan, index) => (
+                      <th
+                        key={plan.id}
+                        className={`py-4 px-6 text-center text-sm font-semibold ${
+                          plan.badge_text?.toLowerCase().includes('popular') || plan.slug === 'pro'
+                            ? 'text-blue-400'
+                            : 'text-white'
+                        }`}
+                      >
+                        {plan.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparisonFeatures.map((feature, index) => (
+                    <motion.tr
+                      key={feature.name}
+                      initial={{ opacity: 0, y: 10 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.03 }}
+                      className="border-b border-gray-800/50 hover:bg-gray-900/30 transition-colors"
+                    >
+                      <td className="py-4 px-6 text-sm text-gray-300">
+                        {feature.name}
+                      </td>
+                      {corePlans.map((plan) => {
+                        const value = feature.values[plan.slug];
+                        const isPopular = plan.badge_text?.toLowerCase().includes('popular') || plan.slug === 'pro';
+                        return (
+                          <td
+                            key={plan.id}
+                            className={`py-4 px-6 text-center ${isPopular ? 'bg-blue-500/5' : ''}`}
+                          >
+                            <FeatureValue value={value} highlight={isPopular} />
+                          </td>
+                        );
+                      })}
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </section>
   );
 }
-

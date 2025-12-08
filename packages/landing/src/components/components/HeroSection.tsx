@@ -130,11 +130,12 @@ export function HeroSection() {
             >
               <Button
                 size="lg"
-                className="group relative px-8 py-6 text-lg font-semibold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300"
+                variant={undefined}
+                className="group relative px-8 py-6 text-lg font-semibold bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 !text-white rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 border-0"
               >
-                <span className="flex items-center gap-2 text-white">
+                <span className="flex items-center gap-2 !text-white">
                   Start Free 14-Day Trial
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform text-white" />
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform !text-white" />
                 </span>
               </Button>
               <Button

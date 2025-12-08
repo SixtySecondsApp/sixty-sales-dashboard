@@ -150,6 +150,45 @@ export async function analyzeTranscriptWithClaude(
 
     const data = await response.json()
     const content = data.content[0].text
+    
+    // Log cost event if we have the necessary information
+    if (supabaseClient && userId && data.usage && meeting.owner_user_id) {
+      try {
+        // Get organization ID from meeting owner
+        const { data: membership } = await supabaseClient
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', meeting.owner_user_id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single()
+        
+        if (membership?.org_id) {
+          // Import cost tracking helper
+          const { logAICostEvent } = await import('../_shared/costTracking.ts')
+          await logAICostEvent(
+            supabaseClient,
+            meeting.owner_user_id,
+            membership.org_id,
+            'anthropic',
+            model.includes('haiku') ? 'claude-haiku-4-5' : 'claude-sonnet-4',
+            data.usage.input_tokens || 0,
+            data.usage.output_tokens || 0,
+            'transcript_analysis',
+            {
+              meeting_id: meeting.id,
+              meeting_title: meeting.title,
+            }
+          )
+        }
+      } catch (err) {
+        // Silently fail - cost tracking is optional
+        if (err instanceof Error && !err.message.includes('relation') && !err.message.includes('does not exist')) {
+          console.warn('[FathomSync] Error logging cost:', err)
+        }
+      }
+    }
+    
     // Parse JSON response
     const analysis = parseClaudeResponse(content)
 

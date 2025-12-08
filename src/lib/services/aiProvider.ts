@@ -1345,6 +1345,7 @@ export class AIProviderService {
   ): Promise<void> {
     if (!response.usage) return;
 
+    // Log to existing ai_usage_logs table
     const { error } = await supabase
       .from('ai_usage_logs')
       .insert({
@@ -1359,6 +1360,54 @@ export class AIProviderService {
       });
 
     if (error) {
+      console.warn('[AIProvider] Error logging usage:', error);
+    }
+
+    // Also log to cost tracking table if provider/model are available
+    if (response.provider && response.model) {
+      try {
+        // Get user's organization ID
+        const { data: membership } = await supabase
+          .from('organization_memberships')
+          .select('org_id')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (membership?.org_id) {
+          // Calculate cost using database function
+          const { data: costData, error: costError } = await supabase.rpc('calculate_token_cost', {
+            p_provider: response.provider,
+            p_model: response.model,
+            p_input_tokens: response.usage.promptTokens,
+            p_output_tokens: response.usage.completionTokens,
+          });
+
+          if (!costError && costData !== null) {
+            const estimatedCost = typeof costData === 'number' ? costData : parseFloat(costData);
+
+            // Log to ai_cost_events table
+            await supabase.from('ai_cost_events').insert({
+              org_id: membership.org_id,
+              user_id: userId,
+              provider: response.provider as 'anthropic' | 'gemini',
+              model: response.model,
+              feature: workflowId ? 'workflow' : null,
+              input_tokens: response.usage.promptTokens,
+              output_tokens: response.usage.completionTokens,
+              estimated_cost: estimatedCost,
+              metadata: workflowId ? { workflow_id: workflowId } : null,
+            });
+          }
+        }
+      } catch (err) {
+        // Silently fail if cost tracking tables don't exist yet
+        // This is expected during initial setup
+        if (err instanceof Error && !err.message.includes('relation') && !err.message.includes('does not exist')) {
+          console.warn('[AIProvider] Error logging cost event:', err);
+        }
+      }
     }
   }
 

@@ -24,7 +24,13 @@ import {
   hasActiveSubscription,
   getSubscriptionSummary,
   changePlan,
+  isOnFreeTier,
+  getFreeTierUsageStatus,
 } from '../services/subscriptionService';
+import {
+  getPublicPlans,
+  getFreeTierPlan,
+} from '../services/stripeSyncService';
 import type {
   SubscriptionPlan,
   SubscriptionWithPlan,
@@ -426,5 +432,57 @@ export function useHasActiveSubscription() {
     queryFn: () => hasActiveSubscription(activeOrgId!),
     enabled: !!activeOrgId,
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+// ============================================================================
+// Public Pricing Hooks
+// ============================================================================
+
+/**
+ * Fetch public plans for the pricing page
+ * Only returns plans marked as is_public and is_active
+ * Sorted by display_order
+ */
+export function usePublicPlans() {
+  return useQuery({
+    queryKey: [...subscriptionKeys.plans(), 'public'],
+    queryFn: getPublicPlans,
+    staleTime: 1000 * 60 * 30, // 30 minutes - plans rarely change
+  });
+}
+
+/**
+ * Get the free tier plan
+ */
+export function useFreeTierPlan() {
+  return useQuery({
+    queryKey: [...subscriptionKeys.plans(), 'free-tier'],
+    queryFn: getFreeTierPlan,
+    staleTime: 1000 * 60 * 30,
+  });
+}
+
+/**
+ * Check if organization is on free tier
+ */
+export function useIsOnFreeTier(orgId: string | undefined) {
+  return useQuery({
+    queryKey: [...subscriptionKeys.org(orgId || ''), 'is-free-tier'],
+    queryFn: () => isOnFreeTier(orgId!),
+    enabled: !!orgId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/**
+ * Get free tier usage status for upgrade prompts
+ */
+export function useFreeTierUsageStatus(orgId: string | undefined) {
+  return useQuery({
+    queryKey: [...subscriptionKeys.usage(orgId || ''), 'free-tier-status'],
+    queryFn: () => getFreeTierUsageStatus(orgId!),
+    enabled: !!orgId,
+    staleTime: 1000 * 60 * 2, // 2 minutes - usage changes more frequently
   });
 }

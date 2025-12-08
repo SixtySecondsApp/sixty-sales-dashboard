@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useOnboardingProgress } from '@/lib/hooks/useOnboardingProgress';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -28,8 +29,18 @@ const authRequiredRoutes = [
   '/'
 ];
 
+// Routes that should NOT trigger onboarding redirect (allow completing onboarding)
+const onboardingExemptRoutes = [
+  '/onboarding',
+  '/auth',
+  '/debug',
+  '/oauth',
+  '/platform/onboarding-simulator'
+];
+
 export function ProtectedRoute({ children, redirectTo = '/auth/login' }: ProtectedRouteProps) {
   const { isAuthenticated, loading } = useAuth();
+  const { needsOnboarding, loading: onboardingLoading } = useOnboardingProgress();
   const navigate = useNavigate();
   const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -41,6 +52,9 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   const isOAuthCallback = location.pathname.includes('/oauth/') || location.pathname.includes('/callback');
   const isAuthRequiredRoute = authRequiredRoutes.some(route =>
     location.pathname === route || location.pathname.startsWith(route + '/')
+  );
+  const isOnboardingExempt = onboardingExemptRoutes.some(route =>
+    location.pathname === route || location.pathname.startsWith(route)
   );
 
   // TEMPORARY DEV: Allow roadmap access in development for ticket implementation
@@ -57,12 +71,17 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
   }, []);
 
   useEffect(() => {
-    // Don't redirect while loading
-    if (loading) return;
+    // Don't redirect while loading auth or onboarding status
+    if (loading || onboardingLoading) return;
 
     // If user is authenticated and on a public route (except password recovery and OAuth callbacks), redirect to app
     if (isAuthenticated && isPublicRoute && !isPasswordRecovery && !isOAuthCallback) {
-      navigate('/');
+      // If user needs onboarding, redirect to onboarding instead of app
+      if (needsOnboarding) {
+        navigate('/onboarding', { replace: true });
+      } else {
+        navigate('/');
+      }
       return;
     }
 
@@ -95,10 +114,17 @@ export function ProtectedRoute({ children, redirectTo = '/auth/login' }: Protect
       });
       return;
     }
-  }, [isAuthenticated, loading, isPublicRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, navigate, redirectTo, location, isRedirecting]);
 
-  // Show loading spinner while checking authentication or during redirect delay
-  if (loading || isRedirecting) {
+    // If user is authenticated but hasn't completed onboarding, redirect to onboarding
+    // Skip this check for onboarding-exempt routes (like the onboarding page itself)
+    if (isAuthenticated && needsOnboarding && !isOnboardingExempt && !isPublicRoute) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+  }, [isAuthenticated, loading, onboardingLoading, needsOnboarding, isPublicRoute, isPasswordRecovery, isDevModeBypass, isAuthRequiredRoute, isOnboardingExempt, navigate, redirectTo, location, isRedirecting]);
+
+  // Show loading spinner while checking authentication, onboarding status, or during redirect delay
+  if (loading || onboardingLoading || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(74,74,117,0.25),transparent)] pointer-events-none" />

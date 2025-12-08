@@ -2,6 +2,7 @@
  * User Type Utilities
  *
  * Functions for determining user type from email and computing feature access.
+ * Uses a whitelist approach - only emails in the internal_users table get internal access.
  * This is the single source of truth for user type classification.
  */
 
@@ -9,97 +10,99 @@ import {
   type UserType,
   type FeatureAccess,
   type ViewModeState,
-  INTERNAL_DOMAINS,
   EXTERNAL_FEATURE_ACCESS,
   INTERNAL_FEATURE_ACCESS,
 } from '@/lib/types/userTypes';
 import { supabase } from '@/lib/supabase/clientV2';
 
-// Cache for internal domains loaded from database
-let cachedInternalDomains: string[] | null = null;
+// Cache for internal users whitelist loaded from database
+let cachedInternalUsers: Set<string> | null = null;
 let cacheTimestamp: number = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Load internal domains from database (with caching)
- * Falls back to hardcoded INTERNAL_DOMAINS if database unavailable
+ * Load internal users whitelist from database (with caching)
+ * Returns empty set if database unavailable (safe default - external)
  */
-export async function loadInternalDomains(): Promise<string[]> {
+export async function loadInternalUsers(): Promise<Set<string>> {
   const now = Date.now();
 
   // Return cached value if valid
-  if (cachedInternalDomains && (now - cacheTimestamp) < CACHE_TTL) {
-    return cachedInternalDomains;
+  if (cachedInternalUsers && (now - cacheTimestamp) < CACHE_TTL) {
+    return cachedInternalUsers;
   }
 
   try {
     const { data, error } = await supabase
-      .from('internal_email_domains')
-      .select('domain')
+      .from('internal_users')
+      .select('email')
       .eq('is_active', true);
 
     if (error) {
-      console.warn('Failed to load internal domains from database, using defaults:', error);
-      return [...INTERNAL_DOMAINS];
+      console.warn('Failed to load internal users from database:', error);
+      return cachedInternalUsers || new Set();
     }
 
     if (data && data.length > 0) {
-      cachedInternalDomains = data.map(d => d.domain.toLowerCase());
+      cachedInternalUsers = new Set(data.map(d => d.email.toLowerCase()));
       cacheTimestamp = now;
-      return cachedInternalDomains;
+      return cachedInternalUsers;
     }
 
-    // Fallback to hardcoded if database is empty
-    return [...INTERNAL_DOMAINS];
+    // Empty whitelist = everyone is external
+    cachedInternalUsers = new Set();
+    cacheTimestamp = now;
+    return cachedInternalUsers;
   } catch (error) {
-    console.warn('Error loading internal domains:', error);
-    return [...INTERNAL_DOMAINS];
+    console.warn('Error loading internal users:', error);
+    return cachedInternalUsers || new Set();
   }
 }
 
 /**
- * Clear the internal domains cache (call when domains are updated)
+ * Clear the internal users cache (call when whitelist is updated)
  */
-export function clearInternalDomainsCache(): void {
-  cachedInternalDomains = null;
+export function clearInternalUsersCache(): void {
+  cachedInternalUsers = null;
   cacheTimestamp = 0;
 }
 
+// Legacy alias for backwards compatibility
+export const clearInternalDomainsCache = clearInternalUsersCache;
+
 /**
- * Get currently cached internal domains (synchronous, for initial render)
- * Returns hardcoded defaults if cache is empty
+ * Get currently cached internal users (synchronous, for initial render)
+ * Returns empty set if cache is empty (safe default - external)
  */
-export function getCachedInternalDomains(): string[] {
-  return cachedInternalDomains || [...INTERNAL_DOMAINS];
+export function getCachedInternalUsers(): Set<string> {
+  return cachedInternalUsers || new Set();
 }
 
 /**
- * Determine user type based on email domain
- * Uses cached domains for synchronous access (call loadInternalDomains first for accuracy)
+ * Determine user type based on email whitelist
+ * Uses cached whitelist for synchronous access (call loadInternalUsers first for accuracy)
  * @param email - User's email address
- * @returns 'internal' if email matches internal domain, 'external' otherwise
+ * @returns 'internal' if email is in whitelist, 'external' otherwise
  */
 export function getUserTypeFromEmail(email: string | null | undefined): UserType {
   if (!email) return 'external';
 
-  const domain = email.toLowerCase().split('@')[1];
-  if (!domain) return 'external';
+  const normalizedEmail = email.toLowerCase();
+  const internalUsers = getCachedInternalUsers();
 
-  const internalDomains = getCachedInternalDomains();
-  return internalDomains.some((d) => domain === d) ? 'internal' : 'external';
+  return internalUsers.has(normalizedEmail) ? 'internal' : 'external';
 }
 
 /**
- * Async version of getUserTypeFromEmail that loads fresh domains from database
+ * Async version of getUserTypeFromEmail that loads fresh whitelist from database
  */
 export async function getUserTypeFromEmailAsync(email: string | null | undefined): Promise<UserType> {
   if (!email) return 'external';
 
-  const domain = email.toLowerCase().split('@')[1];
-  if (!domain) return 'external';
+  const normalizedEmail = email.toLowerCase();
+  const internalUsers = await loadInternalUsers();
 
-  const internalDomains = await loadInternalDomains();
-  return internalDomains.some((d) => domain === d) ? 'internal' : 'external';
+  return internalUsers.has(normalizedEmail) ? 'internal' : 'external';
 }
 
 /**
@@ -282,4 +285,15 @@ export function getUnauthorizedRedirect(effectiveUserType: UserType): string {
 export function isInternalOnlyRoute(pathname: string): boolean {
   const normalizedPath = pathname.toLowerCase();
   return INTERNAL_ONLY_ROUTE_PREFIXES.some((prefix) => normalizedPath.startsWith(prefix));
+}
+
+// Legacy exports for backwards compatibility
+export async function loadInternalDomains(): Promise<string[]> {
+  // Return empty array - domains no longer used
+  return [];
+}
+
+export function getCachedInternalDomains(): string[] {
+  // Return empty array - domains no longer used
+  return [];
 }
