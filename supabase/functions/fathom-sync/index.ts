@@ -1125,19 +1125,6 @@ async function autoFetchTranscriptAndAnalyze(
     if (error instanceof Error && error.stack) {
       console.error(`Stack trace:`, error.stack.substring(0, 500))
     }
-    
-    // Store error in meeting record for UI to display
-    try {
-      await supabase
-        .from('meetings')
-        .update({
-          ai_analysis_error: errorMessage.substring(0, 500), // Store first 500 chars of error
-        })
-        .eq('id', meeting?.id)
-    } catch (updateError) {
-      // Non-fatal - just log
-      console.warn(`Failed to store AI analysis error:`, updateError)
-    }
   }
 }
 
