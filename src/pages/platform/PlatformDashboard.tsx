@@ -34,6 +34,7 @@ import {
   Globe,
   LayoutDashboard,
   PieChart,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ import {
 import type { AdminDashboardStats, CustomerWithDetails } from '@/lib/types/saasAdmin';
 import { toast } from 'sonner';
 import MeetingsWaitlist from './MeetingsWaitlist';
+import SlackDemo from '@/pages/admin/SlackDemo';
 
 interface PlatformSection {
   id: string;
@@ -347,6 +349,14 @@ export default function PlatformDashboard() {
               Waitlist Admin
               <Badge variant="outline" className="ml-2 text-xs">New</Badge>
             </TabsTrigger>
+            <TabsTrigger
+              value="slack"
+              className="data-[state=active]:bg-purple-500/10 data-[state=active]:text-purple-600 dark:data-[state=active]:text-purple-400"
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Slack Demo
+              <Badge variant="outline" className="ml-2 text-xs">New</Badge>
+            </TabsTrigger>
           </TabsList>
 
           {/* Dashboard Tab */}
@@ -466,6 +476,11 @@ export default function PlatformDashboard() {
           {/* Waitlist Admin Tab */}
           <TabsContent value="waitlist" className="mt-0">
             <MeetingsWaitlist />
+          </TabsContent>
+
+          {/* Slack Demo Tab */}
+          <TabsContent value="slack" className="mt-0">
+            <SlackDemo />
           </TabsContent>
         </Tabs>
       </div>
