@@ -14,6 +14,7 @@ export * from './emailAnalysis';
 export * from './writingStyle';
 export * from './proposalGeneration';
 export * from './workflowEngine';
+export * from './slackNotifications';
 
 // ============================================================================
 // Model Configuration
@@ -107,6 +108,28 @@ export const FEATURE_MODEL_DEFAULTS: Record<string, ModelConfig> = {
     model: DEFAULT_MODELS.HAIKU,
     temperature: 0.7,
     maxTokens: 2048,
+  },
+
+  // Slack Notifications
+  slack_meeting_debrief: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.5,
+    maxTokens: 2048,
+  },
+  slack_daily_digest: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.5,
+    maxTokens: 1024,
+  },
+  slack_meeting_prep: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.5,
+    maxTokens: 1024,
+  },
+  slack_task_suggestions: {
+    model: DEFAULT_MODELS.HAIKU,
+    temperature: 0.3,
+    maxTokens: 1024,
   },
 };
 

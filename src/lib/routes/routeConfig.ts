@@ -508,6 +508,24 @@ export const ROUTE_CONFIGS: RouteConfig[] = [
     navSection: 'platform',
     order: 52,
   },
+  // Slack Integration Demo
+  {
+    path: '/platform/slack-demo',
+    access: 'platformAdmin',
+    label: 'Slack Demo',
+    showInNav: false,
+    navSection: 'platform',
+    order: 53,
+  },
+  // Slack Settings (Org Admin)
+  {
+    path: '/settings/integrations/slack',
+    access: 'orgAdmin',
+    label: 'Slack Settings',
+    showInNav: false,
+    navSection: 'settings',
+    order: 10,
+  },
 
   // Legacy admin routes removed - now redirect to /platform in App.tsx
 ];

@@ -28,31 +28,38 @@ class SlackOAuthService {
   /**
    * Initialize Slack OAuth flow
    */
-  initiateOAuth(userId: string): string {
+  initiateOAuth(userId: string, orgId?: string): string {
     const clientId = import.meta.env.VITE_SLACK_CLIENT_ID || '417685783159.9470252829718';
     const redirectUri = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/slack-oauth-callback`;
-    
-    // Debug log to check if env var is loaded
-    // Encode state with user information
-    const state = btoa(JSON.stringify({ user_id: userId, timestamp: Date.now() }));
-    
+
+    // Encode state with user and org information
+    const state = btoa(JSON.stringify({
+      user_id: userId,
+      org_id: orgId,
+      timestamp: Date.now()
+    }));
+
     // Required scopes for the bot
     const scopes = [
       'chat:write',
       'chat:write.public', // Post to public channels without joining
       'channels:read',
-      'groups:read',
-      'im:read',
-      'mpim:read',
       'channels:join', // Join public channels
+      'channels:manage', // Create/archive deal room channels
+      'groups:read',
+      'groups:write', // Create private deal room channels
+      'im:write', // Send direct messages
+      'users:read', // Read user info for mappings
+      'users:read.email', // Read user emails for auto-matching
+      'reactions:read', // Read reactions (future: task completion)
     ].join(',');
-    
+
     const oauthUrl = `https://slack.com/oauth/v2/authorize?` +
       `client_id=${clientId}` +
       `&scope=${scopes}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&state=${state}`;
-    
+
     return oauthUrl;
   }
 

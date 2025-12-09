@@ -12,27 +12,55 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
-  
+
   // For OAuth callbacks, we don't need JWT verification
   // Slack will call this directly without any auth headers
   if (req.method !== 'GET') {
-    return new Response('Method not allowed', { 
+    return new Response('Method not allowed', {
       status: 405,
-      headers: corsHeaders 
+      headers: corsHeaders
     });
   }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const publicUrl = Deno.env.get('PUBLIC_URL') || 'https://app.use60.com';
 
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
-    const state = url.searchParams.get('state'); // Contains user_id
+    const state = url.searchParams.get('state'); // Contains user_id and org_id
+    const error = url.searchParams.get('error');
+
+    // Handle user cancellation or errors from Slack
+    if (error) {
+      const redirectUrl = `${publicUrl}/settings/integrations/slack?slack_error=${encodeURIComponent(error)}`;
+      return new Response(null, {
+        status: 302,
+        headers: { 'Location': redirectUrl, ...corsHeaders },
+      });
+    }
+
     if (!code) {
       throw new Error('No authorization code provided');
     }
 
+    // Parse state to get user_id and org_id
+    let userId: string;
+    let orgId: string | undefined;
+    try {
+      const stateData = JSON.parse(atob(state || ''));
+      userId = stateData.user_id;
+      orgId = stateData.org_id;
+    } catch (e) {
+      throw new Error('Invalid state parameter');
+    }
+
     // Exchange code for access token
-    const clientId = Deno.env.get('SLACK_CLIENT_ID') || '';
-    const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET') || '';
+    const clientId = Deno.env.get('SLACK_CLIENT_ID')!;
+    const clientSecret = Deno.env.get('SLACK_CLIENT_SECRET')!;
+    const redirectUri = `${supabaseUrl}/functions/v1/slack-oauth-callback`;
+
     const slackResponse = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: {
@@ -42,39 +70,64 @@ serve(async (req) => {
         client_id: clientId,
         client_secret: clientSecret,
         code: code,
-        redirect_uri: 'https://ewtuefzeogytgmsnkpmb.supabase.co/functions/v1/slack-oauth-callback',
+        redirect_uri: redirectUri,
       }),
     });
 
     const slackData = await slackResponse.json();
+    console.log('Slack OAuth response:', JSON.stringify(slackData, null, 2));
 
     if (!slackData.ok) {
       throw new Error(`Slack OAuth failed: ${slackData.error}`);
     }
 
     // Initialize Supabase client
-    // Use the built-in Supabase environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || 'https://ewtuefzeogytgmsnkpmb.supabase.co';
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse state to get user_id
-    let userId;
-    try {
-      const stateData = JSON.parse(atob(state || ''));
-      userId = stateData.user_id;
-    } catch (e) {
-      throw new Error('Invalid state parameter');
+    // Get the user's org if not provided in state
+    if (!orgId) {
+      const { data: membership } = await supabase
+        .from('organization_memberships')
+        .select('org_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .single();
+
+      orgId = membership?.org_id;
     }
 
-    // Log the Slack data for debugging
-    // Store the access token in database
-    const { data: integration, error: dbError } = await supabase
+    if (!orgId) {
+      throw new Error('Could not determine organization for user');
+    }
+
+    // Store in slack_org_settings (org-level)
+    const { error: orgSettingsError } = await supabase
+      .from('slack_org_settings')
+      .upsert({
+        org_id: orgId,
+        slack_team_id: slackData.team?.id,
+        slack_team_name: slackData.team?.name,
+        bot_access_token: slackData.access_token,
+        bot_user_id: slackData.bot_user_id,
+        is_connected: true,
+        connected_at: new Date().toISOString(),
+        connected_by: userId,
+      }, {
+        onConflict: 'org_id',
+      });
+
+    if (orgSettingsError) {
+      console.error('Error saving org settings:', orgSettingsError);
+      throw new Error(`Database error: ${orgSettingsError.message}`);
+    }
+
+    // Also store in legacy slack_integrations for backward compatibility
+    const { error: legacyError } = await supabase
       .from('slack_integrations')
       .upsert({
         user_id: userId,
-        team_id: slackData.team?.id || slackData.team_id,
-        team_name: slackData.team?.name || slackData.team_name || 'Unknown Team',
+        team_id: slackData.team?.id,
+        team_name: slackData.team?.name,
         access_token: slackData.access_token,
         bot_user_id: slackData.bot_user_id || '',
         app_id: slackData.app_id || '',
@@ -84,47 +137,74 @@ serve(async (req) => {
         is_active: true,
       }, {
         onConflict: 'user_id,team_id',
-      })
-      .select()
-      .single();
+        ignoreDuplicates: false,
+      });
 
-    if (dbError) {
-      const errorMessage = dbError.message || JSON.stringify(dbError);
-      throw new Error(`Database error: ${errorMessage}`);
+    // Ignore legacy table errors (table might not exist)
+    if (legacyError) {
+      console.warn('Legacy table error (non-critical):', legacyError.message);
     }
 
-    // Fetch and cache available channels
-    const channelsResponse = await fetch('https://slack.com/api/conversations.list', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${slackData.access_token}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    // Fetch workspace users and create mappings
+    try {
+      const usersResponse = await fetch('https://slack.com/api/users.list', {
+        headers: {
+          'Authorization': `Bearer ${slackData.access_token}`,
+        },
+      });
 
-    const channelsData = await channelsResponse.json();
+      const usersData = await usersResponse.json();
 
-    if (channelsData.ok && channelsData.channels) {
-      // Store channels in database
-      const channelsToInsert = channelsData.channels.map((channel: any) => ({
-        integration_id: integration.id,
-        channel_id: channel.id,
-        channel_name: channel.name,
-        is_private: channel.is_private || false,
-        is_member: channel.is_member || false,
-        is_archived: channel.is_archived || false,
-      }));
+      if (usersData.ok && usersData.members) {
+        const userMappings = usersData.members
+          .filter((member: any) => !member.is_bot && !member.deleted && member.id !== 'USLACKBOT')
+          .map((member: any) => ({
+            org_id: orgId,
+            slack_user_id: member.id,
+            slack_username: member.name,
+            slack_display_name: member.profile?.display_name || member.real_name,
+            slack_email: member.profile?.email,
+            slack_avatar_url: member.profile?.image_72,
+            is_auto_matched: false,
+          }));
 
-      await supabase
-        .from('slack_channels')
-        .upsert(channelsToInsert, {
-          onConflict: 'integration_id,channel_id',
-        });
+        if (userMappings.length > 0) {
+          await supabase
+            .from('slack_user_mappings')
+            .upsert(userMappings, {
+              onConflict: 'org_id,slack_user_id',
+            });
+        }
+
+        // Try to auto-match users by email
+        for (const mapping of userMappings) {
+          if (mapping.slack_email) {
+            const { data: sixtyUser } = await supabase
+              .from('profiles')
+              .select('id')
+              .eq('email', mapping.slack_email)
+              .single();
+
+            if (sixtyUser) {
+              await supabase
+                .from('slack_user_mappings')
+                .update({
+                  sixty_user_id: sixtyUser.id,
+                  is_auto_matched: true,
+                })
+                .eq('org_id', orgId)
+                .eq('slack_user_id', mapping.slack_user_id);
+            }
+          }
+        }
+      }
+    } catch (userError) {
+      console.warn('Error fetching Slack users (non-critical):', userError);
     }
 
     // Redirect back to the app with success
-    const redirectUrl = `${Deno.env.get('PUBLIC_URL')}/workflows?slack_connected=true`;
-    
+    const redirectUrl = `${publicUrl}/settings/integrations/slack?slack_connected=true`;
+
     return new Response(null, {
       status: 302,
       headers: {
@@ -134,9 +214,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
+    console.error('OAuth callback error:', error);
+
     // Redirect with error
-    const redirectUrl = `${Deno.env.get('PUBLIC_URL')}/workflows?slack_error=${encodeURIComponent(error.message)}`;
-    
+    const redirectUrl = `${publicUrl}/settings/integrations/slack?slack_error=${encodeURIComponent(error.message)}`;
+
     return new Response(null, {
       status: 302,
       headers: {

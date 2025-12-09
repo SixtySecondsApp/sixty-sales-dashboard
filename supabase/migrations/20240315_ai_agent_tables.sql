@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 CREATE TABLE IF NOT EXISTS ai_usage_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  workflow_id UUID REFERENCES automation_rules(id) ON DELETE SET NULL,
+  workflow_id UUID, -- References user_automation_rules(id), but made optional to avoid dependency ordering issues
   provider VARCHAR(50),
   model VARCHAR(100),
   prompt_tokens INTEGER,
@@ -32,20 +32,25 @@ CREATE INDEX IF NOT EXISTS idx_user_settings_user_id ON user_settings(user_id);
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
 
--- Create RLS policies for user_settings
+-- Create RLS policies for user_settings (drop first to make idempotent)
+DROP POLICY IF EXISTS "Users can view own settings" ON user_settings;
 CREATE POLICY "Users can view own settings" ON user_settings
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own settings" ON user_settings;
 CREATE POLICY "Users can update own settings" ON user_settings
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own settings" ON user_settings;
 CREATE POLICY "Users can insert own settings" ON user_settings
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Create RLS policies for ai_usage_logs
+-- Create RLS policies for ai_usage_logs (drop first to make idempotent)
+DROP POLICY IF EXISTS "Users can view own usage logs" ON ai_usage_logs;
 CREATE POLICY "Users can view own usage logs" ON ai_usage_logs
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own usage logs" ON ai_usage_logs;
 CREATE POLICY "Users can insert own usage logs" ON ai_usage_logs
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
@@ -58,15 +63,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger for user_settings updated_at
+-- Create trigger for user_settings updated_at (drop first to make idempotent)
+DROP TRIGGER IF EXISTS update_user_settings_updated_at ON user_settings;
 CREATE TRIGGER update_user_settings_updated_at
   BEFORE UPDATE ON user_settings
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
--- Add AI agent configuration to automation_rules table (for storing AI node configs)
-ALTER TABLE automation_rules 
-ADD COLUMN IF NOT EXISTS ai_agent_configs JSONB DEFAULT '[]';
+-- Add AI agent configuration to user_automation_rules table (for storing AI node configs)
+-- Note: This ALTER is wrapped in a DO block to handle the case where the table doesn't exist yet
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'user_automation_rules') THEN
+    ALTER TABLE user_automation_rules ADD COLUMN IF NOT EXISTS ai_agent_configs JSONB DEFAULT '[]';
+  END IF;
+END;
+$$;
 
 -- Create AI prompt templates table for reusable prompts
 CREATE TABLE IF NOT EXISTS ai_prompt_templates (
@@ -95,20 +107,25 @@ CREATE INDEX IF NOT EXISTS idx_ai_prompt_templates_is_public ON ai_prompt_templa
 -- Enable RLS for prompt templates
 ALTER TABLE ai_prompt_templates ENABLE ROW LEVEL SECURITY;
 
--- Create RLS policies for ai_prompt_templates
+-- Create RLS policies for ai_prompt_templates (drop first to make idempotent)
+DROP POLICY IF EXISTS "Users can view own templates" ON ai_prompt_templates;
 CREATE POLICY "Users can view own templates" ON ai_prompt_templates
   FOR SELECT USING (auth.uid() = user_id OR is_public = true);
 
+DROP POLICY IF EXISTS "Users can create own templates" ON ai_prompt_templates;
 CREATE POLICY "Users can create own templates" ON ai_prompt_templates
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own templates" ON ai_prompt_templates;
 CREATE POLICY "Users can update own templates" ON ai_prompt_templates
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own templates" ON ai_prompt_templates;
 CREATE POLICY "Users can delete own templates" ON ai_prompt_templates
   FOR DELETE USING (auth.uid() = user_id);
 
--- Create trigger for ai_prompt_templates updated_at
+-- Create trigger for ai_prompt_templates updated_at (drop first to make idempotent)
+DROP TRIGGER IF EXISTS update_ai_prompt_templates_updated_at ON ai_prompt_templates;
 CREATE TRIGGER update_ai_prompt_templates_updated_at
   BEFORE UPDATE ON ai_prompt_templates
   FOR EACH ROW
@@ -160,6 +177,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS calculate_ai_usage_cost ON ai_usage_logs;
 CREATE TRIGGER calculate_ai_usage_cost
   BEFORE INSERT ON ai_usage_logs
   FOR EACH ROW

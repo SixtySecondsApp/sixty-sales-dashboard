@@ -156,6 +156,10 @@ const TeamManagement = lazyWithRetry(() => import('@/pages/org/TeamManagement'))
 const OrgBranding = lazyWithRetry(() => import('@/pages/org/OrgBranding'));
 const OrgBilling = lazyWithRetry(() => import('@/pages/OrgBilling'));
 
+// Slack integration routes
+const SlackSettings = lazyWithRetry(() => import('@/pages/settings/SlackSettings'));
+const SlackDemo = lazyWithRetry(() => import('@/pages/admin/SlackDemo'));
+
 // Note: CompaniesPage and ContactsPage removed - routes now redirect to CRM
 
 // Loading component for better UX during code splitting
@@ -436,6 +440,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/platform/dev/api-testing" element={<PlatformAdminRouteGuard><AppLayout><ApiTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/dev/function-testing" element={<PlatformAdminRouteGuard><AppLayout><FunctionTesting /></AppLayout></PlatformAdminRouteGuard>} />
                 <Route path="/platform/onboarding-simulator" element={<InternalRouteGuard><AppLayout><OnboardingSimulator /></AppLayout></InternalRouteGuard>} />
+                {/* Platform Admin - Slack Demo (for testing Slack integration events) */}
+                <Route path="/platform/slack-demo" element={<PlatformAdminRouteGuard><AppLayout><SlackDemo /></AppLayout></PlatformAdminRouteGuard>} />
 
                 {/* Internal-only tools */}
                 <Route path="/workflows" element={<InternalRouteGuard><AppLayout><Workflows /></AppLayout></InternalRouteGuard>} />
@@ -500,6 +506,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
                 <Route path="/settings/team-members" element={<AppLayout><TeamMembersPage /></AppLayout>} />
                 <Route path="/settings/organization" element={<AppLayout><OrganizationSettingsPage /></AppLayout>} />
                 <Route path="/settings/team" element={<AppLayout><TeamSettings /></AppLayout>} />
+                {/* Slack Settings - Org Admin only */}
+                <Route path="/settings/integrations/slack" element={<OrgAdminRouteGuard><AppLayout><SlackSettings /></AppLayout></OrgAdminRouteGuard>} />
                 <Route path="/settings/ai" element={<AppLayout><AISettings /></AppLayout>} />
                 <Route path="/settings/extraction-rules" element={<Navigate to="/settings/task-sync" replace />} />
                 <Route path="/settings/task-sync" element={<AppLayout><TaskSyncSettings /></AppLayout>} />
