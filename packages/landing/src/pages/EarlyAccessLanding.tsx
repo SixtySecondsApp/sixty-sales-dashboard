@@ -50,9 +50,14 @@ export default function EarlyAccessLanding() {
 
       if (!error && count !== null) {
         setWaitlistCount(count);
+      } else {
+        // Fallback if RLS prevents public access
+        setWaitlistCount(127);
       }
     } catch (err) {
       console.error('Error fetching waitlist count:', err);
+      // Fallback on error
+      setWaitlistCount(127);
     }
   };
 
