@@ -41,7 +41,9 @@ import {
 
 import { supabase } from '@/lib/supabase/clientV2';
 import { useOrg } from '@/lib/contexts/OrgContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSlackOrgSettings } from '@/lib/hooks/useSlackSettings';
+import { slackOAuthService } from '@/lib/services/slackOAuthService';
 import { toast } from 'sonner';
 
 interface TestResult {
@@ -119,7 +121,21 @@ function TestCard({
 
 export default function SlackDemo() {
   const { activeOrgId, activeOrg } = useOrg();
+  const { user } = useAuth();
   const { data: slackSettings, isLoading: settingsLoading } = useSlackOrgSettings();
+
+  const handleConnectSlack = () => {
+    if (!user?.id) {
+      toast.error('You must be logged in to connect Slack');
+      return;
+    }
+    if (!activeOrgId) {
+      toast.error('No organization selected');
+      return;
+    }
+    const oauthUrl = slackOAuthService.initiateOAuth(user.id, activeOrgId);
+    window.location.href = oauthUrl;
+  };
 
   // Test states
   const [loading, setLoading] = useState<Record<string, boolean>>({});
@@ -362,13 +378,60 @@ export default function SlackDemo() {
   if (!slackSettings?.is_connected) {
     return (
       <div className="container max-w-4xl py-8 space-y-6">
-        <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            Slack is not connected for this organization. Please connect Slack in Settings first.
-          </AlertDescription>
-        </Alert>
+        <div>
+          <h1 className="text-2xl font-bold">Slack Integration Demo</h1>
+          <p className="text-muted-foreground mt-1">
+            Connect your Slack workspace to test notification features.
+          </p>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-3 bg-[#4A154B]/10 rounded-lg">
+                <MessageSquare className="h-6 w-6 text-[#4A154B]" />
+              </div>
+              <div>
+                <CardTitle>Connect Slack</CardTitle>
+                <CardDescription>
+                  Link your Slack workspace to enable notifications for meetings, deals, and daily digests.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>AI Meeting Debriefs</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Daily Standup Digest</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Pre-Meeting Prep Cards</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <span>Deal Room Channels</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            <Button onClick={handleConnectSlack} className="w-full" size="lg">
+              <MessageSquare className="mr-2 h-5 w-5" />
+              Connect Slack Workspace
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              You'll be redirected to Slack to authorize the connection.
+              {activeOrg && <span> Connecting for: <strong>{activeOrg.name}</strong></span>}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
