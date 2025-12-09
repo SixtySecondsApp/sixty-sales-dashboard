@@ -6,10 +6,10 @@ import {
   HowItWorks,
   PricingSectionV4,
   FAQSectionV4,
-  IntegrationSection,
   FinalCTA,
   LandingFooter
 } from '../components/components-v4';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 /**
  * Meetings Landing Page V4
@@ -54,7 +54,7 @@ export function MeetingsLandingV4() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div className="min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300" style={{ backgroundColor: 'transparent' }}>
       {/* V4 Navigation - Fixed at top */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm bg-white/95 dark:bg-gray-900/95 border-b border-gray-200 dark:border-gray-700/50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -79,6 +79,7 @@ export function MeetingsLandingV4() {
             </div>
 
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <a
                 href="https://app.use60.com/auth/login"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hidden sm:block"
@@ -98,14 +99,13 @@ export function MeetingsLandingV4() {
         </div>
       </nav>
 
-      {/* Main Content - Add top padding to account for fixed nav */}
-      <main className="relative pt-16 overflow-x-hidden">
+      {/* Main Content */}
+      <main className="relative overflow-x-hidden bg-transparent">
         <HeroSectionV4 />
         <FeatureShowcaseV3 />
         <HowItWorks />
         <PricingSectionV4 />
         <FAQSectionV4 />
-        <IntegrationSection />
         <FinalCTA />
       </main>
 
