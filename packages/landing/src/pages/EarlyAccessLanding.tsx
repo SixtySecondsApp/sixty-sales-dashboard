@@ -5,6 +5,8 @@ import {
   X, Send, FileText, ClipboardList, Zap, User
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/clientV2';
+import { WaitlistSuccess } from './components/WaitlistSuccess';
+import type { WaitlistEntry } from '@/lib/types/waitlist';
 
 // Types
 interface FormData {
@@ -36,6 +38,7 @@ export default function EarlyAccessLanding() {
   const [isCtaSubmitting, setIsCtaSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [ctaMessage, setCtaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [successEntry, setSuccessEntry] = useState<WaitlistEntry | null>(null);
 
   // Fetch waitlist count on mount
   useEffect(() => {
@@ -80,7 +83,7 @@ export default function EarlyAccessLanding() {
         crm_tool: formData.crm_tool || null
       };
 
-      const { error } = await supabase
+      const { data: entry, error } = await supabase
         .from('meetings_waitlist')
         .insert([cleanData])
         .select()
@@ -93,10 +96,8 @@ export default function EarlyAccessLanding() {
         throw error;
       }
 
-      // Only clear form on successful submission
-      setMessage({ type: 'success', text: "You're on the list! We'll be in touch soon with your early access." });
-      setFormData({ full_name: '', email: '', company_name: '', dialer_tool: '', meeting_recorder_tool: '', crm_tool: '' });
-      fetchWaitlistCount();
+      // Show the gamified success page
+      setSuccessEntry(entry as WaitlistEntry);
     } catch (err: any) {
       // Preserve form data on error - don't clear fields
       setFormData(currentFormData);
@@ -143,6 +144,11 @@ export default function EarlyAccessLanding() {
   };
 
   const displayCount = waitlistCount !== null ? `${waitlistCount}+` : '...';
+
+  // Show gamified success page after successful signup
+  if (successEntry) {
+    return <WaitlistSuccess entry={successEntry} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0d14] text-white font-sans antialiased overflow-x-hidden">
