@@ -17,6 +17,50 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<RealtimeUpdate | null>(null);
 
+  // Manual refetch function for immediate updates
+  const refetch = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('meetings_waitlist')
+      .select('*')
+      .eq('id', entryId)
+      .single();
+
+    if (data && !error) {
+      setEntry((prev) => {
+        setPreviousPosition(prev.effective_position);
+        return data as WaitlistEntry;
+      });
+    }
+  }, [entryId]);
+
+  // Update entry from external source (e.g., after a boost is claimed)
+  const updateEntry = useCallback((updates: Partial<WaitlistEntry>) => {
+    setEntry((prev) => {
+      const newEntry = { ...prev, ...updates };
+
+      // Check for tier changes
+      const oldTier = getTierForPosition(prev.effective_position || 0);
+      const newTier = getTierForPosition(newEntry.effective_position || 0);
+      const tierChanged = oldTier.name !== newTier.name;
+
+      // Store previous position for animations
+      setPreviousPosition(prev.effective_position);
+
+      // Create update object for milestone tracking
+      const update: RealtimeUpdate = {
+        position: newEntry.effective_position || 0,
+        referral_count: newEntry.referral_count,
+        effective_position: newEntry.effective_position || 0,
+        previousPosition: prev.effective_position,
+        tierChange: tierChanged
+      };
+
+      setLastUpdate(update);
+
+      return newEntry;
+    });
+  }, []);
+
   // Debounced update handler to prevent excessive re-renders
   const handleUpdate = useCallback((payload: any) => {
     const newEntry = payload.new as WaitlistEntry;
@@ -72,6 +116,8 @@ export function useWaitlistRealtime(entryId: string, initialEntry: WaitlistEntry
     entry,
     previousPosition,
     isConnected,
-    lastUpdate
+    lastUpdate,
+    refetch,
+    updateEntry
   };
 }

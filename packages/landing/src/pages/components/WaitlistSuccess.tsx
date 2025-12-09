@@ -26,7 +26,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
   const [celebratedMilestones, setCelebratedMilestones] = useState<Set<string>>(new Set());
 
   // Real-time position updates
-  const { entry, previousPosition, isConnected } = useWaitlistRealtime(initialEntry.id, initialEntry);
+  const { entry, previousPosition, isConnected, updateEntry } = useWaitlistRealtime(initialEntry.id, initialEntry);
 
   // Generate referral URL
   const referralUrl = `${window.location.origin}/product/meetings/waitlist?ref=${entry.referral_code}`;
@@ -152,6 +152,16 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
               onFirstShare={() => {
                 setHasShared(true);
                 handleMilestone('first_share');
+              }}
+              onBoostClaimed={(data) => {
+                // Update the entry with new points and position from the boost
+                updateEntry({
+                  total_points: data.total_points,
+                  effective_position: data.effective_position,
+                  [`${data.platform}_boost_claimed`]: true
+                });
+                // Celebrate the boost!
+                ConfettiService.milestone('first_share');
               }}
             />
           </div>

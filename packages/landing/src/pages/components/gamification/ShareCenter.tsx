@@ -16,6 +16,7 @@ interface ShareCenterProps {
   entryId: string;
   currentPosition: number;
   onFirstShare?: () => void;
+  onBoostClaimed?: (data: { total_points: number; effective_position: number; platform: 'linkedin' | 'twitter' }) => void;
   senderName?: string;
   referralCode?: string;
   linkedInBoostClaimed?: boolean;
@@ -29,6 +30,7 @@ export function ShareCenter({
   entryId,
   currentPosition,
   onFirstShare,
+  onBoostClaimed,
   senderName,
   referralCode,
   linkedInBoostClaimed: propLinkedInBoostClaimed = false,
@@ -209,6 +211,15 @@ ${referralUrl}`;
                     setTimeout(() => setShowTwitterBoostToast(false), 5000);
                   }
                   ConfettiService.milestone('first_share');
+
+                  // Notify parent of the boost so it can update the entry data
+                  if (result.updatedEntry && onBoostClaimed) {
+                    onBoostClaimed({
+                      total_points: result.updatedEntry.total_points,
+                      effective_position: result.updatedEntry.effective_position,
+                      platform
+                    });
+                  }
                 }
 
                 // Close modal
