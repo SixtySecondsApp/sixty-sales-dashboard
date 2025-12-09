@@ -63,8 +63,12 @@ export default function EarlyAccessLanding() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsSubmitting(true);
     setMessage(null);
+
+    // Preserve form data in case of error
+    const currentFormData = { ...formData };
 
     try {
       const cleanData = {
@@ -89,10 +93,13 @@ export default function EarlyAccessLanding() {
         throw error;
       }
 
-      setMessage({ type: 'success', text: "You're on the list! Check your email for next steps." });
+      // Only clear form on successful submission
+      setMessage({ type: 'success', text: "You're on the list! We'll be in touch soon with your early access." });
       setFormData({ full_name: '', email: '', company_name: '', dialer_tool: '', meeting_recorder_tool: '', crm_tool: '' });
       fetchWaitlistCount();
     } catch (err: any) {
+      // Preserve form data on error - don't clear fields
+      setFormData(currentFormData);
       setMessage({ type: 'error', text: err.message || 'Failed to join waitlist' });
     } finally {
       setIsSubmitting(false);
@@ -118,7 +125,7 @@ export default function EarlyAccessLanding() {
         throw error;
       }
 
-      setCtaMessage({ type: 'success', text: "You're on the list! Check your email for next steps." });
+      setCtaMessage({ type: 'success', text: "You're on the list! We'll be in touch soon with your early access." });
       setCtaEmail('');
       fetchWaitlistCount();
     } catch (err: any) {
@@ -312,39 +319,47 @@ export default function EarlyAccessLanding() {
                     <h2 className="text-2xl font-bold mb-1">Get Early Access</h2>
                     <p className="text-gray-400 mb-6">Join the waitlist and save 10+ hours per week</p>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form onSubmit={handleSubmit} className="space-y-4" onReset={(e) => e.preventDefault()} noValidate>
                       <input
+                        key="full_name"
                         type="text"
                         required
                         placeholder="Full Name *"
                         value={formData.full_name}
-                        onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
                       <input
+                        key="email"
                         type="email"
                         required
                         placeholder="Work Email *"
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
                       <input
+                        key="company_name"
                         type="text"
                         required
                         placeholder="Company Name *"
                         value={formData.company_name}
-                        onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, company_name: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all disabled:opacity-50"
                       />
 
                       <p className="text-xs text-gray-400 pt-2">What integrations are important to you?</p>
 
                       <select
+                        key="dialer_tool"
                         required
                         value={formData.dialer_tool}
-                        onChange={(e) => setFormData({ ...formData, dialer_tool: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, dialer_tool: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
                       >
                         <option value="" disabled className="bg-[#0f1419]">Which dialer do you use? *</option>
@@ -352,10 +367,12 @@ export default function EarlyAccessLanding() {
                       </select>
 
                       <select
+                        key="meeting_recorder_tool"
                         required
                         value={formData.meeting_recorder_tool}
-                        onChange={(e) => setFormData({ ...formData, meeting_recorder_tool: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, meeting_recorder_tool: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
                       >
                         <option value="" disabled className="bg-[#0f1419]">Which meeting recorder? *</option>
@@ -363,10 +380,12 @@ export default function EarlyAccessLanding() {
                       </select>
 
                       <select
+                        key="crm_tool"
                         required
                         value={formData.crm_tool}
-                        onChange={(e) => setFormData({ ...formData, crm_tool: e.target.value })}
-                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                        onChange={(e) => setFormData((prev) => ({ ...prev, crm_tool: e.target.value }))}
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer disabled:opacity-50"
                         style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
                       >
                         <option value="" disabled className="bg-[#0f1419]">Which CRM? *</option>
