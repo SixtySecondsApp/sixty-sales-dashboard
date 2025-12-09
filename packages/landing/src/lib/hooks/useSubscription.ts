@@ -69,6 +69,18 @@ export function usePlans() {
 }
 
 /**
+ * Fetch all active subscription plans (public version - no auth required)
+ * Alias for usePlans for use in public-facing pages
+ */
+export function usePublicPlans() {
+  return useQuery({
+    queryKey: subscriptionKeys.plans(),
+    queryFn: getPlans,
+    staleTime: 1000 * 60 * 30, // 30 minutes - plans rarely change
+  });
+}
+
+/**
  * Fetch a specific plan by ID
  */
 export function usePlan(planId: string | undefined) {
