@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, Play, Shield, Clock, Zap } from 'lucide-react';
+import { ArrowRight, Shield, Clock, Zap } from 'lucide-react';
 
 export function FinalCTA() {
   return (
@@ -72,7 +72,7 @@ export function FinalCTA() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 dark:bg-blue-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600 dark:bg-blue-500"></span>
               </span>
-              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">Limited Time: Extended 14-Day Trial</span>
+              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">Early Adopter Pricing until February 2026</span>
             </motion.div>
 
             {/* Headline */}
@@ -97,8 +97,7 @@ export function FinalCTA() {
               transition={{ delay: 0.4 }}
               className="text-lg sm:text-xl text-gray-700 dark:text-gray-300 mb-8 max-w-2xl mx-auto"
             >
-              Join sales teams using Sixty to automate meeting intelligence, 
-              coach their reps, and close deals faster.
+              Join sales teams already using Sixty to automate intelligent meeting actions, coach their reps, increase proposal rates and close deals faster.
             </motion.p>
 
             {/* CTAs */}
@@ -107,18 +106,12 @@ export function FinalCTA() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: 0.5 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center mb-10"
+              className="flex justify-center mb-10"
             >
               <a href="/product/meetings/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
                 <span className="flex items-center justify-center gap-2">
-                  Start Free 14-Day Trial
+                  Sign Up Now
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </span>
-              </a>
-              <a href="/product/meetings/waitlist" className="group px-8 py-4 rounded-xl bg-gray-100 dark:bg-white/10 border border-gray-300 dark:border-white/20 text-gray-900 dark:text-white font-semibold text-lg hover:bg-gray-200 dark:hover:bg-white/15 transition-all duration-300">
-                <span className="flex items-center justify-center gap-2">
-                  <Play className="w-5 h-5" />
-                  Schedule Demo
                 </span>
               </a>
             </motion.div>
@@ -144,34 +137,6 @@ export function FinalCTA() {
                 <span>No credit card required</span>
               </div>
             </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Secondary CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.7 }}
-          className="mt-12 grid md:grid-cols-2 gap-6"
-        >
-          <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all duration-300">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">For Sales Teams</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-              Perfect for teams of 5-50 reps looking to scale coaching and close more deals.
-            </p>
-            <a href="#" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium inline-flex items-center gap-1">
-              Learn more <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="p-6 rounded-2xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all duration-300">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Enterprise Solutions</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-              Custom integrations, dedicated support, and advanced security for large organizations.
-            </p>
-            <a href="#" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-sm font-medium inline-flex items-center gap-1">
-              Contact sales <ArrowRight className="w-4 h-4" />
-            </a>
           </div>
         </motion.div>
       </div>

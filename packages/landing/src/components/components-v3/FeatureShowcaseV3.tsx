@@ -143,7 +143,7 @@ export function FeatureShowcaseV3() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            Start Your Free Trial
+            Use For Free
             <ArrowRight className="w-5 h-5" />
           </motion.a>
         </motion.div>

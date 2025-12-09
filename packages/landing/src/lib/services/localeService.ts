@@ -81,8 +81,8 @@ export async function detectUserLocale(): Promise<LocaleCode> {
     console.error('Locale detection failed:', error);
   }
 
-  // Default to US English
-  return 'en-US';
+  // Default to UK English
+  return 'en-GB';
 }
 
 /**

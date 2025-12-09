@@ -1,54 +1,55 @@
 {
   "header": {
-    "title": "Simple, Transparent",
-    "titleHighlight": "Early Adopter Pricing",
-    "subtitle": "Lock in special pricing as a founding user. All plans include 14-day free trial. No credit card required."
+    "title": "Minimised Pricing",
+    "titleHighlight": "Maximised Product",
+    "subtitle": "Take a look around with the Free Plan. No credit card required. Start making an impact today and only upgrade if you need to."
   },
   "plans": {
     "solo": {
-      "name": "Solo",
+      "name": "Explorer",
       "period": "/month",
       "description": "Perfect for individual sales reps",
       "features": [
-        "Unlimited meeting analysis",
-        "AI proposal generation",
-        "Smart action items",
-        "Fathom integration",
-        "Semantic search",
-        "Email support"
+        "Up to 50 calls per Month",
+        "AI Call Analysis",
+        "Automatic Proposals",
+        "Smart Action Items",
+        "Semantic Search",
+        "Email Support"
       ],
-      "cta": "Start Free Trial",
+      "cta": "Sign Up",
       "earlyAdopterNote": "Early adopter: Lock in this price forever"
     },
     "team": {
-      "name": "Team",
-      "period": "/user/month",
-      "description": "For growing sales teams",
+      "name": "Expert",
+      "period": "/month",
+      "description": "Great for growing sales teams",
       "features": [
-        "Everything in Solo",
-        "Team collaboration",
-        "CRM integrations",
-        "Advanced analytics",
-        "Priority support",
-        "Custom workflows"
+        "Up to 150 calls per Month",
+        "Everything in Explorer",
+        "3 User Seats",
+        "3 Months Call Retention",
+        "Advanced Analytics",
+        "Priority Support"
       ],
-      "cta": "Start Free Trial",
+      "cta": "Sign Up",
       "badge": "Most Popular",
-      "earlyAdopterNote": "Early adopter: 20% off for life"
+      "earlyAdopterNote": "Early adopter: 10% off for life"
     },
     "enterprise": {
       "name": "Enterprise",
-      "period": "",
-      "description": "For large organizations",
+      "period": "/month",
+      "description": "The best for large organisations",
       "features": [
-        "Everything in Team",
-        "Dedicated account manager",
-        "Custom integrations",
-        "SSO & advanced security",
-        "Onboarding & training",
-        "SLA guarantee"
+        "Up to 500 calls per Month",
+        "Everything in Expert",
+        "6 User Seats",
+        "12 Months Call Retention",
+        "Advanced Integrations",
+        "Dedicated Account Manager"
       ],
-      "cta": "Contact Sales"
+      "cta": "Sign Up",
+      "earlyAdopterNote": "Early adopter: 20% off for life"
     }
   },
   "roi": {

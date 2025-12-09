@@ -48,7 +48,7 @@ const LOCALE_CURRENCY_MAP: Record<LocaleCode, CurrencyCode> = {
 export function useLocalization(): UseLocalizationReturn {
   const { t, i18n } = useTranslation();
   const currencyHook = useCurrency();
-  const [locale, setLocaleState] = useState<LocaleCode>('en-US');
+  const [locale, setLocaleState] = useState<LocaleCode>('en-GB');
   const [isLocaleLoading, setIsLocaleLoading] = useState(true);
 
   // Detect user's locale on mount

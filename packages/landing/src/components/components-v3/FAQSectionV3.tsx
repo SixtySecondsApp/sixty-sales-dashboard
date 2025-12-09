@@ -5,36 +5,31 @@ import { useState } from 'react';
 const faqs = [
   {
     question: 'How is this different from Gong or Chorus?',
-    answer: 'Great question! Traditional conversation intelligence tools like Gong focus on ANALYSIS—showing you data, coaching insights, and call analytics. Sixty is built for ACTION—we generate proposals, create tasks, and update your CRM automatically. Think of it this way: Gong shows you what happened. Sixty does the work that comes next.',
-    note: 'Note: We focus on post-meeting automation, not conversation analytics.',
+    answer: 'Tools like Gong have unclear pricing structures and focus on simple analysis only. Sixty is built for action. We generate proposals, create tasks and update your CRM automatically. Think of it this way: Gong shows you what happened. Sixty does that and the hard work that comes next.',
   },
   {
-    question: 'What if I\'m not a "tech person"—is this complicated?',
-    answer: 'If you can use Zoom, you can use Sixty. One-click Fathom sync means zero setup. No training required. Your first meeting is automatically analyzed—proposals, action items, and insights appear instantly. Most users are up and running in under 60 seconds.',
+    question: 'What if I\'m not a \'tech person\'? Is this complicated?',
+    answer: 'If you can use Zoom, you can use Sixty. One-click Fathom sync means nearly zero setup. No training required. Your first meeting is automatically analysed and proposals, action items and insights appear instantly. Most users are up and running in under 60 seconds.',
   },
   {
     question: 'Why should I trust a new product without testimonials?',
-    answer: 'Fair question. We\'re offering early access to a product that solves a real problem we experienced ourselves as sales leaders. As a founding user, you get: (1) Direct input on features we build, (2) Priority support from our founders, (3) Special early adopter pricing locked in for life, and (4) Zero risk—cancel anytime, no questions asked. Plus, being first means you shape the product to fit YOUR workflow.',
+    answer: 'Fair question. We\'re offering early access to a product that solves a real problem we experienced ourselves as sales leaders. As an early user, you get: 1: Direct input on features we build, 2: Priority support from our team, 3: Early adopter pricing locked in for life, and 4: No risk. Cancel anytime, no questions asked. Plus, being first means you shape the product to fit YOUR workflow.',
   },
   {
-    question: 'My team already uses [CRM/tool]—will this mess up our workflow?',
-    answer: 'Nope. Sixty enhances your existing tools, we don\'t replace them. We sync with your CRM, task manager, and calendar. Think of us as the AI layer that makes everything else work better. Your team keeps using the tools they love—they just get automated superpowers.',
+    question: 'My team already uses a complex CRM tool, will this mess up our workflows?',
+    answer: 'Nope. Sixty enhances your existing tools, we don\'t replace them. We sync with the sales tools you already use. Think of us as the AI layer that makes everything else work better. Your team keeps using the tools they love and we give them automated superpowers.',
   },
   {
     question: 'What makes Sixty different from just using ChatGPT?',
-    answer: 'ChatGPT is amazing for one-off tasks, but it doesn\'t integrate with your workflow. Sixty automatically syncs with Fathom, understands your entire meeting history, knows your CRM context, and takes action without you prompting it. Plus, our AI is trained specifically for sales workflows—it knows what a good proposal looks like, how to prioritize follow-ups, and how to extract deal-critical information.',
-  },
-  {
-    question: 'How much does it cost?',
-    answer: 'We have three plans: Solo ($29/mo) for individual reps, Team ($79/mo per user) for small teams, and Enterprise (custom pricing) for larger organizations. All plans include a 14-day free trial with no credit card required. Early adopters get lifetime discounts.',
+    answer: 'ChatGPT is amazing for one-off tasks, but it doesn\'t integrate with your workflow. Sixty automatically syncs with your tech-stack, understands your entire meeting history, knows your CRM context and prepares powerful action without you needing to prompt it. Plus, our AI is trained specifically for sales workflows so it knows what a good proposal looks like, how to prioritise follow-ups and how to extract deal-critical information.',
   },
   {
     question: 'Do you integrate with Fathom?',
-    answer: 'Yes! Fathom integration is our primary data source. One-click sync means your meeting transcripts, summaries, and recordings flow directly into Sixty. If you use Fathom, setup takes literally 60 seconds.',
+    answer: 'Yes! Fathom is one of our top data source integrations. One-click sync means your meeting transcripts, summaries and recordings flow directly into Sixty. If you use Fathom, setup takes literally 60 seconds.',
   },
   {
     question: 'What if I don\'t use Fathom?',
-    answer: 'No problem! You can upload meeting transcripts from any source (Zoom, Teams, Google Meet, Gong, etc.). We also support manual transcript uploads if you have meetings recorded elsewhere.',
+    answer: 'No problem! You can sync meeting transcripts from many sources (Fathom, Fireflies, Teams, etc). We also support manual transcript uploads if you have meetings recorded elsewhere.',
   },
 ];
 
@@ -104,11 +99,6 @@ export function FAQSectionV3() {
                   <p className="text-gray-600 dark:text-gray-400 leading-relaxed">
                     {faq.answer}
                   </p>
-                  {faq.note && (
-                    <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400 italic">
-                      {faq.note}
-                    </p>
-                  )}
                 </div>
               </motion.div>
             </motion.div>

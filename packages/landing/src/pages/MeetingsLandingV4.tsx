@@ -6,7 +6,6 @@ import {
   HowItWorks,
   PricingSectionV4,
   FAQSectionV4,
-  IntegrationSection,
   FinalCTA,
   LandingFooter
 } from '../components/components-v4';
@@ -107,7 +106,6 @@ export function MeetingsLandingV4() {
         <HowItWorks />
         <PricingSectionV4 />
         <FAQSectionV4 />
-        <IntegrationSection />
         <FinalCTA />
       </main>
 

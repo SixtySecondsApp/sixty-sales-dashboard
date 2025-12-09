@@ -1,13 +1,18 @@
 import { motion } from 'framer-motion';
 import { Mic, Brain, Zap, TrendingUp } from 'lucide-react';
+import { useTheme } from '../../lib/hooks/useTheme';
 
 export function HowItWorks() {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+  
+  // Ensure Tailwind generates these classes: bg-cyan-100 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/20 text-cyan-600 dark:text-cyan-400
   const steps = [
     {
       number: '01',
       icon: Mic,
       title: 'Call Recordings',
-      description: 'Connect your Fathom account with one click. All your recordings sync automatically.',
+      description: 'Connect your Fathom account with one click. All your recordings sync to Sixty automatically and securely.',
       color: 'blue',
       gradient: 'from-blue-600 to-blue-400',
     },
@@ -15,7 +20,7 @@ export function HowItWorks() {
       number: '02',
       icon: Brain,
       title: 'AI Analysis',
-      description: 'Our AI calculates sentiment scores, coaching insights, suggestions and action items in seconds.',
+      description: 'Our AI carefully analyses each call to calculate sentiment scores, coaching insights, next steps and action items in seconds.',
       color: 'purple',
       gradient: 'from-purple-600 to-purple-400',
     },
@@ -34,11 +39,16 @@ export function HowItWorks() {
       description: 'Sixty extracts tasks and to-do items from every call, prioritises them, writes them and syncs them directly into your task manager.',
       color: 'cyan',
       gradient: 'from-cyan-600 to-cyan-400',
+      iconBg: 'bg-cyan-100 dark:bg-cyan-500/10',
+      iconBorder: 'border-cyan-200 dark:border-cyan-500/20',
+      iconText: 'text-cyan-600 dark:text-cyan-400',
     },
   ];
 
   return (
     <section id="how-it-works" className="relative py-24 lg:py-32 bg-gradient-to-b from-gray-50 to-white dark:from-[#0a0d14] dark:to-[#0d1117] overflow-hidden transition-colors duration-300">
+      {/* Tailwind safelist - ensure cyan classes are generated */}
+      <div className="hidden bg-cyan-100 dark:bg-cyan-500/10 border-cyan-200 dark:border-cyan-500/20 text-cyan-600 dark:text-cyan-400" aria-hidden="true" />
       {/* Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
@@ -110,9 +120,34 @@ export function HowItWorks() {
                   </div>
 
                   {/* Icon */}
-                  <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-${step.color}-100 dark:bg-${step.color}-500/10 border border-${step.color}-200 dark:border-${step.color}-500/20 mb-6 mt-4 group-hover:scale-110 transition-transform duration-300`}>
-                    <step.icon className={`w-8 h-8 text-${step.color}-600 dark:text-${step.color}-400`} />
-                  </div>
+                  {step.color === 'cyan' ? (
+                    <div 
+                      className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 mt-4 group-hover:scale-110 transition-all duration-300 border border-cyan-200"
+                      style={{
+                        backgroundColor: isDark ? 'rgba(6, 182, 212, 0.1)' : '#cffafe', // cyan-500/10 in dark, cyan-100 in light
+                        borderColor: isDark ? 'rgba(6, 182, 212, 0.2)' : '#a5f3fc', // cyan-500/20 in dark, cyan-200 in light
+                      }}
+                    >
+                      <step.icon 
+                        className="w-8 h-8 transition-colors duration-300"
+                        style={{
+                          color: isDark ? '#22d3ee' : '#0891b2', // cyan-400 in dark, cyan-600 in light
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-6 mt-4 group-hover:scale-110 transition-transform duration-300 border ${
+                      step.color === 'blue' ? 'bg-blue-100 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20' :
+                      step.color === 'purple' ? 'bg-purple-100 dark:bg-purple-500/10 border-purple-200 dark:border-purple-500/20' :
+                      'bg-emerald-100 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20'
+                    }`}>
+                      <step.icon className={`w-8 h-8 ${
+                        step.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                        step.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                        'text-emerald-600 dark:text-emerald-400'
+                      }`} />
+                    </div>
+                  )}
 
                   {/* Title */}
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
@@ -128,8 +163,6 @@ export function HowItWorks() {
                   <div className={`absolute inset-0 rounded-2xl bg-${step.color}-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
                 </div>
 
-                {/* Connector Dot (Desktop) */}
-                <div className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-white/30" />
               </motion.div>
             ))}
           </div>
@@ -146,12 +179,9 @@ export function HowItWorks() {
           <p className="text-gray-600 dark:text-gray-400 mb-6">
             Ready to see it in action?
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex justify-center">
             <button className="px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/25">
-              Start Free Trial
-            </button>
-            <button className="px-8 py-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/20 text-gray-900 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-white/10 transition-all duration-300">
-              Schedule Demo
+              Create Account
             </button>
           </div>
         </motion.div>

@@ -92,8 +92,8 @@ export async function detectUserCurrency(): Promise<CurrencyCode> {
     console.error('Currency detection failed:', error);
   }
 
-  // Default to USD
-  return 'USD';
+  // Default to GBP
+  return 'GBP';
 }
 
 /**

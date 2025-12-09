@@ -5,6 +5,14 @@ export default {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],
+  safelist: [
+    'bg-cyan-100',
+    'dark:bg-cyan-500/10',
+    'border-cyan-200',
+    'dark:border-cyan-500/20',
+    'text-cyan-600',
+    'dark:text-cyan-400',
+  ],
   theme: {
     extend: {
       backgroundImage: {

@@ -1,31 +1,38 @@
 import { motion } from 'framer-motion';
 import { Check, Sparkles, ArrowRight } from 'lucide-react';
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useLocalization } from '../../lib/hooks/useLocalization';
 import { LocaleSelector } from '../LocaleSelector';
+import i18n from '../../lib/i18n/config';
 
 export function PricingSectionV4() {
   const navigate = useNavigate();
+  
+  // Wait for i18n to be initialized before using translations
+  if (!i18n.isInitialized) {
+    console.warn('PricingSectionV4 - i18n not initialized, waiting...');
+    return <div>Loading...</div>;
+  }
+  
   const { t } = useTranslation('pricing');
   const { locale, setLocale, availableLocales, isLocaleLoading, formatPrice, symbol, convertPrice } = useLocalization();
-  const [reps, setReps] = useState(5);
-
-  // V3 ROI calculation
-  const hoursPerWeek = 10; // Time saved per rep per week
-  const weeksPerMonth = 4.33;
-  const hourlyRate = 50; // Average hourly rate for sales rep
-  const monthlySavings = reps * hoursPerWeek * weeksPerMonth * hourlyRate;
+  
+  // Debug: Log translation status
+  console.log('PricingSectionV4 - i18n initialized:', i18n.isInitialized);
+  console.log('PricingSectionV4 - current language:', i18n.language);
+  console.log('PricingSectionV4 - namespace:', i18n.options?.defaultNS);
+  console.log('PricingSectionV4 - t("header.title"):', t('header.title'));
+  console.log('PricingSectionV4 - available resources:', i18n.store?.data ? Object.keys(i18n.store.data) : 'no store');
 
   // Base prices in USD cents
-  const SOLO_PRICE_USD_CENTS = 2900; // $29
-  const TEAM_PRICE_USD_CENTS = 7900; // $79
+  const SOLO_PRICE_USD_CENTS = 0; // Free
+  const TEAM_PRICE_USD_CENTS = 10000; // $100 (to convert to ~£79)
 
   // Convert and format prices
-  const soloPrice = Math.round(convertPrice(SOLO_PRICE_USD_CENTS) / 100); // Convert to whole dollars/pounds
-  const teamPrice = Math.round(convertPrice(TEAM_PRICE_USD_CENTS) / 100);
+  const soloPrice = 'Free'; // Free plan
+  const teamPrice = locale === 'en-GB' ? 79 : Math.round(convertPrice(TEAM_PRICE_USD_CENTS) / 100); // £79 for UK, converted price for US
 
   // Helper function to ensure features is always an array
   const getFeaturesArray = (key: string): string[] => {
@@ -38,7 +45,7 @@ export function PricingSectionV4() {
     {
       key: 'solo',
       name: t('plans.solo.name'),
-      price: `${symbol}${soloPrice}`,
+      price: soloPrice,
       period: t('plans.solo.period'),
       description: t('plans.solo.description'),
       features: getFeaturesArray('plans.solo.features'),
@@ -49,7 +56,7 @@ export function PricingSectionV4() {
     {
       key: 'team',
       name: t('plans.team.name'),
-      price: `${symbol}${teamPrice}`,
+      price: locale === 'en-GB' ? `£${teamPrice}` : '$99',
       period: t('plans.team.period'),
       description: t('plans.team.description'),
       features: getFeaturesArray('plans.team.features'),
@@ -61,11 +68,12 @@ export function PricingSectionV4() {
     {
       key: 'enterprise',
       name: t('plans.enterprise.name'),
-      price: t('plans.enterprise.name'), // "Custom"
+      price: locale === 'en-GB' ? '£129' : '$169',
       period: t('plans.enterprise.period'),
       description: t('plans.enterprise.description'),
       features: getFeaturesArray('plans.enterprise.features'),
       cta: t('plans.enterprise.cta'),
+      earlyAdopterNote: t('plans.enterprise.earlyAdopterNote'),
       popular: false,
     },
   ];
@@ -93,7 +101,7 @@ export function PricingSectionV4() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+            <span className="text-gray-900 dark:text-white">
               {t('header.title')}
             </span>
             <br />
@@ -177,91 +185,17 @@ export function PricingSectionV4() {
                   onClick={() => handleSelectPlan(plan.name)}
                   className={`w-full py-6 rounded-xl font-semibold transition-all ${
                     plan.popular
-                      ? 'bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white shadow-xl shadow-blue-500/25'
+                      ? 'bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 !text-white dark:!text-white shadow-xl shadow-blue-500/25'
                       : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
                   }`}
                 >
                   {plan.cta}
-                  <ArrowRight className="ml-2 w-5 h-5" />
+                  <ArrowRight className={`ml-2 w-5 h-5 ${plan.popular ? 'text-white dark:text-white' : ''}`} />
                 </Button>
               </div>
             </motion.div>
           ))}
         </div>
-
-        {/* V3 ROI Calculator */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="max-w-3xl mx-auto"
-        >
-          <div className="p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-blue-500/10 dark:to-emerald-500/10 border border-blue-200 dark:border-blue-500/20">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2 text-center">
-              {t('roi.title')}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              {t('roi.subtitle')}
-            </p>
-
-            <div className="space-y-6">
-              {/* Input */}
-              <div>
-                <label htmlFor="reps" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  {t('roi.inputLabel')}
-                </label>
-                <input
-                  id="reps"
-                  type="number"
-                  min="1"
-                  max="1000"
-                  value={reps}
-                  onChange={(e) => setReps(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow"
-                />
-              </div>
-
-              {/* Results */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('roi.results.timeSaved')}</p>
-                  <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                    {(reps * hoursPerWeek * weeksPerMonth).toFixed(0)} {t('roi.results.hours')}
-                  </p>
-                </div>
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('roi.results.estimatedSavings')}</p>
-                  <p className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 dark:from-emerald-400 dark:to-green-400 bg-clip-text text-transparent">
-                    {symbol}{monthlySavings.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Explanation */}
-              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
-                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                  <strong>{t('roi.explanation.title')}</strong> {t('roi.explanation.description', {
-                    hourlyRate,
-                    monthlySavings: (hoursPerWeek * weeksPerMonth * hourlyRate).toLocaleString()
-                  })}
-                </p>
-              </div>
-
-              {/* CTA */}
-              <div className="text-center">
-                <Button
-                  onClick={() => navigate('/auth/signup')}
-                  size="lg"
-                  className="bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white font-semibold px-8 py-6 rounded-xl shadow-xl shadow-blue-500/25"
-                >
-                  {t('roi.cta')}
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
       </div>
     </section>
   );

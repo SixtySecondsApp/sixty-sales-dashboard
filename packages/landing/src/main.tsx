@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './styles/index.css';
 import { initializeTheme } from './lib/hooks/useTheme';
+// Initialize i18next before React renders
+import './lib/i18n/config';
 
 // Initialize theme before React renders to prevent flash
 initializeTheme();

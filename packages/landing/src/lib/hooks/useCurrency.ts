@@ -26,7 +26,7 @@ interface UseCurrencyReturn {
 }
 
 export function useCurrency(): UseCurrencyReturn {
-  const [currency, setCurrencyState] = useState<CurrencyCode>('USD');
+  const [currency, setCurrencyState] = useState<CurrencyCode>('GBP');
   const [isLoading, setIsLoading] = useState(true);
 
   // Detect user's currency on mount

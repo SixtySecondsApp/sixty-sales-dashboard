@@ -1,10 +1,40 @@
 import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 export function Footer() {
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    // Check theme on mount and when it changes
+    const checkTheme = () => {
+      const html = document.documentElement;
+      const hasDarkClass = html.classList.contains('dark');
+      const dataTheme = html.getAttribute('data-theme');
+      setIsDark(hasDarkClass || dataTheme === 'dark');
+    };
+
+    // Initial check
+    checkTheme();
+
+    // Listen for theme changes
+    const handleThemeChange = () => checkTheme();
+    window.addEventListener('theme-changed', handleThemeChange);
+    
+    // Also watch for class/attribute changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme']
+    });
+
+    return () => {
+      window.removeEventListener('theme-changed', handleThemeChange);
+      observer.disconnect();
+    };
+  }, []);
   const footerLinks = {
     Product: [
       { name: 'Features', href: '#features' },
-      { name: 'Integrations', href: '#integrations' },
       { name: 'Pricing', href: '/pricing' },
       { name: 'Changelog', href: '/releases' },
       { name: 'Roadmap', href: '/roadmap' },
@@ -33,7 +63,13 @@ export function Footer() {
   };
 
   return (
-    <footer className="relative bg-gray-50 dark:bg-[#080a0f] border-t border-gray-200 dark:border-white/5 transition-colors duration-300">
+    <footer 
+      className="relative bg-gray-50 dark:bg-[#080a0f] border-t border-gray-200 dark:border-white/5 transition-colors duration-300"
+      style={{
+        backgroundColor: isDark ? '#080a0f' : undefined,
+        borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : undefined,
+      }}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 lg:gap-12 mb-12">
@@ -80,13 +116,19 @@ export function Footer() {
           {/* Link Columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h3 className="text-gray-900 dark:text-white font-semibold mb-4">{category}</h3>
+              <h3 
+                className="text-gray-900 dark:text-white font-semibold mb-4"
+                style={{ color: isDark ? 'white' : undefined }}
+              >
+                {category}
+              </h3>
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link.name}>
                     <a
                       href={link.href}
                       className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white text-sm transition-colors duration-200"
+                      style={{ color: isDark ? 'rgb(107, 114, 128)' : undefined }}
                     >
                       {link.name}
                     </a>
@@ -98,8 +140,14 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-gray-200 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-gray-600 dark:text-gray-500 text-sm">
+        <div 
+          className="pt-8 border-t border-gray-200 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-4"
+          style={{ borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : undefined }}
+        >
+          <div 
+            className="text-gray-600 dark:text-gray-500 text-sm"
+            style={{ color: isDark ? 'rgb(107, 114, 128)' : undefined }}
+          >
             © {new Date().getFullYear()} Sixty Seconds Ltd. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
