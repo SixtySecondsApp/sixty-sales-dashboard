@@ -102,7 +102,7 @@ export function PricingSectionV4() {
     if (plan.slug === 'enterprise') {
       navigate('/contact');
     } else {
-      navigate('/auth/signup?plan=' + plan.slug);
+      navigate('/waitlist');
     }
   };
 
@@ -369,7 +369,7 @@ export function PricingSectionV4() {
               {/* CTA */}
               <div className="text-center">
                 <Button
-                  onClick={() => navigate('/auth/signup')}
+                  onClick={() => navigate('/waitlist')}
                   size="lg"
                   variant={undefined}
                   className="bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 !text-white font-semibold px-8 py-6 rounded-xl shadow-xl shadow-blue-500/25 border-0"

@@ -138,7 +138,7 @@ export function FeatureShowcaseV3() {
             Combining and automating these tools saves sales teams <span className="font-bold text-emerald-600 dark:text-emerald-400">15+ hours every week</span>.
           </p>
           <motion.a
-            href="/auth/signup"
+            href="/waitlist"
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold shadow-xl shadow-blue-500/25 transition-all hover:shadow-2xl hover:shadow-blue-500/40"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}

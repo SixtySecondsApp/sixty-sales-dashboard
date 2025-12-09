@@ -108,7 +108,7 @@ export function FinalCTA() {
               transition={{ delay: 0.5 }}
               className="flex justify-center mb-10"
             >
-              <a href="/product/meetings/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
+              <a href="/waitlist" className="group px-8 py-4 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-lg hover:from-blue-500 hover:to-blue-400 transition-all duration-300 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40">
                 <span className="flex items-center justify-center gap-2">
                   Sign Up Now
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
