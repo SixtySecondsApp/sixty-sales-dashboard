@@ -20,7 +20,7 @@ function App() {
         <Route path="/auth/*" element={<RedirectToApp />} />
         <Route path="/login" element={<RedirectToApp />} />
         <Route path="/signup" element={<RedirectToApp />} />
-        <Route path="/" element={<RedirectToApp />} />
+        <Route path="/" element={<MeetingsLandingV4 />} />
       </Routes>
     </BrowserRouter>
   );
