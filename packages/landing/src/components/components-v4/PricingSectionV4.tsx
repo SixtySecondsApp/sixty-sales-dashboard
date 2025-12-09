@@ -27,6 +27,12 @@ export function PricingSectionV4() {
   const soloPrice = Math.round(convertPrice(SOLO_PRICE_USD_CENTS) / 100); // Convert to whole dollars/pounds
   const teamPrice = Math.round(convertPrice(TEAM_PRICE_USD_CENTS) / 100);
 
+  // Helper function to ensure features is always an array
+  const getFeaturesArray = (key: string): string[] => {
+    const features = t(key, { returnObjects: true });
+    return Array.isArray(features) ? features : [];
+  };
+
   // Dynamic pricing plans with translations and converted prices
   const plans = [
     {
@@ -35,7 +41,7 @@ export function PricingSectionV4() {
       price: `${symbol}${soloPrice}`,
       period: t('plans.solo.period'),
       description: t('plans.solo.description'),
-      features: t('plans.solo.features', { returnObjects: true }) as string[],
+      features: getFeaturesArray('plans.solo.features'),
       cta: t('plans.solo.cta'),
       popular: false,
       earlyAdopterNote: t('plans.solo.earlyAdopterNote'),
@@ -46,7 +52,7 @@ export function PricingSectionV4() {
       price: `${symbol}${teamPrice}`,
       period: t('plans.team.period'),
       description: t('plans.team.description'),
-      features: t('plans.team.features', { returnObjects: true }) as string[],
+      features: getFeaturesArray('plans.team.features'),
       cta: t('plans.team.cta'),
       popular: true,
       badge: t('plans.team.badge'),
@@ -58,7 +64,7 @@ export function PricingSectionV4() {
       price: t('plans.enterprise.name'), // "Custom"
       period: t('plans.enterprise.period'),
       description: t('plans.enterprise.description'),
-      features: t('plans.enterprise.features', { returnObjects: true }) as string[],
+      features: getFeaturesArray('plans.enterprise.features'),
       cta: t('plans.enterprise.cta'),
       popular: false,
     },
@@ -158,7 +164,7 @@ export function PricingSectionV4() {
 
                 {/* Features */}
                 <ul className="space-y-4 mb-8">
-                  {plan.features.map((feature, idx) => (
+                  {Array.isArray(plan.features) && plan.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-3">
                       <Check className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
                       <span className="text-gray-700 dark:text-gray-300">{feature}</span>

@@ -6,8 +6,17 @@
 
 @layer utilities {
   /* Scroll offset for fixed navigation on product landing pages */
-  section[id] {
+  section[id]:not(#hero) {
     scroll-margin-top: 5rem; /* 80px - accounts for 64px nav + 16px buffer */
+  }
+  
+  /* Remove default margins/padding from hero section */
+  section#hero,
+  .hero-section {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-bottom: 0 !important;
+    scroll-margin-top: 0 !important;
   }
 }
 
@@ -16,6 +25,14 @@
   :root {
     /* Enable color scheme */
     color-scheme: light dark;
+  }
+
+  /* Force hero section background in dark mode */
+  [data-theme="dark"] section[id="hero"],
+  .dark section[id="hero"],
+  [data-theme="dark"] .hero-section,
+  .dark .hero-section {
+    background-color: #0a0d14 !important;
   }
 
   /* Smooth theme transitions */
@@ -37,6 +54,7 @@
     --bg-secondary: 250 250 250;         /* Clean off-white (#FAFAFA) */
     --bg-tertiary: 249 250 251;          /* Cleaner gray-50 (#F9FAFB) */
     --bg-elevated: 255 255 255;          /* White */
+    --hero-bg: white;                     /* Hero section light background */
 
     /* Surfaces */
     --surface-glass: 255 255 255;        /* White base for glass */
@@ -103,6 +121,7 @@
     --bg-secondary: 17 24 39;            /* Gray-900 */
     --bg-tertiary: 31 41 55;             /* Gray-800 */
     --bg-elevated: 31 41 55;             /* Gray-800 */
+    --hero-bg: #0a0d14;                  /* Hero section dark background */
 
     /* Surfaces */
     --surface-glass: 17 24 39;           /* Gray-900 base for glass */

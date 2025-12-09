@@ -4,36 +4,36 @@ import { Search, CheckCircle2, FileText, ArrowRight } from 'lucide-react';
 const features = [
   {
     icon: Search,
-    title: 'Find Any Deal Detail in 3 Seconds—Not 30 Minutes',
-    description: 'Stop scrolling through endless meeting notes. Our AI semantic search finds exactly what you need instantly—pricing discussions, objections, next steps, anything.',
+    title: 'Step 1: Connect your Call Recorder',
+    description: 'Our AI analyses each call and gives your team feedback. You can even ask questions about your entire call history to gain deeper insights.',
     benefits: [
-      'Search across all meetings in natural language',
-      'Find specific quotes, commitments, or concerns',
-      'No manual tagging or organization required',
+      '• Fathom',
+      '• Fireflies',
+      '• Teams',
     ],
     gradient: 'from-blue-500 to-cyan-500',
     bgGradient: 'from-blue-500/10 to-cyan-500/10',
   },
   {
     icon: CheckCircle2,
-    title: 'Never Miss a Follow-Up—AI Handles Everything',
-    description: 'AI automatically extracts action items, assigns priorities, and creates tasks. No more "I forgot to send that proposal" moments. Ever.',
+    title: 'Step 2: Connect your existing CRM',
+    description: "Don't waste time manually updating your CRM when our AI does this for you. Lead stages, deal stages and notes always up to date.",
     benefits: [
-      'Auto-create tasks with due dates and priorities',
-      'Smart reminders based on deal urgency',
-      'Sync to your CRM and task manager automatically',
+      '• Hubspot',
+      '• Pipedrive',
+      '• Zoho',
     ],
     gradient: 'from-emerald-500 to-green-500',
     bgGradient: 'from-emerald-500/10 to-green-500/10',
   },
   {
     icon: FileText,
-    title: 'Generate Proposals in 5 Minutes, Not 30',
-    description: 'AI writes customized proposals based on your meeting discussions. Just review, tweak if needed, and send. Close deals faster.',
+    title: 'Step 3: Connect your Task Manager',
+    description: "Automate more of the admin. Tasks and objectives are auto-generated from each call and sync'd directly into your task manager for action.",
     benefits: [
-      'Pull context directly from meeting transcripts',
-      'Customize tone and structure to your style',
-      'Include pricing, timelines, and next steps',
+      '• Monday',
+      '• Jira',
+      '• Trello',
     ],
     gradient: 'from-purple-500 to-pink-500',
     bgGradient: 'from-purple-500/10 to-pink-500/10',
@@ -53,16 +53,19 @@ export function FeatureShowcaseV3() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-              Three Features That
+            <span className="text-gray-900 dark:text-white">
+              Connect Existing Tools
             </span>
             <br />
+            <span className="text-gray-900 dark:text-white">
+              to
+            </span>{' '}
             <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
-              Actually Close Deals
+              Turbocharge your Sales
             </span>
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-            Forget feature lists with 20+ bullet points. These three capabilities do the heavy lifting—everything else is just noise.
+            Our platform brings together tools you're already using and wraps them in market-leading AI for analysis and automation.
           </p>
         </motion.div>
 
@@ -83,8 +86,14 @@ export function FeatureShowcaseV3() {
               {/* Card */}
               <div className="relative h-full p-8 rounded-2xl bg-white dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none hover:shadow-xl dark:hover:shadow-none hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-300">
                 {/* Icon */}
-                <div className={`inline-flex p-3 rounded-xl bg-gradient-to-r ${feature.bgGradient} mb-6`}>
-                  <feature.icon className={`w-6 h-6 bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`} strokeWidth={2} />
+                <div className={`inline-flex items-center justify-center w-12 h-12 rounded-none bg-gradient-to-r ${feature.bgGradient} mb-6`}>
+                  {index === 0 ? (
+                    <span className={`text-2xl font-bold bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`}>1</span>
+                  ) : index === 1 ? (
+                    <span className={`text-2xl font-bold bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`}>2</span>
+                  ) : (
+                    <span className={`text-2xl font-bold bg-gradient-to-r ${feature.gradient} bg-clip-text text-transparent`}>3</span>
+                  )}
                 </div>
 
                 {/* Title */}
@@ -126,7 +135,7 @@ export function FeatureShowcaseV3() {
           className="text-center mt-16"
         >
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
-            These three features save sales teams <span className="font-bold text-emerald-600 dark:text-emerald-400">10+ hours every week</span>.
+            Combining and automating these tools saves sales teams <span className="font-bold text-emerald-600 dark:text-emerald-400">15+ hours every week</span>.
           </p>
           <motion.a
             href="/auth/signup"

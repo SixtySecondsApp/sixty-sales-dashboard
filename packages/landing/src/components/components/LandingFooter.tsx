@@ -33,7 +33,7 @@ export function Footer() {
   };
 
   return (
-    <footer className="relative bg-[#080a0f] border-t border-white/5">
+    <footer className="relative bg-gray-50 dark:bg-[#080a0f] border-t border-gray-200 dark:border-white/5 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 lg:gap-12 mb-12">
@@ -46,7 +46,7 @@ export function Footer() {
                 className="h-10 w-auto"
               />
             </div>
-            <p className="text-gray-500 text-sm mb-6 max-w-xs">
+            <p className="text-gray-600 dark:text-gray-500 text-sm mb-6 max-w-xs">
               AI-powered meeting intelligence for sales teams that want to close more deals, faster.
             </p>
             {/* Social Links */}
@@ -55,7 +55,7 @@ export function Footer() {
                 <a
                   key={social}
                   href={`https://${social}.com/sixtyai`}
-                  className="w-9 h-9 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:border-white/20 transition-all duration-300"
+                  className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-white/20 transition-all duration-300"
                 >
                   {social === 'twitter' && (
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -80,13 +80,13 @@ export function Footer() {
           {/* Link Columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h3 className="text-white font-semibold mb-4">{category}</h3>
+              <h3 className="text-gray-900 dark:text-white font-semibold mb-4">{category}</h3>
               <ul className="space-y-3">
                 {links.map((link) => (
                   <li key={link.name}>
                     <a
                       href={link.href}
-                      className="text-gray-500 hover:text-white text-sm transition-colors duration-200"
+                      className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white text-sm transition-colors duration-200"
                     >
                       {link.name}
                     </a>
@@ -98,18 +98,18 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="text-gray-500 text-sm">
+        <div className="pt-8 border-t border-gray-200 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-gray-600 dark:text-gray-500 text-sm">
             © {new Date().getFullYear()} Sixty Seconds Ltd. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-500">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               All systems operational
             </div>
             <select
               defaultValue="en"
-              className="bg-transparent border border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-400 focus:outline-none focus:border-white/20"
+              className="bg-white dark:bg-transparent border border-gray-300 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-gray-400 focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
             >
               <option value="en">English</option>
               <option value="es">Español</option>
