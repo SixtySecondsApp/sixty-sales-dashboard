@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Database, FileText, CheckSquare, Sparkles, Loader2, CheckCircle, Check, File } from 'lucide-react';
 import { useTheme } from '../../lib/hooks/useTheme';
 
+// HowItWorksV4 - Mobile-first responsive design with interactive demo
 type SimulationState = 'idle' | 'scanning' | 'complete';
 
 export function HowItWorksV4() {
