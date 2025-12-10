@@ -1,401 +1,550 @@
-import { motion } from 'framer-motion';
-import { Sparkles, ArrowRight, Zap, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  ArrowRight,
+  PlayCircle,
+  Sparkles,
+  FileText,
+  CheckCircle2
+} from 'lucide-react';
+
+// Add keyframe animations as a style element
+const heroStyles = `
+  @keyframes hero-scan-text {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes hero-pulse-ring {
+    0% { transform: scale(0.8); opacity: 0.5; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+
+  @keyframes hero-slide-up-fade {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes hero-highlight-trigger {
+    0% { background-color: transparent; color: inherit; }
+    100% { background-color: rgba(16, 185, 129, 0.2); color: #059669; }
+  }
+
+  @keyframes hero-grow-line {
+    from { height: 0; opacity: 0; }
+    to { height: 24px; opacity: 1; }
+  }
+
+  @keyframes hero-blob {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-20px, 20px) scale(0.9); }
+  }
+
+  @keyframes hero-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes hero-alt-scan {
+    0% { top: 0%; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .hero-animate-scan {
+    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
+    background-size: 200% 100%;
+    animation: hero-scan-text 2s infinite linear;
+  }
+
+  .hero-pulse-dot::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: #ef4444;
+    border-radius: 50%;
+    z-index: -1;
+    animation: hero-pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+
+  /* Sequential animation: Step 1 → Line 1 → Step 2 → Line 2 → Step 3 (slower pacing) */
+  .hero-animate-step-1 {
+    animation: hero-slide-up-fade 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 0.4s;
+    opacity: 0;
+  }
+
+  .hero-animate-step-2 {
+    animation: hero-slide-up-fade 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 2.0s;
+    opacity: 0;
+  }
+
+  .hero-animate-step-3 {
+    animation: hero-slide-up-fade 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 3.6s;
+    opacity: 0;
+  }
+
+  .hero-trigger-phrase {
+    animation: hero-highlight-trigger 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 1.2s;
+    padding: 0 4px;
+    border-radius: 4px;
+  }
+
+  /* Connector lines animate in sequentially after their preceding step */
+  .hero-connector-line {
+    animation: hero-grow-line 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 1.4s;
+    opacity: 0;
+    height: 0;
+  }
+
+  .hero-connector-line-2 {
+    animation: hero-grow-line 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 3.0s;
+    opacity: 0;
+    height: 0;
+  }
+
+  .hero-animate-blob {
+    animation: hero-blob 7s ease-in-out infinite;
+  }
+
+  .hero-animate-blob-delay-2 {
+    animation: hero-blob 7s ease-in-out infinite 2s;
+  }
+
+  .hero-animate-blob-delay-4 {
+    animation: hero-blob 7s ease-in-out infinite 4s;
+  }
+
+  .hero-animate-float {
+    animation: hero-float 3s ease-in-out infinite;
+  }
+
+  .hero-animate-float-delay {
+    animation: hero-float 4s ease-in-out infinite 1s;
+  }
+
+  .hero-alt-animate-scan {
+    animation: hero-alt-scan 3s linear infinite;
+  }
+
+  /* Dark mode trigger phrase */
+  .dark .hero-trigger-phrase {
+    animation-name: hero-highlight-trigger-dark;
+  }
+
+  @keyframes hero-highlight-trigger-dark {
+    0% { background-color: transparent; color: inherit; }
+    100% { background-color: rgba(16, 185, 129, 0.3); color: #34d399; }
+  }
+
+  /* View transition animations */
+  .hero-view-enter {
+    animation: hero-slide-up-fade 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .hero-view-exit {
+    animation: hero-fade-out 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes hero-fade-out {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-8px); }
+  }
+`;
+
+// Workflow animation duration: step3 delay (3.6s) + step3 duration (0.7s) = ~4.3s
+const WORKFLOW_ANIMATION_DURATION = 4500;
+const DASHBOARD_DISPLAY_TIME = 5000; // 5 seconds
+const WORKFLOW_WAIT_AFTER = 4000; // 4 seconds after workflow completes (was 2s)
 
 export function HeroSectionV4() {
-  const [isDark, setIsDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [activeView, setActiveView] = useState<'dashboard' | 'workflow'>('dashboard');
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [workflowKey, setWorkflowKey] = useState(0); // Key to force re-render and restart animations
+
+  const transitionToView = useCallback((view: 'dashboard' | 'workflow') => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setActiveView(view);
+      if (view === 'workflow') {
+        setWorkflowKey(prev => prev + 1); // Force re-render to restart animations
+      }
+      setIsTransitioning(false);
+    }, 400); // Match exit animation duration
+  }, []);
 
   useEffect(() => {
-    // Check theme on mount and when it changes
-    const checkTheme = () => {
-      const html = document.documentElement;
-      const hasDarkClass = html.classList.contains('dark');
-      const dataTheme = html.getAttribute('data-theme');
-      setIsDark(hasDarkClass || dataTheme === 'dark');
-    };
+    setMounted(true);
 
-    // Initial check
-    checkTheme();
-
-    // Listen for theme changes
-    const handleThemeChange = () => checkTheme();
-    window.addEventListener('theme-changed', handleThemeChange);
-
-    // Also watch for class/attribute changes
-    const observer = new MutationObserver(checkTheme);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme']
-    });
+    // Inject styles
+    const styleId = 'hero-animations-style-v4-combined';
+    if (!document.getElementById(styleId)) {
+      const styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      styleEl.textContent = heroStyles;
+      document.head.appendChild(styleEl);
+    }
 
     return () => {
-      window.removeEventListener('theme-changed', handleThemeChange);
-      observer.disconnect();
+      // Cleanup is optional - styles can persist
     };
   }, []);
 
-  const bgColor = isDark ? '#0a0d14' : 'white';
+  // Auto-cycle between views
+  useEffect(() => {
+    if (!mounted) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+
+    if (activeView === 'dashboard' && !isTransitioning) {
+      // After 5 seconds on dashboard, switch to workflow
+      timer = setTimeout(() => {
+        transitionToView('workflow');
+      }, DASHBOARD_DISPLAY_TIME);
+    } else if (activeView === 'workflow' && !isTransitioning) {
+      // After workflow animation completes + 2 seconds, switch back to dashboard
+      timer = setTimeout(() => {
+        transitionToView('dashboard');
+      }, WORKFLOW_ANIMATION_DURATION + WORKFLOW_WAIT_AFTER);
+    }
+
+    return () => clearTimeout(timer);
+  }, [activeView, isTransitioning, mounted, transitionToView]);
+
+  if (!mounted) return null;
 
   return (
-    <section
-      id="hero"
-      className="hero-section relative overflow-hidden transition-colors duration-300 pt-[200px] pb-[200px]"
-      style={{ backgroundColor: bgColor, background: bgColor, margin: 0, marginTop: 0, padding: 0, paddingTop: '200px', paddingBottom: '200px' }}
-    >
-      {/* Theme-aware Background with Animated Gradient Orbs */}
-      <div
-        className="absolute inset-0 transition-colors duration-300 min-h-screen"
-        style={{ backgroundColor: bgColor, background: bgColor }}
-      >
-        {/* Grid Pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.02] dark:opacity-[0.03]"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px'
-          }}
-        />
-        {/* Dark mode grid pattern overlay */}
-        <div
-          className="absolute inset-0 opacity-0 dark:opacity-[0.03] pointer-events-none"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '60px 60px'
-          }}
-        />
+    <section className="relative pt-32 pb-48 lg:pt-40 lg:pb-56 overflow-hidden bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
 
-        {/* Animated Gradient Orbs - Theme-aware */}
-        <motion.div
-          className="absolute top-1/4 -left-32 w-[600px] h-[600px] rounded-full opacity-10 dark:opacity-100"
-          style={{
-            background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
-            filter: 'blur(60px)',
-          }}
-          animate={{
-            x: [0, 50, 0],
-            y: [0, 30, 0],
-            scale: [1, 1.1, 1],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-        <motion.div
-          className="absolute bottom-1/4 -right-32 w-[500px] h-[500px] rounded-full opacity-8 dark:opacity-100"
-          style={{
-            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 70%)',
-            filter: 'blur(60px)',
-          }}
-          animate={{
-            x: [0, -40, 0],
-            y: [0, -40, 0],
-            scale: [1, 1.15, 1],
-          }}
-          transition={{
-            duration: 18,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
-        <motion.div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-5 dark:opacity-100"
-          style={{
-            background: 'radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 60%)',
-            filter: 'blur(80px)',
-          }}
-          animate={{
-            scale: [1, 1.2, 1],
-            opacity: [0.2, 0.3, 0.2],
-          }}
-          transition={{
-            duration: 12,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
-        />
+      {/* Background Decor - Subtle ambient glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full z-0 pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/15 dark:bg-blue-600/10 rounded-full blur-3xl mix-blend-multiply dark:mix-blend-normal hero-animate-blob" />
+        <div className="absolute top-20 right-10 w-72 h-72 bg-purple-400/15 dark:bg-purple-600/10 rounded-full blur-3xl mix-blend-multiply dark:mix-blend-normal hero-animate-blob-delay-2" />
+        <div className="absolute -bottom-8 left-1/2 w-72 h-72 bg-indigo-400/15 dark:bg-indigo-600/10 rounded-full blur-3xl mix-blend-multiply dark:mix-blend-normal hero-animate-blob-delay-4" />
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-0">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 lg:items-center">
-          {/* Left Column - V3 Text Content */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
-            className="text-center lg:text-left"
-          >
-            {/* V3 Early Adopter Badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500/10 to-blue-500/10 dark:from-emerald-500/20 dark:to-blue-500/20 border border-emerald-500/20 dark:border-emerald-500/30 mb-6"
-            >
-              <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Revolutionary AI for Sales Teams</span>
-            </motion.div>
+      {/* Bottom gradient fade - creates smooth transition to next section */}
+      <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-b from-transparent via-gray-100/50 to-gray-100 dark:from-transparent dark:via-gray-900/50 dark:to-gray-950 pointer-events-none z-[5]" />
 
-            {/* V4 Headline: "Turn Meetings Into Closed Deals" */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight"
-            >
-              <span className="text-gray-900 dark:text-white">
-                Turn Meetings
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-center mb-16 lg:mb-24">
+
+          {/* Left Column: Copy */}
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-blue-600 dark:text-blue-400 text-sm font-semibold mb-6">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
               </span>
-              <br />
-              <span className="text-gray-900 dark:text-white">
-                Into
-              </span>{' '}
-              <span className="bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
-                Closed Deals
+              Now integrating with Slack & Salesforce
+            </div>
+
+            <h1 className="text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 dark:text-gray-100 leading-[1.1] mb-6">
+              Turn your sales calls into{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+                instant action.
               </span>
-            </motion.h1>
+            </h1>
 
-            {/* V3 Subheadline */}
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.8 }}
-              className="text-xl sm:text-2xl text-gray-600 dark:text-gray-400 mb-8 leading-relaxed"
-            >
-              Seamlessly connect your Call Recorder, CRM and Task Manager. Our AI Auto-Generates Reports, Proposals and Tasks for your team.
-            </motion.p>
+            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 leading-relaxed max-w-lg">
+              60 listens to your meetings, detects promises made, and automatically executes the workflow. Never miss an "I'll send you a proposal" again.
+            </p>
 
-            {/* V3 Enhanced CTA */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8"
-            >
-              <Button
-                size="lg"
-                asChild
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold px-8 py-6 rounded-xl shadow-xl shadow-blue-500/25 transition-all hover:shadow-2xl hover:shadow-blue-500/40 group"
+            <div className="flex flex-col sm:flex-row gap-4">
+              <a
+                href="/waitlist"
+                className="flex items-center justify-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition shadow-lg shadow-blue-600/20 dark:shadow-blue-900/30"
               >
-                <a href="/waitlist">
-                  <span className="text-lg text-white">Sign Up for Free</span>
-                  <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform text-white" />
-                </a>
-              </Button>
-            </motion.div>
+                Start for free
+                <ArrowRight className="w-4 h-4" />
+              </a>
+              <button className="flex items-center justify-center gap-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 px-8 py-4 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm dark:shadow-none">
+                <PlayCircle className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                See how it works
+              </button>
+            </div>
 
-            {/* V3 Trust Signals (NO fake customer counts) */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6, duration: 0.8 }}
-              className="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-gray-600 dark:text-gray-400"
+            <div className="mt-10 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex -space-x-2">
+                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=1" alt="User" />
+                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=2" alt="User" />
+                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=3" alt="User" />
+              </div>
+              <p>Trusted by 2,000+ sales reps</p>
+            </div>
+          </div>
+
+          {/* Right Column: Animated Visual */}
+          <div className="relative h-[450px] sm:h-[500px] lg:h-[600px] flex items-center justify-center">
+
+            {/* Dashboard View */}
+            <div
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${
+                activeView === 'dashboard' && !isTransitioning
+                  ? 'opacity-100 translate-y-0'
+                  : 'opacity-0 translate-y-[-8px] pointer-events-none'
+              }`}
             >
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Setup in 60 seconds</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>No credit card</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">Early adopter perks</span>
-              </div>
-            </motion.div>
-          </motion.div>
+              <DashboardVisual />
+            </div>
 
-          {/* Right Column - V1 Product Mockup */}
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4, duration: 0.8 }}
-            className="relative"
-          >
-            {/* V1 Floating Mockup Container */}
-            <motion.div
-              animate={{
-                y: [0, -15, 0],
-              }}
-              transition={{
-                duration: 6,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-              className="relative"
+            {/* Workflow View */}
+            <div
+              key={workflowKey}
+              className={`absolute inset-0 flex items-center justify-center transition-all duration-400 ${
+                activeView === 'workflow' && !isTransitioning
+                  ? 'opacity-100 translate-y-0'
+                  : 'opacity-0 translate-y-[8px] pointer-events-none'
+              }`}
             >
-              {/* Main Dashboard Card */}
-              <div className={`relative rounded-2xl overflow-hidden border shadow-2xl ${
-                isDark
-                  ? 'border-white/10 bg-gradient-to-br from-gray-900/90 to-gray-900/50 backdrop-blur-xl shadow-black/50'
-                  : 'border-gray-200 bg-white shadow-gray-200/50'
-              }`}>
-                {/* Browser Chrome */}
-                <div className={`flex items-center gap-2 px-4 py-3 border-b ${
-                  isDark
-                    ? 'border-white/10 bg-black/30'
-                    : 'border-gray-200 bg-gray-50'
-                }`}>
-                  <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                  </div>
-                  <div className="flex-1 flex justify-center">
-                    <div className={`px-4 py-1 rounded-md text-xs ${
-                      isDark
-                        ? 'bg-white/5 text-gray-500'
-                        : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      use60.com
-                    </div>
-                  </div>
-                </div>
+              <WorkflowVisual />
+            </div>
 
-                {/* Dashboard Content */}
-                <div className="p-6 space-y-4">
-                  {/* Header */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className={isDark ? 'text-white font-semibold' : 'text-gray-900 font-semibold'}>Meeting Hub</h3>
-                      <p className={isDark ? 'text-xs text-gray-500' : 'text-xs text-gray-600'}>3 meetings today</p>
-                    </div>
-                    <div className={`px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                      isDark
-                        ? 'bg-blue-500/20 border-blue-500/30 text-blue-400'
-                        : 'bg-blue-100 border-blue-200 text-blue-700'
-                    }`}>
-                      AI Active
-                    </div>
-                  </div>
-
-                  {/* Meeting Cards */}
-                  <div className="space-y-3">
-                    {[
-                      { title: 'Discovery Call - Acme Corp', sentiment: 0.8, time: '10:00 AM', type: 'discovery' },
-                      { title: 'Demo - TechStart Inc', sentiment: 0.6, time: '2:00 PM', type: 'demo' },
-                      { title: 'Negotiation - Global Ltd', sentiment: -0.2, time: '4:30 PM', type: 'negotiation' },
-                    ].map((meeting, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 + idx * 0.15, duration: 0.5 }}
-                        className={`p-3 rounded-xl border transition-colors ${
-                          isDark
-                            ? 'bg-white/5 border-white/10 hover:border-white/20'
-                            : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className={`text-sm font-medium ${
-                            isDark ? 'text-white' : 'text-gray-900'
-                          }`}>{meeting.title}</span>
-                          <span className={`text-xs ${
-                            isDark ? 'text-gray-500' : 'text-gray-600'
-                          }`}>{meeting.time}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            meeting.sentiment > 0.5
-                              ? isDark
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-emerald-100 text-emerald-700' :
-                            meeting.sentiment > 0
-                              ? isDark
-                                ? 'bg-amber-500/20 text-amber-400'
-                                : 'bg-amber-100 text-amber-700' :
-                              isDark
-                                ? 'bg-rose-500/20 text-rose-400'
-                                : 'bg-rose-100 text-rose-700'
-                          }`}>
-                            {meeting.sentiment > 0.5 ? 'Positive' : meeting.sentiment > 0 ? 'Neutral' : 'At Risk'}
-                          </div>
-                          <span className={`px-2 py-0.5 rounded text-xs capitalize ${
-                            isDark
-                              ? 'bg-purple-500/20 text-purple-400'
-                              : 'bg-purple-100 text-purple-700'
-                          }`}>
-                            {meeting.type}
-                          </span>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {/* Stats Row */}
-                  <div className="grid grid-cols-3 gap-3 pt-2">
-                    {[
-                      { label: 'Action Items', value: '12', trend: '+3' },
-                      { label: 'Avg Sentiment', value: '0.72', trend: '+0.1' },
-                      { label: 'Talk Time', value: '42%', trend: 'Optimal' },
-                    ].map((stat, idx) => (
-                      <motion.div
-                        key={idx}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.9 + idx * 0.1, duration: 0.5 }}
-                        className={`p-3 rounded-lg border ${
-                          isDark
-                            ? 'bg-gradient-to-br from-white/5 to-white/[0.02] border-white/10'
-                            : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className={`text-xl font-bold ${
-                          isDark ? 'text-white' : 'text-gray-900'
-                        }`}>{stat.value}</div>
-                        <div className={`text-xs ${
-                          isDark ? 'text-gray-500' : 'text-gray-600'
-                        }`}>{stat.label}</div>
-                        <div className={`text-xs mt-1 ${
-                          isDark ? 'text-emerald-400' : 'text-emerald-600'
-                        }`}>{stat.trend}</div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating Elements */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.2, duration: 0.5 }}
-                className="absolute -left-8 top-1/4 p-3 rounded-xl bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-500/20 dark:to-emerald-500/5 border border-emerald-200 dark:border-emerald-500/30 dark:backdrop-blur-sm shadow-xl"
-              >
-                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-sm font-medium">Proposal Sent</span>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 1.4, duration: 0.5 }}
-                className="absolute -right-6 bottom-1/3 p-3 rounded-xl bg-blue-50 dark:bg-gradient-to-br dark:from-blue-500/20 dark:to-blue-500/5 border border-blue-200 dark:border-blue-500/30 dark:backdrop-blur-sm shadow-xl"
-              >
-                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                  <Sparkles className="w-5 h-5" />
-                  <span className="text-sm font-medium">AI Analyzing...</span>
-                </div>
-              </motion.div>
-            </motion.div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </section>
   );
 }
+
+// Dashboard Visual Component (Meeting Hub)
+function DashboardVisual() {
+  return (
+    <div className="relative w-full max-w-lg">
+      {/* Main Dashboard Card */}
+      <div className="relative w-full
+                      bg-white dark:bg-gray-900/80
+                      backdrop-blur-xl
+                      border border-gray-200 dark:border-gray-700/50
+                      rounded-2xl shadow-2xl dark:shadow-black/50
+                      overflow-hidden
+                      transform transition-all duration-500 hover:scale-[1.01]">
+
+        {/* Window Controls */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-800/30">
+          <div className="w-3 h-3 rounded-full bg-red-400/80" />
+          <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
+          <div className="w-3 h-3 rounded-full bg-green-400/80" />
+          <div className="ml-auto text-xs font-medium text-gray-400">use60.com</div>
+        </div>
+
+        {/* Dashboard Content */}
+        <div className="p-6 space-y-6">
+
+          {/* Header */}
+          <div className="flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Meeting Hub</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">3 meetings processed today</p>
+            </div>
+            <div className="px-2 py-1 rounded text-xs font-medium bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 animate-pulse">
+              AI Active
+            </div>
+          </div>
+
+          {/* Meeting List */}
+          <div className="space-y-3 relative">
+            {/* Scanning Line Animation */}
+            <div className="absolute left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500 to-transparent z-20 hero-alt-animate-scan opacity-50 dark:opacity-100" />
+
+            {/* Item 1 */}
+            <div className="group relative p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30 transition-all hover:border-blue-200 dark:hover:border-blue-500/30">
+              <div className="flex justify-between items-start mb-2">
+                <div className="font-medium text-sm text-gray-900 dark:text-gray-200">Discovery - Acme Corp</div>
+                <span className="text-xs text-gray-400">10:00 AM</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">Positive</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400">Proposal Sent</span>
+              </div>
+            </div>
+
+            {/* Item 2 */}
+            <div className="group relative p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900/40 transition-all hover:border-blue-200 dark:hover:border-blue-500/30">
+              <div className="flex justify-between items-start mb-2">
+                <div className="font-medium text-sm text-gray-900 dark:text-gray-200">Demo - TechStart Inc</div>
+                <span className="text-xs text-gray-400">2:00 PM</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">High Intent</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400">Processing...</span>
+              </div>
+            </div>
+
+            {/* Item 3 */}
+            <div className="group relative p-3 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900/40 opacity-60">
+              <div className="flex justify-between items-start mb-2">
+                <div className="font-medium text-sm text-gray-900 dark:text-gray-200">Sync - Global Ltd</div>
+                <span className="text-xs text-gray-400">4:30 PM</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-500">Scheduled</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Action Items</div>
+              <div className="text-lg font-bold text-gray-900 dark:text-gray-100">12</div>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sentiment</div>
+              <div className="text-lg font-bold text-emerald-500">0.72</div>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Talk Time</div>
+              <div className="text-lg font-bold text-blue-500">42%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Elements - Hidden on mobile to prevent overflow */}
+      <div className="hidden sm:block absolute right-0 top-20 sm:right-2 lg:-right-12 lg:top-12
+                      bg-white dark:bg-gray-800
+                      p-3 rounded-lg shadow-xl border border-emerald-100 dark:border-emerald-500/20
+                      hero-animate-float-delay z-20">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-500/20">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">Proposal Sent</div>
+            <div className="text-[10px] text-gray-500 dark:text-gray-400">Acme Corp • $12k</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="hidden sm:block absolute left-0 bottom-32 sm:left-2 lg:-left-12 lg:bottom-24
+                      bg-white dark:bg-gray-800
+                      p-3 rounded-lg shadow-xl border border-purple-100 dark:border-purple-500/20
+                      hero-animate-float z-20">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-500/20">
+            <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 animate-pulse" />
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">AI Analyzing</div>
+            <div className="text-[10px] text-gray-500 dark:text-gray-400">Extracting tasks...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Workflow Visual Component (Trigger → Action)
+function WorkflowVisual() {
+  return (
+    <div className="relative w-full max-w-md">
+      {/* Main Dashboard Card */}
+      <div className="relative w-full bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl shadow-2xl dark:shadow-black/50 border border-gray-200 dark:border-gray-700/50 overflow-hidden transform transition-all hover:scale-[1.01] duration-500">
+
+        {/* Header: Call Status */}
+        <div className="bg-gray-50 dark:bg-gray-800/50 px-6 py-4 border-b border-gray-100 dark:border-gray-700/50 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-red-500 rounded-full relative hero-pulse-dot"></div>
+            <span className="font-semibold text-gray-700 dark:text-gray-200">Completed: Discovery Call</span>
+          </div>
+          <div className="text-xs font-mono text-gray-400 dark:text-gray-500">00:14:23</div>
+        </div>
+
+        {/* Body: The Narrative Flow */}
+        <div className="p-6 space-y-0">
+
+          {/* 1. The Transcript (Context) */}
+          <div className="space-y-4 mb-2 hero-animate-step-1">
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0">JD</div>
+              <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg rounded-tl-none text-sm text-gray-600 dark:text-gray-300 w-full">
+                That sounds exactly like what we need. What are the next steps to get this moving?
+              </div>
+            </div>
+
+            <div className="flex gap-3 flex-row-reverse">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">YOU</div>
+              <div className="bg-blue-50 dark:bg-blue-500/10 p-3 rounded-lg rounded-tr-none text-sm text-gray-800 dark:text-gray-200 w-full border border-blue-100 dark:border-blue-500/20">
+                Great. <span className="hero-trigger-phrase font-medium">I'll send you a proposal</span> with the pricing breakdown we discussed by EOD.
+              </div>
+            </div>
+          </div>
+
+          {/* Connector Line */}
+          <div className="flex justify-center my-1 hero-connector-line">
+            <div className="w-0.5 bg-gradient-to-b from-emerald-400 to-emerald-600 h-6 rounded-full"></div>
+          </div>
+
+          {/* 2. The AI Detection (The "Brain") */}
+          <div className="hero-animate-step-2 relative z-10">
+            <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-lg p-3 flex items-center gap-3 shadow-sm">
+              <div className="bg-emerald-100 dark:bg-emerald-500/20 p-2 rounded-md">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">Intent Detected</div>
+                <div className="text-sm text-emerald-900 dark:text-emerald-300">Action: Create & Send Proposal</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Connector Line 2 */}
+          <div className="flex justify-center my-1 hero-connector-line-2">
+            <div className="w-0.5 bg-gray-200 dark:bg-gray-600 h-6 rounded-full"></div>
+          </div>
+
+          {/* 3. The Result (The Artifact) */}
+          <div className="hero-animate-step-3">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-lg dark:shadow-none relative overflow-hidden group">
+              {/* Teams Badge */}
+              <div className="absolute top-0 right-0 bg-[#5B5FC7] text-white text-[10px] px-2 py-1 rounded-bl-lg font-medium flex items-center gap-1">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20.625 8.073c.574 0 1.125.224 1.531.623.407.4.637.943.637 1.51v5.139c0 .566-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623h-.417v2.084c0 .567-.23 1.11-.637 1.51a2.175 2.175 0 01-1.531.623H5.958a2.175 2.175 0 01-1.531-.623 2.12 2.12 0 01-.637-1.51v-2.084h-.415c-.574 0-1.125-.224-1.531-.623A2.12 2.12 0 011.207 15.344V10.206c0-.567.23-1.11.637-1.51a2.175 2.175 0 011.531-.623h.415V6.422c0-.283.057-.564.168-.826a2.13 2.13 0 01.469-.701 2.18 2.18 0 01.71-.463c.265-.11.55-.165.836-.165h5.569c.287 0 .571.056.836.165.266.11.507.267.71.463.204.197.365.44.469.701.111.262.168.543.168.826v1.65h5.484zM8.542 6.422v1.65h2.916v-1.65H8.542zm9.375 7.29V10.205H6.083v6.773h-.29v2.584h12.332v-2.584h-.208v-3.266zm-7.709 0v2.083h2.084v-2.083h-2.084z"/></svg>
+                Sent to Teams
+              </div>
+
+              <div className="flex items-start gap-4">
+                <div className="bg-red-50 dark:bg-red-500/10 p-3 rounded-lg border border-red-100 dark:border-red-500/20">
+                  <FileText className="w-6 h-6 text-red-500 dark:text-red-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">Acme_Proposal_v1.pdf</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-3">Generated from template "Standard Enterprise"</p>
+
+                  <div className="flex gap-2">
+                    <button className="text-xs bg-gray-900 dark:bg-gray-700 text-white px-3 py-1.5 rounded-md hover:bg-gray-800 dark:hover:bg-gray-600 transition-colors">Review</button>
+                    <button className="text-xs bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">Edit</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Progress Bar at bottom */}
+        <div className="h-1 w-full bg-gray-100 dark:bg-gray-800">
+          <div className="h-full hero-animate-scan w-full"></div>
+        </div>
+      </div>
+
+      {/* Floating Elements for Depth - Hidden on mobile to prevent overflow */}
+      <div className="hidden lg:block absolute -right-16 top-20 bg-white dark:bg-gray-800 p-3 rounded-xl shadow-xl dark:shadow-none border border-gray-100 dark:border-gray-700 hero-animate-float">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" className="w-6 h-6" alt="Microsoft" />
+      </div>
+      <div className="hidden lg:block absolute -left-20 bottom-32 bg-white dark:bg-gray-800 p-3 rounded-xl shadow-xl dark:shadow-none border border-gray-100 dark:border-gray-700 hero-animate-float-delay">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/f/f9/Salesforce.com_logo.svg" className="w-8 h-6 object-contain" alt="Salesforce" />
+      </div>
+    </div>
+  );
+}
+
+export default HeroSectionV4;
