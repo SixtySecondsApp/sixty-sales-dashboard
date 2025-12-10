@@ -48,7 +48,7 @@ export function IntegrationSection() {
             </span>
           </h2>
           <p className="text-lg text-gray-400">
-            No platform migration required. Sixty enhances the tools you already use and love.
+            No platform migration required. 60 enhances the tools you already use and love.
           </p>
         </motion.div>
 

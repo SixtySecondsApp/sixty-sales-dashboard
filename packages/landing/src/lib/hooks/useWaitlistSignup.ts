@@ -42,7 +42,7 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
         throw new Error('Please enter a valid email address');
       }
 
-      // Call signup service
+      // Call signup service with retry logic
       const entry = await waitlistService.signupForWaitlist(data);
 
       setSuccess(entry);
@@ -50,7 +50,12 @@ export function useWaitlistSignup(): UseWaitlistSignupReturn {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      toast.error(error.message || 'Failed to join waitlist. Please try again.');
+      
+      // Show error toast with helpful message
+      const errorMessage = error.message || 'Failed to join waitlist. Please try again.';
+      toast.error(errorMessage, {
+        duration: 5000, // Show for 5 seconds
+      });
     } finally {
       setIsSubmitting(false);
     }

@@ -44,8 +44,13 @@ export interface SubscriptionPlan {
   features: PlanFeatures;
   is_active: boolean;
   is_default: boolean;
+  is_free_tier: boolean;
+  is_public: boolean;
   display_order: number;
   badge_text: string | null;
+  cta_text: string;
+  cta_url: string | null;
+  highlight_features: string[];
   created_at: string;
   updated_at: string;
 }

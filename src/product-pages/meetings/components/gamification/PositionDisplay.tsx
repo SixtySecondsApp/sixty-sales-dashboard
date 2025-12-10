@@ -75,14 +75,7 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4, duration: 0.8 }}
-      className="relative overflow-hidden group rounded-2xl p-6 md:p-8"
-      style={{
-        background: 'rgba(20, 28, 36, 0.6)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(75, 85, 99, 0.5)',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-      }}
+      className="relative overflow-hidden group rounded-2xl p-6 md:p-8 bg-white dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700/50 shadow-sm dark:shadow-none transition-all duration-300"
     >
       {/* Gradient Overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-50"></div>
@@ -90,16 +83,9 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
       <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
         {/* Rank Circle */}
         <div className="flex-shrink-0">
-          <div
-            className="w-24 h-24 rounded-full flex flex-col items-center justify-center"
-            style={{
-              border: '2px solid rgba(234, 179, 8, 0.3)',
-              background: 'linear-gradient(to bottom, rgba(234, 179, 8, 0.1), transparent)',
-              boxShadow: '0 0 30px -5px rgba(234, 179, 8, 0.2)'
-            }}
-          >
-            <span className="text-xs text-yellow-500/80 font-medium uppercase tracking-wider">Rank</span>
-            <span className="text-4xl font-bold text-yellow-500">
+          <div className="w-24 h-24 rounded-full flex flex-col items-center justify-center border-2 border-yellow-400/30 dark:border-yellow-500/30 bg-gradient-to-b from-yellow-400/10 dark:from-yellow-500/10 to-transparent shadow-lg shadow-yellow-500/10 dark:shadow-yellow-500/20">
+            <span className="text-xs text-yellow-600 dark:text-yellow-500/80 font-medium uppercase tracking-wider">Rank</span>
+            <span className="text-4xl font-bold text-yellow-600 dark:text-yellow-500">
               #<motion.span>{roundedPosition}</motion.span>
             </span>
           </div>
@@ -110,19 +96,19 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
           <div>
             <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
               {getTierIcon()}
-              <h2 className="text-xl font-semibold text-gray-100">{tier.name} Tier</h2>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{tier.name} Tier</h2>
             </div>
-            <p className="text-sm text-gray-400">Your current status grants maximum priority.</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Your current status grants maximum priority.</p>
           </div>
 
           {/* Points and Referrals Stats */}
-          <div className="grid grid-cols-2 gap-4 py-3 border-y border-gray-800">
+          <div className="grid grid-cols-2 gap-4 py-3 border-y border-gray-200 dark:border-gray-800">
             <div className="text-center md:text-left">
-              <div className="text-2xl font-bold text-emerald-400">{entry.total_points || 0}</div>
+              <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{entry.total_points || 0}</div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Total Points</div>
             </div>
             <div className="text-center md:text-left">
-              <div className="text-2xl font-bold text-blue-400">{entry.referral_count}</div>
+              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{entry.referral_count}</div>
               <div className="text-xs text-gray-500 uppercase tracking-wide">Referrals</div>
             </div>
           </div>
@@ -135,9 +121,9 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + (idx * 0.1) }}
-                className="flex items-center gap-2 text-sm text-gray-300"
+                className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
               >
-                <div className="w-4 h-4 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <div className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-500/20 flex items-center justify-center flex-shrink-0">
                   <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                 </div>
                 <span>{benefit}</span>
@@ -153,10 +139,10 @@ export function PositionDisplay({ entry, previousPosition, onMilestone }: Positi
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20"
         >
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span className="text-emerald-400 font-semibold text-sm">
+          <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm">
             Jumped {previousPosition - (entry.effective_position || 0)} spots!
           </span>
         </motion.div>

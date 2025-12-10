@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- Cache Control - Prevent HTML caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- Performance Optimizations -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Resource hints for performance -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com">
+    <link rel="dns-prefetch" href="//fonts.gstatic.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Preload Inter font for better performance -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"></noscript>
+
+    <!-- Favicon optimizations -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/landing-drue/favicon_0_32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/landing-drue/favicon_0_16x16.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="/landing-drue/favicon_0_128x128.png">
+    <link rel="manifest" href="/landing-drue/manifest.json">
+
+    <!-- Meta tags for PWA -->
+    <meta name="theme-color" content="#10b981">
+    <meta name="description" content="Modern sales dashboard for tracking performance and managing pipeline">
+    <meta name="keywords" content="sales, dashboard, CRM, pipeline, performance, analytics">
+
+    <!-- Environment Variables for Supabase - MUST run before any modules load -->
+    <script>
+      // Inject environment variables that Vite would normally provide at build time
+      window.__VITE_ENV__ = {
+        VITE_SUPABASE_URL: 'https://ygdpgliavpxeugaajgrb.supabase.co',
+        VITE_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlnZHBnbGlhdnB4ZXVnYWFqZ3JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxODk0NjEsImV4cCI6MjA4MDc2NTQ2MX0.JbwNkaXOy8fzb2MNmIJU-KXV4U0QojdurGuSIIVJ3UE'
+      };
+      // Also set on import.meta.env polyfill for Vite compatibility
+      if (typeof globalThis !== 'undefined') {
+        globalThis.__VITE_SUPABASE_URL__ = window.__VITE_ENV__.VITE_SUPABASE_URL;
+        globalThis.__VITE_SUPABASE_ANON_KEY__ = window.__VITE_ENV__.VITE_SUPABASE_ANON_KEY;
+      }
+    </script>
+
+    <!-- Theme Initialization Script - MUST run before body renders -->
+    <script>
+      (function() {
+        // Get theme from localStorage or system preference
+        const savedTheme = localStorage.getItem('theme-preference');
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const theme = savedTheme || systemTheme;
+
+        // Apply theme immediately to prevent flash
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
+    <!-- Critical CSS will be inlined here by build process -->
+    <style id="critical-css">
+      /* Critical above-the-fold styles - theme-aware */
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        font-display: swap;
+      }
+
+      /* Light mode defaults */
+      html, body {
+        background-color: #FCFCFC;
+        color: #111827;
+      }
+
+      /* Dark mode overrides */
+      html[data-theme="dark"], html.dark {
+        background-color: #030712;
+        color: #f3f4f6;
+      }
+      html[data-theme="dark"] body, html.dark body {
+        background-color: #030712;
+        color: #f3f4f6;
+      }
+
+      #root {
+        min-height: 100vh;
+      }
+
+      /* Theme-aware skeleton loader */
+      .skeleton {
+        background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      html[data-theme="dark"] .skeleton, html.dark .skeleton {
+        background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+      }
+
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+    </style>
+
+    <title>Sixty Sales Dashboard</title>
+    <script type="module" crossorigin src="/landing-drue/assets/index-B0DyM128.js"></script>
+    <link rel="modulepreload" crossorigin href="/landing-drue/assets/vendor-react-BL0ab9U3.js">
+    <link rel="modulepreload" crossorigin href="/landing-drue/assets/vendor-router-5Z6eK6ng.js">
+    <link rel="modulepreload" crossorigin href="/landing-drue/assets/ui-animation-p729Xh5_.js">
+    <link rel="modulepreload" crossorigin href="/landing-drue/assets/vendor-supabase-Bhfz1DsN.js">
+    <link rel="stylesheet" crossorigin href="/landing-drue/assets/index-B8i0fd1r.css">
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- Performance monitoring -->
+    <script>
+      // Mark the start of app initialization
+      performance.mark('app-init-start');
+
+      // Track when React renders
+      window.addEventListener('DOMContentLoaded', () => {
+        const observer = new MutationObserver(() => {
+          const rootElement = document.getElementById('root');
+          if (rootElement && rootElement.children.length > 0) {
+            performance.mark('app-init-complete');
+            performance.measure('app-init-time', 'app-init-start', 'app-init-complete');
+            observer.disconnect();
+          }
+        });
+
+        if (document.getElementById('root')) {
+          observer.observe(document.getElementById('root'), {
+            childList: true,
+            subtree: true
+          });
+        }
+      });
+    </script>
+
+  </body>
+</html>

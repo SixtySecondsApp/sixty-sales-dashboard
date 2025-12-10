@@ -179,7 +179,7 @@ export function PricingSectionV3() {
               Calculate Your Savings
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              See how much time (and money) Sixty saves your team every month
+              See how much time (and money) 60 saves your team every month
             </p>
 
             <div className="space-y-6">
@@ -218,7 +218,7 @@ export function PricingSectionV3() {
               {/* Explanation */}
               <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
                 <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                  <strong>How we calculate:</strong> Sixty saves each rep ~10 hours/week on meeting notes, follow-ups, and proposal writing.
+                  <strong>How it's calculated:</strong> 60 saves each rep ~10 hours/week on meeting notes, follow-ups, and proposal writing.
                   At an average of ${hourlyRate}/hr, that's <strong>${(hoursPerWeek * weeksPerMonth * hourlyRate).toLocaleString()}/rep/month</strong> in recovered selling time.
                 </p>
               </div>

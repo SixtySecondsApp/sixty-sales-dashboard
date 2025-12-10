@@ -4,7 +4,7 @@ import { Star, Quote } from 'lucide-react';
 export function TestimonialSection() {
   const testimonials = [
     {
-      quote: "Sixty's meeting intelligence cut our follow-up time by 60%. Action items sync automatically—it's like having an assistant in every call.",
+      quote: "60's meeting intelligence cut follow-up time by 60%. Action items sync automatically—it's like having an assistant in every call.",
       name: 'Sarah Chen',
       title: 'VP of Sales',
       company: 'TechScale',
@@ -33,11 +33,11 @@ export function TestimonialSection() {
   ];
 
   return (
-    <section id="testimonials" className="relative py-24 lg:py-32 bg-[#0a0d14] overflow-hidden">
+    <section id="testimonials" className="relative py-24 lg:py-32 bg-gray-50 dark:bg-gray-950 overflow-hidden transition-colors duration-300">
       {/* Background */}
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-1/4 left-0 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-1/4 right-0 w-96 h-96 rounded-full bg-purple-500/10 blur-3xl" />
+      <div className="absolute inset-0 opacity-30 dark:opacity-30">
+        <div className="absolute top-1/4 left-0 w-96 h-96 rounded-full bg-blue-400/10 dark:bg-blue-500/10 blur-3xl" />
+        <div className="absolute bottom-1/4 right-0 w-96 h-96 rounded-full bg-purple-400/10 dark:bg-purple-500/10 blur-3xl" />
       </div>
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -53,19 +53,19 @@ export function TestimonialSection() {
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="inline-block px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium mb-4"
+            className="inline-block px-4 py-1.5 rounded-full bg-amber-100 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-medium mb-4"
           >
             Testimonials
           </motion.span>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-6">
             Trusted by{' '}
-            <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-400 dark:to-orange-400 bg-clip-text text-transparent">
               Sales Teams
             </span>{' '}
             Everywhere
           </h2>
-          <p className="text-lg text-gray-400">
-            See what revenue leaders are saying about Sixty's meeting intelligence.
+          <p className="text-lg text-gray-600 dark:text-gray-400">
+            See what revenue leaders are saying about 60's meeting intelligence.
           </p>
         </motion.div>
 
@@ -80,7 +80,7 @@ export function TestimonialSection() {
               transition={{ delay: idx * 0.15, duration: 0.6 }}
               className="relative group"
             >
-              <div className="relative h-full p-6 lg:p-8 rounded-2xl bg-gradient-to-br from-gray-900/80 to-gray-900/40 border border-white/10 hover:border-white/20 transition-all duration-300 backdrop-blur-sm">
+              <div className="relative h-full p-6 lg:p-8 rounded-2xl bg-white dark:bg-gradient-to-br dark:from-gray-900/80 dark:to-gray-900/40 border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 transition-all duration-300 backdrop-blur-sm shadow-sm dark:shadow-none">
                 {/* Quote Icon */}
                 <div className={`absolute -top-3 -left-3 p-2 rounded-xl bg-${testimonial.color}-500/20 border border-${testimonial.color}-500/30`}>
                   <Quote className={`w-5 h-5 text-${testimonial.color}-400`} />
@@ -94,7 +94,7 @@ export function TestimonialSection() {
                 </div>
 
                 {/* Quote */}
-                <p className="text-gray-300 leading-relaxed mb-6 text-lg">
+                <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-6 text-lg">
                   "{testimonial.quote}"
                 </p>
 
@@ -104,7 +104,7 @@ export function TestimonialSection() {
                     {testimonial.avatar}
                   </div>
                   <div>
-                    <div className="font-semibold text-white">{testimonial.name}</div>
+                    <div className="font-semibold text-gray-900 dark:text-white">{testimonial.name}</div>
                     <div className="text-sm text-gray-500">
                       {testimonial.title}, {testimonial.company}
                     </div>
@@ -124,7 +124,7 @@ export function TestimonialSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ delay: 0.6, duration: 0.6 }}
-          className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 p-6 lg:p-8 rounded-2xl bg-gradient-to-r from-blue-500/5 via-purple-500/5 to-emerald-500/5 border border-white/10"
+          className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 p-6 lg:p-8 rounded-2xl bg-white dark:bg-gradient-to-r dark:from-blue-500/5 dark:via-purple-500/5 dark:to-emerald-500/5 border border-gray-200 dark:border-white/10 shadow-sm dark:shadow-none"
         >
           {[
             { value: '4.9/5', label: 'Average Rating' },
@@ -133,7 +133,7 @@ export function TestimonialSection() {
             { value: '60%', label: 'Time Saved' },
           ].map((stat, idx) => (
             <div key={idx} className="text-center">
-              <div className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
+              <div className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400 bg-clip-text text-transparent">
                 {stat.value}
               </div>
               <div className="text-sm text-gray-500">{stat.label}</div>

@@ -1,4 +1,24 @@
-<!-- 785ab6fa-da88-441c-895b-b76b9e6254d4 1b47919f-f60f-4db7-a443-231d2a61f59d -->
+---
+name: Email Sync and Automated Health Score System
+overview: ""
+todos:
+  - id: 2aa987ac-9096-4016-8c87-4a3c1153fbb8
+    content: Create HealthMonitoring.tsx page with tabbed interface for Deal Health and Relationship Health
+    status: pending
+  - id: c3f34e6f-408a-43d4-9553-c11648f972bc
+    content: Create dealHealthInterventionAdapter.ts to convert deal health data to intervention context
+    status: pending
+  - id: 8211e21f-9e3e-43c5-b853-e7a6fb07f4bb
+    content: Add 'Send Intervention' buttons and InterventionModal to DealHealthDashboard
+    status: pending
+  - id: bc5e7dec-c8df-4059-9e59-9279e55b7018
+    content: Extend PersonalizationContext and selectBestTemplate to support deal health
+    status: pending
+  - id: 9426e383-a1ec-41f0-bdcd-c4b44d0f871a
+    content: Update routing to use unified HealthMonitoring page with tab support
+    status: pending
+---
+
 # Email Sync and Automated Health Score System
 
 ## Current Problems
@@ -329,11 +349,3 @@ Indexes for fast health score queries and email lookups.
 2. `src/components/relationship-health/RelationshipHealthDashboard.tsx`
 3. `src/lib/services/dealHealthService.ts`
 4. `src/lib/services/relationshipHealthService.ts`
-
-### To-dos
-
-- [ ] Create HealthMonitoring.tsx page with tabbed interface for Deal Health and Relationship Health
-- [ ] Create dealHealthInterventionAdapter.ts to convert deal health data to intervention context
-- [ ] Add 'Send Intervention' buttons and InterventionModal to DealHealthDashboard
-- [ ] Extend PersonalizationContext and selectBestTemplate to support deal health
-- [ ] Update routing to use unified HealthMonitoring page with tab support

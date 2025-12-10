@@ -18,6 +18,82 @@ import type {
  */
 
 /**
+ * Retry helper with exponential backoff
+ */
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+  initialDelay = 1000
+): Promise<T> {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // Don't retry on client errors (4xx) except 429 (rate limit)
+      const status = error?.status || error?.code;
+      if (status >= 400 && status < 500 && status !== 429) {
+        throw error;
+      }
+      
+      // Don't retry on last attempt
+      if (attempt === maxRetries - 1) {
+        break;
+      }
+      
+      // Exponential backoff: 1s, 2s, 4s
+      const delay = initialDelay * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
+/**
+ * Format connection errors into user-friendly messages
+ */
+function formatConnectionError(error: any): string {
+  const message = error?.message || '';
+  const status = error?.status || error?.code;
+  
+  // Connection refused / upstream errors
+  if (
+    message.includes('upstream connect error') ||
+    message.includes('connection failure') ||
+    message.includes('connect error: 111') ||
+    status === 503 ||
+    status === 502
+  ) {
+    return 'Unable to connect to our servers. This may be a temporary issue. Please check your internet connection and try again in a moment.';
+  }
+  
+  // Network errors
+  if (
+    message.includes('Failed to fetch') ||
+    message.includes('NetworkError') ||
+    message.includes('Network request failed')
+  ) {
+    return 'Network error. Please check your internet connection and try again.';
+  }
+  
+  // Timeout errors
+  if (message.includes('timeout') || message.includes('timed out')) {
+    return 'Request timed out. Please try again.';
+  }
+  
+  // Rate limiting
+  if (status === 429) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  
+  return error?.message || 'Failed to join waitlist. Please try again.';
+}
+
+/**
  * Sign up for the waitlist
  * Public API - no authentication required
  */
@@ -32,17 +108,50 @@ export async function signupForWaitlist(
     }
   }
 
-  // Clean up empty referral code
+  // Clean and validate data before sending
   const cleanData = {
-    ...data,
-    referred_by_code: data.referred_by_code || null
+    email: (data.email || '').trim(),
+    full_name: (data.full_name || '').trim(),
+    company_name: (data.company_name || '').trim(),
+    dialer_tool: data.dialer_tool || null,
+    dialer_other: data.dialer_other?.trim() || null,
+    meeting_recorder_tool: data.meeting_recorder_tool || null,
+    meeting_recorder_other: data.meeting_recorder_other?.trim() || null,
+    crm_tool: data.crm_tool || null,
+    crm_other: data.crm_other?.trim() || null,
+    referred_by_code: data.referred_by_code?.trim() || null,
+    utm_source: data.utm_source || null,
+    utm_campaign: data.utm_campaign || null,
+    utm_medium: data.utm_medium || null,
   };
 
-  const { data: entry, error } = await supabase
-    .from('meetings_waitlist')
-    .insert([cleanData])
-    .select()
-    .single();
+  // Validate required fields are not empty after trimming
+  if (!cleanData.email || !cleanData.full_name || !cleanData.company_name) {
+    throw new Error('Please fill in all required fields');
+  }
+
+  if (!cleanData.dialer_tool || !cleanData.meeting_recorder_tool || !cleanData.crm_tool) {
+    throw new Error('Please select all integration options');
+  }
+
+  const { data: entry, error } = await retryWithBackoff(async () => {
+    const result = await supabase
+      .from('meetings_waitlist')
+      .insert([cleanData])
+      .select()
+      .single();
+    
+    if (result.error) {
+      // Wrap Supabase errors to include status code for retry logic
+      const wrappedError: any = new Error(result.error.message);
+      wrappedError.status = result.error.status || result.error.code;
+      wrappedError.code = result.error.code;
+      wrappedError.originalError = result.error;
+      throw wrappedError;
+    }
+    
+    return result;
+  });
 
   if (error) {
     if (error.code === '23505') { // Unique violation
@@ -52,10 +161,10 @@ export async function signupForWaitlist(
       throw new Error('Invalid referral code. Please check the link or sign up without a referral.');
     }
     console.error('Error signing up for waitlist:', error);
-    throw new Error('Failed to join waitlist. Please try again.');
+    throw new Error(formatConnectionError(error));
   }
 
-  return entry;
+  return entry!;
 }
 
 /**

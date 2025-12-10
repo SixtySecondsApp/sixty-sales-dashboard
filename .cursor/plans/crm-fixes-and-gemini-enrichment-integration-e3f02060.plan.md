@@ -1,4 +1,9 @@
-<!-- e3f02060-c8e7-44b2-9545-0dacffdb0add 2c95dc09-c675-434d-bac4-63d6dc76c26f -->
+---
+name: CRM Fixes and Gemini Enrichment Integration Plan
+overview: ""
+todos: []
+---
+
 # CRM Fixes and Gemini Enrichment Integration Plan
 
 ## Overview

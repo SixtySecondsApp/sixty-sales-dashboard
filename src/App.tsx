@@ -34,6 +34,7 @@ import TestGoogleTasks from '@/pages/TestGoogleTasks';
 import MeetingThumbnail from '@/pages/MeetingThumbnail';
 import BrowserlessTest from '@/pages/BrowserlessTest';
 import PublicProposal from '@/pages/PublicProposal';
+import DrueLanding from '@/pages/DrueLanding';
 const MeetingsWaitlist = lazyWithRetry(() => import('@/pages/platform/MeetingsWaitlist'));
 const OnboardingSimulator = lazyWithRetry(() => import('@/pages/platform/OnboardingSimulator'));
 const PricingControl = lazyWithRetry(() => import('@/pages/platform/PricingControl'));
@@ -147,7 +148,7 @@ const InternalDomainsSettings = lazyWithRetry(() => import('@/pages/admin/Intern
 const Copilot = lazyWithRetry(() => import('@/components/Copilot').then(m => ({ default: m.Copilot })));
 
 // Landing pages wrapper (dev-only for local preview)
-import { LandingWrapper } from '@/components/LandingWrapper';
+import { LandingWrapper, WaitlistPageWrapper } from '@/components/LandingWrapper';
 
 // New 3-tier architecture routes
 const PlatformDashboard = lazyWithRetry(() => import('@/pages/platform/PlatformDashboard'));
@@ -310,6 +311,9 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         {/* Public proposal sharing - allows prospects to view shared proposals */}
         <Route path="/share/:token" element={<PublicProposal />} />
 
+        {/* Drue Landing Page - public access */}
+        <Route path="/landing-drue" element={<DrueLanding />} />
+
         {/* Development-only: Local landing page preview */}
         {import.meta.env.DEV && <Route path="/landing/*" element={<LandingWrapper />} />}
 
@@ -320,6 +324,8 @@ function AppContent({ performanceMetrics, measurePerformance }: any) {
         <Route path="/product/meetings-v3" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/product/meetings-v4" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/product/meetings/waitlist" element={<ExternalRedirect url="https://www.use60.com/waitlist" />} />
+        {/* In development, show local waitlist; in production, redirect to landing site */}
+        <Route path="/waitlist" element={import.meta.env.DEV ? <WaitlistPageWrapper /> : <ExternalRedirect url="https://www.use60.com/waitlist" />} />
         <Route path="/product/meetings/pricing" element={<ExternalRedirect url="https://www.use60.com#pricing" />} />
         <Route path="/features/meetings" element={<ExternalRedirect url="https://www.use60.com" />} />
         <Route path="/features/meetings-v1" element={<ExternalRedirect url="https://www.use60.com" />} />

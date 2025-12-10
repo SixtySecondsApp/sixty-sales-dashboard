@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
+// Import landing package styles (includes Inter font and landing-specific CSS)
+import '../../packages/landing/src/styles/index.css';
+
 // Loading component for landing pages
 const LandingLoader = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -16,6 +19,10 @@ const MeetingsLandingV4 = import.meta.env.DEV
 
 const WaitlistLanding = import.meta.env.DEV
   ? lazy(() => import('../../packages/landing/src/pages/WaitlistLanding'))
+  : () => <Navigate to="/" replace />;
+
+const EarlyAccessLanding = import.meta.env.DEV
+  ? lazy(() => import('../../packages/landing/src/pages/EarlyAccessLanding'))
   : () => <Navigate to="/" replace />;
 
 const PricingPage = import.meta.env.DEV
@@ -47,6 +54,19 @@ export function LandingWrapper() {
         <Route path="pricing" element={<PricingPage />} />
         <Route path="*" element={<Navigate to="/landing" replace />} />
       </Routes>
+    </Suspense>
+  );
+}
+
+// Standalone waitlist page wrapper for /waitlist route
+export function WaitlistPageWrapper() {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <Suspense fallback={<LandingLoader />}>
+      <EarlyAccessLanding />
     </Suspense>
   );
 }

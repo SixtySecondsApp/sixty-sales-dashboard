@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Menu, X } from 'lucide-react';
 import {
   HeroSectionV4,
   FeatureShowcaseV3,
-  HowItWorks,
+  HowItWorksV4,
   PricingSectionV4,
   FAQSectionV4,
   IntegrationSection,
@@ -25,6 +26,13 @@ import {
  * - V3 Header: Navigation with early adopter banner
  */
 export function MeetingsLandingV4() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu when clicking a nav link
+  const handleNavClick = () => {
+    setMobileMenuOpen(false);
+  };
+
   // Handle smooth scrolling for anchor links
   useEffect(() => {
     const handleAnchorClick = (e: MouseEvent) => {
@@ -71,6 +79,7 @@ export function MeetingsLandingV4() {
               />
             </motion.a>
 
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
               <a href="#features" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Features</a>
               <a href="#how-it-works" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">How It Works</a>
@@ -78,7 +87,7 @@ export function MeetingsLandingV4() {
               <a href="#faq" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">FAQ</a>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               <a
                 href="/auth/login"
                 className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors hidden sm:block"
@@ -87,22 +96,94 @@ export function MeetingsLandingV4() {
               </a>
               <motion.a
                 href="/product/meetings/waitlist"
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium hover:from-blue-500 hover:to-blue-400 transition-all shadow-lg shadow-blue-500/25"
+                className="hidden sm:block px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium hover:from-blue-500 hover:to-blue-400 transition-all shadow-lg shadow-blue-500/25"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
                 Sign Up
               </motion.a>
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl"
+            >
+              <div className="px-4 py-4 space-y-3">
+                <a
+                  href="#features"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Features
+                </a>
+                <a
+                  href="#how-it-works"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  How It Works
+                </a>
+                <a
+                  href="#pricing"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Pricing
+                </a>
+                <a
+                  href="#faq"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  FAQ
+                </a>
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-800 space-y-3">
+                  <a
+                    href="/auth/login"
+                    onClick={handleNavClick}
+                    className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  >
+                    Log In
+                  </a>
+                  <a
+                    href="/product/meetings/waitlist"
+                    onClick={handleNavClick}
+                    className="block py-3 px-4 rounded-xl bg-blue-600 text-white text-center text-base font-semibold hover:bg-blue-700 transition-all"
+                  >
+                    Sign Up
+                  </a>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Main Content - Add top padding to account for fixed nav */}
       <main className="relative pt-16 overflow-x-hidden">
         <HeroSectionV4 />
         <FeatureShowcaseV3 />
-        <HowItWorks />
+        <HowItWorksV4 />
         <PricingSectionV4 />
         <FAQSectionV4 />
         <IntegrationSection />

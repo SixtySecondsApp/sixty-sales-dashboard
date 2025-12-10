@@ -85,9 +85,9 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
   }, [entry.referral_count, entry.effective_position, celebratedMilestones, handleMilestone]);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-950">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white dark:bg-gray-950 transition-colors duration-300">
       {/* Subtle Ambient Background Glow (Clean, no noise) */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-900/10 blur-[100px] rounded-full pointer-events-none -z-10" />
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-blue-500/5 dark:bg-blue-900/10 blur-[100px] rounded-full pointer-events-none -z-10" />
 
       {/* Content */}
       <div className="relative z-10 max-w-6xl w-full mx-auto px-4 md:px-8 py-8">
@@ -98,7 +98,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs font-medium mb-2"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-500 text-xs font-medium mb-2"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -112,7 +112,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.8 }}
-            className="text-3xl md:text-4xl font-bold text-gray-100 tracking-tight"
+            className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 tracking-tight"
           >
             You're on the list!
           </motion.h1>
@@ -121,7 +121,7 @@ export function WaitlistSuccess({ entry: initialEntry }: WaitlistSuccessProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.8 }}
-            className="text-gray-400 text-lg"
+            className="text-gray-600 dark:text-gray-400 text-lg"
           >
             Welcome, {entry.full_name.split(' ')[0]}! You've secured priority access to reclaim 10+ hours every week.
           </motion.p>

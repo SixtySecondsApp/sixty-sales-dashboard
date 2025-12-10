@@ -42,7 +42,7 @@ const features = [
 
 export function FeatureShowcaseV3() {
   return (
-    <section id="features" className="relative py-24 bg-gray-50 dark:bg-gray-900/50">
+    <section id="features" className="relative pt-32 lg:pt-40 pb-24 bg-gray-50 dark:bg-gray-900/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <motion.div

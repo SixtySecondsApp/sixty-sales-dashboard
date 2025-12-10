@@ -18,7 +18,9 @@ const publicRoutes = [
   '/auth/sso-callback',
   '/debug-auth',
   '/auth/google/callback',
-  '/oauth/fathom/callback'
+  '/oauth/fathom/callback',
+  '/waitlist',
+  '/pricing'
 ];
 
 // Routes that require auth but should show loading instead of redirecting immediately

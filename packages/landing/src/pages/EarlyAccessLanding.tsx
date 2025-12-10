@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Check, ArrowRight, MailX, FileClock, CalendarClock, Inbox,
   X, Send, FileText, ClipboardList, Zap, User
@@ -7,6 +7,7 @@ import {
 import { supabase } from '@/lib/supabase/clientV2';
 import { WaitlistSuccess } from './components/WaitlistSuccess';
 import type { WaitlistEntry } from '@/lib/types/waitlist';
+import { usePublicBrandingSettings } from '@/lib/hooks/useBrandingSettings';
 
 // Types
 interface FormData {
@@ -24,6 +25,40 @@ const MEETING_RECORDER_OPTIONS = ['Fathom', 'Gong', 'Chorus', 'Fireflies', 'Otte
 const CRM_OPTIONS = ['Salesforce', 'HubSpot', 'Pipedrive', 'Close', 'Zoho', 'None', 'Other'];
 
 export default function EarlyAccessLanding() {
+  // Branding settings for logos
+  const { logoDark } = usePublicBrandingSettings();
+
+  // Light mode logo (dark text for light backgrounds)
+  const LIGHT_MODE_LOGO = 'https://user-upload.s3.eu-west-2.amazonaws.com/erg%20logos/lightLogo/lightLogo-global-1764287988029.png';
+
+  // Theme detection
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const html = document.documentElement;
+      return html.classList.contains('dark') || html.getAttribute('data-theme') === 'dark';
+    }
+    return true; // Default to dark for this page
+  });
+
+  useEffect(() => {
+    const checkTheme = () => {
+      const html = document.documentElement;
+      const hasDarkClass = html.classList.contains('dark');
+      const dataTheme = html.getAttribute('data-theme');
+      setIsDark(hasDarkClass || dataTheme === 'dark');
+    };
+
+    checkTheme();
+
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class', 'data-theme']
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormData>({
     full_name: '',
@@ -39,6 +74,17 @@ export default function EarlyAccessLanding() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [ctaMessage, setCtaMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [successEntry, setSuccessEntry] = useState<WaitlistEntry | null>(null);
+
+  // CTA Modal State
+  const [showCtaModal, setShowCtaModal] = useState(false);
+  const [ctaFormData, setCtaFormData] = useState<FormData>({
+    full_name: '',
+    email: '',
+    company_name: '',
+    dialer_tool: '',
+    meeting_recorder_tool: '',
+    crm_tool: ''
+  });
 
   // Fetch waitlist count on mount
   useEffect(() => {
@@ -107,15 +153,43 @@ export default function EarlyAccessLanding() {
     }
   };
 
-  const handleCtaSubmit = async (e: React.FormEvent) => {
+  // Handle initial CTA email submission - opens modal for additional info
+  const handleCtaEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ctaEmail.trim()) return;
+
+    // Pre-fill the modal form with the email
+    setCtaFormData({
+      full_name: '',
+      email: ctaEmail.trim().toLowerCase(),
+      company_name: '',
+      dialer_tool: '',
+      meeting_recorder_tool: '',
+      crm_tool: ''
+    });
+    setShowCtaModal(true);
+    setCtaMessage(null);
+  };
+
+  // Handle full CTA modal form submission
+  const handleCtaModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsCtaSubmitting(true);
     setCtaMessage(null);
 
     try {
-      const { error } = await supabase
+      const cleanData = {
+        email: ctaFormData.email.trim().toLowerCase(),
+        full_name: ctaFormData.full_name.trim() || null,
+        company_name: ctaFormData.company_name.trim() || null,
+        dialer_tool: ctaFormData.dialer_tool || null,
+        meeting_recorder_tool: ctaFormData.meeting_recorder_tool || null,
+        crm_tool: ctaFormData.crm_tool || null
+      };
+
+      const { data: entry, error } = await supabase
         .from('meetings_waitlist')
-        .insert([{ email: ctaEmail.trim().toLowerCase() }])
+        .insert([cleanData])
         .select()
         .single();
 
@@ -126,9 +200,10 @@ export default function EarlyAccessLanding() {
         throw error;
       }
 
-      setCtaMessage({ type: 'success', text: "You're on the list! We'll be in touch soon with your early access." });
+      // Show the gamified success page
+      setSuccessEntry(entry as WaitlistEntry);
+      setShowCtaModal(false);
       setCtaEmail('');
-      fetchWaitlistCount();
     } catch (err: any) {
       setCtaMessage({ type: 'error', text: err.message || 'Failed to join waitlist' });
     } finally {
@@ -194,7 +269,7 @@ export default function EarlyAccessLanding() {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-[#0a0d14]/80 border-b border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3">
-            <img src="https://www.sixtyseconds.ai/images/logo.png" alt="Sixty Seconds" className="h-10" />
+            <img src={logoDark} alt="Sixty Seconds" className="h-10" />
           </button>
           <div className="hidden md:flex items-center gap-8">
             <button onClick={() => scrollToSection('problem')} className="text-sm font-medium text-gray-400 hover:text-white transition-colors">The Problem</button>
@@ -216,9 +291,9 @@ export default function EarlyAccessLanding() {
         <section className="min-h-screen flex items-center pt-24 pb-16">
           <div className="max-w-7xl mx-auto px-6 w-full">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-              {/* Left Column */}
+              {/* Left Column - Hero Text (shows second on mobile) */}
               <motion.div
-                className="text-center lg:text-left"
+                className="text-center lg:text-left order-2 lg:order-1"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
@@ -312,9 +387,10 @@ export default function EarlyAccessLanding() {
                 </motion.div>
               </motion.div>
 
-              {/* Right Column - Form */}
+              {/* Right Column - Form (shows first on mobile) */}
               <motion.div
                 id="waitlist"
+                className="order-1 lg:order-2"
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.8 }}
@@ -463,7 +539,7 @@ export default function EarlyAccessLanding() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5 bg-white/[0.03] border border-white/[0.08] rounded-2xl p-8 mt-12">
               {[
                 { value: '70%', label: 'of work week on admin' },
-                { value: '$595', label: 'lost per week, per rep' },
+                { value: '£595', label: 'lost per week, per rep' },
                 { value: '1 in 3', label: 'reps meet quota' },
                 { value: '6.4hrs', label: 'wasted on prep weekly' }
               ].map((stat, i) => (
@@ -677,7 +753,7 @@ export default function EarlyAccessLanding() {
                 <p className="text-lg opacity-90 max-w-lg mx-auto mb-8">
                   Join {displayCount} sales professionals already on the waitlist. Limited spots in our next cohort.
                 </p>
-                <form onSubmit={handleCtaSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-5">
+                <form onSubmit={handleCtaEmailSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-5">
                   <input
                     type="email"
                     required
@@ -688,17 +764,11 @@ export default function EarlyAccessLanding() {
                   />
                   <button
                     type="submit"
-                    disabled={isCtaSubmitting}
-                    className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition-all disabled:opacity-50 whitespace-nowrap"
+                    className="px-8 py-4 bg-white text-blue-600 font-semibold rounded-xl hover:-translate-y-0.5 hover:shadow-xl transition-all whitespace-nowrap"
                   >
-                    {isCtaSubmitting ? 'Joining...' : 'Secure Your Spot'}
+                    Secure Your Spot
                   </button>
                 </form>
-                {ctaMessage && (
-                  <p className={`text-sm ${ctaMessage.type === 'success' ? 'text-emerald-300' : 'text-red-300'}`}>
-                    {ctaMessage.text}
-                  </p>
-                )}
                 <p className="text-sm opacity-80">No credit card. No commitment. Just your email.</p>
               </div>
             </div>
@@ -711,20 +781,162 @@ export default function EarlyAccessLanding() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <Sparkles className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold text-white">Sixty</span>
+              <img
+                key={isDark ? 'dark' : 'light'}
+                src={isDark ? logoDark : LIGHT_MODE_LOGO}
+                alt="60"
+                className="h-10 w-auto transition-all duration-300"
+              />
             </div>
             <p className="text-sm text-gray-400 text-center md:text-left">
               Replace admin work with AI assistants. Get back to selling.
             </p>
             <p className="text-xs text-gray-500">
-              © 2025 Sixty AI. All rights reserved.
+              © 2025 Sixty Seconds Ltd. All rights reserved.
             </p>
           </div>
         </div>
       </footer>
+
+      {/* CTA Signup Modal */}
+      <AnimatePresence>
+        {showCtaModal && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+              onClick={() => setShowCtaModal(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 max-w-lg mx-auto"
+            >
+              <div className="relative bg-[#0f1419] border border-white/10 rounded-2xl p-6 sm:p-8 shadow-2xl">
+                {/* Close button */}
+                <button
+                  onClick={() => setShowCtaModal(false)}
+                  className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                    <Check className="w-8 h-8 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Almost there!</h3>
+                  <p className="text-gray-400">
+                    Just a few more details to secure your spot and help us prioritize the right integrations for you.
+                  </p>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleCtaModalSubmit} className="space-y-4">
+                  {/* Email (pre-filled, read-only visual) */}
+                  <div>
+                    <input
+                      type="email"
+                      required
+                      value={ctaFormData.email}
+                      readOnly
+                      className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white/70 cursor-not-allowed"
+                    />
+                  </div>
+
+                  {/* Name */}
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Full Name *"
+                      value={ctaFormData.full_name}
+                      onChange={(e) => setCtaFormData(prev => ({ ...prev, full_name: e.target.value }))}
+                      className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  </div>
+
+                  {/* Company */}
+                  <div>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Company Name *"
+                      value={ctaFormData.company_name}
+                      onChange={(e) => setCtaFormData(prev => ({ ...prev, company_name: e.target.value }))}
+                      className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  </div>
+
+                  <p className="text-xs text-gray-400 pt-1">What integrations are important to you?</p>
+
+                  {/* Dialer */}
+                  <select
+                    required
+                    value={ctaFormData.dialer_tool}
+                    onChange={(e) => setCtaFormData(prev => ({ ...prev, dialer_tool: e.target.value }))}
+                    className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
+                  >
+                    <option value="" disabled className="bg-[#0f1419]">Which dialer do you use? *</option>
+                    {DIALER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-[#0f1419]">{opt}</option>)}
+                  </select>
+
+                  {/* Meeting Recorder */}
+                  <select
+                    required
+                    value={ctaFormData.meeting_recorder_tool}
+                    onChange={(e) => setCtaFormData(prev => ({ ...prev, meeting_recorder_tool: e.target.value }))}
+                    className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
+                  >
+                    <option value="" disabled className="bg-[#0f1419]">Which meeting recorder? *</option>
+                    {MEETING_RECORDER_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-[#0f1419]">{opt}</option>)}
+                  </select>
+
+                  {/* CRM */}
+                  <select
+                    required
+                    value={ctaFormData.crm_tool}
+                    onChange={(e) => setCtaFormData(prev => ({ ...prev, crm_tool: e.target.value }))}
+                    className="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer"
+                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '18px' }}
+                  >
+                    <option value="" disabled className="bg-[#0f1419]">Which CRM? *</option>
+                    {CRM_OPTIONS.map(opt => <option key={opt} value={opt} className="bg-[#0f1419]">{opt}</option>)}
+                  </select>
+
+                  {/* Error message */}
+                  {ctaMessage && ctaMessage.type === 'error' && (
+                    <p className="text-sm text-red-400 text-center">{ctaMessage.text}</p>
+                  )}
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={isCtaSubmitting}
+                    className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isCtaSubmitting ? 'Joining...' : 'Complete Registration'}
+                  </button>
+
+                  <p className="text-center text-xs text-gray-500">
+                    No credit card required • 5 spots ahead per referral
+                  </p>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
