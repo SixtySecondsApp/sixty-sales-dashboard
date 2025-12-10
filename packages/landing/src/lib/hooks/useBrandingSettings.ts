@@ -11,6 +11,58 @@ export interface BrandingSettings {
   icon_url: string | null;
 }
 
+// Fallback logo URL
+const FALLBACK_LOGO = 'https://www.sixtyseconds.ai/images/logo.png';
+
+/**
+ * Hook to fetch global branding settings for public pages (no auth required)
+ * Only fetches global settings (org_id IS NULL)
+ */
+export function usePublicBrandingSettings() {
+  const [settings, setSettings] = useState<BrandingSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const loadSettings = useCallback(async () => {
+    try {
+      // Fetch global settings (org_id IS NULL)
+      const { data: globalSettings, error: globalError } = await supabase
+        .from('branding_settings')
+        .select('*')
+        .is('org_id', null)
+        .maybeSingle();
+
+      if (globalError && globalError.code !== 'PGRST116') {
+        console.error('[usePublicBrandingSettings] Load error:', globalError);
+      }
+
+      setSettings(globalSettings || null);
+    } catch (error) {
+      console.error('[usePublicBrandingSettings] Error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Return logo URLs with fallbacks
+  const logoLight = settings?.logo_light_url || FALLBACK_LOGO;
+  const logoDark = settings?.logo_dark_url || FALLBACK_LOGO;
+  const icon = settings?.icon_url || FALLBACK_LOGO;
+
+  return {
+    settings,
+    loading,
+    refetch: loadSettings,
+    logoLight,
+    logoDark,
+    icon,
+    fallbackLogo: FALLBACK_LOGO
+  };
+}
+
 /**
  * Hook to fetch branding settings with org-awareness
  * Priority: org-specific settings > global fallback
