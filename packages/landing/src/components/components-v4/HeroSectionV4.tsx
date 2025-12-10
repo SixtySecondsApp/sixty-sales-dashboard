@@ -272,14 +272,6 @@ export function HeroSectionV4() {
               </button>
             </div>
 
-            <div className="mt-10 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-              <div className="flex -space-x-2">
-                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=1" alt="User" />
-                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=2" alt="User" />
-                <img className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800" src="https://i.pravatar.cc/100?img=3" alt="User" />
-              </div>
-              <p>Trusted by 2,000+ sales reps</p>
-            </div>
           </div>
 
           {/* Right Column: Animated Visual */}
@@ -456,7 +448,7 @@ function WorkflowVisual() {
             <div className="w-2 h-2 bg-red-500 rounded-full relative hero-pulse-dot"></div>
             <span className="font-semibold text-gray-700 dark:text-gray-200">Completed: Discovery Call</span>
           </div>
-          <div className="text-xs font-mono text-gray-400 dark:text-gray-500">00:14:23</div>
+          <div className="text-xs font-mono text-gray-400 dark:text-gray-500">32:05</div>
         </div>
 
         {/* Body: The Narrative Flow */}

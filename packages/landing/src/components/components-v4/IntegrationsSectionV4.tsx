@@ -77,7 +77,7 @@ export function IntegrationsSectionV4() {
         <div className="absolute -bottom-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-indigo-400/10 dark:bg-indigo-600/15 rounded-full blur-[100px] mix-blend-multiply dark:mix-blend-normal integrations-animate-blob-delay-4" />
       </div>
 
-      <section id="features" className="relative z-10 pt-16 pb-40 lg:pb-56 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
+      <section id="features" className="relative z-10 pt-16 pb-16 lg:pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto scroll-mt-24">
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-24">
           <div className="inline-flex items-center justify-center px-4 py-1.5 rounded-full border border-blue-200 dark:border-blue-500/20 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold mb-8 tracking-wide uppercase">
@@ -305,7 +305,7 @@ export function IntegrationsSectionV4() {
         </div>
 
         {/* Bottom CTA */}
-        <div className="mt-24 lg:mt-32 pt-16 lg:pt-20 pb-16 lg:pb-24 text-center border-t border-gray-200 dark:border-gray-700/50">
+        <div className="mt-16 lg:mt-20 pt-12 lg:pt-16 pb-8 lg:pb-12 text-center border-t border-gray-200 dark:border-gray-700/50">
           <p className="text-gray-600 dark:text-gray-400 mb-12 font-medium text-lg">
             Combining and automating these tools saves sales teams <span className="text-gray-900 dark:text-gray-100 font-bold">15+ hours every week.</span>
           </p>

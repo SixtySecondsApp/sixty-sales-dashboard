@@ -141,11 +141,11 @@ export function HowItWorksV4() {
           </motion.span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold">
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
-              After the call, we take over.
+              After the call, 60 takes over.
             </span>
           </h2>
           <p className="text-gray-600 dark:text-gray-400 text-lg max-w-2xl mx-auto">
-            Stop spending hours on admin. Click the button below to see how Sixty instantly turns your conversation notes into finished work.
+            Stop spending hours on admin. Click the button below to see how 60 instantly turns your conversation notes into finished work.
           </p>
         </motion.div>
 

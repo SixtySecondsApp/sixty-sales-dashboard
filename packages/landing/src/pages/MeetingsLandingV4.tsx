@@ -39,10 +39,8 @@ export function MeetingsLandingV4() {
   }, []);
 
   // Branding settings for logos
-  const { logoDark } = usePublicBrandingSettings();
-  
-  // Override light mode logo for landing page
-  const LIGHT_MODE_LOGO = 'https://user-upload.s3.eu-west-2.amazonaws.com/erg%20logos/lightLogo/lightLogo-global-1764287988029.png';
+  // logoLight = dark logo for light backgrounds, logoDark = light logo for dark backgrounds
+  const { logoLight, logoDark } = usePublicBrandingSettings();
 
   // Close mobile menu when clicking a nav link
   const handleNavClick = () => {
@@ -109,7 +107,7 @@ export function MeetingsLandingV4() {
               whileHover={{ scale: 1.02 }}
             >
               <img
-                src={isDark ? logoDark : LIGHT_MODE_LOGO}
+                src={isDark ? logoDark : logoLight}
                 alt="60"
                 className="h-10 w-auto transition-all duration-300"
               />
@@ -117,8 +115,8 @@ export function MeetingsLandingV4() {
 
             {/* Desktop Navigation */}
             <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">Features</a>
               <a href="#how-it-works" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">How It Works</a>
+              <a href="#features" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">Features</a>
               <a href="#pricing" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">Pricing</a>
               <a href="#faq" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200">FAQ</a>
             </div>
@@ -167,18 +165,18 @@ export function MeetingsLandingV4() {
             >
               <div className="px-4 py-4 space-y-3">
                 <a
-                  href="#features"
-                  onClick={handleNavClick}
-                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                >
-                  Features
-                </a>
-                <a
                   href="#how-it-works"
                   onClick={handleNavClick}
                   className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   How It Works
+                </a>
+                <a
+                  href="#features"
+                  onClick={handleNavClick}
+                  className="block py-2 px-3 rounded-lg text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Features
                 </a>
                 <a
                   href="#pricing"

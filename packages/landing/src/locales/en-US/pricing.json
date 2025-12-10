@@ -53,7 +53,7 @@
   },
   "roi": {
     "title": "Calculate Your Savings",
-    "subtitle": "See how much time (and money) Sixty saves your team every month",
+    "subtitle": "See how much time (and money) 60 saves your team every month",
     "inputLabel": "Number of sales reps on your team",
     "results": {
       "timeSaved": "Time Saved Per Month",
@@ -62,7 +62,7 @@
     },
     "explanation": {
       "title": "How we calculate:",
-      "description": "Sixty saves each rep ~10 hours/week on meeting notes, follow-ups, and proposal writing. At an average of ${{hourlyRate}}/hr, that's ${{monthlySavings}}/rep/month in recovered selling time."
+      "description": "60 saves each rep ~10 hours/week on meeting notes, follow-ups, and proposal writing. At an average of £{{hourlyRate}}/hr, that's £{{monthlySavings}}/rep/month in recovered selling time."
     },
     "cta": "Start Saving Time Today"
   }

@@ -1,8 +1,13 @@
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { usePublicBrandingSettings } from '../../lib/hooks/useBrandingSettings';
 
 export function Footer() {
   const [isDark, setIsDark] = useState(false);
+
+  // Branding settings for logos
+  // logoLight = dark logo for light backgrounds, logoDark = light logo for dark backgrounds
+  const { logoLight, logoDark } = usePublicBrandingSettings();
 
   useEffect(() => {
     // Check theme on mount and when it changes
@@ -63,13 +68,7 @@ export function Footer() {
   };
 
   return (
-    <footer
-      className="relative bg-gray-50 dark:bg-[#080a0f] border-t border-gray-200 dark:border-white/5 transition-colors duration-300"
-      style={{
-        backgroundColor: isDark ? '#080a0f' : undefined,
-        borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : undefined,
-      }}
-    >
+    <footer className="relative bg-white dark:bg-gray-950 border-t border-gray-200 dark:border-gray-700/50 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Main Footer Content */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8 lg:gap-12 mb-12">
@@ -77,12 +76,12 @@ export function Footer() {
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
               <img
-                src="https://www.sixtyseconds.ai/images/logo.png"
-                alt="Sixty Seconds"
-                className="h-10 w-auto"
+                src={isDark ? logoDark : logoLight}
+                alt="60"
+                className="h-10 w-auto transition-all duration-300"
               />
             </div>
-            <p className="text-gray-600 dark:text-gray-500 text-sm mb-6 max-w-xs">
+            <p className="text-gray-600 dark:text-gray-400 text-sm mb-6 max-w-xs">
               AI-powered meeting intelligence for sales teams that want to close more deals, faster.
             </p>
             {/* Social Links */}
@@ -91,7 +90,7 @@ export function Footer() {
                 <a
                   key={social}
                   href={`https://${social}.com/sixtyai`}
-                  className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-400 dark:hover:border-white/20 transition-all duration-300"
+                  className="w-9 h-9 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
                 >
                   {social === 'twitter' && (
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -116,10 +115,7 @@ export function Footer() {
           {/* Link Columns */}
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h3
-                className="text-gray-900 dark:text-white font-semibold mb-4"
-                style={{ color: isDark ? 'white' : undefined }}
-              >
+              <h3 className="text-gray-900 dark:text-white font-semibold mb-4">
                 {category}
               </h3>
               <ul className="space-y-3">
@@ -127,8 +123,7 @@ export function Footer() {
                   <li key={link.name}>
                     <a
                       href={link.href}
-                      className="text-gray-600 dark:text-gray-500 hover:text-gray-900 dark:hover:text-white text-sm transition-colors duration-200"
-                      style={{ color: isDark ? 'rgb(107, 114, 128)' : undefined }}
+                      className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm transition-colors duration-200"
                     >
                       {link.name}
                     </a>
@@ -140,30 +135,15 @@ export function Footer() {
         </div>
 
         {/* Bottom Bar */}
-        <div
-          className="pt-8 border-t border-gray-200 dark:border-white/5 flex flex-col md:flex-row items-center justify-between gap-4"
-          style={{ borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : undefined }}
-        >
-          <div
-            className="text-gray-600 dark:text-gray-500 text-sm"
-            style={{ color: isDark ? 'rgb(107, 114, 128)' : undefined }}
-          >
+        <div className="pt-8 border-t border-gray-200 dark:border-gray-700/50 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="text-gray-500 dark:text-gray-400 text-sm">
             © {new Date().getFullYear()} Sixty Seconds Ltd. All rights reserved.
           </div>
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-500">
+            <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-500">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               All systems operational
             </div>
-            <select
-              defaultValue="en"
-              className="bg-white dark:bg-transparent border border-gray-300 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm text-gray-700 dark:text-gray-400 focus:outline-none focus:border-gray-400 dark:focus:border-white/20"
-            >
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-            </select>
           </div>
         </div>
       </div>

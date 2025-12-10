@@ -26,10 +26,10 @@ export function PricingSectionV4() {
   // Fetch plans from database
   const { data: dbPlans, isLoading: plansLoading } = usePublicPlans();
 
-  // V3 ROI calculation
+  // V3 ROI calculation - UK market (£40k/year ÷ 52 weeks ÷ 37.5 hours ≈ £20/hr)
   const hoursPerWeek = 10; // Time saved per rep per week
   const weeksPerMonth = 4.33;
-  const hourlyRate = 50; // Average hourly rate for sales rep
+  const hourlyRate = 20; // Average hourly rate for UK sales rep (£40k annual salary)
   const monthlySavings = reps * hoursPerWeek * weeksPerMonth * hourlyRate;
 
   // Sort plans by display_order from database
@@ -370,7 +370,7 @@ export function PricingSectionV4() {
                   <strong>{getTranslation('roi.explanation.title', 'How we calculate:')}</strong> {ready ? t('roi.explanation.description', {
                     hourlyRate,
                     monthlySavings: (hoursPerWeek * weeksPerMonth * hourlyRate).toLocaleString()
-                  }) : `Based on ${hoursPerWeek} hours saved per rep per week at $${hourlyRate}/hour.`}
+                  }) : `60 saves each rep ~${hoursPerWeek} hours/week on meeting notes, follow-ups, and proposal writing. At an average of £${hourlyRate}/hr, that's £${(hoursPerWeek * weeksPerMonth * hourlyRate).toLocaleString()}/rep/month in recovered selling time.`}
                 </p>
               </div>
 
